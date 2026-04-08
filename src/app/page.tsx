@@ -526,9 +526,9 @@ export default function Dashboard() {
   /* KPI stats — always from full unfiltered dataset -------- */
   const stats = useMemo(() => {
     const distinctPOs = new Set(rows.map((r) => r['PO Number'])).size;
-    const overdue = rows.filter((r) => daysDiff(r['Delivery Date']) < 0).length;
-    const dueSoon = rows.filter((r) => { const d = daysDiff(r['Delivery Date']); return d >= 0 && d <= 7; }).length;
-    const totalValue = rows.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
+    const overdue     = new Set(rows.filter((r) => daysDiff(r['Delivery Date']) < 0).map(r => r['PO Number'])).size;
+    const dueSoon     = new Set(rows.filter((r) => { const d = daysDiff(r['Delivery Date']); return d >= 0 && d <= 7; }).map(r => r['PO Number'])).size;
+    const totalValue  = rows.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
     return { distinctPOs, overdue, dueSoon, totalValue };
   }, [rows]);
 
