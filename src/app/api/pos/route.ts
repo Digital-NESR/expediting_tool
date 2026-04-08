@@ -7,14 +7,17 @@ export async function GET() {
     const result = await pool.query(
       `SELECT
         po_number           AS "PO Number",
+        po_line             AS "PO Line",
         supplier_name       AS "Supplier Name",
+        supplier_id         AS "Supplier ID",
         item_description    AS "Item Description",
         sap_mat_id          AS "SAP MAT ID",
         open_qty            AS "Open QTY",
         open_po_value_usd   AS "Open PO Value USD",
         delivery_date       AS "Delivery Date",
         delivery_code       AS "Delivery Code",
-        country             AS "Country"
+        country             AS "Country",
+        delivery_comments   AS "Delivery Comments"
        FROM sap_open_po_master
        ORDER BY delivery_date ASC`
     );

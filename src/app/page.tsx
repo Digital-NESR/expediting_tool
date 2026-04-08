@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import LineItemDrawer from '@/components/LineItemDrawer';
 
 /* ─── Constants ───────────────────────────────────────────── */
 const PAGE_SIZE = 15;
@@ -28,9 +29,11 @@ const deliveryStatusMap: Record<string, string> = {
 };
 
 /* ─── Types ───────────────────────────────────────────────── */
-interface PurchaseOrder {
+export interface PurchaseOrder {
   'PO Number': string;
+  'PO Line'?: string;
   'Supplier Name': string;
+  'Supplier ID'?: string;
   'Item Description': string;
   'SAP MAT ID': string;
   'Open QTY': number | string;
@@ -38,6 +41,7 @@ interface PurchaseOrder {
   'Delivery Date': string;
   'Delivery Code': string;
   'Country': string;
+  'Delivery Comments'?: string;
 }
 
 interface PoGroup {
@@ -313,7 +317,17 @@ const PO_SORT_MAP: Record<PoSortKey, string> = {
 };
 
 /* ─── Sub-table for expanded PO lines ────────────────────── */
-function PoSubTable({ lines, searchTerm }: { lines: PurchaseOrder[]; searchTerm: string }) {
+function PoSubTable({ 
+  lines, 
+  searchTerm, 
+  onRowClick, 
+  selectedLineItem 
+}: { 
+  lines: PurchaseOrder[]; 
+  searchTerm: string;
+  onRowClick: (line: PurchaseOrder) => void;
+  selectedLineItem: PurchaseOrder | null;
+}) {
   const SUB_COLS: { label: string; align?: 'right' }[] = [
     { label: 'SAP MAT ID' },
     { label: 'Item Description' },
@@ -346,14 +360,18 @@ function PoSubTable({ lines, searchTerm }: { lines: PurchaseOrder[]; searchTerm:
             String(line['PO Number'] ?? '').toLowerCase().includes(term) ||
             String(line['Supplier Name'] ?? '').toLowerCase().includes(term)
           );
+          const isSelected = selectedLineItem === line;
           return (
             <tr
               key={i}
+              onClick={() => onRowClick(line)}
               className={[
-                'transition-colors duration-150',
-                isMatch
-                  ? 'bg-[#307c4c]/5 border-l-2 border-l-[#307c4c]'
-                  : 'hover:bg-[#307c4c]/5',
+                'transition-colors duration-150 cursor-pointer',
+                isSelected
+                  ? 'bg-[#307c4c]/10 border-l-2 border-l-[#307c4c]'
+                  : isMatch
+                    ? 'bg-[#307c4c]/5 border-l-2 border-l-[#307c4c] border-l-opacity-50'
+                    : 'hover:bg-[#307c4c]/5',
               ].join(' ')}
             >
               <td className="py-3 px-4 pl-10 font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
@@ -387,6 +405,8 @@ export default function Dashboard() {
   const [rows, setRows] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [selectedLineItem, setSelectedLineItem] = useState<PurchaseOrder | null>(null);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -539,7 +559,14 @@ export default function Dashboard() {
 
   /* ── Render ─────────────────────────────────────────────── */
   return (
-    <div className="flex h-[100dvh] w-full bg-white overflow-hidden font-sans text-slate-900">
+    <div className="flex h-[100dvh] w-full bg-white overflow-hidden font-sans text-slate-900 relative">
+      <LineItemDrawer 
+        lineItem={selectedLineItem} 
+        onClose={() => setSelectedLineItem(null)} 
+        formatCurrency={formatCurrency}
+        formatDate={formatDate}
+        deliveryStatusMap={deliveryStatusMap}
+      />
       <main className="flex-1 flex flex-col h-full relative bg-white">
 
         {/* ── Sticky top nav ── */}
@@ -728,7 +755,12 @@ export default function Dashboard() {
                             <div className={`expand-grid${isOpen ? ' open' : ''}`}>
                               <div>
                                 <div className="border-t border-[#307c4c]/10 bg-slate-50/60">
-                                  <PoSubTable lines={group.lines} searchTerm={search} />
+                                  <PoSubTable 
+                                    lines={group.lines} 
+                                    searchTerm={search} 
+                                    onRowClick={setSelectedLineItem}
+                                    selectedLineItem={selectedLineItem}
+                                  />
                                 </div>
                               </div>
                             </div>
