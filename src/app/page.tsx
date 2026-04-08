@@ -24,7 +24,7 @@ const deliveryStatusMap: Record<string, string> = {
   "DS16": "DS16 - Ready for Collection",
   "DS17": "DS17 - Collected by Freight Forwarder",
   "DS18": "DS18 - Customs Clearance",
-  "DS19": "DS19 - Products Delivered to Base"
+  "DS19": "DS19 - Products Delivered to Base "
 };
 
 /* ─── Types ───────────────────────────────────────────────── */
@@ -92,8 +92,8 @@ function compareValues(a: string, b: string): number {
 /* ─── Delivery Status Badge ───────────────────────────────── */
 function DeliveryBadge({ raw }: { raw: string | null | undefined }) {
   const diff = daysDiff(raw);
-  if (!raw)     return <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-500">—</span>;
-  if (diff < 0)  return <span className="bg-red-100/80 border border-red-200 text-red-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">Overdue</span>;
+  if (!raw) return <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-500">—</span>;
+  if (diff < 0) return <span className="bg-red-100/80 border border-red-200 text-red-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">Overdue</span>;
   if (diff <= 7) return <span className="bg-amber-100/80 border border-amber-200 text-amber-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">Due Soon</span>;
   return <span className="bg-[#307c4c]/10 border border-[#307c4c]/20 text-[#307c4c] text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">On Track</span>;
 }
@@ -102,7 +102,7 @@ function DeliveryBadge({ raw }: { raw: string | null | undefined }) {
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   return (
     <span className={`ml-1 inline-flex flex-col leading-none text-[9px] ${active ? 'text-[#307c4c]' : 'text-slate-300'}`}>
-      <span className={active && dir === 'asc'  ? 'text-[#307c4c]' : ''}>▲</span>
+      <span className={active && dir === 'asc' ? 'text-[#307c4c]' : ''}>▲</span>
       <span className={active && dir === 'desc' ? 'text-[#307c4c]' : ''}>▼</span>
     </span>
   );
@@ -156,7 +156,7 @@ function PaginationBar({ currentPage, totalPages, totalItems, setPage }: {
   currentPage: number; totalPages: number; totalItems: number; setPage: (p: number) => void;
 }) {
   const start = (currentPage - 1) * PAGE_SIZE + 1;
-  const end   = Math.min(currentPage * PAGE_SIZE, totalItems);
+  const end = Math.min(currentPage * PAGE_SIZE, totalItems);
 
   const pageNums = Array.from({ length: totalPages }, (_, i) => i + 1)
     .filter((p) => {
@@ -221,10 +221,10 @@ function FilterBar({
   country, onCountry, countries,
   activeCount, onClear,
 }: {
-  search: string;          onSearch: (v: string) => void;
-  deliveryCode: string;    onDeliveryCode: (v: string) => void; deliveryCodes: string[];
-  country: string;         onCountry: (v: string) => void;      countries: string[];
-  activeCount: number;     onClear: () => void;
+  search: string; onSearch: (v: string) => void;
+  deliveryCode: string; onDeliveryCode: (v: string) => void; deliveryCodes: string[];
+  country: string; onCountry: (v: string) => void; countries: string[];
+  activeCount: number; onClear: () => void;
 }) {
   const inputBase = 'bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-[#307c4c] focus:border-[#307c4c] outline-none transition-colors duration-150';
 
@@ -294,7 +294,7 @@ function FilterBar({
             className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-700 transition-all duration-150"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
             Clear
             <span className="bg-[#307c4c]/10 text-[#307c4c] text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeCount}</span>
@@ -307,8 +307,8 @@ function FilterBar({
 
 /* ─── PO Sort column map ──────────────────────────────────── */
 const PO_SORT_MAP: Record<PoSortKey, string> = {
-  poNumber:     'PO Number',
-  totalValue:   'Open PO Value (USD)',
+  poNumber: 'PO Number',
+  totalValue: 'Open PO Value (USD)',
   earliestDate: 'Delivery Date',
 };
 
@@ -317,7 +317,7 @@ function PoSubTable({ lines, searchTerm }: { lines: PurchaseOrder[]; searchTerm:
   const SUB_COLS: { label: string; align?: 'right' }[] = [
     { label: 'SAP MAT ID' },
     { label: 'Item Description' },
-    { label: 'Open QTY',            align: 'right' },
+    { label: 'Open QTY', align: 'right' },
     { label: 'Open PO Value (USD)', align: 'right' },
     { label: 'Delivery Date' },
     { label: 'Status' },
@@ -343,7 +343,7 @@ function PoSubTable({ lines, searchTerm }: { lines: PurchaseOrder[]; searchTerm:
           // Highlight this row if SAP MAT ID matches the search term
           const isMatch = term !== '' && (
             String(line['SAP MAT ID'] ?? '').toLowerCase().includes(term) ||
-            String(line['PO Number']  ?? '').toLowerCase().includes(term) ||
+            String(line['PO Number'] ?? '').toLowerCase().includes(term) ||
             String(line['Supplier Name'] ?? '').toLowerCase().includes(term)
           );
           return (
@@ -384,20 +384,20 @@ function PoSubTable({ lines, searchTerm }: { lines: PurchaseOrder[]; searchTerm:
 
 /* ─── Main Dashboard ──────────────────────────────────────── */
 export default function Dashboard() {
-  const [rows, setRows]           = useState<PurchaseOrder[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
+  const [rows, setRows] = useState<PurchaseOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Filters
-  const [search, setSearch]             = useState('');
+  const [search, setSearch] = useState('');
   const [filterDelivCode, setFilterDelivCode] = useState('');
-  const [filterCountry, setFilterCountry]     = useState('');
+  const [filterCountry, setFilterCountry] = useState('');
 
   // Sort + pagination
   const [poSortKey, setPoSortKey] = useState<PoSortKey>('earliestDate');
   const [poSortDir, setPoSortDir] = useState<SortDir>('asc');
   const [expandedPOs, setExpandedPOs] = useState<Set<string>>(new Set());
-  const [poPage, setPoPage]       = useState(1);
+  const [poPage, setPoPage] = useState(1);
 
   /* Fetch -------------------------------------------------- */
   useEffect(() => {
@@ -447,11 +447,11 @@ export default function Dashboard() {
     const co = new Set<string>();
     rows.forEach((r) => {
       if (r['Delivery Code']) dc.add(r['Delivery Code']);
-      if (r['Country'])       co.add(r['Country']);
+      if (r['Country']) co.add(r['Country']);
     });
     return {
       deliveryCodes: [...dc].sort(),
-      countries:     [...co].sort(),
+      countries: [...co].sort(),
     };
   }, [rows]);
 
@@ -464,13 +464,13 @@ export default function Dashboard() {
     return rows.filter((r) => {
       // Dropdown filters apply at line level
       if (filterDelivCode && r['Delivery Code'] !== filterDelivCode) return false;
-      if (filterCountry   && r['Country']        !== filterCountry)   return false;
+      if (filterCountry && r['Country'] !== filterCountry) return false;
 
       // Search: match PO Number, Supplier Name, or SAP MAT ID
       if (term) {
-        const matchesPO       = String(r['PO Number']     ?? '').toLowerCase().includes(term);
+        const matchesPO = String(r['PO Number'] ?? '').toLowerCase().includes(term);
         const matchesSupplier = String(r['Supplier Name'] ?? '').toLowerCase().includes(term);
-        const matchesMatID    = String(r['SAP MAT ID']    ?? '').toLowerCase().includes(term);
+        const matchesMatID = String(r['SAP MAT ID'] ?? '').toLowerCase().includes(term);
         if (!matchesPO && !matchesSupplier && !matchesMatID) return false;
       }
 
@@ -485,21 +485,21 @@ export default function Dashboard() {
       const key = row['PO Number'] ?? '(No PO)';
       if (!map.has(key)) {
         map.set(key, {
-          poNumber:     key,
+          poNumber: key,
           supplierName: row['Supplier Name'] ?? '—',
-          country:      row['Country'] ?? '—',
+          country: row['Country'] ?? '—',
           deliveryCode: row['Delivery Code'] ?? '—',
-          lineCount:    0,
-          totalQty:     0,
-          totalValue:   0,
+          lineCount: 0,
+          totalQty: 0,
+          totalValue: 0,
           earliestDate: row['Delivery Date'],
-          lines:        [],
+          lines: [],
         });
       }
       const g = map.get(key)!;
       g.lines.push(row);
       g.lineCount++;
-      g.totalQty   += Number(row['Open QTY'] ?? 0);
+      g.totalQty += Number(row['Open QTY'] ?? 0);
       g.totalValue += Number(row['Open PO Value USD'] ?? 0);
       if (row['Delivery Date'] && g.earliestDate) {
         if (new Date(row['Delivery Date']) < new Date(g.earliestDate)) g.earliestDate = row['Delivery Date'];
@@ -513,22 +513,22 @@ export default function Dashboard() {
   const sortedPOs = useMemo(() =>
     [...groupedPOs].sort((a, b) => {
       let cmp = 0;
-      if (poSortKey === 'poNumber')     cmp = a.poNumber.localeCompare(b.poNumber);
-      if (poSortKey === 'totalValue')   cmp = a.totalValue - b.totalValue;
+      if (poSortKey === 'poNumber') cmp = a.poNumber.localeCompare(b.poNumber);
+      if (poSortKey === 'totalValue') cmp = a.totalValue - b.totalValue;
       if (poSortKey === 'earliestDate') cmp = compareValues(a.earliestDate, b.earliestDate);
       return poSortDir === 'asc' ? cmp : -cmp;
     }), [groupedPOs, poSortKey, poSortDir]);
 
-  const poPages   = Math.max(1, Math.ceil(sortedPOs.length / PAGE_SIZE));
+  const poPages = Math.max(1, Math.ceil(sortedPOs.length / PAGE_SIZE));
   const curPoPage = Math.min(poPage, poPages);
-  const pagePOs   = useMemo(() => sortedPOs.slice((curPoPage - 1) * PAGE_SIZE, curPoPage * PAGE_SIZE), [sortedPOs, curPoPage]);
+  const pagePOs = useMemo(() => sortedPOs.slice((curPoPage - 1) * PAGE_SIZE, curPoPage * PAGE_SIZE), [sortedPOs, curPoPage]);
 
   /* KPI stats — always from full unfiltered dataset -------- */
   const stats = useMemo(() => {
     const distinctPOs = new Set(rows.map((r) => r['PO Number'])).size;
-    const overdue     = rows.filter((r) => daysDiff(r['Delivery Date']) < 0).length;
-    const dueSoon     = rows.filter((r) => { const d = daysDiff(r['Delivery Date']); return d >= 0 && d <= 7; }).length;
-    const totalValue  = rows.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
+    const overdue = rows.filter((r) => daysDiff(r['Delivery Date']) < 0).length;
+    const dueSoon = rows.filter((r) => { const d = daysDiff(r['Delivery Date']); return d >= 0 && d <= 7; }).length;
+    const totalValue = rows.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
     return { distinctPOs, overdue, dueSoon, totalValue };
   }, [rows]);
 
@@ -547,9 +547,9 @@ export default function Dashboard() {
           <div className="flex items-center gap-2.5">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#307c4c]">
               <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <path d="M15 3h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4"/>
-                <line x1="12" y1="3" x2="12" y2="21"/>
+                <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <path d="M15 3h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
+                <line x1="12" y1="3" x2="12" y2="21" />
               </svg>
             </span>
             <span className="text-lg font-bold text-gray-900 tracking-tight">NESR</span>
@@ -573,10 +573,10 @@ export default function Dashboard() {
           {/* ── KPI Cards ── */}
           {!loading && !error && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-in fade-in duration-500">
-              <KpiCard label="Distinct Open POs"  value={stats.distinctPOs.toLocaleString()} accent />
-              <KpiCard label="Overdue"            value={stats.overdue.toLocaleString()} danger={stats.overdue > 0} />
-              <KpiCard label="Due This Week"      value={stats.dueSoon.toLocaleString()} warning={stats.dueSoon > 0} />
-              <KpiCard label="Total Open Value"   value={formatCurrency(stats.totalValue)} accent />
+              <KpiCard label="Distinct Open POs" value={stats.distinctPOs.toLocaleString()} accent />
+              <KpiCard label="Overdue" value={stats.overdue.toLocaleString()} danger={stats.overdue > 0} />
+              <KpiCard label="Due This Week" value={stats.dueSoon.toLocaleString()} warning={stats.dueSoon > 0} />
+              <KpiCard label="Total Open Value" value={formatCurrency(stats.totalValue)} accent />
             </div>
           )}
 
@@ -603,9 +603,9 @@ export default function Dashboard() {
             {/* ── Filter bar ── */}
             {!loading && !error && (
               <FilterBar
-                search={search}             onSearch={setSearch}
+                search={search} onSearch={setSearch}
                 deliveryCode={filterDelivCode} onDeliveryCode={setFilterDelivCode} deliveryCodes={deliveryCodes}
-                country={filterCountry}        onCountry={setFilterCountry}        countries={countries}
+                country={filterCountry} onCountry={setFilterCountry} countries={countries}
                 activeCount={activeFilterCount}
                 onClear={clearFilters}
               />
@@ -621,8 +621,8 @@ export default function Dashboard() {
 
                     {/* Sortable columns */}
                     {(['poNumber', 'totalValue', 'earliestDate'] as PoSortKey[]).map((sk) => {
-                      const label  = PO_SORT_MAP[sk];
-                      const align  = sk === 'totalValue' ? 'right' : undefined;
+                      const label = PO_SORT_MAP[sk];
+                      const align = sk === 'totalValue' ? 'right' : undefined;
                       const active = poSortKey === sk;
                       return (
                         <th
@@ -682,7 +682,7 @@ export default function Dashboard() {
 
                   {!loading && !error && pagePOs.map((group) => {
                     const isOpen = expandedPOs.has(group.poNumber);
-                    const diff   = daysDiff(group.earliestDate);
+                    const diff = daysDiff(group.earliestDate);
                     return (
                       <>
                         {/* ── PO parent row ── */}
