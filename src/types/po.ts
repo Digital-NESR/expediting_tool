@@ -3,6 +3,7 @@ export interface PurchaseOrder {
   'PO Line'?: string;
   'Supplier Name': string;
   'Supplier ID'?: string;
+  'Buyer Name'?: string;
   'Item Description': string;
   'SAP MAT ID': string;
   'Open QTY': number | string;

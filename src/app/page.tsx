@@ -4,6 +4,8 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import LineItemDrawer from '@/components/LineItemDrawer';
 import { useExpediteStore } from '@/store/useExpediteStore';
+import MultiSelectDropdown from '@/components/MultiSelectDropdown';
+import { SquareCheckbox } from '@/components/SquareCheckbox';
 
 /* ─── Constants ───────────────────────────────────────────── */
 const PAGE_SIZE = 15;
@@ -212,12 +214,14 @@ function FilterBar({
   search, onSearch,
   deliveryCode, onDeliveryCode, deliveryCodes,
   country, onCountry, countries,
-  activeCount, onClear,
+  suppliers, onSuppliers, supplierList,
+  buyers, onBuyers, buyerList,
 }: {
   search: string; onSearch: (v: string) => void;
   deliveryCode: string; onDeliveryCode: (v: string) => void; deliveryCodes: string[];
   country: string; onCountry: (v: string) => void; countries: string[];
-  activeCount: number; onClear: () => void;
+  suppliers: string[]; onSuppliers: (v: string[]) => void; supplierList: string[];
+  buyers: string[]; onBuyers: (v: string[]) => void; buyerList: string[];
 }) {
   const inputBase = 'bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-[#307c4c] focus:border-[#307c4c] outline-none transition-colors duration-150';
 
@@ -241,8 +245,12 @@ function FilterBar({
           />
         </div>
 
+        {/* ── Multi-Selects ── */}
+        <MultiSelectDropdown options={supplierList} selectedOptions={suppliers} onChange={onSuppliers} label="Supplier Name" />
+        <MultiSelectDropdown options={buyerList} selectedOptions={buyers} onChange={onBuyers} label="Buyer Name" />
+
         {/* ── Delivery Code dropdown ── */}
-        <div className="relative shrink-0">
+        <div className="relative shrink-0 flex-1 md:flex-none">
           <select
             id="filter-delivery-code"
             value={deliveryCode}
@@ -263,13 +271,13 @@ function FilterBar({
         </div>
 
         {/* ── Country dropdown ── */}
-        <div className="relative shrink-0">
+        <div className="relative shrink-0 flex-1 md:flex-none">
           <select
             id="filter-country"
             value={country}
             onChange={(e) => onCountry(e.target.value)}
             aria-label="Filter by Country"
-            className={`${inputBase} pl-3 pr-8 py-2.5 appearance-none cursor-pointer w-full md:w-44`}
+            className={`${inputBase} pl-3 pr-8 py-2.5 appearance-none cursor-pointer w-full md:w-36`}
           >
             <option value="">All Countries</option>
             {countries.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -278,21 +286,6 @@ function FilterBar({
             <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
           </svg>
         </div>
-
-        {/* ── Clear button (only when filters active) ── */}
-        {activeCount > 0 && (
-          <button
-            id="filter-clear"
-            onClick={onClear}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-700 transition-all duration-150"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-            Clear
-            <span className="bg-[#307c4c]/10 text-[#307c4c] text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeCount}</span>
-          </button>
-        )}
       </div>
     </div>
   );
@@ -364,11 +357,9 @@ function PoSubTable({
             >
               {/* Checkbox — stopPropagation so click doesn't open the Drawer */}
               <td className="py-3 pl-6 pr-2 w-10" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="checkbox"
+                <SquareCheckbox
                   checked={isChecked}
                   onChange={() => toggleSelection(line)}
-                  className="h-4 w-4 rounded border-slate-300 accent-[#307c4c] cursor-pointer"
                   aria-label={`Select ${line['SAP MAT ID'] ?? 'line item'}`}
                 />
               </td>
@@ -408,12 +399,14 @@ export default function Dashboard() {
   const [selectedLineItem, setSelectedLineItem] = useState<PurchaseOrder | null>(null);
 
   // Expedite cart — Zustand store
-  const { selectedItems, toggleSelection, isSelected, clearSelection } = useExpediteStore();
+  const { selectedItems, toggleSelection, isSelected, clearSelection, selectMultipleLines, deselectMultipleLines } = useExpediteStore();
 
   // Filters
   const [search, setSearch] = useState('');
   const [filterDelivCode, setFilterDelivCode] = useState('');
   const [filterCountry, setFilterCountry] = useState('');
+  const [filterSuppliers, setFilterSuppliers] = useState<string[]>([]);
+  const [filterBuyers, setFilterBuyers] = useState<string[]>([]);
 
   // Sort + pagination
   const [poSortKey, setPoSortKey] = useState<PoSortKey>('earliestDate');
@@ -437,16 +430,27 @@ export default function Dashboard() {
   }, []);
 
   /* Reset page when any filter/sort changes ---------------- */
-  useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, poSortKey, poSortDir]);
+  useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, poSortKey, poSortDir]);
 
   /* Clear all filters -------------------------------------- */
   function clearFilters() {
     setSearch('');
     setFilterDelivCode('');
     setFilterCountry('');
+    setFilterSuppliers([]);
+    setFilterBuyers([]);
   }
 
-  const activeFilterCount = (search ? 1 : 0) + (filterDelivCode ? 1 : 0) + (filterCountry ? 1 : 0);
+  const activeFilterCount = (search ? 1 : 0) + (filterDelivCode ? 1 : 0) + (filterCountry ? 1 : 0) + filterSuppliers.length + filterBuyers.length;
+
+  /* Remove Specific Filter ---------------------------------- */
+  function removeFilter(type: 'search' | 'deliv' | 'country' | 'supplier' | 'buyer', val?: string) {
+    if (type === 'search') setSearch('');
+    if (type === 'deliv') setFilterDelivCode('');
+    if (type === 'country') setFilterCountry('');
+    if (type === 'supplier' && val) setFilterSuppliers(p => p.filter(s => s !== val));
+    if (type === 'buyer' && val) setFilterBuyers(p => p.filter(b => b !== val));
+  }
 
   /* Toggle PO expand --------------------------------------- */
   const togglePO = useCallback((poNum: string) => {
@@ -464,16 +468,22 @@ export default function Dashboard() {
   }
 
   /* Dynamic dropdown options (from full dataset) ----------- */
-  const { deliveryCodes, countries } = useMemo(() => {
+  const { deliveryCodes, countries, supplierList, buyerList } = useMemo(() => {
     const dc = new Set<string>();
     const co = new Set<string>();
+    const sp = new Set<string>();
+    const by = new Set<string>();
     rows.forEach((r) => {
       if (r['Delivery Code']) dc.add(r['Delivery Code']);
       if (r['Country']) co.add(r['Country']);
+      if (r['Supplier Name']) sp.add(r['Supplier Name']);
+      if (r['Buyer Name']) by.add(r['Buyer Name']);
     });
     return {
       deliveryCodes: [...dc].sort(),
       countries: [...co].sort(),
+      supplierList: [...sp].sort(),
+      buyerList: [...by].sort(),
     };
   }, [rows]);
 
@@ -487,6 +497,8 @@ export default function Dashboard() {
       // Dropdown filters apply at line level
       if (filterDelivCode && r['Delivery Code'] !== filterDelivCode) return false;
       if (filterCountry && r['Country'] !== filterCountry) return false;
+      if (filterSuppliers.length > 0 && !filterSuppliers.includes(r['Supplier Name'])) return false;
+      if (filterBuyers.length > 0 && !filterBuyers.includes(r['Buyer Name'] ?? '')) return false;
 
       // Search: match PO Number, Supplier Name, or SAP MAT ID
       if (term) {
@@ -631,13 +643,70 @@ export default function Dashboard() {
 
             {/* ── Filter bar ── */}
             {!loading && !error && (
-              <FilterBar
-                search={search} onSearch={setSearch}
-                deliveryCode={filterDelivCode} onDeliveryCode={setFilterDelivCode} deliveryCodes={deliveryCodes}
-                country={filterCountry} onCountry={setFilterCountry} countries={countries}
-                activeCount={activeFilterCount}
-                onClear={clearFilters}
-              />
+              <>
+                <FilterBar
+                  search={search} onSearch={setSearch}
+                  deliveryCode={filterDelivCode} onDeliveryCode={setFilterDelivCode} deliveryCodes={deliveryCodes}
+                  country={filterCountry} onCountry={setFilterCountry} countries={countries}
+                  suppliers={filterSuppliers} onSuppliers={setFilterSuppliers} supplierList={supplierList}
+                  buyers={filterBuyers} onBuyers={setFilterBuyers} buyerList={buyerList}
+                />
+                
+                {/* ── Active Filters Row ── */}
+                {activeFilterCount > 0 && (
+                  <div className="px-4 sm:px-6 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-2">Active Filters:</span>
+                      {search && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
+                          Search: {search}
+                          <button onClick={() => removeFilter('search')} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          </button>
+                        </span>
+                      )}
+                      {filterDelivCode && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
+                          Status: {filterDelivCode}
+                          <button onClick={() => removeFilter('deliv')} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          </button>
+                        </span>
+                      )}
+                      {filterCountry && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
+                          Country: {filterCountry}
+                          <button onClick={() => removeFilter('country')} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          </button>
+                        </span>
+                      )}
+                      {filterSuppliers.map(s => (
+                        <span key={`sup-${s}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#307c4c]/20 text-[#307c4c] text-xs font-medium rounded-full shadow-sm">
+                          Supplier: {s}
+                          <button onClick={() => removeFilter('supplier', s)} className="hover:bg-[#307c4c]/10 p-0.5 rounded-full text-[#307c4c]/60 hover:text-[#307c4c] transition-colors">
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          </button>
+                        </span>
+                      ))}
+                      {filterBuyers.map(b => (
+                        <span key={`buy-${b}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#307c4c]/20 text-[#307c4c] text-xs font-medium rounded-full shadow-sm">
+                          Buyer: {b}
+                          <button onClick={() => removeFilter('buyer', b)} className="hover:bg-[#307c4c]/10 p-0.5 rounded-full text-[#307c4c]/60 hover:text-[#307c4c] transition-colors">
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      onClick={clearFilters}
+                      className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors whitespace-nowrap px-2 shrink-0"
+                    >
+                      Clear All Filters
+                    </button>
+                  </div>
+                )}
+              </>
             )}
 
             {/* ── Table ── */}
@@ -645,8 +714,26 @@ export default function Dashboard() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-sm text-slate-600 font-medium">
+                    {/* Master Checkbox col */}
+                    <th className="p-4 pl-6 w-14">
+                      <SquareCheckbox
+                        checked={sortedPOs.length > 0 && sortedPOs.every(group => group.lines.every(l => isSelected(l)))}
+                        indeterminate={
+                          sortedPOs.length > 0 &&
+                          sortedPOs.some(group => group.lines.some(l => isSelected(l))) &&
+                          !sortedPOs.every(group => group.lines.every(l => isSelected(l)))
+                        }
+                        onChange={(e) => {
+                          const visibleLines = sortedPOs.flatMap(g => g.lines);
+                          if (e.target.checked) selectMultipleLines(visibleLines);
+                          else deselectMultipleLines(visibleLines);
+                        }}
+                        aria-label="Select all visible items"
+                      />
+                    </th>
+
                     {/* Chevron col */}
-                    <th className="p-4 pl-6 w-10" />
+                    <th className="p-4 pl-2 w-8" />
 
                     {/* Sortable columns */}
                     {(['poNumber', 'totalValue', 'earliestDate'] as PoSortKey[]).map((sk) => {
@@ -720,7 +807,18 @@ export default function Dashboard() {
                           onClick={() => togglePO(group.poNumber)}
                           className="border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors duration-150 group"
                         >
-                          <td className="p-4 pl-6 w-10">
+                          <td className="p-4 pl-6 w-14" onClick={(e) => e.stopPropagation()}>
+                            <SquareCheckbox
+                              checked={group.lines.every(l => isSelected(l))}
+                              indeterminate={group.lines.some(l => isSelected(l)) && !group.lines.every(l => isSelected(l))}
+                              onChange={(e) => {
+                                if (e.target.checked) selectMultipleLines(group.lines);
+                                else deselectMultipleLines(group.lines);
+                              }}
+                              aria-label={`Select PO ${group.poNumber}`}
+                            />
+                          </td>
+                          <td className="p-4 pl-2 w-8">
                             <ChevronIcon open={isOpen} />
                           </td>
                           <td className="p-4 pl-6 font-mono text-sm font-semibold text-slate-700 whitespace-nowrap">

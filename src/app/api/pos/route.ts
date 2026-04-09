@@ -10,6 +10,7 @@ export async function GET() {
         po_line             AS "PO Line",
         supplier_name       AS "Supplier Name",
         supplier_id         AS "Supplier ID",
+        buyer_name          AS "Buyer Name",
         item_description    AS "Item Description",
         sap_mat_id          AS "SAP MAT ID",
         open_qty            AS "Open QTY",
