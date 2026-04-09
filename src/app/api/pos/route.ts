@@ -18,7 +18,8 @@ export async function GET() {
         delivery_date       AS "Delivery Date",
         delivery_code       AS "Delivery Code",
         country             AS "Country",
-        delivery_comments   AS "Delivery Comments"
+        delivery_comments   AS "Delivery Comments",
+        buyer_email         AS "Buyer Email"
        FROM sap_open_po_master
        ORDER BY delivery_date ASC`
     );

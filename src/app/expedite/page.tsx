@@ -178,7 +178,40 @@ export default function ExpediteReviewPage() {
                 </div>
               </div>
 
-              {/* Table B */}
+              {/* ── Supplier Contact Info ── */}
+              <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex items-start gap-3 flex-1">
+                  <div className="mt-0.5 shrink-0 h-7 w-7 flex items-center justify-center rounded-md bg-slate-100 border border-slate-200 text-slate-400">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Supplier Contact</p>
+                    <p className="text-sm text-slate-400 italic">— not yet configured —</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 flex-1">
+                  <div className="mt-0.5 shrink-0 h-7 w-7 flex items-center justify-center rounded-md bg-slate-100 border border-slate-200 text-slate-400">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
+                      CC: Buyer Email
+                    </p>
+                    {group.items[0]?.['Buyer Email'] ? (
+                      <p className="text-sm font-medium text-slate-700">{group.items[0]['Buyer Email']}</p>
+                    ) : (
+                      <p className="text-sm text-slate-400 italic">— not available —</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>

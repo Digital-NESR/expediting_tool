@@ -12,4 +12,5 @@ export interface PurchaseOrder {
   'Delivery Code': string;
   'Country': string;
   'Delivery Comments'?: string;
+  'Buyer Email'?: string | null;
 }
