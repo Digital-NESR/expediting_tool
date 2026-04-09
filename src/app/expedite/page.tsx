@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition, useEffect } from 'react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { useExpediteStore } from '@/store/useExpediteStore';
 import type { PurchaseOrder } from '@/types/po';
+import { addAdditionalSupplierEmail, getSupplierContacts } from '@/app/actions/supplier-actions';
 
 /* ─── Helpers ─────────────────────────────────────────────── */
 function formatCurrency(val: number | string | undefined | null) {
@@ -30,6 +31,199 @@ function formatDate(dateStr: string | undefined | null) {
   }).format(d);
 }
 
+function isValidEmail(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+}
+
+/* ─── Email Pill ──────────────────────────────────────────── */
+function EmailPill({ email, onRemove }: { email: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium rounded-md max-w-full">
+      <span className="truncate">{email}</span>
+      <button
+        onClick={onRemove}
+        className="shrink-0 text-slate-400 hover:text-red-500 transition-colors ml-0.5"
+        aria-label={`Remove ${email}`}
+      >
+        <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </button>
+    </span>
+  );
+}
+
+/* ─── Supplier Email Configuration Card ───────────────────── */
+function SupplierEmailCard({
+  supplierId,
+  items,
+}: {
+  supplierId: string;
+  items: PurchaseOrder[];
+}) {
+  const [toEmails, setToEmails] = useState<string[]>([]);
+  const [ccEmails, setCcEmails] = useState<string[]>([]);
+  const [toInput, setToInput] = useState('');
+  const [ccInput, setCcInput] = useState('');
+  const [toError, setToError] = useState('');
+  const [ccError, setCcError] = useState('');
+  const [isLoadingContacts, setIsLoadingContacts] = useState(true);
+  const [isPending, startTransition] = useTransition();
+
+  /* Initialise To from supplier_contacts, CC from buyer emails */
+  useEffect(() => {
+    if (!supplierId) { setIsLoadingContacts(false); return; }
+    getSupplierContacts(supplierId).then(({ toEmails: fetched }) => {
+      setToEmails(fetched);
+      setIsLoadingContacts(false);
+    });
+  }, [supplierId]);
+
+  useEffect(() => {
+    const uniqueBuyerEmails = [
+      ...new Set(
+        items
+          .map((i) => i['Buyer Email'])
+          .filter((e): e is string => Boolean(e))
+      ),
+    ];
+    setCcEmails(uniqueBuyerEmails);
+  }, [items]);
+
+  /* Add To email — persists to DB */
+  function handleAddTo() {
+    const email = toInput.trim();
+    if (!isValidEmail(email)) { setToError('Enter a valid email.'); return; }
+    if (toEmails.includes(email)) { setToError('Already in list.'); return; }
+    setToError('');
+    setToEmails((prev) => [...prev, email]);
+    setToInput('');
+    startTransition(async () => {
+      const res = await addAdditionalSupplierEmail(supplierId, email);
+      if (!res.success) setToError('Saved locally, but DB update failed.');
+    });
+  }
+
+  /* Add CC email — local state only */
+  function handleAddCc() {
+    const email = ccInput.trim();
+    if (!isValidEmail(email)) { setCcError('Enter a valid email.'); return; }
+    if (ccEmails.includes(email)) { setCcError('Already in list.'); return; }
+    setCcError('');
+    setCcEmails((prev) => [...prev, email]);
+    setCcInput('');
+  }
+
+  return (
+    <div className="flex flex-col h-full border-l border-slate-100 bg-slate-50/40">
+
+      {/* Card header */}
+      <div className="px-4 py-3 border-b border-slate-100 bg-white">
+        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          Email Recipients
+        </p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+
+        {/* ── To Section ── */}
+        <section>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">To</p>
+
+          {isLoadingContacts ? (
+            <div className="space-y-1.5">
+              <div className="h-5 w-36 bg-slate-200 rounded animate-pulse" />
+              <div className="h-5 w-28 bg-slate-200 rounded animate-pulse" />
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5 mb-2 min-h-[24px]">
+              {toEmails.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No recipients yet.</p>
+              ) : (
+                toEmails.map((email) => (
+                  <EmailPill
+                    key={email}
+                    email={email}
+                    onRemove={() => setToEmails((prev) => prev.filter((e) => e !== email))}
+                  />
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Add To input */}
+          <div className="flex gap-1.5 mt-1">
+            <input
+              type="email"
+              placeholder="add@email.com"
+              value={toInput}
+              onChange={(e) => { setToInput(e.target.value); setToError(''); }}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddTo()}
+              className="flex-1 min-w-0 text-xs bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#307c4c] focus:border-[#307c4c] transition-colors"
+            />
+            <button
+              onClick={handleAddTo}
+              disabled={isPending}
+              className="shrink-0 px-2.5 py-1.5 text-xs font-semibold bg-[#307c4c] hover:bg-[#26663e] text-white rounded-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isPending ? '…' : 'Add'}
+            </button>
+          </div>
+          {toError && <p className="mt-1 text-[10px] text-red-500">{toError}</p>}
+        </section>
+
+        <div className="border-t border-slate-100" />
+
+        {/* ── CC Section ── */}
+        <section>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">CC</p>
+
+          <div className="flex flex-wrap gap-1.5 mb-2 min-h-[24px]">
+            {ccEmails.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">No CC recipients.</p>
+            ) : (
+              ccEmails.map((email) => (
+                <EmailPill
+                  key={email}
+                  email={email}
+                  onRemove={() => setCcEmails((prev) => prev.filter((e) => e !== email))}
+                />
+              ))
+            )}
+          </div>
+
+          {/* Add CC input */}
+          <div className="flex gap-1.5 mt-1">
+            <input
+              type="email"
+              placeholder="cc@email.com"
+              value={ccInput}
+              onChange={(e) => { setCcInput(e.target.value); setCcError(''); }}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddCc()}
+              className="flex-1 min-w-0 text-xs bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#307c4c] focus:border-[#307c4c] transition-colors"
+            />
+            <button
+              onClick={handleAddCc}
+              className="shrink-0 px-2.5 py-1.5 text-xs font-semibold bg-slate-700 hover:bg-slate-900 text-white rounded-md transition-all"
+            >
+              Add
+            </button>
+          </div>
+          {ccError && <p className="mt-1 text-[10px] text-red-500">{ccError}</p>}
+          <p className="mt-2 text-[10px] text-slate-400 leading-snug">
+            CC changes are local to this session only.
+          </p>
+        </section>
+
+      </div>
+    </div>
+  );
+}
+
+/* ─── Main Page ───────────────────────────────────────────── */
 export default function ExpediteReviewPage() {
   const { selectedItems, toggleSelection } = useExpediteStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -39,18 +233,15 @@ export default function ExpediteReviewPage() {
     const map = new Map<string, PurchaseOrder[]>();
     for (const item of selectedItems) {
       const supplier = item['Supplier Name'] || 'Unknown Supplier';
-      if (!map.has(supplier)) {
-        map.set(supplier, []);
-      }
+      if (!map.has(supplier)) map.set(supplier, []);
       map.get(supplier)!.push(item);
     }
-    
-    // Convert to array and sort by supplier name
     return Array.from(map.entries())
       .map(([supplierName, items]) => ({
         supplierName,
+        supplierId: items[0]?.['Supplier ID'] ?? '',
         items,
-        totalValue: items.reduce((sum, i) => sum + Number(i['Open PO Value USD'] ?? 0), 0)
+        totalValue: items.reduce((sum, i) => sum + Number(i['Open PO Value USD'] ?? 0), 0),
       }))
       .sort((a, b) => a.supplierName.localeCompare(b.supplierName));
   }, [selectedItems]);
@@ -60,7 +251,6 @@ export default function ExpediteReviewPage() {
     return (
       <div className="min-h-[100dvh] w-full bg-slate-50 flex flex-col items-center justify-center text-slate-900 font-sans p-6 relative overflow-hidden">
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-        {/* Sticky Nav Bar for Empty State */}
         <header className="absolute top-0 left-0 right-0 h-14 md:h-16 px-4 md:px-8 flex items-center border-b border-gray-100 bg-white/80 backdrop-blur-md z-10 shrink-0">
           <div className="flex items-center gap-2.5">
             <button
@@ -90,7 +280,7 @@ export default function ExpediteReviewPage() {
           </div>
           <h2 className="text-2xl font-bold tracking-tight mb-2">Expedite Queue is empty</h2>
           <p className="text-slate-500 mb-8 max-w-[250px]">
-            You haven't selected any line items to expedite yet.
+            You haven&apos;t selected any line items to expedite yet.
           </p>
           <Link
             href="/"
@@ -107,7 +297,7 @@ export default function ExpediteReviewPage() {
   return (
     <div className="min-h-[100dvh] w-full bg-slate-50 font-sans text-slate-900 pt-16 pb-32 relative">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-      
+
       {/* ── Sticky top nav ── */}
       <header className="fixed top-0 left-0 right-0 h-14 md:h-16 px-4 md:px-8 flex items-center border-b border-gray-100 bg-white/80 backdrop-blur-md z-30 shrink-0">
         <div className="flex items-center gap-2.5">
@@ -130,9 +320,9 @@ export default function ExpediteReviewPage() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        
-        {/* Header */}
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+        {/* Page Header */}
         <header className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
             <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-[#307c4c] mb-4 transition-colors">
@@ -141,19 +331,19 @@ export default function ExpediteReviewPage() {
               </svg>
               Back to Dashboard
             </Link>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-              Review Expedite Request
-            </h1>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Review Expedite Request</h1>
             <p className="text-slate-500 mt-1">
-              {selectedItems.length} line items across {groupedBySupplier.length} distinct suppliers.
+              {selectedItems.length} line item{selectedItems.length !== 1 ? 's' : ''} across {groupedBySupplier.length} distinct supplier{groupedBySupplier.length !== 1 ? 's' : ''}.
             </p>
           </div>
         </header>
 
-        {/* Supplier Cards */}
+        {/* ── Supplier Cards ── */}
         <div className="space-y-6">
           {groupedBySupplier.map((group) => (
             <div key={group.supplierName} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+
+              {/* Card header strip */}
               <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-100 text-slate-500 border border-slate-200 shrink-0">
@@ -166,116 +356,93 @@ export default function ExpediteReviewPage() {
                   <div>
                     <h2 className="text-lg font-bold text-slate-800">{group.supplierName}</h2>
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-0.5">
+                      {group.supplierId && <span className="mr-2 text-slate-400">{group.supplierId}</span>}
                       {group.items.length} Item{group.items.length !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-medium text-slate-500">Total Value</p>
-                  <p className="text-lg font-bold text-[#307c4c] tabular-nums">
-                    {formatCurrency(group.totalValue)}
-                  </p>
+                  <p className="text-lg font-bold text-[#307c4c] tabular-nums">{formatCurrency(group.totalValue)}</p>
                 </div>
               </div>
 
-              {/* ── Supplier Contact Info ── */}
-              <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-4">
-                <div className="flex items-start gap-3 flex-1">
-                  <div className="mt-0.5 shrink-0 h-7 w-7 flex items-center justify-center rounded-md bg-slate-100 border border-slate-200 text-slate-400">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Supplier Contact</p>
-                    <p className="text-sm text-slate-400 italic">— not yet configured —</p>
-                  </div>
-                </div>
+              {/* ── 2-column body: PO table (70%) + Email card (30%) ── */}
+              <div className="flex flex-col lg:flex-row">
 
-                <div className="flex items-start gap-3 flex-1">
-                  <div className="mt-0.5 shrink-0 h-7 w-7 flex items-center justify-center rounded-md bg-slate-100 border border-slate-200 text-slate-400">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
-                      CC: Buyer Email
-                    </p>
-                    {group.items[0]?.['Buyer Email'] ? (
-                      <p className="text-sm font-medium text-slate-700">{group.items[0]['Buyer Email']}</p>
-                    ) : (
-                      <p className="text-sm text-slate-400 italic">— not available —</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-white border-b border-slate-100 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                      <th className="py-3 px-6 whitespace-nowrap">PO Number</th>
-                      <th className="py-3 px-6 whitespace-nowrap">SAP MAT ID</th>
-                      <th className="py-3 px-6 whitespace-nowrap">Description</th>
-                      <th className="py-3 px-6 whitespace-nowrap text-right">Open QTY</th>
-                      <th className="py-3 px-6 whitespace-nowrap text-right">Value (USD)</th>
-                      <th className="py-3 px-6 whitespace-nowrap">Current Delivery</th>
-                      <th className="py-3 px-6 w-10"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100/50">
-                    {group.items.map((item, idx) => (
-                      <tr key={`${item['PO Number']}-${item['SAP MAT ID']}-${idx}`} className="hover:bg-slate-50/50 transition-colors group/row">
-                        <td className="py-3.5 px-6 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
-                          {item['PO Number']}
-                        </td>
-                        <td className="py-3.5 px-6 font-mono text-xs text-slate-500 whitespace-nowrap">
-                          {item['SAP MAT ID'] || '—'}
-                        </td>
-                        <td className="py-3.5 px-6 text-sm text-slate-600 max-w-[240px] truncate" title={item['Item Description']}>
-                          {item['Item Description'] || '—'}
-                        </td>
-                        <td className="py-3.5 px-6 text-sm text-right font-medium text-slate-700 tabular-nums">
-                          {Number(item['Open QTY'] || 0).toLocaleString()}
-                        </td>
-                        <td className="py-3.5 px-6 text-sm text-right font-semibold text-slate-800 tabular-nums">
-                          {formatCurrency(item['Open PO Value USD'])}
-                        </td>
-                        <td className="py-3.5 px-6 text-sm font-medium text-slate-600 whitespace-nowrap">
-                          {formatDate(item['Delivery Date'])}
-                        </td>
-                        <td className="py-3.5 px-6 right-0">
-                          <button
-                            onClick={() => toggleSelection(item)}
-                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-all opacity-0 group-hover/row:opacity-100"
-                            title="Remove from selection"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </td>
+                {/* Left — PO table */}
+                <div className="flex-1 min-w-0 overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-white border-b border-slate-100 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                        <th className="py-3 px-6 whitespace-nowrap">PO Number</th>
+                        <th className="py-3 px-6 whitespace-nowrap">SAP MAT ID</th>
+                        <th className="py-3 px-6 whitespace-nowrap">Description</th>
+                        <th className="py-3 px-6 whitespace-nowrap text-right">Open QTY</th>
+                        <th className="py-3 px-6 whitespace-nowrap text-right">Value (USD)</th>
+                        <th className="py-3 px-6 whitespace-nowrap">Current Delivery</th>
+                        <th className="py-3 px-6 w-10" />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100/50">
+                      {group.items.map((item, idx) => (
+                        <tr
+                          key={`${item['PO Number']}-${item['SAP MAT ID']}-${idx}`}
+                          className="hover:bg-slate-50/50 transition-colors group/row"
+                        >
+                          <td className="py-3.5 px-6 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
+                            {item['PO Number']}
+                          </td>
+                          <td className="py-3.5 px-6 font-mono text-xs text-slate-500 whitespace-nowrap">
+                            {item['SAP MAT ID'] || '—'}
+                          </td>
+                          <td className="py-3.5 px-6 text-sm text-slate-600 max-w-[200px] truncate" title={item['Item Description']}>
+                            {item['Item Description'] || '—'}
+                          </td>
+                          <td className="py-3.5 px-6 text-sm text-right font-medium text-slate-700 tabular-nums">
+                            {Number(item['Open QTY'] || 0).toLocaleString()}
+                          </td>
+                          <td className="py-3.5 px-6 text-sm text-right font-semibold text-slate-800 tabular-nums">
+                            {formatCurrency(item['Open PO Value USD'])}
+                          </td>
+                          <td className="py-3.5 px-6 text-sm font-medium text-slate-600 whitespace-nowrap">
+                            {formatDate(item['Delivery Date'])}
+                          </td>
+                          <td className="py-3.5 px-6">
+                            <button
+                              onClick={() => toggleSelection(item)}
+                              className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-all opacity-0 group-hover/row:opacity-100"
+                              title="Remove from selection"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Right — Email config card */}
+                <div className="w-full lg:w-72 xl:w-80 shrink-0">
+                  <SupplierEmailCard supplierId={group.supplierId} items={group.items} />
+                </div>
+
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Floating Confirm Data Bar */}
+      {/* ── Floating Confirm Bar ── */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_32px_rgba(0,0,0,0.05)] p-4 sm:p-6 animate-in slide-in-from-bottom-2 duration-300">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-screen-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-center sm:text-left">
-            <p className="text-sm font-semibold text-slate-800">
-              Ready to generate tokens?
-            </p>
+            <p className="text-sm font-semibold text-slate-800">Ready to generate tokens?</p>
             <p className="text-xs text-slate-500 mt-0.5">
-              This will create tracking links and dispatch emails to all {groupedBySupplier.length} suppliers.
+              This will create tracking links and dispatch emails to all {groupedBySupplier.length} supplier{groupedBySupplier.length !== 1 ? 's' : ''}.
             </p>
           </div>
           <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#1e293b] hover:bg-black text-white text-sm font-semibold px-8 py-3 rounded-xl transition-all duration-150 hover:scale-[1.02] active:scale-95 shadow-lg shadow-black/10">
