@@ -569,8 +569,8 @@ export default function Dashboard() {
       // Dropdown filters apply at line level
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] ?? '')) return false;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return false;
-      if (filterSuppliers.length > 0 && !filterSuppliers.includes(r['Supplier Name'])) return false;
-      if (filterBuyers.length > 0 && !filterBuyers.includes(r['Buyer Name'] ?? '')) return false;
+      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return false;
+      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return false;
 
       // Search: match PO Number, Supplier Name, or SAP MAT ID
       if (term) {
@@ -582,7 +582,7 @@ export default function Dashboard() {
 
       return true;
     });
-  }, [rows, search, filterDelivCode, filterCountry]);
+  }, [rows, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers]);
 
   /* PO grouping -------------------------------------------- */
   const groupedPOs = useMemo((): PoGroup[] => {
