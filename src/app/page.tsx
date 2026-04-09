@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, memo } from 'react';
 import Link from 'next/link';
 import LineItemDrawer from '@/components/LineItemDrawer';
 import { useExpediteStore } from '@/store/useExpediteStore';
@@ -8,7 +8,7 @@ import MultiSelectDropdown from '@/components/MultiSelectDropdown';
 import { SquareCheckbox } from '@/components/SquareCheckbox';
 
 /* ─── Constants ───────────────────────────────────────────── */
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 50;
 
 const deliveryStatusMap: Record<string, string> = {
   "DS01": "DS01 - PO Copy Not Received",
@@ -297,6 +297,149 @@ const PO_SORT_MAP: Record<PoSortKey, string> = {
   totalValue: 'Open PO Value (USD)',
   earliestDate: 'Delivery Date',
 };
+/* ─── Memoized Line Item Component ────────────────────────── */
+const PoLineItemRow = memo(function PoLineItemRow({
+  line,
+  term,
+  isChecked,
+  isDrawerOpen,
+  onRowClick,
+  toggleSelection,
+}: {
+  line: PurchaseOrder;
+  term: string;
+  isChecked: boolean;
+  isDrawerOpen: boolean;
+  onRowClick: (line: PurchaseOrder) => void;
+  toggleSelection: (line: PurchaseOrder) => void;
+}) {
+  const diff = daysDiff(line['Delivery Date']);
+  const isMatch = term !== '' && (
+    String(line['SAP MAT ID'] ?? '').toLowerCase().includes(term) ||
+    String(line['PO Number'] ?? '').toLowerCase().includes(term) ||
+    String(line['Supplier Name'] ?? '').toLowerCase().includes(term)
+  );
+
+  return (
+    <tr
+      onClick={() => onRowClick(line)}
+      className={[
+        'transition-colors duration-150 cursor-pointer',
+        isChecked
+          ? 'bg-[#307c4c]/10'
+          : isDrawerOpen
+            ? 'bg-[#307c4c]/10 border-l-2 border-l-[#307c4c]'
+            : isMatch
+              ? 'bg-[#307c4c]/5 border-l-2 border-l-[#307c4c]/50'
+              : 'hover:bg-[#307c4c]/5',
+      ].join(' ')}
+    >
+      <td className="py-3 pl-6 pr-2 w-10" onClick={(e) => e.stopPropagation()}>
+        <SquareCheckbox
+          checked={isChecked}
+          onChange={() => toggleSelection(line)}
+          aria-label={`Select ${line['SAP MAT ID'] ?? 'line item'}`}
+        />
+      </td>
+      <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
+        {line['SAP MAT ID'] ?? '—'}
+      </td>
+      <td className="py-3 px-4 text-sm text-slate-600 max-w-[280px] truncate" title={line['Item Description']}>
+        {line['Item Description'] ?? '—'}
+      </td>
+      <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+        {Number(line['Open QTY'] ?? 0).toLocaleString()}
+      </td>
+      <td className="py-3 px-4 text-sm text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+        {formatCurrency(line['Open PO Value USD'])}
+      </td>
+      <td className={`py-3 px-4 text-sm whitespace-nowrap font-medium ${diff < 0 ? 'text-red-600' : 'text-slate-600'}`}>
+        {formatDate(line['Delivery Date'])}
+      </td>
+      <td className="py-3 px-4 whitespace-nowrap">
+        <DeliveryBadge raw={line['Delivery Date']} />
+      </td>
+    </tr>
+  );
+}, (prev, next) => {
+  return prev.line === next.line &&
+    prev.term === next.term &&
+    prev.isChecked === next.isChecked &&
+    prev.isDrawerOpen === next.isDrawerOpen;
+});
+
+/* ─── Memoized Parent PO Row Component ────────────────────── */
+const PoParentRow = memo(function PoParentRow({
+  group,
+  isOpen,
+  isChecked,
+  isIndeterminate,
+  togglePO,
+  selectMultipleLines,
+  deselectMultipleLines,
+}: {
+  group: PoGroup;
+  isOpen: boolean;
+  isChecked: boolean;
+  isIndeterminate: boolean;
+  togglePO: (poNumber: string) => void;
+  selectMultipleLines: (lines: PurchaseOrder[]) => void;
+  deselectMultipleLines: (lines: PurchaseOrder[]) => void;
+}) {
+  const diff = daysDiff(group.earliestDate);
+  return (
+    <tr
+      onClick={() => togglePO(group.poNumber)}
+      className="border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors duration-150 group"
+    >
+      <td className="p-4 pl-6 w-14" onClick={(e) => e.stopPropagation()}>
+        <SquareCheckbox
+          checked={isChecked}
+          indeterminate={isIndeterminate}
+          onChange={(e) => {
+            if (e.target.checked) selectMultipleLines(group.lines);
+            else deselectMultipleLines(group.lines);
+          }}
+          aria-label={`Select PO ${group.poNumber}`}
+        />
+      </td>
+      <td className="p-4 pl-2 w-8">
+        <ChevronIcon open={isOpen} />
+      </td>
+      <td className="p-4 pl-6 font-mono text-sm font-semibold text-slate-700 whitespace-nowrap">
+        {group.poNumber}
+      </td>
+      <td className="p-4 pl-6 text-sm text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+        {formatCurrency(group.totalValue)}
+      </td>
+      <td className={`p-4 pl-6 text-sm whitespace-nowrap font-medium ${diff < 0 ? 'text-red-600' : 'text-slate-600'}`}>
+        {formatDate(group.earliestDate)}
+      </td>
+      <td className="p-4 pl-6 text-sm text-slate-700 max-w-[180px] truncate" title={group.supplierName}>
+        {group.supplierName}
+      </td>
+      <td className="p-4 pl-6 text-sm text-slate-600 whitespace-nowrap">
+        {group.country}
+      </td>
+      <td className="p-4 pl-6 whitespace-nowrap">
+        <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-600">
+          {group.deliveryCode}
+        </span>
+      </td>
+      <td className="p-4 pl-6 text-sm text-right font-medium text-slate-600 tabular-nums">
+        {group.lineCount}
+      </td>
+      <td className="p-4 pl-6 whitespace-nowrap">
+        <DeliveryBadge raw={group.earliestDate} />
+      </td>
+    </tr>
+  );
+}, (prev, next) => {
+  return prev.group === next.group &&
+    prev.isOpen === next.isOpen &&
+    prev.isChecked === next.isChecked &&
+    prev.isIndeterminate === next.isIndeterminate;
+});
 
 /* ─── Sub-table for expanded PO lines ────────────────────── */
 function PoSubTable({
@@ -332,56 +475,18 @@ function PoSubTable({
       </thead>
       <tbody className="divide-y divide-slate-100">
         {lines.map((line, i) => {
-          const diff = daysDiff(line['Delivery Date']);
           const isChecked = isSelected(line);
           const isDrawerOpen = selectedLineItem === line;
-          const isMatch = term !== '' && (
-            String(line['SAP MAT ID'] ?? '').toLowerCase().includes(term) ||
-            String(line['PO Number'] ?? '').toLowerCase().includes(term) ||
-            String(line['Supplier Name'] ?? '').toLowerCase().includes(term)
-          );
           return (
-            <tr
+            <PoLineItemRow
               key={i}
-              onClick={() => onRowClick(line)}
-              className={[
-                'transition-colors duration-150 cursor-pointer',
-                isChecked
-                  ? 'bg-[#307c4c]/10'
-                  : isDrawerOpen
-                    ? 'bg-[#307c4c]/10 border-l-2 border-l-[#307c4c]'
-                    : isMatch
-                      ? 'bg-[#307c4c]/5 border-l-2 border-l-[#307c4c]/50'
-                      : 'hover:bg-[#307c4c]/5',
-              ].join(' ')}
-            >
-              {/* Checkbox — stopPropagation so click doesn't open the Drawer */}
-              <td className="py-3 pl-6 pr-2 w-10" onClick={(e) => e.stopPropagation()}>
-                <SquareCheckbox
-                  checked={isChecked}
-                  onChange={() => toggleSelection(line)}
-                  aria-label={`Select ${line['SAP MAT ID'] ?? 'line item'}`}
-                />
-              </td>
-              <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
-                {line['SAP MAT ID'] ?? '—'}
-              </td>
-              <td className="py-3 px-4 text-sm text-slate-600 max-w-[280px] truncate" title={line['Item Description']}>
-                {line['Item Description'] ?? '—'}
-              </td>
-              <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
-                {Number(line['Open QTY'] ?? 0).toLocaleString()}
-              </td>
-              <td className="py-3 px-4 text-sm text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
-                {formatCurrency(line['Open PO Value USD'])}
-              </td>
-              <td className={`py-3 px-4 text-sm whitespace-nowrap font-medium ${diff < 0 ? 'text-red-600' : 'text-slate-600'}`}>
-                {formatDate(line['Delivery Date'])}
-              </td>
-              <td className="py-3 px-4 whitespace-nowrap">
-                <DeliveryBadge raw={line['Delivery Date']} />
-              </td>
-            </tr>
+              line={line}
+              term={term}
+              isChecked={isChecked}
+              isDrawerOpen={isDrawerOpen}
+              onRowClick={onRowClick}
+              toggleSelection={toggleSelection}
+            />
           );
         })}
       </tbody>
@@ -717,14 +822,14 @@ export default function Dashboard() {
                     {/* Master Checkbox col */}
                     <th className="p-4 pl-6 w-14">
                       <SquareCheckbox
-                        checked={sortedPOs.length > 0 && sortedPOs.every(group => group.lines.every(l => isSelected(l)))}
+                        checked={pagePOs.length > 0 && pagePOs.every(group => group.lines.every(l => isSelected(l)))}
                         indeterminate={
-                          sortedPOs.length > 0 &&
-                          sortedPOs.some(group => group.lines.some(l => isSelected(l))) &&
-                          !sortedPOs.every(group => group.lines.every(l => isSelected(l)))
+                          pagePOs.length > 0 &&
+                          pagePOs.some(group => group.lines.some(l => isSelected(l))) &&
+                          !pagePOs.every(group => group.lines.every(l => isSelected(l)))
                         }
                         onChange={(e) => {
-                          const visibleLines = sortedPOs.flatMap(g => g.lines);
+                          const visibleLines = pagePOs.flatMap(g => g.lines);
                           if (e.target.checked) selectMultipleLines(visibleLines);
                           else deselectMultipleLines(visibleLines);
                         }}
@@ -798,59 +903,24 @@ export default function Dashboard() {
 
                   {!loading && !error && pagePOs.map((group) => {
                     const isOpen = expandedPOs.has(group.poNumber);
-                    const diff = daysDiff(group.earliestDate);
+                    const isChecked = group.lines.every(l => isSelected(l));
+                    const isIndeterminate = group.lines.some(l => isSelected(l)) && !isChecked;
+
                     return (
-                      <>
+                      <React.Fragment key={group.poNumber}>
                         {/* ── PO parent row ── */}
-                        <tr
-                          key={group.poNumber}
-                          onClick={() => togglePO(group.poNumber)}
-                          className="border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors duration-150 group"
-                        >
-                          <td className="p-4 pl-6 w-14" onClick={(e) => e.stopPropagation()}>
-                            <SquareCheckbox
-                              checked={group.lines.every(l => isSelected(l))}
-                              indeterminate={group.lines.some(l => isSelected(l)) && !group.lines.every(l => isSelected(l))}
-                              onChange={(e) => {
-                                if (e.target.checked) selectMultipleLines(group.lines);
-                                else deselectMultipleLines(group.lines);
-                              }}
-                              aria-label={`Select PO ${group.poNumber}`}
-                            />
-                          </td>
-                          <td className="p-4 pl-2 w-8">
-                            <ChevronIcon open={isOpen} />
-                          </td>
-                          <td className="p-4 pl-6 font-mono text-sm font-semibold text-slate-700 whitespace-nowrap">
-                            {group.poNumber}
-                          </td>
-                          <td className="p-4 pl-6 text-sm text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
-                            {formatCurrency(group.totalValue)}
-                          </td>
-                          <td className={`p-4 pl-6 text-sm whitespace-nowrap font-medium ${diff < 0 ? 'text-red-600' : 'text-slate-600'}`}>
-                            {formatDate(group.earliestDate)}
-                          </td>
-                          <td className="p-4 pl-6 text-sm text-slate-700 max-w-[180px] truncate" title={group.supplierName}>
-                            {group.supplierName}
-                          </td>
-                          <td className="p-4 pl-6 text-sm text-slate-600 whitespace-nowrap">
-                            {group.country}
-                          </td>
-                          <td className="p-4 pl-6 whitespace-nowrap">
-                            <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-600">
-                              {group.deliveryCode}
-                            </span>
-                          </td>
-                          <td className="p-4 pl-6 text-sm text-right font-medium text-slate-600 tabular-nums">
-                            {group.lineCount}
-                          </td>
-                          <td className="p-4 pl-6 whitespace-nowrap">
-                            <DeliveryBadge raw={group.earliestDate} />
-                          </td>
-                        </tr>
+                        <PoParentRow
+                          group={group}
+                          isOpen={isOpen}
+                          isChecked={isChecked}
+                          isIndeterminate={isIndeterminate}
+                          togglePO={togglePO}
+                          selectMultipleLines={selectMultipleLines}
+                          deselectMultipleLines={deselectMultipleLines}
+                        />
 
                         {/* ── Expandable sub-table row ── */}
-                        <tr key={`${group.poNumber}-expand`} className="border-b border-slate-100">
+                        <tr key={`${group.poNumber}-expand`} className="border-b border-slate-100 p-0 hover:bg-transparent">
                           <td colSpan={9} className="p-0">
                             <div className={`expand-grid${isOpen ? ' open' : ''}`}>
                               <div>
@@ -868,7 +938,7 @@ export default function Dashboard() {
                             </div>
                           </td>
                         </tr>
-                      </>
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
