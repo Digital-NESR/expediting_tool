@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback, memo } from 'react';
 import Link from 'next/link';
 import LineItemDrawer from '@/components/LineItemDrawer';
+import Sidebar from '@/components/Sidebar';
 import { useExpediteStore } from '@/store/useExpediteStore';
 import MultiSelectDropdown from '@/components/MultiSelectDropdown';
 import { SquareCheckbox } from '@/components/SquareCheckbox';
@@ -218,8 +219,8 @@ function FilterBar({
   buyers, onBuyers, buyerList,
 }: {
   search: string; onSearch: (v: string) => void;
-  deliveryCode: string; onDeliveryCode: (v: string) => void; deliveryCodes: string[];
-  country: string; onCountry: (v: string) => void; countries: string[];
+  deliveryCode: string[]; onDeliveryCode: (v: string[]) => void; deliveryCodes: string[];
+  country: string[]; onCountry: (v: string[]) => void; countries: string[];
   suppliers: string[]; onSuppliers: (v: string[]) => void; supplierList: string[];
   buyers: string[]; onBuyers: (v: string[]) => void; buyerList: string[];
 }) {
@@ -248,44 +249,9 @@ function FilterBar({
         {/* ── Multi-Selects ── */}
         <MultiSelectDropdown options={supplierList} selectedOptions={suppliers} onChange={onSuppliers} label="Supplier Name" />
         <MultiSelectDropdown options={buyerList} selectedOptions={buyers} onChange={onBuyers} label="Buyer Name" />
+        <MultiSelectDropdown options={deliveryCodes} selectedOptions={deliveryCode} onChange={onDeliveryCode} label="Status" displayMap={deliveryStatusMap} />
+        <MultiSelectDropdown options={countries} selectedOptions={country} onChange={onCountry} label="Country" />
 
-        {/* ── Delivery Code dropdown ── */}
-        <div className="relative shrink-0 flex-1 md:flex-none">
-          <select
-            id="filter-delivery-code"
-            value={deliveryCode}
-            onChange={(e) => onDeliveryCode(e.target.value)}
-            aria-label="Filter by Delivery Code"
-            className={`${inputBase} pl-3 pr-8 py-2.5 appearance-none cursor-pointer w-full md:w-48`}
-          >
-            <option value="">All Delivery Codes</option>
-            {deliveryCodes.map((c) => (
-              <option key={c} value={c}>
-                {deliveryStatusMap[c] || c}
-              </option>
-            ))}
-          </select>
-          <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
-        </div>
-
-        {/* ── Country dropdown ── */}
-        <div className="relative shrink-0 flex-1 md:flex-none">
-          <select
-            id="filter-country"
-            value={country}
-            onChange={(e) => onCountry(e.target.value)}
-            aria-label="Filter by Country"
-            className={`${inputBase} pl-3 pr-8 py-2.5 appearance-none cursor-pointer w-full md:w-36`}
-          >
-            <option value="">All Countries</option>
-            {countries.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
-        </div>
       </div>
     </div>
   );
@@ -502,14 +468,15 @@ export default function Dashboard() {
 
   // Drawer selection
   const [selectedLineItem, setSelectedLineItem] = useState<PurchaseOrder | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Expedite cart — Zustand store
   const { selectedItems, toggleSelection, isSelected, clearSelection, selectMultipleLines, deselectMultipleLines } = useExpediteStore();
 
   // Filters
   const [search, setSearch] = useState('');
-  const [filterDelivCode, setFilterDelivCode] = useState('');
-  const [filterCountry, setFilterCountry] = useState('');
+  const [filterDelivCode, setFilterDelivCode] = useState<string[]>([]);
+  const [filterCountry, setFilterCountry] = useState<string[]>([]);
   const [filterSuppliers, setFilterSuppliers] = useState<string[]>([]);
   const [filterBuyers, setFilterBuyers] = useState<string[]>([]);
 
@@ -540,19 +507,19 @@ export default function Dashboard() {
   /* Clear all filters -------------------------------------- */
   function clearFilters() {
     setSearch('');
-    setFilterDelivCode('');
-    setFilterCountry('');
+    setFilterDelivCode([]);
+    setFilterCountry([]);
     setFilterSuppliers([]);
     setFilterBuyers([]);
   }
 
-  const activeFilterCount = (search ? 1 : 0) + (filterDelivCode ? 1 : 0) + (filterCountry ? 1 : 0) + filterSuppliers.length + filterBuyers.length;
+  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length;
 
   /* Remove Specific Filter ---------------------------------- */
   function removeFilter(type: 'search' | 'deliv' | 'country' | 'supplier' | 'buyer', val?: string) {
     if (type === 'search') setSearch('');
-    if (type === 'deliv') setFilterDelivCode('');
-    if (type === 'country') setFilterCountry('');
+    if (type === 'deliv' && val) setFilterDelivCode(p => p.filter(c => c !== val));
+    if (type === 'country' && val) setFilterCountry(p => p.filter(c => c !== val));
     if (type === 'supplier' && val) setFilterSuppliers(p => p.filter(s => s !== val));
     if (type === 'buyer' && val) setFilterBuyers(p => p.filter(b => b !== val));
   }
@@ -600,8 +567,8 @@ export default function Dashboard() {
     const term = search.toLowerCase().trim();
     return rows.filter((r) => {
       // Dropdown filters apply at line level
-      if (filterDelivCode && r['Delivery Code'] !== filterDelivCode) return false;
-      if (filterCountry && r['Country'] !== filterCountry) return false;
+      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] ?? '')) return false;
+      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return false;
       if (filterSuppliers.length > 0 && !filterSuppliers.includes(r['Supplier Name'])) return false;
       if (filterBuyers.length > 0 && !filterBuyers.includes(r['Buyer Name'] ?? '')) return false;
 
@@ -679,6 +646,7 @@ export default function Dashboard() {
   /* ── Render ─────────────────────────────────────────────── */
   return (
     <div className="flex h-[100dvh] w-full bg-white overflow-hidden font-sans text-slate-900 relative">
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <LineItemDrawer 
         lineItem={selectedLineItem} 
         onClose={() => setSelectedLineItem(null)} 
@@ -691,6 +659,14 @@ export default function Dashboard() {
         {/* ── Sticky top nav ── */}
         <header className="h-14 md:h-16 px-4 md:px-8 flex items-center justify-between border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-10 shrink-0">
           <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="mr-2 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors focus:ring-2 focus:ring-[#307c4c]/50 focus:outline-none"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#307c4c]">
               <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -770,22 +746,22 @@ export default function Dashboard() {
                           </button>
                         </span>
                       )}
-                      {filterDelivCode && (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
-                          Status: {filterDelivCode}
-                          <button onClick={() => removeFilter('deliv')} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                      {filterDelivCode.map(c => (
+                        <span key={`deliv-${c}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
+                          Status: {deliveryStatusMap[c] || c}
+                          <button onClick={() => removeFilter('deliv', c)} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
                             <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                           </button>
                         </span>
-                      )}
-                      {filterCountry && (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
-                          Country: {filterCountry}
-                          <button onClick={() => removeFilter('country')} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                      ))}
+                      {filterCountry.map(c => (
+                        <span key={`country-${c}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
+                          Country: {c}
+                          <button onClick={() => removeFilter('country', c)} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
                             <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                           </button>
                         </span>
-                      )}
+                      ))}
                       {filterSuppliers.map(s => (
                         <span key={`sup-${s}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#307c4c]/20 text-[#307c4c] text-xs font-medium rounded-full shadow-sm">
                           Supplier: {s}
@@ -975,12 +951,12 @@ export default function Dashboard() {
             <div className="flex items-center gap-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#307c4c] shrink-0">
                 <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13l-2 5m12-5l2 5M9 19a1 1 0 110 2 1 1 0 010-2zm8 0a1 1 0 110 2 1 1 0 010-2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
                 </svg>
               </span>
               <div>
                 <p className="text-sm font-semibold text-white leading-tight">
-                  {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''} selected
+                  {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''} in Expedite Queue
                 </p>
                 <p className="text-xs text-slate-400 leading-tight">
                   {new Set(selectedItems.map((i) => i['Supplier Name'])).size} supplier{new Set(selectedItems.map((i) => i['Supplier Name'])).size !== 1 ? 's' : ''}

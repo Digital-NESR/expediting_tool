@@ -20,12 +20,18 @@ export const metadata: Metadata = {
   },
 };
 
+import { Providers } from '@/components/Providers';
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="antialiased font-sans bg-white text-slate-900">{children}</body>
+      <body className="antialiased font-sans bg-white text-slate-900">
+        <Providers>
+          {children}
+        </Providers>
+      </body>
     </html>
   );
 }

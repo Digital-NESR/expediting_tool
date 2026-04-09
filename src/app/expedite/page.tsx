@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import Sidebar from '@/components/Sidebar';
 import { useExpediteStore } from '@/store/useExpediteStore';
 import type { PurchaseOrder } from '@/types/po';
 
@@ -31,6 +32,7 @@ function formatDate(dateStr: string | undefined | null) {
 
 export default function ExpediteReviewPage() {
   const { selectedItems, toggleSelection } = useExpediteStore();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   /* ─── Grouping Logic ────────────────────────────────────── */
   const groupedBySupplier = useMemo(() => {
@@ -56,16 +58,37 @@ export default function ExpediteReviewPage() {
   /* ─── Empty State ───────────────────────────────────────── */
   if (selectedItems.length === 0) {
     return (
-      <div className="min-h-[100dvh] w-full bg-slate-50 flex flex-col items-center justify-center text-slate-900 font-sans p-6">
-        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
+      <div className="min-h-[100dvh] w-full bg-slate-50 flex flex-col items-center justify-center text-slate-900 font-sans p-6 relative overflow-hidden">
+        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+        {/* Sticky Nav Bar for Empty State */}
+        <header className="absolute top-0 left-0 right-0 h-14 md:h-16 px-4 md:px-8 flex items-center border-b border-gray-100 bg-white/80 backdrop-blur-md z-10 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="mr-2 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors focus:ring-2 focus:ring-[#307c4c]/50 focus:outline-none"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#307c4c]">
+              <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <path d="M15 3h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
+                <line x1="12" y1="3" x2="12" y2="21" />
+              </svg>
+            </span>
+            <span className="text-sm font-bold text-slate-900 tracking-tight hidden sm:block">NESR</span>
+          </div>
+        </header>
+
+        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-500 mt-16">
           <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
             <svg className="w-10 h-10 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="9" cy="21" r="1" />
-              <circle cx="20" cy="21" r="1" />
-              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+              <path d="M4 6h16M4 12h16M4 18h7" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight mb-2">Cart is empty</h2>
+          <h2 className="text-2xl font-bold tracking-tight mb-2">Expedite Queue is empty</h2>
           <p className="text-slate-500 mb-8 max-w-[250px]">
             You haven't selected any line items to expedite yet.
           </p>
@@ -82,8 +105,32 @@ export default function ExpediteReviewPage() {
 
   /* ─── Main Render ───────────────────────────────────────── */
   return (
-    <div className="min-h-[100dvh] w-full bg-slate-50 font-sans text-slate-900 pt-8 pb-32">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="min-h-[100dvh] w-full bg-slate-50 font-sans text-slate-900 pt-16 pb-32 relative">
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      
+      {/* ── Sticky top nav ── */}
+      <header className="fixed top-0 left-0 right-0 h-14 md:h-16 px-4 md:px-8 flex items-center border-b border-gray-100 bg-white/80 backdrop-blur-md z-30 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="mr-2 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors focus:ring-2 focus:ring-[#307c4c]/50 focus:outline-none"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#307c4c]">
+            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <path d="M15 3h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
+              <line x1="12" y1="3" x2="12" y2="21" />
+            </svg>
+          </span>
+          <span className="text-sm font-bold text-slate-900 tracking-tight hidden sm:block">NESR</span>
+        </div>
+      </header>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         
         {/* Header */}
         <header className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
