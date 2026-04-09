@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: 'PO Expediting Dashboard | NESR',
   description: 'Track and expedite open purchase orders from SAP in real-time.',
   icons: {
-    icon: '/nesr-logo.jpg',
+    icon: '/nesr-logo-circle.png',
   },
 };
 
