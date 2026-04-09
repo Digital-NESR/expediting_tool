@@ -635,7 +635,7 @@ export default function Dashboard() {
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
-      if (r['Delivery Code']) dc.add(r['Delivery Code']);
+      dc.add(r['Delivery Code'] || '(Blank)');
     });
     return [...dc].sort();
   }, [rows, filterStatus, search, filterCountry, filterSuppliers, filterBuyers]);
@@ -645,7 +645,7 @@ export default function Dashboard() {
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
-      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] ?? '')) return;
+      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
       if (r['Country']) co.add(r['Country']);
@@ -658,7 +658,7 @@ export default function Dashboard() {
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
-      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] ?? '')) return;
+      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
       const name = (r['Supplier Name'] ?? '').trim();
@@ -678,7 +678,7 @@ export default function Dashboard() {
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
-      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] ?? '')) return;
+      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
       if (r['Buyer Name']) by.add(r['Buyer Name']);
@@ -690,7 +690,7 @@ export default function Dashboard() {
   const filtered = useMemo(() => {
     const term = search.toLowerCase().trim();
     return rows.filter((r) => {
-      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] ?? '')) return false;
+      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return false;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return false;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return false;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return false;
