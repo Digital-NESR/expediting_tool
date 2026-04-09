@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import LineItemDrawer from '@/components/LineItemDrawer';
+import { useExpediteStore } from '@/store/useExpediteStore';
 
 /* ─── Constants ───────────────────────────────────────────── */
 const PAGE_SIZE = 15;
@@ -29,20 +31,7 @@ const deliveryStatusMap: Record<string, string> = {
 };
 
 /* ─── Types ───────────────────────────────────────────────── */
-export interface PurchaseOrder {
-  'PO Number': string;
-  'PO Line'?: string;
-  'Supplier Name': string;
-  'Supplier ID'?: string;
-  'Item Description': string;
-  'SAP MAT ID': string;
-  'Open QTY': number | string;
-  'Open PO Value USD': number | string;
-  'Delivery Date': string;
-  'Delivery Code': string;
-  'Country': string;
-  'Delivery Comments'?: string;
-}
+import type { PurchaseOrder } from '@/types/po';
 
 interface PoGroup {
   poNumber: string;
@@ -317,79 +306,88 @@ const PO_SORT_MAP: Record<PoSortKey, string> = {
 };
 
 /* ─── Sub-table for expanded PO lines ────────────────────── */
-function PoSubTable({ 
-  lines, 
-  searchTerm, 
-  onRowClick, 
-  selectedLineItem 
-}: { 
-  lines: PurchaseOrder[]; 
+function PoSubTable({
+  lines,
+  searchTerm,
+  onRowClick,
+  selectedLineItem,
+  toggleSelection,
+  isSelected,
+}: {
+  lines: PurchaseOrder[];
   searchTerm: string;
   onRowClick: (line: PurchaseOrder) => void;
   selectedLineItem: PurchaseOrder | null;
+  toggleSelection: (item: PurchaseOrder) => void;
+  isSelected: (item: PurchaseOrder) => boolean;
 }) {
-  const SUB_COLS: { label: string; align?: 'right' }[] = [
-    { label: 'SAP MAT ID' },
-    { label: 'Item Description' },
-    { label: 'Open QTY', align: 'right' },
-    { label: 'Open PO Value (USD)', align: 'right' },
-    { label: 'Delivery Date' },
-    { label: 'Status' },
-  ];
-
-  // Highlight matching lines when searching by SAP MAT ID
   const term = searchTerm.toLowerCase().trim();
 
   return (
     <table className="w-full text-left border-collapse">
       <thead>
         <tr className="bg-slate-100/70 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-          {SUB_COLS.map((c) => (
-            <th key={c.label} className={`py-2.5 px-4 pl-10 font-semibold ${c.align === 'right' ? 'text-right' : ''}`}>
-              {c.label}
-            </th>
-          ))}
+          {/* Checkbox col */}
+          <th className="py-2.5 pl-6 pr-2 w-10" />
+          <th className="py-2.5 px-4 font-semibold">SAP MAT ID</th>
+          <th className="py-2.5 px-4 font-semibold">Item Description</th>
+          <th className="py-2.5 px-4 font-semibold text-right">Open QTY</th>
+          <th className="py-2.5 px-4 font-semibold text-right">Open PO Value (USD)</th>
+          <th className="py-2.5 px-4 font-semibold">Delivery Date</th>
+          <th className="py-2.5 px-4 font-semibold">Status</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-100">
         {lines.map((line, i) => {
           const diff = daysDiff(line['Delivery Date']);
-          // Highlight this row if SAP MAT ID matches the search term
+          const isChecked = isSelected(line);
+          const isDrawerOpen = selectedLineItem === line;
           const isMatch = term !== '' && (
             String(line['SAP MAT ID'] ?? '').toLowerCase().includes(term) ||
             String(line['PO Number'] ?? '').toLowerCase().includes(term) ||
             String(line['Supplier Name'] ?? '').toLowerCase().includes(term)
           );
-          const isSelected = selectedLineItem === line;
           return (
             <tr
               key={i}
               onClick={() => onRowClick(line)}
               className={[
                 'transition-colors duration-150 cursor-pointer',
-                isSelected
-                  ? 'bg-[#307c4c]/10 border-l-2 border-l-[#307c4c]'
-                  : isMatch
-                    ? 'bg-[#307c4c]/5 border-l-2 border-l-[#307c4c] border-l-opacity-50'
-                    : 'hover:bg-[#307c4c]/5',
+                isChecked
+                  ? 'bg-[#307c4c]/10'
+                  : isDrawerOpen
+                    ? 'bg-[#307c4c]/10 border-l-2 border-l-[#307c4c]'
+                    : isMatch
+                      ? 'bg-[#307c4c]/5 border-l-2 border-l-[#307c4c]/50'
+                      : 'hover:bg-[#307c4c]/5',
               ].join(' ')}
             >
-              <td className="py-3 px-4 pl-10 font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
+              {/* Checkbox — stopPropagation so click doesn't open the Drawer */}
+              <td className="py-3 pl-6 pr-2 w-10" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => toggleSelection(line)}
+                  className="h-4 w-4 rounded border-slate-300 accent-[#307c4c] cursor-pointer"
+                  aria-label={`Select ${line['SAP MAT ID'] ?? 'line item'}`}
+                />
+              </td>
+              <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
                 {line['SAP MAT ID'] ?? '—'}
               </td>
-              <td className="py-3 px-4 pl-10 text-sm text-slate-600 max-w-[280px] truncate" title={line['Item Description']}>
+              <td className="py-3 px-4 text-sm text-slate-600 max-w-[280px] truncate" title={line['Item Description']}>
                 {line['Item Description'] ?? '—'}
               </td>
-              <td className="py-3 px-4 pl-10 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+              <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
                 {Number(line['Open QTY'] ?? 0).toLocaleString()}
               </td>
-              <td className="py-3 px-4 pl-10 text-sm text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+              <td className="py-3 px-4 text-sm text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
                 {formatCurrency(line['Open PO Value USD'])}
               </td>
-              <td className={`py-3 px-4 pl-10 text-sm whitespace-nowrap font-medium ${diff < 0 ? 'text-red-600' : 'text-slate-600'}`}>
+              <td className={`py-3 px-4 text-sm whitespace-nowrap font-medium ${diff < 0 ? 'text-red-600' : 'text-slate-600'}`}>
                 {formatDate(line['Delivery Date'])}
               </td>
-              <td className="py-3 px-4 pl-10 whitespace-nowrap">
+              <td className="py-3 px-4 whitespace-nowrap">
                 <DeliveryBadge raw={line['Delivery Date']} />
               </td>
             </tr>
@@ -406,7 +404,11 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Drawer selection
   const [selectedLineItem, setSelectedLineItem] = useState<PurchaseOrder | null>(null);
+
+  // Expedite cart — Zustand store
+  const { selectedItems, toggleSelection, isSelected, clearSelection } = useExpediteStore();
 
   // Filters
   const [search, setSearch] = useState('');
@@ -755,11 +757,13 @@ export default function Dashboard() {
                             <div className={`expand-grid${isOpen ? ' open' : ''}`}>
                               <div>
                                 <div className="border-t border-[#307c4c]/10 bg-slate-50/60">
-                                  <PoSubTable 
-                                    lines={group.lines} 
-                                    searchTerm={search} 
+                                  <PoSubTable
+                                    lines={group.lines}
+                                    searchTerm={search}
                                     onRowClick={setSelectedLineItem}
                                     selectedLineItem={selectedLineItem}
+                                    toggleSelection={toggleSelection}
+                                    isSelected={isSelected}
                                   />
                                 </div>
                               </div>
@@ -785,11 +789,61 @@ export default function Dashboard() {
           </div>
 
           {/* Footer */}
-          <p className="text-center text-xs text-gray-400 mt-8 pb-4">
+          <p className="text-center text-xs text-gray-400 mt-8 pb-28">
             NESR Expediting Tool · Data sourced live from SAP Open PO Master
           </p>
         </div>
       </main>
+
+      {/* ── Floating Expedite Action Bar ──────────────────────────── */}
+      {selectedItems.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 sm:px-8 py-4
+          bg-slate-900/95 backdrop-blur-md border-t border-slate-700/60
+          shadow-[0_-4px_32px_rgba(0,0,0,0.25)]
+          animate-in slide-in-from-bottom-2 duration-200">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+
+            {/* Left: selection summary */}
+            <div className="flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#307c4c] shrink-0">
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13l-2 5m12-5l2 5M9 19a1 1 0 110 2 1 1 0 010-2zm8 0a1 1 0 110 2 1 1 0 010-2z" />
+                </svg>
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-white leading-tight">
+                  {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''} selected
+                </p>
+                <p className="text-xs text-slate-400 leading-tight">
+                  {new Set(selectedItems.map((i) => i['Supplier Name'])).size} supplier{new Set(selectedItems.map((i) => i['Supplier Name'])).size !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+
+            {/* Right: actions */}
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={clearSelection}
+                className="text-xs font-medium text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800"
+              >
+                Clear all
+              </button>
+              <Link
+                href="/expedite"
+                className="flex items-center gap-2 bg-[#307c4c] hover:bg-[#26663e]
+                  text-white text-sm font-semibold px-5 py-2.5 rounded-xl
+                  transition-all duration-150 hover:scale-[1.02] active:scale-95
+                  shadow-lg shadow-[#307c4c]/30"
+              >
+                Expedite {selectedItems.length} Selected
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

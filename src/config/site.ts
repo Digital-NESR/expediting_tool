@@ -11,10 +11,11 @@ export const siteConfig = {
   text: {
     appName: "NESR PO Expediting Tool",
     login: {
-      title: "Welcome Back",
-      subtitle: "Sign in to access your PO Dashboard",
-      ssoButton: "Login with Microsoft SSO",
-      footer: "NESR Expediting Tool · Data sourced live from SAP Open PO Master"
+      pageTitle: "Login | PO Expediting",
+      title: "Welcome to PO Expediting",
+      subtitle: "Intelligent Purchase Order Tracking",
+      ssoButton: "Continue with SSO",
+      footer: "NESR Internal Tool • Authorized Personnel Only"
     }
   }
 };
