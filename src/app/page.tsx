@@ -85,11 +85,30 @@ function compareValues(a: string, b: string): number {
   return a.localeCompare(b);
 }
 
+/* ─── Row-level filter helpers (used in cascading useMemos) ── */
+function rowMatchesStatus(r: PurchaseOrder, statuses: string[]): boolean {
+  if (statuses.length === 0) return true;
+  const diff = daysDiff(r['Delivery Date']);
+  const s = diff < 0 ? 'Past Due' : diff <= 7 ? 'Due Soon' : 'On Track';
+  return statuses.includes(s);
+}
+
+function rowMatchesSearch(r: PurchaseOrder, term: string): boolean {
+  if (!term) return true;
+  const t = term.toLowerCase();
+  return (
+    String(r['PO Number'] ?? '').toLowerCase().includes(t) ||
+    String(r['Supplier Name'] ?? '').toLowerCase().includes(t) ||
+    String(r['Supplier ID'] ?? '').toLowerCase().includes(t) ||
+    String(r['SAP MAT ID'] ?? '').toLowerCase().includes(t)
+  );
+}
+
 /* ─── Delivery Status Badge ───────────────────────────────── */
 function DeliveryBadge({ raw }: { raw: string | null | undefined }) {
   const diff = daysDiff(raw);
   if (!raw) return <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-500">—</span>;
-  if (diff < 0) return <span className="bg-red-100/80 border border-red-200 text-red-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">Overdue</span>;
+  if (diff < 0) return <span className="bg-red-100/80 border border-red-200 text-red-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">Past Due</span>;
   if (diff <= 7) return <span className="bg-amber-100/80 border border-amber-200 text-amber-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">Due Soon</span>;
   return <span className="bg-[#307c4c]/10 border border-[#307c4c]/20 text-[#307c4c] text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">On Track</span>;
 }
@@ -210,18 +229,78 @@ function PaginationBar({ currentPage, totalPages, totalItems, setPage }: {
   );
 }
 
+/* ─── Status Tile Slicer ──────────────────────────────────── */
+const STATUS_TILES = [
+  {
+    id: 'Past Due',
+    activeClass: 'bg-red-100/80 border-red-300 text-red-700 shadow-sm ring-1 ring-red-200',
+  },
+  {
+    id: 'Due Soon',
+    activeClass: 'bg-amber-100/80 border-amber-300 text-amber-700 shadow-sm ring-1 ring-amber-200',
+  },
+  {
+    id: 'On Track',
+    activeClass: 'bg-[#307c4c]/10 border-[#307c4c]/30 text-[#307c4c] shadow-sm ring-1 ring-[#307c4c]/20',
+  },
+] as const;
+
+function StatusTiles({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const toggle = (id: string) => {
+    if (selected.includes(id)) onChange(selected.filter((s) => s !== id));
+    else onChange([...selected, id]);
+  };
+
+  return (
+    <div className="px-4 sm:px-6 py-3 border-b border-slate-100 bg-white flex items-center gap-2 flex-wrap">
+      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Status:</span>
+      {STATUS_TILES.map((tile) => {
+        const isActive = selected.includes(tile.id);
+        return (
+          <button
+            key={tile.id}
+            onClick={() => toggle(tile.id)}
+            className={[
+              'px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all duration-150',
+              isActive
+                ? tile.activeClass
+                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700',
+            ].join(' ')}
+          >
+            {tile.id}
+          </button>
+        );
+      })}
+      {selected.length > 0 && (
+        <button
+          onClick={() => onChange([])}
+          className="ml-1 text-xs text-slate-400 hover:text-slate-600 transition-colors px-2 py-1 rounded-lg hover:bg-slate-100"
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ─── Filter Bar ──────────────────────────────────────────── */
 function FilterBar({
   search, onSearch,
   deliveryCode, onDeliveryCode, deliveryCodes,
   country, onCountry, countries,
-  suppliers, onSuppliers, supplierList,
+  suppliers, onSuppliers, supplierList, supplierDisplayMap,
   buyers, onBuyers, buyerList,
 }: {
   search: string; onSearch: (v: string) => void;
   deliveryCode: string[]; onDeliveryCode: (v: string[]) => void; deliveryCodes: string[];
   country: string[]; onCountry: (v: string[]) => void; countries: string[];
-  suppliers: string[]; onSuppliers: (v: string[]) => void; supplierList: string[];
+  suppliers: string[]; onSuppliers: (v: string[]) => void; supplierList: string[]; supplierDisplayMap: Record<string, string>;
   buyers: string[]; onBuyers: (v: string[]) => void; buyerList: string[];
 }) {
   const inputBase = 'bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-[#307c4c] focus:border-[#307c4c] outline-none transition-colors duration-150';
@@ -238,18 +317,18 @@ function FilterBar({
           <input
             id="filter-search"
             type="search"
-            placeholder="Search by PO Number, Supplier, or SAP MAT ID…"
+            placeholder="Search by PO Number, Supplier, Supplier ID, or SAP MAT ID…"
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            aria-label="Search by PO Number, Supplier Name or SAP MAT ID"
+            aria-label="Search by PO Number, Supplier Name, Supplier ID or SAP MAT ID"
             className={`${inputBase} pl-9 pr-4 py-2.5 w-full`}
           />
         </div>
 
         {/* ── Multi-Selects ── */}
-        <MultiSelectDropdown options={supplierList} selectedOptions={suppliers} onChange={onSuppliers} label="Supplier Name" />
+        <MultiSelectDropdown options={supplierList} selectedOptions={suppliers} onChange={onSuppliers} label="Supplier" displayMap={supplierDisplayMap} />
         <MultiSelectDropdown options={buyerList} selectedOptions={buyers} onChange={onBuyers} label="Buyer Name" />
-        <MultiSelectDropdown options={deliveryCodes} selectedOptions={deliveryCode} onChange={onDeliveryCode} label="Status" displayMap={deliveryStatusMap} />
+        <MultiSelectDropdown options={deliveryCodes} selectedOptions={deliveryCode} onChange={onDeliveryCode} label="Delivery Status" displayMap={deliveryStatusMap} />
         <MultiSelectDropdown options={countries} selectedOptions={country} onChange={onCountry} label="Country" />
 
       </div>
@@ -263,6 +342,7 @@ const PO_SORT_MAP: Record<PoSortKey, string> = {
   totalValue: 'Open PO Value (USD)',
   earliestDate: 'Delivery Date',
 };
+
 /* ─── Memoized Line Item Component ────────────────────────── */
 const PoLineItemRow = memo(function PoLineItemRow({
   line,
@@ -283,7 +363,8 @@ const PoLineItemRow = memo(function PoLineItemRow({
   const isMatch = term !== '' && (
     String(line['SAP MAT ID'] ?? '').toLowerCase().includes(term) ||
     String(line['PO Number'] ?? '').toLowerCase().includes(term) ||
-    String(line['Supplier Name'] ?? '').toLowerCase().includes(term)
+    String(line['Supplier Name'] ?? '').toLowerCase().includes(term) ||
+    String(line['Supplier ID'] ?? '').toLowerCase().includes(term)
   );
 
   return (
@@ -479,6 +560,7 @@ export default function Dashboard() {
   const [filterCountry, setFilterCountry] = useState<string[]>([]);
   const [filterSuppliers, setFilterSuppliers] = useState<string[]>([]);
   const [filterBuyers, setFilterBuyers] = useState<string[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string[]>([]);
 
   // Sort + pagination
   const [poSortKey, setPoSortKey] = useState<PoSortKey>('earliestDate');
@@ -502,7 +584,7 @@ export default function Dashboard() {
   }, []);
 
   /* Reset page when any filter/sort changes ---------------- */
-  useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, poSortKey, poSortDir]);
+  useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, poSortKey, poSortDir]);
 
   /* Clear all filters -------------------------------------- */
   function clearFilters() {
@@ -511,9 +593,10 @@ export default function Dashboard() {
     setFilterCountry([]);
     setFilterSuppliers([]);
     setFilterBuyers([]);
+    setFilterStatus([]);
   }
 
-  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length;
+  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length + filterStatus.length;
 
   /* Remove Specific Filter ---------------------------------- */
   function removeFilter(type: 'search' | 'deliv' | 'country' | 'supplier' | 'buyer', val?: string) {
@@ -539,50 +622,94 @@ export default function Dashboard() {
     else { setPoSortKey(key); setPoSortDir('asc'); }
   }
 
-  /* Dynamic dropdown options (from full dataset) ----------- */
-  const { deliveryCodes, countries, supplierList, buyerList } = useMemo(() => {
+  /* ── Cascading dropdown options ────────────────────────────
+     Each set of options is calculated from rows filtered by all
+     OTHER active filters (but NOT the filter for that dropdown),
+     preventing users from locking themselves out of deselecting. */
+
+  const deliveryCodes = useMemo(() => {
     const dc = new Set<string>();
+    rows.forEach((r) => {
+      if (!rowMatchesStatus(r, filterStatus)) return;
+      if (!rowMatchesSearch(r, search)) return;
+      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
+      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
+      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
+      if (r['Delivery Code']) dc.add(r['Delivery Code']);
+    });
+    return [...dc].sort();
+  }, [rows, filterStatus, search, filterCountry, filterSuppliers, filterBuyers]);
+
+  const countries = useMemo(() => {
     const co = new Set<string>();
-    const sp = new Set<string>();
+    rows.forEach((r) => {
+      if (!rowMatchesStatus(r, filterStatus)) return;
+      if (!rowMatchesSearch(r, search)) return;
+      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] ?? '')) return;
+      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
+      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
+      if (r['Country']) co.add(r['Country']);
+    });
+    return [...co].sort();
+  }, [rows, filterStatus, search, filterDelivCode, filterSuppliers, filterBuyers]);
+
+  const { supplierList, supplierDisplayMap } = useMemo(() => {
+    const sp = new Map<string, string>(); // supplierName -> "ID - Name"
+    rows.forEach((r) => {
+      if (!rowMatchesStatus(r, filterStatus)) return;
+      if (!rowMatchesSearch(r, search)) return;
+      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] ?? '')) return;
+      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
+      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
+      const name = (r['Supplier Name'] ?? '').trim();
+      if (name && !sp.has(name)) {
+        const id = r['Supplier ID'];
+        sp.set(name, id ? `${id} - ${name}` : name);
+      }
+    });
+    const sortedNames = [...sp.keys()].sort();
+    const displayMap: Record<string, string> = {};
+    sortedNames.forEach((name) => { displayMap[name] = sp.get(name)!; });
+    return { supplierList: sortedNames, supplierDisplayMap: displayMap };
+  }, [rows, filterStatus, search, filterDelivCode, filterCountry, filterBuyers]);
+
+  const buyerList = useMemo(() => {
     const by = new Set<string>();
     rows.forEach((r) => {
-      if (r['Delivery Code']) dc.add(r['Delivery Code']);
-      if (r['Country']) co.add(r['Country']);
-      if (r['Supplier Name']) sp.add(r['Supplier Name']);
+      if (!rowMatchesStatus(r, filterStatus)) return;
+      if (!rowMatchesSearch(r, search)) return;
+      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] ?? '')) return;
+      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
+      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
       if (r['Buyer Name']) by.add(r['Buyer Name']);
     });
-    return {
-      deliveryCodes: [...dc].sort(),
-      countries: [...co].sort(),
-      supplierList: [...sp].sort(),
-      buyerList: [...by].sort(),
-    };
-  }, [rows]);
+    return [...by].sort();
+  }, [rows, filterStatus, search, filterDelivCode, filterCountry, filterSuppliers]);
 
-  /* Smart filtering:
-     A line row passes if it matches search + dropdown filters.
-     A PO group passes if ANY of its lines pass — ensuring
-     parent rows remain visible when a SAP MAT ID matches. */
+  /* Smart filtering ---------------------------------------- */
   const filtered = useMemo(() => {
     const term = search.toLowerCase().trim();
     return rows.filter((r) => {
-      // Dropdown filters apply at line level
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] ?? '')) return false;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return false;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return false;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return false;
 
-      // Search: match PO Number, Supplier Name, or SAP MAT ID
+      // Status tile filter
+      if (!rowMatchesStatus(r, filterStatus)) return false;
+
+      // Search: match PO Number, Supplier Name, Supplier ID, or SAP MAT ID
       if (term) {
         const matchesPO = String(r['PO Number'] ?? '').toLowerCase().includes(term);
         const matchesSupplier = String(r['Supplier Name'] ?? '').toLowerCase().includes(term);
+        const matchesSupplierID = String(r['Supplier ID'] ?? '').toLowerCase().includes(term);
         const matchesMatID = String(r['SAP MAT ID'] ?? '').toLowerCase().includes(term);
-        if (!matchesPO && !matchesSupplier && !matchesMatID) return false;
+        if (!matchesPO && !matchesSupplier && !matchesSupplierID && !matchesMatID) return false;
       }
 
       return true;
     });
-  }, [rows, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers]);
+  }, [rows, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus]);
 
   /* PO grouping -------------------------------------------- */
   const groupedPOs = useMemo((): PoGroup[] => {
@@ -632,10 +759,10 @@ export default function Dashboard() {
   /* KPI stats — always from full unfiltered dataset -------- */
   const stats = useMemo(() => {
     const distinctPOs = new Set(rows.map((r) => r['PO Number'])).size;
-    const overdue     = new Set(rows.filter((r) => daysDiff(r['Delivery Date']) < 0).map(r => r['PO Number'])).size;
+    const pastDue     = new Set(rows.filter((r) => daysDiff(r['Delivery Date']) < 0).map(r => r['PO Number'])).size;
     const dueSoon     = new Set(rows.filter((r) => { const d = daysDiff(r['Delivery Date']); return d >= 0 && d <= 7; }).map(r => r['PO Number'])).size;
     const totalValue  = rows.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
-    return { distinctPOs, overdue, dueSoon, totalValue };
+    return { distinctPOs, pastDue, dueSoon, totalValue };
   }, [rows]);
 
   /* Today label -------------------------------------------- */
@@ -647,9 +774,9 @@ export default function Dashboard() {
   return (
     <div className="flex h-[100dvh] w-full bg-white overflow-hidden font-sans text-slate-900 relative">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-      <LineItemDrawer 
-        lineItem={selectedLineItem} 
-        onClose={() => setSelectedLineItem(null)} 
+      <LineItemDrawer
+        lineItem={selectedLineItem}
+        onClose={() => setSelectedLineItem(null)}
         formatCurrency={formatCurrency}
         formatDate={formatDate}
         deliveryStatusMap={deliveryStatusMap}
@@ -696,7 +823,7 @@ export default function Dashboard() {
           {!loading && !error && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-in fade-in duration-500">
               <KpiCard label="Distinct Open POs" value={stats.distinctPOs.toLocaleString()} accent />
-              <KpiCard label="Overdue" value={stats.overdue.toLocaleString()} danger={stats.overdue > 0} />
+              <KpiCard label="Past Due" value={stats.pastDue.toLocaleString()} danger={stats.pastDue > 0} />
               <KpiCard label="Due This Week" value={stats.dueSoon.toLocaleString()} warning={stats.dueSoon > 0} />
               <KpiCard label="Total Open Value" value={formatCurrency(stats.totalValue)} accent />
             </div>
@@ -725,14 +852,17 @@ export default function Dashboard() {
             {/* ── Filter bar ── */}
             {!loading && !error && (
               <>
+                {/* ── Status Tile Slicer ── */}
+                <StatusTiles selected={filterStatus} onChange={setFilterStatus} />
+
                 <FilterBar
                   search={search} onSearch={setSearch}
                   deliveryCode={filterDelivCode} onDeliveryCode={setFilterDelivCode} deliveryCodes={deliveryCodes}
                   country={filterCountry} onCountry={setFilterCountry} countries={countries}
-                  suppliers={filterSuppliers} onSuppliers={setFilterSuppliers} supplierList={supplierList}
+                  suppliers={filterSuppliers} onSuppliers={setFilterSuppliers} supplierList={supplierList} supplierDisplayMap={supplierDisplayMap}
                   buyers={filterBuyers} onBuyers={setFilterBuyers} buyerList={buyerList}
                 />
-                
+
                 {/* ── Active Filters Row ── */}
                 {activeFilterCount > 0 && (
                   <div className="px-4 sm:px-6 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-3">
@@ -748,7 +878,7 @@ export default function Dashboard() {
                       )}
                       {filterDelivCode.map(c => (
                         <span key={`deliv-${c}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
-                          Status: {deliveryStatusMap[c] || c}
+                          Delivery Status: {deliveryStatusMap[c] || c}
                           <button onClick={() => removeFilter('deliv', c)} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
                             <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                           </button>
@@ -764,7 +894,7 @@ export default function Dashboard() {
                       ))}
                       {filterSuppliers.map(s => (
                         <span key={`sup-${s}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#307c4c]/20 text-[#307c4c] text-xs font-medium rounded-full shadow-sm">
-                          Supplier: {s}
+                          Supplier: {supplierDisplayMap[s] || s}
                           <button onClick={() => removeFilter('supplier', s)} className="hover:bg-[#307c4c]/10 p-0.5 rounded-full text-[#307c4c]/60 hover:text-[#307c4c] transition-colors">
                             <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                           </button>
@@ -842,7 +972,7 @@ export default function Dashboard() {
 
                     <th className="p-4 pl-6 font-medium whitespace-nowrap">Supplier Name</th>
                     <th className="p-4 pl-6 font-medium whitespace-nowrap">Country</th>
-                    <th className="p-4 pl-6 font-medium whitespace-nowrap">Delivery Code</th>
+                    <th className="p-4 pl-6 font-medium whitespace-nowrap">Delivery Status</th>
                     <th className="p-4 pl-6 font-medium whitespace-nowrap text-right">Lines</th>
                     <th className="p-4 pl-6 font-medium whitespace-nowrap">Status</th>
                   </tr>
