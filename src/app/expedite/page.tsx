@@ -41,14 +41,32 @@ const formatMatId = (id: string | null | undefined) =>
 
 /* ─── Email Pills ─────────────────────────────────────────── */
 
-/** Removable pill — used for all TO emails (default and additional) */
+/** Solid pill — supplier_emails sourced from Power BI sync (default contacts) */
+function DefaultEmailPill({ email, onRemove }: { email: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#307c4c] text-white text-xs font-medium rounded-md max-w-full">
+      <span className="truncate">{email}</span>
+      <button
+        onClick={onRemove}
+        className="shrink-0 text-white/70 hover:text-green-200 transition-colors ml-0.5"
+        aria-label={`Remove ${email}`}
+      >
+        <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </button>
+    </span>
+  );
+}
+
+/** Outlined pill — additional_supplier_emails and manually-added emails */
 function RemovableEmailPill({ email, onRemove }: { email: string; onRemove: () => void }) {
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-[#307c4c] text-[#307c4c] text-xs font-medium rounded-md max-w-full">
       <span className="truncate">{email}</span>
       <button
         onClick={onRemove}
-        className="shrink-0 text-[#307c4c]/60 hover:text-red-500 transition-colors ml-0.5"
+        className="shrink-0 text-[#307c4c]/70 hover:text-green-900 transition-colors ml-0.5"
         aria-label={`Remove ${email}`}
       >
         <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
@@ -113,6 +131,9 @@ function Toast({
   );
 }
 
+/* ─── ToEmail shape ──────────────────────────────────────── */
+type ToEmail = { email: string; source: 'default' | 'additional' };
+
 /* ─── Supplier Email Configuration Card ───────────────────── */
 function SupplierEmailCard({
   supplierId,
@@ -123,10 +144,8 @@ function SupplierEmailCard({
   items: PurchaseOrder[];
   cardError?: { to: boolean; cc: boolean };
 }) {
-  // defaultEmails = supplier_emails from DB; removable this session only (no DB write on removal)
-  const [defaultEmails, setDefaultEmails] = useState<string[]>([]);
-  // additionalEmails = additional_supplier_emails from DB + new adds this session
-  const [additionalEmails, setAdditionalEmails] = useState<string[]>([]);
+  // Single tagged array: source='default' for supplier_emails, source='additional' for everything else
+  const [toEmails, setToEmails] = useState<ToEmail[]>([]);
   const [ccEmails, setCcEmails] = useState<string[]>([]);
   const [toInput, setToInput] = useState('');
   const [ccInput, setCcInput] = useState('');
@@ -137,24 +156,26 @@ function SupplierEmailCard({
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const { setSupplierEmails } = useExpediteStore();
 
-  /* Load both email fields from supplier_contacts */
+  /* Load both email fields from supplier_contacts, tag each entry with its source */
   useEffect(() => {
     if (!supplierId) { setIsLoadingContacts(false); return; }
     getSupplierContacts(supplierId).then(({ defaultEmails: def, additionalEmails: add }) => {
-      setDefaultEmails(def);
-      setAdditionalEmails(add);
+      setToEmails([
+        ...def.map((email): ToEmail => ({ email, source: 'default' })),
+        ...add.map((email): ToEmail => ({ email, source: 'additional' })),
+      ]);
       setIsLoadingContacts(false);
     });
   }, [supplierId]);
 
-  /* Sync merged To + CC into Zustand so the confirm page can read them */
+  /* Sync To + CC into Zustand so the confirm page can read them */
   useEffect(() => {
     if (isLoadingContacts) return;
     setSupplierEmails(supplierId, {
-      to: [...defaultEmails, ...additionalEmails],
+      to: toEmails.map((t) => t.email),
       cc: ccEmails,
     });
-  }, [defaultEmails, additionalEmails, ccEmails, isLoadingContacts, supplierId, setSupplierEmails]);
+  }, [toEmails, ccEmails, isLoadingContacts, supplierId, setSupplierEmails]);
 
   /* Populate CC from buyer emails on the selected items */
   useEffect(() => {
@@ -172,12 +193,12 @@ function SupplierEmailCard({
   function handleAddTo() {
     const email = toInput.trim();
     if (!isValidEmail(email)) { setToError('Enter a valid email.'); return; }
-    if ([...defaultEmails, ...additionalEmails].includes(email)) {
+    if (toEmails.some((t) => t.email === email)) {
       setToError('Already in list.');
       return;
     }
     setToError('');
-    setAdditionalEmails((prev) => [...prev, email]);
+    setToEmails((prev) => [...prev, { email, source: 'additional' }]);
     setToInput('');
     startTransition(async () => {
       const res = await addAdditionalSupplierEmail(supplierId, email);
@@ -200,7 +221,7 @@ function SupplierEmailCard({
     setCcInput('');
   }
 
-  const hasToRecipients = defaultEmails.length > 0 || additionalEmails.length > 0;
+  const hasToRecipients = toEmails.length > 0;
 
   return (
     <div className="flex flex-col h-full border-l border-slate-100 bg-slate-50/40">
@@ -240,24 +261,18 @@ function SupplierEmailCard({
                 <p className="text-xs text-slate-400 italic">No recipients yet.</p>
               ) : (
                 <>
-                  {defaultEmails.map((email) => (
-                    <RemovableEmailPill
-                      key={email}
-                      email={email}
-                      onRemove={() =>
-                        setDefaultEmails((prev) => prev.filter((e) => e !== email))
-                      }
-                    />
-                  ))}
-                  {additionalEmails.map((email) => (
-                    <RemovableEmailPill
-                      key={email}
-                      email={email}
-                      onRemove={() =>
-                        setAdditionalEmails((prev) => prev.filter((e) => e !== email))
-                      }
-                    />
-                  ))}
+                  {toEmails.map((entry) => {
+                    const Pill = entry.source === 'default' ? DefaultEmailPill : RemovableEmailPill;
+                    return (
+                      <Pill
+                        key={entry.email}
+                        email={entry.email}
+                        onRemove={() =>
+                          setToEmails((prev) => prev.filter((t) => t.email !== entry.email))
+                        }
+                      />
+                    );
+                  })}
                 </>
               )}
             </div>
