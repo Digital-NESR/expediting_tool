@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition, useEffect } from 'react';
+import { useMemo, useState, useTransition, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { useExpediteStore } from '@/store/useExpediteStore';
@@ -35,8 +35,37 @@ function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 }
 
-/* ─── Email Pill ──────────────────────────────────────────── */
-function EmailPill({ email, onRemove }: { email: string; onRemove: () => void }) {
+/* ─── Email Pills ─────────────────────────────────────────── */
+
+/** Non-removable pill for supplier_emails (sourced from Power BI sync) */
+function DefaultEmailPill({ email }: { email: string }) {
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 bg-[#307c4c] text-white text-xs font-medium rounded-md max-w-full">
+      <span className="truncate">{email}</span>
+    </span>
+  );
+}
+
+/** Removable pill for additional_supplier_emails and newly added session emails */
+function RemovableEmailPill({ email, onRemove }: { email: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-[#307c4c] text-[#307c4c] text-xs font-medium rounded-md max-w-full">
+      <span className="truncate">{email}</span>
+      <button
+        onClick={onRemove}
+        className="shrink-0 text-[#307c4c]/60 hover:text-red-500 transition-colors ml-0.5"
+        aria-label={`Remove ${email}`}
+      >
+        <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </button>
+    </span>
+  );
+}
+
+/** CC pill — slate gray, removable */
+function CcEmailPill({ email, onRemove }: { email: string; onRemove: () => void }) {
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium rounded-md max-w-full">
       <span className="truncate">{email}</span>
@@ -53,6 +82,42 @@ function EmailPill({ email, onRemove }: { email: string; onRemove: () => void })
   );
 }
 
+/* ─── Toast ───────────────────────────────────────────────── */
+function Toast({
+  message,
+  type,
+  onDismiss,
+}: {
+  message: string;
+  type: 'success' | 'error';
+  onDismiss: () => void;
+}) {
+  const dismissRef = useRef(onDismiss);
+  useEffect(() => {
+    const t = setTimeout(() => dismissRef.current(), 3000);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div
+      className={`fixed bottom-24 right-4 z-50 flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg text-xs font-medium text-white ${
+        type === 'success' ? 'bg-[#307c4c]' : 'bg-red-600'
+      }`}
+    >
+      {type === 'success' ? (
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      ) : (
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        </svg>
+      )}
+      {message}
+    </div>
+  );
+}
+
 /* ─── Supplier Email Configuration Card ───────────────────── */
 function SupplierEmailCard({
   supplierId,
@@ -61,7 +126,10 @@ function SupplierEmailCard({
   supplierId: string;
   items: PurchaseOrder[];
 }) {
-  const [toEmails, setToEmails] = useState<string[]>([]);
+  // defaultEmails = supplier_emails (non-removable, Power BI sourced)
+  const [defaultEmails, setDefaultEmails] = useState<string[]>([]);
+  // additionalEmails = additional_supplier_emails from DB + new adds this session
+  const [additionalEmails, setAdditionalEmails] = useState<string[]>([]);
   const [ccEmails, setCcEmails] = useState<string[]>([]);
   const [toInput, setToInput] = useState('');
   const [ccInput, setCcInput] = useState('');
@@ -69,16 +137,19 @@ function SupplierEmailCard({
   const [ccError, setCcError] = useState('');
   const [isLoadingContacts, setIsLoadingContacts] = useState(true);
   const [isPending, startTransition] = useTransition();
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  /* Initialise To from supplier_contacts, CC from buyer emails */
+  /* Load both email fields from supplier_contacts */
   useEffect(() => {
     if (!supplierId) { setIsLoadingContacts(false); return; }
-    getSupplierContacts(supplierId).then(({ toEmails: fetched }) => {
-      setToEmails(fetched);
+    getSupplierContacts(supplierId).then(({ defaultEmails: def, additionalEmails: add }) => {
+      setDefaultEmails(def);
+      setAdditionalEmails(add);
       setIsLoadingContacts(false);
     });
   }, [supplierId]);
 
+  /* Populate CC from buyer emails on the selected items */
   useEffect(() => {
     const uniqueBuyerEmails = [
       ...new Set(
@@ -90,17 +161,25 @@ function SupplierEmailCard({
     setCcEmails(uniqueBuyerEmails);
   }, [items]);
 
-  /* Add To email — persists to DB */
+  /* Add To email — optimistic UI, persists to DB via server action */
   function handleAddTo() {
     const email = toInput.trim();
     if (!isValidEmail(email)) { setToError('Enter a valid email.'); return; }
-    if (toEmails.includes(email)) { setToError('Already in list.'); return; }
+    if ([...defaultEmails, ...additionalEmails].includes(email)) {
+      setToError('Already in list.');
+      return;
+    }
     setToError('');
-    setToEmails((prev) => [...prev, email]);
+    setAdditionalEmails((prev) => [...prev, email]);
     setToInput('');
     startTransition(async () => {
       const res = await addAdditionalSupplierEmail(supplierId, email);
-      if (!res.success) setToError('Saved locally, but DB update failed.');
+      if (res.success) {
+        setToast({ message: 'Email saved.', type: 'success' });
+      } else {
+        setToError('Saved locally, but DB update failed.');
+        setToast({ message: 'DB update failed — changes are session-only.', type: 'error' });
+      }
     });
   }
 
@@ -114,8 +193,18 @@ function SupplierEmailCard({
     setCcInput('');
   }
 
+  const hasToRecipients = defaultEmails.length > 0 || additionalEmails.length > 0;
+
   return (
     <div className="flex flex-col h-full border-l border-slate-100 bg-slate-50/40">
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onDismiss={() => setToast(null)}
+        />
+      )}
 
       {/* Card header */}
       <div className="px-4 py-3 border-b border-slate-100 bg-white">
@@ -140,16 +229,23 @@ function SupplierEmailCard({
             </div>
           ) : (
             <div className="flex flex-wrap gap-1.5 mb-2 min-h-[24px]">
-              {toEmails.length === 0 ? (
+              {!hasToRecipients ? (
                 <p className="text-xs text-slate-400 italic">No recipients yet.</p>
               ) : (
-                toEmails.map((email) => (
-                  <EmailPill
-                    key={email}
-                    email={email}
-                    onRemove={() => setToEmails((prev) => prev.filter((e) => e !== email))}
-                  />
-                ))
+                <>
+                  {defaultEmails.map((email) => (
+                    <DefaultEmailPill key={email} email={email} />
+                  ))}
+                  {additionalEmails.map((email) => (
+                    <RemovableEmailPill
+                      key={email}
+                      email={email}
+                      onRemove={() =>
+                        setAdditionalEmails((prev) => prev.filter((e) => e !== email))
+                      }
+                    />
+                  ))}
+                </>
               )}
             </div>
           )}
@@ -186,7 +282,7 @@ function SupplierEmailCard({
               <p className="text-xs text-slate-400 italic">No CC recipients.</p>
             ) : (
               ccEmails.map((email) => (
-                <EmailPill
+                <CcEmailPill
                   key={email}
                   email={email}
                   onRemove={() => setCcEmails((prev) => prev.filter((e) => e !== email))}
