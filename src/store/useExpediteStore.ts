@@ -8,9 +8,17 @@ function itemKey(item: PurchaseOrder): string {
   return `${item['PO Number']}::${item['PO Line'] ?? ''}::${item['SAP MAT ID'] ?? ''}`;
 }
 
+/* ─── Per-supplier email state ────────────────────────────── */
+export interface SupplierEmailState {
+  to: string[];
+  cc: string[];
+}
+
 /* ─── Store Shape ─────────────────────────────────────────── */
 interface ExpediteState {
   selectedItems: PurchaseOrder[];
+  /** Keyed by supplierId — holds merged To and CC lists per supplier */
+  supplierEmails: Record<string, SupplierEmailState>;
 }
 
 interface ExpediteActions {
@@ -19,6 +27,7 @@ interface ExpediteActions {
   deselectMultipleLines: (items: PurchaseOrder[]) => void;
   clearSelection: () => void;
   isSelected: (item: PurchaseOrder) => boolean;
+  setSupplierEmails: (supplierId: string, emails: SupplierEmailState) => void;
 }
 
 export type ExpediteStore = ExpediteState & ExpediteActions;
@@ -26,6 +35,7 @@ export type ExpediteStore = ExpediteState & ExpediteActions;
 /* ─── Store ──────────────────────────────────────────────── */
 export const useExpediteStore = create<ExpediteStore>((set, get) => ({
   selectedItems: [],
+  supplierEmails: {},
 
   toggleSelection: (item) => {
     const key = itemKey(item);
@@ -55,10 +65,15 @@ export const useExpediteStore = create<ExpediteStore>((set, get) => ({
     });
   },
 
-  clearSelection: () => set({ selectedItems: [] }),
+  clearSelection: () => set({ selectedItems: [], supplierEmails: {} }),
 
   isSelected: (item) => {
     const key = itemKey(item);
     return get().selectedItems.some((i) => itemKey(i) === key);
   },
+
+  setSupplierEmails: (supplierId, emails) =>
+    set((state) => ({
+      supplierEmails: { ...state.supplierEmails, [supplierId]: emails },
+    })),
 }));

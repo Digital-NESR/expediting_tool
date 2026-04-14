@@ -138,6 +138,7 @@ function SupplierEmailCard({
   const [isLoadingContacts, setIsLoadingContacts] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const { setSupplierEmails } = useExpediteStore();
 
   /* Load both email fields from supplier_contacts */
   useEffect(() => {
@@ -148,6 +149,15 @@ function SupplierEmailCard({
       setIsLoadingContacts(false);
     });
   }, [supplierId]);
+
+  /* Sync merged To + CC into Zustand so the confirm page can read them */
+  useEffect(() => {
+    if (isLoadingContacts) return;
+    setSupplierEmails(supplierId, {
+      to: [...defaultEmails, ...additionalEmails],
+      cc: ccEmails,
+    });
+  }, [defaultEmails, additionalEmails, ccEmails, isLoadingContacts, supplierId, setSupplierEmails]);
 
   /* Populate CC from buyer emails on the selected items */
   useEffect(() => {
@@ -541,12 +551,15 @@ export default function ExpediteReviewPage() {
               This will create tracking links and dispatch emails to all {groupedBySupplier.length} supplier{groupedBySupplier.length !== 1 ? 's' : ''}.
             </p>
           </div>
-          <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#1e293b] hover:bg-black text-white text-sm font-semibold px-8 py-3 rounded-xl transition-all duration-150 hover:scale-[1.02] active:scale-95 shadow-lg shadow-black/10">
-            Confirm & Generate Expedite Tokens
+          <Link
+            href="/expedite/confirm"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#1e293b] hover:bg-black text-white text-sm font-semibold px-8 py-3 rounded-xl transition-all duration-150 hover:scale-[1.02] active:scale-95 shadow-lg shadow-black/10"
+          >
+            Confirm &amp; Generate Expedite Tokens
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-          </button>
+          </Link>
         </div>
       </div>
     </div>
