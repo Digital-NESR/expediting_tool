@@ -45,6 +45,16 @@ function formatDate(dateStr: string | null | undefined) {
   }).format(d);
 }
 
+function toInputDate(dateStr: string | null | undefined) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.valueOf())) return '';
+  return d.toISOString().split('T')[0];
+}
+
+const formatMatId = (id: string | null | undefined) =>
+  id?.trim() ? id : <span className="text-gray-400 italic">Service</span>;
+
 function lineKey(po_number: string, po_line: string) {
   return `${po_number}:${po_line}`;
 }
@@ -70,7 +80,7 @@ export function SupplierPortalForm({ token, data }: Props) {
     for (const line of data.lines) {
       init[lineKey(line.po_number, line.po_line)] = {
         delivery_status_code: line.current_status ?? '',
-        new_delivery_date: line.new_delivery_date ?? '',
+        new_delivery_date: toInputDate(line.delivery_date),
         supplier_comments: line.supplier_comments ?? '',
       };
     }
@@ -87,7 +97,7 @@ export function SupplierPortalForm({ token, data }: Props) {
   );
 
   /* ── Validation errors — keyed by line key ── */
-  const [errors, setErrors] = useState<Record<string, { status: boolean; date: boolean }>>({});
+  const [errors, setErrors] = useState<Record<string, { status: boolean }>>({});
 
   /* ── Submit state ── */
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -143,11 +153,9 @@ export function SupplierPortalForm({ token, data }: Props) {
       const key = lineKey(line.po_number, line.po_line);
       const state = formState[key];
       const statusMissing = !state.delivery_status_code;
-      const dateMissing =
-        state.delivery_status_code === 'DS05' && !state.new_delivery_date;
 
-      if (statusMissing || dateMissing) {
-        newErrors[key] = { status: statusMissing, date: dateMissing };
+      if (statusMissing) {
+        newErrors[key] = { status: statusMissing };
         if (!firstErrorKey) firstErrorKey = key;
       }
     }
@@ -179,10 +187,7 @@ export function SupplierPortalForm({ token, data }: Props) {
         po_number: line.po_number,
         po_line: line.po_line,
         delivery_status_code: state.delivery_status_code,
-        new_delivery_date:
-          state.delivery_status_code === 'DS05' && state.new_delivery_date
-            ? state.new_delivery_date
-            : null,
+        new_delivery_date: state.new_delivery_date || null,
         supplier_comments: state.supplier_comments,
       };
     });
@@ -201,11 +206,7 @@ export function SupplierPortalForm({ token, data }: Props) {
   if (submitted) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mb-6">
-          <svg className="w-10 h-10 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
+        <img src="/nesr-logo-circle.png" alt="NESR" style={{ maxHeight: '64px', width: 'auto' }} className="mb-6" />
         <h2 className="text-2xl font-bold text-slate-800 mb-3">Updates Submitted Successfully</h2>
         <p className="text-slate-500 text-sm max-w-sm leading-relaxed mb-1">
           Thank you, <span className="font-semibold text-slate-700">{data.supplier_name}</span>. Your delivery updates have been recorded and shared with the NESR procurement team.
@@ -213,10 +214,6 @@ export function SupplierPortalForm({ token, data }: Props) {
         <p className="text-slate-400 text-xs max-w-sm leading-relaxed mt-3">
           This link has now been deactivated. If you need to make corrections, please contact your assigned buyer directly.
         </p>
-        <div className="mt-10 flex items-center gap-2 text-slate-400">
-          <img src="/nesr-logo-circle.png" height="20" alt="NESR" className="opacity-50" />
-          <span className="text-xs">NESR Procurement</span>
-        </div>
       </div>
     );
   }
@@ -245,7 +242,7 @@ export function SupplierPortalForm({ token, data }: Props) {
 
       {/* Instructions banner */}
       <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-6 text-sm text-emerald-800">
-        <svg className="w-4 h-4 shrink-0 mt-0.5 text-[#059669]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="w-4 h-4 shrink-0 mt-0.5 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <p>
@@ -262,11 +259,11 @@ export function SupplierPortalForm({ token, data }: Props) {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wider bg-gray-50">
+              <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50">
                 <th className="py-3 px-3 w-8" />
                 <th className="py-3 px-3 whitespace-nowrap">Line</th>
                 <th className="py-3 px-3 whitespace-nowrap">SAP MAT ID</th>
@@ -287,7 +284,7 @@ export function SupplierPortalForm({ token, data }: Props) {
                 <tbody key={group.po_number}>
                   {/* PO parent row */}
                   <tr
-                    className="cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors border-b border-gray-200"
+                    className="cursor-pointer bg-slate-50 hover:bg-[#307c4c]/5 transition-colors border-b border-slate-200"
                     onClick={() => togglePO(group.po_number)}
                   >
                     <td className="py-3 px-3" colSpan={10}>
@@ -306,7 +303,7 @@ export function SupplierPortalForm({ token, data }: Props) {
                             {group.lines.length} line{group.lines.length !== 1 ? 's' : ''}
                           </span>
                         </div>
-                        <span className="text-sm font-semibold text-[#059669] tabular-nums">
+                        <span className="text-sm font-semibold text-[#307c4c] tabular-nums">
                           {formatCurrency(group.totalValue)}
                         </span>
                       </div>
@@ -318,7 +315,6 @@ export function SupplierPortalForm({ token, data }: Props) {
                     const key = lineKey(line.po_number, line.po_line);
                     const state = formState[key];
                     const err = errors[key];
-                    const isDS05 = state.delivery_status_code === 'DS05';
 
                     return (
                       <tr
@@ -328,7 +324,7 @@ export function SupplierPortalForm({ token, data }: Props) {
                           else rowRefs.current.delete(key);
                         }}
                         className={`border-b border-gray-100 transition-colors ${
-                          err ? 'bg-red-50/40' : 'hover:bg-gray-50/50'
+                          err ? 'bg-red-50/40' : 'hover:bg-[#307c4c]/5'
                         }`}
                       >
                         {/* Indent spacer */}
@@ -343,7 +339,7 @@ export function SupplierPortalForm({ token, data }: Props) {
 
                         {/* SAP MAT ID */}
                         <td className="py-3 px-3 font-mono text-xs text-gray-400 whitespace-nowrap">
-                          {line.sap_mat_id || '—'}
+                          {formatMatId(line.sap_mat_id)}
                         </td>
 
                         {/* Description */}
@@ -353,7 +349,7 @@ export function SupplierPortalForm({ token, data }: Props) {
 
                         {/* Open QTY */}
                         <td className="py-3 px-3 text-xs text-gray-400 text-right tabular-nums whitespace-nowrap">
-                          {line.open_qty != null ? Number(line.open_qty).toLocaleString() : '—'}
+                          {Number(line.open_qty ?? 0).toLocaleString()}
                         </td>
 
                         {/* Value */}
@@ -373,7 +369,7 @@ export function SupplierPortalForm({ token, data }: Props) {
                             onChange={(e) =>
                               updateLine(key, 'delivery_status_code', e.target.value)
                             }
-                            className={`w-full text-xs rounded-lg px-2.5 py-2 bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669] ${
+                            className={`w-full text-xs rounded-lg px-2.5 py-2 bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#307c4c]/30 focus:border-[#307c4c] ${
                               err?.status
                                 ? 'border-2 border-red-500 bg-red-50'
                                 : 'border border-gray-200 hover:border-gray-300'
@@ -393,31 +389,16 @@ export function SupplierPortalForm({ token, data }: Props) {
                           )}
                         </td>
 
-                        {/* New delivery date — DS05 only */}
+                        {/* New delivery date */}
                         <td className="py-2 px-3">
-                          {isDS05 ? (
-                            <>
-                              <input
-                                type="date"
-                                value={state.new_delivery_date}
-                                onChange={(e) =>
-                                  updateLine(key, 'new_delivery_date', e.target.value)
-                                }
-                                className={`w-full text-xs rounded-lg px-2.5 py-2 bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669] ${
-                                  err?.date
-                                    ? 'border-2 border-red-500 bg-red-50'
-                                    : 'border border-gray-200 hover:border-gray-300'
-                                }`}
-                              />
-                              {err?.date && (
-                                <p className="mt-1 text-[10px] text-red-500 font-medium">
-                                  Date required for DS05.
-                                </p>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-xs text-gray-300 italic">—</span>
-                          )}
+                          <input
+                            type="date"
+                            value={state.new_delivery_date}
+                            onChange={(e) =>
+                              updateLine(key, 'new_delivery_date', e.target.value)
+                            }
+                            className="w-full text-xs rounded-lg px-2.5 py-2 bg-white border border-gray-200 hover:border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#307c4c]/30 focus:border-[#307c4c]"
+                          />
                         </td>
 
                         {/* Comments */}
@@ -429,7 +410,7 @@ export function SupplierPortalForm({ token, data }: Props) {
                               updateLine(key, 'supplier_comments', e.target.value)
                             }
                             placeholder="Optional comment…"
-                            className="w-full text-xs rounded-lg px-2.5 py-1.5 border border-gray-200 bg-white resize-none hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669] transition-colors placeholder-gray-300 focus:rows-4"
+                            className="w-full text-xs rounded-lg px-2.5 py-1.5 border border-gray-200 bg-white resize-none hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/30 focus:border-[#307c4c] transition-colors placeholder-gray-300 focus:rows-4"
                           />
                         </td>
                       </tr>
@@ -452,7 +433,7 @@ export function SupplierPortalForm({ token, data }: Props) {
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#059669] hover:bg-[#047857] text-white text-sm font-semibold px-8 py-2.5 rounded-xl transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-md shadow-[#059669]/20"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#307c4c] hover:bg-[#307c4c]/80 text-white text-sm font-semibold px-8 py-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-sm shadow-[#307c4c]/20"
           >
             {isSubmitting ? (
               <>

@@ -54,6 +54,9 @@ export default function ConfirmDispatchPage() {
   const [body, setBody] = useState(DEFAULT_BODY);
   const [sendPhase, setSendPhase] = useState<SendPhase>({ phase: 'idle' });
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
+  // Supplier link tokens once generated (supplierId → full URL)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [generatedLinks, _setGeneratedLinks] = useState<Record<string, string>>({});
 
   // Which cell is being edited: { supplierId, field, value }
   const [editingCell, setEditingCell] = useState<{
@@ -369,6 +372,7 @@ export default function ConfirmDispatchPage() {
                     <th className="py-3 px-4 whitespace-nowrap">Supplier</th>
                     <th className="py-3 px-4 whitespace-nowrap">To</th>
                     <th className="py-3 px-4 whitespace-nowrap">CC</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Supplier Link</th>
                     <th className="py-3 px-4 whitespace-nowrap text-center">Lines</th>
                   </tr>
                 </thead>
@@ -398,7 +402,7 @@ export default function ConfirmDispatchPage() {
                         </td>
 
                         {/* TO — click to edit */}
-                        <td className="py-2 px-4 align-middle w-[160px]">
+                        <td className="py-2 px-4 align-middle">
                           {editingCell?.supplierId === g.supplierId && editingCell.field === 'to' ? (
                             <input
                               autoFocus
@@ -429,7 +433,11 @@ export default function ConfirmDispatchPage() {
                               title="Click to edit"
                             >
                               {toList.length > 0 ? (
-                                <span className="truncate block leading-snug">{toList.join(', ')}</span>
+                                <div className="space-y-0.5">
+                                  {toList.map((email) => (
+                                    <div key={email} className="break-all leading-snug">{email}</div>
+                                  ))}
+                                </div>
                               ) : (
                                 <span className={`italic flex items-center gap-1 ${hasError ? 'text-amber-600' : 'text-slate-400'}`}>
                                   {hasError ? (
@@ -485,6 +493,23 @@ export default function ConfirmDispatchPage() {
                                 <span className="italic text-slate-400">None</span>
                               )}
                             </button>
+                          )}
+                        </td>
+
+                        {/* Supplier Link */}
+                        <td className="py-3 px-4 align-middle max-w-[200px]">
+                          {generatedLinks[g.supplierId] ? (
+                            <a
+                              href={generatedLinks[g.supplierId]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={generatedLinks[g.supplierId]}
+                              className="text-xs text-[#307c4c] hover:underline break-all leading-snug block"
+                            >
+                              {generatedLinks[g.supplierId]}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 italic text-xs">Generated on send</span>
                           )}
                         </td>
 

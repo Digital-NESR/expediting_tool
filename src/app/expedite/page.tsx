@@ -36,18 +36,12 @@ function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 }
 
+const formatMatId = (id: string | null | undefined) =>
+  id?.trim() ? id : <span className="text-gray-400 italic">Service</span>;
+
 /* ─── Email Pills ─────────────────────────────────────────── */
 
-/** Non-removable pill for supplier_emails (sourced from Power BI sync) */
-function DefaultEmailPill({ email }: { email: string }) {
-  return (
-    <span className="inline-flex items-center px-2 py-0.5 bg-[#307c4c] text-white text-xs font-medium rounded-md max-w-full">
-      <span className="truncate">{email}</span>
-    </span>
-  );
-}
-
-/** Removable pill for additional_supplier_emails and newly added session emails */
+/** Removable pill — used for all TO emails (default and additional) */
 function RemovableEmailPill({ email, onRemove }: { email: string; onRemove: () => void }) {
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-[#307c4c] text-[#307c4c] text-xs font-medium rounded-md max-w-full">
@@ -129,7 +123,7 @@ function SupplierEmailCard({
   items: PurchaseOrder[];
   cardError?: { to: boolean; cc: boolean };
 }) {
-  // defaultEmails = supplier_emails (non-removable, Power BI sourced)
+  // defaultEmails = supplier_emails from DB; removable this session only (no DB write on removal)
   const [defaultEmails, setDefaultEmails] = useState<string[]>([]);
   // additionalEmails = additional_supplier_emails from DB + new adds this session
   const [additionalEmails, setAdditionalEmails] = useState<string[]>([]);
@@ -247,7 +241,13 @@ function SupplierEmailCard({
               ) : (
                 <>
                   {defaultEmails.map((email) => (
-                    <DefaultEmailPill key={email} email={email} />
+                    <RemovableEmailPill
+                      key={email}
+                      email={email}
+                      onRemove={() =>
+                        setDefaultEmails((prev) => prev.filter((e) => e !== email))
+                      }
+                    />
                   ))}
                   {additionalEmails.map((email) => (
                     <RemovableEmailPill
@@ -563,7 +563,7 @@ export default function ExpediteReviewPage() {
                             {item['PO Number']}
                           </td>
                           <td className="py-3.5 px-6 font-mono text-xs text-slate-500 whitespace-nowrap">
-                            {item['SAP MAT ID'] || '—'}
+                            {formatMatId(item['SAP MAT ID'])}
                           </td>
                           <td className="py-3.5 px-6 text-sm text-slate-600 max-w-[200px] truncate" title={item['Item Description']}>
                             {item['Item Description'] || '—'}

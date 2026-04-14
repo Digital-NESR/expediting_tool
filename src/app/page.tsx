@@ -70,6 +70,9 @@ function formatCurrency(raw: number | string | null | undefined): string {
   }).format(n);
 }
 
+const formatMatId = (id: string | null | undefined) =>
+  id?.trim() ? id : <span className="text-gray-400 italic">Service</span>;
+
 function daysDiff(raw: string | null | undefined): number {
   if (!raw) return 0;
   const d = new Date(raw);
@@ -389,7 +392,7 @@ const PoLineItemRow = memo(function PoLineItemRow({
         />
       </td>
       <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
-        {line['SAP MAT ID'] ?? '—'}
+        {formatMatId(line['SAP MAT ID'])}
       </td>
       <td className="py-3 px-4 text-sm text-slate-600 max-w-[280px] truncate" title={line['Item Description']}>
         {line['Item Description'] ?? '—'}
