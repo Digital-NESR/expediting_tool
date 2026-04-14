@@ -20,6 +20,6 @@ export const config = {
      * - nesr-logo.jpg (public images)
      * - login (the login page itself to prevent redirect loops)
      */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|nesr-logo.jpg|login).*)",
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|nesr-logo.jpg|nesr-logo-circle.png|login|supplier-update).*)",
   ],
 };
