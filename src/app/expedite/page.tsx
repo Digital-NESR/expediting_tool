@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { useExpediteStore } from '@/store/useExpediteStore';
@@ -122,9 +123,11 @@ function Toast({
 function SupplierEmailCard({
   supplierId,
   items,
+  cardError,
 }: {
   supplierId: string;
   items: PurchaseOrder[];
+  cardError?: { to: boolean; cc: boolean };
 }) {
   // defaultEmails = supplier_emails (non-removable, Power BI sourced)
   const [defaultEmails, setDefaultEmails] = useState<string[]>([]);
@@ -279,6 +282,9 @@ function SupplierEmailCard({
             </button>
           </div>
           {toError && <p className="mt-1 text-[10px] text-red-500">{toError}</p>}
+          {cardError?.to && !hasToRecipients && (
+            <p className="mt-1 text-[10px] text-red-500 font-medium">TO email required before proceeding.</p>
+          )}
         </section>
 
         <div className="border-t border-slate-100" />
@@ -319,6 +325,9 @@ function SupplierEmailCard({
             </button>
           </div>
           {ccError && <p className="mt-1 text-[10px] text-red-500">{ccError}</p>}
+          {cardError?.cc && ccEmails.length === 0 && (
+            <p className="mt-1 text-[10px] text-red-500 font-medium">CC email required before proceeding.</p>
+          )}
           <p className="mt-2 text-[10px] text-slate-400 leading-snug">
             CC changes are local to this session only.
           </p>
@@ -331,8 +340,28 @@ function SupplierEmailCard({
 
 /* ─── Main Page ───────────────────────────────────────────── */
 export default function ExpediteReviewPage() {
-  const { selectedItems, toggleSelection } = useExpediteStore();
+  const { selectedItems, toggleSelection, supplierEmails } = useExpediteStore();
+  const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [cardErrors, setCardErrors] = useState<Record<string, { to: boolean; cc: boolean }>>({});
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  /* Auto-clear card errors as emails are added via the store */
+  useEffect(() => {
+    setCardErrors((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next: typeof prev = {};
+      let changed = false;
+      for (const [id, errs] of Object.entries(prev)) {
+        const stored = supplierEmails[id];
+        const toNow = errs.to && (!stored || stored.to.length === 0);
+        const ccNow = errs.cc && (!stored || stored.cc.length === 0);
+        if (toNow || ccNow) next[id] = { to: toNow, cc: ccNow };
+        if (toNow !== errs.to || ccNow !== errs.cc) changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [supplierEmails]);
 
   /* ─── Grouping Logic ────────────────────────────────────── */
   const groupedBySupplier = useMemo(() => {
@@ -351,6 +380,33 @@ export default function ExpediteReviewPage() {
       }))
       .sort((a, b) => a.supplierName.localeCompare(b.supplierName));
   }, [selectedItems]);
+
+  /* ─── Proceed validation ────────────────────────────────── */
+  function handleProceed() {
+    const errors: Record<string, { to: boolean; cc: boolean }> = {};
+    let firstErrorId: string | null = null;
+
+    for (const group of groupedBySupplier) {
+      const stored = supplierEmails[group.supplierId];
+      const toMissing = !stored || stored.to.length === 0;
+      const ccMissing = !stored || stored.cc.length === 0;
+      if (toMissing || ccMissing) {
+        errors[group.supplierId] = { to: toMissing, cc: ccMissing };
+        if (!firstErrorId) firstErrorId = group.supplierId;
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setCardErrors(errors);
+      if (firstErrorId) {
+        const el = cardRefs.current.get(firstErrorId);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    router.push('/expedite/confirm');
+  }
 
   /* ─── Empty State ───────────────────────────────────────── */
   if (selectedItems.length === 0) {
@@ -447,7 +503,14 @@ export default function ExpediteReviewPage() {
         {/* ── Supplier Cards ── */}
         <div className="space-y-6">
           {groupedBySupplier.map((group) => (
-            <div key={group.supplierName} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div
+              key={group.supplierName}
+              ref={(el) => {
+                if (el) cardRefs.current.set(group.supplierId, el);
+                else cardRefs.current.delete(group.supplierId);
+              }}
+              className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
+            >
 
               {/* Card header strip */}
               <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-4">
@@ -533,7 +596,11 @@ export default function ExpediteReviewPage() {
 
                 {/* Right — Email config card */}
                 <div className="w-full lg:w-72 xl:w-80 shrink-0">
-                  <SupplierEmailCard supplierId={group.supplierId} items={group.items} />
+                  <SupplierEmailCard
+                    supplierId={group.supplierId}
+                    items={group.items}
+                    cardError={cardErrors[group.supplierId]}
+                  />
                 </div>
 
               </div>
@@ -551,15 +618,15 @@ export default function ExpediteReviewPage() {
               This will create tracking links and dispatch emails to all {groupedBySupplier.length} supplier{groupedBySupplier.length !== 1 ? 's' : ''}.
             </p>
           </div>
-          <Link
-            href="/expedite/confirm"
+          <button
+            onClick={handleProceed}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#1e293b] hover:bg-black text-white text-sm font-semibold px-8 py-3 rounded-xl transition-all duration-150 hover:scale-[1.02] active:scale-95 shadow-lg shadow-black/10"
           >
-            Confirm &amp; Generate Expedite Tokens
+            Proceed to Review
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-          </Link>
+          </button>
         </div>
       </div>
     </div>

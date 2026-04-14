@@ -298,8 +298,8 @@ export default function ConfirmDispatchPage() {
           </p>
         </header>
 
-        {/* Two-column layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Single-column stacked layout */}
+        <div className="flex flex-col gap-6">
 
           {/* ── LEFT: Email Template ── */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -370,7 +370,6 @@ export default function ConfirmDispatchPage() {
                     <th className="py-3 px-4 whitespace-nowrap">To</th>
                     <th className="py-3 px-4 whitespace-nowrap">CC</th>
                     <th className="py-3 px-4 whitespace-nowrap text-center">Lines</th>
-                    <th className="py-3 px-4 whitespace-nowrap">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100/50">
@@ -378,7 +377,6 @@ export default function ConfirmDispatchPage() {
                     const toList = getEmails(g.supplierId, 'to');
                     const ccList = getEmails(g.supplierId, 'cc');
                     const hasError = validationErrors.has(g.supplierId);
-                    const isReady = toList.length > 0;
                     const rowKey = g.supplierId || g.supplierName;
 
                     return (
@@ -494,21 +492,6 @@ export default function ConfirmDispatchPage() {
                         <td className="py-3 px-4 text-center align-middle">
                           <span className="text-xs font-semibold text-slate-600">{g.items.length}</span>
                         </td>
-
-                        {/* Status */}
-                        <td className="py-3 px-4 align-middle">
-                          {isReady ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold whitespace-nowrap">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                              Ready
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold whitespace-nowrap">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                              Missing Email
-                            </span>
-                          )}
-                        </td>
                       </tr>
                     );
                   })}
@@ -566,7 +549,7 @@ export default function ConfirmDispatchPage() {
               </>
             ) : (
               <>
-                Send All
+                Send Emails
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
