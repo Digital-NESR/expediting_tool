@@ -88,18 +88,25 @@ export async function prepareAllExpediteDispatches(
 
     try {
       for (const item of items) {
-        const existing = await pool.query(
+        const submitted = await pool.query(
           `SELECT 1 FROM active_expediting
-           WHERE po_number = $1 AND po_line = $2 AND workflow_state = 'Email Sent'`,
+           WHERE po_number = $1 AND po_line = $2
+           AND workflow_state IN ('Submitted', 'Supplier Responded')`,
           [item['PO Number'], item['PO Line'] ?? '']
         );
 
-        if (existing.rows.length > 0) continue;
+        if (submitted.rows.length > 0) continue;
 
         await pool.query(
           `INSERT INTO active_expediting
-             (po_number, po_line, expedite_token, workflow_state, current_status, created_at)
-           VALUES ($1, $2, $3, 'Email Sent', 'Pending Supplier Response', NOW())`,
+             (po_number, po_line, expedite_token, workflow_state, current_status, created_at, updated_at)
+           VALUES ($1, $2, $3, 'Email Sent', 'Pending Supplier Response', NOW(), NOW())
+           ON CONFLICT (po_number, po_line)
+           DO UPDATE SET
+             expedite_token = EXCLUDED.expedite_token,
+             workflow_state = 'Email Sent',
+             current_status = 'Pending Supplier Response',
+             updated_at = NOW()`,
           [item['PO Number'], item['PO Line'] ?? '', token]
         );
       }
