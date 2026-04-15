@@ -1,15 +1,37 @@
 'use server';
 
 import { randomUUID } from 'crypto';
-import { fetch as undiciFetch, Agent } from 'undici';
+import https from 'https';
 import pool from '@/lib/db';
 import type { PurchaseOrder } from '@/types/po';
 
-const insecureDispatcher = new Agent({
-  connect: {
+function httpsPost(url: string, payload: unknown): void {
+  const data = JSON.stringify(payload);
+  const parsedUrl = new URL(url);
+
+  const options = {
+    hostname: parsedUrl.hostname,
+    port: parsedUrl.port || 443,
+    path: parsedUrl.pathname,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(data),
+    },
     rejectUnauthorized: false,
-  },
-});
+  };
+
+  const req = https.request(options, (res) => {
+    console.log('n8n webhook response status:', res.statusCode);
+  });
+
+  req.on('error', (err) => {
+    console.error('n8n webhook failed:', err.message);
+  });
+
+  req.write(data);
+  req.end();
+}
 
 /* ─── Internal shape: a group after DB insert, holding its token ── */
 interface PreparedGroup {
@@ -137,16 +159,7 @@ export async function prepareAllExpediteDispatches(
 
       console.log('Firing n8n webhook to:', process.env.N8N_EXPEDITE_WEBHOOK_URL);
       console.log('Payload supplier count:', webhookPayload.length);
-      undiciFetch(process.env.N8N_EXPEDITE_WEBHOOK_URL!, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(webhookPayload),
-        dispatcher: insecureDispatcher,
-      }).then((res) => {
-        console.log('n8n webhook response status:', res.status);
-      }).catch((err) => {
-        console.error('n8n webhook failed:', err);
-      });
+      httpsPost(process.env.N8N_EXPEDITE_WEBHOOK_URL!, webhookPayload);
     } else {
       console.warn('[prepareAllExpediteDispatches] N8N_EXPEDITE_WEBHOOK_URL is not set — skipping webhook.');
     }
