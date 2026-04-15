@@ -48,7 +48,7 @@ interface PoGroup {
   lines: PurchaseOrder[];
 }
 
-type PoSortKey = 'poNumber' | 'totalValue' | 'earliestDate';
+type PoSortKey = 'totalValue' | 'earliestDate';
 type SortDir = 'asc' | 'desc';
 
 /* ─── Helpers ─────────────────────────────────────────────── */
@@ -341,7 +341,6 @@ function FilterBar({
 
 /* ─── PO Sort column map ──────────────────────────────────── */
 const PO_SORT_MAP: Record<PoSortKey, string> = {
-  poNumber: 'PO Number',
   totalValue: 'Open PO Value (USD)',
   earliestDate: 'Delivery Date',
 };
@@ -749,7 +748,6 @@ export default function Dashboard() {
   const sortedPOs = useMemo(() =>
     [...groupedPOs].sort((a, b) => {
       let cmp = 0;
-      if (poSortKey === 'poNumber') cmp = a.poNumber.localeCompare(b.poNumber);
       if (poSortKey === 'totalValue') cmp = a.totalValue - b.totalValue;
       if (poSortKey === 'earliestDate') cmp = compareValues(a.earliestDate, b.earliestDate);
       return poSortDir === 'asc' ? cmp : -cmp;
@@ -818,7 +816,7 @@ export default function Dashboard() {
           <div className="mb-6">
             <h1 className="text-lg font-bold text-gray-900 tracking-tight">Open Purchase Orders</h1>
             <p className="text-sm text-slate-500 mt-0.5">
-              Live view of all open POs sourced from SAP — grouped by PO, sortable by delivery date, value, or PO number.
+              Live view of all open POs sourced from SAP — grouped by PO, sortable by delivery date or value.
             </p>
           </div>
 
@@ -949,8 +947,11 @@ export default function Dashboard() {
                     {/* Chevron col */}
                     <th className="p-4 pl-2 w-8" />
 
+                    {/* PO Number — plain, non-sortable */}
+                    <th className="p-4 pl-6 font-medium whitespace-nowrap">PO Number</th>
+
                     {/* Sortable columns */}
-                    {(['poNumber', 'totalValue', 'earliestDate'] as PoSortKey[]).map((sk) => {
+                    {(['totalValue', 'earliestDate'] as PoSortKey[]).map((sk) => {
                       const label = PO_SORT_MAP[sk];
                       const align = sk === 'totalValue' ? 'right' : undefined;
                       const active = poSortKey === sk;
