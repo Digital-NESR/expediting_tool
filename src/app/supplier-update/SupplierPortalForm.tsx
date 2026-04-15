@@ -107,6 +107,12 @@ export function SupplierPortalForm({ token, data }: Props) {
   /* ── Refs for scroll-to-error ── */
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
+  /* ── Bulk-apply state ── */
+  const [bulkApplyPO, setBulkApplyPO] = useState<string | null>(null);
+  const [bulkForm, setBulkForm] = useState<{ status: string; date: string; comments: string }>(
+    { status: '', date: '', comments: '' }
+  );
+
   /* ── PO groups ── */
   const poGroups = useMemo(() => {
     const map = new Map<string, typeof data.lines>();
@@ -136,12 +142,41 @@ export function SupplierPortalForm({ token, data }: Props) {
   }
 
   function togglePO(po_number: string) {
+    if (expandedPOs.has(po_number) && bulkApplyPO === po_number) setBulkApplyPO(null);
     setExpandedPOs((prev) => {
       const next = new Set(prev);
       if (next.has(po_number)) next.delete(po_number);
       else next.add(po_number);
       return next;
     });
+  }
+
+  function openBulkApply(po_number: string, lines: typeof data.lines) {
+    const earliest = lines.map((l) => l.delivery_date).filter(Boolean).sort()[0] ?? '';
+    setBulkForm({ status: '', date: toInputDate(earliest), comments: '' });
+    setBulkApplyPO(po_number);
+    setExpandedPOs((prev) => new Set([...prev, po_number]));
+  }
+
+  function applyBulk(po_number: string, lines: typeof data.lines) {
+    setFormState((prev) => {
+      const next = { ...prev };
+      for (const line of lines) {
+        const key = lineKey(line.po_number, line.po_line);
+        next[key] = {
+          delivery_status_code: bulkForm.status,
+          new_delivery_date: bulkForm.date,
+          supplier_comments: bulkForm.comments,
+        };
+      }
+      return next;
+    });
+    setErrors((prev) => {
+      const next = { ...prev };
+      for (const line of lines) delete next[lineKey(line.po_number, line.po_line)];
+      return next;
+    });
+    setBulkApplyPO(null);
   }
 
   /* ── Submit handler ── */
@@ -318,12 +353,86 @@ export function SupplierPortalForm({ token, data }: Props) {
                           {group.lines.length} line{group.lines.length !== 1 ? 's' : ''}
                         </span>
                       </div>
-                      <span className="text-sm font-semibold text-[#059669] tabular-nums ml-auto">
-                        {formatCurrency(group.totalValue)}
-                      </span>
+                      <div className="flex items-center gap-4 ml-auto">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openBulkApply(group.po_number, group.lines); }}
+                          className="text-xs font-medium text-[#059669] hover:text-[#047857] hover:underline transition-colors"
+                        >
+                          Set all lines →
+                        </button>
+                        <span className="text-sm font-semibold text-[#059669] tabular-nums">
+                          {formatCurrency(group.totalValue)}
+                        </span>
+                      </div>
                     </div>
                   </td>
                 </tr>
+
+                {/* Bulk-apply banner */}
+                {isExpanded && bulkApplyPO === group.po_number && (
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td colSpan={10} className="p-0">
+                      <div className="bg-slate-50 border-y border-slate-200 px-6 py-4">
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                          Apply to all {group.lines.length} lines in PO {group.po_number}
+                        </p>
+                        <div className="flex flex-wrap items-end gap-3">
+                          {/* Status */}
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[11px] font-medium text-slate-500">Status</label>
+                            <select
+                              value={bulkForm.status}
+                              onChange={(e) => setBulkForm((p) => ({ ...p, status: e.target.value }))}
+                              className="text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] min-w-[220px]"
+                            >
+                              <option value="">Select status…</option>
+                              {DS_CODES.map((ds) => (
+                                <option key={ds.code} value={ds.code}>{ds.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          {/* Date */}
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[11px] font-medium text-slate-500">New Delivery Date</label>
+                            <input
+                              type="date"
+                              value={bulkForm.date}
+                              onChange={(e) => setBulkForm((p) => ({ ...p, date: e.target.value }))}
+                              className="text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] min-w-[150px]"
+                            />
+                          </div>
+                          {/* Comments */}
+                          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+                            <label className="text-[11px] font-medium text-slate-500">Comments (optional)</label>
+                            <textarea
+                              rows={1}
+                              value={bulkForm.comments}
+                              onChange={(e) => setBulkForm((p) => ({ ...p, comments: e.target.value }))}
+                              placeholder="Optional comment…"
+                              className="text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] placeholder-gray-300"
+                            />
+                          </div>
+                          {/* Actions */}
+                          <div className="flex items-center gap-3 shrink-0">
+                            <button
+                              onClick={() => applyBulk(group.po_number, group.lines)}
+                              disabled={!bulkForm.status}
+                              className="flex items-center gap-1.5 bg-[#059669] hover:bg-[#047857] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-md px-4 py-1.5 transition-colors"
+                            >
+                              Apply to all {group.lines.length} lines
+                            </button>
+                            <button
+                              onClick={() => setBulkApplyPO(null)}
+                              className="text-[13px] text-slate-500 hover:text-slate-700 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
 
                 {/* Line item rows */}
                 {isExpanded && group.lines.map((line) => {
@@ -357,13 +466,15 @@ export function SupplierPortalForm({ token, data }: Props) {
                       </td>
 
                       {/* Description */}
-                      <td className="py-2.5 px-3 text-[13px] text-gray-500 max-w-[180px] truncate" title={line.item_description ?? ''}>
+                      <td className="py-2.5 px-3 text-[13px] text-gray-500" style={{ minWidth: '200px' }}>
                         {line.item_description || '—'}
                       </td>
 
                       {/* Open QTY */}
                       <td className="py-2.5 px-3 text-[13px] text-gray-500 text-right tabular-nums whitespace-nowrap">
-                        {Number(line.open_qty ?? 0).toLocaleString()}
+                        {line.sap_mat_id?.trim()
+                          ? Number(line.open_qty ?? 0).toLocaleString()
+                          : <span className="text-gray-300">—</span>}
                       </td>
 
                       {/* Value */}
