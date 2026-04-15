@@ -7,7 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import { useExpediteStore } from '@/store/useExpediteStore';
 import type { PurchaseOrder } from '@/types/po';
 import {
-  prepareExpediteDispatch,
+  prepareAllExpediteDispatches,
   type DispatchResult,
   type SupplierDispatchParams,
 } from '@/app/actions/expediteDispatch';
@@ -106,24 +106,19 @@ export default function ConfirmDispatchPage() {
     setEditingCell(null);
   }
 
-  /* ── Core dispatch loop (reusable for retry) ── */
+  /* ── Core dispatch — single server action call for all groups ── */
   async function dispatchGroups(toDispatch: SupplierGroup[]): Promise<DispatchResult[]> {
-    const results: DispatchResult[] = [];
-    for (let i = 0; i < toDispatch.length; i++) {
-      const g = toDispatch[i];
-      setSendPhase({ phase: 'sending', current: i + 1, total: toDispatch.length });
-      const params: SupplierDispatchParams = {
-        supplierId: g.supplierId,
-        supplierName: g.supplierName,
-        toEmails: getEmails(g.supplierId, 'to'),
-        ccEmails: getEmails(g.supplierId, 'cc'),
-        subject,
-        emailBodyTemplate: body,
-        items: g.items,
-      };
-      results.push(await prepareExpediteDispatch(params));
-    }
-    return results;
+    setSendPhase({ phase: 'sending', current: 0, total: toDispatch.length });
+    const paramsList: SupplierDispatchParams[] = toDispatch.map((g) => ({
+      supplierId: g.supplierId,
+      supplierName: g.supplierName,
+      toEmails: getEmails(g.supplierId, 'to'),
+      ccEmails: getEmails(g.supplierId, 'cc'),
+      subject,
+      emailBodyTemplate: body,
+      items: g.items,
+    }));
+    return prepareAllExpediteDispatches(paramsList);
   }
 
   async function handleSendAll() {
