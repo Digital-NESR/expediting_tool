@@ -11,6 +11,7 @@ export interface PurchaseOrder {
   'Delivery Date': string;
   'Delivery Code': string;
   'Country': string;
+  'PO Release Date'?: string;
   'Delivery Comments'?: string;
   'Buyer Email'?: string | null;
 }

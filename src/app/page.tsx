@@ -405,6 +405,9 @@ const PoLineItemRow = memo(function PoLineItemRow({
       <td className={`py-3 px-4 text-sm whitespace-nowrap font-medium ${diff < 0 ? 'text-red-600' : 'text-slate-600'}`}>
         {formatDate(line['Delivery Date'])}
       </td>
+      <td className="py-3 px-4 text-[13px] text-gray-500 whitespace-nowrap">
+        {formatDate(line['PO Release Date'])}
+      </td>
       <td className="py-3 px-4 whitespace-nowrap">
         <DeliveryBadge raw={line['Delivery Date']} />
       </td>
@@ -519,6 +522,7 @@ function PoSubTable({
           <th className="py-2.5 px-4 font-semibold text-right">Open QTY</th>
           <th className="py-2.5 px-4 font-semibold text-right">Open PO Value (USD)</th>
           <th className="py-2.5 px-4 font-semibold">Delivery Date</th>
+          <th className="py-2.5 px-4 font-semibold">PO Release Date</th>
           <th className="py-2.5 px-4 font-semibold">Status</th>
         </tr>
       </thead>
@@ -723,7 +727,7 @@ export default function Dashboard() {
           poNumber: key,
           supplierName: row['Supplier Name'] ?? '—',
           country: row['Country'] ?? '—',
-          deliveryCode: row['Delivery Code'] ?? '—',
+          deliveryCode: row['Delivery Code'] || '—',
           lineCount: 0,
           totalQty: 0,
           totalValue: 0,
