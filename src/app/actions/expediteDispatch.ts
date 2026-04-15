@@ -5,6 +5,12 @@ import { fetch as undiciFetch, Agent } from 'undici';
 import pool from '@/lib/db';
 import type { PurchaseOrder } from '@/types/po';
 
+const insecureDispatcher = new Agent({
+  connect: {
+    rejectUnauthorized: false,
+  },
+});
+
 /* ─── Internal shape: a group after DB insert, holding its token ── */
 interface PreparedGroup {
   supplierName: string;
@@ -131,14 +137,15 @@ export async function prepareAllExpediteDispatches(
 
       console.log('Firing n8n webhook to:', process.env.N8N_EXPEDITE_WEBHOOK_URL);
       console.log('Payload supplier count:', webhookPayload.length);
-      const dispatcher = new Agent({ connect: { rejectUnauthorized: false } });
       undiciFetch(process.env.N8N_EXPEDITE_WEBHOOK_URL!, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(webhookPayload),
-        dispatcher,
+        dispatcher: insecureDispatcher,
+      }).then((res) => {
+        console.log('n8n webhook response status:', res.status);
       }).catch((err) => {
-        console.error('n8n webhook call failed:', err);
+        console.error('n8n webhook failed:', err);
       });
     } else {
       console.warn('[prepareAllExpediteDispatches] N8N_EXPEDITE_WEBHOOK_URL is not set — skipping webhook.');
