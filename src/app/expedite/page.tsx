@@ -517,7 +517,11 @@ export default function ExpediteReviewPage() {
 
         {/* ── Supplier Cards ── */}
         <div className="space-y-6">
-          {groupedBySupplier.map((group) => (
+          {groupedBySupplier.map((group) => {
+            const buyerNames = [...new Set(
+              group.items.map(i => i['Buyer Name']).filter((b): b is string => Boolean(b))
+            )];
+            return (
             <div
               key={group.supplierName}
               ref={(el) => {
@@ -542,6 +546,11 @@ export default function ExpediteReviewPage() {
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-0.5">
                       {group.supplierId && <span className="mr-2 text-slate-400">{group.supplierId}</span>}
                       {group.items.length} Item{group.items.length !== 1 ? 's' : ''}
+                      {buyerNames.length > 0 && (
+                        <span className="text-slate-400 normal-case tracking-normal font-medium ml-1">
+                          · {buyerNames.length === 1 ? 'Buyer' : 'Buyers'}: {buyerNames.join(', ')}
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -556,7 +565,7 @@ export default function ExpediteReviewPage() {
 
                 {/* Left — PO table */}
                 <div className="flex-1 min-w-0 overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full text-left border-collapse" style={{ minWidth: '800px' }}>
                     <thead>
                       <tr className="bg-white border-b border-slate-100 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                         <th className="py-3 px-6 whitespace-nowrap">PO Number</th>
@@ -610,7 +619,7 @@ export default function ExpediteReviewPage() {
                 </div>
 
                 {/* Right — Email config card */}
-                <div className="w-full lg:w-72 xl:w-80 shrink-0">
+                <div className="shrink-0" style={{ minWidth: '280px', maxWidth: '320px' }}>
                   <SupplierEmailCard
                     supplierId={group.supplierId}
                     items={group.items}
@@ -620,7 +629,8 @@ export default function ExpediteReviewPage() {
 
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
