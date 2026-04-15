@@ -88,26 +88,30 @@ export async function prepareAllExpediteDispatches(
 
     try {
       for (const item of items) {
-        const submitted = await pool.query(
+        const poNum = item['PO Number'];
+        const poLine = item['PO Line'] ?? '';
+
+        // Skip lines where the supplier has already responded — don't overwrite their work
+        const terminal = await pool.query(
           `SELECT 1 FROM active_expediting
            WHERE po_number = $1 AND po_line = $2
            AND workflow_state IN ('Submitted', 'Supplier Responded')`,
-          [item['PO Number'], item['PO Line'] ?? '']
+          [poNum, poLine]
         );
+        if (terminal.rows.length > 0) continue;
 
-        if (submitted.rows.length > 0) continue;
+        // Remove any existing non-terminal row so the fresh token is always the active one
+        await pool.query(
+          `DELETE FROM active_expediting
+           WHERE po_number = $1 AND po_line = $2`,
+          [poNum, poLine]
+        );
 
         await pool.query(
           `INSERT INTO active_expediting
              (po_number, po_line, expedite_token, workflow_state, current_status, created_at, updated_at)
-           VALUES ($1, $2, $3, 'Email Sent', 'Pending Supplier Response', NOW(), NOW())
-           ON CONFLICT (po_number, po_line)
-           DO UPDATE SET
-             expedite_token = EXCLUDED.expedite_token,
-             workflow_state = 'Email Sent',
-             current_status = 'Pending Supplier Response',
-             updated_at = NOW()`,
-          [item['PO Number'], item['PO Line'] ?? '', token]
+           VALUES ($1, $2, $3, 'Email Sent', 'Pending Supplier Response', NOW(), NOW())`,
+          [poNum, poLine, token]
         );
       }
 
