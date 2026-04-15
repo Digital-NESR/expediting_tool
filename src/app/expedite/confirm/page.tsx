@@ -16,7 +16,7 @@ import {
 const DEFAULT_SUBJECT = 'Purchase Order Follow-Up – Action Required';
 
 const DEFAULT_BODY =
-  `Dear {Supplier Name},\n\nWe are following up on the below open purchase orders assigned to your account. Please review the listed items and provide an update on the current delivery status.\n\nTo submit your updates, please use the secure link below:\n{Supplier Link}\n\nThis link is unique to your account and will allow you to update delivery dates, statuses, and comments for all listed POs in one submission.\n\nPlease respond by end of week.\n\nFor any queries, contact your assigned NESR buyer directly.\n\nBest regards,\nNESR Procurement Team`;
+  `Dear {Supplier Name},\n\nWe are following up on the below open purchase orders assigned to your account. Please review the listed items and provide an update on the current delivery status.\n\nPlease respond by end of week.\n\nFor any queries, contact your assigned NESR buyer directly.\n\nBest regards,\nNESR Procurement Team`;
 
 /* ─── Placeholder pill ───────────────────────────────────── */
 function PlaceholderPill({ label }: { label: string }) {

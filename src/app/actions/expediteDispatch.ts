@@ -144,8 +144,7 @@ export async function prepareAllExpediteDispatches(
         ccEmails: group.ccEmails,
         subject: group.subject,
         emailBody: group.emailBody
-          .replace('{Supplier Name}', group.supplierName)
-          .replace('{Supplier Link}', `${appUrl}/supplier-update?token=${group.expediteToken}`),
+          .replace('{Supplier Name}', group.supplierName),
         supplierLink: `${appUrl}/supplier-update?token=${group.expediteToken}`,
         poLines: group.poLines.map((line) => ({
           poNumber: line.po_number,
