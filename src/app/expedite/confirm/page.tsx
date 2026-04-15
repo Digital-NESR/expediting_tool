@@ -33,7 +33,7 @@ function PlaceholderPill({ label }: { label: string }) {
 /* ─── Send phase state ───────────────────────────────────── */
 type SendPhase =
   | { phase: 'idle' }
-  | { phase: 'sending'; current: number; total: number }
+  | { phase: 'sending' }
   | { phase: 'done'; results: DispatchResult[] };
 
 /* ─── Group shape (mirrors expedite queue) ───────────────── */
@@ -108,7 +108,7 @@ export default function ConfirmDispatchPage() {
 
   /* ── Core dispatch — single server action call for all groups ── */
   async function dispatchGroups(toDispatch: SupplierGroup[]): Promise<DispatchResult[]> {
-    setSendPhase({ phase: 'sending', current: 0, total: toDispatch.length });
+    setSendPhase({ phase: 'sending' });
     const paramsList: SupplierDispatchParams[] = toDispatch.map((g) => ({
       supplierId: g.supplierId,
       supplierName: g.supplierName,
@@ -132,7 +132,6 @@ export default function ConfirmDispatchPage() {
       return;
     }
     setValidationErrors(new Set());
-    setSendPhase({ phase: 'sending', current: 0, total: groups.length });
     const results = await dispatchGroups(groups);
     setSendPhase({ phase: 'done', results });
   }
@@ -144,7 +143,6 @@ export default function ConfirmDispatchPage() {
     const failedGroups = groups.filter((g) => failedNames.has(g.supplierName));
     if (failedGroups.length === 0) return;
 
-    setSendPhase({ phase: 'sending', current: 0, total: failedGroups.length });
     const newResults = await dispatchGroups(failedGroups);
 
     // Merge: keep prior successes, replace failed rows with fresh results
@@ -548,7 +546,7 @@ export default function ConfirmDispatchPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Sending ({sendPhase.current}/{sendPhase.total})…
+                Sending…
               </>
             ) : (
               <>

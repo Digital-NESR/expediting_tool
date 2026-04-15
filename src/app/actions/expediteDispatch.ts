@@ -1,6 +1,7 @@
 'use server';
 
 import { randomUUID } from 'crypto';
+import { fetch as undiciFetch, Agent } from 'undici';
 import pool from '@/lib/db';
 import type { PurchaseOrder } from '@/types/po';
 
@@ -128,10 +129,14 @@ export async function prepareAllExpediteDispatches(
         })),
       }));
 
-      fetch(process.env.N8N_EXPEDITE_WEBHOOK_URL!, {
+      console.log('Firing n8n webhook to:', process.env.N8N_EXPEDITE_WEBHOOK_URL);
+      console.log('Payload supplier count:', webhookPayload.length);
+      const dispatcher = new Agent({ connect: { rejectUnauthorized: false } });
+      undiciFetch(process.env.N8N_EXPEDITE_WEBHOOK_URL!, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(webhookPayload),
+        dispatcher,
       }).catch((err) => {
         console.error('n8n webhook call failed:', err);
       });
