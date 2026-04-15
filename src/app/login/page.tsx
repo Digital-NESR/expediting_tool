@@ -14,7 +14,7 @@ export default function LoginPage() {
     const [error, setError] = useState('');
 
     const handleSSOLogin = () => {
-        signIn('azure-ad', { callbackUrl: '/' });
+        signIn('azure-ad', { callbackUrl: '/home' });
     };
 
     const handlePasswordLogin = async (e: React.FormEvent) => {
@@ -29,7 +29,7 @@ export default function LoginPage() {
             setError('Invalid password. Please try again.');
             setLoading(false);
         } else if (res?.ok) {
-            window.location.href = '/';
+            window.location.href = '/home';
         }
     };
 

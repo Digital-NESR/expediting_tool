@@ -11,9 +11,9 @@ export const siteConfig = {
   text: {
     appName: "NESR PO Expediting Tool",
     login: {
-      pageTitle: "Login | PO Expediting",
-      title: "Welcome to PO Expediting",
-      subtitle: "Intelligent Purchase Order Tracking",
+      pageTitle: "Login | NESR Digital Supply Chain",
+      title: "NESR Digital Supply Chain",
+      subtitle: "Sign in with your NESR Microsoft account to access your supply chain tools.",
       ssoButton: "Continue with SSO",
       footer: "NESR Internal Tool • Authorized Personnel Only"
     }
