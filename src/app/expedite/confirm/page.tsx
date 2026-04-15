@@ -366,14 +366,13 @@ export default function ConfirmDispatchPage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
                 <thead>
                   <tr className="border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    <th className="py-3 px-4 whitespace-nowrap">Supplier</th>
-                    <th className="py-3 px-4 whitespace-nowrap">To</th>
-                    <th className="py-3 px-4 whitespace-nowrap">CC</th>
-                    <th className="py-3 px-4 whitespace-nowrap">Supplier Link</th>
-                    <th className="py-3 px-4 whitespace-nowrap text-center">Lines</th>
+                    <th className="py-3 px-4" style={{ width: '220px' }}>Supplier</th>
+                    <th className="py-3 px-4">To</th>
+                    <th className="py-3 px-4">CC</th>
+                    <th className="py-3 px-4 text-center" style={{ width: '60px' }}>Lines</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100/50">
@@ -390,10 +389,7 @@ export default function ConfirmDispatchPage() {
                       >
                         {/* Supplier */}
                         <td className="py-3 px-4 align-top">
-                          <p
-                            className="text-xs font-semibold text-slate-700 max-w-[110px] truncate"
-                            title={g.supplierName}
-                          >
+                          <p className="text-xs font-semibold text-slate-700">
                             {g.supplierName}
                           </p>
                           {g.supplierId && (
@@ -457,7 +453,7 @@ export default function ConfirmDispatchPage() {
                         </td>
 
                         {/* CC — click to edit */}
-                        <td className="py-2 px-4 align-middle w-[160px]">
+                        <td className="py-2 px-4 align-middle">
                           {editingCell?.supplierId === g.supplierId && editingCell.field === 'cc' ? (
                             <input
                               autoFocus
@@ -488,28 +484,15 @@ export default function ConfirmDispatchPage() {
                               title="Click to edit"
                             >
                               {ccList.length > 0 ? (
-                                <span className="truncate block leading-snug">{ccList.join(', ')}</span>
+                                <div className="space-y-0.5">
+                                  {ccList.map((email) => (
+                                    <div key={email} className="break-all leading-snug">{email}</div>
+                                  ))}
+                                </div>
                               ) : (
                                 <span className="italic text-slate-400">None</span>
                               )}
                             </button>
-                          )}
-                        </td>
-
-                        {/* Supplier Link */}
-                        <td className="py-3 px-4 align-middle max-w-[200px]">
-                          {generatedLinks[g.supplierId] ? (
-                            <a
-                              href={generatedLinks[g.supplierId]}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={generatedLinks[g.supplierId]}
-                              className="text-xs text-[#307c4c] hover:underline break-all leading-snug block"
-                            >
-                              {generatedLinks[g.supplierId]}
-                            </a>
-                          ) : (
-                            <span className="text-gray-400 italic text-xs">Generated on send</span>
                           )}
                         </td>
 
