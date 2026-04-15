@@ -497,7 +497,7 @@ export default function ExpediteReviewPage() {
         </div>
       </header>
 
-      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
         {/* Page Header */}
         <header className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -564,17 +564,17 @@ export default function ExpediteReviewPage() {
               <div className="flex flex-col lg:flex-row">
 
                 {/* Left — PO table */}
-                <div className="flex-1 min-w-0 overflow-x-auto">
-                  <table className="w-full text-left border-collapse" style={{ minWidth: '800px' }}>
+                <div className="flex-1 min-w-0">
+                  <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
                     <thead>
                       <tr className="bg-white border-b border-slate-100 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                        <th className="py-3 px-6 whitespace-nowrap">PO Number</th>
-                        <th className="py-3 px-6 whitespace-nowrap">SAP MAT ID</th>
-                        <th className="py-3 px-6 whitespace-nowrap">Description</th>
-                        <th className="py-3 px-6 whitespace-nowrap text-right">Open QTY</th>
-                        <th className="py-3 px-6 whitespace-nowrap text-right">Value (USD)</th>
-                        <th className="py-3 px-6 whitespace-nowrap">Current Delivery</th>
-                        <th className="py-3 px-6 w-10" />
+                        <th className="py-3 px-4 whitespace-nowrap" style={{ width: '130px' }}>PO Number</th>
+                        <th className="py-3 px-4 whitespace-nowrap" style={{ width: '180px' }}>SAP MAT ID</th>
+                        <th className="py-3 px-4">Description</th>
+                        <th className="py-3 px-4 whitespace-nowrap text-right" style={{ width: '90px' }}>Open QTY</th>
+                        <th className="py-3 px-4 whitespace-nowrap text-right" style={{ width: '100px' }}>Value (USD)</th>
+                        <th className="py-3 px-4 whitespace-nowrap" style={{ width: '120px' }}>Current Delivery</th>
+                        <th className="py-3 px-4" style={{ width: '44px' }} />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100/50">
@@ -583,25 +583,25 @@ export default function ExpediteReviewPage() {
                           key={`${item['PO Number']}-${item['SAP MAT ID']}-${idx}`}
                           className="hover:bg-slate-50/50 transition-colors group/row"
                         >
-                          <td className="py-3.5 px-6 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
+                          <td className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-700 truncate">
                             {item['PO Number']}
                           </td>
-                          <td className="py-3.5 px-6 font-mono text-xs text-slate-500 whitespace-nowrap">
+                          <td className="py-3.5 px-4 font-mono text-xs text-slate-500 truncate">
                             {formatMatId(item['SAP MAT ID'])}
                           </td>
-                          <td className="py-3.5 px-6 text-sm text-slate-600 max-w-[200px] truncate" title={item['Item Description']}>
+                          <td className="py-3.5 px-4 text-sm text-slate-600 truncate" title={item['Item Description']}>
                             {item['Item Description'] || '—'}
                           </td>
-                          <td className="py-3.5 px-6 text-sm text-right font-medium text-slate-700 tabular-nums">
+                          <td className="py-3.5 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
                             {Number(item['Open QTY'] || 0).toLocaleString()}
                           </td>
-                          <td className="py-3.5 px-6 text-sm text-right font-semibold text-slate-800 tabular-nums">
+                          <td className="py-3.5 px-4 text-sm text-right font-semibold text-slate-800 tabular-nums">
                             {formatCurrency(item['Open PO Value USD'])}
                           </td>
-                          <td className="py-3.5 px-6 text-sm font-medium text-slate-600 whitespace-nowrap">
+                          <td className="py-3.5 px-4 text-sm font-medium text-slate-600 truncate">
                             {formatDate(item['Delivery Date'])}
                           </td>
-                          <td className="py-3.5 px-6">
+                          <td className="py-3.5 px-2">
                             <button
                               onClick={() => toggleSelection(item)}
                               className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-all opacity-0 group-hover/row:opacity-100"
@@ -619,7 +619,7 @@ export default function ExpediteReviewPage() {
                 </div>
 
                 {/* Right — Email config card */}
-                <div className="shrink-0" style={{ minWidth: '280px', maxWidth: '320px' }}>
+                <div className="shrink-0" style={{ width: '300px' }}>
                   <SupplierEmailCard
                     supplierId={group.supplierId}
                     items={group.items}
