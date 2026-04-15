@@ -5,14 +5,14 @@ import { SupplierPortalForm } from './SupplierPortalForm';
 
 function NotFoundView() {
   return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-5">
-        <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <div style={{ maxWidth: '480px', margin: '80px auto', background: '#fff', borderRadius: '16px', padding: '48px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
+      <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#fef2f2', border: '2px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+        <svg style={{ width: '24px', height: '24px' }} fill="none" viewBox="0 0 24 24" stroke="#ef4444" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
         </svg>
       </div>
-      <h2 className="text-xl font-bold text-slate-800 mb-2">Link Not Found</h2>
-      <p className="text-slate-500 text-sm max-w-xs">
+      <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#111827', marginTop: '24px' }}>Link Not Found</h2>
+      <p style={{ fontSize: '14px', color: '#6b7280', lineHeight: '1.6', marginTop: '12px' }}>
         This link is invalid or does not exist. Please check the URL or contact your NESR buyer.
       </p>
     </div>
@@ -21,19 +21,17 @@ function NotFoundView() {
 
 function ExpiredView() {
   return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="max-w-md w-full bg-amber-50 border border-amber-200 rounded-2xl p-8">
-        <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
-          <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <h2 className="text-lg font-bold text-amber-900 mb-2">Updates Already Submitted</h2>
-        <p className="text-sm text-amber-800 leading-relaxed">
-          Your delivery updates for this batch have already been recorded.
-          If you need to make changes, please contact your NESR buyer directly.
-        </p>
+    <div style={{ maxWidth: '480px', margin: '80px auto', background: '#fff', borderRadius: '16px', padding: '48px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
+      <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#fffbeb', border: '2px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+        <svg style={{ width: '24px', height: '24px' }} fill="none" viewBox="0 0 24 24" stroke="#f59e0b" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
       </div>
+      <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#111827', marginTop: '24px' }}>Updates Already Submitted</h2>
+      <p style={{ fontSize: '14px', color: '#6b7280', lineHeight: '1.6', marginTop: '12px' }}>
+        Your delivery updates for this batch have already been recorded.
+        If you need to make changes, please contact your NESR buyer directly.
+      </p>
     </div>
   );
 }

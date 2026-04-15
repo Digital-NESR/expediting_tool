@@ -163,10 +163,8 @@ export function SupplierPortalForm({ token, data }: Props) {
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       if (firstErrorKey) {
-        // Expand the PO that contains the first error
         const [poNumber] = firstErrorKey.split(':');
         setExpandedPOs((prev) => new Set([...prev, poNumber]));
-        // Wait one tick for the row to render
         setTimeout(() => {
           rowRefs.current
             .get(firstErrorKey!)
@@ -205,15 +203,29 @@ export function SupplierPortalForm({ token, data }: Props) {
   /* ── Success state ── */
   if (submitted) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <img src="/nesr-logo-circle.png" alt="NESR" style={{ maxHeight: '64px', width: 'auto' }} className="mb-6" />
-        <h2 className="text-2xl font-bold text-slate-800 mb-3">Updates Submitted Successfully</h2>
-        <p className="text-slate-500 text-sm max-w-sm leading-relaxed mb-1">
-          Thank you, <span className="font-semibold text-slate-700">{data.supplier_name}</span>. Your delivery updates have been recorded and shared with the NESR procurement team.
+      <div style={{ maxWidth: '480px', margin: '80px auto', background: '#fff', borderRadius: '16px', padding: '48px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
+        <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f0fdf4', border: '2px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+          <svg style={{ width: '24px', height: '24px' }} fill="none" viewBox="0 0 24 24" stroke="#059669" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#111827', marginTop: '24px' }}>
+          Updates Submitted Successfully
+        </h2>
+        <p style={{ fontSize: '14px', color: '#6b7280', lineHeight: '1.6', marginTop: '12px' }}>
+          Thank you, <strong style={{ color: '#374151' }}>{data.supplier_name}</strong>. Your delivery updates have been recorded and shared with the NESR procurement team.
         </p>
-        <p className="text-slate-400 text-xs max-w-sm leading-relaxed mt-3">
+        <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '24px 0' }} />
+        <p style={{ fontSize: '13px', color: '#9ca3af', lineHeight: '1.6' }}>
           This link has now been deactivated. If you need to make corrections, please contact your assigned buyer directly.
         </p>
+        <div style={{ marginTop: '20px' }}>
+          <img
+            src="/nesr-logo-circle.png"
+            alt="NESR"
+            style={{ height: '24px', width: 'auto', opacity: 0.4, margin: '0 auto' }}
+          />
+        </div>
       </div>
     );
   }
@@ -223,26 +235,28 @@ export function SupplierPortalForm({ token, data }: Props) {
     <div className="pb-24">
 
       {/* Supplier info bar */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-5 text-sm text-gray-500">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-6 text-sm text-gray-500">
         <span>
           Updating for:{' '}
-          <span className="font-semibold text-gray-700">{data.supplier_name}</span>
+          <span className="font-semibold text-gray-800">{data.supplier_name}</span>
         </span>
         <span className="text-gray-300">·</span>
         <span>
           Buyer:{' '}
-          <span className="font-semibold text-gray-700">{data.buyer_name}</span>
+          <span className="font-semibold text-gray-800">{data.buyer_name}</span>
         </span>
         <span className="text-gray-300">·</span>
         <span>
-          <span className="font-semibold text-gray-700">{data.lines.length}</span> PO line{data.lines.length !== 1 ? 's' : ''} across{' '}
-          <span className="font-semibold text-gray-700">{uniquePOCount}</span> PO{uniquePOCount !== 1 ? 's' : ''}
+          <span className="font-semibold text-gray-800">{data.lines.length}</span>{' '}
+          PO line{data.lines.length !== 1 ? 's' : ''} across{' '}
+          <span className="font-semibold text-gray-800">{uniquePOCount}</span>{' '}
+          PO{uniquePOCount !== 1 ? 's' : ''}
         </span>
       </div>
 
       {/* Instructions banner */}
-      <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-6 text-sm text-emerald-800">
-        <svg className="w-4 h-4 shrink-0 mt-0.5 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-[#f0fdf4] border border-[#bbf7d0] rounded-lg mb-6 text-sm text-[#065f46]">
+        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <p>
@@ -253,187 +267,183 @@ export function SupplierPortalForm({ token, data }: Props) {
 
       {/* Submit error */}
       {submitError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+        <div className="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           {submitError}
         </div>
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50">
-                <th className="py-3 px-3 w-8" />
-                <th className="py-3 px-3 whitespace-nowrap">Line</th>
-                <th className="py-3 px-3 whitespace-nowrap">SAP MAT ID</th>
-                <th className="py-3 px-3 whitespace-nowrap">Description</th>
-                <th className="py-3 px-3 whitespace-nowrap text-right">Open QTY</th>
-                <th className="py-3 px-3 whitespace-nowrap text-right">Value (USD)</th>
-                <th className="py-3 px-3 whitespace-nowrap">Current Delivery</th>
-                <th className="py-3 px-3 whitespace-nowrap min-w-[200px]">Status</th>
-                <th className="py-3 px-3 whitespace-nowrap min-w-[140px]">New Del. Date</th>
-                <th className="py-3 px-3 whitespace-nowrap min-w-[200px]">Comments</th>
-              </tr>
-            </thead>
+      <div className="w-full overflow-x-auto rounded-xl border border-[#e2e8f0] shadow-sm mb-6">
+        <table style={{ width: '100%', minWidth: '1100px', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr className="bg-[#f1f5f9] text-[11px] font-semibold text-gray-500 uppercase tracking-[0.05em]"
+                style={{ borderBottom: '2px solid #e2e8f0' }}>
+              <th className="py-2.5 px-3 w-8" />
+              <th className="py-2.5 px-3 whitespace-nowrap text-left">Line</th>
+              <th className="py-2.5 px-3 whitespace-nowrap text-left">SAP MAT ID</th>
+              <th className="py-2.5 px-3 whitespace-nowrap text-left">Description</th>
+              <th className="py-2.5 px-3 whitespace-nowrap text-right">Open QTY</th>
+              <th className="py-2.5 px-3 whitespace-nowrap text-right">Value (USD)</th>
+              <th className="py-2.5 px-3 whitespace-nowrap text-left">Current Delivery</th>
+              <th className="py-2.5 px-3 whitespace-nowrap text-left min-w-[200px]">Status</th>
+              <th className="py-2.5 px-3 whitespace-nowrap text-left min-w-[140px]">New Del. Date</th>
+              <th className="py-2.5 px-3 whitespace-nowrap text-left min-w-[180px]">Comments</th>
+            </tr>
+          </thead>
 
-            {poGroups.map((group) => {
-              const isExpanded = expandedPOs.has(group.po_number);
+          {poGroups.map((group) => {
+            const isExpanded = expandedPOs.has(group.po_number);
 
-              return (
-                <tbody key={group.po_number}>
-                  {/* PO parent row */}
-                  <tr
-                    className="cursor-pointer bg-slate-50 hover:bg-[#307c4c]/5 transition-colors border-b border-slate-200"
-                    onClick={() => togglePO(group.po_number)}
-                  >
-                    <td className="py-3 px-3" colSpan={10}>
-                      <div className="flex items-center justify-between gap-4 flex-wrap">
-                        <div className="flex items-center gap-2.5">
-                          <svg
-                            className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                          </svg>
-                          <span className="font-bold text-sm text-gray-800 font-mono">
-                            {group.po_number}
-                          </span>
-                          <span className="text-xs text-gray-400">
-                            {group.lines.length} line{group.lines.length !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                        <span className="text-sm font-semibold text-[#307c4c] tabular-nums">
-                          {formatCurrency(group.totalValue)}
+            return (
+              <tbody key={group.po_number}>
+                {/* PO parent row */}
+                <tr
+                  className="cursor-pointer bg-[#f8fafc] hover:bg-[#f1f5f9] transition-colors"
+                  style={{ borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}
+                  onClick={() => togglePO(group.po_number)}
+                >
+                  <td className="py-3 px-4" colSpan={10}>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2.5">
+                        <svg
+                          className={`w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
+                          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span className="text-sm font-bold text-gray-800 font-mono">
+                          {group.po_number}
+                        </span>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                          {group.lines.length} line{group.lines.length !== 1 ? 's' : ''}
                         </span>
                       </div>
-                    </td>
-                  </tr>
+                      <span className="text-sm font-semibold text-[#059669] tabular-nums ml-auto">
+                        {formatCurrency(group.totalValue)}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
 
-                  {/* Line item rows */}
-                  {isExpanded && group.lines.map((line) => {
-                    const key = lineKey(line.po_number, line.po_line);
-                    const state = formState[key];
-                    const err = errors[key];
+                {/* Line item rows */}
+                {isExpanded && group.lines.map((line) => {
+                  const key = lineKey(line.po_number, line.po_line);
+                  const state = formState[key];
+                  const err = errors[key];
 
-                    return (
-                      <tr
-                        key={key}
-                        ref={(el) => {
-                          if (el) rowRefs.current.set(key, el);
-                          else rowRefs.current.delete(key);
-                        }}
-                        className={`border-b border-gray-100 transition-colors ${
-                          err ? 'bg-red-50/40' : 'hover:bg-[#307c4c]/5'
-                        }`}
-                      >
-                        {/* Indent spacer */}
-                        <td className="py-3 px-3 w-8">
-                          <div className="w-6 border-l-2 border-gray-200 h-4 ml-2" />
-                        </td>
+                  return (
+                    <tr
+                      key={key}
+                      ref={(el) => {
+                        if (el) rowRefs.current.set(key, el);
+                        else rowRefs.current.delete(key);
+                      }}
+                      className={`transition-colors ${err ? 'bg-red-50/40' : 'bg-white hover:bg-[#fafafa]'}`}
+                      style={{ borderBottom: '1px solid #f1f5f9' }}
+                    >
+                      {/* Indent spacer */}
+                      <td className="py-2.5 px-3 w-8">
+                        <div className="w-5 h-4 border-l-2 border-gray-100 ml-2" />
+                      </td>
 
-                        {/* Line */}
-                        <td className="py-3 px-3 font-mono text-xs text-gray-400 whitespace-nowrap">
-                          {line.po_line || '—'}
-                        </td>
+                      {/* Line */}
+                      <td className="py-2.5 px-3 font-mono text-[13px] text-gray-500 whitespace-nowrap">
+                        {line.po_line || '—'}
+                      </td>
 
-                        {/* SAP MAT ID */}
-                        <td className="py-3 px-3 font-mono text-xs text-gray-400 whitespace-nowrap">
-                          {formatMatId(line.sap_mat_id)}
-                        </td>
+                      {/* SAP MAT ID */}
+                      <td className="py-2.5 px-3 font-mono text-[13px] text-gray-500 whitespace-nowrap">
+                        {formatMatId(line.sap_mat_id)}
+                      </td>
 
-                        {/* Description */}
-                        <td className="py-3 px-3 text-xs text-gray-500 max-w-[180px] truncate" title={line.item_description ?? ''}>
-                          {line.item_description || '—'}
-                        </td>
+                      {/* Description */}
+                      <td className="py-2.5 px-3 text-[13px] text-gray-500 max-w-[180px] truncate" title={line.item_description ?? ''}>
+                        {line.item_description || '—'}
+                      </td>
 
-                        {/* Open QTY */}
-                        <td className="py-3 px-3 text-xs text-gray-400 text-right tabular-nums whitespace-nowrap">
-                          {Number(line.open_qty ?? 0).toLocaleString()}
-                        </td>
+                      {/* Open QTY */}
+                      <td className="py-2.5 px-3 text-[13px] text-gray-500 text-right tabular-nums whitespace-nowrap">
+                        {Number(line.open_qty ?? 0).toLocaleString()}
+                      </td>
 
-                        {/* Value */}
-                        <td className="py-3 px-3 text-xs text-gray-400 text-right tabular-nums whitespace-nowrap">
-                          {formatCurrency(line.open_po_value_usd)}
-                        </td>
+                      {/* Value */}
+                      <td className="py-2.5 px-3 text-[13px] text-gray-500 text-right tabular-nums whitespace-nowrap">
+                        {formatCurrency(line.open_po_value_usd)}
+                      </td>
 
-                        {/* Current Delivery */}
-                        <td className="py-3 px-3 text-xs text-gray-400 whitespace-nowrap">
-                          {formatDate(line.delivery_date)}
-                        </td>
+                      {/* Current Delivery */}
+                      <td className="py-2.5 px-3 text-[13px] text-gray-500 whitespace-nowrap">
+                        {formatDate(line.delivery_date)}
+                      </td>
 
-                        {/* Status select */}
-                        <td className="py-2 px-3">
-                          <select
-                            value={state.delivery_status_code}
-                            onChange={(e) =>
-                              updateLine(key, 'delivery_status_code', e.target.value)
-                            }
-                            className={`w-full text-xs rounded-lg px-2.5 py-2 bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#307c4c]/30 focus:border-[#307c4c] ${
-                              err?.status
-                                ? 'border-2 border-red-500 bg-red-50'
-                                : 'border border-gray-200 hover:border-gray-300'
-                            }`}
-                          >
-                            <option value="">Select status…</option>
-                            {DS_CODES.map((ds) => (
-                              <option key={ds.code} value={ds.code}>
-                                {ds.label}
-                              </option>
-                            ))}
-                          </select>
-                          {err?.status && (
-                            <p className="mt-1 text-[10px] text-red-500 font-medium">
-                              Status required.
-                            </p>
-                          )}
-                        </td>
+                      {/* Status select */}
+                      <td className="py-2 px-3">
+                        <select
+                          value={state.delivery_status_code}
+                          onChange={(e) => updateLine(key, 'delivery_status_code', e.target.value)}
+                          className={`w-full min-w-[200px] text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white transition-colors focus:outline-none focus:ring-2 focus:border-[#059669] focus:ring-[#059669]/20 ${
+                            err?.status
+                              ? 'border border-red-400 focus:ring-red-400/20'
+                              : 'border border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <option value="">Select status…</option>
+                          {DS_CODES.map((ds) => (
+                            <option key={ds.code} value={ds.code}>
+                              {ds.label}
+                            </option>
+                          ))}
+                        </select>
+                        {err?.status && (
+                          <p className="mt-1 text-[11px] text-red-500 font-medium">
+                            Status required.
+                          </p>
+                        )}
+                      </td>
 
-                        {/* New delivery date */}
-                        <td className="py-2 px-3">
-                          <input
-                            type="date"
-                            value={state.new_delivery_date}
-                            onChange={(e) =>
-                              updateLine(key, 'new_delivery_date', e.target.value)
-                            }
-                            className="w-full text-xs rounded-lg px-2.5 py-2 bg-white border border-gray-200 hover:border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#307c4c]/30 focus:border-[#307c4c]"
-                          />
-                        </td>
+                      {/* New delivery date */}
+                      <td className="py-2 px-3">
+                        <input
+                          type="date"
+                          value={state.new_delivery_date}
+                          onChange={(e) => updateLine(key, 'new_delivery_date', e.target.value)}
+                          className="w-full min-w-[140px] text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669]"
+                        />
+                      </td>
 
-                        {/* Comments */}
-                        <td className="py-2 px-3">
-                          <textarea
-                            rows={2}
-                            value={state.supplier_comments}
-                            onChange={(e) =>
-                              updateLine(key, 'supplier_comments', e.target.value)
-                            }
-                            placeholder="Optional comment…"
-                            className="w-full text-xs rounded-lg px-2.5 py-1.5 border border-gray-200 bg-white resize-none hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/30 focus:border-[#307c4c] transition-colors placeholder-gray-300 focus:rows-4"
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              );
-            })}
-          </table>
-        </div>
+                      {/* Comments */}
+                      <td className="py-2 px-3">
+                        <textarea
+                          rows={2}
+                          value={state.supplier_comments}
+                          onChange={(e) => updateLine(key, 'supplier_comments', e.target.value)}
+                          placeholder="Optional comment…"
+                          className="w-full min-w-[180px] text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 resize-none transition-colors focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] placeholder-gray-300"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            );
+          })}
+        </table>
       </div>
 
       {/* Sticky bottom bar */}
-      <div className="sticky bottom-0 z-20 bg-white border-t border-gray-200 shadow-[0_-2px_16px_rgba(0,0,0,0.06)] -mx-6 px-6 py-4">
-        <div className="max-w-[1100px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-gray-400 text-center sm:text-left">
+      <div className="sticky bottom-0 z-20 bg-white -mx-8 px-8 py-4"
+           style={{ borderTop: '1px solid #e5e7eb' }}>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p style={{ fontSize: '13px', color: '#9ca3af' }}>
             All changes are saved together on submit.{' '}
-            <span className="text-gray-500">This link will expire after submission.</span>
+            <span style={{ color: '#4b5563', fontWeight: 500 }}>
+              This link will expire after submission.
+            </span>
           </p>
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#307c4c] hover:bg-[#307c4c]/80 text-white text-sm font-semibold px-8 py-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-sm shadow-[#307c4c]/20"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#059669] hover:bg-[#047857] text-white font-semibold rounded-lg px-6 py-2.5 text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (
               <>
