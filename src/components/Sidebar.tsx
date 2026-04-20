@@ -41,7 +41,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const jobTitle = (session?.user as any)?.jobTitle || 'Admin';
 
   const NavLink = ({ href, icon, label, exact = false, badge }: { href: string; icon: React.ReactNode; label: string; exact?: boolean; badge?: number }) => {
-    const isActive = exact ? pathname === href : pathname?.startsWith(href);
+    const isActive = pathname === href;
     return (
       <Link 
         href={href} 
