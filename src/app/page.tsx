@@ -107,6 +107,15 @@ function rowMatchesSearch(r: PurchaseOrder, term: string): boolean {
   );
 }
 
+function isServiceLine(r: PurchaseOrder): boolean {
+  return !(r['SAP MAT ID']?.trim());
+}
+
+function rowMatchesType(r: PurchaseOrder, type: 'all' | 'services' | 'non-services'): boolean {
+  if (type === 'all') return true;
+  return type === 'services' ? isServiceLine(r) : !isServiceLine(r);
+}
+
 /* ─── Delivery Status Badge ───────────────────────────────── */
 function DeliveryBadge({ raw }: { raw: string | null | undefined }) {
   const diff = daysDiff(raw);
@@ -288,6 +297,62 @@ function StatusTiles({
           Clear
         </button>
       )}
+    </div>
+  );
+}
+
+/* ─── Type Tile Slicer ────────────────────────────────────── */
+const TYPE_TILES = [
+  {
+    id: 'services' as const,
+    label: 'Services',
+    activeClass: 'bg-amber-100/80 border-amber-300 text-amber-700 shadow-sm ring-1 ring-amber-200',
+  },
+  {
+    id: 'non-services' as const,
+    label: 'Non-Services',
+    activeClass: 'bg-blue-100/80 border-blue-300 text-blue-700 shadow-sm ring-1 ring-blue-200',
+  },
+] as const;
+
+function TypeTiles({
+  selected,
+  onChange,
+}: {
+  selected: 'all' | 'services' | 'non-services';
+  onChange: (v: 'all' | 'services' | 'non-services') => void;
+}) {
+  return (
+    <div className="px-4 sm:px-6 py-3 border-b border-slate-100 bg-white flex items-center gap-2 flex-wrap">
+      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Type:</span>
+      <button
+        onClick={() => onChange('all')}
+        className={[
+          'px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all duration-150',
+          selected === 'all'
+            ? 'bg-slate-700 border-slate-700 text-white shadow-sm ring-1 ring-slate-400'
+            : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700',
+        ].join(' ')}
+      >
+        All
+      </button>
+      {TYPE_TILES.map((tile) => {
+        const isActive = selected === tile.id;
+        return (
+          <button
+            key={tile.id}
+            onClick={() => onChange(isActive ? 'all' : tile.id)}
+            className={[
+              'px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all duration-150',
+              isActive
+                ? tile.activeClass
+                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700',
+            ].join(' ')}
+          >
+            {tile.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -567,6 +632,7 @@ export default function Dashboard() {
   const [filterSuppliers, setFilterSuppliers] = useState<string[]>([]);
   const [filterBuyers, setFilterBuyers] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
+  const [filterType, setFilterType] = useState<'all' | 'services' | 'non-services'>('all');
 
   // Sort + pagination
   const [poSortKey, setPoSortKey] = useState<PoSortKey>('earliestDate');
@@ -590,7 +656,7 @@ export default function Dashboard() {
   }, []);
 
   /* Reset page when any filter/sort changes ---------------- */
-  useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, poSortKey, poSortDir]);
+  useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterType, poSortKey, poSortDir]);
 
   /* Clear all filters -------------------------------------- */
   function clearFilters() {
@@ -600,9 +666,10 @@ export default function Dashboard() {
     setFilterSuppliers([]);
     setFilterBuyers([]);
     setFilterStatus([]);
+    setFilterType('all');
   }
 
-  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length + filterStatus.length;
+  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length + filterStatus.length + (filterType !== 'all' ? 1 : 0);
 
   /* Remove Specific Filter ---------------------------------- */
   function removeFilter(type: 'search' | 'deliv' | 'country' | 'supplier' | 'buyer', val?: string) {
@@ -638,32 +705,35 @@ export default function Dashboard() {
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
+      if (!rowMatchesType(r, filterType)) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
       dc.add(r['Delivery Code'] || '(Blank)');
     });
     return [...dc].sort();
-  }, [rows, filterStatus, search, filterCountry, filterSuppliers, filterBuyers]);
+  }, [rows, filterStatus, filterType, search, filterCountry, filterSuppliers, filterBuyers]);
 
   const countries = useMemo(() => {
     const co = new Set<string>();
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
+      if (!rowMatchesType(r, filterType)) return;
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
       if (r['Country']) co.add(r['Country']);
     });
     return [...co].sort();
-  }, [rows, filterStatus, search, filterDelivCode, filterSuppliers, filterBuyers]);
+  }, [rows, filterStatus, filterType, search, filterDelivCode, filterSuppliers, filterBuyers]);
 
   const { supplierList, supplierDisplayMap } = useMemo(() => {
     const sp = new Map<string, string>(); // supplierName -> "ID - Name"
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
+      if (!rowMatchesType(r, filterType)) return;
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
@@ -677,20 +747,21 @@ export default function Dashboard() {
     const displayMap: Record<string, string> = {};
     sortedNames.forEach((name) => { displayMap[name] = sp.get(name)!; });
     return { supplierList: sortedNames, supplierDisplayMap: displayMap };
-  }, [rows, filterStatus, search, filterDelivCode, filterCountry, filterBuyers]);
+  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterBuyers]);
 
   const buyerList = useMemo(() => {
     const by = new Set<string>();
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
+      if (!rowMatchesType(r, filterType)) return;
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
       if (r['Buyer Name']) by.add(r['Buyer Name']);
     });
     return [...by].sort();
-  }, [rows, filterStatus, search, filterDelivCode, filterCountry, filterSuppliers]);
+  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterSuppliers]);
 
   /* Smart filtering ---------------------------------------- */
   const filtered = useMemo(() => {
@@ -704,6 +775,9 @@ export default function Dashboard() {
       // Status tile filter
       if (!rowMatchesStatus(r, filterStatus)) return false;
 
+      // Type filter (line level — service vs non-service)
+      if (!rowMatchesType(r, filterType)) return false;
+
       // Search: match PO Number, Supplier Name, Supplier ID, or SAP MAT ID
       if (term) {
         const matchesPO = String(r['PO Number'] ?? '').toLowerCase().includes(term);
@@ -715,7 +789,7 @@ export default function Dashboard() {
 
       return true;
     });
-  }, [rows, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus]);
+  }, [rows, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterType]);
 
   /* PO grouping -------------------------------------------- */
   const groupedPOs = useMemo((): PoGroup[] => {
@@ -761,14 +835,15 @@ export default function Dashboard() {
   const curPoPage = Math.min(poPage, poPages);
   const pagePOs = useMemo(() => sortedPOs.slice((curPoPage - 1) * PAGE_SIZE, curPoPage * PAGE_SIZE), [sortedPOs, curPoPage]);
 
-  /* KPI stats — always from full unfiltered dataset -------- */
+  /* KPI stats — reflects active type filter, otherwise full dataset */
   const stats = useMemo(() => {
-    const distinctPOs = new Set(rows.map((r) => r['PO Number'])).size;
-    const pastDue     = new Set(rows.filter((r) => daysDiff(r['Delivery Date']) < 0).map(r => r['PO Number'])).size;
-    const dueSoon     = new Set(rows.filter((r) => { const d = daysDiff(r['Delivery Date']); return d >= 0 && d <= 7; }).map(r => r['PO Number'])).size;
-    const totalValue  = rows.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
+    const base = filterType === 'all' ? rows : rows.filter(r => rowMatchesType(r, filterType));
+    const distinctPOs = new Set(base.map((r) => r['PO Number'])).size;
+    const pastDue     = new Set(base.filter((r) => daysDiff(r['Delivery Date']) < 0).map(r => r['PO Number'])).size;
+    const dueSoon     = new Set(base.filter((r) => { const d = daysDiff(r['Delivery Date']); return d >= 0 && d <= 7; }).map(r => r['PO Number'])).size;
+    const totalValue  = base.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
     return { distinctPOs, pastDue, dueSoon, totalValue };
-  }, [rows]);
+  }, [rows, filterType]);
 
   /* Today label -------------------------------------------- */
   const todayLabel = new Date().toLocaleDateString('en-GB', {
@@ -859,6 +934,9 @@ export default function Dashboard() {
               <>
                 {/* ── Status Tile Slicer ── */}
                 <StatusTiles selected={filterStatus} onChange={setFilterStatus} />
+
+                {/* ── Type Tile Slicer ── */}
+                <TypeTiles selected={filterType} onChange={setFilterType} />
 
                 <FilterBar
                   search={search} onSearch={setSearch}
