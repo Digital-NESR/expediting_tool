@@ -2,7 +2,9 @@
 
 import { randomUUID } from 'crypto';
 import https from 'https';
+import { getServerSession } from 'next-auth';
 import pool from '@/lib/db';
+import { authOptions } from '@/lib/auth';
 import type { PurchaseOrder } from '@/types/po';
 
 function httpsPost(url: string, payload: unknown): void {
@@ -81,6 +83,30 @@ export async function prepareAllExpediteDispatches(
   const results: DispatchResult[] = [];
   const preparedGroups: PreparedGroup[] = [];
 
+  /* ── Session / user identity ── */
+  const session = await getServerSession(authOptions);
+  const userEmail = session?.user?.email ?? 'unknown';
+  const userName = session?.user?.name ?? 'Unknown';
+  const userJobTitle = session?.user?.jobTitle ?? null;
+  const userDepartment = session?.user?.department ?? null;
+  const userCountry = session?.user?.country ?? null;
+
+  await pool.query(
+    `INSERT INTO user_profiles
+       (email, display_name, job_title, department, country, last_active_at)
+     VALUES ($1, $2, $3, $4, $5, NOW())
+     ON CONFLICT (email) DO UPDATE SET
+       display_name   = EXCLUDED.display_name,
+       job_title      = EXCLUDED.job_title,
+       department     = EXCLUDED.department,
+       country        = EXCLUDED.country,
+       last_active_at = NOW()`,
+    [userEmail, userName, userJobTitle, userDepartment, userCountry]
+  );
+
+  /* ── Single UUID that ties every row in this batch together ── */
+  const sessionRef = randomUUID();
+
   /* ── Phase 1: DB inserts for every supplier group ── */
   for (const params of paramsList) {
     const { supplierId, supplierName, toEmails, ccEmails, subject, emailBodyTemplate, items } = params;
@@ -91,19 +117,23 @@ export async function prepareAllExpediteDispatches(
         await pool.query(
           `INSERT INTO active_expediting
              (po_number, po_line, expedite_token, workflow_state,
-              current_status, created_at, updated_at)
+              current_status, dispatched_by, dispatched_at,
+              session_ref, created_at, updated_at)
            VALUES ($1, $2, $3, 'Email Sent', 'Pending Supplier Response',
-                   NOW(), NOW())
+                   $4, NOW(), $5, NOW(), NOW())
            ON CONFLICT (po_number, po_line)
            DO UPDATE SET
-             expedite_token = EXCLUDED.expedite_token,
-             workflow_state = 'Email Sent',
-             current_status = 'Pending Supplier Response',
+             expedite_token    = EXCLUDED.expedite_token,
+             workflow_state    = 'Email Sent',
+             current_status    = 'Pending Supplier Response',
              new_delivery_date = NULL,
              supplier_comments = NULL,
-             buyer_comments = NULL,
-             updated_at = NOW()`,
-          [item['PO Number'], item['PO Line'] ?? '', token]
+             buyer_comments    = NULL,
+             dispatched_by     = EXCLUDED.dispatched_by,
+             dispatched_at     = NOW(),
+             session_ref       = EXCLUDED.session_ref,
+             updated_at        = NOW()`,
+          [item['PO Number'], item['PO Line'] ?? '', token, userEmail, sessionRef]
         );
       }
 
@@ -134,6 +164,19 @@ export async function prepareAllExpediteDispatches(
         error: err instanceof Error ? err.message : String(err),
       });
     }
+  }
+
+  /* ── Record the dispatch session ── */
+  if (preparedGroups.length > 0) {
+    const totalPoLines = preparedGroups.reduce((sum, g) => sum + g.poLines.length, 0);
+    const totalEmailsSent = preparedGroups.reduce((sum, g) => sum + g.toEmails.length, 0);
+    await pool.query(
+      `INSERT INTO expediting_sessions
+         (session_ref, dispatched_by, dispatched_at,
+          total_suppliers, total_po_lines, total_emails_sent)
+       VALUES ($1, $2, NOW(), $3, $4, $5)`,
+      [sessionRef, userEmail, preparedGroups.length, totalPoLines, totalEmailsSent]
+    );
   }
 
   /* ── Phase 2: single fire-and-forget webhook after all DB inserts ── */

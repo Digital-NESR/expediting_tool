@@ -147,6 +147,42 @@ export async function submitSupplierUpdates(
       );
     }
 
+    /* ── Update expediting_sessions response stats ── */
+    const sessionRefResult = await client.query<{ session_ref: string }>(
+      `SELECT session_ref FROM active_expediting
+       WHERE expedite_token = $1 AND session_ref IS NOT NULL
+       LIMIT 1`,
+      [token]
+    );
+
+    if (sessionRefResult.rows.length > 0) {
+      const sessionRef = sessionRefResult.rows[0].session_ref;
+      await client.query(
+        `WITH stats AS (
+           SELECT
+             COUNT(*) FILTER (WHERE workflow_state = 'Submitted')
+               AS lines_responded,
+             COUNT(DISTINCT expedite_token) FILTER (WHERE workflow_state = 'Submitted')
+               AS suppliers_responded
+           FROM active_expediting
+           WHERE session_ref = $1
+         )
+         UPDATE expediting_sessions es SET
+           suppliers_responded = stats.suppliers_responded,
+           lines_responded     = stats.lines_responded,
+           response_rate_pct   = ROUND(
+             stats.lines_responded * 100.0 / NULLIF(es.total_po_lines, 0), 2),
+           fully_closed = stats.lines_responded >= es.total_po_lines,
+           closed_at = CASE
+             WHEN stats.lines_responded >= es.total_po_lines THEN NOW()
+             ELSE NULL
+           END
+         FROM stats
+         WHERE es.session_ref = $1`,
+        [sessionRef]
+      );
+    }
+
     await client.query('COMMIT');
     return { success: true };
   } catch (err) {
