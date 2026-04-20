@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition, useEffect, useRef } from 'react';
+import { Fragment, useMemo, useState, useTransition, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -377,6 +377,128 @@ function SupplierEmailCard({
   );
 }
 
+/* ─── PO Grouped Table ────────────────────────────────────── */
+function PoGroupedTable({
+  items,
+  onRemove,
+}: {
+  items: PurchaseOrder[];
+  onRemove: (item: PurchaseOrder) => void;
+}) {
+  const poGroups = useMemo(() => {
+    const map = new Map<string, PurchaseOrder[]>();
+    for (const item of items) {
+      const po = item['PO Number'] ?? '';
+      if (!map.has(po)) map.set(po, []);
+      map.get(po)!.push(item);
+    }
+    return Array.from(map.entries()).map(([po, lines]) => ({
+      po,
+      lines,
+      total: lines.reduce((s, l) => s + Number(l['Open PO Value USD'] ?? 0), 0),
+    }));
+  }, [items]);
+
+  const [expandedPos, setExpandedPos] = useState<Set<string>>(new Set());
+
+  function toggle(po: string) {
+    setExpandedPos((prev) => {
+      const next = new Set(prev);
+      if (next.has(po)) next.delete(po);
+      else next.add(po);
+      return next;
+    });
+  }
+
+  return (
+    <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
+      <thead>
+        <tr className="bg-white border-b border-slate-100 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+          <th className="py-3 px-4" style={{ width: '44px' }} />
+          <th className="py-3 px-4 whitespace-nowrap" style={{ width: '180px' }}>SAP MAT ID</th>
+          <th className="py-3 px-4">Description</th>
+          <th className="py-3 px-4 whitespace-nowrap text-right" style={{ width: '90px' }}>Open QTY</th>
+          <th className="py-3 px-4 whitespace-nowrap text-right" style={{ width: '100px' }}>Value (USD)</th>
+          <th className="py-3 px-4 whitespace-nowrap" style={{ width: '120px' }}>Current Delivery</th>
+          <th className="py-3 px-4" style={{ width: '44px' }} />
+        </tr>
+      </thead>
+      <tbody>
+        {poGroups.map(({ po, lines, total }) => {
+          const isExpanded = expandedPos.has(po);
+          return (
+            <Fragment key={po}>
+              {/* PO parent row */}
+              <tr
+                onClick={() => toggle(po)}
+                className="cursor-pointer border-b border-slate-200 hover:bg-slate-100/70 transition-colors"
+                style={{ background: '#f8fafc' }}
+              >
+                <td colSpan={7} className="py-2.5 px-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg
+                        className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                      <span className="font-mono text-sm font-bold text-slate-800">{po}</span>
+                      <span className="bg-slate-200 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                        {lines.length} line{lines.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700 tabular-nums pr-2">
+                      {formatCurrency(total)}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+
+              {/* Line item sub-rows */}
+              {isExpanded && lines.map((item, idx) => (
+                <tr
+                  key={`${item['PO Number']}-${item['SAP MAT ID']}-${idx}`}
+                  className="hover:bg-slate-50/50 transition-colors group/row"
+                  style={{ borderBottom: '1px solid #f1f5f9' }}
+                >
+                  <td className="py-3 px-4" />
+                  <td className="py-3 font-mono text-xs text-gray-500 truncate" style={{ paddingLeft: '32px', paddingRight: '16px' }}>
+                    {formatMatId(item['SAP MAT ID'])}
+                  </td>
+                  <td className="py-3 px-4 text-[13px] text-gray-500 truncate" title={item['Item Description'] ?? undefined}>
+                    {item['Item Description'] || '—'}
+                  </td>
+                  <td className="py-3 px-4 text-[13px] text-right font-medium text-gray-500 tabular-nums">
+                    {Number(item['Open QTY'] || 0).toLocaleString()}
+                  </td>
+                  <td className="py-3 px-4 text-[13px] text-right font-semibold text-gray-500 tabular-nums">
+                    {formatCurrency(item['Open PO Value USD'])}
+                  </td>
+                  <td className="py-3 px-4 text-[13px] font-medium text-gray-500 truncate">
+                    {formatDate(item['Delivery Date'])}
+                  </td>
+                  <td className="py-3 px-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onRemove(item); }}
+                      className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-all opacity-0 group-hover/row:opacity-100"
+                      title="Remove from selection"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </Fragment>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 /* ─── Main Page ───────────────────────────────────────────── */
 export default function ExpediteReviewPage() {
   const { selectedItems, toggleSelection, supplierEmails } = useExpediteStore();
@@ -589,57 +711,7 @@ export default function ExpediteReviewPage() {
 
                 {/* Left — PO table */}
                 <div className="flex-1 min-w-0">
-                  <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
-                    <thead>
-                      <tr className="bg-white border-b border-slate-100 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                        <th className="py-3 px-4 whitespace-nowrap" style={{ width: '130px' }}>PO Number</th>
-                        <th className="py-3 px-4 whitespace-nowrap" style={{ width: '180px' }}>SAP MAT ID</th>
-                        <th className="py-3 px-4">Description</th>
-                        <th className="py-3 px-4 whitespace-nowrap text-right" style={{ width: '90px' }}>Open QTY</th>
-                        <th className="py-3 px-4 whitespace-nowrap text-right" style={{ width: '100px' }}>Value (USD)</th>
-                        <th className="py-3 px-4 whitespace-nowrap" style={{ width: '120px' }}>Current Delivery</th>
-                        <th className="py-3 px-4" style={{ width: '44px' }} />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100/50">
-                      {group.items.map((item, idx) => (
-                        <tr
-                          key={`${item['PO Number']}-${item['SAP MAT ID']}-${idx}`}
-                          className="hover:bg-slate-50/50 transition-colors group/row"
-                        >
-                          <td className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-700 truncate">
-                            {item['PO Number']}
-                          </td>
-                          <td className="py-3.5 px-4 font-mono text-xs text-slate-500 truncate">
-                            {formatMatId(item['SAP MAT ID'])}
-                          </td>
-                          <td className="py-3.5 px-4 text-sm text-slate-600 truncate" title={item['Item Description']}>
-                            {item['Item Description'] || '—'}
-                          </td>
-                          <td className="py-3.5 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
-                            {Number(item['Open QTY'] || 0).toLocaleString()}
-                          </td>
-                          <td className="py-3.5 px-4 text-sm text-right font-semibold text-slate-800 tabular-nums">
-                            {formatCurrency(item['Open PO Value USD'])}
-                          </td>
-                          <td className="py-3.5 px-4 text-sm font-medium text-slate-600 truncate">
-                            {formatDate(item['Delivery Date'])}
-                          </td>
-                          <td className="py-3.5 px-2">
-                            <button
-                              onClick={() => toggleSelection(item)}
-                              className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-all opacity-0 group-hover/row:opacity-100"
-                              title="Remove from selection"
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <PoGroupedTable items={group.items} onRemove={toggleSelection} />
                 </div>
 
                 {/* Right — Email config card */}
