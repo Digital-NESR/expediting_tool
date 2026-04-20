@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 import { siteConfig } from '@/config/site';
@@ -9,28 +8,8 @@ const { colors, images, text } = siteConfig;
 const login = text.login;
 
 export default function LoginPage() {
-    const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-
     const handleSSOLogin = () => {
         signIn('azure-ad', { callbackUrl: '/home' });
-    };
-
-    const handlePasswordLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!password) return;
-        
-        setLoading(true);
-        setError('');
-        
-        const res = await signIn('credentials', { password, redirect: false });
-        if (res?.error) {
-            setError('Invalid password. Please try again.');
-            setLoading(false);
-        } else if (res?.ok) {
-            window.location.href = '/home';
-        }
     };
 
     return (
@@ -89,41 +68,6 @@ export default function LoginPage() {
                         </svg>
                         {login.ssoButton}
                     </button>
-
-                    {/* Divider */}
-                    <div className="w-full flex items-center gap-4">
-                        <div className="h-[1px] flex-1 bg-white/10" />
-                        <span className="text-slate-500 text-xs font-semibold uppercase tracking-wider">or</span>
-                        <div className="h-[1px] flex-1 bg-white/10" />
-                    </div>
-
-                    {/* Password Form */}
-                    <form onSubmit={handlePasswordLogin} className="w-full flex flex-col gap-4">
-                        <div className="flex flex-col gap-1.5">
-                            <input
-                                type="password"
-                                placeholder="Backup password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                disabled={loading}
-                                className="w-full bg-slate-950/50 border border-white/10 text-white placeholder-slate-500 text-sm rounded-xl px-4 py-3 outline-none focus:border-[#307c4c] focus:ring-1 focus:ring-[#307c4c] transition-all disabled:opacity-50"
-                            />
-                            {error && <p className="text-red-400 text-xs mt-1 px-1 font-medium">{error}</p>}
-                        </div>
-                        
-                        <button
-                            type="submit"
-                            disabled={loading || !password}
-                            className="w-full min-h-[48px] bg-slate-800 hover:bg-slate-700 text-white text-sm sm:text-base font-semibold py-3 px-5 rounded-xl transition-all border border-white/5 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
-                        >
-                            {loading ? (
-                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            ) : "Login with Password"}
-                        </button>
-                    </form>
 
                     {/* Footer */}
                     <p className="text-slate-500 text-xs text-center">
