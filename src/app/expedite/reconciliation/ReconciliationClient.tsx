@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { saveBuyerComment } from '@/app/actions/reconciliation';
 import type { SessionData, SupplierGroup, LineData } from '@/app/actions/reconciliation';
@@ -61,6 +61,14 @@ function buildCsvContent(rows: string[][]): string {
   return rows
     .map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
     .join('\r\n');
+}
+
+/** A line counts as a meaningful supplier update only if it was submitted
+ *  AND the supplier actually selected a DS status code. */
+function isExportable(line: LineData): boolean {
+  if (line.workflow_state !== 'Submitted') return false;
+  const s = (line.current_status ?? '').trim();
+  return s !== '' && s !== 'Pending Supplier Response';
 }
 
 /* ─── Badge components ───────────────────────────────────────── */
@@ -287,8 +295,8 @@ function SessionCard({
   saveStates: Record<string, 'idle' | 'saving' | 'saved' | 'error'>;
   onExportCsv: () => void;
 }) {
-  const submittedCount = session.suppliers.reduce(
-    (s, sup) => s + sup.lines.filter(l => l.workflow_state === 'Submitted').length, 0
+  const exportableCount = session.suppliers.reduce(
+    (s, sup) => s + sup.lines.filter(isExportable).length, 0
   );
 
   return (
@@ -361,14 +369,18 @@ function SessionCard({
           <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/40 flex justify-end">
             <button
               onClick={onExportCsv}
-              title={submittedCount === 0 ? 'No responded lines to export' : 'Only responded lines are exported'}
-              disabled={submittedCount === 0}
+              disabled={exportableCount === 0}
               className="inline-flex items-center gap-2 px-4 py-2 bg-[#307c4c] hover:bg-[#26663e] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-95 shadow-sm"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Export CSV
+              {exportableCount > 0 && (
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              )}
+              {exportableCount === 0
+                ? 'No supplier updates to export'
+                : `Export CSV (${exportableCount} updated line${exportableCount !== 1 ? 's' : ''})`
+              }
             </button>
           </div>
         </div>
@@ -464,7 +476,7 @@ export default function ReconciliationClient({ sessions }: { sessions: SessionDa
 
     for (const supplier of session.suppliers) {
       for (const line of supplier.lines) {
-        if (line.workflow_state !== 'Submitted') continue;
+        if (!isExportable(line)) continue;
         const key        = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
         const buyerNote  = buyerComments[key] ?? '';
         const comments   = [line.supplier_comments, buyerNote].filter(Boolean).join(' | ');
@@ -494,7 +506,7 @@ export default function ReconciliationClient({ sessions }: { sessions: SessionDa
     for (const session of selectedList) {
       for (const supplier of session.suppliers) {
         for (const line of supplier.lines) {
-          if (line.workflow_state !== 'Submitted') continue;
+          if (!isExportable(line)) continue;
           const key      = `${line.po_number}|${line.po_line}`;
           const existing = lineMap.get(key);
           // ISO strings compare lexicographically in the correct chronological order
@@ -534,6 +546,26 @@ export default function ReconciliationClient({ sessions }: { sessions: SessionDa
   }
 
   const selectedCount = selectedSessions.size;
+
+  /* Deduplicated exportable line count across selected sessions — used for button label */
+  const selectedExportableCount = useMemo(() => {
+    if (selectedSessions.size === 0) return 0;
+    const seen = new Map<string, string>(); // lineKey -> dispatched_at
+    for (const session of sessions) {
+      if (!selectedSessions.has(session.session_ref)) continue;
+      for (const supplier of session.suppliers) {
+        for (const line of supplier.lines) {
+          if (!isExportable(line)) continue;
+          const key = `${line.po_number}|${line.po_line}`;
+          const existing = seen.get(key);
+          if (!existing || session.dispatched_at > existing) {
+            seen.set(key, session.dispatched_at);
+          }
+        }
+      }
+    }
+    return seen.size;
+  }, [sessions, selectedSessions]);
 
   /* ── Render ──────────────────────────────────────────────── */
   return (
@@ -614,13 +646,20 @@ export default function ReconciliationClient({ sessions }: { sessions: SessionDa
                   {/* Export selected button */}
                   <button
                     onClick={exportSelectedCsv}
-                    disabled={selectedCount === 0}
+                    disabled={selectedCount === 0 || selectedExportableCount === 0}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-150 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed bg-[#307c4c] hover:bg-[#26663e] text-white shadow-sm hover:scale-[1.02] active:scale-95"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Export Selected ({selectedCount})
+                    {!(selectedCount > 0 && selectedExportableCount === 0) && (
+                      <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    )}
+                    {selectedCount === 0
+                      ? 'Export Selected'
+                      : selectedExportableCount === 0
+                        ? 'No supplier updates to export'
+                        : `Export Selected (${selectedExportableCount} line${selectedExportableCount !== 1 ? 's' : ''} across ${selectedCount} session${selectedCount !== 1 ? 's' : ''})`
+                    }
                   </button>
                 </div>
 
