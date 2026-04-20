@@ -128,12 +128,23 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Profile Block */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3 mb-4">
-            <div className="h-10 w-10 flex items-center justify-center rounded-full bg-[#307c4c]/10 border border-[#307c4c]/20 text-[#307c4c] font-bold shadow-sm shrink-0">
-              {initials}
-            </div>
+            {session?.user?.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={session.user.image}
+                alt={rawName}
+                width={40}
+                height={40}
+                className="h-10 w-10 rounded-full object-cover border border-[#307c4c]/20 shadow-sm shrink-0"
+              />
+            ) : (
+              <div className="h-10 w-10 flex items-center justify-center rounded-full bg-[#307c4c]/10 border border-[#307c4c]/20 text-[#307c4c] font-bold shadow-sm shrink-0">
+                {initials}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-slate-800 truncate">{rawName}</p>
-              <p className="text-xs text-slate-500 truncate">{jobTitle}</p>
+              <p className="text-xs text-gray-400 truncate">{jobTitle}</p>
             </div>
           </div>
           <button 
