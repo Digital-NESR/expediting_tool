@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Sidebar from '@/components/Sidebar';
-import { saveBuyerComment } from '@/app/actions/reconciliation';
+import { saveBuyerComment, getMyExpeditingSessions } from '@/app/actions/reconciliation';
 import type { SessionData, SupplierGroup, LineData } from '@/app/actions/reconciliation';
 
 /* ─── DS-code colour sets ────────────────────────────────────── */
@@ -391,26 +391,46 @@ function SessionCard({
 
 /* ─── Main client component ──────────────────────────────────── */
 
-export default function ReconciliationClient({ sessions }: { sessions: SessionData[] }) {
+export default function ReconciliationClient({ userEmail }: { userEmail: string }) {
   const [isSidebarOpen, setIsSidebarOpen]     = useState(false);
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set()); // all collapsed
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
 
-  /* ── Buyer comment state — initialised from server-side data ── */
-  const [buyerComments, setBuyerComments] = useState<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    for (const session of sessions) {
-      for (const supplier of session.suppliers) {
-        for (const line of supplier.lines) {
-          const key = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
-          map[key] = line.buyer_comments ?? '';
-        }
-      }
-    }
-    return map;
-  });
+  /* ── Session data — fetched client-side so refresh is possible ── */
+  const [sessions, setSessions]           = useState<SessionData[]>([]);
+  const [isRefreshing, setIsRefreshing]   = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+
+  /* ── Buyer comment state ── */
+  const [buyerComments, setBuyerComments] = useState<Record<string, string>>({});
 
   const [saveStates, setSaveStates] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
+
+  /* ── Fetch / refresh sessions ─────────────────────────────── */
+  const fetchSessions = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const data = await getMyExpeditingSessions(userEmail);
+      setSessions(data);
+      setBuyerComments(() => {
+        const map: Record<string, string> = {};
+        for (const session of data) {
+          for (const supplier of session.suppliers) {
+            for (const line of supplier.lines) {
+              const key = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
+              map[key] = line.buyer_comments ?? '';
+            }
+          }
+        }
+        return map;
+      });
+      setLastRefreshed(new Date());
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [userEmail]);
+
+  useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
   /* ── Select-all logic ─────────────────────────────────────── */
   const selectAllRef  = useRef<HTMLInputElement>(null);
@@ -603,14 +623,34 @@ export default function ReconciliationClient({ sessions }: { sessions: SessionDa
 
           {/* Page title */}
           <div className="mb-6">
-            <h1 className="text-lg font-bold text-gray-900 tracking-tight">Reconciliation</h1>
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-lg font-bold text-gray-900 tracking-tight">Reconciliation</h1>
+              <button
+                onClick={fetchSessions}
+                disabled={isRefreshing}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium text-gray-600 bg-transparent border border-[#e5e7eb] rounded-md hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <svg
+                  className={`w-3.5 h-3.5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`}
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {isRefreshing ? 'Refreshing…' : 'Refresh'}
+              </button>
+            </div>
             <p className="text-sm text-slate-500 mt-0.5">
               Your expediting sessions and supplier responses.
             </p>
+            {lastRefreshed && (
+              <p className="text-[12px] text-gray-400 mt-0.5">
+                Last updated: {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </p>
+            )}
           </div>
 
           {/* ── Empty state ── */}
-          {sessions.length === 0 && (
+          {!isRefreshing && sessions.length === 0 && (
             <div className="flex justify-center mt-16 animate-in fade-in duration-500">
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 max-w-md w-full text-center">
                 <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
