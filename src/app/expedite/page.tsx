@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { useExpediteStore } from '@/store/useExpediteStore';
@@ -95,6 +96,18 @@ function CcEmailPill({ email, onRemove }: { email: string; onRemove: () => void 
   );
 }
 
+/** Locked CC pill — green filled, no remove button, lock icon */
+function LockedCcPill({ email }: { email: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#307c4c] text-white text-xs font-medium rounded-md max-w-full">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="shrink-0 opacity-80">
+        <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+      </svg>
+      <span className="truncate">{email}</span>
+    </span>
+  );
+}
+
 /* ─── Toast ───────────────────────────────────────────────── */
 function Toast({
   message,
@@ -156,6 +169,10 @@ function SupplierEmailCard({
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const { setSupplierEmails } = useExpediteStore();
 
+  /* Logged-in user's email — always CC'd and non-removable */
+  const { data: session } = useSession();
+  const lockedCcEmail = session?.user?.email ?? null;
+
   /* Load both email fields from supplier_contacts, tag each entry with its source */
   useEffect(() => {
     if (!supplierId) { setIsLoadingContacts(false); return; }
@@ -168,26 +185,28 @@ function SupplierEmailCard({
     });
   }, [supplierId]);
 
-  /* Sync To + CC into Zustand so the confirm page can read them */
+  /* Sync To + CC into Zustand — locked email is always included in cc */
   useEffect(() => {
     if (isLoadingContacts) return;
+    const allCc = lockedCcEmail ? [lockedCcEmail, ...ccEmails] : ccEmails;
     setSupplierEmails(supplierId, {
       to: toEmails.map((t) => t.email),
-      cc: ccEmails,
+      cc: allCc,
     });
-  }, [toEmails, ccEmails, isLoadingContacts, supplierId, setSupplierEmails]);
+  }, [toEmails, ccEmails, isLoadingContacts, supplierId, setSupplierEmails, lockedCcEmail]);
 
-  /* Populate CC from buyer emails on the selected items */
+  /* Populate CC from buyer emails — exclude the locked user to avoid duplicates */
   useEffect(() => {
     const uniqueBuyerEmails = [
       ...new Set(
         items
           .map((i) => i['Buyer Email'])
           .filter((e): e is string => Boolean(e))
+          .filter((e) => e.toLowerCase() !== (lockedCcEmail ?? '').toLowerCase())
       ),
     ];
     setCcEmails(uniqueBuyerEmails);
-  }, [items]);
+  }, [items, lockedCcEmail]);
 
   /* Add To email — optimistic UI, persists to DB via server action */
   function handleAddTo() {
@@ -249,6 +268,7 @@ function SupplierEmailCard({
         {/* ── To Section ── */}
         <section>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">To</p>
+          <p className="text-[11px] text-gray-400 mb-1">Add or remove supplier emails</p>
 
           {isLoadingContacts ? (
             <div className="space-y-1.5">
@@ -307,18 +327,22 @@ function SupplierEmailCard({
         {/* ── CC Section ── */}
         <section>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">CC</p>
+          <p className="text-[11px] text-gray-400 mb-1">Add relevant buyers or team members</p>
 
           <div className="flex flex-wrap gap-1.5 mb-2 min-h-[24px]">
-            {ccEmails.length === 0 ? (
+            {!lockedCcEmail && ccEmails.length === 0 ? (
               <p className="text-xs text-slate-400 italic">No CC recipients.</p>
             ) : (
-              ccEmails.map((email) => (
-                <CcEmailPill
-                  key={email}
-                  email={email}
-                  onRemove={() => setCcEmails((prev) => prev.filter((e) => e !== email))}
-                />
-              ))
+              <>
+                {lockedCcEmail && <LockedCcPill email={lockedCcEmail} />}
+                {ccEmails.map((email) => (
+                  <CcEmailPill
+                    key={email}
+                    email={email}
+                    onRemove={() => setCcEmails((prev) => prev.filter((e) => e !== email))}
+                  />
+                ))}
+              </>
             )}
           </div>
 
@@ -340,7 +364,7 @@ function SupplierEmailCard({
             </button>
           </div>
           {ccError && <p className="mt-1 text-[10px] text-red-500">{ccError}</p>}
-          {cardError?.cc && ccEmails.length === 0 && (
+          {cardError?.cc && ccEmails.length === 0 && !lockedCcEmail && (
             <p className="mt-1 text-[10px] text-red-500 font-medium">CC email required before proceeding.</p>
           )}
           <p className="mt-2 text-[10px] text-slate-400 leading-snug">
