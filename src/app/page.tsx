@@ -823,15 +823,14 @@ export default function Dashboard() {
   const curPoPage = Math.min(poPage, poPages);
   const pagePOs = useMemo(() => sortedPOs.slice((curPoPage - 1) * PAGE_SIZE, curPoPage * PAGE_SIZE), [sortedPOs, curPoPage]);
 
-  /* KPI stats — reflects active type filter, otherwise full dataset */
+  /* KPI stats — always derived from the fully-filtered dataset */
   const stats = useMemo(() => {
-    const base = filterType.length === 0 ? rows : rows.filter(r => rowMatchesType(r, filterType));
-    const distinctPOs = new Set(base.map((r) => r['PO Number'])).size;
-    const pastDue     = new Set(base.filter((r) => daysDiff(r['Delivery Date']) < 0).map(r => r['PO Number'])).size;
-    const dueSoon     = new Set(base.filter((r) => { const d = daysDiff(r['Delivery Date']); return d >= 0 && d <= 7; }).map(r => r['PO Number'])).size;
-    const totalValue  = base.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
+    const distinctPOs = new Set(filtered.map((r) => r['PO Number'])).size;
+    const pastDue     = new Set(filtered.filter((r) => daysDiff(r['Delivery Date']) < 0).map(r => r['PO Number'])).size;
+    const dueSoon     = new Set(filtered.filter((r) => { const d = daysDiff(r['Delivery Date']); return d >= 0 && d <= 7; }).map(r => r['PO Number'])).size;
+    const totalValue  = filtered.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
     return { distinctPOs, pastDue, dueSoon, totalValue };
-  }, [rows, filterType]);
+  }, [filtered]);
 
   /* Today label -------------------------------------------- */
   const todayLabel = new Date().toLocaleDateString('en-GB', {
@@ -899,23 +898,6 @@ export default function Dashboard() {
 
           {/* ── Table card ── */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in duration-500">
-
-            {/* ── Top toolbar: count only ── */}
-            <div className="px-4 sm:px-6 py-4 flex items-center justify-between gap-3 border-b border-slate-100">
-              <p className="text-lg font-semibold text-slate-800">
-                {loading
-                  ? 'Loading data…'
-                  : activeFilterCount > 0
-                    ? `${sortedPOs.length.toLocaleString()} of ${stats.distinctPOs.toLocaleString()} purchase orders`
-                    : `${sortedPOs.length.toLocaleString()} purchase orders`}
-              </p>
-              {/* Active filter pill summary */}
-              {!loading && !error && activeFilterCount > 0 && (
-                <span className="text-xs text-slate-500 font-medium hidden sm:block">
-                  {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active
-                </span>
-              )}
-            </div>
 
             {/* ── Filter bar ── */}
             {!loading && !error && (
