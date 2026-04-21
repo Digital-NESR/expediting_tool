@@ -399,7 +399,18 @@ function PoGroupedTable({
     }));
   }, [items]);
 
-  const [expandedPos, setExpandedPos] = useState<Set<string>>(new Set());
+  const [expandedPos, setExpandedPos] = useState<Set<string>>(() => {
+    const map = new Map<string, number>();
+    for (const item of items) {
+      const po = item['PO Number'] ?? '';
+      map.set(po, (map.get(po) ?? 0) + 1);
+    }
+    const initial = new Set<string>();
+    for (const [po, count] of map) {
+      if (count < 5) initial.add(po);
+    }
+    return initial;
+  });
 
   function toggle(po: string) {
     setExpandedPos((prev) => {
