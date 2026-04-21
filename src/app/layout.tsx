@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'PO Expediting Dashboard | NESR',
-  description: 'Track and expedite open purchase orders from SAP in real-time.',
+  title: 'NESR SC Agents',
+  description: 'NESR Digital Supply Chain Agents Platform',
   icons: {
     icon: '/nesr-logo-circle.png',
   },
