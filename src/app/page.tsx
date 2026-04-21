@@ -111,9 +111,9 @@ function isServiceLine(r: PurchaseOrder): boolean {
   return !(r['SAP MAT ID']?.trim());
 }
 
-function rowMatchesType(r: PurchaseOrder, type: 'all' | 'services' | 'non-services'): boolean {
-  if (type === 'all') return true;
-  return type === 'services' ? isServiceLine(r) : !isServiceLine(r);
+function rowMatchesType(r: PurchaseOrder, types: string[]): boolean {
+  if (types.length === 0 || types.length >= 2) return true;
+  return types.includes('services') ? isServiceLine(r) : !isServiceLine(r);
 }
 
 /* ─── Delivery Status Badge ───────────────────────────────── */
@@ -257,51 +257,6 @@ const STATUS_TILES = [
   },
 ] as const;
 
-function StatusTiles({
-  selected,
-  onChange,
-}: {
-  selected: string[];
-  onChange: (v: string[]) => void;
-}) {
-  const toggle = (id: string) => {
-    if (selected.includes(id)) onChange(selected.filter((s) => s !== id));
-    else onChange([...selected, id]);
-  };
-
-  return (
-    <div className="px-4 sm:px-6 py-3 border-b border-slate-100 bg-white flex items-center gap-2 flex-wrap">
-      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Status:</span>
-      {STATUS_TILES.map((tile) => {
-        const isActive = selected.includes(tile.id);
-        return (
-          <button
-            key={tile.id}
-            onClick={() => toggle(tile.id)}
-            className={[
-              'px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all duration-150',
-              isActive
-                ? tile.activeClass
-                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700',
-            ].join(' ')}
-          >
-            {tile.id}
-          </button>
-        );
-      })}
-      {selected.length > 0 && (
-        <button
-          onClick={() => onChange([])}
-          className="ml-1 text-xs text-slate-400 hover:text-slate-600 transition-colors px-2 py-1 rounded-lg hover:bg-slate-100"
-        >
-          Clear
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* ─── Type Tile Slicer ────────────────────────────────────── */
 const TYPE_TILES = [
   {
     id: 'services' as const,
@@ -315,33 +270,57 @@ const TYPE_TILES = [
   },
 ] as const;
 
-function TypeTiles({
+function StatusTiles({
   selected,
   onChange,
+  selectedType,
+  onTypeChange,
 }: {
-  selected: 'all' | 'services' | 'non-services';
-  onChange: (v: 'all' | 'services' | 'non-services') => void;
+  selected: string[];
+  onChange: (v: string[]) => void;
+  selectedType: string[];
+  onTypeChange: (v: string[]) => void;
 }) {
+  const toggleStatus = (id: string) => {
+    if (selected.includes(id)) onChange(selected.filter((s) => s !== id));
+    else onChange([...selected, id]);
+  };
+  const toggleType = (id: string) => {
+    if (selectedType.includes(id)) onTypeChange(selectedType.filter((s) => s !== id));
+    else onTypeChange([...selectedType, id]);
+  };
+
   return (
     <div className="px-4 sm:px-6 py-3 border-b border-slate-100 bg-white flex items-center gap-2 flex-wrap">
-      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Type:</span>
-      <button
-        onClick={() => onChange('all')}
-        className={[
-          'px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all duration-150',
-          selected === 'all'
-            ? 'bg-slate-700 border-slate-700 text-white shadow-sm ring-1 ring-slate-400'
-            : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700',
-        ].join(' ')}
-      >
-        All
-      </button>
-      {TYPE_TILES.map((tile) => {
-        const isActive = selected === tile.id;
+      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Status:</span>
+      {STATUS_TILES.map((tile) => {
+        const isActive = selected.includes(tile.id);
         return (
           <button
             key={tile.id}
-            onClick={() => onChange(isActive ? 'all' : tile.id)}
+            onClick={() => toggleStatus(tile.id)}
+            className={[
+              'px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all duration-150',
+              isActive
+                ? tile.activeClass
+                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700',
+            ].join(' ')}
+          >
+            {tile.id}
+          </button>
+        );
+      })}
+
+      {/* Divider */}
+      <div className="shrink-0 self-center mx-3" style={{ width: '1px', height: '20px', backgroundColor: '#e5e7eb' }} />
+
+      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Type:</span>
+      {TYPE_TILES.map((tile) => {
+        const isActive = selectedType.includes(tile.id);
+        return (
+          <button
+            key={tile.id}
+            onClick={() => toggleType(tile.id)}
             className={[
               'px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all duration-150',
               isActive
@@ -353,6 +332,15 @@ function TypeTiles({
           </button>
         );
       })}
+
+      {(selected.length > 0 || selectedType.length > 0) && (
+        <button
+          onClick={() => { onChange([]); onTypeChange([]); }}
+          className="ml-1 text-xs text-slate-400 hover:text-slate-600 transition-colors px-2 py-1 rounded-lg hover:bg-slate-100"
+        >
+          Clear
+        </button>
+      )}
     </div>
   );
 }
@@ -632,7 +620,7 @@ export default function Dashboard() {
   const [filterSuppliers, setFilterSuppliers] = useState<string[]>([]);
   const [filterBuyers, setFilterBuyers] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
-  const [filterType, setFilterType] = useState<'all' | 'services' | 'non-services'>('all');
+  const [filterType, setFilterType] = useState<string[]>([]);
 
   // Sort + pagination
   const [poSortKey, setPoSortKey] = useState<PoSortKey>('earliestDate');
@@ -666,10 +654,10 @@ export default function Dashboard() {
     setFilterSuppliers([]);
     setFilterBuyers([]);
     setFilterStatus([]);
-    setFilterType('all');
+    setFilterType([]);
   }
 
-  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length + filterStatus.length + (filterType !== 'all' ? 1 : 0);
+  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length + filterStatus.length + filterType.length;
 
   /* Remove Specific Filter ---------------------------------- */
   function removeFilter(type: 'search' | 'deliv' | 'country' | 'supplier' | 'buyer', val?: string) {
@@ -837,7 +825,7 @@ export default function Dashboard() {
 
   /* KPI stats — reflects active type filter, otherwise full dataset */
   const stats = useMemo(() => {
-    const base = filterType === 'all' ? rows : rows.filter(r => rowMatchesType(r, filterType));
+    const base = filterType.length === 0 ? rows : rows.filter(r => rowMatchesType(r, filterType));
     const distinctPOs = new Set(base.map((r) => r['PO Number'])).size;
     const pastDue     = new Set(base.filter((r) => daysDiff(r['Delivery Date']) < 0).map(r => r['PO Number'])).size;
     const dueSoon     = new Set(base.filter((r) => { const d = daysDiff(r['Delivery Date']); return d >= 0 && d <= 7; }).map(r => r['PO Number'])).size;
@@ -932,11 +920,11 @@ export default function Dashboard() {
             {/* ── Filter bar ── */}
             {!loading && !error && (
               <>
-                {/* ── Status Tile Slicer ── */}
-                <StatusTiles selected={filterStatus} onChange={setFilterStatus} />
-
-                {/* ── Type Tile Slicer ── */}
-                <TypeTiles selected={filterType} onChange={setFilterType} />
+                {/* ── Status + Type Tile Slicer ── */}
+                <StatusTiles
+                  selected={filterStatus} onChange={setFilterStatus}
+                  selectedType={filterType} onTypeChange={setFilterType}
+                />
 
                 <FilterBar
                   search={search} onSearch={setSearch}
