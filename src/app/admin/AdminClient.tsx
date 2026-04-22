@@ -3,11 +3,16 @@
 import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { signOut } from 'next-auth/react';
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell,
+} from 'recharts';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
   SupplierRow,
   RecentSession,
+  WeeklyRateRow,
 } from '@/app/actions/adminAnalytics';
 
 /* ─── Props ──────────────────────────────────────────────────── */
@@ -35,6 +40,14 @@ function formatSessionDate(raw: string | null | undefined): string {
   const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const time = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   return `${String(d.getDate()).padStart(2,'0')} ${M[d.getMonth()]} ${d.getFullYear()} ${time}`;
+}
+
+function formatWeek(raw: string | null | undefined): string {
+  if (!raw) return '—';
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return String(raw);
+  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${String(d.getDate()).padStart(2,'0')} ${M[d.getMonth()]}`;
 }
 
 /* ─── Response Rate Badge ─────────────────────────────────────── */
@@ -392,6 +405,132 @@ function SessionsTable({ rows }: { rows: RecentSession[] }) {
   );
 }
 
+/* ─── Chart Card wrapper ──────────────────────────────────────── */
+
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 24 }}>
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+/* ─── Chart 1 — Response Rate Over Time ──────────────────────── */
+
+function ResponseRateLineChart({ data }: { data: WeeklyRateRow[] }) {
+  const chartData = data.map(d => ({
+    week: formatWeek(d.week),
+    rate: d.avg_response_rate,
+  }));
+
+  return (
+    <ChartCard title="Response Rate Over Time">
+      <ResponsiveContainer width="100%" height={280}>
+        <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+          <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+          <YAxis
+            tick={{ fontSize: 11, fill: '#94a3b8' }}
+            domain={[0, 100]}
+            tickFormatter={(v: number) => `${v}%`}
+          />
+          <Tooltip formatter={(v: number) => [`${v}%`, 'Response Rate']} />
+          <Line
+            type="monotone"
+            dataKey="rate"
+            stroke="#059669"
+            strokeWidth={2}
+            dot={{ r: 3, fill: '#059669' }}
+            activeDot={{ r: 5 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  );
+}
+
+/* ─── Chart 3 — PO Lines Expedited by Buyer ──────────────────── */
+
+function BuyerLinesBarChart({ data }: { data: BuyerRow[] }) {
+  const chartData = data.map(r => ({
+    name: r.display_name ?? 'Unknown',
+    lines: r.total_lines,
+  }));
+
+  return (
+    <ChartCard title="PO Lines Expedited by Buyer">
+      <ResponsiveContainer width="100%" height={280}>
+        <BarChart data={chartData} margin={{ top: 4, right: 16, bottom: 48, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+          <XAxis
+            dataKey="name"
+            tick={{ fontSize: 11, fill: '#94a3b8' }}
+            angle={-30}
+            textAnchor="end"
+            interval={0}
+          />
+          <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+          <Tooltip formatter={(v: number) => [v.toLocaleString(), 'PO Lines']} />
+          <Bar dataKey="lines" fill="#307c4c" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  );
+}
+
+/* ─── Chart 2 — Top 10 Suppliers by Response Rate ────────────── */
+
+function SupplierBarChart({ data }: { data: SupplierRow[] }) {
+  const chartData = data
+    .filter(r => r.times_expedited > 1 && r.response_rate !== null)
+    .sort((a, b) => (b.response_rate ?? 0) - (a.response_rate ?? 0))
+    .slice(0, 10)
+    .map(r => ({
+      name: r.supplier_name.length > 20 ? r.supplier_name.slice(0, 20) + '…' : r.supplier_name,
+      rate: r.response_rate,
+    }));
+
+  function barColor(rate: number | null): string {
+    if (rate === null) return '#94a3b8';
+    if (rate >= 70) return '#059669';
+    if (rate >= 30) return '#f59e0b';
+    return '#ef4444';
+  }
+
+  return (
+    <ChartCard title="Top 10 Suppliers by Response Rate">
+      <ResponsiveContainer width="100%" height={280}>
+        <BarChart
+          data={chartData}
+          layout="vertical"
+          margin={{ top: 4, right: 40, bottom: 0, left: 0 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+          <XAxis
+            type="number"
+            domain={[0, 100]}
+            tick={{ fontSize: 11, fill: '#94a3b8' }}
+            tickFormatter={(v: number) => `${v}%`}
+          />
+          <YAxis
+            type="category"
+            dataKey="name"
+            tick={{ fontSize: 11, fill: '#94a3b8' }}
+            width={148}
+          />
+          <Tooltip formatter={(v: number) => [`${v}%`, 'Response Rate']} />
+          <Bar dataKey="rate" radius={[0, 4, 4, 0]}>
+            {chartData.map((entry, i) => (
+              <Cell key={`cell-${i}`} fill={barColor(entry.rate)} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  );
+}
+
 /* ─── Analytics Section ───────────────────────────────────────── */
 
 function AnalyticsSection({ analytics }: { analytics: ExpeditingAnalytics }) {
@@ -438,19 +577,34 @@ function AnalyticsSection({ analytics }: { analytics: ExpeditingAnalytics }) {
         </div>
       </div>
 
-      {/* Row 2 — Buyer Activity */}
+      {/* Row 2 — Charts: Response Rate Over Time + PO Lines by Buyer */}
+      <div>
+        <SectionTitle>Trends</SectionTitle>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <ResponseRateLineChart data={analytics.weeklyRateData} />
+          <BuyerLinesBarChart data={analytics.buyerBreakdown} />
+        </div>
+      </div>
+
+      {/* Row 3 — Buyer Activity */}
       <div>
         <SectionTitle>Buyer Activity</SectionTitle>
         <BuyerTable rows={analytics.buyerBreakdown} />
       </div>
 
-      {/* Row 3 — Supplier Response Rates */}
+      {/* Row 4 — Top Suppliers chart */}
+      <div>
+        <SectionTitle>Supplier Performance</SectionTitle>
+        <SupplierBarChart data={analytics.supplierBreakdown} />
+      </div>
+
+      {/* Row 5 — Supplier Response Rates table */}
       <div>
         <SectionTitle>Supplier Response Rates</SectionTitle>
         <SupplierTable rows={analytics.supplierBreakdown} />
       </div>
 
-      {/* Row 4 — Recent Sessions */}
+      {/* Row 6 — Recent Sessions */}
       <div>
         <SectionTitle>Recent Expediting Sessions</SectionTitle>
         <SessionsTable rows={analytics.recentSessions} />

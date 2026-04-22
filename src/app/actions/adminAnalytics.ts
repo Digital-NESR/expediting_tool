@@ -37,6 +37,13 @@ export interface RecentSession {
   fully_closed: boolean | null;
 }
 
+export interface WeeklyRateRow {
+  week: string;
+  avg_response_rate: number | null;
+  sessions_count: number;
+  total_lines: number;
+}
+
 export interface ExpeditingAnalytics {
   totalLinesExpedited: number;
   totalSuppliersContacted: number;
@@ -45,6 +52,7 @@ export interface ExpeditingAnalytics {
   buyerBreakdown: BuyerRow[];
   supplierBreakdown: SupplierRow[];
   recentSessions: RecentSession[];
+  weeklyRateData: WeeklyRateRow[];
 }
 
 /* ─── getExpeditingAnalytics ─────────────────────────────────── */
@@ -57,7 +65,7 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
   };
 
   try {
-    const [kpiRes, buyerRes, supplierRes, sessionsRes] = await Promise.all([
+    const [kpiRes, buyerRes, supplierRes, sessionsRes, weeklyRes] = await Promise.all([
 
       /* ── KPI block ── */
       pool.query(`
@@ -129,6 +137,19 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
         ORDER BY es.dispatched_at DESC
         LIMIT 20
       `),
+
+      /* ── Weekly response rate trend ── */
+      pool.query(`
+        SELECT
+          DATE_TRUNC('week', dispatched_at) AS week,
+          ROUND(AVG(response_rate_pct), 1)  AS avg_response_rate,
+          COUNT(*)                           AS sessions_count,
+          SUM(total_po_lines)               AS total_lines
+        FROM expediting_sessions
+        WHERE dispatched_at >= NOW() - INTERVAL '12 weeks'
+        GROUP BY DATE_TRUNC('week', dispatched_at)
+        ORDER BY week ASC
+      `),
     ]);
 
     const kpi = kpiRes.rows[0] ?? {};
@@ -171,6 +192,13 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
         response_rate_pct:  r.response_rate_pct != null ? Number(r.response_rate_pct) : null,
         fully_closed:       r.fully_closed != null ? Boolean(r.fully_closed) : null,
       })),
+
+      weeklyRateData: weeklyRes.rows.map(r => ({
+        week:              toStr(r.week) ?? '',
+        avg_response_rate: r.avg_response_rate != null ? Number(r.avg_response_rate) : null,
+        sessions_count:    Number(r.sessions_count ?? 0),
+        total_lines:       Number(r.total_lines ?? 0),
+      })),
     };
   } catch (err) {
     console.error('[getExpeditingAnalytics]', err);
@@ -182,6 +210,7 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
       buyerBreakdown: [],
       supplierBreakdown: [],
       recentSessions: [],
+      weeklyRateData: [],
     };
   }
 }
