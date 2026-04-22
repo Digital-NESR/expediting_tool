@@ -1,22 +1,17 @@
 import { Pool } from 'pg';
 
-// Singleton pool — reused across hot-reloads in development
-declare global {
-  // eslint-disable-next-line no-var
-  var _pgPool: Pool | undefined;
-}
-
-function createPool(): Pool {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL environment variable is not set.');
-  }
-  return new Pool({ connectionString: process.env.DATABASE_URL });
-}
-
-const pool: Pool = globalThis._pgPool ?? createPool();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalThis._pgPool = pool;
-}
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT) || 5432,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  ssl: process.env.DB_SSL === 'true'
+    ? { rejectUnauthorized: false }
+    : false,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
 
 export default pool;
