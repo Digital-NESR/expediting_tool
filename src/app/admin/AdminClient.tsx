@@ -1,0 +1,612 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import Image from 'next/image';
+import { signOut } from 'next-auth/react';
+import type {
+  ExpeditingAnalytics,
+  BuyerRow,
+  SupplierRow,
+  RecentSession,
+} from '@/app/actions/adminAnalytics';
+
+/* ─── Props ──────────────────────────────────────────────────── */
+
+interface AdminClientProps {
+  analytics: ExpeditingAnalytics;
+  userEmail: string;
+  userName: string;
+}
+
+/* ─── Helpers ────────────────────────────────────────────────── */
+
+function formatDate(raw: string | null | undefined): string {
+  if (!raw) return '—';
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return String(raw);
+  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${String(d.getDate()).padStart(2,'0')} ${M[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function formatSessionDate(raw: string | null | undefined): string {
+  if (!raw) return '—';
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return String(raw);
+  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const time = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return `${String(d.getDate()).padStart(2,'0')} ${M[d.getMonth()]} ${d.getFullYear()} ${time}`;
+}
+
+/* ─── Response Rate Badge ─────────────────────────────────────── */
+
+function RateBadge({ rate }: { rate: number | null }) {
+  if (rate === null || rate === undefined) {
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400 border border-slate-200 whitespace-nowrap">
+        —
+      </span>
+    );
+  }
+  const cls =
+    rate >= 70
+      ? 'bg-[#307c4c]/10 text-[#307c4c] border-[#307c4c]/20'
+      : rate >= 30
+        ? 'bg-amber-100 text-amber-700 border-amber-200'
+        : 'bg-red-100 text-red-700 border-red-200';
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${cls}`}>
+      {rate}%
+    </span>
+  );
+}
+
+/* ─── Sort Icon ──────────────────────────────────────────────── */
+
+function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
+  return (
+    <span className={`ml-1 inline-flex flex-col leading-none text-[9px] ${active ? 'text-[#307c4c]' : 'text-slate-300'}`}>
+      <span className={active && dir === 'asc' ? 'text-[#307c4c]' : ''}>▲</span>
+      <span className={active && dir === 'desc' ? 'text-[#307c4c]' : ''}>▼</span>
+    </span>
+  );
+}
+
+/* ─── useSortable ────────────────────────────────────────────── */
+
+function useSortable<T extends Record<string, unknown>>(
+  data: T[],
+  defaultKey: keyof T,
+  defaultDir: 'asc' | 'desc' = 'desc',
+) {
+  const [sortKey, setSortKey] = useState<keyof T>(defaultKey);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultDir);
+
+  function handleSort(key: keyof T) {
+    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('desc'); }
+  }
+
+  const sorted = useMemo(() => {
+    return [...data].sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (av === null || av === undefined) return 1;
+      if (bv === null || bv === undefined) return -1;
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [data, sortKey, sortDir]);
+
+  return { sorted, sortKey, sortDir, handleSort };
+}
+
+/* ─── KPI Card ───────────────────────────────────────────────── */
+
+function KpiCard({
+  label,
+  value,
+  accent = false,
+  warning = false,
+  danger = false,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+  warning?: boolean;
+  danger?: boolean;
+}) {
+  const valueColor = danger
+    ? 'text-red-600'
+    : warning
+      ? 'text-amber-600'
+      : accent
+        ? 'text-[#307c4c]'
+        : 'text-slate-800';
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col gap-1 transition-shadow duration-300 hover:shadow-md">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+      <p className={`text-3xl font-bold tracking-tight ${valueColor}`}>{value}</p>
+    </div>
+  );
+}
+
+/* ─── Section heading ─────────────────────────────────────────── */
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+      <span className="w-1 h-4 bg-[#307c4c] rounded-full inline-block shrink-0" />
+      {children}
+    </h2>
+  );
+}
+
+/* ─── Buyer Activity Table ────────────────────────────────────── */
+
+function BuyerTable({ rows }: { rows: BuyerRow[] }) {
+  const { sorted, sortKey, sortDir, handleSort } = useSortable(
+    rows as unknown as Record<string, unknown>[],
+    'total_lines',
+  );
+  type Col = { key: string; label: string; align?: 'right' | 'center' };
+  const cols: Col[] = [
+    { key: 'display_name',      label: 'Buyer'             },
+    { key: 'job_title',         label: 'Job Title'         },
+    { key: 'total_sessions',    label: 'Sessions',      align: 'right' },
+    { key: 'total_lines',       label: 'PO Lines',      align: 'right' },
+    { key: 'total_suppliers',   label: 'Suppliers',     align: 'right' },
+    { key: 'total_emails',      label: 'Emails Sent',   align: 'right' },
+    { key: 'avg_response_rate', label: 'Avg Response',  align: 'center' },
+    { key: 'last_active_at',    label: 'Last Active'   },
+  ];
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+              {cols.map(col => (
+                <th
+                  key={col.key}
+                  onClick={() => handleSort(col.key)}
+                  className={[
+                    'py-3 px-4 font-semibold cursor-pointer select-none hover:text-[#307c4c] transition-colors whitespace-nowrap',
+                    col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : '',
+                    sortKey === col.key ? 'text-[#307c4c]' : '',
+                  ].join(' ')}
+                >
+                  <span className="inline-flex items-center gap-0.5">
+                    {col.label}
+                    <SortIcon active={sortKey === col.key} dir={sortDir} />
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={cols.length} className="py-10 text-center text-sm text-slate-400">
+                  No buyer data yet.
+                </td>
+              </tr>
+            )}
+            {sorted.map((row, idx) => {
+              const r = row as unknown as BuyerRow;
+              return (
+                <tr
+                  key={idx}
+                  className={`border-b border-slate-100 hover:bg-[#307c4c]/5 transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                >
+                  <td className="py-3 px-4 text-sm font-semibold text-slate-800 whitespace-nowrap">
+                    {r.display_name ?? '—'}
+                  </td>
+                  <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">
+                    {r.job_title ?? '—'}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                    {r.total_sessions.toLocaleString()}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-right font-semibold text-slate-800 tabular-nums">
+                    {r.total_lines.toLocaleString()}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                    {r.total_suppliers.toLocaleString()}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                    {r.total_emails.toLocaleString()}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <RateBadge rate={r.avg_response_rate} />
+                  </td>
+                  <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">
+                    {formatDate(r.last_active_at)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Supplier Response Table ─────────────────────────────────── */
+
+function SupplierTable({ rows }: { rows: SupplierRow[] }) {
+  const { sorted, sortKey, sortDir, handleSort } = useSortable(
+    rows as unknown as Record<string, unknown>[],
+    'response_rate',
+  );
+  type Col = { key: string; label: string; align?: 'right' | 'center' };
+  const cols: Col[] = [
+    { key: 'supplier_name',   label: 'Supplier Name'                        },
+    { key: 'times_expedited', label: 'Times Expedited', align: 'right'      },
+    { key: 'total_lines',     label: 'Lines Sent',      align: 'right'      },
+    { key: 'lines_responded', label: 'Lines Responded', align: 'right'      },
+    { key: 'response_rate',   label: 'Response Rate',   align: 'center'     },
+    { key: 'last_response',   label: 'Last Response'                        },
+  ];
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+              {cols.map(col => (
+                <th
+                  key={col.key}
+                  onClick={() => handleSort(col.key)}
+                  className={[
+                    'py-3 px-4 font-semibold cursor-pointer select-none hover:text-[#307c4c] transition-colors whitespace-nowrap',
+                    col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : '',
+                    sortKey === col.key ? 'text-[#307c4c]' : '',
+                  ].join(' ')}
+                >
+                  <span className="inline-flex items-center gap-0.5">
+                    {col.label}
+                    <SortIcon active={sortKey === col.key} dir={sortDir} />
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={cols.length} className="py-10 text-center text-sm text-slate-400">
+                  No supplier data yet.
+                </td>
+              </tr>
+            )}
+            {sorted.map((row, idx) => {
+              const r = row as unknown as SupplierRow;
+              return (
+                <tr
+                  key={idx}
+                  className={`border-b border-slate-100 hover:bg-[#307c4c]/5 transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                >
+                  <td className="py-3 px-4 text-sm font-semibold text-slate-800 max-w-[240px] truncate" title={r.supplier_name}>
+                    {r.supplier_name || '—'}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                    {r.times_expedited.toLocaleString()}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                    {r.total_lines.toLocaleString()}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                    {r.lines_responded.toLocaleString()}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <RateBadge rate={r.response_rate} />
+                  </td>
+                  <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">
+                    {formatDate(r.last_response)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Recent Sessions Table ───────────────────────────────────── */
+
+function SessionsTable({ rows }: { rows: RecentSession[] }) {
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+              <th className="py-3 px-4 whitespace-nowrap">Date</th>
+              <th className="py-3 px-4 whitespace-nowrap">Dispatched By</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap">Suppliers</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap">PO Lines</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap">Emails Sent</th>
+              <th className="py-3 px-4 text-center whitespace-nowrap">Responded</th>
+              <th className="py-3 px-4 text-center whitespace-nowrap">Response Rate</th>
+              <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="py-10 text-center text-sm text-slate-400">
+                  No sessions yet.
+                </td>
+              </tr>
+            )}
+            {rows.map((r, idx) => (
+              <tr
+                key={r.session_ref}
+                className={`border-b border-slate-100 hover:bg-[#307c4c]/5 transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+              >
+                <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
+                  {formatSessionDate(r.dispatched_at)}
+                </td>
+                <td className="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">
+                  {r.display_name ?? r.dispatched_by}
+                </td>
+                <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                  {r.total_suppliers}
+                </td>
+                <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                  {r.total_po_lines}
+                </td>
+                <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                  {r.total_emails_sent}
+                </td>
+                <td className="py-3 px-4 text-sm text-center font-medium text-slate-700 tabular-nums">
+                  {r.suppliers_responded != null
+                    ? `${r.suppliers_responded} / ${r.total_suppliers}`
+                    : '—'}
+                </td>
+                <td className="py-3 px-4 text-center">
+                  <RateBadge rate={r.response_rate_pct} />
+                </td>
+                <td className="py-3 px-4 text-center">
+                  {r.fully_closed === true ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap">
+                      Closed
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">
+                      Open
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Analytics Section ───────────────────────────────────────── */
+
+function AnalyticsSection({ analytics }: { analytics: ExpeditingAnalytics }) {
+  const rateColor =
+    analytics.overallResponseRate === null
+      ? 'text-slate-800'
+      : analytics.overallResponseRate >= 70
+        ? 'text-[#307c4c]'
+        : analytics.overallResponseRate >= 30
+          ? 'text-amber-600'
+          : 'text-red-600';
+
+  return (
+    <div className="mt-6 space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
+
+      {/* Row 1 — KPI cards */}
+      <div>
+        <SectionTitle>Overview</SectionTitle>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            label="Total PO Lines Expedited"
+            value={analytics.totalLinesExpedited.toLocaleString()}
+            accent
+          />
+          <KpiCard
+            label="Total Suppliers Contacted"
+            value={analytics.totalSuppliersContacted.toLocaleString()}
+            accent
+          />
+          <KpiCard
+            label="Total Emails Sent"
+            value={analytics.totalEmailsSent.toLocaleString()}
+          />
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col gap-1 transition-shadow duration-300 hover:shadow-md">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Overall Response Rate
+            </p>
+            <p className={`text-3xl font-bold tracking-tight ${rateColor}`}>
+              {analytics.overallResponseRate !== null
+                ? `${analytics.overallResponseRate}%`
+                : '—'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2 — Buyer Activity */}
+      <div>
+        <SectionTitle>Buyer Activity</SectionTitle>
+        <BuyerTable rows={analytics.buyerBreakdown} />
+      </div>
+
+      {/* Row 3 — Supplier Response Rates */}
+      <div>
+        <SectionTitle>Supplier Response Rates</SectionTitle>
+        <SupplierTable rows={analytics.supplierBreakdown} />
+      </div>
+
+      {/* Row 4 — Recent Sessions */}
+      <div>
+        <SectionTitle>Recent Expediting Sessions</SectionTitle>
+        <SessionsTable rows={analytics.recentSessions} />
+      </div>
+    </div>
+  );
+}
+
+/* ─── Tool Card ───────────────────────────────────────────────── */
+
+function ToolCard({
+  name,
+  description,
+  metric,
+  metricLabel,
+  isActive,
+  isSelected,
+  onClick,
+}: {
+  name: string;
+  description: string;
+  metric?: string;
+  metricLabel?: string;
+  isActive: boolean;
+  isSelected?: boolean;
+  onClick?: () => void;
+}) {
+  const cardClass = [
+    'relative bg-white rounded-xl border p-6 flex flex-col gap-3 transition-all duration-200',
+    isActive
+      ? isSelected
+        ? 'border-[#307c4c] shadow-md shadow-[#307c4c]/10 cursor-pointer ring-1 ring-[#307c4c]/20'
+        : 'border-gray-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10 group'
+      : 'border-gray-200 opacity-60 cursor-default select-none',
+  ].join(' ');
+
+  return (
+    <div className={cardClass} onClick={isActive ? onClick : undefined}>
+      {!isActive && (
+        <span className="absolute top-3 right-3 bg-gray-100 text-gray-400 text-[11px] font-medium px-2 py-0.5 rounded-full">
+          Coming Soon
+        </span>
+      )}
+
+      <div className={[
+        'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+        isActive ? 'bg-[#307c4c]/10' : 'bg-gray-100',
+      ].join(' ')}>
+        <svg className={`w-5 h-5 ${isActive ? 'text-[#307c4c]' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11" />
+        </svg>
+      </div>
+
+      <div className="flex-1">
+        <h3 className={`text-[15px] font-semibold ${isActive ? 'text-slate-900' : 'text-gray-400'}`}>
+          {name}
+        </h3>
+        <p className="text-xs text-gray-500 mt-1 leading-relaxed">{description}</p>
+      </div>
+
+      {isActive && metric !== undefined && (
+        <div className="flex items-end justify-between mt-1">
+          <div>
+            <p className="text-2xl font-bold text-[#307c4c] tabular-nums tracking-tight">{metric}</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">{metricLabel}</p>
+          </div>
+          <span className={`text-xs font-semibold transition-colors ${isSelected ? 'text-[#307c4c]' : 'text-slate-400 group-hover:text-[#307c4c]'}`}>
+            {isSelected ? 'Hide ↑' : 'View Analytics →'}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Main AdminClient ────────────────────────────────────────── */
+
+export default function AdminClient({ analytics, userEmail, userName }: AdminClientProps) {
+  const [selectedTool, setSelectedTool] = useState<string | null>('po-expediting');
+
+  function toggleTool(id: string) {
+    setSelectedTool(prev => (prev === id ? null : id));
+  }
+
+  return (
+    <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
+
+      {/* ── Slim header ── */}
+      <header className="h-14 bg-white/90 backdrop-blur-md border-b border-slate-100 sticky top-0 z-10 px-6 lg:px-8 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <Image
+            src="/nesr-logo-circle.png"
+            alt="NESR"
+            width={28}
+            height={28}
+            className="rounded-full"
+          />
+          <span className="text-sm font-semibold text-slate-900 tracking-tight">NESR</span>
+          <span className="text-slate-300 select-none">·</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Admin</span>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-slate-500 hidden sm:block truncate max-w-[220px]">
+            {userName !== userEmail ? `${userName} · ` : ''}{userEmail}
+          </span>
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Sign Out
+          </button>
+        </div>
+      </header>
+
+      {/* ── Main body ── */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Page title */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">SC Agents — Admin</h1>
+          <p className="text-sm text-slate-500 mt-1">System analytics and tool management</p>
+        </div>
+
+        {/* Tool cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-2">
+          <ToolCard
+            name="PO Expediting"
+            description="Monitor open purchase orders, expedite delayed lines, and collect supplier delivery updates."
+            metric={analytics.totalLinesExpedited.toLocaleString()}
+            metricLabel="Lines Expedited"
+            isActive
+            isSelected={selectedTool === 'po-expediting'}
+            onClick={() => toggleTool('po-expediting')}
+          />
+          <ToolCard
+            name="GRN & Invoice Reconciliation"
+            description="Compare goods receipt notes against purchase orders and invoices to identify discrepancies before payment."
+            isActive={false}
+          />
+          <ToolCard
+            name="Supply Chain Analytics"
+            description="Real-time visibility into procurement performance, supplier KPIs, and delivery trends."
+            isActive={false}
+          />
+        </div>
+
+        {/* Analytics section */}
+        {selectedTool === 'po-expediting' && (
+          <AnalyticsSection analytics={analytics} />
+        )}
+
+      </main>
+    </div>
+  );
+}
