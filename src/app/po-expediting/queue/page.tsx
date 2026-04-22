@@ -577,7 +577,7 @@ export default function ExpediteReviewPage() {
       return;
     }
 
-    router.push('/expedite/confirm');
+    router.push('/po-expediting/confirm');
   }
 
   /* ─── Empty State ───────────────────────────────────────── */
@@ -617,7 +617,7 @@ export default function ExpediteReviewPage() {
             You haven&apos;t selected any line items to expedite yet.
           </p>
           <Link
-            href="/"
+            href="/po-expediting"
             className="w-full inline-flex items-center justify-center h-12 bg-[#307c4c] hover:bg-[#26663e] text-white font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-[#307c4c]/20"
           >
             Return to Dashboard
@@ -659,7 +659,7 @@ export default function ExpediteReviewPage() {
         {/* Page Header */}
         <header className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-[#307c4c] mb-4 transition-colors">
+            <Link href="/po-expediting" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-[#307c4c] mb-4 transition-colors">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>

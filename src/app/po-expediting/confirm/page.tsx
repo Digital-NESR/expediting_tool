@@ -157,7 +157,7 @@ export default function ConfirmDispatchPage() {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-slate-50 p-6">
         <p className="text-slate-500 mb-4 text-sm">No items in the expedite queue.</p>
-        <Link href="/" className="text-sm font-semibold text-[#307c4c] hover:underline">
+        <Link href="/po-expediting" className="text-sm font-semibold text-[#307c4c] hover:underline">
           Return to Dashboard
         </Link>
       </div>
@@ -180,7 +180,7 @@ export default function ConfirmDispatchPage() {
             {count} supplier{count !== 1 ? 's' : ''} notified.
           </p>
           <button
-            onClick={() => { clearSelection(); router.push('/'); }}
+            onClick={() => { clearSelection(); router.push('/po-expediting'); }}
             className="w-full inline-flex items-center justify-center h-12 bg-[#307c4c] hover:bg-[#26663e] text-white font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-[#307c4c]/20"
           >
             Return to Dashboard
@@ -233,7 +233,7 @@ export default function ConfirmDispatchPage() {
               Retry Failed
             </button>
             <button
-              onClick={() => { clearSelection(); router.push('/'); }}
+              onClick={() => { clearSelection(); router.push('/po-expediting'); }}
               className="flex-1 h-10 bg-[#1e293b] hover:bg-black text-white text-sm font-semibold rounded-xl transition-colors"
             >
               Return to Dashboard
@@ -279,7 +279,7 @@ export default function ConfirmDispatchPage() {
         {/* Page header */}
         <header className="mb-8">
           <Link
-            href="/expedite"
+            href="/po-expediting/queue"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-[#307c4c] mb-4 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -525,7 +525,7 @@ export default function ConfirmDispatchPage() {
 
           {/* Back */}
           <Link
-            href="/expedite"
+            href="/po-expediting/queue"
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

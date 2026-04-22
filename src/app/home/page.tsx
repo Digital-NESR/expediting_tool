@@ -18,7 +18,7 @@ const TOOLS: Tool[] = [
     name: 'PO Expediting',
     description:
       'Monitor open purchase orders, expedite delayed lines, and collect supplier delivery updates.',
-    href: '/',
+    href: '/po-expediting',
     status: 'active',
     icon: (
       <svg className="w-6 h-6 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>

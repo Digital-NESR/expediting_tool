@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(mkdir -p src/app/po-expediting/queue src/app/po-expediting/confirm src/app/po-expediting/reconciliation)",
+      "Bash(cp src/app/page.tsx src/app/po-expediting/page.tsx)",
+      "Bash(cp src/app/expedite/page.tsx src/app/po-expediting/queue/page.tsx)",
+      "Bash(cp src/app/expedite/confirm/page.tsx src/app/po-expediting/confirm/page.tsx)",
+      "Bash(cp src/app/expedite/reconciliation/page.tsx src/app/po-expediting/reconciliation/page.tsx)",
+      "Bash(grep -r '\"/expedite\"' src/ --include=\"*.tsx\" --include=\"*.ts\" -l)",
+      "Bash(grep -r \"href=\\\\\"/\\\\\"\" src/ --include=\"*.tsx\" --include=\"*.ts\" -l)"
     ]
   }
 }
