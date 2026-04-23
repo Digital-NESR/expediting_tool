@@ -48,8 +48,14 @@ function DefaultEmailPill({ email, onRemove }: { email: string; onRemove: () => 
     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#307c4c] text-white text-xs font-medium rounded-md max-w-full">
       <span className="truncate">{email}</span>
       <button
-        onClick={onRemove}
+        type="button"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onRemove();
+        }}
         className="shrink-0 text-white/70 hover:text-green-200 transition-colors ml-0.5"
+        style={{ pointerEvents: 'auto', cursor: 'pointer' }}
         aria-label={`Remove ${email}`}
       >
         <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
@@ -66,8 +72,14 @@ function RemovableEmailPill({ email, onRemove }: { email: string; onRemove: () =
     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-[#307c4c] text-[#307c4c] text-xs font-medium rounded-md max-w-full">
       <span className="truncate">{email}</span>
       <button
-        onClick={onRemove}
+        type="button"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onRemove();
+        }}
         className="shrink-0 text-[#307c4c]/70 hover:text-green-900 transition-colors ml-0.5"
+        style={{ pointerEvents: 'auto', cursor: 'pointer' }}
         aria-label={`Remove ${email}`}
       >
         <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
@@ -84,8 +96,14 @@ function CcEmailPill({ email, onRemove }: { email: string; onRemove: () => void 
     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium rounded-md max-w-full">
       <span className="truncate">{email}</span>
       <button
-        onClick={onRemove}
+        type="button"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onRemove();
+        }}
         className="shrink-0 text-slate-400 hover:text-red-500 transition-colors ml-0.5"
+        style={{ pointerEvents: 'auto', cursor: 'pointer' }}
         aria-label={`Remove ${email}`}
       >
         <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
