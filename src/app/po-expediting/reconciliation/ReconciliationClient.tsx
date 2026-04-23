@@ -135,7 +135,7 @@ function BuyerCommentCell({
   onBlur: () => void;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
 }) {
-  const showHint = !value || value.startsWith('Updated by');
+  const showHint = value.includes('[DATE]');
   return (
     <div className="min-w-[140px]">
       <textarea
@@ -152,7 +152,7 @@ function BuyerCommentCell({
         {saveStatus === 'error'  && <span className="text-[10px] text-red-500">Failed to save</span>}
       </div>
       {showHint && (
-        <span className="text-[11px] text-gray-400">Timestamp is in UTC</span>
+        <span className="text-[11px] text-gray-400">[DATE] will be replaced with today&apos;s date on export</span>
       )}
     </div>
   );
@@ -400,18 +400,6 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set()); // all collapsed
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
 
-  /* ── Default buyer comment timestamp — generated once at page load ── */
-  const defaultTimestamp = useMemo(() => {
-    const now = new Date();
-    const date = now.toLocaleDateString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
-    });
-    const time = now.toLocaleTimeString('en-GB', {
-      hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
-    });
-    return `${date} ${time} UTC`;
-  }, []);
-
   /* ── Session data — fetched client-side so refresh is possible ── */
   const [sessions, setSessions]           = useState<SessionData[]>([]);
   const [isRefreshing, setIsRefreshing]   = useState(false);
@@ -430,7 +418,7 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
       setSessions(data);
       setBuyerComments(() => {
         const map: Record<string, string> = {};
-        const defaultComment = `Updated by ${userName} on ${defaultTimestamp}`;
+        const defaultComment = `Updated by ${userName} on [DATE]`;
         for (const session of data) {
           for (const supplier of session.suppliers) {
             for (const line of supplier.lines) {
@@ -445,7 +433,7 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
     } finally {
       setIsRefreshing(false);
     }
-  }, [userEmail, userName, defaultTimestamp]);
+  }, [userEmail, userName]);
 
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
@@ -505,6 +493,10 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
 
   /* ── Per-session CSV export ───────────────────────────────── */
   function exportSessionCsv(session: SessionData) {
+    const exportDate = new Date().toLocaleDateString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
+    });
+
     const CSV_HEADERS = [
       'Purchase Order', 'Purchase Order Item', 'New Delivery Date',
       'Delivery Status Code', 'Delivery Comments',
@@ -515,7 +507,7 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
       for (const line of supplier.lines) {
         if (!isExportable(line)) continue;
         const key        = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
-        const buyerNote  = buyerComments[key] ?? '';
+        const buyerNote  = (buyerComments[key] ?? '').replace('[DATE]', exportDate);
         const comments   = [line.supplier_comments, buyerNote].filter(Boolean).join(' | ');
         rows.push([
           line.po_number,
@@ -536,6 +528,10 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
   function exportSelectedCsv() {
     const selectedList = sessions.filter(s => selectedSessions.has(s.session_ref));
     if (selectedList.length === 0) return;
+
+    const exportDate = new Date().toLocaleDateString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
+    });
 
     // Deduplicate by po_number + po_line — keep row from most recent session
     const lineMap = new Map<string, { line: LineData; expedite_token: string; dispatched_at: string }>();
@@ -562,7 +558,7 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
 
     for (const { line, expedite_token } of lineMap.values()) {
       const key       = `${line.po_number}|${line.po_line}|${expedite_token}`;
-      const buyerNote = buyerComments[key] ?? '';
+      const buyerNote = (buyerComments[key] ?? '').replace('[DATE]', exportDate);
       const comments  = [line.supplier_comments, buyerNote].filter(Boolean).join(' | ');
       rows.push([
         line.po_number,
