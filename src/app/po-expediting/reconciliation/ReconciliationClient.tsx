@@ -135,6 +135,7 @@ function BuyerCommentCell({
   onBlur: () => void;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
 }) {
+  const showHint = !value || value.startsWith('Updated by');
   return (
     <div className="min-w-[140px]">
       <textarea
@@ -150,6 +151,9 @@ function BuyerCommentCell({
         {saveStatus === 'saved'  && <span className="text-[10px] text-[#307c4c] font-medium">Saved ✓</span>}
         {saveStatus === 'error'  && <span className="text-[10px] text-red-500">Failed to save</span>}
       </div>
+      {showHint && (
+        <span className="text-[11px] text-gray-400">Timestamp is in UTC</span>
+      )}
     </div>
   );
 }
@@ -391,10 +395,22 @@ function SessionCard({
 
 /* ─── Main client component ──────────────────────────────────── */
 
-export default function ReconciliationClient({ userEmail }: { userEmail: string }) {
+export default function ReconciliationClient({ userEmail, userName }: { userEmail: string; userName: string }) {
   const [isSidebarOpen, setIsSidebarOpen]     = useState(false);
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set()); // all collapsed
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
+
+  /* ── Default buyer comment timestamp — generated once at page load ── */
+  const defaultTimestamp = useMemo(() => {
+    const now = new Date();
+    const date = now.toLocaleDateString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
+    });
+    const time = now.toLocaleTimeString('en-GB', {
+      hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
+    });
+    return `${date} ${time} UTC`;
+  }, []);
 
   /* ── Session data — fetched client-side so refresh is possible ── */
   const [sessions, setSessions]           = useState<SessionData[]>([]);
@@ -414,11 +430,12 @@ export default function ReconciliationClient({ userEmail }: { userEmail: string 
       setSessions(data);
       setBuyerComments(() => {
         const map: Record<string, string> = {};
+        const defaultComment = `Updated by ${userName} on ${defaultTimestamp}`;
         for (const session of data) {
           for (const supplier of session.suppliers) {
             for (const line of supplier.lines) {
               const key = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
-              map[key] = line.buyer_comments ?? '';
+              map[key] = line.buyer_comments || defaultComment;
             }
           }
         }
@@ -428,7 +445,7 @@ export default function ReconciliationClient({ userEmail }: { userEmail: string 
     } finally {
       setIsRefreshing(false);
     }
-  }, [userEmail]);
+  }, [userEmail, userName, defaultTimestamp]);
 
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
 

@@ -7,5 +7,6 @@ export const metadata = { title: 'Reconciliation — PO Expediting | SC Agents' 
 export default async function ReconciliationPage() {
   const session = await getServerSession(authOptions);
   const userEmail = session?.user?.email ?? '';
-  return <ReconciliationClient userEmail={userEmail} />;
+  const userName  = session?.user?.name ?? userEmail;
+  return <ReconciliationClient userEmail={userEmail} userName={userName} />;
 }
