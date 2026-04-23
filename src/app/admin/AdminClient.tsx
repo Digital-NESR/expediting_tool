@@ -435,7 +435,7 @@ function ResponseRateLineChart({ data }: { data: WeeklyRateRow[] }) {
             domain={[0, 100]}
             tickFormatter={(v: number) => `${v}%`}
           />
-          <Tooltip formatter={(v: number) => [`${v}%`, 'Response Rate']} />
+          <Tooltip formatter={(v: unknown) => [`${v}%`, 'Response Rate']} />
           <Line
             type="monotone"
             dataKey="rate"
@@ -471,7 +471,7 @@ function BuyerLinesBarChart({ data }: { data: BuyerRow[] }) {
             interval={0}
           />
           <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
-          <Tooltip formatter={(v: number) => [v.toLocaleString(), 'PO Lines']} />
+          <Tooltip formatter={(v: unknown) => [typeof v === 'number' ? v.toLocaleString() : String(v), 'PO Lines']} />
           <Bar dataKey="lines" fill="#307c4c" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
@@ -519,7 +519,7 @@ function SupplierBarChart({ data }: { data: SupplierRow[] }) {
             tick={{ fontSize: 11, fill: '#94a3b8' }}
             width={148}
           />
-          <Tooltip formatter={(v: number) => [`${v}%`, 'Response Rate']} />
+          <Tooltip formatter={(v: unknown) => [`${v}%`, 'Response Rate']} />
           <Bar dataKey="rate" radius={[0, 4, 4, 0]}>
             {chartData.map((entry, i) => (
               <Cell key={`cell-${i}`} fill={barColor(entry.rate)} />
