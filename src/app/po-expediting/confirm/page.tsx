@@ -362,10 +362,10 @@ export default function ConfirmDispatchPage() {
               <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
                 <thead>
                   <tr className="border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    <th className="py-3 px-4" style={{ width: '220px' }}>Supplier</th>
-                    <th className="py-3 px-4">To</th>
-                    <th className="py-3 px-4">CC</th>
-                    <th className="py-3 px-4 text-center" style={{ width: '60px' }}>Lines</th>
+                    <th className="py-3 px-4" style={{ width: '35%' }}>Supplier</th>
+                    <th className="py-3 px-4" style={{ width: '28%' }}>To</th>
+                    <th className="py-3 px-4" style={{ width: '28%' }}>CC</th>
+                    <th className="py-3 px-4 text-center" style={{ width: '9%' }}>Lines</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100/50">
