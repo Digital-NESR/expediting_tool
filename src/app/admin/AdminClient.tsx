@@ -544,7 +544,7 @@ function AnalyticsSection({ analytics }: { analytics: ExpeditingAnalytics }) {
           : 'text-red-600';
 
   return (
-    <div className="mt-6 space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
+    <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
 
       {/* Row 1 — KPI cards */}
       <div>
@@ -613,84 +613,25 @@ function AnalyticsSection({ analytics }: { analytics: ExpeditingAnalytics }) {
   );
 }
 
-/* ─── Tool Card ───────────────────────────────────────────────── */
-
-function ToolCard({
-  name,
-  description,
-  metric,
-  metricLabel,
-  isActive,
-  isSelected,
-  onClick,
-}: {
-  name: string;
-  description: string;
-  metric?: string;
-  metricLabel?: string;
-  isActive: boolean;
-  isSelected?: boolean;
-  onClick?: () => void;
-}) {
-  const cardClass = [
-    'relative bg-white rounded-xl border p-6 flex flex-col gap-3 transition-all duration-200',
-    isActive
-      ? isSelected
-        ? 'border-[#307c4c] shadow-md shadow-[#307c4c]/10 cursor-pointer ring-1 ring-[#307c4c]/20'
-        : 'border-gray-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10 group'
-      : 'border-gray-200 opacity-60 cursor-default select-none',
-  ].join(' ');
-
-  return (
-    <div className={cardClass} onClick={isActive ? onClick : undefined}>
-      {!isActive && (
-        <span className="absolute top-3 right-3 bg-gray-100 text-gray-400 text-[11px] font-medium px-2 py-0.5 rounded-full">
-          Coming Soon
-        </span>
-      )}
-
-      <div className={[
-        'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-        isActive ? 'bg-[#307c4c]/10' : 'bg-gray-100',
-      ].join(' ')}>
-        <svg className={`w-5 h-5 ${isActive ? 'text-[#307c4c]' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11" />
-        </svg>
-      </div>
-
-      <div className="flex-1">
-        <h3 className={`text-[15px] font-semibold ${isActive ? 'text-slate-900' : 'text-gray-400'}`}>
-          {name}
-        </h3>
-        <p className="text-xs text-gray-500 mt-1 leading-relaxed">{description}</p>
-      </div>
-
-      {isActive && metric !== undefined && (
-        <div className="flex items-end justify-between mt-1">
-          <div>
-            <p className="text-2xl font-bold text-[#307c4c] tabular-nums tracking-tight">{metric}</p>
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">{metricLabel}</p>
-          </div>
-          <span className={`text-xs font-semibold transition-colors ${isSelected ? 'text-[#307c4c]' : 'text-slate-400 group-hover:text-[#307c4c]'}`}>
-            {isSelected ? 'Hide ↑' : 'View Analytics →'}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ─── Main AdminClient ────────────────────────────────────────── */
 
 export default function AdminClient({ analytics, userEmail, userName }: AdminClientProps) {
-  const [selectedTool, setSelectedTool] = useState<string | null>('po-expediting');
+  const [selectedTool, setSelectedTool] = useState<string>('po-expediting');
 
-  function toggleTool(id: string) {
-    setSelectedTool(prev => (prev === id ? null : id));
-  }
+  const navItemBase: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: 6,
+    fontSize: 14,
+    fontWeight: 500,
+    textAlign: 'left',
+  };
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
+    <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900 flex flex-col">
 
       {/* ── Slim header ── */}
       <header className="h-14 bg-white/90 backdrop-blur-md border-b border-slate-100 sticky top-0 z-10 px-6 lg:px-8 flex items-center justify-between shrink-0">
@@ -723,44 +664,74 @@ export default function AdminClient({ analytics, userEmail, userName }: AdminCli
         </div>
       </header>
 
-      {/* ── Main body ── */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* ── Body: sidebar + main ── */}
+      <div className="flex flex-1">
 
-        {/* Page title */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">SC Agents — Admin</h1>
-          <p className="text-sm text-slate-500 mt-1">System analytics and tool management</p>
-        </div>
+        {/* ── Sidebar ── */}
+        <aside
+          className="shrink-0 bg-white"
+          style={{ width: 240, borderRight: '1px solid #e5e7eb', padding: '24px 16px' }}
+        >
+          {/* Section label */}
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>
+            Tools
+          </p>
 
-        {/* Tool cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-2">
-          <ToolCard
-            name="PO Expediting"
-            description="Monitor open purchase orders, expedite delayed lines, and collect supplier delivery updates."
-            metric={analytics.totalLinesExpedited.toLocaleString()}
-            metricLabel="Lines Expedited"
-            isActive
-            isSelected={selectedTool === 'po-expediting'}
-            onClick={() => toggleTool('po-expediting')}
-          />
-          <ToolCard
-            name="GRN & Invoice Reconciliation"
-            description="Compare goods receipt notes against purchase orders and invoices to identify discrepancies before payment."
-            isActive={false}
-          />
-          <ToolCard
-            name="Supply Chain Analytics"
-            description="Real-time visibility into procurement performance, supplier KPIs, and delivery trends."
-            isActive={false}
-          />
-        </div>
+          {/* PO Expediting */}
+          <button
+            onClick={() => setSelectedTool('po-expediting')}
+            style={{
+              ...navItemBase,
+              borderLeft: selectedTool === 'po-expediting' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'po-expediting' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'po-expediting' ? '#059669' : '#4b5563',
+              cursor: 'pointer',
+            }}
+          >
+            PO Expediting
+          </button>
 
-        {/* Analytics section */}
-        {selectedTool === 'po-expediting' && (
-          <AnalyticsSection analytics={analytics} />
-        )}
+          {/* GRN & Invoice Reconciliation */}
+          <div
+            style={{
+              ...navItemBase,
+              borderLeft: '3px solid transparent',
+              color: '#d1d5db',
+              cursor: 'not-allowed',
+            }}
+          >
+            <span>GRN & Invoice Reconciliation</span>
+            <span style={{ background: '#f3f4f6', color: '#9ca3af', fontSize: 10, padding: '2px 6px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
+              Soon
+            </span>
+          </div>
 
-      </main>
+          {/* Supply Chain Analytics */}
+          <div
+            style={{
+              ...navItemBase,
+              borderLeft: '3px solid transparent',
+              color: '#d1d5db',
+              cursor: 'not-allowed',
+            }}
+          >
+            <span>Supply Chain Analytics</span>
+            <span style={{ background: '#f3f4f6', color: '#9ca3af', fontSize: 10, padding: '2px 6px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
+              Soon
+            </span>
+          </div>
+
+          <hr style={{ borderTop: '1px solid #e5e7eb', margin: '16px 0' }} />
+        </aside>
+
+        {/* ── Main content ── */}
+        <main className="flex-1 overflow-auto" style={{ padding: 32 }}>
+          {selectedTool === 'po-expediting' && (
+            <AnalyticsSection analytics={analytics} />
+          )}
+        </main>
+
+      </div>
     </div>
   );
 }
