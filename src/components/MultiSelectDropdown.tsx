@@ -57,7 +57,7 @@ export default function MultiSelectDropdown({ options, selectedOptions, onChange
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-full md:w-72 bg-white rounded-xl shadow-[0_8px_40px_rgb(0,0,0,0.12)] border border-slate-200 z-50 overflow-hidden flex flex-col origin-top animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-[0_8px_40px_rgb(0,0,0,0.12)] border border-slate-200 z-50 overflow-hidden flex flex-col origin-top animate-in fade-in zoom-in-95 duration-150" style={{ minWidth: '100%', width: 'max-content', maxWidth: '480px' }}>
           
           {/* Search Header */}
           <div className="p-2 border-b border-slate-100 bg-slate-50/50">
@@ -91,7 +91,7 @@ export default function MultiSelectDropdown({ options, selectedOptions, onChange
                         onChange={() => toggleOption(opt)}
                       />
                     </div>
-                    <span className="text-sm font-medium text-slate-700 break-words group-hover:text-slate-900 leading-tight block w-full">{display}</span>
+                    <span className="text-sm font-medium text-slate-700 whitespace-nowrap group-hover:text-slate-900 leading-tight">{display}</span>
                   </label>
                 );
               })

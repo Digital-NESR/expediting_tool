@@ -352,12 +352,16 @@ function FilterBar({
   country, onCountry, countries,
   suppliers, onSuppliers, supplierList, supplierDisplayMap,
   buyers, onBuyers, buyerList,
+  pGroup, onPGroup, pGroupList,
+  segment, onSegment, segmentList,
 }: {
   search: string; onSearch: (v: string) => void;
   deliveryCode: string[]; onDeliveryCode: (v: string[]) => void; deliveryCodes: string[];
   country: string[]; onCountry: (v: string[]) => void; countries: string[];
   suppliers: string[]; onSuppliers: (v: string[]) => void; supplierList: string[]; supplierDisplayMap: Record<string, string>;
   buyers: string[]; onBuyers: (v: string[]) => void; buyerList: string[];
+  pGroup: string[]; onPGroup: (v: string[]) => void; pGroupList: string[];
+  segment: string[]; onSegment: (v: string[]) => void; segmentList: string[];
 }) {
   const inputBase = 'bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-[#307c4c] focus:border-[#307c4c] outline-none transition-colors duration-150';
 
@@ -366,7 +370,7 @@ function FilterBar({
       <div className="flex flex-col md:flex-row md:items-center gap-3">
 
         {/* ── Global Search ── */}
-        <div className="relative flex-1 min-w-0">
+        <div className="relative w-full md:flex-none md:w-[280px]">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
           </svg>
@@ -386,6 +390,8 @@ function FilterBar({
         <MultiSelectDropdown options={buyerList} selectedOptions={buyers} onChange={onBuyers} label="Buyer Name" />
         <MultiSelectDropdown options={deliveryCodes} selectedOptions={deliveryCode} onChange={onDeliveryCode} label="Delivery Status" displayMap={deliveryStatusMap} />
         <MultiSelectDropdown options={countries} selectedOptions={country} onChange={onCountry} label="Country" />
+        <MultiSelectDropdown options={pGroupList} selectedOptions={pGroup} onChange={onPGroup} label="P Group" />
+        <MultiSelectDropdown options={segmentList} selectedOptions={segment} onChange={onSegment} label="Segment" />
 
       </div>
     </div>
@@ -621,6 +627,8 @@ export default function Dashboard() {
   const [filterBuyers, setFilterBuyers] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
   const [filterType, setFilterType] = useState<string[]>([]);
+  const [filterPGroup, setFilterPGroup] = useState<string[]>([]);
+  const [filterSegment, setFilterSegment] = useState<string[]>([]);
 
   // Sort + pagination
   const [poSortKey, setPoSortKey] = useState<PoSortKey>('earliestDate');
@@ -644,7 +652,7 @@ export default function Dashboard() {
   }, []);
 
   /* Reset page when any filter/sort changes ---------------- */
-  useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterType, poSortKey, poSortDir]);
+  useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterType, filterPGroup, filterSegment, poSortKey, poSortDir]);
 
   /* Clear all filters -------------------------------------- */
   function clearFilters() {
@@ -655,17 +663,21 @@ export default function Dashboard() {
     setFilterBuyers([]);
     setFilterStatus([]);
     setFilterType([]);
+    setFilterPGroup([]);
+    setFilterSegment([]);
   }
 
-  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length + filterStatus.length + filterType.length;
+  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length + filterStatus.length + filterType.length + filterPGroup.length + filterSegment.length;
 
   /* Remove Specific Filter ---------------------------------- */
-  function removeFilter(type: 'search' | 'deliv' | 'country' | 'supplier' | 'buyer', val?: string) {
+  function removeFilter(type: 'search' | 'deliv' | 'country' | 'supplier' | 'buyer' | 'pGroup' | 'segment', val?: string) {
     if (type === 'search') setSearch('');
     if (type === 'deliv' && val) setFilterDelivCode(p => p.filter(c => c !== val));
     if (type === 'country' && val) setFilterCountry(p => p.filter(c => c !== val));
     if (type === 'supplier' && val) setFilterSuppliers(p => p.filter(s => s !== val));
     if (type === 'buyer' && val) setFilterBuyers(p => p.filter(b => b !== val));
+    if (type === 'pGroup' && val) setFilterPGroup(p => p.filter(g => g !== val));
+    if (type === 'segment' && val) setFilterSegment(p => p.filter(s => s !== val));
   }
 
   /* Toggle PO expand --------------------------------------- */
@@ -697,10 +709,12 @@ export default function Dashboard() {
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
+      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return;
+      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return;
       dc.add(r['Delivery Code'] || '(Blank)');
     });
     return [...dc].sort();
-  }, [rows, filterStatus, filterType, search, filterCountry, filterSuppliers, filterBuyers]);
+  }, [rows, filterStatus, filterType, search, filterCountry, filterSuppliers, filterBuyers, filterPGroup, filterSegment]);
 
   const countries = useMemo(() => {
     const co = new Set<string>();
@@ -711,10 +725,12 @@ export default function Dashboard() {
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
+      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return;
+      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return;
       if (r['Country']) co.add(r['Country']);
     });
     return [...co].sort();
-  }, [rows, filterStatus, filterType, search, filterDelivCode, filterSuppliers, filterBuyers]);
+  }, [rows, filterStatus, filterType, search, filterDelivCode, filterSuppliers, filterBuyers, filterPGroup, filterSegment]);
 
   const { supplierList, supplierDisplayMap } = useMemo(() => {
     const sp = new Map<string, string>(); // supplierName -> "ID - Name"
@@ -725,6 +741,8 @@ export default function Dashboard() {
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
+      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return;
+      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return;
       const name = (r['Supplier Name'] ?? '').trim();
       if (name && !sp.has(name)) {
         const id = r['Supplier ID'];
@@ -735,7 +753,7 @@ export default function Dashboard() {
     const displayMap: Record<string, string> = {};
     sortedNames.forEach((name) => { displayMap[name] = sp.get(name)!; });
     return { supplierList: sortedNames, supplierDisplayMap: displayMap };
-  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterBuyers]);
+  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterBuyers, filterPGroup, filterSegment]);
 
   const buyerList = useMemo(() => {
     const by = new Set<string>();
@@ -746,10 +764,44 @@ export default function Dashboard() {
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
+      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return;
+      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return;
       if (r['Buyer Name']) by.add(r['Buyer Name']);
     });
     return [...by].sort();
-  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterSuppliers]);
+  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterSuppliers, filterPGroup, filterSegment]);
+
+  const pGroupList = useMemo(() => {
+    const pg = new Set<string>();
+    rows.forEach((r) => {
+      if (!rowMatchesStatus(r, filterStatus)) return;
+      if (!rowMatchesSearch(r, search)) return;
+      if (!rowMatchesType(r, filterType)) return;
+      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
+      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
+      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
+      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
+      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return;
+      if (r['P Group']) pg.add(r['P Group']);
+    });
+    return [...pg].sort();
+  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterSegment]);
+
+  const segmentList = useMemo(() => {
+    const sg = new Set<string>();
+    rows.forEach((r) => {
+      if (!rowMatchesStatus(r, filterStatus)) return;
+      if (!rowMatchesSearch(r, search)) return;
+      if (!rowMatchesType(r, filterType)) return;
+      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
+      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
+      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
+      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
+      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return;
+      if (r['Segment']) sg.add(r['Segment']);
+    });
+    return [...sg].sort();
+  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterPGroup]);
 
   /* Smart filtering ---------------------------------------- */
   const filtered = useMemo(() => {
@@ -759,6 +811,8 @@ export default function Dashboard() {
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return false;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return false;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return false;
+      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return false;
+      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return false;
 
       // Status tile filter
       if (!rowMatchesStatus(r, filterStatus)) return false;
@@ -777,7 +831,7 @@ export default function Dashboard() {
 
       return true;
     });
-  }, [rows, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterType]);
+  }, [rows, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterType, filterPGroup, filterSegment]);
 
   /* PO grouping -------------------------------------------- */
   const groupedPOs = useMemo((): PoGroup[] => {
@@ -914,6 +968,8 @@ export default function Dashboard() {
                   country={filterCountry} onCountry={setFilterCountry} countries={countries}
                   suppliers={filterSuppliers} onSuppliers={setFilterSuppliers} supplierList={supplierList} supplierDisplayMap={supplierDisplayMap}
                   buyers={filterBuyers} onBuyers={setFilterBuyers} buyerList={buyerList}
+                  pGroup={filterPGroup} onPGroup={setFilterPGroup} pGroupList={pGroupList}
+                  segment={filterSegment} onSegment={setFilterSegment} segmentList={segmentList}
                 />
 
                 {/* ── Active Filters Row ── */}
@@ -957,6 +1013,22 @@ export default function Dashboard() {
                         <span key={`buy-${b}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#307c4c]/20 text-[#307c4c] text-xs font-medium rounded-full shadow-sm">
                           Buyer: {b}
                           <button onClick={() => removeFilter('buyer', b)} className="hover:bg-[#307c4c]/10 p-0.5 rounded-full text-[#307c4c]/60 hover:text-[#307c4c] transition-colors">
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          </button>
+                        </span>
+                      ))}
+                      {filterPGroup.map(g => (
+                        <span key={`pg-${g}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
+                          P Group: {g}
+                          <button onClick={() => removeFilter('pGroup', g)} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          </button>
+                        </span>
+                      ))}
+                      {filterSegment.map(s => (
+                        <span key={`seg-${s}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
+                          Segment: {s}
+                          <button onClick={() => removeFilter('segment', s)} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
                             <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                           </button>
                         </span>

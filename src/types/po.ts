@@ -14,4 +14,6 @@ export interface PurchaseOrder {
   'PO Release Date'?: string;
   'Delivery Comments'?: string;
   'Buyer Email'?: string | null;
+  'P Group'?: string;
+  'Segment'?: string;
 }
