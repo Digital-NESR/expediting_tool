@@ -1,19 +1,29 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { signOut } from 'next-auth/react';
+import DetailModal from '@/components/DetailModal';
+import { DS_DESCRIPTIONS } from '@/lib/constants';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts';
-import { getExpeditingAnalytics } from '@/app/actions/adminAnalytics';
+import {
+  getExpeditingAnalytics,
+  getBuyerDetail,
+  getAdminSupplierDetail,
+  getAdminSessionDetail,
+} from '@/app/actions/adminAnalytics';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
   SupplierRow,
   RecentSession,
   WeeklyRateRow,
+  BuyerSessionRow,
+  AdminSupplierDetailLine,
+  AdminSessionDetailLine,
 } from '@/app/actions/adminAnalytics';
 
 /* ─── Props ──────────────────────────────────────────────────── */
@@ -51,7 +61,92 @@ function formatWeek(raw: string | null | undefined): string {
   return `${String(d.getDate()).padStart(2,'0')} ${M[d.getMonth()]}`;
 }
 
-/* ─── Response Rate Badge ─────────────────────────────────────── */
+function formatCurrency(val: number | null | undefined): string {
+  if (val == null) return '—';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+}
+
+/* ─── DSTooltipBadge ─────────────────────────────────────────── */
+
+function DSTooltipBadge({ code }: { code: string | null }) {
+  const [visible, setVisible] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  if (!code) return <span className="text-slate-400">—</span>;
+
+  const description = DS_DESCRIPTIONS[code];
+  const show = () => { timer.current = setTimeout(() => setVisible(true), 150); };
+  const hide = () => { if (timer.current) clearTimeout(timer.current); setVisible(false); };
+
+  return (
+    <div className="relative inline-flex" onMouseEnter={show} onMouseLeave={hide}>
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap cursor-default">
+        {code}
+      </span>
+      {visible && description && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none">
+          <div className="bg-[#1f2937] text-white text-[11px] font-medium px-3 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
+            {description}
+          </div>
+          <div className="w-2 h-2 bg-[#1f2937] rotate-45 mx-auto -mt-1" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── ResponseBadge ──────────────────────────────────────────── */
+
+function ResponseBadge({ state }: { state: string }) {
+  const responded = state === 'Submitted';
+  return responded ? (
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap">
+      Responded
+    </span>
+  ) : (
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">
+      Pending
+    </span>
+  );
+}
+
+/* ─── StatPill ───────────────────────────────────────────────── */
+
+function StatPill({ label, value }: { label: string; value: string | number }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-full text-[12px] font-medium text-slate-600 border border-slate-200">
+      <span className="font-bold text-slate-800">{value}</span>
+      <span>{label}</span>
+    </span>
+  );
+}
+
+/* ─── Modal loading / empty shared ──────────────────────────── */
+
+function ModalLoading() {
+  return (
+    <div className="flex items-center justify-center py-16 gap-3 text-slate-500">
+      <svg className="w-5 h-5 animate-spin text-[#307c4c]" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+      </svg>
+      <span className="text-sm font-medium">Loading…</span>
+    </div>
+  );
+}
+
+function ModalEmpty({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+      <svg className="w-10 h-10 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      <p className="text-sm font-medium">{message}</p>
+    </div>
+  );
+}
+
+/* ─── RateBadge ──────────────────────────────────────────────── */
 
 function RateBadge({ rate }: { rate: number | null }) {
   if (rate === null || rate === undefined) {
@@ -74,7 +169,7 @@ function RateBadge({ rate }: { rate: number | null }) {
   );
 }
 
-/* ─── Sort Icon ──────────────────────────────────────────────── */
+/* ─── SortIcon ───────────────────────────────────────────────── */
 
 function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
   return (
@@ -112,6 +207,361 @@ function useSortable<T extends Record<string, unknown>>(
   }, [data, sortKey, sortDir]);
 
   return { sorted, sortKey, sortDir, handleSort };
+}
+
+/* ─── Buyer Detail Modal ─────────────────────────────────────── */
+
+function BuyerDetailModal({
+  buyer,
+  onClose,
+  onSessionClick,
+}: {
+  buyer: BuyerRow;
+  onClose: () => void;
+  onSessionClick: (session: RecentSession) => void;
+}) {
+  const [rows, setRows]     = useState<BuyerSessionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    getBuyerDetail(buyer.email)
+      .then(setRows)
+      .finally(() => setLoading(false));
+  }, [buyer.email]);
+
+  const totalLines    = rows.reduce((s, r) => s + r.total_po_lines, 0);
+  const totalSuppliers = rows.reduce((s, r) => s + r.total_suppliers, 0);
+  const rates = rows.map(r => r.response_rate_pct).filter((v): v is number => v != null);
+  const avgRate = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : null;
+
+  function handleSessionClick(bsr: BuyerSessionRow) {
+    const session: RecentSession = {
+      session_ref:        bsr.session_ref,
+      dispatched_at:      bsr.dispatched_at,
+      dispatched_by:      buyer.email,
+      display_name:       buyer.display_name,
+      total_suppliers:    bsr.total_suppliers,
+      total_po_lines:     bsr.total_po_lines,
+      total_emails_sent:  bsr.total_emails_sent,
+      suppliers_responded: bsr.suppliers_responded,
+      response_rate_pct:  bsr.response_rate_pct,
+      fully_closed:       bsr.fully_closed,
+    };
+    onClose();
+    onSessionClick(session);
+  }
+
+  return (
+    <DetailModal isOpen title={buyer.display_name ?? buyer.email} onClose={onClose}>
+      {/* Sub-title + stats */}
+      <div className="px-6 pt-1 pb-3 border-b border-slate-100">
+        {buyer.job_title && (
+          <p className="text-sm text-slate-500 mb-2">{buyer.job_title}</p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <StatPill label="Sessions" value={rows.length} />
+          <StatPill label="Total Lines" value={totalLines.toLocaleString()} />
+          <StatPill label="Total Suppliers" value={totalSuppliers.toLocaleString()} />
+          <StatPill label="Avg Response Rate" value={avgRate != null ? `${avgRate}%` : '—'} />
+        </div>
+      </div>
+
+      {/* Sessions list */}
+      <div className="px-6 py-4">
+        {loading && <ModalLoading />}
+        {!loading && rows.length === 0 && <ModalEmpty message="No sessions found for this buyer." />}
+        {!loading && rows.length > 0 && (
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                  <th className="py-3 px-4 whitespace-nowrap">Date</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">Suppliers</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">PO Lines</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">Emails Sent</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">Responded</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">Response Rate</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, idx) => (
+                  <tr
+                    key={r.session_ref}
+                    onClick={() => handleSessionClick(r)}
+                    className={`border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                  >
+                    <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
+                      <span className="group inline-flex items-center gap-1.5">
+                        {formatSessionDate(r.dispatched_at)}
+                        <svg className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                          <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                        </svg>
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">{r.total_suppliers}</td>
+                    <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">{r.total_po_lines}</td>
+                    <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">{r.total_emails_sent}</td>
+                    <td className="py-3 px-4 text-sm text-center font-medium text-slate-700 tabular-nums">
+                      {r.suppliers_responded != null ? `${r.suppliers_responded} / ${r.total_suppliers}` : '—'}
+                    </td>
+                    <td className="py-3 px-4 text-center"><RateBadge rate={r.response_rate_pct} /></td>
+                    <td className="py-3 px-4 text-center">
+                      {r.fully_closed === true ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap">Closed</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">Open</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </DetailModal>
+  );
+}
+
+/* ─── Admin Supplier Detail Modal ────────────────────────────── */
+
+function AdminSupplierDetailModal({
+  supplierName,
+  onClose,
+}: {
+  supplierName: string;
+  onClose: () => void;
+}) {
+  const [lines, setLines]       = useState<AdminSupplierDetailLine[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setLoading(true);
+    getAdminSupplierDetail(supplierName)
+      .then(data => {
+        setLines(data);
+        const pos = new Set(data.map(l => l.po_number));
+        setExpanded(pos);
+      })
+      .finally(() => setLoading(false));
+  }, [supplierName]);
+
+  const groups = useMemo(() => {
+    const map = new Map<string, AdminSupplierDetailLine[]>();
+    for (const l of lines) {
+      const arr = map.get(l.po_number) ?? [];
+      arr.push(l);
+      map.set(l.po_number, arr);
+    }
+    return Array.from(map.entries()).map(([po, poLines]) => ({ po, lines: poLines }));
+  }, [lines]);
+
+  const totalLines     = lines.length;
+  const totalResponded = lines.filter(l => l.workflow_state === 'Submitted').length;
+
+  function togglePO(po: string) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(po) ? next.delete(po) : next.add(po);
+      return next;
+    });
+  }
+
+  const colHeaders = ['Line', 'Buyer', 'SAP MAT ID', 'Description', 'Open QTY', 'Value (USD)', 'Original Del. Date', 'New Del. Date', 'DS Status', 'Supplier Comments', 'Response'];
+
+  return (
+    <DetailModal isOpen title={supplierName} onClose={onClose}>
+      <div className="px-6 py-3 border-b border-slate-100 flex flex-wrap gap-2">
+        <StatPill label="PO Lines" value={totalLines} />
+        <StatPill label="Responded" value={totalResponded} />
+        <StatPill label="POs" value={groups.length} />
+      </div>
+
+      <div className="px-6 py-4">
+        {loading && <ModalLoading />}
+        {!loading && lines.length === 0 && <ModalEmpty message="No lines found for this supplier." />}
+
+        {!loading && groups.map(({ po, lines: poLines }) => {
+          const isOpen = expanded.has(po);
+          const responded = poLines.filter(l => l.workflow_state === 'Submitted').length;
+          return (
+            <div key={po} className="mb-3 border border-slate-200 rounded-xl overflow-hidden">
+              <button
+                onClick={() => togglePO(po)}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+              >
+                <svg
+                  className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`}
+                  viewBox="0 0 20 20" fill="currentColor"
+                >
+                  <path fillRule="evenodd" d="M7.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                <span className="font-bold text-sm text-slate-800">PO {po}</span>
+                <span className="text-xs text-slate-500 font-medium">{poLines.length} line{poLines.length !== 1 ? 's' : ''}</span>
+                <span className="ml-auto text-xs font-medium text-slate-500">{responded} / {poLines.length} responded</span>
+              </button>
+
+              {isOpen && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-white border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                        {colHeaders.map(h => (
+                          <th key={h} className="py-2 px-3 whitespace-nowrap font-semibold">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {poLines.map((line, i) => (
+                        <tr key={line.po_line} className={`border-b border-slate-100 ${i % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}>
+                          <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">{line.po_line}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap max-w-[140px] truncate" title={line.buyer_display_name ?? line.buyer_email}>{line.buyer_display_name ?? line.buyer_email}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{line.sap_mat_id || '—'}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-700 max-w-[180px] truncate" title={line.item_description ?? undefined}>{line.item_description || '—'}</td>
+                          <td className="py-2.5 px-3 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{line.open_qty != null ? line.open_qty.toLocaleString() : '—'}</td>
+                          <td className="py-2.5 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{formatCurrency(line.open_po_value_usd)}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(line.original_delivery_date)}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(line.new_delivery_date)}</td>
+                          <td className="py-2.5 px-3 whitespace-nowrap"><DSTooltipBadge code={line.sap_delivery_code} /></td>
+                          <td className="py-2.5 px-3 text-xs text-slate-600 max-w-[180px] truncate" title={line.supplier_comments ?? undefined}>{line.supplier_comments || '—'}</td>
+                          <td className="py-2.5 px-3 whitespace-nowrap"><ResponseBadge state={line.workflow_state} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </DetailModal>
+  );
+}
+
+/* ─── Admin Session Detail Modal ─────────────────────────────── */
+
+function AdminSessionDetailModal({
+  session,
+  onClose,
+}: {
+  session: RecentSession;
+  onClose: () => void;
+}) {
+  const [lines, setLines]       = useState<AdminSessionDetailLine[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setLoading(true);
+    getAdminSessionDetail(session.session_ref)
+      .then(data => {
+        setLines(data);
+        const suppliers = new Set(data.map(l => l.supplier_name));
+        setExpanded(suppliers);
+      })
+      .finally(() => setLoading(false));
+  }, [session.session_ref]);
+
+  const groups = useMemo(() => {
+    const map = new Map<string, AdminSessionDetailLine[]>();
+    for (const l of lines) {
+      const arr = map.get(l.supplier_name) ?? [];
+      arr.push(l);
+      map.set(l.supplier_name, arr);
+    }
+    return Array.from(map.entries()).map(([supplier, supplierLines]) => ({ supplier, lines: supplierLines }));
+  }, [lines]);
+
+  const totalLines     = lines.length;
+  const totalResponded = lines.filter(l => l.workflow_state === 'Submitted').length;
+
+  function toggleSupplier(supplier: string) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(supplier) ? next.delete(supplier) : next.add(supplier);
+      return next;
+    });
+  }
+
+  const colHeaders = ['PO Number', 'Line', 'SAP MAT ID', 'Description', 'Open QTY', 'Value (USD)', 'Original Del. Date', 'New Del. Date', 'DS Status', 'Supplier Comments', 'Response'];
+
+  return (
+    <DetailModal isOpen title={`Session — ${formatSessionDate(session.dispatched_at)}`} onClose={onClose}>
+      <div className="px-6 py-3 border-b border-slate-100 flex flex-wrap gap-2">
+        <StatPill label="PO Lines" value={totalLines} />
+        <StatPill label="Responded" value={totalResponded} />
+        <StatPill label="Suppliers" value={groups.length} />
+        <StatPill label="Emails Sent" value={session.total_emails_sent} />
+        {(session.display_name ?? session.dispatched_by) && (
+          <StatPill label="Dispatched By" value={session.display_name ?? session.dispatched_by} />
+        )}
+      </div>
+
+      <div className="px-6 py-4">
+        {loading && <ModalLoading />}
+        {!loading && lines.length === 0 && <ModalEmpty message="No lines found for this session." />}
+
+        {!loading && groups.map(({ supplier, lines: supplierLines }) => {
+          const isOpen = expanded.has(supplier);
+          const responded = supplierLines.filter(l => l.workflow_state === 'Submitted').length;
+          return (
+            <div key={supplier} className="mb-3 border border-slate-200 rounded-xl overflow-hidden">
+              <button
+                onClick={() => toggleSupplier(supplier)}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+              >
+                <svg
+                  className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`}
+                  viewBox="0 0 20 20" fill="currentColor"
+                >
+                  <path fillRule="evenodd" d="M7.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                <span className="font-bold text-sm text-slate-800 truncate max-w-[300px]">{supplier}</span>
+                <span className="text-xs text-slate-500 font-medium shrink-0">{supplierLines.length} line{supplierLines.length !== 1 ? 's' : ''}</span>
+                <span className="ml-auto text-xs font-medium text-slate-500 shrink-0">{responded} / {supplierLines.length} responded</span>
+              </button>
+
+              {isOpen && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-white border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                        {colHeaders.map(h => (
+                          <th key={h} className="py-2 px-3 whitespace-nowrap font-semibold">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {supplierLines.map((line, i) => (
+                        <tr key={`${line.po_number}-${line.po_line}`} className={`border-b border-slate-100 ${i % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}>
+                          <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">{line.po_number}</td>
+                          <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">{line.po_line}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{line.sap_mat_id || '—'}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-700 max-w-[180px] truncate" title={line.item_description ?? undefined}>{line.item_description || '—'}</td>
+                          <td className="py-2.5 px-3 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{line.open_qty != null ? line.open_qty.toLocaleString() : '—'}</td>
+                          <td className="py-2.5 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{formatCurrency(line.open_po_value_usd)}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(line.original_delivery_date)}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(line.new_delivery_date)}</td>
+                          <td className="py-2.5 px-3 whitespace-nowrap"><DSTooltipBadge code={line.sap_delivery_code} /></td>
+                          <td className="py-2.5 px-3 text-xs text-slate-600 max-w-[180px] truncate" title={line.supplier_comments ?? undefined}>{line.supplier_comments || '—'}</td>
+                          <td className="py-2.5 px-3 whitespace-nowrap"><ResponseBadge state={line.workflow_state} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </DetailModal>
+  );
 }
 
 /* ─── KPI Card ───────────────────────────────────────────────── */
@@ -157,7 +607,13 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 /* ─── Buyer Activity Table ────────────────────────────────────── */
 
-function BuyerTable({ rows }: { rows: BuyerRow[] }) {
+function BuyerTable({
+  rows,
+  onBuyerClick,
+}: {
+  rows: BuyerRow[];
+  onBuyerClick: (buyer: BuyerRow) => void;
+}) {
   const { sorted, sortKey, sortDir, handleSort } = useSortable(
     rows as unknown as Record<string, unknown>[],
     'total_lines',
@@ -211,10 +667,17 @@ function BuyerTable({ rows }: { rows: BuyerRow[] }) {
               return (
                 <tr
                   key={idx}
-                  className={`border-b border-slate-100 hover:bg-[#307c4c]/5 transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                  onClick={() => onBuyerClick(r)}
+                  className={`border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
                 >
-                  <td className="py-3 px-4 text-sm font-semibold text-slate-800 whitespace-nowrap">
-                    {r.display_name ?? '—'}
+                  <td className="py-3 px-4 text-sm font-semibold whitespace-nowrap">
+                    <span className="group inline-flex items-center gap-1.5 text-[#307c4c] hover:underline">
+                      {r.display_name ?? r.email ?? '—'}
+                      <svg className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                        <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                      </svg>
+                    </span>
                   </td>
                   <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">
                     {r.job_title ?? '—'}
@@ -249,7 +712,13 @@ function BuyerTable({ rows }: { rows: BuyerRow[] }) {
 
 /* ─── Supplier Response Table ─────────────────────────────────── */
 
-function SupplierTable({ rows }: { rows: SupplierRow[] }) {
+function SupplierTable({
+  rows,
+  onSupplierClick,
+}: {
+  rows: SupplierRow[];
+  onSupplierClick: (name: string) => void;
+}) {
   const { sorted, sortKey, sortDir, handleSort } = useSortable(
     rows as unknown as Record<string, unknown>[],
     'response_rate',
@@ -301,10 +770,17 @@ function SupplierTable({ rows }: { rows: SupplierRow[] }) {
               return (
                 <tr
                   key={idx}
-                  className={`border-b border-slate-100 hover:bg-[#307c4c]/5 transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                  onClick={() => onSupplierClick(r.supplier_name)}
+                  className={`border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
                 >
-                  <td className="py-3 px-4 text-sm font-semibold text-slate-800 max-w-[240px] truncate" title={r.supplier_name}>
-                    {r.supplier_name || '—'}
+                  <td className="py-3 px-4 text-sm font-semibold max-w-[240px]">
+                    <span className="group inline-flex items-center gap-1.5 text-[#307c4c] hover:underline truncate" title={r.supplier_name}>
+                      {r.supplier_name || '—'}
+                      <svg className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                        <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                      </svg>
+                    </span>
                   </td>
                   <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
                     {r.times_expedited.toLocaleString()}
@@ -333,7 +809,13 @@ function SupplierTable({ rows }: { rows: SupplierRow[] }) {
 
 /* ─── Recent Sessions Table ───────────────────────────────────── */
 
-function SessionsTable({ rows }: { rows: RecentSession[] }) {
+function SessionsTable({
+  rows,
+  onSessionClick,
+}: {
+  rows: RecentSession[];
+  onSessionClick: (session: RecentSession) => void;
+}) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="overflow-x-auto">
@@ -361,10 +843,17 @@ function SessionsTable({ rows }: { rows: RecentSession[] }) {
             {rows.map((r, idx) => (
               <tr
                 key={r.session_ref}
-                className={`border-b border-slate-100 hover:bg-[#307c4c]/5 transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                onClick={() => onSessionClick(r)}
+                className={`border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
               >
                 <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
-                  {formatSessionDate(r.dispatched_at)}
+                  <span className="group inline-flex items-center gap-1.5">
+                    {formatSessionDate(r.dispatched_at)}
+                    <svg className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                      <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                    </svg>
+                  </span>
                 </td>
                 <td className="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">
                   {r.display_name ?? r.dispatched_by}
@@ -536,7 +1025,17 @@ function SupplierBarChart({ data }: { data: SupplierRow[] }) {
 
 /* ─── Analytics Section ───────────────────────────────────────── */
 
-function AnalyticsSection({ analytics }: { analytics: ExpeditingAnalytics }) {
+function AnalyticsSection({
+  analytics,
+  onBuyerClick,
+  onSupplierClick,
+  onSessionClick,
+}: {
+  analytics: ExpeditingAnalytics;
+  onBuyerClick: (buyer: BuyerRow) => void;
+  onSupplierClick: (name: string) => void;
+  onSessionClick: (session: RecentSession) => void;
+}) {
   const rateColor =
     analytics.overallResponseRate === null
       ? 'text-slate-800'
@@ -580,7 +1079,7 @@ function AnalyticsSection({ analytics }: { analytics: ExpeditingAnalytics }) {
         </div>
       </div>
 
-      {/* Row 2 — Charts: Response Rate Over Time + PO Lines by Buyer */}
+      {/* Row 2 — Charts */}
       <div>
         <SectionTitle>Trends</SectionTitle>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -592,7 +1091,7 @@ function AnalyticsSection({ analytics }: { analytics: ExpeditingAnalytics }) {
       {/* Row 3 — Buyer Activity */}
       <div>
         <SectionTitle>Buyer Activity</SectionTitle>
-        <BuyerTable rows={analytics.buyerBreakdown} />
+        <BuyerTable rows={analytics.buyerBreakdown} onBuyerClick={onBuyerClick} />
       </div>
 
       {/* Row 4 — Top Suppliers chart */}
@@ -604,13 +1103,13 @@ function AnalyticsSection({ analytics }: { analytics: ExpeditingAnalytics }) {
       {/* Row 5 — Supplier Response Rates table */}
       <div>
         <SectionTitle>Supplier Response Rates</SectionTitle>
-        <SupplierTable rows={analytics.supplierBreakdown} />
+        <SupplierTable rows={analytics.supplierBreakdown} onSupplierClick={onSupplierClick} />
       </div>
 
       {/* Row 6 — Recent Sessions */}
       <div>
         <SectionTitle>Recent Expediting Sessions</SectionTitle>
-        <SessionsTable rows={analytics.recentSessions} />
+        <SessionsTable rows={analytics.recentSessions} onSessionClick={onSessionClick} />
       </div>
     </div>
   );
@@ -619,10 +1118,15 @@ function AnalyticsSection({ analytics }: { analytics: ExpeditingAnalytics }) {
 /* ─── Main AdminClient ────────────────────────────────────────── */
 
 export default function AdminClient({ analytics: initialAnalytics, userEmail, userName }: AdminClientProps) {
-  const [selectedTool, setSelectedTool]     = useState<string>('po-expediting');
-  const [liveAnalytics, setLiveAnalytics]   = useState<ExpeditingAnalytics>(initialAnalytics);
-  const [isRefreshing, setIsRefreshing]     = useState(false);
-  const [lastRefreshed, setLastRefreshed]   = useState<Date>(() => new Date());
+  const [selectedTool, setSelectedTool]   = useState<string>('po-expediting');
+  const [liveAnalytics, setLiveAnalytics] = useState<ExpeditingAnalytics>(initialAnalytics);
+  const [isRefreshing, setIsRefreshing]   = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(() => new Date());
+
+  // Modal state
+  const [buyerModal, setBuyerModal]             = useState<BuyerRow | null>(null);
+  const [supplierModalName, setSupplierModalName] = useState<string | null>(null);
+  const [sessionModal, setSessionModal]           = useState<RecentSession | null>(null);
 
   const fetchAnalytics = useCallback(async () => {
     setIsRefreshing(true);
@@ -689,12 +1193,10 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
           className="shrink-0 bg-white"
           style={{ width: 240, borderRight: '1px solid #e5e7eb', padding: '24px 16px' }}
         >
-          {/* Section label */}
           <p style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>
             Tools
           </p>
 
-          {/* PO Expediting */}
           <button
             onClick={() => setSelectedTool('po-expediting')}
             style={{
@@ -708,7 +1210,6 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
             PO Expediting
           </button>
 
-          {/* GRN & Invoice Reconciliation */}
           <div
             style={{
               ...navItemBase,
@@ -723,7 +1224,6 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
             </span>
           </div>
 
-          {/* Supply Chain Analytics */}
           <div
             style={{
               ...navItemBase,
@@ -745,7 +1245,6 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
         <main className="flex-1 overflow-auto" style={{ padding: 32 }}>
           {selectedTool === 'po-expediting' && (
             <>
-              {/* Section header row */}
               <div className="flex items-start justify-between gap-4 mb-6">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900 tracking-tight">PO Expediting Analytics</h2>
@@ -768,12 +1267,38 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
                 </button>
               </div>
 
-              <AnalyticsSection analytics={liveAnalytics} />
+              <AnalyticsSection
+                analytics={liveAnalytics}
+                onBuyerClick={setBuyerModal}
+                onSupplierClick={setSupplierModalName}
+                onSessionClick={setSessionModal}
+              />
             </>
           )}
         </main>
 
       </div>
+
+      {/* ── Modals ── */}
+      {buyerModal && (
+        <BuyerDetailModal
+          buyer={buyerModal}
+          onClose={() => setBuyerModal(null)}
+          onSessionClick={setSessionModal}
+        />
+      )}
+      {supplierModalName && (
+        <AdminSupplierDetailModal
+          supplierName={supplierModalName}
+          onClose={() => setSupplierModalName(null)}
+        />
+      )}
+      {sessionModal && (
+        <AdminSessionDetailModal
+          session={sessionModal}
+          onClose={() => setSessionModal(null)}
+        />
+      )}
     </div>
   );
 }
