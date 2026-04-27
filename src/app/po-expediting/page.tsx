@@ -35,6 +35,7 @@ const deliveryStatusMap: Record<string, string> = {
 
 /* ─── Types ───────────────────────────────────────────────── */
 import type { PurchaseOrder } from '@/types/po';
+import { DS_DESCRIPTIONS } from '@/lib/constants';
 
 interface PoGroup {
   poNumber: string;
@@ -533,7 +534,10 @@ const PoParentRow = memo(function PoParentRow({
         {group.country}
       </td>
       <td className="p-4 pl-6 whitespace-nowrap">
-        <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-600">
+        <span
+          title={DS_DESCRIPTIONS[group.deliveryCode]}
+          className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-600 cursor-help"
+        >
           {group.deliveryCode}
         </span>
       </td>

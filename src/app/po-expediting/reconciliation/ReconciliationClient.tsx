@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { saveBuyerComment, getMyExpeditingSessions } from '@/app/actions/reconciliation';
 import type { SessionData, SupplierGroup, LineData } from '@/app/actions/reconciliation';
+import { DS_DESCRIPTIONS } from '@/lib/constants';
 
 /* ─── DS-code colour sets ────────────────────────────────────── */
 const DS_GREEN  = new Set(['DS04', 'DS11', 'DS12', 'DS13', 'DS18']);
@@ -82,17 +83,18 @@ function DsStatusBadge({ code }: { code: string | null }) {
     );
   }
   const base = code.split(' ')[0].toUpperCase();
+  const tooltip = DS_DESCRIPTIONS[base];
   if (DS_GREEN.has(base)) return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap">{base}</span>
+    <span title={tooltip} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap cursor-help">{base}</span>
   );
   if (DS_AMBER.has(base)) return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">{base}</span>
+    <span title={tooltip} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap cursor-help">{base}</span>
   );
   if (DS_RED.has(base)) return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200 whitespace-nowrap">{base}</span>
+    <span title={tooltip} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200 whitespace-nowrap cursor-help">{base}</span>
   );
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap">{code}</span>
+    <span title={tooltip} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap cursor-help">{code}</span>
   );
 }
 
