@@ -447,7 +447,7 @@ function FilterBar({
       <div className="flex flex-col md:flex-row md:items-center gap-3">
 
         {/* ── Global Search ── */}
-        <div className="relative w-full md:flex-none md:w-[280px]">
+        <div className="relative w-full md:flex-none md:w-[360px]">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
           </svg>
@@ -543,6 +543,18 @@ const PoLineItemRow = memo(function PoLineItemRow({
       </td>
       <td className="py-3 px-4 text-[13px] text-gray-500 whitespace-nowrap">
         {formatDate(line['PO Release Date'])}
+      </td>
+      <td className="py-3 px-4 whitespace-nowrap">
+        {line['Delivery Code'] ? (
+          <span
+            title={DS_DESCRIPTIONS[line['Delivery Code']]}
+            className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-600 cursor-help"
+          >
+            {line['Delivery Code']}
+          </span>
+        ) : (
+          <span className="text-slate-400">—</span>
+        )}
       </td>
       <td className="py-3 px-4 whitespace-nowrap">
         <DeliveryBadge raw={line['Delivery Date']} />
@@ -668,6 +680,7 @@ function PoSubTable({
           <th className="py-2.5 px-4 font-semibold text-right">Open PO Value (USD)</th>
           <th className="py-2.5 px-4 font-semibold">Delivery Date</th>
           <th className="py-2.5 px-4 font-semibold">PO Release Date</th>
+          <th className="py-2.5 px-4 font-semibold">Delivery Status</th>
           <th className="py-2.5 px-4 font-semibold">Status</th>
         </tr>
       </thead>
