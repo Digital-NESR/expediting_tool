@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback, memo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, memo, useRef } from 'react';
 import Link from 'next/link';
 import LineItemDrawer from '@/components/LineItemDrawer';
 import Sidebar from '@/components/Sidebar';
@@ -124,6 +124,82 @@ function DeliveryBadge({ raw }: { raw: string | null | undefined }) {
   if (diff < 0) return <span className="bg-red-100/80 border border-red-200 text-red-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">Past Due</span>;
   if (diff <= 7) return <span className="bg-amber-100/80 border border-amber-200 text-amber-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">Due Soon</span>;
   return <span className="bg-[#307c4c]/10 border border-[#307c4c]/20 text-[#307c4c] text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">On Track</span>;
+}
+
+/* ─── PO-level status + DS helpers ───────────────────────── */
+
+interface StatusSummary {
+  majority: 'PAST DUE' | 'DUE SOON' | 'ON TRACK';
+  breakdown: { pastDue: number; dueSoon: number; onTrack: number };
+}
+
+function getPOStatusSummary(lines: PurchaseOrder[]): StatusSummary {
+  let pastDue = 0, dueSoon = 0, onTrack = 0;
+  for (const line of lines) {
+    const diff = daysDiff(line['Delivery Date']);
+    if (diff < 0) pastDue++;
+    else if (diff <= 7) dueSoon++;
+    else onTrack++;
+  }
+  const majority =
+    pastDue >= dueSoon && pastDue >= onTrack ? 'PAST DUE' :
+    dueSoon >= onTrack ? 'DUE SOON' : 'ON TRACK';
+  return { majority, breakdown: { pastDue, dueSoon, onTrack } };
+}
+
+function getPOMajorityDSCode(lines: PurchaseOrder[]): string | null {
+  const counts: Record<string, number> = {};
+  for (const line of lines) {
+    const code = line['Delivery Code'];
+    if (code) counts[code] = (counts[code] || 0) + 1;
+  }
+  if (Object.keys(counts).length === 0) return null;
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+}
+
+/* ─── Status Tooltip Badge ────────────────────────────────── */
+
+function StatusTooltipBadge({ majority, breakdown }: StatusSummary) {
+  const [visible, setVisible] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+
+  const show = () => { timer.current = setTimeout(() => setVisible(true), 150); };
+  const hide = () => { clearTimeout(timer.current); setVisible(false); };
+
+  const parts: string[] = [];
+  if (breakdown.pastDue > 0) parts.push(`${breakdown.pastDue} Past Due`);
+  if (breakdown.dueSoon > 0) parts.push(`${breakdown.dueSoon} Due Soon`);
+  if (breakdown.onTrack > 0) parts.push(`${breakdown.onTrack} On Track`);
+
+  const label = majority === 'PAST DUE' ? 'Past Due' : majority === 'DUE SOON' ? 'Due Soon' : 'On Track';
+  const badgeCls = majority === 'PAST DUE'
+    ? 'bg-red-100/80 border border-red-200 text-red-700'
+    : majority === 'DUE SOON'
+    ? 'bg-amber-100/80 border border-amber-200 text-amber-700'
+    : 'bg-[#307c4c]/10 border border-[#307c4c]/20 text-[#307c4c]';
+
+  return (
+    <div className="relative inline-block" onMouseEnter={show} onMouseLeave={hide}>
+      <span className={`${badgeCls} text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap cursor-default select-none`}>
+        {label}
+      </span>
+      {visible && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none select-none">
+          <div
+            className="text-white whitespace-nowrap"
+            style={{ background: '#1f2937', fontSize: '12px', padding: '6px 10px', borderRadius: '6px' }}
+          >
+            {parts.join(' · ')}
+          </div>
+          <div
+            className="absolute top-full left-1/2 -translate-x-1/2"
+            style={{ width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1f2937' }}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ─── Sort Icon ───────────────────────────────────────────── */
@@ -499,6 +575,8 @@ const PoParentRow = memo(function PoParentRow({
   deselectMultipleLines: (lines: PurchaseOrder[]) => void;
 }) {
   const diff = daysDiff(group.earliestDate);
+  const majorityDSCode = getPOMajorityDSCode(group.lines);
+  const statusSummary = getPOStatusSummary(group.lines);
   return (
     <tr
       onClick={() => togglePO(group.poNumber)}
@@ -534,18 +612,22 @@ const PoParentRow = memo(function PoParentRow({
         {group.country}
       </td>
       <td className="p-4 pl-6 whitespace-nowrap">
-        <span
-          title={DS_DESCRIPTIONS[group.deliveryCode]}
-          className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-600 cursor-help"
-        >
-          {group.deliveryCode}
-        </span>
+        {majorityDSCode ? (
+          <span
+            title={DS_DESCRIPTIONS[majorityDSCode]}
+            className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-600 cursor-help"
+          >
+            {majorityDSCode}
+          </span>
+        ) : (
+          <span className="text-slate-400">—</span>
+        )}
       </td>
       <td className="p-4 pl-6 text-sm text-right font-medium text-slate-600 tabular-nums">
         {group.lineCount}
       </td>
       <td className="p-4 pl-6 whitespace-nowrap">
-        <DeliveryBadge raw={group.earliestDate} />
+        <StatusTooltipBadge {...statusSummary} />
       </td>
     </tr>
   );
