@@ -483,46 +483,48 @@ function BuyerLinesBarChart({ data }: { data: BuyerRow[] }) {
 
 function SupplierBarChart({ data }: { data: SupplierRow[] }) {
   const chartData = data
-    .filter(r => r.times_expedited > 1 && r.response_rate !== null)
+    .filter(r => Number(r.times_expedited) >= 1)
     .sort((a, b) => (b.response_rate ?? 0) - (a.response_rate ?? 0))
     .slice(0, 10)
     .map(r => ({
-      name: r.supplier_name.length > 20 ? r.supplier_name.slice(0, 20) + '…' : r.supplier_name,
-      rate: r.response_rate,
+      supplierName: String(r.supplier_name || '').slice(0, 25),
+      responseRate: Number(r.response_rate) || 0,
+      linesResponded: Number(r.lines_responded) || 0,
+      totalLines: Number(r.total_lines) || 0,
     }));
-
-  function barColor(rate: number | null): string {
-    if (rate === null) return '#94a3b8';
-    if (rate >= 70) return '#059669';
-    if (rate >= 30) return '#f59e0b';
-    return '#ef4444';
-  }
 
   return (
     <ChartCard title="Top 10 Suppliers by Response Rate">
-      <ResponsiveContainer width="100%" height={280}>
+      <ResponsiveContainer width="100%" height={320}>
         <BarChart
           data={chartData}
           layout="vertical"
-          margin={{ top: 4, right: 40, bottom: 0, left: 0 }}
+          margin={{ top: 10, right: 30, bottom: 10, left: 10 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
           <XAxis
             type="number"
             domain={[0, 100]}
             tick={{ fontSize: 11, fill: '#94a3b8' }}
-            tickFormatter={(v: number) => `${v}%`}
+            tickFormatter={(v: unknown) => `${v}%`}
           />
           <YAxis
             type="category"
-            dataKey="name"
+            dataKey="supplierName"
             tick={{ fontSize: 11, fill: '#94a3b8' }}
-            width={148}
+            width={160}
           />
           <Tooltip formatter={(v: unknown) => [`${v}%`, 'Response Rate']} />
-          <Bar dataKey="rate" radius={[0, 4, 4, 0]}>
+          <Bar dataKey="responseRate" radius={[0, 4, 4, 0]}>
             {chartData.map((entry, i) => (
-              <Cell key={`cell-${i}`} fill={barColor(entry.rate)} />
+              <Cell
+                key={`cell-${i}`}
+                fill={
+                  entry.responseRate >= 70 ? '#059669' :
+                  entry.responseRate >= 30 ? '#f59e0b' :
+                  '#ef4444'
+                }
+              />
             ))}
           </Bar>
         </BarChart>
