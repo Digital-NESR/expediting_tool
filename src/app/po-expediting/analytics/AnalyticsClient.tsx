@@ -409,8 +409,20 @@ function SupplierDetailModal({
 
               {/* Sub-rows */}
               {isOpen && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                <div>
+                  <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: 60 }} />
+                      <col style={{ width: 120 }} />
+                      <col />
+                      <col style={{ width: 80 }} />
+                      <col style={{ width: 100 }} />
+                      <col style={{ width: 110 }} />
+                      <col style={{ width: 110 }} />
+                      <col style={{ width: 90 }} />
+                      <col style={{ width: 150 }} />
+                      <col style={{ width: 100 }} />
+                    </colgroup>
                     <thead>
                       <tr className="bg-white border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                         {colHeaders.map(h => (
@@ -423,13 +435,13 @@ function SupplierDetailModal({
                         <tr key={line.po_line} className={`border-b border-slate-100 ${i % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}>
                           <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">{line.po_line}</td>
                           <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{line.sap_mat_id || '—'}</td>
-                          <td className="py-2.5 px-3 text-xs text-slate-700 max-w-[200px] truncate" title={line.item_description ?? undefined}>{line.item_description || '—'}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-700 overflow-hidden truncate" title={line.item_description ?? undefined}>{line.item_description || '—'}</td>
                           <td className="py-2.5 px-3 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{line.open_qty != null ? line.open_qty.toLocaleString() : '—'}</td>
                           <td className="py-2.5 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{formatCurrency(line.open_po_value_usd)}</td>
                           <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(line.original_delivery_date)}</td>
                           <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(line.new_delivery_date)}</td>
                           <td className="py-2.5 px-3 whitespace-nowrap"><DSTooltipBadge code={line.sap_delivery_code} /></td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 max-w-[180px] truncate" title={line.supplier_comments ?? undefined}>{line.supplier_comments || '—'}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-600 overflow-hidden truncate" title={line.supplier_comments ?? undefined}>{line.supplier_comments || '—'}</td>
                           <td className="py-2.5 px-3 whitespace-nowrap"><ResponseBadge state={line.workflow_state} /></td>
                         </tr>
                       ))}
@@ -550,8 +562,21 @@ function SessionDetailModal({
 
               {/* Sub-rows */}
               {isOpen && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                <div>
+                  <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: 110 }} />
+                      <col style={{ width: 60 }} />
+                      <col style={{ width: 110 }} />
+                      <col />
+                      <col style={{ width: 80 }} />
+                      <col style={{ width: 100 }} />
+                      <col style={{ width: 110 }} />
+                      <col style={{ width: 110 }} />
+                      <col style={{ width: 90 }} />
+                      <col style={{ width: 150 }} />
+                      <col style={{ width: 100 }} />
+                    </colgroup>
                     <thead>
                       <tr className="bg-white border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                         {colHeaders.map(h => (
@@ -565,7 +590,7 @@ function SessionDetailModal({
                           <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">{line.po_number}</td>
                           <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">{line.po_line}</td>
                           <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{line.sap_mat_id || '—'}</td>
-                          <td className="py-2.5 px-3 text-xs text-slate-700 max-w-[200px] truncate" title={line.item_description ?? undefined}>{line.item_description || '—'}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-700 overflow-hidden truncate" title={line.item_description ?? undefined}>{line.item_description || '—'}</td>
                           <td className="py-2.5 px-3 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{line.open_qty != null ? line.open_qty.toLocaleString() : '—'}</td>
                           <td className="py-2.5 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{formatCurrency(line.open_po_value_usd)}</td>
                           <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(line.original_delivery_date)}</td>
@@ -573,7 +598,7 @@ function SessionDetailModal({
                           <td className="py-2.5 px-3 whitespace-nowrap">
                             <DSTooltipBadge code={line.sap_delivery_code} />
                           </td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 max-w-[180px] truncate" title={line.supplier_comments ?? undefined}>{line.supplier_comments || '—'}</td>
+                          <td className="py-2.5 px-3 text-xs text-slate-600 overflow-hidden truncate" title={line.supplier_comments ?? undefined}>{line.supplier_comments || '—'}</td>
                           <td className="py-2.5 px-3 whitespace-nowrap"><ResponseBadge state={line.workflow_state} /></td>
                         </tr>
                       ))}
