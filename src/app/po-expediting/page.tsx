@@ -162,10 +162,10 @@ function getPOMajorityDSCode(lines: PurchaseOrder[]): string | null {
 
 function StatusTooltipBadge({ majority, breakdown }: StatusSummary) {
   const [visible, setVisible] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const show = () => { timer.current = setTimeout(() => setVisible(true), 150); };
-  const hide = () => { clearTimeout(timer.current); setVisible(false); };
+  const hide = () => { if (timer.current) clearTimeout(timer.current); setVisible(false); };
 
   const parts: string[] = [];
   if (breakdown.pastDue > 0) parts.push(`${breakdown.pastDue} Past Due`);
