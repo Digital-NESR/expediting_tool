@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { signOut } from 'next-auth/react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts';
+import { getExpeditingAnalytics } from '@/app/actions/adminAnalytics';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
@@ -617,8 +618,22 @@ function AnalyticsSection({ analytics }: { analytics: ExpeditingAnalytics }) {
 
 /* ─── Main AdminClient ────────────────────────────────────────── */
 
-export default function AdminClient({ analytics, userEmail, userName }: AdminClientProps) {
-  const [selectedTool, setSelectedTool] = useState<string>('po-expediting');
+export default function AdminClient({ analytics: initialAnalytics, userEmail, userName }: AdminClientProps) {
+  const [selectedTool, setSelectedTool]     = useState<string>('po-expediting');
+  const [liveAnalytics, setLiveAnalytics]   = useState<ExpeditingAnalytics>(initialAnalytics);
+  const [isRefreshing, setIsRefreshing]     = useState(false);
+  const [lastRefreshed, setLastRefreshed]   = useState<Date>(() => new Date());
+
+  const fetchAnalytics = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const data = await getExpeditingAnalytics();
+      setLiveAnalytics(data);
+      setLastRefreshed(new Date());
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
 
   const navItemBase: React.CSSProperties = {
     display: 'flex',
@@ -729,7 +744,32 @@ export default function AdminClient({ analytics, userEmail, userName }: AdminCli
         {/* ── Main content ── */}
         <main className="flex-1 overflow-auto" style={{ padding: 32 }}>
           {selectedTool === 'po-expediting' && (
-            <AnalyticsSection analytics={analytics} />
+            <>
+              {/* Section header row */}
+              <div className="flex items-start justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 tracking-tight">PO Expediting Analytics</h2>
+                  <p className="text-[12px] text-gray-400 mt-0.5">
+                    Last updated: {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </p>
+                </div>
+                <button
+                  onClick={fetchAnalytics}
+                  disabled={isRefreshing}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium text-gray-600 bg-transparent border border-[#e5e7eb] rounded-md hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+                >
+                  <svg
+                    className={`w-3.5 h-3.5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`}
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {isRefreshing ? 'Refreshing…' : 'Refresh'}
+                </button>
+              </div>
+
+              <AnalyticsSection analytics={liveAnalytics} />
+            </>
           )}
         </main>
 
