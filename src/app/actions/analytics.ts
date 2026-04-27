@@ -176,3 +176,159 @@ export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAna
     };
   }
 }
+
+/* ─── Supplier Detail ────────────────────────────────────────── */
+
+export interface SupplierDetailLine {
+  po_number: string;
+  po_line: string;
+  expedite_token: string;
+  workflow_state: string;
+  current_status: string | null;
+  new_delivery_date: string | null;
+  supplier_comments: string | null;
+  buyer_comments: string | null;
+  dispatched_at: string;
+  item_description: string | null;
+  sap_mat_id: string | null;
+  open_qty: number | null;
+  open_po_value_usd: number | null;
+  original_delivery_date: string | null;
+  sap_delivery_code: string | null;
+}
+
+export async function getSupplierDetail(
+  supplierName: string,
+  userEmail: string,
+): Promise<SupplierDetailLine[]> {
+  const toStr = (v: unknown): string | null => {
+    if (v === null || v === undefined) return null;
+    if (v instanceof Date) return v.toISOString();
+    return String(v);
+  };
+  try {
+    const res = await pool.query(`
+      SELECT
+        ae.po_number,
+        ae.po_line,
+        ae.expedite_token,
+        ae.workflow_state,
+        ae.current_status,
+        ae.new_delivery_date,
+        ae.supplier_comments,
+        ae.buyer_comments,
+        ae.dispatched_at,
+        s.item_description,
+        s.sap_mat_id,
+        s.open_qty,
+        s.open_po_value_usd,
+        s.delivery_date  AS original_delivery_date,
+        s.delivery_code  AS sap_delivery_code
+      FROM active_expediting ae
+      JOIN sap_open_po_master s
+        ON ae.po_number = s.po_number AND ae.po_line = s.po_line
+      WHERE s.supplier_name = $1
+        AND ae.dispatched_by = $2
+      ORDER BY ae.po_number, ae.po_line
+    `, [supplierName, userEmail]);
+
+    return res.rows.map(r => ({
+      po_number:             String(r.po_number ?? ''),
+      po_line:               String(r.po_line ?? ''),
+      expedite_token:        String(r.expedite_token ?? ''),
+      workflow_state:        String(r.workflow_state ?? ''),
+      current_status:        toStr(r.current_status),
+      new_delivery_date:     toStr(r.new_delivery_date),
+      supplier_comments:     toStr(r.supplier_comments),
+      buyer_comments:        toStr(r.buyer_comments),
+      dispatched_at:         toStr(r.dispatched_at) ?? '',
+      item_description:      toStr(r.item_description),
+      sap_mat_id:            toStr(r.sap_mat_id),
+      open_qty:              r.open_qty != null ? Number(r.open_qty) : null,
+      open_po_value_usd:     r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
+      original_delivery_date: toStr(r.original_delivery_date),
+      sap_delivery_code:     toStr(r.sap_delivery_code),
+    }));
+  } catch (err) {
+    console.error('[getSupplierDetail]', err);
+    return [];
+  }
+}
+
+/* ─── Session Detail ─────────────────────────────────────────── */
+
+export interface SessionDetailLine {
+  po_number: string;
+  po_line: string;
+  workflow_state: string;
+  current_status: string | null;
+  new_delivery_date: string | null;
+  supplier_comments: string | null;
+  buyer_comments: string | null;
+  expedite_token: string;
+  supplier_name: string;
+  item_description: string | null;
+  sap_mat_id: string | null;
+  open_qty: number | null;
+  open_po_value_usd: number | null;
+  original_delivery_date: string | null;
+  sap_delivery_code: string | null;
+}
+
+export async function getSessionDetail(
+  sessionRef: string,
+  userEmail: string,
+): Promise<SessionDetailLine[]> {
+  const toStr = (v: unknown): string | null => {
+    if (v === null || v === undefined) return null;
+    if (v instanceof Date) return v.toISOString();
+    return String(v);
+  };
+  try {
+    const res = await pool.query(`
+      SELECT
+        ae.po_number,
+        ae.po_line,
+        ae.workflow_state,
+        ae.current_status,
+        ae.new_delivery_date,
+        ae.supplier_comments,
+        ae.buyer_comments,
+        ae.expedite_token,
+        s.supplier_name,
+        s.item_description,
+        s.sap_mat_id,
+        s.open_qty,
+        s.open_po_value_usd,
+        s.delivery_date  AS original_delivery_date,
+        s.delivery_code  AS sap_delivery_code
+      FROM active_expediting ae
+      JOIN sap_open_po_master s
+        ON ae.po_number = s.po_number AND ae.po_line = s.po_line
+      WHERE ae.session_ref = $1::uuid
+        AND ae.dispatched_by = $2
+      ORDER BY s.supplier_name, ae.po_number, ae.po_line
+    `, [sessionRef, userEmail]);
+
+    return res.rows.map(r => ({
+      po_number:             String(r.po_number ?? ''),
+      po_line:               String(r.po_line ?? ''),
+      workflow_state:        String(r.workflow_state ?? ''),
+      current_status:        toStr(r.current_status),
+      new_delivery_date:     toStr(r.new_delivery_date),
+      supplier_comments:     toStr(r.supplier_comments),
+      buyer_comments:        toStr(r.buyer_comments),
+      expedite_token:        String(r.expedite_token ?? ''),
+      supplier_name:         String(r.supplier_name ?? ''),
+      item_description:      toStr(r.item_description),
+      sap_mat_id:            toStr(r.sap_mat_id),
+      open_qty:              r.open_qty != null ? Number(r.open_qty) : null,
+      open_po_value_usd:     r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
+      original_delivery_date: toStr(r.original_delivery_date),
+      sap_delivery_code:     toStr(r.sap_delivery_code),
+    }));
+  } catch (err) {
+    console.error('[getSessionDetail]', err);
+    return [];
+  }
+}
