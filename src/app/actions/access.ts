@@ -71,15 +71,15 @@ export async function submitAccessRequest(
   }
   try {
     await pool.query(
-      `INSERT INTO access_requests (user_email, status, requested_countries, approved_countries, requested_at, updated_at)
-            VALUES ($1, 'Pending', $2, '{}', NOW(), NOW())
+      `INSERT INTO access_requests (user_email, display_name, status, requested_countries, requested_at)
+            VALUES ($1, $3, 'Pending', $2, NOW())
        ON CONFLICT (user_email)
        DO UPDATE SET
-         status               = 'Pending',
-         requested_countries  = $2,
-         approved_countries   = '{}',
-         updated_at           = NOW()`,
-      [userEmail, countries],
+         display_name        = $3,
+         status              = 'Pending',
+         requested_countries = $2,
+         requested_at        = NOW()`,
+      [userEmail, countries, displayName],
     );
     // Fire-and-forget admin notification
     notifyAdmin(userEmail, displayName, countries).catch(() => {});
