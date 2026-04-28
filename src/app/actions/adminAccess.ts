@@ -8,11 +8,11 @@ export interface AccessRequestRow {
   user_email: string;
   display_name: string | null;
   job_title: string | null;
-  status: 'Pending' | 'Approved' | 'Denied';
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
   requested_countries: string[];
   approved_countries: string[];
-  created_at: string;
-  updated_at: string;
+  requested_at: string;
+  reviewed_at: string | null;
 }
 
 /* ─── getAccessRequests ──────────────────────────────────────── */
@@ -22,28 +22,28 @@ export async function getAccessRequests(): Promise<AccessRequestRow[]> {
     const { rows } = await pool.query(`
       SELECT
         ar.user_email,
-        up.display_name,
-        up.job_title,
+        ar.display_name,
+        ar.job_title,
         ar.status,
         ar.requested_countries,
         ar.approved_countries,
-        ar.created_at,
-        ar.updated_at
+        ar.requested_at,
+        ar.reviewed_at
       FROM access_requests ar
-      LEFT JOIN user_profiles up ON up.email = ar.user_email
       ORDER BY
         CASE ar.status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END,
-        ar.updated_at DESC
+        ar.requested_at DESC
     `);
+    console.log('Pending requests:', rows.filter(r => r.status === 'Pending'));
     return rows.map(r => ({
       user_email:          String(r.user_email),
-      display_name:        r.display_name  ? String(r.display_name)  : null,
-      job_title:           r.job_title     ? String(r.job_title)     : null,
-      status:              r.status as 'Pending' | 'Approved' | 'Denied',
-      requested_countries: r.requested_countries ?? [],
-      approved_countries:  r.approved_countries  ?? [],
-      created_at:          r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
-      updated_at:          r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at),
+      display_name:        r.display_name ? String(r.display_name) : null,
+      job_title:           r.job_title    ? String(r.job_title)    : null,
+      status:              r.status as 'Pending' | 'Approved' | 'Rejected' | 'Revoked',
+      requested_countries: r.requested_countries || [],
+      approved_countries:  r.approved_countries  || [],
+      requested_at:        r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),
+      reviewed_at:         r.reviewed_at  instanceof Date ? r.reviewed_at.toISOString()  : (r.reviewed_at ?? null),
     }));
   } catch (err) {
     console.error('[getAccessRequests]', err);
@@ -79,7 +79,7 @@ export async function approveAccessRequest(
       `UPDATE access_requests
           SET status             = 'Approved',
               approved_countries = $2,
-              updated_at         = NOW()
+              reviewed_at        = NOW()
         WHERE user_email = $1`,
       [userEmail, countries],
     );
@@ -100,7 +100,7 @@ export async function rejectAccessRequest(
       `UPDATE access_requests
           SET status             = 'Denied',
               approved_countries = '{}',
-              updated_at         = NOW()
+              reviewed_at        = NOW()
         WHERE user_email = $1`,
       [userEmail],
     );
@@ -121,7 +121,7 @@ export async function revokeAccess(
       `UPDATE access_requests
           SET status             = 'Denied',
               approved_countries = '{}',
-              updated_at         = NOW()
+              reviewed_at        = NOW()
         WHERE user_email = $1`,
       [userEmail],
     );
@@ -145,7 +145,7 @@ export async function editUserAccess(
     await pool.query(
       `UPDATE access_requests
           SET approved_countries = $2,
-              updated_at         = NOW()
+              reviewed_at        = NOW()
         WHERE user_email = $1`,
       [userEmail, countries],
     );

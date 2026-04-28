@@ -88,37 +88,36 @@ export const authOptions: NextAuthOptions = {
       }
 
       // Always refresh access status from DB on every token evaluation
-      const email = token.email as string | undefined;
-      if (email) {
-        const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-          .split(',')
-          .map(e => e.trim().toLowerCase())
-          .filter(Boolean);
-        if (adminEmails.includes(email.toLowerCase())) {
-          token.accessStatus = 'admin';
-          token.approvedCountries = [];
-        } else {
-          try {
-            const { rows } = await pool.query(
-              'SELECT status, approved_countries FROM access_requests WHERE user_email = $1',
-              [email]
-            );
-            if (rows.length === 0) {
-              token.accessStatus = 'new';
-              token.approvedCountries = [];
-            } else {
-              const r = rows[0];
-              token.accessStatus =
-                r.status === 'Approved' ? 'approved' :
-                r.status === 'Pending'  ? 'pending'  : 'denied';
-              token.approvedCountries =
-                r.status === 'Approved' ? (r.approved_countries ?? []) : [];
-            }
-          } catch {
-            if (!token.accessStatus) {
-              token.accessStatus = 'new';
-              token.approvedCountries = [];
-            }
+      if (token.email) {
+        try {
+          const result = await pool.query(
+            `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
+            [token.email]
+          );
+
+          const adminEmails = (process.env.ADMIN_EMAILS || '')
+            .split(',')
+            .map(e => e.trim().toLowerCase())
+            .filter(Boolean);
+
+          if (adminEmails.includes((token.email as string).toLowerCase())) {
+            token.accessStatus = 'admin';
+            token.approvedCountries = [];
+          } else if (result.rows.length > 0) {
+            const row = result.rows[0];
+            const s = row.status.toLowerCase() as string;
+            // Normalize 'rejected'/'revoked' → 'denied' so middleware redirects correctly
+            token.accessStatus = s === 'pending' ? 'pending' : s === 'approved' ? 'approved' : 'denied';
+            token.approvedCountries = s === 'approved' ? (row.approved_countries || []) : [];
+          } else {
+            token.accessStatus = 'new';
+            token.approvedCountries = [];
+          }
+        } catch (err) {
+          console.error('JWT access check failed:', err);
+          if (!token.accessStatus) {
+            token.accessStatus = 'new';
+            token.approvedCountries = [];
           }
         }
       }

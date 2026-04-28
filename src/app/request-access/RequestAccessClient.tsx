@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import { submitAccessRequest } from '@/app/actions/access';
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
 
 export default function RequestAccessClient({ userEmail, displayName, countries }: Props) {
   const router = useRouter();
+  const { update } = useSession();
   const [search, setSearch]       = useState('');
   const [selected, setSelected]   = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
@@ -36,6 +37,7 @@ export default function RequestAccessClient({ userEmail, displayName, countries 
     startTransition(async () => {
       const res = await submitAccessRequest(userEmail, displayName, [...selected]);
       if (res.success) {
+        await update(); // force JWT to re-run and pick up new 'pending' status
         router.push('/pending-approval');
       } else {
         setError(res.error ?? 'Something went wrong.');

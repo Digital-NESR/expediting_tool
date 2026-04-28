@@ -22,7 +22,7 @@ function formatDate(raw: string): string {
 
 /* ─── StatusBadge ────────────────────────────────────────────── */
 
-function StatusBadge({ status }: { status: 'Pending' | 'Approved' | 'Denied' }) {
+function StatusBadge({ status }: { status: 'Pending' | 'Approved' | 'Rejected' | 'Revoked' }) {
   if (status === 'Approved') return (
     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap">
       Approved
@@ -35,7 +35,7 @@ function StatusBadge({ status }: { status: 'Pending' | 'Approved' | 'Denied' }) 
   );
   return (
     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 whitespace-nowrap">
-      Denied
+      {status}
     </span>
   );
 }
@@ -311,7 +311,7 @@ export default function AccessApprovalsClient() {
                         )}
                       </td>
                       <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap align-top">
-                        {formatDate(r.created_at)}
+                        {formatDate(r.requested_at)}
                       </td>
                       <td className="py-3 px-4 align-top">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -404,7 +404,7 @@ export default function AccessApprovalsClient() {
                         <CountriesDisplay countries={r.requested_countries} />
                       </td>
                       <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap align-top">
-                        {formatDate(r.updated_at)}
+                        {r.reviewed_at ? formatDate(r.reviewed_at) : '—'}
                       </td>
                       <td className="py-3 px-4 align-top">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -444,7 +444,7 @@ export default function AccessApprovalsClient() {
                               </button>
                             </>
                           )}
-                          {r.status === 'Denied' && (
+                          {(r.status === 'Rejected' || r.status === 'Revoked') && (
                             <span className="text-xs text-slate-400">—</span>
                           )}
                         </div>

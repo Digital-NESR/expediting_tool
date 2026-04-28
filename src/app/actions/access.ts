@@ -1,16 +1,17 @@
 'use server';
 
 import pool from '@/lib/db';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
 export interface AccessRequest {
   user_email: string;
-  status: 'Pending' | 'Approved' | 'Denied';
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
   requested_countries: string[];
   approved_countries: string[];
-  created_at: string;
-  updated_at: string;
+  requested_at: string;
 }
 
 /* ─── getCountries ───────────────────────────────────────────── */
@@ -38,7 +39,7 @@ export async function getCurrentAccessRequest(
   try {
     const { rows } = await pool.query(
       `SELECT user_email, status, requested_countries, approved_countries,
-              created_at, updated_at
+              requested_at
          FROM access_requests
         WHERE user_email = $1`,
       [userEmail],
@@ -47,11 +48,10 @@ export async function getCurrentAccessRequest(
     const r = rows[0];
     return {
       user_email:          String(r.user_email),
-      status:              r.status as 'Pending' | 'Approved' | 'Denied',
-      requested_countries: r.requested_countries ?? [],
-      approved_countries:  r.approved_countries  ?? [],
-      created_at:          r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
-      updated_at:          r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at),
+      status:              r.status as 'Pending' | 'Approved' | 'Rejected' | 'Revoked',
+      requested_countries: r.requested_countries || [],
+      approved_countries:  r.approved_countries  || [],
+      requested_at:        r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),
     };
   } catch (err) {
     console.error('[getCurrentAccessRequest]', err);
@@ -70,16 +70,22 @@ export async function submitAccessRequest(
     return { success: false, error: 'Please select at least one country.' };
   }
   try {
+    const session = await getServerSession(authOptions);
+    const jobTitle   = session?.user?.jobTitle   ?? null;
+    const department = session?.user?.department ?? null;
+
     await pool.query(
-      `INSERT INTO access_requests (user_email, display_name, status, requested_countries, requested_at)
-            VALUES ($1, $3, 'Pending', $2, NOW())
+      `INSERT INTO access_requests (user_email, display_name, job_title, department, status, requested_countries, requested_at)
+            VALUES ($1, $3, $4, $5, 'Pending', $2, NOW())
        ON CONFLICT (user_email)
        DO UPDATE SET
          display_name        = $3,
+         job_title           = $4,
+         department          = $5,
          status              = 'Pending',
          requested_countries = $2,
          requested_at        = NOW()`,
-      [userEmail, countries, displayName],
+      [userEmail, countries, displayName, jobTitle, department],
     );
     // Fire-and-forget admin notification
     notifyAdmin(userEmail, displayName, countries).catch(() => {});
