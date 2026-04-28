@@ -12,7 +12,7 @@ import {
 import { getMyExpeditingAnalytics, getSupplierDetail, getSessionDetail } from '@/app/actions/analytics';
 import type {
   MyAnalytics, MySupplierRow, MyRecentSession, MyWeeklyRateRow,
-  SupplierDetailLine, SessionDetailLine,
+  SupplierDetailLine, SessionDetailLine, MySupplierResponseTimeRow,
 } from '@/app/actions/analytics';
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -257,7 +257,6 @@ function MySupplierBarChart({ data }: { data: MySupplierRow[] }) {
   const chartData = data
     .filter(r => Number(r.times_expedited) >= 1)
     .sort((a, b) => (b.response_rate ?? 0) - (a.response_rate ?? 0))
-    .slice(0, 10)
     .map(r => ({
       supplierName: String(r.supplier_name || '').slice(0, 25),
       responseRate: Number(r.response_rate) || 0,
@@ -265,42 +264,104 @@ function MySupplierBarChart({ data }: { data: MySupplierRow[] }) {
       totalLines: Number(r.total_lines) || 0,
     }));
 
+  const chartHeight = Math.max(320, chartData.length * 40);
+
   return (
     <ChartCard title="My Supplier Response Rates">
-      <ResponsiveContainer width="100%" height={320}>
-        <BarChart
-          data={chartData}
-          layout="vertical"
-          margin={{ top: 10, right: 30, bottom: 10, left: 10 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-          <XAxis
-            type="number"
-            domain={[0, 100]}
-            tick={{ fontSize: 11, fill: '#94a3b8' }}
-            tickFormatter={(v: unknown) => `${v}%`}
-          />
-          <YAxis
-            type="category"
-            dataKey="supplierName"
-            tick={{ fontSize: 11, fill: '#94a3b8' }}
-            width={160}
-          />
-          <Tooltip formatter={(v: unknown) => [`${v}%`, 'Response Rate']} />
-          <Bar dataKey="responseRate" radius={[0, 4, 4, 0]}>
-            {chartData.map((entry, i) => (
-              <Cell
-                key={`cell-${i}`}
-                fill={
-                  entry.responseRate >= 70 ? '#059669' :
-                  entry.responseRate >= 30 ? '#f59e0b' :
-                  '#ef4444'
-                }
+      <div style={{ height: 400, overflowY: 'auto', overflowX: 'hidden', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 0' }}>
+        <div style={{ height: chartHeight, width: '100%' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 10, right: 30, bottom: 10, left: 10 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+              <XAxis
+                type="number"
+                domain={[0, 100]}
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                tickFormatter={(v: unknown) => `${v}%`}
               />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+              <YAxis
+                type="category"
+                dataKey="supplierName"
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                width={180}
+              />
+              <Tooltip formatter={(v: unknown) => [`${v}%`, 'Response Rate']} />
+              <Bar dataKey="responseRate" radius={[0, 4, 4, 0]}>
+                {chartData.map((entry, i) => (
+                  <Cell
+                    key={`cell-${i}`}
+                    fill={
+                      entry.responseRate >= 70 ? '#059669' :
+                      entry.responseRate >= 30 ? '#f59e0b' :
+                      '#ef4444'
+                    }
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </ChartCard>
+  );
+}
+
+/* ─── My Avg Response Time by Supplier (Horizontal Bar Chart) ── */
+
+function MyAvgResponseTimeBarChart({ data }: { data: MySupplierResponseTimeRow[] }) {
+  const chartData = [...data]
+    .sort((a, b) => a.avg_days_to_respond - b.avg_days_to_respond)
+    .map(r => ({
+      supplierName: String(r.supplier_name || '').slice(0, 25),
+      avgDays: Number(r.avg_days_to_respond) || 0,
+      responsesCount: Number(r.responses_count) || 0,
+    }));
+
+  const chartHeight = Math.max(320, chartData.length * 40);
+
+  return (
+    <ChartCard title="Avg. Response Time by Supplier (Days)">
+      <div style={{ height: 400, overflowY: 'auto', overflowX: 'hidden', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 0' }}>
+        <div style={{ height: chartHeight, width: '100%' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 10, right: 30, bottom: 10, left: 10 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+              <XAxis
+                type="number"
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                tickFormatter={(v: unknown) => `${v}d`}
+              />
+              <YAxis
+                type="category"
+                dataKey="supplierName"
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                width={180}
+              />
+              <Tooltip formatter={(v: unknown) => [`${v} days`, 'Avg. Response Time']} />
+              <Bar dataKey="avgDays" radius={[0, 4, 4, 0]}>
+                {chartData.map((entry, i) => (
+                  <Cell
+                    key={`cell-${i}`}
+                    fill={
+                      entry.avgDays <= 1 ? '#059669' :
+                      entry.avgDays <= 3 ? '#f59e0b' :
+                      '#ef4444'
+                    }
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </ChartCard>
   );
 }
@@ -638,12 +699,14 @@ function MySupplierTable({
   ];
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-              {cols.map(col => (
+    <div
+      className="bg-white shadow-sm"
+      style={{ height: 420, overflowY: 'auto', overflowX: 'hidden', borderRadius: 16, border: '1px solid #e5e7eb' }}
+    >
+      <table className="w-full text-left border-collapse">
+        <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc' }}>
+          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            {cols.map(col => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
@@ -706,7 +769,6 @@ function MySupplierTable({
             })}
           </tbody>
         </table>
-      </div>
     </div>
   );
 }
@@ -721,12 +783,14 @@ function MySessionsTable({
   onSessionClick: (session: MyRecentSession) => void;
 }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-              <th className="py-3 px-4 whitespace-nowrap">Date</th>
+    <div
+      className="bg-white shadow-sm"
+      style={{ height: 400, overflowY: 'auto', overflowX: 'hidden', borderRadius: 16, border: '1px solid #e5e7eb' }}
+    >
+      <table className="w-full text-left border-collapse">
+        <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc' }}>
+          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            <th className="py-3 px-4 whitespace-nowrap">Date</th>
               <th className="py-3 px-4 text-right whitespace-nowrap">Suppliers</th>
               <th className="py-3 px-4 text-right whitespace-nowrap">PO Lines</th>
               <th className="py-3 px-4 text-right whitespace-nowrap">Emails Sent</th>
@@ -790,7 +854,6 @@ function MySessionsTable({
             ))}
           </tbody>
         </table>
-      </div>
     </div>
   );
 }
@@ -990,18 +1053,19 @@ export default function AnalyticsClient({
                 </div>
               </div>
 
-              {/* Row 2 — Charts */}
+              {/* Row 2 — Trends */}
               <div>
                 <SectionTitle>Trends</SectionTitle>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <MyResponseRateLineChart data={analytics.weeklyRateData} />
-                  <MySupplierBarChart data={analytics.supplierBreakdown} />
-                </div>
+                <MyResponseRateLineChart data={analytics.weeklyRateData} />
               </div>
 
-              {/* Row 3 — Supplier Performance table */}
+              {/* Row 3 — Supplier Performance */}
               <div>
                 <SectionTitle>My Supplier Performance</SectionTitle>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                  <MySupplierBarChart data={analytics.supplierBreakdown} />
+                  <MyAvgResponseTimeBarChart data={analytics.supplierResponseTime} />
+                </div>
                 <MySupplierTable
                   rows={analytics.supplierBreakdown}
                   onSupplierClick={setSupplierModalName}

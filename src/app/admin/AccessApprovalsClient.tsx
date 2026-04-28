@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useTransition } from 'react';
+import { useState, useEffect, useMemo, useTransition, useCallback } from 'react';
 import {
   getAccessRequests,
   approveAccessRequest,
@@ -167,27 +167,45 @@ function SectionLoading() {
 
 /* ─── Main Component ─────────────────────────────────────────── */
 
-export default function AccessApprovalsClient() {
-  const [requests, setRequests]   = useState<AccessRequestRow[]>([]);
-  const [countries, setCountries] = useState<string[]>([]);
-  const [loading, setLoading]     = useState(true);
+export default function AccessApprovalsClient({
+  onPendingCountChange,
+}: {
+  onPendingCountChange?: (count: number) => void;
+}) {
+  const [requests, setRequests]         = useState<AccessRequestRow[]>([]);
+  const [countries, setCountries]       = useState<string[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   // Which row is in approve/edit expand mode: email | null
-  const [expandedEmail, setExpandedEmail]   = useState<string | null>(null);
-  const [expandMode, setExpandMode]         = useState<'approve' | 'edit' | null>(null);
-  const [isPending, startTransition]        = useTransition();
+  const [expandedEmail, setExpandedEmail]     = useState<string | null>(null);
+  const [expandMode, setExpandMode]           = useState<'approve' | 'edit' | null>(null);
+  const [isPending, startTransition]          = useTransition();
   const [processingEmail, setProcessingEmail] = useState<string | null>(null);
 
-  async function refresh() {
-    const data = await getAccessRequests();
-    setRequests(data);
-  }
+  const refreshData = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const data = await getAccessRequests();
+      setRequests(data);
+      setLastRefreshed(new Date());
+      onPendingCountChange?.(data.filter(r => r.status === 'Pending').length);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [onPendingCountChange]);
 
   useEffect(() => {
     Promise.all([getAccessRequests(), getCountries()])
-      .then(([reqs, ctrs]) => { setRequests(reqs); setCountries(ctrs); })
+      .then(([reqs, ctrs]) => {
+        setRequests(reqs);
+        setCountries(ctrs);
+        setLastRefreshed(new Date());
+        onPendingCountChange?.(reqs.filter(r => r.status === 'Pending').length);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [onPendingCountChange]);
 
   const pending  = useMemo(() => requests.filter(r => r.status === 'Pending'), [requests]);
   const allUsers = requests; // already sorted by server: Pending → Approved → Denied
@@ -206,7 +224,7 @@ export default function AccessApprovalsClient() {
     setProcessingEmail(email);
     startTransition(async () => {
       await approveAccessRequest(email, selected);
-      await refresh();
+      await refreshData();
       setExpandedEmail(null);
       setExpandMode(null);
       setProcessingEmail(null);
@@ -217,7 +235,7 @@ export default function AccessApprovalsClient() {
     setProcessingEmail(email);
     startTransition(async () => {
       await rejectAccessRequest(email);
-      await refresh();
+      await refreshData();
       setProcessingEmail(null);
     });
   }
@@ -227,7 +245,7 @@ export default function AccessApprovalsClient() {
     setProcessingEmail(email);
     startTransition(async () => {
       await revokeAccess(email);
-      await refresh();
+      await refreshData();
       setProcessingEmail(null);
     });
   }
@@ -236,7 +254,7 @@ export default function AccessApprovalsClient() {
     setProcessingEmail(email);
     startTransition(async () => {
       await editUserAccess(email, selected);
-      await refresh();
+      await refreshData();
       setExpandedEmail(null);
       setExpandMode(null);
       setProcessingEmail(null);
@@ -246,8 +264,35 @@ export default function AccessApprovalsClient() {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
 
-      {/* ── Section title helper ── */}
-      {/* Pending Requests */}
+      {/* ── Header row ── */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight">Access Approvals</h2>
+          <p className="text-[12px] text-gray-400 mt-0.5">
+            Review and manage user access requests for country-level data.
+          </p>
+          {lastRefreshed && (
+            <p className="text-[12px] text-gray-400 mt-0.5">
+              Last updated: {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={refreshData}
+          disabled={isRefreshing || loading}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium text-gray-600 bg-transparent border border-[#e5e7eb] rounded-md hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+        >
+          <svg
+            className={`w-3.5 h-3.5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {isRefreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+
+      {/* ── Pending Requests ── */}
       <div>
         <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
           <span className="w-1 h-4 bg-amber-400 rounded-full inline-block shrink-0" />

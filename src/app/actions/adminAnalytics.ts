@@ -45,6 +45,12 @@ export interface WeeklyRateRow {
   total_lines: number;
 }
 
+export interface SupplierResponseTimeRow {
+  supplier_name: string;
+  avg_days_to_respond: number;
+  responses_count: number;
+}
+
 export interface ExpeditingAnalytics {
   totalLinesExpedited: number;
   totalSuppliersContacted: number;
@@ -54,6 +60,7 @@ export interface ExpeditingAnalytics {
   supplierBreakdown: SupplierRow[];
   recentSessions: RecentSession[];
   weeklyRateData: WeeklyRateRow[];
+  supplierResponseTime: SupplierResponseTimeRow[];
 }
 
 /* ─── getExpeditingAnalytics ─────────────────────────────────── */
@@ -66,7 +73,7 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
   };
 
   try {
-    const [kpiRes, buyerRes, supplierRes, sessionsRes, weeklyRes] = await Promise.all([
+    const [kpiRes, buyerRes, supplierRes, sessionsRes, weeklyRes, responseTimeRes] = await Promise.all([
 
       /* ── KPI block ── */
       pool.query(`
@@ -152,6 +159,25 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
         GROUP BY DATE_TRUNC('week', dispatched_at)
         ORDER BY week ASC
       `),
+
+      /* ── Avg response time by supplier ── */
+      pool.query(`
+        SELECT
+          s.supplier_name,
+          ROUND(AVG(
+            EXTRACT(EPOCH FROM (ae.updated_at - ae.dispatched_at)) / 86400
+          ), 1) AS avg_days_to_respond,
+          COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) AS responses_count
+        FROM active_expediting ae
+        JOIN sap_open_po_master s
+          ON ae.po_number = s.po_number AND ae.po_line = s.po_line
+        WHERE ae.workflow_state = 'Submitted'
+          AND ae.dispatched_at IS NOT NULL
+          AND ae.updated_at IS NOT NULL
+        GROUP BY s.supplier_name
+        HAVING COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) > 0
+        ORDER BY avg_days_to_respond ASC
+      `),
     ]);
 
     const kpi = kpiRes.rows[0] ?? {};
@@ -202,6 +228,12 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
         sessions_count:    Number(r.sessions_count ?? 0),
         total_lines:       Number(r.total_lines ?? 0),
       })),
+
+      supplierResponseTime: responseTimeRes.rows.map(r => ({
+        supplier_name:       String(r.supplier_name ?? ''),
+        avg_days_to_respond: Number(r.avg_days_to_respond ?? 0),
+        responses_count:     Number(r.responses_count ?? 0),
+      })),
     };
   } catch (err) {
     console.error('[getExpeditingAnalytics]', err);
@@ -214,6 +246,7 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
       supplierBreakdown: [],
       recentSessions: [],
       weeklyRateData: [],
+      supplierResponseTime: [],
     };
   }
 }

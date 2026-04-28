@@ -25,6 +25,7 @@ import type {
   BuyerSessionRow,
   AdminSupplierDetailLine,
   AdminSessionDetailLine,
+  SupplierResponseTimeRow,
 } from '@/app/actions/adminAnalytics';
 
 /* ─── Props ──────────────────────────────────────────────────── */
@@ -669,9 +670,9 @@ function BuyerTable({
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="overflow-x-auto">
+      <div style={{ height: 360, overflowY: 'auto', overflowX: 'hidden' }}>
         <table className="w-full text-left border-collapse">
-          <thead>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
             <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
               {cols.map(col => (
                 <th
@@ -772,9 +773,9 @@ function SupplierTable({
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="overflow-x-auto">
+      <div style={{ height: 420, overflowY: 'auto', overflowX: 'hidden' }}>
         <table className="w-full text-left border-collapse">
-          <thead>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
             <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
               {cols.map(col => (
                 <th
@@ -855,9 +856,9 @@ function SessionsTable({
 }) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="overflow-x-auto">
+      <div style={{ height: 400, overflowY: 'auto', overflowX: 'hidden' }}>
         <table className="w-full text-left border-collapse">
-          <thead>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
             <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
               <th className="py-3 px-4 whitespace-nowrap">Date</th>
               <th className="py-3 px-4 whitespace-nowrap">Dispatched By</th>
@@ -1012,7 +1013,6 @@ function SupplierBarChart({ data }: { data: SupplierRow[] }) {
   const chartData = data
     .filter(r => Number(r.times_expedited) >= 1)
     .sort((a, b) => (b.response_rate ?? 0) - (a.response_rate ?? 0))
-    .slice(0, 10)
     .map(r => ({
       supplierName: String(r.supplier_name || '').slice(0, 25),
       responseRate: Number(r.response_rate) || 0,
@@ -1020,42 +1020,106 @@ function SupplierBarChart({ data }: { data: SupplierRow[] }) {
       totalLines: Number(r.total_lines) || 0,
     }));
 
+  const chartHeight = Math.max(320, chartData.length * 40);
+
   return (
     <ChartCard title="Top 10 Suppliers by Response Rate">
-      <ResponsiveContainer width="100%" height={320}>
-        <BarChart
-          data={chartData}
-          layout="vertical"
-          margin={{ top: 10, right: 30, bottom: 10, left: 10 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-          <XAxis
-            type="number"
-            domain={[0, 100]}
-            tick={{ fontSize: 11, fill: '#94a3b8' }}
-            tickFormatter={(v: unknown) => `${v}%`}
-          />
-          <YAxis
-            type="category"
-            dataKey="supplierName"
-            tick={{ fontSize: 11, fill: '#94a3b8' }}
-            width={160}
-          />
-          <Tooltip formatter={(v: unknown) => [`${v}%`, 'Response Rate']} />
-          <Bar dataKey="responseRate" radius={[0, 4, 4, 0]}>
-            {chartData.map((entry, i) => (
-              <Cell
-                key={`cell-${i}`}
-                fill={
-                  entry.responseRate >= 70 ? '#059669' :
-                  entry.responseRate >= 30 ? '#f59e0b' :
-                  '#ef4444'
+      <div style={{ height: 400, overflowY: 'auto', overflowX: 'hidden', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 0' }}>
+        <div style={{ height: chartHeight, width: '100%' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 10, right: 30, bottom: 10, left: 10 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+              <XAxis
+                type="number"
+                domain={[0, 100]}
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                tickFormatter={(v: unknown) => `${v}%`}
+              />
+              <YAxis
+                type="category"
+                dataKey="supplierName"
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                width={180}
+              />
+              <Tooltip formatter={(v: unknown) => [`${v}%`, 'Response Rate']} />
+              <Bar dataKey="responseRate" radius={[0, 4, 4, 0]}>
+                {chartData.map((entry, i) => (
+                  <Cell
+                    key={`cell-${i}`}
+                    fill={
+                      entry.responseRate >= 70 ? '#059669' :
+                      entry.responseRate >= 30 ? '#f59e0b' :
+                      '#ef4444'
+                    }
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </ChartCard>
+  );
+}
+
+/* ─── Chart — Avg Response Time by Supplier ──────────────────── */
+
+function AvgResponseTimeBarChart({ data }: { data: SupplierResponseTimeRow[] }) {
+  const chartData = data.map(r => ({
+    supplierName:  String(r.supplier_name || '').slice(0, 28),
+    avgDays:       r.avg_days_to_respond,
+    responsesCount: r.responses_count,
+  }));
+
+  const chartHeight = Math.max(320, chartData.length * 40);
+
+  return (
+    <ChartCard title="Avg. Response Time by Supplier (Days)">
+      <div style={{ height: 400, overflowY: 'auto', overflowX: 'hidden', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 0' }}>
+        <div style={{ height: chartHeight, width: '100%' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 10, right: 40, bottom: 10, left: 10 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+              <XAxis
+                type="number"
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                tickFormatter={(v: unknown) => `${v}d`}
+              />
+              <YAxis
+                type="category"
+                dataKey="supplierName"
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                width={180}
+              />
+              <Tooltip
+                formatter={(v: unknown, _: unknown, props: { payload?: { responsesCount?: number } }) =>
+                  [`${v} days avg (${props.payload?.responsesCount ?? 0} responses)`, 'Response Time']
                 }
               />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+              <Bar dataKey="avgDays" radius={[0, 4, 4, 0]}>
+                {chartData.map((entry, i) => (
+                  <Cell
+                    key={`cell-${i}`}
+                    fill={
+                      entry.avgDays <= 1 ? '#059669' :
+                      entry.avgDays <= 3 ? '#f59e0b' :
+                      '#ef4444'
+                    }
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </ChartCard>
   );
 }
@@ -1131,10 +1195,13 @@ function AnalyticsSection({
         <BuyerTable rows={analytics.buyerBreakdown} onBuyerClick={onBuyerClick} />
       </div>
 
-      {/* Row 4 — Top Suppliers chart */}
+      {/* Row 4 — Supplier Performance charts */}
       <div>
         <SectionTitle>Supplier Performance</SectionTitle>
-        <SupplierBarChart data={analytics.supplierBreakdown} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <SupplierBarChart data={analytics.supplierBreakdown} />
+          <AvgResponseTimeBarChart data={analytics.supplierResponseTime} />
+        </div>
       </div>
 
       {/* Row 5 — Supplier Response Rates table */}
@@ -1155,10 +1222,11 @@ function AnalyticsSection({
 /* ─── Main AdminClient ────────────────────────────────────────── */
 
 export default function AdminClient({ analytics: initialAnalytics, userEmail, userName, pendingCount }: AdminClientProps) {
-  const [selectedTool, setSelectedTool]   = useState<string>('po-expediting');
-  const [liveAnalytics, setLiveAnalytics] = useState<ExpeditingAnalytics>(initialAnalytics);
-  const [isRefreshing, setIsRefreshing]   = useState(false);
-  const [lastRefreshed, setLastRefreshed] = useState<Date>(() => new Date());
+  const [selectedTool, setSelectedTool]       = useState<string>('po-expediting');
+  const [liveAnalytics, setLiveAnalytics]     = useState<ExpeditingAnalytics>(initialAnalytics);
+  const [isRefreshing, setIsRefreshing]       = useState(false);
+  const [lastRefreshed, setLastRefreshed]     = useState<Date>(() => new Date());
+  const [livePendingCount, setLivePendingCount] = useState(pendingCount);
 
   // Modal state
   const [buyerModal, setBuyerModal]             = useState<BuyerRow | null>(null);
@@ -1292,7 +1360,7 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
             }}
           >
             <span>Access Approvals</span>
-            {pendingCount > 0 && (
+            {livePendingCount > 0 && (
               <span style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -1307,7 +1375,7 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
                 color: '#b45309',
                 border: '1px solid #fde68a',
               }}>
-                {pendingCount}
+                {livePendingCount}
               </span>
             )}
           </button>
@@ -1316,15 +1384,7 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
         {/* ── Main content ── */}
         <main className="flex-1 overflow-auto" style={{ padding: 32 }}>
           {selectedTool === 'access-approvals' && (
-            <>
-              <div className="mb-6">
-                <h2 className="text-lg font-bold text-slate-900 tracking-tight">Access Approvals</h2>
-                <p className="text-[12px] text-gray-400 mt-0.5">
-                  Review and manage user access requests for country-level data.
-                </p>
-              </div>
-              <AccessApprovalsClient />
-            </>
+            <AccessApprovalsClient onPendingCountChange={setLivePendingCount} />
           )}
           {selectedTool === 'po-expediting' && (
             <>

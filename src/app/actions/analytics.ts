@@ -31,6 +31,12 @@ export interface MyWeeklyRateRow {
   total_lines: number;
 }
 
+export interface MySupplierResponseTimeRow {
+  supplier_name: string;
+  avg_days_to_respond: number;
+  responses_count: number;
+}
+
 export interface MyAnalytics {
   totalLinesExpedited: number;
   totalSuppliersContacted: number;
@@ -39,6 +45,7 @@ export interface MyAnalytics {
   supplierBreakdown: MySupplierRow[];
   recentSessions: MyRecentSession[];
   weeklyRateData: MyWeeklyRateRow[];
+  supplierResponseTime: MySupplierResponseTimeRow[];
 }
 
 /* ─── getMyExpeditingAnalytics ───────────────────────────────── */
@@ -51,7 +58,7 @@ export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAna
   };
 
   try {
-    const [kpiRes, supplierRes, sessionsRes, weeklyRes] = await Promise.all([
+    const [kpiRes, supplierRes, sessionsRes, weeklyRes, responseTimeRes] = await Promise.all([
 
       /* ── KPI block ── */
       pool.query(`
@@ -126,6 +133,26 @@ export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAna
         GROUP BY DATE_TRUNC('week', dispatched_at)
         ORDER BY week ASC
       `, [userEmail]),
+
+      /* ── My avg response time by supplier ── */
+      pool.query(`
+        SELECT
+          s.supplier_name,
+          ROUND(AVG(
+            EXTRACT(EPOCH FROM (ae.updated_at - ae.dispatched_at)) / 86400
+          ), 1) AS avg_days_to_respond,
+          COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) AS responses_count
+        FROM active_expediting ae
+        JOIN sap_open_po_master s
+          ON ae.po_number = s.po_number AND ae.po_line = s.po_line
+        WHERE ae.workflow_state = 'Submitted'
+          AND ae.dispatched_by = $1
+          AND ae.dispatched_at IS NOT NULL
+          AND ae.updated_at IS NOT NULL
+        GROUP BY s.supplier_name
+        HAVING COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) > 0
+        ORDER BY avg_days_to_respond ASC
+      `, [userEmail]),
     ]);
 
     const kpi = kpiRes.rows[0] ?? {};
@@ -162,6 +189,12 @@ export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAna
         sessions_count:    Number(r.sessions_count ?? 0),
         total_lines:       Number(r.total_lines ?? 0),
       })),
+
+      supplierResponseTime: responseTimeRes.rows.map(r => ({
+        supplier_name:       String(r.supplier_name ?? ''),
+        avg_days_to_respond: Number(r.avg_days_to_respond ?? 0),
+        responses_count:     Number(r.responses_count ?? 0),
+      })),
     };
   } catch (err) {
     console.error('[getMyExpeditingAnalytics]', err);
@@ -173,6 +206,7 @@ export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAna
       supplierBreakdown: [],
       recentSessions: [],
       weeklyRateData: [],
+      supplierResponseTime: [],
     };
   }
 }
