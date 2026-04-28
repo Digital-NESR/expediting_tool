@@ -71,7 +71,7 @@ export async function submitAccessRequest(
   }
   try {
     await pool.query(
-      `INSERT INTO access_requests (user_email, status, requested_countries, approved_countries, created_at, updated_at)
+      `INSERT INTO access_requests (user_email, status, requested_countries, approved_countries, requested_at, updated_at)
             VALUES ($1, 'Pending', $2, '{}', NOW(), NOW())
        ON CONFLICT (user_email)
        DO UPDATE SET
