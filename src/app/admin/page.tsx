@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getExpeditingAnalytics } from '@/app/actions/adminAnalytics';
+import { getPendingAccessCount } from '@/app/actions/adminAccess';
 import AdminClient from './AdminClient';
 
 export const metadata = { title: 'Admin — SC Agents' };
@@ -41,14 +42,18 @@ export default async function AdminPage() {
     );
   }
 
-  /* ── Fetch analytics ── */
-  const analytics = await getExpeditingAnalytics();
+  /* ── Fetch analytics + pending count ── */
+  const [analytics, pendingCount] = await Promise.all([
+    getExpeditingAnalytics(),
+    getPendingAccessCount(),
+  ]);
 
   return (
     <AdminClient
       analytics={analytics}
       userEmail={session.user.email}
       userName={session.user.name ?? session.user.email}
+      pendingCount={pendingCount}
     />
   );
 }

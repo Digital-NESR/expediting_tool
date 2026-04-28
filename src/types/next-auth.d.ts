@@ -9,6 +9,8 @@ declare module "next-auth" {
       jobTitle?: string;
       department?: string;
       country?: string;
+      accessStatus?: 'new' | 'pending' | 'approved' | 'denied' | 'admin';
+      approvedCountries?: string[];
     };
   }
 }
@@ -18,5 +20,7 @@ declare module "next-auth/jwt" {
     jobTitle?: string;
     department?: string;
     country?: string;
+    accessStatus?: 'new' | 'pending' | 'approved' | 'denied' | 'admin';
+    approvedCountries?: string[];
   }
 }

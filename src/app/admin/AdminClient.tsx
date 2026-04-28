@@ -15,6 +15,7 @@ import {
   getAdminSupplierDetail,
   getAdminSessionDetail,
 } from '@/app/actions/adminAnalytics';
+import AccessApprovalsClient from './AccessApprovalsClient';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
@@ -32,6 +33,7 @@ interface AdminClientProps {
   analytics: ExpeditingAnalytics;
   userEmail: string;
   userName: string;
+  pendingCount: number;
 }
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -1152,7 +1154,7 @@ function AnalyticsSection({
 
 /* ─── Main AdminClient ────────────────────────────────────────── */
 
-export default function AdminClient({ analytics: initialAnalytics, userEmail, userName }: AdminClientProps) {
+export default function AdminClient({ analytics: initialAnalytics, userEmail, userName, pendingCount }: AdminClientProps) {
   const [selectedTool, setSelectedTool]   = useState<string>('po-expediting');
   const [liveAnalytics, setLiveAnalytics] = useState<ExpeditingAnalytics>(initialAnalytics);
   const [isRefreshing, setIsRefreshing]   = useState(false);
@@ -1274,10 +1276,56 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
           </div>
 
           <hr style={{ borderTop: '1px solid #e5e7eb', margin: '16px 0' }} />
+
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>
+            System
+          </p>
+
+          <button
+            onClick={() => setSelectedTool('access-approvals')}
+            style={{
+              ...navItemBase,
+              borderLeft: selectedTool === 'access-approvals' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'access-approvals' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'access-approvals' ? '#059669' : '#4b5563',
+              cursor: 'pointer',
+            }}
+          >
+            <span>Access Approvals</span>
+            {pendingCount > 0 && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 18,
+                height: 18,
+                padding: '0 5px',
+                borderRadius: 9999,
+                fontSize: 10,
+                fontWeight: 700,
+                background: '#fef3c7',
+                color: '#b45309',
+                border: '1px solid #fde68a',
+              }}>
+                {pendingCount}
+              </span>
+            )}
+          </button>
         </aside>
 
         {/* ── Main content ── */}
         <main className="flex-1 overflow-auto" style={{ padding: 32 }}>
+          {selectedTool === 'access-approvals' && (
+            <>
+              <div className="mb-6">
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight">Access Approvals</h2>
+                <p className="text-[12px] text-gray-400 mt-0.5">
+                  Review and manage user access requests for country-level data.
+                </p>
+              </div>
+              <AccessApprovalsClient />
+            </>
+          )}
           {selectedTool === 'po-expediting' && (
             <>
               <div className="flex items-start justify-between gap-4 mb-6">

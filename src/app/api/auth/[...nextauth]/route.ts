@@ -1,6 +1,7 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
+import pool from "@/lib/db";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -86,6 +87,42 @@ export const authOptions: NextAuthOptions = {
         token.picture = null;
       }
 
+      // Always refresh access status from DB on every token evaluation
+      const email = token.email as string | undefined;
+      if (email) {
+        const adminEmails = (process.env.ADMIN_EMAILS ?? '')
+          .split(',')
+          .map(e => e.trim().toLowerCase())
+          .filter(Boolean);
+        if (adminEmails.includes(email.toLowerCase())) {
+          token.accessStatus = 'admin';
+          token.approvedCountries = [];
+        } else {
+          try {
+            const { rows } = await pool.query(
+              'SELECT status, approved_countries FROM access_requests WHERE user_email = $1',
+              [email]
+            );
+            if (rows.length === 0) {
+              token.accessStatus = 'new';
+              token.approvedCountries = [];
+            } else {
+              const r = rows[0];
+              token.accessStatus =
+                r.status === 'Approved' ? 'approved' :
+                r.status === 'Pending'  ? 'pending'  : 'denied';
+              token.approvedCountries =
+                r.status === 'Approved' ? (r.approved_countries ?? []) : [];
+            }
+          } catch {
+            if (!token.accessStatus) {
+              token.accessStatus = 'new';
+              token.approvedCountries = [];
+            }
+          }
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -96,6 +133,8 @@ export const authOptions: NextAuthOptions = {
         session.user.jobTitle = token.jobTitle as string | undefined;
         session.user.department = token.department as string | undefined;
         session.user.country = token.country as string | undefined;
+        session.user.accessStatus = token.accessStatus;
+        session.user.approvedCountries = token.approvedCountries;
       }
       return session;
     },
