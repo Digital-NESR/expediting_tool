@@ -75,6 +75,35 @@ function exportToExcel(rows: ExportRow[], filename: string) {
     { wch: 60 },
   ];
 
+  const totalRows = rows.length + 1; // +1 for header row
+  const tableRef  = `A1:E${totalRows}`;
+
+  // Define an Excel table (ListObject) — gives styled headers,
+  // row stripes, and filter dropdowns natively in Excel.
+  ws['!tables'] = [
+    {
+      ref:             tableRef,
+      name:            'ExpeditingExport',
+      displayName:     'ExpeditingExport',
+      headerRowCount:  1,
+      totalsRowCount:  0,
+      tableStyleInfo: {
+        name:              'TableStyleMedium2',
+        showFirstColumn:   false,
+        showLastColumn:    false,
+        showRowStripes:    true,
+        showColumnStripes: false,
+      },
+      columns: [
+        { name: 'Purchase Order' },
+        { name: 'Purchase Order Item' },
+        { name: 'Delivery Date' },
+        { name: 'Delivery Status Code' },
+        { name: 'Delivery Comments' },
+      ],
+    },
+  ];
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Expediting Export');
   XLSX.writeFile(wb, filename);
