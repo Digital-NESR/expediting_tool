@@ -47,6 +47,11 @@ interface PreparedGroup {
   expediteToken: string;
   poLines: Array<{
     po_number: string;
+    po_line: string;
+    item_description: string;
+    open_qty: number;
+    open_po_value_usd: number;
+    delivery_date: string;
     po_release_date: string | null;
   }>;
 }
@@ -143,6 +148,11 @@ export async function prepareAllExpediteDispatches(
         expediteToken: token,
         poLines: items.map((i) => ({
           po_number: i['PO Number'],
+          po_line: i['PO Line'] ?? '',
+          item_description: i['Item Description'],
+          open_qty: Number(i['Open QTY'] ?? 0),
+          open_po_value_usd: Number(i['Open PO Value USD'] ?? 0),
+          delivery_date: i['Delivery Date'] ?? '',
           po_release_date: i['PO Release Date'] ?? null,
         })),
       });
@@ -186,6 +196,13 @@ export async function prepareAllExpediteDispatches(
         supplierLink: `${appUrl}/supplier-update?token=${group.expediteToken}`,
         poLines: group.poLines.map((line) => ({
           poNumber: line.po_number,
+          poLine: line.po_line,
+          description: line.item_description
+            ? line.item_description.slice(0, 50)
+            : '',
+          openQty: line.open_qty,
+          valueUsd: line.open_po_value_usd,
+          deliveryDate: line.delivery_date,
           releaseDate: line.po_release_date ?? null,
         })),
       }));
