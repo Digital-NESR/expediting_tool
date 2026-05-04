@@ -16,4 +16,5 @@ export interface PurchaseOrder {
   'Buyer Email'?: string | null;
   'P Group'?: string;
   'Segment'?: string;
+  'Account Classification Description'?: string | null;
 }

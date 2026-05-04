@@ -14,6 +14,7 @@ export interface PurchaseOrder {
   'Delivery Code': string;
   'Country': string;
   'Delivery Comments'?: string;
+  'Account Classification Description'?: string | null;
 }
 
 interface DrawerProps {
@@ -111,7 +112,11 @@ export default function LineItemDrawer({
                 <div className="grid grid-cols-2 gap-y-4 gap-x-6">
                   <div>
                     <dt className="text-xs font-medium text-slate-500 mb-1">SAP MAT ID</dt>
-                    <dd className="text-sm font-semibold text-slate-800 font-mono">{item['SAP MAT ID'] || '—'}</dd>
+                    <dd className="text-sm font-semibold text-slate-800 font-mono">
+                      {item['SAP MAT ID']?.trim()
+                        ? item['SAP MAT ID']
+                        : <span className="text-gray-400 italic text-xs">{item['Account Classification Description']?.trim() || 'N/A'}</span>}
+                    </dd>
                   </div>
                   <div className="col-span-2">
                     <dt className="text-xs font-medium text-slate-500 mb-1">Item Description</dt>

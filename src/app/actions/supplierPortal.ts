@@ -12,6 +12,7 @@ export interface ExpediteLineRow {
   supplier_comments: string | null;
   item_description: string | null;
   sap_mat_id: string | null;
+  account_classification_description: string | null;
   open_qty: number | null;
   open_po_value_usd: number | null;
   delivery_date: string | null;
@@ -66,6 +67,7 @@ export async function getExpediteByToken(token: string): Promise<GetTokenResult>
          ae.supplier_comments,
          s.item_description,
          s.sap_mat_id,
+         s.account_classification_description,
          s.open_qty,
          s.open_po_value_usd,
          s.delivery_date,

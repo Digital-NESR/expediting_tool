@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import type { PortalData, LineUpdate } from '@/app/actions/supplierPortal';
 import { submitSupplierUpdates } from '@/app/actions/supplierPortal';
 
@@ -53,8 +53,17 @@ function toInputDate(dateStr: string | null | undefined) {
   return d.toISOString().split('T')[0];
 }
 
-const formatMatId = (id: string | null | undefined) =>
-  id?.trim() ? id : <span className="text-gray-400 italic">Service</span>;
+function formatMatId(
+  matId: string | null | undefined,
+  accountType: string | null | undefined,
+): React.ReactNode {
+  if (matId?.trim()) return matId;
+  return (
+    <span className="text-gray-400 italic text-xs">
+      {accountType?.trim() || 'N/A'}
+    </span>
+  );
+}
 
 function lineKey(po_number: string, po_line: string) {
   return `${po_number}:${po_line}`;
@@ -463,7 +472,7 @@ export function SupplierPortalForm({ token, data }: Props) {
 
                       {/* SAP MAT ID */}
                       <td className="py-2.5 px-3 font-mono text-[13px] text-gray-500 whitespace-nowrap">
-                        {formatMatId(line.sap_mat_id)}
+                        {formatMatId(line.sap_mat_id, line.account_classification_description)}
                       </td>
 
                       {/* Description */}

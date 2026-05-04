@@ -71,8 +71,17 @@ function formatCurrency(raw: number | string | null | undefined): string {
   }).format(n);
 }
 
-const formatMatId = (id: string | null | undefined) =>
-  id?.trim() ? id : <span className="text-gray-400 italic">Service</span>;
+function formatMatId(
+  matId: string | null | undefined,
+  accountType: string | null | undefined,
+): React.ReactNode {
+  if (matId?.trim()) return matId;
+  return (
+    <span className="text-gray-400 italic text-xs">
+      {accountType?.trim() || 'N/A'}
+    </span>
+  );
+}
 
 function daysDiff(raw: string | null | undefined): number {
   if (!raw) return 0;
@@ -108,14 +117,12 @@ function rowMatchesSearch(r: PurchaseOrder, term: string): boolean {
   );
 }
 
-function isServiceLine(r: PurchaseOrder): boolean {
-  return !(r['SAP MAT ID']?.trim());
+function rowMatchesAccountType(r: PurchaseOrder, types: string[]): boolean {
+  if (types.length === 0) return true;
+  const desc = (r['Account Classification Description'] ?? '').trim();
+  return types.includes(desc);
 }
 
-function rowMatchesType(r: PurchaseOrder, types: string[]): boolean {
-  if (types.length === 0 || types.length >= 2) return true;
-  return types.includes('services') ? isServiceLine(r) : !isServiceLine(r);
-}
 
 /* ─── Delivery Status Badge ───────────────────────────────── */
 function DeliveryBadge({ raw }: { raw: string | null | undefined }) {
@@ -368,37 +375,33 @@ const STATUS_TILES = [
   },
 ] as const;
 
-const TYPE_TILES = [
-  {
-    id: 'services' as const,
-    label: 'Services',
-    activeClass: 'bg-amber-100/80 border-amber-300 text-amber-700 shadow-sm ring-1 ring-amber-200',
-  },
-  {
-    id: 'non-services' as const,
-    label: 'Non-Services',
-    activeClass: 'bg-blue-100/80 border-blue-300 text-blue-700 shadow-sm ring-1 ring-blue-200',
-  },
-] as const;
+const ACCOUNT_TYPE_TILES = [
+  { id: 'Asset',               label: 'Asset',               activeClass: 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm ring-1 ring-blue-100' },
+  { id: 'Asset Services',      label: 'Asset Services',      activeClass: 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm ring-1 ring-indigo-100' },
+  { id: 'Direct Consumables',  label: 'Direct Consumables',  activeClass: 'bg-orange-50 border-orange-200 text-orange-700 shadow-sm ring-1 ring-orange-100' },
+  { id: 'Direct Order',        label: 'Direct Order',        activeClass: 'bg-purple-50 border-purple-200 text-purple-700 shadow-sm ring-1 ring-purple-100' },
+  { id: 'Inventory',           label: 'Inventory',           activeClass: 'bg-yellow-50 border-yellow-200 text-yellow-700 shadow-sm ring-1 ring-yellow-100' },
+  { id: 'Services',            label: 'Services',            activeClass: 'bg-teal-50 border-teal-200 text-teal-700 shadow-sm ring-1 ring-teal-100' },
+];
 
 function StatusTiles({
   selected,
   onChange,
-  selectedType,
-  onTypeChange,
+  selectedAccountTypes,
+  onAccountTypeChange,
 }: {
   selected: string[];
   onChange: (v: string[]) => void;
-  selectedType: string[];
-  onTypeChange: (v: string[]) => void;
+  selectedAccountTypes: string[];
+  onAccountTypeChange: (v: string[]) => void;
 }) {
   const toggleStatus = (id: string) => {
     if (selected.includes(id)) onChange(selected.filter((s) => s !== id));
     else onChange([...selected, id]);
   };
-  const toggleType = (id: string) => {
-    if (selectedType.includes(id)) onTypeChange(selectedType.filter((s) => s !== id));
-    else onTypeChange([...selectedType, id]);
+  const toggleAccountType = (id: string) => {
+    if (selectedAccountTypes.includes(id)) onAccountTypeChange(selectedAccountTypes.filter((s) => s !== id));
+    else onAccountTypeChange([...selectedAccountTypes, id]);
   };
 
   return (
@@ -425,13 +428,13 @@ function StatusTiles({
       {/* Divider */}
       <div className="shrink-0 self-center mx-3" style={{ width: '1px', height: '20px', backgroundColor: '#e5e7eb' }} />
 
-      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Type:</span>
-      {TYPE_TILES.map((tile) => {
-        const isActive = selectedType.includes(tile.id);
+      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Account Type:</span>
+      {ACCOUNT_TYPE_TILES.map((tile) => {
+        const isActive = selectedAccountTypes.includes(tile.id);
         return (
           <button
             key={tile.id}
-            onClick={() => toggleType(tile.id)}
+            onClick={() => toggleAccountType(tile.id)}
             className={[
               'px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all duration-150',
               isActive
@@ -444,9 +447,9 @@ function StatusTiles({
         );
       })}
 
-      {(selected.length > 0 || selectedType.length > 0) && (
+      {(selected.length > 0 || selectedAccountTypes.length > 0) && (
         <button
-          onClick={() => { onChange([]); onTypeChange([]); }}
+          onClick={() => { onChange([]); onAccountTypeChange([]); }}
           className="ml-1 text-xs text-slate-400 hover:text-slate-600 transition-colors px-2 py-1 rounded-lg hover:bg-slate-100"
         >
           Clear
@@ -561,7 +564,7 @@ const PoLineItemRow = memo(function PoLineItemRow({
         />
       </td>
       <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
-        {formatMatId(line['SAP MAT ID'])}
+        {formatMatId(line['SAP MAT ID'], line['Account Classification Description'])}
       </td>
       <td className="py-3 px-4 text-sm text-slate-600 max-w-[280px] truncate" title={line['Item Description']}>
         {line['Item Description'] ?? '—'}
@@ -749,7 +752,7 @@ export default function Dashboard() {
   const [filterSuppliers, setFilterSuppliers] = useState<string[]>([]);
   const [filterBuyers, setFilterBuyers] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
-  const [filterType, setFilterType] = useState<string[]>([]);
+  const [filterAccountTypes, setFilterAccountTypes] = useState<string[]>([]);
   const [filterPGroup, setFilterPGroup] = useState<string[]>([]);
   const [filterSegment, setFilterSegment] = useState<string[]>([]);
 
@@ -775,7 +778,7 @@ export default function Dashboard() {
   }, []);
 
   /* Reset page when any filter/sort changes ---------------- */
-  useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterType, filterPGroup, filterSegment, poSortKey, poSortDir]);
+  useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterAccountTypes, filterPGroup, filterSegment, poSortKey, poSortDir]);
 
   /* Clear all filters -------------------------------------- */
   function clearFilters() {
@@ -785,12 +788,12 @@ export default function Dashboard() {
     setFilterSuppliers([]);
     setFilterBuyers([]);
     setFilterStatus([]);
-    setFilterType([]);
+    setFilterAccountTypes([]);
     setFilterPGroup([]);
     setFilterSegment([]);
   }
 
-  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length + filterStatus.length + filterType.length + filterPGroup.length + filterSegment.length;
+  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length + filterStatus.length + filterAccountTypes.length + filterPGroup.length + filterSegment.length;
 
   /* Remove Specific Filter ---------------------------------- */
   function removeFilter(type: 'search' | 'deliv' | 'country' | 'supplier' | 'buyer' | 'pGroup' | 'segment', val?: string) {
@@ -828,7 +831,7 @@ export default function Dashboard() {
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesType(r, filterType)) return;
+      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
@@ -837,14 +840,14 @@ export default function Dashboard() {
       dc.add(r['Delivery Code'] || '(Blank)');
     });
     return [...dc].sort();
-  }, [rows, filterStatus, filterType, search, filterCountry, filterSuppliers, filterBuyers, filterPGroup, filterSegment]);
+  }, [rows, filterStatus, filterAccountTypes, search, filterCountry, filterSuppliers, filterBuyers, filterPGroup, filterSegment]);
 
   const countries = useMemo(() => {
     const co = new Set<string>();
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesType(r, filterType)) return;
+      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
@@ -853,14 +856,14 @@ export default function Dashboard() {
       if (r['Country']) co.add(r['Country']);
     });
     return [...co].sort();
-  }, [rows, filterStatus, filterType, search, filterDelivCode, filterSuppliers, filterBuyers, filterPGroup, filterSegment]);
+  }, [rows, filterStatus, filterAccountTypes, search, filterDelivCode, filterSuppliers, filterBuyers, filterPGroup, filterSegment]);
 
   const { supplierList, supplierDisplayMap } = useMemo(() => {
     const sp = new Map<string, string>(); // supplierName -> "ID - Name"
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesType(r, filterType)) return;
+      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
@@ -876,14 +879,14 @@ export default function Dashboard() {
     const displayMap: Record<string, string> = {};
     sortedNames.forEach((name) => { displayMap[name] = sp.get(name)!; });
     return { supplierList: sortedNames, supplierDisplayMap: displayMap };
-  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterBuyers, filterPGroup, filterSegment]);
+  }, [rows, filterStatus, filterAccountTypes, search, filterDelivCode, filterCountry, filterBuyers, filterPGroup, filterSegment]);
 
   const buyerList = useMemo(() => {
     const by = new Set<string>();
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesType(r, filterType)) return;
+      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
@@ -892,14 +895,14 @@ export default function Dashboard() {
       if (r['Buyer Name']) by.add(r['Buyer Name']);
     });
     return [...by].sort();
-  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterSuppliers, filterPGroup, filterSegment]);
+  }, [rows, filterStatus, filterAccountTypes, search, filterDelivCode, filterCountry, filterSuppliers, filterPGroup, filterSegment]);
 
   const pGroupList = useMemo(() => {
     const pg = new Set<string>();
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesType(r, filterType)) return;
+      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
@@ -908,14 +911,14 @@ export default function Dashboard() {
       if (r['P Group']) pg.add(r['P Group']);
     });
     return [...pg].sort();
-  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterSegment]);
+  }, [rows, filterStatus, filterAccountTypes, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterSegment]);
 
   const segmentList = useMemo(() => {
     const sg = new Set<string>();
     rows.forEach((r) => {
       if (!rowMatchesStatus(r, filterStatus)) return;
       if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesType(r, filterType)) return;
+      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
       if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
       if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
       if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
@@ -924,7 +927,7 @@ export default function Dashboard() {
       if (r['Segment']) sg.add(r['Segment']);
     });
     return [...sg].sort();
-  }, [rows, filterStatus, filterType, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterPGroup]);
+  }, [rows, filterStatus, filterAccountTypes, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterPGroup]);
 
   /* Smart filtering ---------------------------------------- */
   const filtered = useMemo(() => {
@@ -940,8 +943,8 @@ export default function Dashboard() {
       // Status tile filter
       if (!rowMatchesStatus(r, filterStatus)) return false;
 
-      // Type filter (line level — service vs non-service)
-      if (!rowMatchesType(r, filterType)) return false;
+      // Account type filter (line level — by account_classification_description)
+      if (!rowMatchesAccountType(r, filterAccountTypes)) return false;
 
       // Search: match PO Number, Supplier Name, Supplier ID, or SAP MAT ID
       if (term) {
@@ -954,7 +957,7 @@ export default function Dashboard() {
 
       return true;
     });
-  }, [rows, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterType, filterPGroup, filterSegment]);
+  }, [rows, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterAccountTypes, filterPGroup, filterSegment]);
 
   /* PO grouping -------------------------------------------- */
   const groupedPOs = useMemo((): PoGroup[] => {
@@ -1082,7 +1085,7 @@ export default function Dashboard() {
                 {/* ── Status + Type Tile Slicer ── */}
                 <StatusTiles
                   selected={filterStatus} onChange={setFilterStatus}
-                  selectedType={filterType} onTypeChange={setFilterType}
+                  selectedAccountTypes={filterAccountTypes} onAccountTypeChange={setFilterAccountTypes}
                 />
 
                 <FilterBar

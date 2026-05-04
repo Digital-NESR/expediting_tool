@@ -257,7 +257,7 @@ function SupplierSection({
                   </td>
                   {/* SAP MAT ID */}
                   <td className="py-3 px-3 font-mono text-xs text-slate-500 whitespace-nowrap">
-                    {line.sap_mat_id?.trim() ? line.sap_mat_id : <span className="text-slate-400 italic">Service</span>}
+                    {line.sap_mat_id?.trim() ? line.sap_mat_id : <span className="text-gray-400 italic text-xs">{line.account_classification_description?.trim() || 'N/A'}</span>}
                   </td>
                   {/* Description */}
                   <td className="py-3 px-3 text-xs text-slate-600 max-w-[200px]">

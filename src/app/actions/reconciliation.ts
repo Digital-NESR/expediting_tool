@@ -9,6 +9,7 @@ export interface LineData {
   po_line: string;
   item_description: string | null;
   sap_mat_id: string | null;
+  account_classification_description: string | null;
   open_qty: number | null;
   open_po_value_usd: number | null;
   delivery_date: string | null;        // original from sap_open_po_master
@@ -59,6 +60,7 @@ export async function getMyExpeditingSessions(
          ae.buyer_comments,
          s.item_description,
          s.sap_mat_id,
+         s.account_classification_description,
          s.open_qty,
          s.open_po_value_usd,
          s.delivery_date,
@@ -121,7 +123,8 @@ export async function getMyExpeditingSessions(
         po_number:          String(row.po_number),
         po_line:            String(row.po_line ?? ''),
         item_description:   toStr(row.item_description),
-        sap_mat_id:         toStr(row.sap_mat_id),
+        sap_mat_id:                        toStr(row.sap_mat_id),
+        account_classification_description: toStr(row.account_classification_description),
         open_qty:           row.open_qty != null ? Number(row.open_qty) : null,
         open_po_value_usd:  row.open_po_value_usd != null ? Number(row.open_po_value_usd) : null,
         delivery_date:      toStr(row.delivery_date),

@@ -31,7 +31,8 @@ export async function GET() {
           delivery_comments   AS "Delivery Comments",
           buyer_email         AS "Buyer Email",
           p_group             AS "P Group",
-          segment             AS "Segment"
+          segment             AS "Segment",
+          account_classification_description AS "Account Classification Description"
          FROM sap_open_po_master
          ORDER BY delivery_date ASC`
       );
@@ -55,7 +56,8 @@ export async function GET() {
           delivery_comments   AS "Delivery Comments",
           buyer_email         AS "Buyer Email",
           p_group             AS "P Group",
-          segment             AS "Segment"
+          segment             AS "Segment",
+          account_classification_description AS "Account Classification Description"
          FROM sap_open_po_master
          WHERE country = ANY($1)
          ORDER BY delivery_date ASC`,
