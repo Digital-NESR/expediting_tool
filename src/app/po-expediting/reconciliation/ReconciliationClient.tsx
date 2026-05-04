@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import Sidebar from '@/components/Sidebar';
 import { saveBuyerComment, getMyExpeditingSessions } from '@/app/actions/reconciliation';
 import type { SessionData, SupplierGroup, LineData } from '@/app/actions/reconciliation';
@@ -59,32 +59,49 @@ interface ExportRow {
   deliveryComments: string;
 }
 
-function exportToExcel(rows: ExportRow[], filename: string) {
-  const wsData = [
-    ['Purchase Order', 'Purchase Order Item', 'Delivery Date', 'Delivery Status Code', 'Delivery Comments'],
-    ...rows.map(row => [row.poNumber, row.poLine, row.deliveryDate, row.statusCode, row.deliveryComments]),
-  ];
+async function exportToExcel(rows: ExportRow[], filename: string) {
+  const workbook  = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Expediting Export');
 
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  worksheet.addTable({
+    name:       'ExpeditingExport',
+    ref:        'A1',
+    headerRow:  true,
+    totalsRow:  false,
+    style: {
+      theme:          'TableStyleMedium2',
+      showRowStripes: true,
+    },
+    columns: [
+      { name: 'Purchase Order',        filterButton: true },
+      { name: 'Purchase Order Item',   filterButton: true },
+      { name: 'Delivery Date',         filterButton: true },
+      { name: 'Delivery Status Code',  filterButton: true },
+      { name: 'Delivery Comments',     filterButton: true },
+    ],
+    rows: rows.map(row => [
+      row.poNumber,
+      row.poLine,
+      row.deliveryDate,
+      row.statusCode,
+      row.deliveryComments,
+    ]),
+  });
 
-  ws['!cols'] = [
-    { wch: 20 },
-    { wch: 22 },
-    { wch: 16 },
-    { wch: 22 },
-    { wch: 60 },
-  ];
+  worksheet.getColumn(1).width = 20;
+  worksheet.getColumn(2).width = 22;
+  worksheet.getColumn(3).width = 16;
+  worksheet.getColumn(4).width = 22;
+  worksheet.getColumn(5).width = 60;
 
-  const totalRows = rows.length + 1; // +1 for header row
-  const tableRef  = `A1:E${totalRows}`;
-
-  // AutoFilter puts filter/sort dropdowns on every header cell —
-  // same user experience as an Excel table for SAP users.
-  ws['!autofilter'] = { ref: tableRef };
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Expediting Export');
-  XLSX.writeFile(wb, filename);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob   = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
 }
 
 /** A line counts as a meaningful supplier update only if it was submitted
@@ -517,7 +534,7 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
   }, [buyerComments]);
 
   /* ── Per-session Excel export ────────────────────────────── */
-  function exportSessionExcel(session: SessionData) {
+  async function exportSessionExcel(session: SessionData) {
     const today = new Date();
     const exportDate = today.toLocaleDateString('en-GB', {
       day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
@@ -543,11 +560,11 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
 
     const dateStr = toFileDate(today);
     const lineCnt = rows.length;
-    exportToExcel(rows, `NESR_Expediting_${dateStr}_1sessions_${lineCnt}lines.xlsx`);
+    await exportToExcel(rows, `NESR_Expediting_${dateStr}_1sessions_${lineCnt}lines.xlsx`);
   }
 
   /* ── Multi-session Excel export (with deduplication) ─────── */
-  function exportSelectedExcel() {
+  async function exportSelectedExcel() {
     const selectedList = sessions.filter(s => selectedSessions.has(s.session_ref));
     if (selectedList.length === 0) return;
 
@@ -590,7 +607,7 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
     const dateStr    = toFileDate(today);
     const sessionCnt = selectedSessions.size;
     const lineCnt    = rows.length;
-    exportToExcel(rows, `NESR_Expediting_${dateStr}_${sessionCnt}sessions_${lineCnt}lines.xlsx`);
+    await exportToExcel(rows, `NESR_Expediting_${dateStr}_${sessionCnt}sessions_${lineCnt}lines.xlsx`);
   }
 
   const selectedCount = selectedSessions.size;
