@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import Sidebar from '@/components/Sidebar';
 import { saveBuyerComment, getMyExpeditingSessions } from '@/app/actions/reconciliation';
 import type { SessionData, SupplierGroup, LineData } from '@/app/actions/reconciliation';
@@ -50,18 +51,33 @@ function toFileDate(d: Date): string {
   return `${String(d.getDate()).padStart(2,'0')}${MONTHS[d.getMonth()]}${d.getFullYear()}`;
 }
 
-function downloadCsv(content: string, filename: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+interface ExportRow {
+  poNumber: string;
+  poLine: string;
+  deliveryDate: string;
+  statusCode: string;
+  deliveryComments: string;
 }
 
-function buildCsvContent(rows: string[][]): string {
-  return rows
-    .map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
-    .join('\r\n');
+function exportToExcel(rows: ExportRow[], filename: string) {
+  const wsData = [
+    ['Purchase Order', 'Purchase Order Item', 'Delivery Date', 'Delivery Status Code', 'Delivery Comments'],
+    ...rows.map(row => [row.poNumber, row.poLine, row.deliveryDate, row.statusCode, row.deliveryComments]),
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  ws['!cols'] = [
+    { wch: 20 },
+    { wch: 22 },
+    { wch: 16 },
+    { wch: 22 },
+    { wch: 60 },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Expediting Export');
+  XLSX.writeFile(wb, filename);
 }
 
 /** A line counts as a meaningful supplier update only if it was submitted
@@ -288,7 +304,7 @@ function SessionCard({
   onCommentChange,
   onCommentBlur,
   saveStates,
-  onExportCsv,
+  onExportExcel,
 }: {
   session: SessionData;
   isExpanded: boolean;
@@ -299,7 +315,7 @@ function SessionCard({
   onCommentChange: (key: string, val: string) => void;
   onCommentBlur: (key: string, po_number: string, po_line: string, expedite_token: string) => void;
   saveStates: Record<string, 'idle' | 'saving' | 'saved' | 'error'>;
-  onExportCsv: () => void;
+  onExportExcel: () => void;
 }) {
   const exportableCount = session.suppliers.reduce(
     (s, sup) => s + sup.lines.filter(isExportable).length, 0
@@ -374,7 +390,7 @@ function SessionCard({
           {/* Export button row */}
           <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/40 flex justify-end">
             <button
-              onClick={onExportCsv}
+              onClick={onExportExcel}
               disabled={exportableCount === 0}
               className="inline-flex items-center gap-2 px-4 py-2 bg-[#307c4c] hover:bg-[#26663e] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-95 shadow-sm"
             >
@@ -385,7 +401,7 @@ function SessionCard({
               )}
               {exportableCount === 0
                 ? 'No supplier updates to export'
-                : `Export CSV (${exportableCount} updated line${exportableCount !== 1 ? 's' : ''})`
+                : `Export Excel (${exportableCount} updated line${exportableCount !== 1 ? 's' : ''})`
               }
             </button>
           </div>
@@ -493,45 +509,43 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buyerComments]);
 
-  /* ── Per-session CSV export ───────────────────────────────── */
-  function exportSessionCsv(session: SessionData) {
-    const exportDate = new Date().toLocaleDateString('en-GB', {
+  /* ── Per-session Excel export ────────────────────────────── */
+  function exportSessionExcel(session: SessionData) {
+    const today = new Date();
+    const exportDate = today.toLocaleDateString('en-GB', {
       day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
     });
 
-    const CSV_HEADERS = [
-      'Purchase Order', 'Purchase Order Item', 'New Delivery Date',
-      'Delivery Status Code', 'Delivery Comments',
-    ];
-    const rows: string[][] = [CSV_HEADERS];
+    const rows: ExportRow[] = [];
 
     for (const supplier of session.suppliers) {
       for (const line of supplier.lines) {
         if (!isExportable(line)) continue;
-        const key        = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
-        const buyerNote  = (buyerComments[key] ?? '').replace('[DATE]', exportDate);
-        const comments   = [line.supplier_comments, buyerNote].filter(Boolean).join(' | ');
-        rows.push([
-          line.po_number,
-          line.po_line,
-          toSapDate(line.new_delivery_date || line.delivery_date),
-          line.current_status ?? '',
-          comments,
-        ]);
+        const key       = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
+        const buyerNote = (buyerComments[key] ?? '').replace('[DATE]', exportDate);
+        const parts     = [line.supplier_comments, buyerNote].filter(Boolean);
+        rows.push({
+          poNumber:         line.po_number,
+          poLine:           line.po_line,
+          deliveryDate:     toSapDate(line.new_delivery_date || line.delivery_date),
+          statusCode:       line.current_status ?? '',
+          deliveryComments: parts.join(' | '),
+        });
       }
     }
 
-    const dateStr      = toFileDate(new Date());
-    const supplierCnt  = session.suppliers.length;
-    downloadCsv(buildCsvContent(rows), `NESR_Expediting_${dateStr}_${supplierCnt}suppliers.csv`);
+    const dateStr = toFileDate(today);
+    const lineCnt = rows.length;
+    exportToExcel(rows, `NESR_Expediting_${dateStr}_1sessions_${lineCnt}lines.xlsx`);
   }
 
-  /* ── Multi-session CSV export (with deduplication) ───────── */
-  function exportSelectedCsv() {
+  /* ── Multi-session Excel export (with deduplication) ─────── */
+  function exportSelectedExcel() {
     const selectedList = sessions.filter(s => selectedSessions.has(s.session_ref));
     if (selectedList.length === 0) return;
 
-    const exportDate = new Date().toLocaleDateString('en-GB', {
+    const today = new Date();
+    const exportDate = today.toLocaleDateString('en-GB', {
       day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
     });
 
@@ -552,32 +566,24 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
       }
     }
 
-    const CSV_HEADERS = [
-      'Purchase Order', 'Purchase Order Item', 'New Delivery Date',
-      'Delivery Status Code', 'Delivery Comments',
-    ];
-    const rows: string[][] = [CSV_HEADERS];
-
+    const rows: ExportRow[] = [];
     for (const { line, expedite_token } of lineMap.values()) {
       const key       = `${line.po_number}|${line.po_line}|${expedite_token}`;
       const buyerNote = (buyerComments[key] ?? '').replace('[DATE]', exportDate);
-      const comments  = [line.supplier_comments, buyerNote].filter(Boolean).join(' | ');
-      rows.push([
-        line.po_number,
-        line.po_line,
-        toSapDate(line.new_delivery_date || line.delivery_date),
-        line.current_status ?? '',
-        comments,
-      ]);
+      const parts     = [line.supplier_comments, buyerNote].filter(Boolean);
+      rows.push({
+        poNumber:         line.po_number,
+        poLine:           line.po_line,
+        deliveryDate:     toSapDate(line.new_delivery_date || line.delivery_date),
+        statusCode:       line.current_status ?? '',
+        deliveryComments: parts.join(' | '),
+      });
     }
 
-    const dateStr      = toFileDate(new Date());
-    const sessionCnt   = selectedSessions.size;
-    const lineCnt      = lineMap.size;
-    downloadCsv(
-      buildCsvContent(rows),
-      `NESR_Expediting_Export_${dateStr}_${sessionCnt}sessions_${lineCnt}lines.csv`,
-    );
+    const dateStr    = toFileDate(today);
+    const sessionCnt = selectedSessions.size;
+    const lineCnt    = rows.length;
+    exportToExcel(rows, `NESR_Expediting_${dateStr}_${sessionCnt}sessions_${lineCnt}lines.xlsx`);
   }
 
   const selectedCount = selectedSessions.size;
@@ -700,7 +706,7 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
 
                   {/* Export selected button */}
                   <button
-                    onClick={exportSelectedCsv}
+                    onClick={exportSelectedExcel}
                     disabled={selectedCount === 0 || selectedExportableCount === 0}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-150 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed bg-[#307c4c] hover:bg-[#26663e] text-white shadow-sm hover:scale-[1.02] active:scale-95"
                   >
@@ -710,10 +716,10 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
                       </svg>
                     )}
                     {selectedCount === 0
-                      ? 'Export Selected'
+                      ? 'Export Excel'
                       : selectedExportableCount === 0
                         ? 'No supplier updates to export'
-                        : `Export Selected (${selectedExportableCount} line${selectedExportableCount !== 1 ? 's' : ''} across ${selectedCount} session${selectedCount !== 1 ? 's' : ''})`
+                        : `Export Excel (${selectedExportableCount} line${selectedExportableCount !== 1 ? 's' : ''} across ${selectedCount} session${selectedCount !== 1 ? 's' : ''})`
                     }
                   </button>
                 </div>
@@ -744,7 +750,7 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
                     onCommentChange={handleCommentChange}
                     onCommentBlur={handleCommentBlur}
                     saveStates={saveStates}
-                    onExportCsv={() => exportSessionCsv(session)}
+                    onExportExcel={() => exportSessionExcel(session)}
                   />
                 ))}
               </div>
