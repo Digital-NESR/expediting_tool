@@ -112,6 +112,18 @@ function isExportable(line: LineData): boolean {
   return s !== '' && s !== 'Pending Supplier Response';
 }
 
+/* ─── Chevron icon ───────────────────────────────────────────── */
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+      viewBox="0 0 20 20" fill="currentColor"
+    >
+      <path fillRule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
 /* ─── Badge components ───────────────────────────────────────── */
 
 function DsStatusBadge({ code }: { code: string | null }) {
@@ -200,118 +212,181 @@ function BuyerCommentCell({
   );
 }
 
-/* ─── Supplier sub-section ───────────────────────────────────── */
+/* ─── Supplier sub-section (collapsible, with PO grouping) ───── */
 
 function SupplierSection({
   supplier,
+  supplierKey,
+  isExpanded,
+  onToggle,
+  expandedPOs,
+  togglePO,
   buyerComments,
   onCommentChange,
   onCommentBlur,
   saveStates,
 }: {
   supplier: SupplierGroup;
+  supplierKey: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+  expandedPOs: Set<string>;
+  togglePO: (key: string) => void;
   buyerComments: Record<string, string>;
   onCommentChange: (key: string, val: string) => void;
   onCommentBlur: (key: string, po_number: string, po_line: string, expedite_token: string) => void;
   saveStates: Record<string, 'idle' | 'saving' | 'saved' | 'error'>;
 }) {
+  // Group lines by po_number, preserving insertion order
+  const poGroups = useMemo(() => {
+    const map = new Map<string, LineData[]>();
+    for (const line of supplier.lines) {
+      if (!map.has(line.po_number)) map.set(line.po_number, []);
+      map.get(line.po_number)!.push(line);
+    }
+    return Array.from(map.entries()).map(([po_number, lines]) => ({
+      po_number,
+      lines,
+      totalValue: lines.reduce((s, l) => s + (l.open_po_value_usd ?? 0), 0),
+    }));
+  }, [supplier.lines]);
+
+  const lineCount = supplier.lines.length;
+  const poCount   = poGroups.length;
+
   return (
     <div className="border-t border-slate-100 first:border-t-0">
-      {/* Supplier header */}
-      <div className="px-6 py-3 bg-slate-50/70 flex items-center gap-3 border-b border-slate-100">
+      {/* ── Supplier header — clickable ── */}
+      <button
+        onClick={onToggle}
+        className="w-full px-5 py-3 bg-slate-50/80 flex items-center gap-3 border-b border-slate-100 hover:bg-slate-100/70 transition-colors text-left"
+      >
+        <Chevron open={isExpanded} />
         <span className="text-sm font-semibold text-slate-800">{supplier.supplier_name}</span>
         <WorkflowBadge state={supplier.workflow_state} />
-      </div>
+        <span className="ml-auto text-xs text-slate-400 font-normal whitespace-nowrap">
+          {lineCount} line{lineCount !== 1 ? 's' : ''} across {poCount} PO{poCount !== 1 ? 's' : ''}
+        </span>
+      </button>
 
-      {/* Lines table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse" style={{ minWidth: '1380px' }}>
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-              <th className="py-2.5 px-3 whitespace-nowrap">PO Number</th>
-              <th className="py-2.5 px-3 whitespace-nowrap">Line</th>
-              <th className="py-2.5 px-3 whitespace-nowrap">SAP MAT ID</th>
-              <th className="py-2.5 px-3">Description</th>
-              <th className="py-2.5 px-3 text-right whitespace-nowrap">Open QTY</th>
-              <th className="py-2.5 px-3 text-right whitespace-nowrap">Value (USD)</th>
-              <th className="py-2.5 px-3 whitespace-nowrap">Original Del. Date</th>
-              <th className="py-2.5 px-3 whitespace-nowrap">New Del. Date</th>
-              <th className="py-2.5 px-3 whitespace-nowrap">DS Status</th>
-              <th className="py-2.5 px-3">Supplier Comments</th>
-              <th className="py-2.5 px-3">Buyer Comments</th>
-              <th className="py-2.5 px-3 whitespace-nowrap">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {supplier.lines.map((line, idx) => {
-              const commentKey = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
-              return (
-                <tr key={idx} className="hover:bg-[#307c4c]/5 transition-colors">
-                  {/* PO Number */}
-                  <td className="py-3 px-3 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
-                    {line.po_number}
-                  </td>
-                  {/* Line */}
-                  <td className="py-3 px-3 text-xs text-slate-500 whitespace-nowrap">
-                    {line.po_line || '—'}
-                  </td>
-                  {/* SAP MAT ID */}
-                  <td className="py-3 px-3 font-mono text-xs text-slate-500 whitespace-nowrap">
-                    {line.sap_mat_id?.trim() ? line.sap_mat_id : <span className="text-gray-400 italic text-xs">{line.account_classification_description?.trim() || 'N/A'}</span>}
-                  </td>
-                  {/* Description */}
-                  <td className="py-3 px-3 text-xs text-slate-600 max-w-[200px]">
-                    <span className="block truncate" title={line.item_description ?? ''}>
-                      {line.item_description || '—'}
-                    </span>
-                  </td>
-                  {/* Open QTY */}
-                  <td className="py-3 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
-                    {line.open_qty != null ? line.open_qty.toLocaleString() : '—'}
-                  </td>
-                  {/* Value USD */}
-                  <td className="py-3 px-3 text-xs text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
-                    {formatCurrency(line.open_po_value_usd)}
-                  </td>
-                  {/* Original Del. Date */}
-                  <td className="py-3 px-3 text-xs text-slate-600 whitespace-nowrap">
-                    {formatDate(line.delivery_date)}
-                  </td>
-                  {/* New Del. Date */}
-                  <td className="py-3 px-3 text-xs whitespace-nowrap">
-                    {line.new_delivery_date
-                      ? <span className="font-medium text-[#307c4c]">{formatDate(line.new_delivery_date)}</span>
-                      : <span className="text-slate-400">—</span>}
-                  </td>
-                  {/* DS Status */}
-                  <td className="py-3 px-3 whitespace-nowrap">
-                    <DsStatusBadge code={line.current_status} />
-                  </td>
-                  {/* Supplier Comments */}
-                  <td className="py-3 px-3 text-xs text-slate-600 max-w-[180px]">
-                    <span className="block whitespace-pre-wrap break-words leading-relaxed">
-                      {line.supplier_comments || <span className="text-slate-400 italic">—</span>}
-                    </span>
-                  </td>
-                  {/* Buyer Comments — editable */}
-                  <td className="py-3 px-3 align-top">
-                    <BuyerCommentCell
-                      value={buyerComments[commentKey] ?? ''}
-                      onChange={val => onCommentChange(commentKey, val)}
-                      onBlur={() => onCommentBlur(commentKey, line.po_number, line.po_line, supplier.expedite_token)}
-                      saveStatus={saveStates[commentKey] ?? 'idle'}
-                    />
-                  </td>
-                  {/* Actions — placeholder */}
-                  <td className="py-3 px-3 whitespace-nowrap">
-                    <span className="text-slate-300 text-xs">—</span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {/* ── PO groups ── */}
+      {isExpanded && poGroups.map(({ po_number, lines, totalValue }) => {
+        const poKey      = `${po_number}|${supplier.expedite_token}`;
+        const isPOOpen   = expandedPOs.has(poKey);
+
+        return (
+          <div key={po_number}>
+            {/* PO parent row */}
+            <div
+              onClick={() => togglePO(poKey)}
+              className="flex items-center gap-3 px-4 py-[10px] bg-[#f8fafc] border-b border-[#e2e8f0] cursor-pointer hover:bg-slate-100/80 transition-colors select-none"
+            >
+              <Chevron open={isPOOpen} />
+              <span className="text-[13px] font-bold text-slate-700 font-mono whitespace-nowrap">{po_number}</span>
+              <span className="px-2 py-0.5 bg-slate-200/80 text-slate-500 text-[10px] font-medium rounded-full whitespace-nowrap">
+                {lines.length} line{lines.length !== 1 ? 's' : ''}
+              </span>
+              <span className="ml-auto text-[13px] font-semibold text-[#307c4c] whitespace-nowrap">
+                {formatCurrency(totalValue)}
+              </span>
+            </div>
+
+            {/* Line item rows */}
+            {isPOOpen && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse" style={{ minWidth: '1380px' }}>
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                      <th className="py-2.5 pl-10 pr-3 whitespace-nowrap">PO Number</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Line</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">SAP MAT ID</th>
+                      <th className="py-2.5 px-3">Description</th>
+                      <th className="py-2.5 px-3 text-right whitespace-nowrap">Open QTY</th>
+                      <th className="py-2.5 px-3 text-right whitespace-nowrap">Value (USD)</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Original Del. Date</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">New Del. Date</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">DS Status</th>
+                      <th className="py-2.5 px-3">Supplier Comments</th>
+                      <th className="py-2.5 px-3">Buyer Comments</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {lines.map((line, idx) => {
+                      const commentKey = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
+                      return (
+                        <tr key={idx} className="hover:bg-[#307c4c]/5 transition-colors">
+                          {/* PO Number — 32px left indent */}
+                          <td className="py-3 pl-10 pr-3 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
+                            {line.po_number}
+                          </td>
+                          {/* Line */}
+                          <td className="py-3 px-3 text-xs text-slate-500 whitespace-nowrap">
+                            {line.po_line || '—'}
+                          </td>
+                          {/* SAP MAT ID */}
+                          <td className="py-3 px-3 font-mono text-xs text-slate-500 whitespace-nowrap">
+                            {line.sap_mat_id?.trim()
+                              ? line.sap_mat_id
+                              : <span className="text-gray-400 italic text-xs">{line.account_classification_description?.trim() || 'N/A'}</span>}
+                          </td>
+                          {/* Description */}
+                          <td className="py-3 px-3 text-xs text-slate-600 max-w-[200px]">
+                            <span className="block truncate" title={line.item_description ?? ''}>
+                              {line.item_description || '—'}
+                            </span>
+                          </td>
+                          {/* Open QTY */}
+                          <td className="py-3 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+                            {line.open_qty != null ? line.open_qty.toLocaleString() : '—'}
+                          </td>
+                          {/* Value USD */}
+                          <td className="py-3 px-3 text-xs text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                            {formatCurrency(line.open_po_value_usd)}
+                          </td>
+                          {/* Original Del. Date */}
+                          <td className="py-3 px-3 text-xs text-slate-600 whitespace-nowrap">
+                            {formatDate(line.delivery_date)}
+                          </td>
+                          {/* New Del. Date */}
+                          <td className="py-3 px-3 text-xs whitespace-nowrap">
+                            {line.new_delivery_date
+                              ? <span className="font-medium text-[#307c4c]">{formatDate(line.new_delivery_date)}</span>
+                              : <span className="text-slate-400">—</span>}
+                          </td>
+                          {/* DS Status */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <DsStatusBadge code={line.current_status} />
+                          </td>
+                          {/* Supplier Comments */}
+                          <td className="py-3 px-3 text-xs text-slate-600 max-w-[180px]">
+                            <span className="block whitespace-pre-wrap break-words leading-relaxed">
+                              {line.supplier_comments || <span className="text-slate-400 italic">—</span>}
+                            </span>
+                          </td>
+                          {/* Buyer Comments — editable */}
+                          <td className="py-3 px-3 align-top">
+                            <BuyerCommentCell
+                              value={buyerComments[commentKey] ?? ''}
+                              onChange={val => onCommentChange(commentKey, val)}
+                              onBlur={() => onCommentBlur(commentKey, line.po_number, line.po_line, supplier.expedite_token)}
+                              saveStatus={saveStates[commentKey] ?? 'idle'}
+                            />
+                          </td>
+                          {/* Actions */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <span className="text-slate-300 text-xs">—</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -322,8 +397,14 @@ function SessionCard({
   session,
   isExpanded,
   onToggle,
+  onExpandAll,
+  onCollapseAll,
   isSelected,
   onSelectToggle,
+  expandedSuppliers,
+  toggleSupplier,
+  expandedPOs,
+  togglePO,
   buyerComments,
   onCommentChange,
   onCommentBlur,
@@ -333,8 +414,14 @@ function SessionCard({
   session: SessionData;
   isExpanded: boolean;
   onToggle: () => void;
+  onExpandAll: () => void;
+  onCollapseAll: () => void;
   isSelected: boolean;
   onSelectToggle: () => void;
+  expandedSuppliers: Set<string>;
+  toggleSupplier: (key: string) => void;
+  expandedPOs: Set<string>;
+  togglePO: (key: string) => void;
   buyerComments: Record<string, string>;
   onCommentChange: (key: string, val: string) => void;
   onCommentBlur: (key: string, po_number: string, po_line: string, expedite_token: string) => void;
@@ -359,21 +446,32 @@ function SessionCard({
             onClick={e => e.stopPropagation()}
             className="h-4 w-4 rounded border-slate-300 text-[#307c4c] focus:ring-[#307c4c] cursor-pointer shrink-0"
           />
-          {/* Session title */}
+          {/* Session expand toggle */}
           <button
             onClick={onToggle}
             className="flex items-center gap-2 text-left group min-w-0"
           >
-            <svg
-              className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
-              viewBox="0 0 20 20" fill="currentColor"
-            >
-              <path fillRule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
+            <Chevron open={isExpanded} />
             <span className="text-sm font-semibold text-slate-800 group-hover:text-[#307c4c] transition-colors truncate">
               Session — {formatSessionDate(session.dispatched_at)}
             </span>
           </button>
+          {/* Expand All / Collapse All */}
+          <span className="hidden sm:flex items-center gap-1.5 ml-1">
+            <button
+              onClick={e => { e.stopPropagation(); onExpandAll(); }}
+              className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors cursor-pointer px-1"
+            >
+              Expand All
+            </button>
+            <span className="text-gray-300 select-none text-xs">·</span>
+            <button
+              onClick={e => { e.stopPropagation(); onCollapseAll(); }}
+              className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors cursor-pointer px-1"
+            >
+              Collapse All
+            </button>
+          </span>
         </div>
 
         {/* Response rate badge */}
@@ -400,16 +498,24 @@ function SessionCard({
       {/* ── Expandable body ── */}
       {isExpanded && (
         <div className="border-t border-slate-100">
-          {session.suppliers.map(supplier => (
-            <SupplierSection
-              key={supplier.expedite_token}
-              supplier={supplier}
-              buyerComments={buyerComments}
-              onCommentChange={onCommentChange}
-              onCommentBlur={onCommentBlur}
-              saveStates={saveStates}
-            />
-          ))}
+          {session.suppliers.map(supplier => {
+            const supplierKey = `${session.session_ref}|${supplier.expedite_token}`;
+            return (
+              <SupplierSection
+                key={supplier.expedite_token}
+                supplier={supplier}
+                supplierKey={supplierKey}
+                isExpanded={expandedSuppliers.has(supplierKey)}
+                onToggle={() => toggleSupplier(supplierKey)}
+                expandedPOs={expandedPOs}
+                togglePO={togglePO}
+                buyerComments={buyerComments}
+                onCommentChange={onCommentChange}
+                onCommentBlur={onCommentBlur}
+                saveStates={saveStates}
+              />
+            );
+          })}
 
           {/* Export button row */}
           <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/40 flex justify-end">
@@ -438,8 +544,13 @@ function SessionCard({
 /* ─── Main client component ──────────────────────────────────── */
 
 export default function ReconciliationClient({ userEmail, userName }: { userEmail: string; userName: string }) {
-  const [isSidebarOpen, setIsSidebarOpen]     = useState(false);
-  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set()); // all collapsed
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // All three collapse sets start empty (everything collapsed)
+  const [expandedSessions,  setExpandedSessions]  = useState<Set<string>>(new Set());
+  const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set());
+  const [expandedPOs,       setExpandedPOs]       = useState<Set<string>>(new Set());
+
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
 
   /* ── Session data — fetched client-side so refresh is possible ── */
@@ -449,8 +560,7 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
 
   /* ── Buyer comment state ── */
   const [buyerComments, setBuyerComments] = useState<Record<string, string>>({});
-
-  const [saveStates, setSaveStates] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
+  const [saveStates, setSaveStates]       = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
 
   /* ── Fetch / refresh sessions ─────────────────────────────── */
   const fetchSessions = useCallback(async () => {
@@ -480,9 +590,9 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
   /* ── Select-all logic ─────────────────────────────────────── */
-  const selectAllRef  = useRef<HTMLInputElement>(null);
-  const allSelected   = sessions.length > 0 && sessions.every(s => selectedSessions.has(s.session_ref));
-  const someSelected  = sessions.some(s => selectedSessions.has(s.session_ref));
+  const selectAllRef    = useRef<HTMLInputElement>(null);
+  const allSelected     = sessions.length > 0 && sessions.every(s => selectedSessions.has(s.session_ref));
+  const someSelected    = sessions.some(s => selectedSessions.has(s.session_ref));
   const isIndeterminate = someSelected && !allSelected;
 
   useEffect(() => {
@@ -498,11 +608,74 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
     );
   }
 
-  /* ── Expand / collapse ────────────────────────────────────── */
-  function toggleExpanded(ref: string) {
+  /* ── Collapse/expand toggles ──────────────────────────────── */
+  function toggleSession(ref: string) {
     setExpandedSessions(prev => {
       const next = new Set(prev);
       next.has(ref) ? next.delete(ref) : next.add(ref);
+      return next;
+    });
+  }
+
+  function toggleSupplier(key: string) {
+    setExpandedSuppliers(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  function togglePO(key: string) {
+    setExpandedPOs(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  /* ── Expand All / Collapse All for a session ─────────────── */
+  function expandAllForSession(session: SessionData) {
+    setExpandedSessions(prev => new Set([...prev, session.session_ref]));
+    setExpandedSuppliers(prev => {
+      const next = new Set(prev);
+      for (const sup of session.suppliers) {
+        next.add(`${session.session_ref}|${sup.expedite_token}`);
+      }
+      return next;
+    });
+    setExpandedPOs(prev => {
+      const next = new Set(prev);
+      for (const sup of session.suppliers) {
+        const poNumbers = new Set(sup.lines.map(l => l.po_number));
+        for (const po of poNumbers) {
+          next.add(`${po}|${sup.expedite_token}`);
+        }
+      }
+      return next;
+    });
+  }
+
+  function collapseAllForSession(session: SessionData) {
+    setExpandedSessions(prev => {
+      const next = new Set(prev);
+      next.delete(session.session_ref);
+      return next;
+    });
+    setExpandedSuppliers(prev => {
+      const next = new Set(prev);
+      for (const sup of session.suppliers) {
+        next.delete(`${session.session_ref}|${sup.expedite_token}`);
+      }
+      return next;
+    });
+    setExpandedPOs(prev => {
+      const next = new Set(prev);
+      for (const sup of session.suppliers) {
+        const poNumbers = new Set(sup.lines.map(l => l.po_number));
+        for (const po of poNumbers) {
+          next.delete(`${po}|${sup.expedite_token}`);
+        }
+      }
       return next;
     });
   }
@@ -582,7 +755,6 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
           if (!isExportable(line)) continue;
           const key      = `${line.po_number}|${line.po_line}`;
           const existing = lineMap.get(key);
-          // ISO strings compare lexicographically in the correct chronological order
           if (!existing || session.dispatched_at > existing.dispatched_at) {
             lineMap.set(key, { line, expedite_token: supplier.expedite_token, dispatched_at: session.dispatched_at });
           }
@@ -612,10 +784,10 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
 
   const selectedCount = selectedSessions.size;
 
-  /* Deduplicated exportable line count across selected sessions — used for button label */
+  /* Deduplicated exportable line count across selected sessions */
   const selectedExportableCount = useMemo(() => {
     if (selectedSessions.size === 0) return 0;
-    const seen = new Map<string, string>(); // lineKey -> dispatched_at
+    const seen = new Map<string, string>();
     for (const session of sessions) {
       if (!selectedSessions.has(session.session_ref)) continue;
       for (const supplier of session.suppliers) {
@@ -761,7 +933,9 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
                     key={session.session_ref}
                     session={session}
                     isExpanded={expandedSessions.has(session.session_ref)}
-                    onToggle={() => toggleExpanded(session.session_ref)}
+                    onToggle={() => toggleSession(session.session_ref)}
+                    onExpandAll={() => expandAllForSession(session)}
+                    onCollapseAll={() => collapseAllForSession(session)}
                     isSelected={selectedSessions.has(session.session_ref)}
                     onSelectToggle={() => {
                       setSelectedSessions(prev => {
@@ -770,6 +944,10 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
                         return next;
                       });
                     }}
+                    expandedSuppliers={expandedSuppliers}
+                    toggleSupplier={toggleSupplier}
+                    expandedPOs={expandedPOs}
+                    togglePO={togglePO}
                     buyerComments={buyerComments}
                     onCommentChange={handleCommentChange}
                     onCommentBlur={handleCommentBlur}
