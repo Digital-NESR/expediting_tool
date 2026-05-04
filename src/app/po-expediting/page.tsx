@@ -15,7 +15,7 @@ const deliveryStatusMap: Record<string, string> = {
   "DS01": "DS01 - PO Copy Not Received",
   "DS02": "DS02 - PO Rejected",
   "DS03": "DS03 - PO Pending Revision",
-  "DS04": "DS04 - PO Acknowledged - Delivery On time",
+  "DS04": "DS04 - PO Acknowledged - Delivery On Time",
   "DS05": "DS05 - PO Acknowledged - Delivery Delay",
   "DS06": "DS06 - Delivery On Hold - Pending Import Permit",
   "DS07": "DS07 - PO Acknowledged - No response",
@@ -30,7 +30,7 @@ const deliveryStatusMap: Record<string, string> = {
   "DS16": "DS16 - Ready for Collection",
   "DS17": "DS17 - Collected by Freight Forwarder",
   "DS18": "DS18 - Customs Clearance",
-  "DS19": "DS19 - Products Delivered to Base "
+  "DS19": "DS19 - Products Delivered to Base"
 };
 
 /* ─── Types ───────────────────────────────────────────────── */

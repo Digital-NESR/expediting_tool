@@ -8,9 +8,9 @@ import type { SessionData, SupplierGroup, LineData } from '@/app/actions/reconci
 import { DS_DESCRIPTIONS } from '@/lib/constants';
 
 /* ─── DS-code colour sets ────────────────────────────────────── */
-const DS_GREEN  = new Set(['DS04', 'DS11', 'DS12', 'DS13', 'DS18']);
-const DS_AMBER  = new Set(['DS05', 'DS14', 'DS15', 'DS16', 'DS17']);
-const DS_RED    = new Set(['DS01', 'DS02', 'DS03', 'DS06', 'DS07', 'DS08', 'DS09', 'DS10']);
+const DS_GREEN  = new Set(['DS04', 'DS12', 'DS13', 'DS14', 'DS19']);
+const DS_AMBER  = new Set(['DS05', 'DS15', 'DS16', 'DS17', 'DS18']);
+const DS_RED    = new Set(['DS01', 'DS02', 'DS03', 'DS06', 'DS07', 'DS08', 'DS09', 'DS10', 'DS11']);
 
 /* ─── Helper functions ───────────────────────────────────────── */
 
