@@ -194,9 +194,9 @@ export async function prepareAllExpediteDispatches(
         supplierLink: `${appUrl}/supplier-update?token=${group.expediteToken}`,
         poLines: group.poLines.map((line) => ({
           poNumber: line.po_number,
-          poLine: line.po_line,
-          description: line.item_description,
-          openQty: line.open_qty,
+          description: line.item_description
+            ? line.item_description.slice(0, 50)
+            : '',
           valueUsd: line.open_po_value_usd,
           deliveryDate: line.delivery_date,
         })),
