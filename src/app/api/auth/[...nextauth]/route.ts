@@ -98,14 +98,18 @@ export const authOptions: NextAuthOptions = {
           token.isAdmin = adminEmails.includes((token.email as string).toLowerCase());
 
           const result = await pool.query(
-            `SELECT status, approved_countries FROM access_requests WHERE user_email = $1 AND tool_name = 'po_expediting'`,
+            `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
             [token.email]
           );
 
           if (result.rows.length > 0) {
             const row = result.rows[0];
             const s = row.status.toLowerCase() as string;
-            const status = s === 'pending' ? 'pending' : s === 'approved' ? 'approved' : 'denied';
+            const status =
+              s === 'pending'  ? 'pending'  :
+              s === 'approved' ? 'approved' :
+              s === 'revoked'  ? 'revoked'  :
+              s === 'rejected' ? 'rejected' : 'denied';
             token.toolAccess = {
               po_expediting: {
                 status,

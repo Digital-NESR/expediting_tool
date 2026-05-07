@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 
-type ToolStatus = 'new' | 'pending' | 'approved' | 'denied';
+type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 
 /* ─── Spinner ────────────────────────────────────────────────── */
 
@@ -244,39 +244,6 @@ function PendingModal({
   );
 }
 
-/* ─── Denied Modal ───────────────────────────────────────────── */
-
-function DeniedModal({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div className="relative bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm z-10 animate-in fade-in zoom-in-95 duration-200 p-6 text-center">
-
-        <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-          </svg>
-        </div>
-
-        <h2 className="text-base font-bold text-slate-900 mb-2">Access Denied</h2>
-        <p className="text-sm text-slate-500 leading-relaxed mb-5">
-          Your access request for PO Expediting has been denied. Please contact your administrator for more information.
-        </p>
-
-        <button
-          onClick={onClose}
-          className="w-full py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-        >
-          Close
-        </button>
-
-      </div>
-    </div>
-  );
-}
 
 /* ─── Access Status Badge ────────────────────────────────────── */
 
@@ -301,13 +268,23 @@ function AccessBadge({ status, isAdmin }: { status: ToolStatus; isAdmin: boolean
       </span>
     );
   }
-  if (status === 'denied') {
+  if (status === 'revoked') {
     return (
-      <span className="inline-flex items-center gap-1.5 bg-red-100 border border-red-200 text-red-700 px-2.5 py-1 rounded-full text-[11px] font-semibold">
+      <span className="inline-flex items-center gap-1.5 bg-amber-100 border border-amber-200 text-amber-700 px-2.5 py-1 rounded-full text-[11px] font-semibold">
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+        </svg>
+        Access Revoked
+      </span>
+    );
+  }
+  if (status === 'rejected' || status === 'denied') {
+    return (
+      <span className="inline-flex items-center gap-1.5 bg-amber-100 border border-amber-200 text-amber-700 px-2.5 py-1 rounded-full text-[11px] font-semibold">
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
-        Access Denied
+        {status === 'rejected' ? 'Access Rejected' : 'Access Denied'}
       </span>
     );
   }
@@ -334,6 +311,7 @@ function POExpeditingCard({
   onClick: () => void;
 }) {
   const canOpen = isAdmin || status === 'approved';
+  const canReapply = status === 'denied' || status === 'revoked' || status === 'rejected';
 
   return (
     <button
@@ -355,12 +333,17 @@ function POExpeditingCard({
         </p>
       </div>
 
-      {/* Footer row: badge + open arrow */}
+      {/* Footer row: badge + open arrow / reapply link */}
       <div className="flex items-center justify-between mt-auto">
         <AccessBadge status={status} isAdmin={isAdmin} />
         {canOpen && (
           <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">
             Open →
+          </span>
+        )}
+        {canReapply && (
+          <span className="text-xs font-semibold text-amber-600 group-hover:underline">
+            Reapply for access →
           </span>
         )}
       </div>
@@ -403,7 +386,7 @@ export default function HomePage() {
   const { data: session, update } = useSession();
   const router = useRouter();
 
-  type ModalType = 'request-access' | 'pending' | 'denied' | null;
+  type ModalType = 'request-access' | 'pending' | null;
   const [modal, setModal] = useState<ModalType>(null);
 
   const rawName = session?.user?.name ?? '';
@@ -421,7 +404,7 @@ export default function HomePage() {
       return;
     }
     if (poStatus === 'pending') { setModal('pending'); return; }
-    if (poStatus === 'denied')  { setModal('denied');  return; }
+    // 'new', 'denied', 'revoked', 'rejected' → open access request / reapply modal
     setModal('request-access');
   }
 
@@ -525,9 +508,6 @@ export default function HomePage() {
           onClose={() => setModal(null)}
           onRefresh={handleRefreshStatus}
         />
-      )}
-      {modal === 'denied' && (
-        <DeniedModal onClose={() => setModal(null)} />
       )}
 
     </div>

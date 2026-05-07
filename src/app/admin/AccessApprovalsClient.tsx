@@ -292,20 +292,6 @@ export default function AccessApprovalsClient({
         </button>
       </div>
 
-      {/* ── Tool selector ── */}
-      <div className="flex items-center gap-3">
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-          Tool
-        </label>
-        <select
-          value="po_expediting"
-          onChange={() => {/* future: parameterise queries per tool */}}
-          className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-[#307c4c] focus:border-[#307c4c] px-3 py-2"
-        >
-          <option value="po_expediting">PO Expediting</option>
-        </select>
-      </div>
-
       {/* ── Pending Requests ── */}
       <div>
         <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">

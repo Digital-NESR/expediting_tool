@@ -66,7 +66,7 @@ export async function getCurrentAccessRequest(
       `SELECT user_email, status, requested_countries, approved_countries,
               requested_at
          FROM access_requests
-        WHERE user_email = $1 AND tool_name = 'po_expediting'`,
+        WHERE user_email = $1`,
       [userEmail],
     );
     if (rows.length === 0) return null;
@@ -100,16 +100,17 @@ export async function submitAccessRequest(
     const department = session?.user?.department ?? null;
 
     await pool.query(
-      `INSERT INTO access_requests (user_email, display_name, job_title, department, status, requested_countries, tool_name, requested_at)
-            VALUES ($1, $3, $4, $5, 'Pending', $2, 'po_expediting', NOW())
-       ON CONFLICT (user_email, tool_name)
+      `INSERT INTO access_requests (user_email, display_name, job_title, department, status, requested_countries, requested_at)
+            VALUES ($1, $3, $4, $5, 'Pending', $2, NOW())
+       ON CONFLICT (user_email)
        DO UPDATE SET
-         display_name        = $3,
-         job_title           = $4,
-         department          = $5,
+         requested_countries = EXCLUDED.requested_countries,
          status              = 'Pending',
-         requested_countries = $2,
-         requested_at        = NOW()`,
+         requested_at        = NOW(),
+         reviewed_at         = NULL,
+         reviewed_by         = NULL,
+         notes               = NULL,
+         approved_countries  = NULL`,
       [userEmail, countries, displayName, jobTitle, department],
     );
     // Fire-and-forget admin notification email

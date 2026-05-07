@@ -1,7 +1,7 @@
 import "next-auth";
 
 type ToolAccessEntry = {
-  status: 'new' | 'pending' | 'approved' | 'denied';
+  status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
   approvedCountries: string[];
 };
 

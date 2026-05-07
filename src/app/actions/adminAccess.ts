@@ -30,7 +30,6 @@ export async function getAccessRequests(): Promise<AccessRequestRow[]> {
         ar.requested_at,
         ar.reviewed_at
       FROM access_requests ar
-      WHERE ar.tool_name = 'po_expediting'
       ORDER BY
         CASE ar.status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END,
         ar.requested_at DESC
@@ -57,7 +56,7 @@ export async function getAccessRequests(): Promise<AccessRequestRow[]> {
 export async function getPendingAccessCount(): Promise<number> {
   try {
     const { rows } = await pool.query(
-      `SELECT COUNT(*) AS cnt FROM access_requests WHERE status = 'Pending' AND tool_name = 'po_expediting'`,
+      `SELECT COUNT(*) AS cnt FROM access_requests WHERE status = 'Pending'`,
     );
     return Number(rows[0]?.cnt ?? 0);
   } catch (err) {
@@ -81,7 +80,7 @@ export async function approveAccessRequest(
           SET status             = 'Approved',
               approved_countries = $2,
               reviewed_at        = NOW()
-        WHERE user_email = $1 AND tool_name = 'po_expediting'`,
+        WHERE user_email = $1`,
       [userEmail, countries],
     );
     return { success: true };
@@ -102,7 +101,7 @@ export async function rejectAccessRequest(
           SET status             = 'Denied',
               approved_countries = '{}',
               reviewed_at        = NOW()
-        WHERE user_email = $1 AND tool_name = 'po_expediting'`,
+        WHERE user_email = $1`,
       [userEmail],
     );
     return { success: true };
@@ -123,7 +122,7 @@ export async function revokeAccess(
           SET status             = 'Denied',
               approved_countries = '{}',
               reviewed_at        = NOW()
-        WHERE user_email = $1 AND tool_name = 'po_expediting'`,
+        WHERE user_email = $1`,
       [userEmail],
     );
     return { success: true };
@@ -147,7 +146,7 @@ export async function editUserAccess(
       `UPDATE access_requests
           SET approved_countries = $2,
               reviewed_at        = NOW()
-        WHERE user_email = $1 AND tool_name = 'po_expediting'`,
+        WHERE user_email = $1`,
       [userEmail, countries],
     );
     return { success: true };
