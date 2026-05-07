@@ -40,9 +40,10 @@ export interface RecentSession {
 
 export interface WeeklyRateRow {
   week: string;
+  lines_expedited: number;
+  lines_responded: number;
   avg_response_rate: number | null;
   sessions_count: number;
-  total_lines: number;
 }
 
 export interface SupplierResponseTimeRow {
@@ -147,15 +148,15 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
         LIMIT 20
       `),
 
-      /* ── Weekly response rate trend ── */
+      /* ── Weekly expediting vs responses trend ── */
       pool.query(`
         SELECT
-          DATE_TRUNC('week', dispatched_at) AS week,
-          ROUND(AVG(response_rate_pct), 1)  AS avg_response_rate,
-          COUNT(*)                           AS sessions_count,
-          SUM(total_po_lines)               AS total_lines
+          DATE_TRUNC('week', dispatched_at)  AS week,
+          SUM(total_po_lines)                AS lines_expedited,
+          SUM(lines_responded)               AS lines_responded,
+          ROUND(AVG(response_rate_pct), 1)   AS avg_response_rate,
+          COUNT(*)                           AS sessions_count
         FROM expediting_sessions
-        WHERE dispatched_at >= NOW() - INTERVAL '12 weeks'
         GROUP BY DATE_TRUNC('week', dispatched_at)
         ORDER BY week ASC
       `),
@@ -224,9 +225,10 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
 
       weeklyRateData: weeklyRes.rows.map(r => ({
         week:              toStr(r.week) ?? '',
+        lines_expedited:   Number(r.lines_expedited ?? 0),
+        lines_responded:   Number(r.lines_responded ?? 0),
         avg_response_rate: r.avg_response_rate != null ? Number(r.avg_response_rate) : null,
         sessions_count:    Number(r.sessions_count ?? 0),
-        total_lines:       Number(r.total_lines ?? 0),
       })),
 
       supplierResponseTime: responseTimeRes.rows.map(r => ({

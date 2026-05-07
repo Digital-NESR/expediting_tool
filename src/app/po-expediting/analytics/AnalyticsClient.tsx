@@ -7,7 +7,7 @@ import DetailModal from '@/components/DetailModal';
 import { DS_DESCRIPTIONS } from '@/lib/constants';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell,
+  ResponsiveContainer, Cell, LabelList, Legend,
 } from 'recharts';
 import { getMyExpeditingAnalytics, getSupplierDetail, getSessionDetail } from '@/app/actions/analytics';
 import type {
@@ -222,29 +222,67 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 function MyResponseRateLineChart({ data }: { data: MyWeeklyRateRow[] }) {
   const chartData = data.map(d => ({
     week: formatWeek(d.week),
-    rate: d.avg_response_rate,
+    linesExpedited: d.lines_expedited,
+    linesResponded: d.lines_responded,
   }));
 
+  const showLabels = chartData.length <= 12;
+
   return (
-    <ChartCard title="My Response Rate Over Time">
+    <ChartCard title="Expediting vs Responses by Week">
       <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+        <LineChart data={chartData} margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-          <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-          <YAxis
-            tick={{ fontSize: 11, fill: '#94a3b8' }}
-            domain={[0, 100]}
-            tickFormatter={(v: unknown) => `${v}%`}
+          <XAxis dataKey="week" tick={{ fontSize: 12, fill: '#94a3b8' }} />
+          <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} />
+          <Tooltip
+            formatter={(value: unknown, name: string) => [
+              Number(value).toLocaleString(),
+              name === 'linesExpedited' ? 'Lines Expedited' : 'Lines Responded',
+            ]}
           />
-          <Tooltip formatter={(v: unknown) => [`${v}%`, 'Response Rate']} />
+          <Legend
+            formatter={(value) =>
+              value === 'linesExpedited' ? 'Lines Expedited' : 'Lines Responded'
+            }
+          />
           <Line
             type="monotone"
-            dataKey="rate"
+            dataKey="linesExpedited"
             stroke="#059669"
             strokeWidth={2}
-            dot={{ r: 3, fill: '#059669' }}
-            activeDot={{ r: 5 }}
-          />
+            dot={{ r: 4, fill: '#059669' }}
+            activeDot={{ r: 6 }}
+            name="linesExpedited"
+          >
+            {showLabels && (
+              <LabelList
+                dataKey="linesExpedited"
+                position="top"
+                formatter={(v: unknown) => Number(v).toLocaleString()}
+                style={{ fontSize: 11, fill: '#059669', fontWeight: 600 }}
+              />
+            )}
+          </Line>
+          <Line
+            type="monotone"
+            dataKey="linesResponded"
+            stroke="#3b82f6"
+            strokeWidth={2}
+            strokeDasharray="5 5"
+            dot={{ r: 4, fill: '#3b82f6' }}
+            activeDot={{ r: 6 }}
+            name="linesResponded"
+          >
+            {showLabels && (
+              <LabelList
+                dataKey="linesResponded"
+                position="bottom"
+                formatter={(v: unknown) => Number(v).toLocaleString()}
+                style={{ fontSize: 11, fill: '#3b82f6', fontWeight: 600 }}
+              />
+            )}
+          </Line>
         </LineChart>
       </ResponsiveContainer>
     </ChartCard>
