@@ -56,7 +56,7 @@ export default function AlertsPage() {
 
   const groups = GROUPS.map(g => ({
     ...g,
-    items: open.filter(s => s.alert === g.key).sort((a, b) => a.daysToExpiry - b.daysToExpiry),
+    items: open.filter(s => s.alert === g.key).sort((a, b) => (a.daysToExpiry ?? 0) - (b.daysToExpiry ?? 0)),
   }));
 
   return (
