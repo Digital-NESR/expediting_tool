@@ -136,7 +136,7 @@ export default function AlertsPage() {
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
                           <div className="font-semibold text-[12.5px]" style={{ color: BUCKET_COLOR[g.key] }}>
-                            {s.daysToExpiry < 0 ? `${-s.daysToExpiry}d overdue` : `${s.daysToExpiry}d left`}
+                            {(s.daysToExpiry ?? 0) < 0 ? `${-(s.daysToExpiry ?? 0)}d overdue` : `${s.daysToExpiry ?? 0}d left`}
                           </div>
                           <div className="text-[11px] text-slate-400">{fmtDate(s.extended || s.expiry)}</div>
                         </td>
