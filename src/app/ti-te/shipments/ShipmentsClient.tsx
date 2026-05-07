@@ -3,35 +3,28 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
-import {
-  SHIPMENTS, fmtDate, sarFmt, ALERT_LABEL,
-  type AlertLevel,
-} from '@/data/ti-te-mock-data';
+import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, BUCKET_HEX, fmtDate, sarFmt, calcDays } from '@/lib/tite-utils';
+import type { Shipment } from '@/types/tite';
 
-const ALERT_PILL: Record<AlertLevel, string> = {
-  overdue: 'bg-red-100 text-red-700 border border-red-200',
-  urgent:  'bg-orange-100 text-orange-700 border border-orange-200',
-  action:  'bg-amber-100 text-amber-700 border border-amber-200',
-  plan:    'bg-blue-100 text-blue-700 border border-blue-200',
-  info:    'bg-cyan-100 text-cyan-700 border border-cyan-200',
-  ok:      'bg-green-100 text-green-700 border border-green-200',
-  closed:  'bg-slate-100 text-slate-500 border border-slate-200',
-};
-const ALERT_DOT: Record<AlertLevel, string> = {
-  overdue: 'bg-red-500', urgent: 'bg-orange-500', action: 'bg-amber-500',
-  plan: 'bg-blue-500', info: 'bg-cyan-500', ok: 'bg-green-600', closed: 'bg-slate-400',
-};
+/* ─── Error / empty states ───────────────────────────────────── */
 
-function StatusPill({ alert }: { alert: AlertLevel }) {
+function DbError() {
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${ALERT_PILL[alert]}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${ALERT_DOT[alert]}`} />
-      {ALERT_LABEL[alert]}
-    </span>
+    <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50 p-6">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-10 text-center max-w-sm">
+        <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+          <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+        </div>
+        <p className="font-semibold text-slate-900 mb-1">Database connection unavailable</p>
+        <p className="text-sm text-slate-500">Please contact your administrator.</p>
+      </div>
+    </div>
   );
 }
 
-function MotIcon({ mot }: { mot: string }) {
+/* ─── MOT icon ───────────────────────────────────────────────── */
+
+function MotIcon({ mot }: { mot: string | null }) {
   const m = (mot || '').toLowerCase();
   if (m.includes('air')) return (
     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -57,40 +50,47 @@ function MotIcon({ mot }: { mot: string }) {
   );
 }
 
-const ALERT_FILTERS: AlertLevel[] = ['overdue', 'urgent', 'action', 'plan', 'info', 'ok', 'closed'];
+const ALERT_FILTERS = ['overdue', 'urgent', 'action', 'plan', 'info', 'ok', 'closed'] as const;
 
-export default function ShipmentsClient() {
+/* ─── Main ───────────────────────────────────────────────────── */
+
+export default function ShipmentsClient({ shipments }: { shipments: Shipment[] | null }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
 
   const [q, setQ] = useState('');
   const [seg, setSeg] = useState('All');
   const [movement, setMovement] = useState('All');
-  const [alertFilter, setAlertFilter] = useState<AlertLevel | 'All'>('All');
+  const [alertFilter, setAlertFilter] = useState<string>('All');
   const [country, setCountry] = useState('All');
 
-  const segments = useMemo(() => ['All', ...Array.from(new Set(SHIPMENTS.map(s => s.segment).filter(Boolean)))], []);
-  const countries = useMemo(() => ['All', ...Array.from(new Set(SHIPMENTS.flatMap(s => [s.from, s.to]).filter(Boolean)))], []);
+  const list = shipments ?? [];
+  const activeCount = list.filter(s => s.status !== 'Closed').length;
+  const urgentCount = list.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
 
-  const rows = useMemo(() => SHIPMENTS.filter(s => {
+  const segments = useMemo(() => ['All', ...Array.from(new Set(list.map(s => s.segment).filter(Boolean) as string[]))], [list]);
+  const countries = useMemo(() => ['All', ...Array.from(new Set(list.flatMap(s => [s.from_country, s.to_country]).filter(Boolean) as string[]))], [list]);
+
+  const rows = useMemo(() => list.filter(s => {
     if (q) {
-      const hay = `${s.id} ${s.invoice} ${s.bayan} ${s.description} ${s.po} ${s.awb}`.toLowerCase();
+      const hay = `${s.id} ${s.invoice_number} ${s.bayan_number} ${s.description} ${s.po_number} ${s.awb_number} ${s.reference_number}`.toLowerCase();
       if (!hay.includes(q.toLowerCase())) return false;
     }
     if (seg !== 'All' && s.segment !== seg) return false;
-    if (movement !== 'All' && s.movement !== movement) return false;
-    if (alertFilter !== 'All' && s.alert !== alertFilter) return false;
-    if (country !== 'All' && s.from !== country && s.to !== country) return false;
+    if (movement !== 'All' && !(s.movement_type || '').toLowerCase().includes(movement.toLowerCase())) return false;
+    if (alertFilter !== 'All' && s.alert_level !== alertFilter) return false;
+    if (country !== 'All' && s.from_country !== country && s.to_country !== country) return false;
     return true;
-  }), [q, seg, movement, alertFilter, country]);
+  }), [list, q, seg, movement, alertFilter, country]);
 
-  const totalDep = rows.reduce((a, s) => a + (s.depositSAR || 0), 0);
+  const totalDep = rows.reduce((a, s) => a + (s.deposit_sar || 0), 0);
+
+  if (shipments === null) return <DbError />;
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
-      <TiteSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <TiteSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} activeCount={activeCount} urgentCount={urgentCount} />
 
-      {/* Top bar */}
       <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center gap-3 shrink-0 sticky top-0 z-30">
         <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -102,16 +102,16 @@ export default function ShipmentsClient() {
       </header>
 
       <main className="max-w-[1500px] mx-auto px-6 pb-16 pt-6">
-        {/* Page header */}
         <div className="flex items-end justify-between gap-4 mb-5">
           <div>
             <p className="text-xs text-slate-400 mb-1">Home / Shipment register</p>
             <h1 className="text-2xl font-bold tracking-tight">Shipment register</h1>
             <p className="text-sm text-slate-500 mt-1">
-              {rows.length} of {SHIPMENTS.length} records · Customs deposit on view: <strong className="tabular-nums">{sarFmt(totalDep)}</strong>
+              {rows.length} of {list.length} records · Customs deposit on view: <strong className="tabular-nums">{sarFmt(totalDep)}</strong>
             </p>
           </div>
           <button
+            onClick={() => router.push('/ti-te/shipments/new')}
             className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
             style={{ background: '#006B0C' }}
           >
@@ -124,12 +124,7 @@ export default function ShipmentsClient() {
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 mb-4 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 flex-1 min-w-[200px]">
             <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-            <input
-              className="flex-1 text-sm outline-none placeholder-slate-400 bg-transparent"
-              placeholder="Search invoice, Bayan, PO, AWB…"
-              value={q}
-              onChange={e => setQ(e.target.value)}
-            />
+            <input className="flex-1 text-sm outline-none placeholder-slate-400 bg-transparent" placeholder="Search reference, invoice, Bayan, PO, AWB…" value={q} onChange={e => setQ(e.target.value)} />
           </div>
           <div className="w-px h-5 bg-slate-200 hidden sm:block" />
           <select className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20" value={seg} onChange={e => setSeg(e.target.value)}>
@@ -144,12 +139,9 @@ export default function ShipmentsClient() {
           <div className="flex-1" />
           <div className="flex flex-wrap gap-1">
             {(['All', ...ALERT_FILTERS] as const).map(a => (
-              <button
-                key={a}
-                onClick={() => setAlertFilter(a as AlertLevel | 'All')}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${alertFilter === a ? 'bg-[#006B0C] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-              >
-                {a === 'All' ? 'All status' : ALERT_LABEL[a as AlertLevel]}
+              <button key={a} onClick={() => setAlertFilter(a)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${alertFilter === a ? 'bg-[#006B0C] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                {a === 'All' ? 'All status' : ALERT_LABEL[a] || a}
               </button>
             ))}
           </div>
@@ -157,74 +149,81 @@ export default function ShipmentsClient() {
 
         {/* Table */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50">
-                  {['#', 'Segment / Description', 'Route', 'MOT', 'Bayan', 'Deposit (SAR)', 'Import date', 'Effective expiry', 'Owner', 'Status', ''].map((h, i) => (
-                    <th key={i} className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-3 py-2.5 whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(s => (
-                  <tr
-                    key={s.id}
-                    onClick={() => router.push(`/ti-te/shipments/${s.id}`)}
-                    className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
-                  >
-                    <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{String(s.id).padStart(3, '0')}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="font-semibold text-slate-900">{s.segment}</div>
-                      <div className="text-[11.5px] text-slate-400 max-w-[220px] truncate">{s.description.slice(0, 55)}{s.description.length > 55 ? '…' : ''}</div>
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span className="flex items-center gap-1 text-[12.5px] text-slate-700">
-                        <span>{s.from || '—'}</span>
-                        <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" /></svg>
-                        <span>{s.to || '—'}</span>
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span className="flex items-center gap-1.5 text-slate-500 text-[12.5px]">
-                        <MotIcon mot={s.mot} />
-                        {s.mot || '—'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{s.bayan || '—'}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-[12px] whitespace-nowrap">{s.depositSAR ? s.depositSAR.toLocaleString() : '—'}</td>
-                    <td className="px-3 py-2.5 text-[12.5px] whitespace-nowrap">{fmtDate(s.importDate)}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <div className="text-[12.5px]">{fmtDate(s.extended || s.expiry)}</div>
-                      {s.extended && (
-                        <div className="text-[11px] text-slate-400 line-through">{fmtDate(s.expiry)}</div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className="w-5 h-5 rounded-full text-white font-bold text-[9px] flex items-center justify-center shrink-0"
-                          style={{ background: '#006B0C' }}
-                        >
-                          {(s.owner || '').split(' ').map(p => p[0]).slice(0, 2).join('')}
-                        </span>
-                        <span className="text-[12px] text-slate-600">{(s.owner || '').split(' ')[0]}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5"><StatusPill alert={s.alert} /></td>
-                    <td className="px-3 py-2.5">
-                      <svg className="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                    </td>
+          {list.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: '#006B0C18' }}>
+                <svg className="w-6 h-6" style={{ color: '#006B0C' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11" /></svg>
+              </div>
+              <p className="font-semibold text-slate-900 mb-1">No shipments found</p>
+              <p className="text-sm text-slate-500 mb-5">Add your first TI-TE shipment to get started.</p>
+              <button onClick={() => router.push('/ti-te/shipments/new')} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#006B0C' }}>Add Shipment</button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50">
+                    {['#', 'Segment / Description', 'Route', 'MOT', 'Bayan', 'Deposit (SAR)', 'Import date', 'Effective expiry', 'Owner', 'Status', ''].map((h, i) => (
+                      <th key={i} className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-3 py-2.5 whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
-                ))}
-                {rows.length === 0 && (
-                  <tr><td colSpan={11} className="px-4 py-10 text-center text-sm text-slate-400">No shipments match your filters.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {rows.map(s => (
+                    <tr key={s.id} onClick={() => router.push(`/ti-te/shipments/${s.id}`)} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
+                      <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{String(s.id).padStart(3, '0')}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-semibold text-slate-900">{s.segment || '—'}</div>
+                        <div className="text-[11.5px] text-slate-400 max-w-[220px] truncate">{(s.description || '').slice(0, 55)}{(s.description || '').length > 55 ? '…' : ''}</div>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="flex items-center gap-1 text-[12.5px] text-slate-700">
+                          <span>{s.from_country || '—'}</span>
+                          <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" /></svg>
+                          <span>{s.to_country || '—'}</span>
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="flex items-center gap-1.5 text-slate-500 text-[12.5px]">
+                          <MotIcon mot={s.mot} />
+                          {s.mot || '—'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{s.bayan_number || '—'}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-[12px] whitespace-nowrap">{s.deposit_sar != null ? s.deposit_sar.toLocaleString() : '—'}</td>
+                      <td className="px-3 py-2.5 text-[12.5px] whitespace-nowrap">{fmtDate(s.import_date)}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <div className="text-[12.5px]">{fmtDate(s.extended_date || s.expiry_date)}</div>
+                        {s.extended_date && (
+                          <div className="text-[11px] text-slate-400 line-through">{fmtDate(s.expiry_date)}</div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full text-white font-bold text-[9px] flex items-center justify-center shrink-0" style={{ background: '#006B0C' }}>
+                            {(s.created_by || '').split(' ').map((p: string) => p[0]).slice(0, 2).join('')}
+                          </span>
+                          <span className="text-[12px] text-slate-600">{(s.created_by || '').split(' ')[0] || '—'}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${ALERT_PILL[s.alert_level] || ''}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${ALERT_DOT[s.alert_level] || 'bg-slate-400'}`} />
+                          {ALERT_LABEL[s.alert_level] || s.alert_level}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <svg className="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                      </td>
+                    </tr>
+                  ))}
+                  {rows.length === 0 && (
+                    <tr><td colSpan={11} className="px-4 py-10 text-center text-sm text-slate-400">No shipments match your filters.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </main>
     </div>

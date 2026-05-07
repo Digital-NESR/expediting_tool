@@ -4,16 +4,17 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
-import { SHIPMENTS } from '@/data/ti-te-mock-data';
 
 interface TiteSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  activeCount?: number;
+  urgentCount?: number;
 }
 
 const ACCENT = '#006B0C';
 
-export default function TiteSidebar({ isOpen, onClose }: TiteSidebarProps) {
+export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount }: TiteSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
 
@@ -35,10 +36,6 @@ export default function TiteSidebar({ isOpen, onClose }: TiteSidebarProps) {
     ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
     : rawName.substring(0, 2).toUpperCase();
   const jobTitle = (session?.user as { jobTitle?: string })?.jobTitle || 'User';
-
-  const open = SHIPMENTS.filter(s => s.status !== 'Closed');
-  const activeCount = open.length;
-  const urgentCount = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert)).length;
 
   const NavLink = ({
     href,
