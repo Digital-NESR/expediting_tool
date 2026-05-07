@@ -1,5 +1,10 @@
 import "next-auth";
 
+type ToolAccessEntry = {
+  status: 'new' | 'pending' | 'approved' | 'denied';
+  approvedCountries: string[];
+};
+
 declare module "next-auth" {
   interface Session {
     user: {
@@ -9,8 +14,10 @@ declare module "next-auth" {
       jobTitle?: string;
       department?: string;
       country?: string;
-      accessStatus?: 'new' | 'pending' | 'approved' | 'denied' | 'admin';
-      approvedCountries?: string[];
+      isAdmin?: boolean;
+      toolAccess?: {
+        po_expediting?: ToolAccessEntry;
+      };
     };
   }
 }
@@ -20,7 +27,9 @@ declare module "next-auth/jwt" {
     jobTitle?: string;
     department?: string;
     country?: string;
-    accessStatus?: 'new' | 'pending' | 'approved' | 'denied' | 'admin';
-    approvedCountries?: string[];
+    isAdmin?: boolean;
+    toolAccess?: {
+      po_expediting?: ToolAccessEntry;
+    };
   }
 }

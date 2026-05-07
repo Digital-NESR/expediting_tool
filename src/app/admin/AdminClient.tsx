@@ -1298,23 +1298,67 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
           className="shrink-0 bg-white"
           style={{ width: 240, borderRight: '1px solid #e5e7eb', padding: '24px 16px' }}
         >
+          {/* TOOLS section label */}
           <p style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>
             Tools
           </p>
 
+          {/* PO Expediting group label */}
+          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+            PO Expediting
+          </div>
+
+          {/* Analytics sub-item */}
           <button
             onClick={() => setSelectedTool('po-expediting')}
             style={{
               ...navItemBase,
+              paddingLeft: 24,
               borderLeft: selectedTool === 'po-expediting' ? '3px solid #059669' : '3px solid transparent',
               background: selectedTool === 'po-expediting' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'po-expediting' ? '#059669' : '#4b5563',
+              color: selectedTool === 'po-expediting' ? '#059669' : '#6b7280',
               cursor: 'pointer',
             }}
           >
-            PO Expediting
+            Analytics
           </button>
 
+          {/* Access Approvals sub-item */}
+          <button
+            onClick={() => setSelectedTool('access-approvals')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'access-approvals' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'access-approvals' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'access-approvals' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            <span>Access Approvals</span>
+            {livePendingCount > 0 && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 18,
+                height: 18,
+                padding: '0 5px',
+                borderRadius: 9999,
+                fontSize: 10,
+                fontWeight: 700,
+                background: '#fef3c7',
+                color: '#b45309',
+                border: '1px solid #fde68a',
+              }}>
+                {livePendingCount}
+              </span>
+            )}
+          </button>
+
+          <div style={{ margin: '8px 0' }} />
+
+          {/* Coming-soon tools */}
           <div
             style={{
               ...navItemBase,
@@ -1342,43 +1386,6 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
               Soon
             </span>
           </div>
-
-          <hr style={{ borderTop: '1px solid #e5e7eb', margin: '16px 0' }} />
-
-          <p style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>
-            System
-          </p>
-
-          <button
-            onClick={() => setSelectedTool('access-approvals')}
-            style={{
-              ...navItemBase,
-              borderLeft: selectedTool === 'access-approvals' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'access-approvals' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'access-approvals' ? '#059669' : '#4b5563',
-              cursor: 'pointer',
-            }}
-          >
-            <span>Access Approvals</span>
-            {livePendingCount > 0 && (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: 18,
-                height: 18,
-                padding: '0 5px',
-                borderRadius: 9999,
-                fontSize: 10,
-                fontWeight: 700,
-                background: '#fef3c7',
-                color: '#b45309',
-                border: '1px solid #fde68a',
-              }}>
-                {livePendingCount}
-              </span>
-            )}
-          </button>
         </aside>
 
         {/* ── Main content ── */}

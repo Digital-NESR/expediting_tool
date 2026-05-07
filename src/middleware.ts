@@ -35,11 +35,18 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Redirect page routes based on access status
-  const status = token.accessStatus as string | undefined;
-  if (status === 'new')     return NextResponse.redirect(new URL('/request-access', req.url));
-  if (status === 'pending') return NextResponse.redirect(new URL('/pending-approval', req.url));
-  if (status === 'denied')  return NextResponse.redirect(new URL('/access-denied', req.url));
+  // /home → always accessible to authenticated users (no redirect)
+
+  // /po-expediting/* → check tool-level access for 'po_expediting'
+  if (pathname.startsWith('/po-expediting')) {
+    const isAdmin = token.isAdmin as boolean | undefined;
+    const toolAccess = token.toolAccess as { po_expediting?: { status: string } } | undefined;
+    const poStatus = toolAccess?.po_expediting?.status;
+
+    if (!isAdmin && poStatus !== 'approved') {
+      return NextResponse.redirect(new URL('/home', req.url));
+    }
+  }
 
   return NextResponse.next();
 }

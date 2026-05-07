@@ -7,11 +7,12 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    const status = session?.user?.accessStatus;
+    const isAdmin = session?.user?.isAdmin;
+    const poAccess = session?.user?.toolAccess?.po_expediting;
 
     let result;
 
-    if (status === 'admin') {
+    if (isAdmin) {
       // Admin sees all POs
       result = await pool.query(
         `SELECT
@@ -36,7 +37,7 @@ export async function GET() {
          FROM sap_open_po_master
          ORDER BY delivery_date ASC`
       );
-    } else if (status === 'approved' && session?.user?.approvedCountries?.length) {
+    } else if (poAccess?.status === 'approved' && poAccess.approvedCountries?.length) {
       // Approved users see only POs from their approved countries
       result = await pool.query(
         `SELECT
@@ -61,7 +62,7 @@ export async function GET() {
          FROM sap_open_po_master
          WHERE country = ANY($1)
          ORDER BY delivery_date ASC`,
-        [session.user.approvedCountries]
+        [poAccess.approvedCountries]
       );
     } else {
       return Response.json({ error: 'Access denied' }, { status: 403 });

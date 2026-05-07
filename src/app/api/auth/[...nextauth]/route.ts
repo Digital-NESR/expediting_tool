@@ -87,37 +87,42 @@ export const authOptions: NextAuthOptions = {
         token.picture = null;
       }
 
-      // Always refresh access status from DB on every token evaluation
+      // Always refresh per-tool access status from DB on every token evaluation
       if (token.email) {
         try {
-          const result = await pool.query(
-            `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
-            [token.email]
-          );
-
           const adminEmails = (process.env.ADMIN_EMAILS || '')
             .split(',')
             .map(e => e.trim().toLowerCase())
             .filter(Boolean);
 
-          if (adminEmails.includes((token.email as string).toLowerCase())) {
-            token.accessStatus = 'admin';
-            token.approvedCountries = [];
-          } else if (result.rows.length > 0) {
+          token.isAdmin = adminEmails.includes((token.email as string).toLowerCase());
+
+          const result = await pool.query(
+            `SELECT status, approved_countries FROM access_requests WHERE user_email = $1 AND tool_name = 'po_expediting'`,
+            [token.email]
+          );
+
+          if (result.rows.length > 0) {
             const row = result.rows[0];
             const s = row.status.toLowerCase() as string;
-            // Normalize 'rejected'/'revoked' → 'denied' so middleware redirects correctly
-            token.accessStatus = s === 'pending' ? 'pending' : s === 'approved' ? 'approved' : 'denied';
-            token.approvedCountries = s === 'approved' ? (row.approved_countries || []) : [];
+            const status = s === 'pending' ? 'pending' : s === 'approved' ? 'approved' : 'denied';
+            token.toolAccess = {
+              po_expediting: {
+                status,
+                approvedCountries: status === 'approved' ? (row.approved_countries || []) : [],
+              },
+            };
           } else {
-            token.accessStatus = 'new';
-            token.approvedCountries = [];
+            token.toolAccess = {
+              po_expediting: { status: 'new', approvedCountries: [] },
+            };
           }
         } catch (err) {
           console.error('JWT access check failed:', err);
-          if (!token.accessStatus) {
-            token.accessStatus = 'new';
-            token.approvedCountries = [];
+          if (!token.toolAccess) {
+            token.toolAccess = {
+              po_expediting: { status: 'new', approvedCountries: [] },
+            };
           }
         }
       }
@@ -132,8 +137,8 @@ export const authOptions: NextAuthOptions = {
         session.user.jobTitle = token.jobTitle as string | undefined;
         session.user.department = token.department as string | undefined;
         session.user.country = token.country as string | undefined;
-        session.user.accessStatus = token.accessStatus;
-        session.user.approvedCountries = token.approvedCountries;
+        session.user.isAdmin = token.isAdmin as boolean | undefined;
+        session.user.toolAccess = token.toolAccess as { po_expediting?: { status: 'new' | 'pending' | 'approved' | 'denied'; approvedCountries: string[] } } | undefined;
       }
       return session;
     },
