@@ -37,6 +37,9 @@ export async function middleware(req: NextRequest) {
 
   // /home → always accessible to authenticated users (no redirect)
 
+  // /ti-te/* → accessible to all authenticated users (no tool-level check)
+  // (login is already enforced above; no additional gate needed)
+
   // /po-expediting/* → check tool-level access for 'po_expediting'
   if (pathname.startsWith('/po-expediting')) {
     const isAdmin = token.isAdmin as boolean | undefined;

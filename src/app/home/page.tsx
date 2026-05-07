@@ -351,6 +351,44 @@ function POExpeditingCard({
   );
 }
 
+/* ─── TI-TE Card ─────────────────────────────────────────────── */
+
+function TITECard() {
+  const router = useRouter();
+  return (
+    <button
+      onClick={() => router.push('/ti-te')}
+      className="relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 transition-all duration-200 text-left w-full cursor-pointer hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10 group"
+    >
+      <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: '#006B0C18' }}>
+        <svg className="w-6 h-6" style={{ color: '#006B0C' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+
+      <div className="flex-1">
+        <h3 className="text-[18px] font-semibold text-slate-900">TI-TE</h3>
+        <p className="text-[13px] text-slate-400 font-medium mt-0.5">Temporary Import / Export</p>
+        <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+          Track temporary import and export shipments, manage customs deadlines, deposits, and re-export compliance.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between mt-auto">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: '#006B0C18', color: '#006B0C', border: '1px solid #006B0C30' }}>
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+          </svg>
+          Access Granted
+        </span>
+        <span className="text-sm font-semibold group-hover:underline" style={{ color: '#006B0C' }}>
+          Open →
+        </span>
+      </div>
+    </button>
+  );
+}
+
 /* ─── Coming-Soon Card ───────────────────────────────────────── */
 
 function ComingSoonCard({
@@ -471,15 +509,7 @@ export default function HomePage() {
             onClick={handlePOClick}
           />
 
-          <ComingSoonCard
-            name="GRN & Invoice Reconciliation"
-            description="Compare goods receipt notes against purchase orders and invoices to identify discrepancies before payment."
-            icon={
-              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            }
-          />
+          <TITECard />
 
           <ComingSoonCard
             name="Supply Chain Analytics"

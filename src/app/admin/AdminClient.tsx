@@ -1403,6 +1403,45 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
 
           <div style={{ margin: '8px 0' }} />
 
+          {/* TI-TE group label */}
+          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+            TI-TE
+          </div>
+
+          {/* TI-TE Analytics — coming soon */}
+          <div
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: '3px solid transparent',
+              color: '#d1d5db',
+              cursor: 'not-allowed',
+            }}
+          >
+            <span>Analytics</span>
+            <span style={{ background: '#f3f4f6', color: '#9ca3af', fontSize: 10, padding: '2px 6px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
+              Soon
+            </span>
+          </div>
+
+          {/* TI-TE Access Approvals — coming soon */}
+          <div
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: '3px solid transparent',
+              color: '#d1d5db',
+              cursor: 'not-allowed',
+            }}
+          >
+            <span>Access Approvals</span>
+            <span style={{ background: '#f3f4f6', color: '#9ca3af', fontSize: 10, padding: '2px 6px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
+              Soon
+            </span>
+          </div>
+
+          <div style={{ margin: '8px 0' }} />
+
           {/* Coming-soon tools */}
           <div
             style={{
