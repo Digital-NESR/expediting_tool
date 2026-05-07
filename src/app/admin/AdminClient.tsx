@@ -963,7 +963,7 @@ function ResponseRateLineChart({ data }: { data: WeeklyRateRow[] }) {
           <XAxis dataKey="week" tick={{ fontSize: 12, fill: '#94a3b8' }} />
           <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} />
           <Tooltip
-            formatter={(value: unknown, name: string | undefined) => [
+            formatter={(value: unknown, name: unknown) => [
               Number(value).toLocaleString(),
               name === 'linesExpedited' ? 'Lines Expedited' : 'Lines Responded',
             ]}
