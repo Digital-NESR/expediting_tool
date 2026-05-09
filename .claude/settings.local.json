@@ -12,7 +12,13 @@
       "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(p.dependencies['recharts'] || p.devDependencies?.['recharts'] || 'NOT FOUND'\\)\")",
       "Bash(npm install:*)",
       "Bash(grep -v \"^$\")",
-      "Bash(node -e \"const p = require\\('./node_modules/next/package.json'\\); console.log\\(p.version\\)\")"
+      "Bash(node -e \"const p = require\\('./node_modules/next/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(npm run:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(echo \"Exit: $?\")",
+      "Read(//tmp/**)",
+      "Bash(powershell:*)"
     ]
   }
 }
