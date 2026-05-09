@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "migrate:tite:ksa": "node --require ts-node/register scripts/migrate-tite-ksa.ts"
+    "lint": "eslint"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

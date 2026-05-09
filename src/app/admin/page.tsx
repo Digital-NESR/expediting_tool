@@ -6,6 +6,7 @@ import { getPendingAccessCount } from '@/app/actions/adminAccess';
 import AdminClient from './AdminClient';
 
 export const metadata = { title: 'Admin — SC Agents' };
+// Per-tab titles are set client-side via useEffect in AdminClient
 
 export default async function AdminPage() {
   /* ── Auth check ── */

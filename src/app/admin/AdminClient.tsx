@@ -16,6 +16,7 @@ import {
   getAdminSessionDetail,
 } from '@/app/actions/adminAnalytics';
 import AccessApprovalsClient from './AccessApprovalsClient';
+import TiteMigrationClient from './TiteMigrationClient';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
@@ -1278,6 +1279,16 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
   const [supplierModalName, setSupplierModalName] = useState<string | null>(null);
   const [sessionModal, setSessionModal]           = useState<RecentSession | null>(null);
 
+  // Dynamic document title per tab
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      'po-expediting':   'Analytics — PO Expediting | Admin | SC Agents',
+      'access-approvals': 'Access Approvals | Admin | SC Agents',
+      'tite-migration':  'Migration — TI-TE | Admin | SC Agents',
+    };
+    document.title = titles[selectedTool] ?? 'Admin — SC Agents';
+  }, [selectedTool]);
+
   const fetchAnalytics = useCallback(async () => {
     setIsRefreshing(true);
     try {
@@ -1408,6 +1419,21 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
             TI-TE
           </div>
 
+          {/* TI-TE Migration — active */}
+          <button
+            onClick={() => setSelectedTool('tite-migration')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'tite-migration' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'tite-migration' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'tite-migration' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Migration
+          </button>
+
           {/* TI-TE Analytics — coming soon */}
           <div
             style={{
@@ -1476,6 +1502,9 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
         <main className="flex-1 overflow-auto" style={{ padding: 32 }}>
           {selectedTool === 'access-approvals' && (
             <AccessApprovalsClient onPendingCountChange={setLivePendingCount} />
+          )}
+          {selectedTool === 'tite-migration' && (
+            <TiteMigrationClient userEmail={userEmail} />
           )}
           {selectedTool === 'po-expediting' && (
             <>

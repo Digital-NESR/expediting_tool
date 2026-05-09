@@ -96,31 +96,6 @@ export default function TiteDashboardClient({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
 
-  /* ── KSA migration (temporary) ──────────────────────────────── */
-  const [migrateState, setMigrateState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
-  const [migrateResult, setMigrateResult] = useState<{ inserted: number; skipped: number; errors: number } | null>(null);
-  const [migrateError, setMigrateError] = useState<string | null>(null);
-
-  const runMigration = async () => {
-    setMigrateState('running');
-    setMigrateResult(null);
-    setMigrateError(null);
-    try {
-      const res = await fetch('/api/admin/migrate-ksa', { method: 'POST' });
-      const data = await res.json();
-      if (data.ok) {
-        setMigrateResult({ inserted: data.inserted, skipped: data.skipped, errors: data.errors });
-        setMigrateState('done');
-      } else {
-        setMigrateError(data.error || 'Unknown error');
-        setMigrateState('error');
-      }
-    } catch (e: any) {
-      setMigrateError(e.message || 'Network error');
-      setMigrateState('error');
-    }
-  };
-
   if (shipments === null || stats === null) return <DbError />;
   if (shipments.length === 0) return <EmptyState />;
 
@@ -180,46 +155,14 @@ export default function TiteDashboardClient({
               {today} · {activeCount} active temporary movements · {stats.overdue_count + stats.urgent_count} need action this week
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {/* ── TEMP: KSA migration button ── */}
-            <div className="flex flex-col items-end gap-1">
-              <button
-                onClick={runMigration}
-                disabled={migrateState === 'running'}
-                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
-                style={{ background: '#6B4F00' }}
-              >
-                {migrateState === 'running' ? (
-                  <>
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    Migrating…
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                    Migrate KSA
-                  </>
-                )}
-              </button>
-              {migrateState === 'done' && migrateResult && (
-                <span className="text-[11px] text-slate-500">
-                  Done — {migrateResult.inserted} inserted · {migrateResult.skipped} skipped · {migrateResult.errors} errors
-                </span>
-              )}
-              {migrateState === 'error' && (
-                <span className="text-[11px] text-red-500">{migrateError}</span>
-              )}
-            </div>
-            {/* ── end temp ── */}
-            <button
-              onClick={() => router.push('/ti-te/shipments')}
-              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
-              style={{ background: '#006B0C' }}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              New shipment
-            </button>
-          </div>
+          <button
+            onClick={() => router.push('/ti-te/shipments')}
+            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+            style={{ background: '#006B0C' }}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+            New shipment
+          </button>
         </div>
 
         {/* Overdue banner */}

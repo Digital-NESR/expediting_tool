@@ -40,5 +40,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# migration data files — intentionally tracked so files deploy to Vercel
-# scripts/data/
+# migration data files
+scripts/data/
