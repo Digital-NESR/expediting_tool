@@ -1,10 +1,21 @@
 import type { Metadata } from 'next';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { getAllShipments } from '@/app/actions/tite';
 import ShipmentsClient from './ShipmentsClient';
 
 export const metadata: Metadata = { title: 'Shipments — TI-TE | SC Agents' };
 
 export default async function ShipmentsPage() {
-  const shipments = await getAllShipments();
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email ?? '';
+  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
+    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  const isAdmin = adminEmails.includes(email.toLowerCase());
+  const approvedCountries = isAdmin
+    ? undefined
+    : (session?.user?.toolAccess?.tite?.approvedCountries ?? []);
+
+  const shipments = await getAllShipments(approvedCountries);
   return <ShipmentsClient shipments={shipments} />;
 }

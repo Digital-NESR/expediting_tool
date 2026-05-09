@@ -17,6 +17,7 @@ declare module "next-auth" {
       isAdmin?: boolean;
       toolAccess?: {
         po_expediting?: ToolAccessEntry;
+        tite?: ToolAccessEntry;
       };
     };
   }
@@ -30,6 +31,7 @@ declare module "next-auth/jwt" {
     isAdmin?: boolean;
     toolAccess?: {
       po_expediting?: ToolAccessEntry;
+      tite?: ToolAccessEntry;
     };
   }
 }

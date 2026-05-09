@@ -17,6 +17,7 @@ export interface Shipment {
   extended_date: string | null;
   deposit_local: number | null;
   deposit_usd: number | null;
+  country: string | null;
   comments: string | null;
   status: string;
   alert_level: string;

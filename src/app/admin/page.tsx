@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getExpeditingAnalytics } from '@/app/actions/adminAnalytics';
 import { getPendingAccessCount } from '@/app/actions/adminAccess';
+import { getTitePendingCount } from '@/app/actions/tite';
 import AdminClient from './AdminClient';
 
 export const metadata = { title: 'Admin — SC Agents' };
@@ -43,10 +44,11 @@ export default async function AdminPage() {
     );
   }
 
-  /* ── Fetch analytics + pending count ── */
-  const [analytics, pendingCount] = await Promise.all([
+  /* ── Fetch analytics + pending counts ── */
+  const [analytics, pendingCount, titePendingCount] = await Promise.all([
     getExpeditingAnalytics(),
     getPendingAccessCount(),
+    getTitePendingCount(),
   ]);
 
   return (
@@ -55,6 +57,7 @@ export default async function AdminPage() {
       userEmail={session.user.email}
       userName={session.user.name ?? session.user.email}
       pendingCount={pendingCount}
+      titePendingCount={titePendingCount}
     />
   );
 }

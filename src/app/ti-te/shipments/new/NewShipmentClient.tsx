@@ -29,11 +29,18 @@ interface FormErrors  { [key: string]: string; }
 
 /* ─── Component ──────────────────────────────────────────────── */
 
-export default function NewShipmentClient() {
+export default function NewShipmentClient({
+  countryOptions,
+  isAdmin,
+}: {
+  countryOptions: string[];
+  isAdmin: boolean;
+}) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   /* form state */
+  const [operatingCountry, setOperatingCountry] = useState(countryOptions.length === 1 ? countryOptions[0] : '');
   const [movementType, setMovementType] = useState<'Temporary Import' | 'Temporary Export'>('Temporary Import');
   const [segment,      setSegment]      = useState('');
   const [description,  setDescription]  = useState('');
@@ -90,6 +97,7 @@ export default function NewShipmentClient() {
   /* validation */
   function validate(): FormErrors {
     const e: FormErrors = {};
+    if (!operatingCountry) e.operating_country = 'Operating country is required.';
     if (!expiryDate) e.expiry_date = 'Expiry date is required.';
     contacts.forEach((c, i) => {
       if (c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) {
@@ -117,7 +125,7 @@ export default function NewShipmentClient() {
     setSubmitting(true);
     try {
       const result = await createShipment({
-        movement_type: movementType,
+        movement_type:  movementType,
         segment:        segment        || undefined,
         description:    description    || undefined,
         from_country:   fromCountry    || undefined,
@@ -135,6 +143,7 @@ export default function NewShipmentClient() {
         deposit_usd:    depositUsd     ? parseFloat(depositUsd)  : undefined,
         comments:       comments       || undefined,
         status,
+        country:        operatingCountry || undefined,
         contacts: contacts.filter(c => c.name || c.email || c.role),
       });
 
@@ -207,6 +216,39 @@ export default function NewShipmentClient() {
 
           {/* ── Section 1: Movement Details ── */}
           <Section title="1. Movement Details">
+            {/* Operating Country */}
+            <div data-field-error={errors.operating_country ? 'true' : undefined}>
+              <label className={LBL}>
+                Operating country <span className="text-red-500">*</span>
+              </label>
+              {isAdmin ? (
+                <>
+                  <input
+                    list="operating-country-list"
+                    className={errors.operating_country ? INP_ERR : INP}
+                    placeholder="Select or type a country…"
+                    value={operatingCountry}
+                    onChange={e => { setOperatingCountry(e.target.value); clearError('operating_country'); }}
+                  />
+                  <datalist id="operating-country-list">
+                    {countryOptions.map(c => <option key={c} value={c} />)}
+                  </datalist>
+                </>
+              ) : (
+                <select
+                  className={errors.operating_country ? INP_ERR : INP}
+                  value={operatingCountry}
+                  onChange={e => { setOperatingCountry(e.target.value); clearError('operating_country'); }}
+                >
+                  <option value="">Select country…</option>
+                  {countryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              )}
+              {errors.operating_country && (
+                <p className="text-xs text-red-600 mt-1">{errors.operating_country}</p>
+              )}
+            </div>
+
             {/* Type radio */}
             <div>
               <label className={LBL}>Type</label>

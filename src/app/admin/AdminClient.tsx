@@ -17,6 +17,7 @@ import {
 } from '@/app/actions/adminAnalytics';
 import AccessApprovalsClient from './AccessApprovalsClient';
 import TiteMigrationClient from './TiteMigrationClient';
+import TiteAccessApprovalsClient from './TiteAccessApprovalsClient';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
@@ -36,6 +37,7 @@ interface AdminClientProps {
   userEmail: string;
   userName: string;
   pendingCount: number;
+  titePendingCount: number;
 }
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -1267,12 +1269,13 @@ function AnalyticsSection({
 
 /* ─── Main AdminClient ────────────────────────────────────────── */
 
-export default function AdminClient({ analytics: initialAnalytics, userEmail, userName, pendingCount }: AdminClientProps) {
+export default function AdminClient({ analytics: initialAnalytics, userEmail, userName, pendingCount, titePendingCount }: AdminClientProps) {
   const [selectedTool, setSelectedTool]       = useState<string>('po-expediting');
   const [liveAnalytics, setLiveAnalytics]     = useState<ExpeditingAnalytics>(initialAnalytics);
   const [isRefreshing, setIsRefreshing]       = useState(false);
   const [lastRefreshed, setLastRefreshed]     = useState<Date>(() => new Date());
-  const [livePendingCount, setLivePendingCount] = useState(pendingCount);
+  const [livePendingCount, setLivePendingCount]       = useState(pendingCount);
+  const [liveTitePendingCount, setLiveTitePendingCount] = useState(titePendingCount);
 
   // Modal state
   const [buyerModal, setBuyerModal]             = useState<BuyerRow | null>(null);
@@ -1282,9 +1285,10 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
   // Dynamic document title per tab
   useEffect(() => {
     const titles: Record<string, string> = {
-      'po-expediting':   'Analytics — PO Expediting | Admin | SC Agents',
-      'access-approvals': 'Access Approvals | Admin | SC Agents',
-      'tite-migration':  'Migration — TI-TE | Admin | SC Agents',
+      'po-expediting':          'Analytics — PO Expediting | Admin | SC Agents',
+      'access-approvals':       'Access Approvals | Admin | SC Agents',
+      'tite-migration':         'Migration — TI-TE | Admin | SC Agents',
+      'tite-access-approvals':  'TI-TE Access Approvals | Admin | SC Agents',
     };
     document.title = titles[selectedTool] ?? 'Admin — SC Agents';
   }, [selectedTool]);
@@ -1450,21 +1454,38 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
             </span>
           </div>
 
-          {/* TI-TE Access Approvals — coming soon */}
-          <div
+          {/* TI-TE Access Approvals — active */}
+          <button
+            onClick={() => setSelectedTool('tite-access-approvals')}
             style={{
               ...navItemBase,
               paddingLeft: 24,
-              borderLeft: '3px solid transparent',
-              color: '#d1d5db',
-              cursor: 'not-allowed',
+              borderLeft: selectedTool === 'tite-access-approvals' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'tite-access-approvals' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'tite-access-approvals' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
             }}
           >
             <span>Access Approvals</span>
-            <span style={{ background: '#f3f4f6', color: '#9ca3af', fontSize: 10, padding: '2px 6px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
-              Soon
-            </span>
-          </div>
+            {liveTitePendingCount > 0 && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 18,
+                height: 18,
+                padding: '0 5px',
+                borderRadius: 9999,
+                fontSize: 10,
+                fontWeight: 700,
+                background: '#fef3c7',
+                color: '#b45309',
+                border: '1px solid #fde68a',
+              }}>
+                {liveTitePendingCount}
+              </span>
+            )}
+          </button>
 
           <div style={{ margin: '8px 0' }} />
 
@@ -1505,6 +1526,12 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
           )}
           {selectedTool === 'tite-migration' && (
             <TiteMigrationClient userEmail={userEmail} />
+          )}
+          {selectedTool === 'tite-access-approvals' && (
+            <TiteAccessApprovalsClient
+              userEmail={userEmail}
+              onPendingCountChange={setLiveTitePendingCount}
+            />
           )}
           {selectedTool === 'po-expediting' && (
             <>

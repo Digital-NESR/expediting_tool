@@ -134,10 +134,10 @@ export async function importShipments(params: {
           mot, awb_number, po_number, movement_type,
           import_date, expiry_date, extended_date,
           deposit_local, deposit_usd,
-          comments, status, alert_level, created_by
+          comments, status, alert_level, created_by, country
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
+          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22
         )
         ON CONFLICT (reference_number) DO NOTHING`,
         [
@@ -162,6 +162,7 @@ export async function importShipments(params: {
           row.status,
           alert_level,
           `migration:${userEmail}`,
+          country,
         ],
       );
 
