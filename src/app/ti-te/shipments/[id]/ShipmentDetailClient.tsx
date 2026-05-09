@@ -86,7 +86,7 @@ export default function ShipmentDetailClient({
     { done: true,                                                  text: 'Bayan registered with customs' },
     { done: !!s.invoice_number,                                    text: 'Commercial invoice on file' },
     { done: !!s.awb_number,                                        text: 'Airway bill / Bill of lading on file' },
-    { done: (s.deposit_sar ?? 0) > 0 || (s.movement_type || '').toLowerCase().includes('export'), text: 'Customs deposit recorded' },
+    { done: (s.deposit_local ?? 0) > 0 || (s.movement_type || '').toLowerCase().includes('export'), text: 'Customs deposit recorded' },
     { done: s.alert_level !== 'overdue',                           text: 'Within re-export deadline' },
     { done: !!s.extended_date,                                     text: 'Extension granted (if requested)', optional: true },
     { done: s.status === 'Closed',                                 text: 'Re-export confirmed & deposit refunded' },
@@ -145,7 +145,7 @@ export default function ShipmentDetailClient({
         {s.alert_level === 'overdue' && (
           <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-5 text-sm text-red-800">
             <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" /></svg>
-            <span><strong>Past re-export deadline by {days !== null ? -days : '?'} days.</strong> Customs deposit ({sarFmt(s.deposit_sar)}) at risk. Contact customs broker and legal immediately.</span>
+            <span><strong>Past re-export deadline by {days !== null ? -days : '?'} days.</strong> Customs deposit ({sarFmt(s.deposit_local)}) at risk. Contact customs broker and legal immediately.</span>
           </div>
         )}
         {s.alert_level === 'urgent' && (
@@ -198,8 +198,8 @@ export default function ShipmentDetailClient({
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="px-5 py-3.5 border-b border-slate-100"><h2 className="text-sm font-bold text-slate-900">Customs deposit & duty exposure</h2></div>
                   <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-                    <Field label="Deposit (SAR)" value={<span className="text-xl font-bold tabular-nums">{sarFmt(s.deposit_sar)}</span>} />
-                    <Field label="Deposit (USD)" value={<span className="tabular-nums">{usdFmt(s.deposit_usd ?? (s.deposit_sar != null ? s.deposit_sar / 3.75 : null))}</span>} />
+                    <Field label="Deposit (Local)" value={<span className="text-xl font-bold tabular-nums">{sarFmt(s.deposit_local)}</span>} />
+                    <Field label="Deposit (USD)" value={<span className="tabular-nums">{usdFmt(s.deposit_usd ?? (s.deposit_local != null ? s.deposit_local / 3.75 : null))}</span>} />
                     <Field label="Refund status" value={
                       s.status === 'Closed'
                         ? <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />Refund initiated</span>

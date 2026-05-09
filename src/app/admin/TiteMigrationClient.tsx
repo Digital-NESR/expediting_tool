@@ -47,9 +47,9 @@ const FORMAT_COLUMNS = [
   { col: 'I (8)', header: 'MOT',             field: 'mot',              notes: 'Mode of transport. "Lnad" and "Lnd" are auto-corrected to "Land".' },
   { col: 'J (9)', header: 'AWB',             field: 'awb_number',       notes: 'Air waybill number. Text.' },
   { col: 'K (10)', header: 'Import Date',    field: 'import_date',      notes: 'Date. Accepts DD/MM/YYYY or YYYY-MM-DD.' },
-  { col: 'L (11)', header: 'Deposit Value',  field: 'deposit_sar / deposit_local', notes: 'Numeric (SAR). Cells starting with = are null. Also stored as deposit_local.' },
-  { col: 'M (12)', header: 'Deposit USD',    field: '—',                notes: 'Ignored — always calculated from col L ÷ 3.75.' },
-  { col: 'N (13)', header: 'PO',             field: 'po_number',        notes: 'Text. Col M must exist (even if empty) so this column stays in position 13.' },
+  { col: 'L (11)', header: 'Deposit Value (Local)', field: 'deposit_local', notes: 'Local currency amount. Currency symbols (SAR, AED, etc.) are stripped automatically.' },
+  { col: 'M (12)', header: 'Deposit Value (USD)',  field: 'deposit_usd',   notes: 'USD equivalent. Read directly from this column. If empty, estimated as col L ÷ 3.75.' },
+  { col: 'N (13)', header: 'PO',             field: 'po_number',        notes: 'Text.' },
   { col: 'O (14)', header: 'Movement Type',  field: 'movement_type',    notes: 'Text — e.g. Import, Export. Extra whitespace is collapsed.' },
   { col: 'P (15)', header: 'Expiry Date',    field: 'expiry_date',      notes: 'Date. Cells starting with = are null.' },
   { col: 'Q (16)', header: 'Extended Date',  field: 'extended_date',    notes: 'Date. Cells starting with = or empty are null.' },
@@ -155,10 +155,15 @@ function parseExcel(file: File): Promise<ParsedFile> {
         );
 
         const parseNum = (val: any): number | null => {
-          if (val == null) return null;
+          if (!val) return null;
           const s = String(val).trim();
           if (s.startsWith('=') || s === '') return null;
-          const n = parseFloat(s.replace(/,/g, ''));
+          const cleaned = s
+            .replace(/SAR|AED|USD|KWD|QAR|OMR|BHD|EGP/gi, '')
+            .replace(/[$£€﷼]/g, '')
+            .replace(/,/g, '')
+            .trim();
+          const n = parseFloat(cleaned);
           return isNaN(n) ? null : n;
         };
 
@@ -189,7 +194,6 @@ function parseExcel(file: File): Promise<ParsedFile> {
         const rows: RawShipmentRow[] = dataRows
           .filter((row) => row[0] != null && String(row[0]).trim() !== '')
           .map((row, i) => {
-            const depositLocal = parseNum(row[11]);
             return {
               rowIndex: i + 3,
               no: String(row[0] ?? '').trim() || null,
@@ -210,8 +214,8 @@ function parseExcel(file: File): Promise<ParsedFile> {
                 : null,
               awb: row[9] ? String(row[9]).trim() || null : null,
               importDate: parseDate(row[10]),
-              depositLocal,
-              depositUsd: depositLocal != null ? depositLocal / 3.75 : null,
+              depositLocal: parseNum(row[11]),
+              depositUsd: parseNum(row[12]) ?? (parseNum(row[11]) != null ? parseNum(row[11])! / 3.75 : null),
               poNumber: row[13] ? String(row[13]).trim() || null : null,
               movementType: row[14]
                 ? String(row[14]).trim().replace(/\s+/g, ' ') || null
@@ -321,6 +325,30 @@ function MigrationLogTable({
 
 /* ─── Main component ─────────────────────────────────────────── */
 
+function downloadTemplate() {
+  const headers = [
+    'No.', 'Segment', 'From', 'To', 'Invoice Number', 'Invoice Value',
+    'Bayan Number', 'Description', 'MOT', 'AWB / BL', 'Import Date',
+    'Deposit Value (Local)', 'Deposit Value (USD)', 'PO Number',
+    'Movement Type', 'Expiry Date', 'Extended Date', 'Comments', 'Status',
+  ];
+  const exampleRow = [
+    1, 'Drilling', 'Saudi Arabia', 'UAE', 'INV-001', 50000,
+    'BYN-2024-001', 'Drilling equipment', 'Air', 'AWB-123456', '01/01/2025',
+    143405, 38241.33, 'PO-001', 'Temporary Import', '31/12/2025', '', 'Sample notes', 'Active',
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['Temporary Import / Export Record'],
+    headers,
+    exampleRow,
+  ]);
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }];
+  ws['!cols'] = headers.map(() => ({ wch: 22 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'TI-TE Data');
+  XLSX.writeFile(wb, 'TI_TE_Migration_Template.xlsx');
+}
+
 export default function TiteMigrationClient({ userEmail }: { userEmail: string }) {
   /* form state */
   const [country, setCountry] = useState('');
@@ -340,6 +368,9 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
   /* history */
   const [history, setHistory] = useState<MigrationLogRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+
+  /* format guide */
+  const [formatExpanded, setFormatExpanded] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -466,16 +497,16 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
             Import shipment records from Excel into the database by country.
           </p>
         </div>
-        <a
-          href="/TI_TE_Portal_Template.xlsx"
-          download="TI_TE_Portal_Template.xlsx"
+        <button
+          type="button"
+          onClick={downloadTemplate}
           className="shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:border-[#307c4c]/40 hover:text-[#307c4c] transition-all duration-150 shadow-sm"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           Download Template
-        </a>
+        </button>
       </div>
 
       {/* ── Form phase ── */}
@@ -619,6 +650,81 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
                 </svg>
                 {parseError}
               </p>
+            )}
+          </div>
+
+          {/* Expected Format — collapsible */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="flex items-center px-4 py-3 bg-slate-50">
+              <button
+                type="button"
+                className="flex-1 text-left flex items-center gap-2"
+                onClick={() => setFormatExpanded(v => !v)}
+              >
+                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Expected Excel Format</span>
+                <svg
+                  className={`w-4 h-4 text-slate-400 transition-transform ${formatExpanded ? 'rotate-180' : ''}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={downloadTemplate}
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:border-[#307c4c]/40 hover:text-[#307c4c] transition-all"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download Template
+              </button>
+            </div>
+            {formatExpanded && (
+              <div className="overflow-x-auto border-t border-slate-100">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      {['Column', 'Field', 'Format', 'Notes'].map(h => (
+                        <th key={h} className="py-2 px-3 font-semibold text-slate-500 whitespace-nowrap uppercase tracking-wider text-[10px]">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {[
+                      { col: 'A', field: 'No.',                   fmt: 'Number', notes: 'Row number e.g. 1, 2, 3' },
+                      { col: 'B', field: 'Segment',               fmt: 'Text',   notes: 'e.g. Coiled Tubing, Drilling' },
+                      { col: 'C', field: 'From',                  fmt: 'Text',   notes: 'Origin country' },
+                      { col: 'D', field: 'To',                    fmt: 'Text',   notes: 'Destination country' },
+                      { col: 'E', field: 'Invoice Number',        fmt: 'Text',   notes: 'Invoice/CI reference' },
+                      { col: 'F', field: 'Invoice Value',         fmt: 'Number', notes: 'Numeric value only' },
+                      { col: 'G', field: 'Bayan Number',          fmt: 'Text',   notes: 'Customs declaration number' },
+                      { col: 'H', field: 'Description',           fmt: 'Text',   notes: 'Description of goods' },
+                      { col: 'I', field: 'MOT',                   fmt: 'Text',   notes: 'Air / Sea / Land' },
+                      { col: 'J', field: 'AWB / BL',              fmt: 'Text',   notes: 'Airway bill or Bill of Lading' },
+                      { col: 'K', field: 'Import Date',           fmt: 'Date',   notes: 'DD/MM/YYYY' },
+                      { col: 'L', field: 'Deposit Value (Local)', fmt: 'Number', notes: 'Local currency amount' },
+                      { col: 'M', field: 'Deposit Value (USD)',   fmt: 'Number', notes: 'USD equivalent' },
+                      { col: 'N', field: 'PO Number',             fmt: 'Text/Number', notes: 'PO reference' },
+                      { col: 'O', field: 'Movement Type',         fmt: 'Text',   notes: 'Import / Export' },
+                      { col: 'P', field: 'Expiry Date',           fmt: 'Date',   notes: 'DD/MM/YYYY' },
+                      { col: 'Q', field: 'Extended Date',         fmt: 'Date',   notes: 'DD/MM/YYYY (if extension granted)' },
+                      { col: 'R', field: 'Comments',              fmt: 'Text',   notes: 'Optional notes' },
+                      { col: 'S', field: 'Status',                fmt: 'Text',   notes: 'Active / Closed' },
+                    ].map((r, i) => (
+                      <tr key={r.col} className={i % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}>
+                        <td className="py-2 px-3 font-mono font-semibold text-slate-700 whitespace-nowrap">{r.col}</td>
+                        <td className="py-2 px-3 text-slate-700 whitespace-nowrap">{r.field}</td>
+                        <td className="py-2 px-3 text-slate-500 whitespace-nowrap">{r.fmt}</td>
+                        <td className="py-2 px-3 text-slate-500">{r.notes}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="px-4 py-3 bg-amber-50 border-t border-amber-100 text-[11.5px] text-amber-800 leading-relaxed">
+                  💡 Currency symbols (SAR, $, AED etc.) in deposit columns are handled automatically. Deposit USD is read directly from column M — please calculate the conversion before uploading. If column M is empty, USD will be estimated from the local value.
+                </div>
+              </div>
             )}
           </div>
 
@@ -961,7 +1067,7 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">Key rules</p>
             <ul className="space-y-1.5 text-xs text-slate-600">
               {[
-                'Column M (Deposit USD) must exist in the file even if empty — it is always ignored; deposit_usd is calculated as col L ÷ 3.75.',
+                'Column M (Deposit USD) is read directly; if empty, deposit_usd is estimated as col L ÷ 3.75. Currency symbols (SAR, $, AED, etc.) in deposit columns are stripped automatically.',
                 'Dates accept DD/MM/YYYY or YYYY-MM-DD. Excel serial date cells work if the cell is formatted as a date.',
                 'Cells starting with = (Excel formulas) in numeric or date columns are treated as blank/null.',
                 'Rows with a blank or non-numeric value in col A (No.) are silently skipped.',

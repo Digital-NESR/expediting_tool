@@ -38,9 +38,9 @@ export default function ReportsClient({ shipments }: { shipments: Shipment[] | n
   const activeCount  = open.length;
   const urgentCount  = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
 
-  const totalDeposit  = open.reduce((a, s) => a + (s.deposit_sar || 0), 0);
-  const refunded      = closed.reduce((a, s) => a + (s.deposit_sar || 0), 0);
-  const penaltyRisk   = shipments.filter(s => s.alert_level === 'overdue').reduce((a, s) => a + (s.deposit_sar || 0), 0);
+  const totalDeposit  = open.reduce((a, s) => a + (s.deposit_local || 0), 0);
+  const refunded      = closed.reduce((a, s) => a + (s.deposit_local || 0), 0);
+  const penaltyRisk   = shipments.filter(s => s.alert_level === 'overdue').reduce((a, s) => a + (s.deposit_local || 0), 0);
   const completionPct = shipments.length > 0 ? Math.round((closed.length / shipments.length) * 100) : 0;
 
   const kpis = [

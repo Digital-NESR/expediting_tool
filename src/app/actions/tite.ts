@@ -20,7 +20,7 @@ export interface CreateShipmentInput {
   import_date?: string;
   expiry_date?: string;
   extended_date?: string;
-  deposit_sar?: number;
+  deposit_local?: number;
   deposit_usd?: number;
   comments?: string;
   status: 'Active' | 'Closed';
@@ -55,7 +55,7 @@ const SELECT_COLS = `
   import_date::text   AS import_date,
   expiry_date::text   AS expiry_date,
   extended_date::text AS extended_date,
-  deposit_sar, deposit_usd, comments, status, alert_level,
+  deposit_local, deposit_usd, comments, status, alert_level,
   created_by
 `;
 
@@ -120,7 +120,7 @@ export async function createShipment(
         invoice_number, invoice_value, bayan_number, description,
         mot, awb_number, po_number, movement_type,
         import_date, expiry_date, extended_date,
-        deposit_sar, deposit_usd, comments, status, alert_level, created_by
+        deposit_local, deposit_usd, comments, status, alert_level, created_by
       ) VALUES (
         $1,$2,$3,$4,
         $5,$6,$7,$8,
@@ -144,7 +144,7 @@ export async function createShipment(
         input.import_date   ?? null,
         input.expiry_date   ?? null,
         input.extended_date ?? null,
-        input.deposit_sar   ?? null,
+        input.deposit_local ?? null,
         input.deposit_usd   ?? null,
         input.comments      ?? null,
         input.status,
@@ -196,7 +196,7 @@ export async function getShipmentStats(): Promise<ShipmentStats | null> {
         COUNT(*)                    FILTER (WHERE alert_level = 'overdue')                          AS overdue_count,
         COUNT(*)                    FILTER (WHERE alert_level = 'urgent')                           AS urgent_count,
         COUNT(*)                    FILTER (WHERE alert_level IN ('action','plan'))                 AS action_count,
-        COALESCE(SUM(deposit_sar)   FILTER (WHERE status != 'Closed'), 0)                          AS total_deposit_sar,
+        COALESCE(SUM(deposit_local) FILTER (WHERE status != 'Closed'), 0)                          AS total_deposit_local,
         COALESCE(SUM(deposit_usd)   FILTER (WHERE status != 'Closed'), 0)                          AS total_deposit_usd,
         COUNT(*)                    FILTER (WHERE movement_type ILIKE '%import%' AND status != 'Closed') AS import_count,
         COUNT(*)                    FILTER (WHERE movement_type ILIKE '%export%' AND status != 'Closed') AS export_count
@@ -208,7 +208,7 @@ export async function getShipmentStats(): Promise<ShipmentStats | null> {
       overdue_count:     Number(r.overdue_count),
       urgent_count:      Number(r.urgent_count),
       action_count:      Number(r.action_count),
-      total_deposit_sar: Number(r.total_deposit_sar),
+      total_deposit_local: Number(r.total_deposit_local),
       total_deposit_usd: Number(r.total_deposit_usd),
       import_count:      Number(r.import_count),
       export_count:      Number(r.export_count),

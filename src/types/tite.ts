@@ -15,7 +15,7 @@ export interface Shipment {
   import_date: string | null;
   expiry_date: string | null;
   extended_date: string | null;
-  deposit_sar: number | null;
+  deposit_local: number | null;
   deposit_usd: number | null;
   comments: string | null;
   status: string;
@@ -32,7 +32,7 @@ export interface ShipmentStats {
   overdue_count: number;
   urgent_count: number;
   action_count: number;
-  total_deposit_sar: number;
+  total_deposit_local: number;
   total_deposit_usd: number;
   import_count: number;
   export_count: number;

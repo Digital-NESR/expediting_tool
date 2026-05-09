@@ -83,7 +83,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
     return true;
   }), [list, q, seg, movement, alertFilter, country]);
 
-  const totalDep = rows.reduce((a, s) => a + (s.deposit_sar || 0), 0);
+  const totalDep = rows.reduce((a, s) => a + (s.deposit_local || 0), 0);
 
   if (shipments === null) return <DbError />;
 
@@ -163,7 +163,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    {['#', 'Segment / Description', 'Route', 'MOT', 'Bayan', 'Deposit (SAR)', 'Import date', 'Effective expiry', 'Owner', 'Status', ''].map((h, i) => (
+                    {['#', 'Segment / Description', 'Route', 'MOT', 'Bayan', 'Deposit (Local)', 'Import date', 'Effective expiry', 'Owner', 'Status', ''].map((h, i) => (
                       <th key={i} className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-3 py-2.5 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -190,7 +190,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
                         </span>
                       </td>
                       <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{s.bayan_number || '—'}</td>
-                      <td className="px-3 py-2.5 text-right font-mono text-[12px] whitespace-nowrap">{s.deposit_sar != null ? s.deposit_sar.toLocaleString() : '—'}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-[12px] whitespace-nowrap">{s.deposit_local != null ? s.deposit_local.toLocaleString() : '—'}</td>
                       <td className="px-3 py-2.5 text-[12.5px] whitespace-nowrap">{fmtDate(s.import_date)}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <div className="text-[12.5px]">{fmtDate(s.extended_date || s.expiry_date)}</div>

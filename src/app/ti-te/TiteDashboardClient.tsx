@@ -119,7 +119,7 @@ export default function TiteDashboardClient({
     const seg = s.segment || 'Unknown';
     segMap[seg] = segMap[seg] || { count: 0, deposit: 0 };
     segMap[seg].count++;
-    segMap[seg].deposit += s.deposit_sar || 0;
+    segMap[seg].deposit += s.deposit_local || 0;
   });
   const segments = Object.entries(segMap).sort((a, b) => b[1].count - a[1].count);
 
@@ -184,7 +184,7 @@ export default function TiteDashboardClient({
             { label: 'Active movements',      value: stats.active_count,                      sub: `${stats.import_count} imports · ${stats.export_count} exports`, accent: '#006B0C',  color: '#1e293b' },
             { label: 'Overdue',               value: stats.overdue_count,                     sub: 'Past expiry, action required',                                   accent: '#ef4444',  color: '#ef4444' },
             { label: 'Due this week',         value: stats.urgent_count,                      sub: '≤ 7 days to expiry',                                             accent: '#f97316',  color: '#f97316' },
-            { label: 'Customs deposit at risk', value: sarFmt(stats.total_deposit_sar),       sub: `≈ ${usdFmt(stats.total_deposit_usd)}`,                           accent: '#006B0C',  color: '#1e293b' },
+            { label: 'Customs deposit at risk', value: sarFmt(stats.total_deposit_local),     sub: `≈ ${usdFmt(stats.total_deposit_usd)}`,                           accent: '#006B0C',  color: '#1e293b' },
           ].map((kpi, i) => (
             <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 relative overflow-hidden">
               <div className="absolute left-0 inset-y-0 w-[3px] rounded-r-sm" style={{ background: kpi.accent }} />
@@ -238,7 +238,7 @@ export default function TiteDashboardClient({
                           </span>
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-[12px] whitespace-nowrap">
-                          {sarFmt(s.deposit_sar)}
+                          {sarFmt(s.deposit_local)}
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
                           <div className="text-sm">{fmtDate(s.extended_date || s.expiry_date)}</div>
@@ -292,7 +292,7 @@ export default function TiteDashboardClient({
             <div className="p-5 space-y-4">
               {segments.length === 0 && <p className="text-sm text-slate-400">No segment data.</p>}
               {segments.map(([seg, info]) => {
-                const pct = stats.total_deposit_sar > 0 ? (info.deposit / stats.total_deposit_sar) * 100 : 0;
+                const pct = stats.total_deposit_local > 0 ? (info.deposit / stats.total_deposit_local) * 100 : 0;
                 return (
                   <div key={seg}>
                     <div className="flex items-center text-[12.5px] mb-1.5">

@@ -121,7 +121,7 @@ export default function AlertsClient({ shipments }: { shipments: Shipment[] | nu
                               <div className="text-[11px] text-slate-400">{fmtDate(s.extended_date || s.expiry_date)}</div>
                             </td>
                             <td className="px-3 py-2.5 text-right font-mono text-[12px] whitespace-nowrap text-slate-600 hidden md:table-cell">
-                              {sarFmt(s.deposit_sar)}
+                              {sarFmt(s.deposit_local)}
                             </td>
                             <td className="px-3 py-2.5">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold whitespace-nowrap ${ALERT_PILL[g.key] || ''}`}>

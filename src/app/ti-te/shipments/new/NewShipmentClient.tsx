@@ -131,7 +131,7 @@ export default function NewShipmentClient() {
         import_date:    importDate     || undefined,
         expiry_date:    expiryDate     || undefined,
         extended_date:  showExtended && extendedDate ? extendedDate : undefined,
-        deposit_sar:    depositSar     ? parseFloat(depositSar)  : undefined,
+        deposit_local:  depositSar     ? parseFloat(depositSar)  : undefined,
         deposit_usd:    depositUsd     ? parseFloat(depositUsd)  : undefined,
         comments:       comments       || undefined,
         status,

@@ -133,11 +133,11 @@ export async function importShipments(params: {
           invoice_number, invoice_value, bayan_number, description,
           mot, awb_number, po_number, movement_type,
           import_date, expiry_date, extended_date,
-          deposit_sar, deposit_local, deposit_usd,
+          deposit_local, deposit_usd,
           comments, status, alert_level, created_by
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22
+          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
         )
         ON CONFLICT (reference_number) DO NOTHING`,
         [
@@ -157,7 +157,6 @@ export async function importShipments(params: {
           row.expiryDate,
           row.extendedDate,
           row.depositLocal,
-          row.depositLocal,   // deposit_local mirrors deposit_sar
           row.depositUsd,
           row.comments,
           row.status,
