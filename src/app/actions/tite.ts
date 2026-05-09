@@ -56,8 +56,6 @@ const SELECT_COLS = `
   expiry_date::text   AS expiry_date,
   extended_date::text AS extended_date,
   deposit_sar, deposit_usd, comments, status, alert_level,
-  created_at::text AS created_at,
-  updated_at::text AS updated_at,
   created_by
 `;
 
@@ -79,6 +77,7 @@ export async function getAllShipments(): Promise<Shipment[] | null> {
         END,
         COALESCE(extended_date, expiry_date) ASC NULLS LAST
     `);
+    console.log(`[TI-TE] getAllShipments: ${rows.length} rows returned`);
     return rows;
   } catch (err) {
     console.error('[TI-TE] getAllShipments error:', err);

@@ -14,4 +14,12 @@ const titePool = new Pool({
   connectionTimeoutMillis: 10000,
 });
 
+titePool.on('connect', () => {
+  console.log('[titePool] connected to:', process.env.TITE_DB_NAME || 'nesr_tite_db');
+});
+
+titePool.on('error', (err) => {
+  console.error('[titePool] unexpected error:', err);
+});
+
 export default titePool;

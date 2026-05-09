@@ -20,8 +20,8 @@ export interface Shipment {
   comments: string | null;
   status: string;
   alert_level: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
   created_by: string | null;
   // computed client-side
   daysToExpiry?: number;
