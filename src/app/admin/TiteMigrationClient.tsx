@@ -33,6 +33,88 @@ const COUNTRIES = [
   { label: 'Other', currency: '—' },
 ];
 
+/* ─── Format reference data ─────────────────────────────────── */
+
+const FORMAT_COLUMNS = [
+  { col: 'A (0)', header: 'No.',            field: 'reference_number', notes: 'Numeric. Blank or non-numeric rows are skipped. Padded to 3 digits and prefixed with the country code — e.g. KSA-001.' },
+  { col: 'B (1)', header: 'Segment',         field: 'segment',          notes: 'Text — e.g. Coiled Tubing, ESP.' },
+  { col: 'C (2)', header: 'From',            field: 'from_country',     notes: 'Origin country name.' },
+  { col: 'D (3)', header: 'To',              field: 'to_country',       notes: 'Destination country name.' },
+  { col: 'E (4)', header: 'Invoice Number',  field: 'invoice_number',   notes: 'Text.' },
+  { col: 'F (5)', header: 'Invoice Value',   field: 'invoice_value',    notes: 'Numeric. Cells starting with = are treated as null.' },
+  { col: 'G (6)', header: 'Bayan Number',    field: 'bayan_number',     notes: 'Text. Multi-line cells — only the first line is used.' },
+  { col: 'H (7)', header: 'Description',     field: 'description',      notes: 'Text.' },
+  { col: 'I (8)', header: 'MOT',             field: 'mot',              notes: 'Mode of transport. "Lnad" and "Lnd" are auto-corrected to "Land".' },
+  { col: 'J (9)', header: 'AWB',             field: 'awb_number',       notes: 'Air waybill number. Text.' },
+  { col: 'K (10)', header: 'Import Date',    field: 'import_date',      notes: 'Date. Accepts DD/MM/YYYY or YYYY-MM-DD.' },
+  { col: 'L (11)', header: 'Deposit Value',  field: 'deposit_sar / deposit_local', notes: 'Numeric (SAR). Cells starting with = are null. Also stored as deposit_local.' },
+  { col: 'M (12)', header: 'Deposit USD',    field: '—',                notes: 'Ignored — always calculated from col L ÷ 3.75.' },
+  { col: 'N (13)', header: 'PO',             field: 'po_number',        notes: 'Text. Col M must exist (even if empty) so this column stays in position 13.' },
+  { col: 'O (14)', header: 'Movement Type',  field: 'movement_type',    notes: 'Text — e.g. Import, Export. Extra whitespace is collapsed.' },
+  { col: 'P (15)', header: 'Expiry Date',    field: 'expiry_date',      notes: 'Date. Cells starting with = are null.' },
+  { col: 'Q (16)', header: 'Extended Date',  field: 'extended_date',    notes: 'Date. Cells starting with = or empty are null.' },
+  { col: 'R (17)', header: 'Comments',       field: 'comments',         notes: 'Text.' },
+  { col: 'S (18)', header: 'Status',         field: 'status',           notes: 'Any value containing "closed" (case-insensitive) → Closed. Anything else → Active.' },
+];
+
+/* ─── Inline helper ──────────────────────────────────────────── */
+
+function Code({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[11px] font-mono font-medium text-slate-700">
+      {children}
+    </span>
+  );
+}
+
+/* ─── Column match ───────────────────────────────────────────── */
+
+// Keywords for each expected column position (0-indexed).
+// A column is "matched" if the detected header at that position
+// contains at least one of its keywords (case-insensitive).
+const EXPECTED_MATCHERS: { label: string; keywords: string[] }[] = [
+  { label: 'No.',           keywords: ['no.', 'no ', 'number', 'serial', '#'] },
+  { label: 'Segment',       keywords: ['segment', 'seg'] },
+  { label: 'From',          keywords: ['from'] },
+  { label: 'To',            keywords: ['to'] },
+  { label: 'Invoice No.',   keywords: ['invoice number', 'invoice no', 'inv no', 'inv num'] },
+  { label: 'Invoice Value', keywords: ['invoice value', 'inv value', 'inv val'] },
+  { label: 'Bayan No.',     keywords: ['bayan'] },
+  { label: 'Description',   keywords: ['description', 'desc'] },
+  { label: 'MOT',           keywords: ['mot', 'mode of transport', 'mode'] },
+  { label: 'AWB',           keywords: ['awb'] },
+  { label: 'Import Date',   keywords: ['import date', 'import'] },
+  { label: 'Deposit Value', keywords: ['deposit value', 'deposit local', 'deposit sar', 'deposit'] },
+  { label: 'Deposit USD',   keywords: ['deposit usd', 'usd'] },
+  { label: 'PO',            keywords: ['po', 'purchase order', 'po number', 'po no'] },
+  { label: 'Movement Type', keywords: ['movement type', 'movement'] },
+  { label: 'Expiry Date',   keywords: ['expiry date', 'expiry', 'expiration'] },
+  { label: 'Extended Date', keywords: ['extended date', 'extended', 'extension'] },
+  { label: 'Comments',      keywords: ['comments', 'comment', 'remarks', 'remark', 'notes'] },
+  { label: 'Status',        keywords: ['status'] },
+];
+
+interface ColMatch {
+  expected: string;
+  detected: string;
+  matched: boolean;
+}
+
+function calcColumnMatch(headers: string[]): { matches: ColMatch[]; score: number } {
+  const matches: ColMatch[] = EXPECTED_MATCHERS.map((exp, i) => {
+    const detected = (headers[i] ?? '').trim();
+    const norm = detected.toLowerCase();
+    const matched =
+      detected !== '' &&
+      exp.keywords.some((kw) => norm.includes(kw));
+    return { expected: exp.label, detected, matched };
+  });
+  const score = Math.round(
+    (matches.filter((m) => m.matched).length / EXPECTED_MATCHERS.length) * 100,
+  );
+  return { matches, score };
+}
+
 /* ─── Client-side Excel parser ───────────────────────────────── */
 
 function parseExcel(file: File): Promise<ParsedFile> {
@@ -377,11 +459,23 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
     <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
 
       {/* Page header */}
-      <div>
-        <h2 className="text-lg font-bold text-slate-900 tracking-tight">TI-TE Data Migration</h2>
-        <p className="text-[12px] text-gray-400 mt-0.5">
-          Import shipment records from Excel into the database by country.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight">TI-TE Data Migration</h2>
+          <p className="text-[12px] text-gray-400 mt-0.5">
+            Import shipment records from Excel into the database by country.
+          </p>
+        </div>
+        <a
+          href="/TI_TE_Portal_Template.xlsx"
+          download="TI_TE_Portal_Template.xlsx"
+          className="shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:border-[#307c4c]/40 hover:text-[#307c4c] transition-all duration-150 shadow-sm"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Download Template
+        </a>
       </div>
 
       {/* ── Form phase ── */}
@@ -529,20 +623,84 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
           </div>
 
           {/* Step 3 — Column preview */}
-          {parsed && (
+          {parsed && (() => {
+            const { matches, score } = calcColumnMatch(parsed.headers);
+            const barColor =
+              score >= 80 ? '#307c4c' : score >= 50 ? '#d97706' : '#ef4444';
+            const scoreLabel =
+              score >= 80 ? 'Good match' : score >= 50 ? 'Partial match' : 'Poor match';
+            const scoreBg =
+              score >= 80
+                ? 'bg-[#307c4c]/10 text-[#307c4c] border-[#307c4c]/20'
+                : score >= 50
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-red-50 text-red-600 border-red-200';
+            return (
             <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
                 Step 3 — Column Mapping Preview
               </label>
-              <p className="text-xs text-slate-500 mb-2">
-                Detected columns:
-              </p>
+
+              {/* ── Match bar ── */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-600">
+                    Column match
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">
+                      {matches.filter((m) => m.matched).length} / {EXPECTED_MATCHERS.length} columns
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${scoreBg}`}>
+                      {scoreLabel}
+                    </span>
+                  </div>
+                </div>
+                {/* Bar */}
+                <div className="h-2 bg-slate-200 rounded-full overflow-hidden mb-3">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${score}%`, background: barColor }}
+                  />
+                </div>
+                {/* Per-column chips */}
+                <div className="flex flex-wrap gap-1.5">
+                  {matches.map((m, i) => (
+                    <div
+                      key={i}
+                      title={m.matched ? `Matched: "${m.detected}"` : m.detected ? `"${m.detected}" didn't match expected "${m.expected}"` : `Column ${i + 1} is empty — expected "${m.expected}"`}
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border cursor-default ${
+                        m.matched
+                          ? 'bg-[#307c4c]/8 border-[#307c4c]/25 text-[#307c4c]'
+                          : m.detected
+                            ? 'bg-amber-50 border-amber-200 text-amber-700'
+                            : 'bg-slate-100 border-slate-200 text-slate-400'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${m.matched ? 'bg-[#307c4c]' : m.detected ? 'bg-amber-400' : 'bg-slate-300'}`} />
+                      {m.expected}
+                    </div>
+                  ))}
+                </div>
+                {matches.some((m) => !m.matched) && (
+                  <p className="text-[10px] text-slate-400 mt-2">
+                    Hover a chip to see what was detected. Amber = column present but header name didn't match. Gray = column missing.
+                  </p>
+                )}
+              </div>
+
+              {/* Detected header pills */}
+              <p className="text-xs text-slate-500 mb-2">Detected columns:</p>
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {parsed.headers.map((h, i) =>
                   h ? (
                     <span
                       key={i}
-                      className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-600"
+                      className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
+                        matches[i]?.matched
+                          ? 'bg-[#307c4c]/8 border-[#307c4c]/25 text-[#307c4c]'
+                          : 'bg-slate-100 border-slate-200 text-slate-500'
+                      }`}
                     >
                       {h}
                     </span>
@@ -588,7 +746,8 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
                 {parsed.rows.length} data rows detected (first 3 shown above)
               </p>
             </div>
-          )}
+            );
+          })()}
 
           {/* Import button */}
           <div className="pt-1">
@@ -728,6 +887,96 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
           </div>
         </div>
       )}
+
+      {/* ── Excel format reference ── */}
+      <div>
+        <SectionTitle>Expected Excel Format</SectionTitle>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+
+          {/* Sheet rule */}
+          <div className="px-5 py-4 border-b border-slate-100">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Sheet selection</p>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              The parser looks for the first sheet whose name contains{' '}
+              <Code>KSA</Code>, <Code>UAE</Code>, <Code>portal</Code>, or <Code>data</Code> (case-insensitive).
+              If none match it falls back to the <span className="font-semibold text-slate-800">2nd sheet</span>, then the 1st.
+            </p>
+          </div>
+
+          {/* Row layout */}
+          <div className="px-5 py-4 border-b border-slate-100">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Row layout</p>
+            <div className="flex flex-col gap-1.5 text-sm">
+              {[
+                { row: 'Row 1', desc: 'Title / any label — skipped entirely' },
+                { row: 'Row 2', desc: 'Column headers — shown as pills in the preview' },
+                { row: 'Row 3+', desc: 'Data rows' },
+              ].map(({ row, desc }) => (
+                <div key={row} className="flex items-start gap-3">
+                  <span className="shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[11px] font-bold text-slate-600 tabular-nums">
+                    {row}
+                  </span>
+                  <span className="text-slate-600 text-xs pt-0.5">{desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Column table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                  <th className="py-2.5 px-4 whitespace-nowrap">Col</th>
+                  <th className="py-2.5 px-4 whitespace-nowrap">Header</th>
+                  <th className="py-2.5 px-4 whitespace-nowrap">DB Field</th>
+                  <th className="py-2.5 px-4">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {FORMAT_COLUMNS.map((col, i) => (
+                  <tr key={col.col} className={i % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}>
+                    <td className="py-2.5 px-4 font-mono text-[12px] font-semibold text-slate-700 whitespace-nowrap">{col.col}</td>
+                    <td className="py-2.5 px-4 whitespace-nowrap">
+                      <Code>{col.header}</Code>
+                    </td>
+                    <td className="py-2.5 px-4 whitespace-nowrap">
+                      {col.field === '—' ? (
+                        <span className="text-slate-300 text-xs">—</span>
+                      ) : (
+                        <span className="font-mono text-[11px] text-[#307c4c] bg-[#307c4c]/5 px-1.5 py-0.5 rounded">
+                          {col.field}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-4 text-xs text-slate-500 leading-relaxed">{col.notes}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Key rules */}
+          <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/60">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">Key rules</p>
+            <ul className="space-y-1.5 text-xs text-slate-600">
+              {[
+                'Column M (Deposit USD) must exist in the file even if empty — it is always ignored; deposit_usd is calculated as col L ÷ 3.75.',
+                'Dates accept DD/MM/YYYY or YYYY-MM-DD. Excel serial date cells work if the cell is formatted as a date.',
+                'Cells starting with = (Excel formulas) in numeric or date columns are treated as blank/null.',
+                'Rows with a blank or non-numeric value in col A (No.) are silently skipped.',
+                'Status: any cell containing "closed" (case-insensitive) → Closed, anything else → Active.',
+                'MOT: "Lnad" and "Lnd" are auto-corrected to "Land".',
+              ].map((rule, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#307c4c] mt-1.5 shrink-0" />
+                  {rule}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
 
       {/* ── Previous migrations ── */}
       <div>
