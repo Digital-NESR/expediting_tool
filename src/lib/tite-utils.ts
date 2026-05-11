@@ -63,6 +63,21 @@ export function usdFmt(n: number | string | null | undefined): string {
   return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+export function getStatusBadge(status: string): { label: string; className: string } {
+  switch (status) {
+    case 'Open':
+      return { label: 'Open', className: 'bg-blue-50 text-blue-700 border border-blue-200' };
+    case 'Open - Extended':
+      return { label: 'Open · Extended', className: 'bg-amber-50 text-amber-700 border border-amber-200' };
+    case 'Closed':
+      return { label: 'Closed', className: 'bg-gray-100 text-gray-600 border border-gray-200' };
+    case 'Closed - Refund Recovered':
+      return { label: 'Closed · Refund Recovered', className: 'bg-green-50 text-green-700 border border-green-200' };
+    default:
+      return { label: status || 'Unknown', className: 'bg-gray-100 text-gray-500 border border-gray-200' };
+  }
+}
+
 /** Returns days until effective expiry (negative = overdue). null if no date. */
 export function calcDays(s: Shipment): number | null {
   const effective = s.extended_date || s.expiry_date;

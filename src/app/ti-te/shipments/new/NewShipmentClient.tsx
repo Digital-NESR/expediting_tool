@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
 import { createShipment } from '@/app/actions/tite';
+import type { ShipmentStatus } from '@/types/tite';
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
@@ -57,7 +58,7 @@ export default function NewShipmentClient({
   const [extendedDate, setExtendedDate] = useState('');
   const [depositUsd,   setDepositUsd]   = useState('');
   const [comments,     setComments]     = useState('');
-  const [status,       setStatus]       = useState<'Active' | 'Closed'>('Active');
+  const [status,       setStatus]       = useState<ShipmentStatus>('Open');
   const [contacts,     setContacts]     = useState<ContactRow[]>([{ name: '', email: '', role: '' }]);
 
   /* ui state */
@@ -538,10 +539,12 @@ export default function NewShipmentClient({
                 <select
                   className={INP}
                   value={status}
-                  onChange={e => setStatus(e.target.value as 'Active' | 'Closed')}
+                  onChange={e => setStatus(e.target.value as ShipmentStatus)}
                 >
-                  <option value="Active">Active</option>
-                  <option value="Closed">Closed</option>
+                  <option value="Open">Open — New TI/TE file</option>
+                  <option value="Open - Extended">Open - Extended — Validity extended</option>
+                  <option value="Closed">Closed — File completed</option>
+                  <option value="Closed - Refund Recovered">Closed - Refund Recovered — Refund received</option>
                 </select>
               </div>
             </div>

@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
 import MultiSelectDropdown from '@/components/MultiSelectDropdown';
-import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt } from '@/lib/tite-utils';
+import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, getStatusBadge } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
 
 /* ─── Error / empty states ───────────────────────────────────── */
@@ -64,7 +64,7 @@ const ALERT_DISPLAY: Record<string, string> = {
 };
 
 const ALL_ALERT_OPTIONS = ['overdue', 'urgent', 'action', 'plan', 'info', 'ok', 'closed'];
-const ALL_STATUS_OPTIONS = ['Active', 'Closed'];
+const ALL_STATUS_OPTIONS = ['Open', 'Open - Extended', 'Closed', 'Closed - Refund Recovered'];
 
 /* ─── Main ───────────────────────────────────────────────────── */
 
@@ -81,7 +81,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
   const [filterAlerts,       setFilterAlerts]       = useState<string[]>([]);
 
   const list = shipments ?? [];
-  const activeCount = list.filter(s => s.status !== 'Closed').length;
+  const activeCount = list.filter(s => s.status !== 'Closed' && s.status !== 'Closed - Refund Recovered').length;
   const urgentCount = list.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
 
   const hasActiveFilters =
@@ -343,10 +343,11 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${ALERT_PILL[s.alert_level] || ''}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${ALERT_DOT[s.alert_level] || 'bg-slate-400'}`} />
-                          {ALERT_LABEL[s.alert_level] || s.alert_level}
-                        </span>
+                        {(() => { const sb = getStatusBadge(s.status); return (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${sb.className}`}>
+                            {sb.label}
+                          </span>
+                        ); })()}
                       </td>
                       <td className="px-3 py-2.5">
                         <svg className="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>

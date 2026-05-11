@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
-import { ALERT_LABEL, ALERT_PILL, BUCKET_HEX, fmtDate, usdFmt, calcDays } from '@/lib/tite-utils';
+import { ALERT_LABEL, ALERT_PILL, BUCKET_HEX, fmtDate, usdFmt, calcDays, getStatusBadge } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
 
 const GROUPS = [
@@ -32,7 +32,7 @@ export default function AlertsClient({ shipments }: { shipments: Shipment[] | nu
     );
   }
 
-  const open = shipments.filter(s => s.status !== 'Closed');
+  const open = shipments.filter(s => s.status !== 'Closed' && s.status !== 'Closed - Refund Recovered');
   const activeCount = open.length;
   const urgentCount = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
 
@@ -124,9 +124,11 @@ export default function AlertsClient({ shipments }: { shipments: Shipment[] | nu
                               {usdFmt(s.deposit_usd)}
                             </td>
                             <td className="px-3 py-2.5">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold whitespace-nowrap ${ALERT_PILL[g.key] || ''}`}>
-                                {ALERT_LABEL[g.key] || g.key}
-                              </span>
+                              {(() => { const sb = getStatusBadge(s.status); return (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold whitespace-nowrap ${sb.className}`}>
+                                  {sb.label}
+                                </span>
+                              ); })()}
                             </td>
                             <td className="px-3 py-2.5">
                               <svg className="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>

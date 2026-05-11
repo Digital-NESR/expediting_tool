@@ -53,7 +53,7 @@ const FORMAT_COLUMNS = [
   { col: 'O (14)', header: 'Extended date',             field: 'extended_date',            notes: 'Date. Cells starting with = or empty are null.' },
   { col: 'P (15)', header: 'Deposit (USD)',             field: 'deposit_usd',              notes: 'Numeric. USD deposit amount. Currency symbols are stripped automatically.' },
   { col: 'Q (16)', header: 'Comments',                  field: 'comments',                 notes: 'Text.' },
-  { col: 'R (17)', header: 'Status',                    field: 'status',                   notes: 'Any value containing "closed" (case-insensitive) → Closed. Anything else → Active.' },
+  { col: 'R (17)', header: 'Status',                    field: 'status',                   notes: 'Open / Open - Extended / Closed / Closed - Refund Recovered. "refund" → Closed - Refund Recovered; "extended"/"extension" → Open - Extended; "closed"/"close" → Closed; "active" → Open. Default: Open.' },
 ];
 
 /* ─── Inline helper ──────────────────────────────────────────── */
@@ -184,8 +184,14 @@ function parseExcel(file: File): Promise<ParsedFile> {
         };
 
         const parseStatus = (val: any): string => {
-          if (val == null) return 'Active';
-          return String(val).toLowerCase().includes('closed') ? 'Closed' : 'Active';
+          if (!val) return 'Open';
+          const s = String(val).toLowerCase().trim();
+          if (s.includes('refund')) return 'Closed - Refund Recovered';
+          if (s.includes('extended') || s.includes('extension')) return 'Open - Extended';
+          if (s.includes('closed') || s.includes('close')) return 'Closed';
+          if (s.includes('open')) return 'Open';
+          if (s.includes('active')) return 'Open';
+          return 'Open';
         };
 
         const dataRows = rawRows.slice(2);
@@ -968,7 +974,7 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
                 'Dates accept DD/MM/YYYY or YYYY-MM-DD. Excel serial date cells work if the cell is formatted as a date.',
                 'Cells starting with = (Excel formulas) in numeric or date columns are treated as blank/null.',
                 'Rows with a blank or non-numeric value in col A (No.) are silently skipped.',
-                'Status: any cell containing "closed" (case-insensitive) → Closed, anything else → Active.',
+                'Status: values map to one of four statuses — "refund" → Closed - Refund Recovered; "extended"/"extension" → Open - Extended; "closed"/"close" → Closed; "active" or blank → Open.',
                 'MOT: "Lnad" and "Lnd" are auto-corrected to "Land".',
               ].map((rule, i) => (
                 <li key={i} className="flex items-start gap-2">

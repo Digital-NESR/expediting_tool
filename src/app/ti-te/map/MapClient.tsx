@@ -22,7 +22,7 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
     );
   }
 
-  const open = shipments.filter(s => s.status !== 'Closed');
+  const open = shipments.filter(s => s.status !== 'Closed' && s.status !== 'Closed - Refund Recovered');
   const activeCount = open.length;
   const urgentCount = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
 

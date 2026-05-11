@@ -3,7 +3,7 @@
 import titePool from '@/lib/db-tite';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import type { Shipment, ShipmentStats } from '@/types/tite';
+import type { Shipment, ShipmentStats, ShipmentStatus } from '@/types/tite';
 
 /* ─── CreateShipmentInput ─────────────────────────────────────── */
 
@@ -25,7 +25,7 @@ export interface CreateShipmentInput {
   extended_date?: string;
   deposit_usd?: number;
   comments?: string;
-  status: 'Active' | 'Closed';
+  status: ShipmentStatus;
   contacts?: Array<{ name: string; email: string; role: string }>;
 }
 
@@ -51,7 +51,7 @@ function calcAlertLevel(
   extendedDate: string | undefined,
   status: string,
 ): string {
-  if (status === 'Closed') return 'closed';
+  if (status === 'Closed' || status === 'Closed - Refund Recovered') return 'closed';
   const effective = extendedDate || expiryDate;
   if (!effective) return 'info';
   const today = new Date();
@@ -223,13 +223,13 @@ export async function getShipmentStats(approvedCountries?: string[]): Promise<Sh
     const filtered = approvedCountries && approvedCountries.length > 0;
     const { rows } = await titePool.query(
       `SELECT
-        COUNT(*)                    FILTER (WHERE status != 'Closed')                               AS active_count,
-        COUNT(*)                    FILTER (WHERE alert_level = 'overdue')                          AS overdue_count,
-        COUNT(*)                    FILTER (WHERE alert_level = 'urgent')                           AS urgent_count,
-        COUNT(*)                    FILTER (WHERE alert_level IN ('action','plan'))                 AS action_count,
-        COALESCE(SUM(deposit_usd)   FILTER (WHERE status != 'Closed'), 0)                          AS total_deposit_usd,
-        COUNT(*)                    FILTER (WHERE movement_type ILIKE '%import%' AND status != 'Closed') AS import_count,
-        COUNT(*)                    FILTER (WHERE movement_type ILIKE '%export%' AND status != 'Closed') AS export_count
+        COUNT(*)                    FILTER (WHERE status NOT IN ('Closed', 'Closed - Refund Recovered'))                               AS active_count,
+        COUNT(*)                    FILTER (WHERE alert_level = 'overdue')                                                             AS overdue_count,
+        COUNT(*)                    FILTER (WHERE alert_level = 'urgent')                                                              AS urgent_count,
+        COUNT(*)                    FILTER (WHERE alert_level IN ('action','plan'))                                                    AS action_count,
+        COALESCE(SUM(deposit_usd)   FILTER (WHERE status NOT IN ('Closed', 'Closed - Refund Recovered')), 0)                          AS total_deposit_usd,
+        COUNT(*)                    FILTER (WHERE movement_type ILIKE '%import%' AND status NOT IN ('Closed', 'Closed - Refund Recovered')) AS import_count,
+        COUNT(*)                    FILTER (WHERE movement_type ILIKE '%export%' AND status NOT IN ('Closed', 'Closed - Refund Recovered')) AS export_count
        FROM shipments
        ${filtered ? 'WHERE country = ANY($1::text[])' : ''}`,
       filtered ? [approvedCountries] : [],

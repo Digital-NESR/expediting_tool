@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
 import {
   ALERT_PILL, ALERT_DOT, BUCKET_HEX, ALERT_LABEL,
-  fmtDate, usdFmt, calcDays,
+  fmtDate, usdFmt, calcDays, getStatusBadge,
 } from '@/lib/tite-utils';
 import type { Shipment, ShipmentStats } from '@/types/tite';
 
@@ -100,7 +100,7 @@ export default function TiteDashboardClient({
   if (shipments.length === 0) return <EmptyState />;
 
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const open = shipments.filter(s => s.status !== 'Closed');
+  const open = shipments.filter(s => s.status !== 'Closed' && s.status !== 'Closed - Refund Recovered');
 
   const activeCount = open.length;
   const urgentCount = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
@@ -247,10 +247,11 @@ export default function TiteDashboardClient({
                           </div>
                         </td>
                         <td className="px-4 py-2.5">
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${ALERT_PILL[s.alert_level] || ALERT_PILL.ok}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${ALERT_DOT[s.alert_level] || 'bg-slate-400'}`} />
-                            {ALERT_LABEL[s.alert_level] || s.alert_level}
-                          </span>
+                          {(() => { const sb = getStatusBadge(s.status); return (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${sb.className}`}>
+                              {sb.label}
+                            </span>
+                          ); })()}
                         </td>
                       </tr>
                     );

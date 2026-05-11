@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
-import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, calcDays } from '@/lib/tite-utils';
+import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, calcDays, getStatusBadge } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
 
 const DEADLINE_BG: Record<string, string> = {
@@ -74,12 +74,13 @@ export default function ShipmentDetailClient({
 
   const deadlineBg = DEADLINE_BG[s.alert_level] || DEADLINE_BG.default;
 
+  const isClosed = s.status === 'Closed' || s.status === 'Closed - Refund Recovered';
   const notifs = [
-    { label: '60 days before', sent: (days ?? 99) <= 60 || s.status === 'Closed', crit: false },
-    { label: '30 days before', sent: (days ?? 99) <= 30 || s.status === 'Closed', crit: false },
-    { label: '14 days before', sent: (days ?? 99) <= 14 || s.status === 'Closed', crit: false },
-    { label: '7 days before',  sent: (days ?? 99) <= 7  || s.status === 'Closed', crit: false },
-    { label: 'Past expiry',    sent: s.alert_level === 'overdue',                  crit: true  },
+    { label: '60 days before', sent: (days ?? 99) <= 60 || isClosed, crit: false },
+    { label: '30 days before', sent: (days ?? 99) <= 30 || isClosed, crit: false },
+    { label: '14 days before', sent: (days ?? 99) <= 14 || isClosed, crit: false },
+    { label: '7 days before',  sent: (days ?? 99) <= 7  || isClosed, crit: false },
+    { label: 'Past expiry',    sent: s.alert_level === 'overdue',     crit: true  },
   ];
 
   const checksAll = [
@@ -89,7 +90,7 @@ export default function ShipmentDetailClient({
     { done: (Number(s.deposit_usd) || 0) > 0 || (s.movement_type || '').toLowerCase().includes('export'), text: 'Customs deposit recorded' },
     { done: s.alert_level !== 'overdue',                           text: 'Within re-export deadline' },
     { done: !!s.extended_date,                                     text: 'Extension granted (if requested)', optional: true },
-    { done: s.status === 'Closed',                                 text: 'Re-export confirmed & deposit refunded' },
+    { done: isClosed,                                              text: 'Re-export or settlement confirmed' },
   ];
 
   return (
@@ -129,6 +130,11 @@ export default function ShipmentDetailClient({
                 </span>
               )}
               <StatusPill level={s.alert_level} />
+              {(() => { const sb = getStatusBadge(s.status); return (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${sb.className}`}>
+                  {sb.label}
+                </span>
+              ); })()}
               <span className="text-xs text-slate-400">Logged {fmtDate(s.import_date)} by {s.created_by || '—'}</span>
             </div>
           </div>
@@ -200,9 +206,11 @@ export default function ShipmentDetailClient({
                   <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
                     <Field label="Deposit (USD)" value={<span className="text-xl font-bold tabular-nums">{usdFmt(s.deposit_usd)}</span>} />
                     <Field label="Refund status" value={
-                      s.status === 'Closed'
-                        ? <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />Refund initiated</span>
-                        : <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Held by customs</span>
+                      s.status === 'Closed - Refund Recovered'
+                        ? <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />Refund recovered</span>
+                        : s.status === 'Closed'
+                          ? <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 border border-gray-200"><span className="w-1.5 h-1.5 rounded-full bg-gray-400" />File closed</span>
+                          : <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Held by customs</span>
                     } />
                   </div>
                 </div>

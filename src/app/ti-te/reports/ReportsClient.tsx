@@ -33,8 +33,8 @@ export default function ReportsClient({ shipments }: { shipments: Shipment[] | n
     );
   }
 
-  const open   = shipments.filter(s => s.status !== 'Closed');
-  const closed = shipments.filter(s => s.status === 'Closed');
+  const open   = shipments.filter(s => s.status !== 'Closed' && s.status !== 'Closed - Refund Recovered');
+  const closed = shipments.filter(s => s.status === 'Closed' || s.status === 'Closed - Refund Recovered');
   const activeCount  = open.length;
   const urgentCount  = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
 

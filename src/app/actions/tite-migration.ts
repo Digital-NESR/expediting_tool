@@ -69,7 +69,7 @@ function calcAlertLevel(
   extendedDate: string | null,
   status: string,
 ): string {
-  if (status === 'Closed') return 'closed';
+  if (status === 'Closed' || status === 'Closed - Refund Recovered') return 'closed';
   const effective = extendedDate || expiryDate;
   if (!effective) return 'ok';
   const today = new Date();

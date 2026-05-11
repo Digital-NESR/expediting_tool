@@ -1,3 +1,13 @@
+export type ShipmentStatus =
+  | 'Open'
+  | 'Open - Extended'
+  | 'Closed'
+  | 'Closed - Refund Recovered';
+
+export function isClosedStatus(status: string): boolean {
+  return status === 'Closed' || status === 'Closed - Refund Recovered';
+}
+
 export interface Shipment {
   id: number;
   reference_number: string;
@@ -18,7 +28,7 @@ export interface Shipment {
   deposit_usd: number | null;
   country: string | null;
   comments: string | null;
-  status: string;
+  status: ShipmentStatus;
   alert_level: string;
   created_at?: string;
   updated_at?: string;
