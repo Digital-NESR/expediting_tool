@@ -3,7 +3,8 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
-import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, BUCKET_HEX, fmtDate, usdFmt, calcDays } from '@/lib/tite-utils';
+import MultiSelectDropdown from '@/components/MultiSelectDropdown';
+import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
 
 /* ─── Error / empty states ───────────────────────────────────── */
@@ -50,7 +51,20 @@ function MotIcon({ mot }: { mot: string | null }) {
   );
 }
 
-const ALERT_FILTERS = ['overdue', 'urgent', 'action', 'plan', 'info', 'ok', 'closed'] as const;
+/* ─── Alert display map ──────────────────────────────────────── */
+
+const ALERT_DISPLAY: Record<string, string> = {
+  overdue: 'Overdue',
+  urgent:  'Urgent (≤7 days)',
+  action:  'Action (8-14 days)',
+  plan:    'Plan (15-30 days)',
+  info:    'Monitor (31-60 days)',
+  ok:      'On Track (60+ days)',
+  closed:  'Closed',
+};
+
+const ALL_ALERT_OPTIONS = ['overdue', 'urgent', 'action', 'plan', 'info', 'ok', 'closed'];
+const ALL_STATUS_OPTIONS = ['Active', 'Closed'];
 
 /* ─── Main ───────────────────────────────────────────────────── */
 
@@ -58,30 +72,115 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
 
-  const [q, setQ] = useState('');
-  const [seg, setSeg] = useState('All');
-  const [movement, setMovement] = useState('All');
-  const [alertFilter, setAlertFilter] = useState<string>('All');
-  const [country, setCountry] = useState('All');
+  /* filter state */
+  const [search,             setSearch]             = useState('');
+  const [filterCountries,    setFilterCountries]    = useState<string[]>([]);
+  const [filterSegments,     setFilterSegments]     = useState<string[]>([]);
+  const [filterMovementTypes,setFilterMovementTypes]= useState<string[]>([]);
+  const [filterStatuses,     setFilterStatuses]     = useState<string[]>([]);
+  const [filterAlerts,       setFilterAlerts]       = useState<string[]>([]);
 
   const list = shipments ?? [];
   const activeCount = list.filter(s => s.status !== 'Closed').length;
   const urgentCount = list.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
 
-  const segments = useMemo(() => ['All', ...Array.from(new Set(list.map(s => s.segment).filter(Boolean) as string[]))], [list]);
-  const countries = useMemo(() => ['All', ...Array.from(new Set(list.flatMap(s => [s.from_country, s.to_country]).filter(Boolean) as string[]))], [list]);
+  const hasActiveFilters =
+    search !== '' ||
+    filterCountries.length > 0 ||
+    filterSegments.length > 0 ||
+    filterMovementTypes.length > 0 ||
+    filterStatuses.length > 0 ||
+    filterAlerts.length > 0;
 
-  const rows = useMemo(() => list.filter(s => {
-    if (q) {
-      const hay = `${s.id} ${s.invoice_number} ${s.customs_reference_number} ${s.description} ${s.po_number} ${s.awb_number} ${s.reference_number}`.toLowerCase();
-      if (!hay.includes(q.toLowerCase())) return false;
-    }
-    if (seg !== 'All' && s.segment !== seg) return false;
-    if (movement !== 'All' && !(s.movement_type || '').toLowerCase().includes(movement.toLowerCase())) return false;
-    if (alertFilter !== 'All' && s.alert_level !== alertFilter) return false;
-    if (country !== 'All' && s.from_country !== country && s.to_country !== country) return false;
+  function clearAllFilters() {
+    setSearch('');
+    setFilterCountries([]);
+    setFilterSegments([]);
+    setFilterMovementTypes([]);
+    setFilterStatuses([]);
+    setFilterAlerts([]);
+  }
+
+  /* ── Cascading option lists ── */
+
+  // Base: apply all filters except the one being computed
+  const afterSearch = useMemo(() => {
+    if (!search) return list;
+    const q = search.toLowerCase();
+    return list.filter(s =>
+      s.reference_number?.toLowerCase().includes(q) ||
+      s.description?.toLowerCase().includes(q) ||
+      s.invoice_number?.toLowerCase().includes(q) ||
+      s.customs_reference_number?.toLowerCase().includes(q) ||
+      s.awb_number?.toLowerCase().includes(q) ||
+      s.po_number?.toLowerCase().includes(q)
+    );
+  }, [list, search]);
+
+  const applyFilters = (
+    src: Shipment[],
+    {
+      countries    = filterCountries,
+      segments     = filterSegments,
+      movementTypes= filterMovementTypes,
+      statuses     = filterStatuses,
+      alerts       = filterAlerts,
+    }: {
+      countries?:     string[];
+      segments?:      string[];
+      movementTypes?: string[];
+      statuses?:      string[];
+      alerts?:        string[];
+    } = {},
+  ) => src.filter(s => {
+    if (countries.length     && !countries.includes(s.country      ?? '(Blank)'))      return false;
+    if (segments.length      && !segments.includes(s.segment        ?? '(Blank)'))      return false;
+    if (movementTypes.length && !movementTypes.includes(s.movement_type ?? '(Blank)')) return false;
+    if (statuses.length      && !statuses.includes(s.status))                           return false;
+    if (alerts.length        && !alerts.includes(s.alert_level))                        return false;
     return true;
-  }), [list, q, seg, movement, alertFilter, country]);
+  });
+
+  const countryOptions = useMemo(() =>
+    [...new Set(
+      applyFilters(afterSearch, { countries: [] })
+        .map(s => s.country ?? '(Blank)')
+    )].sort()
+  , [afterSearch, filterSegments, filterMovementTypes, filterStatuses, filterAlerts]);
+
+  const segmentOptions = useMemo(() =>
+    [...new Set(
+      applyFilters(afterSearch, { segments: [] })
+        .map(s => s.segment ?? '(Blank)')
+    )].sort()
+  , [afterSearch, filterCountries, filterMovementTypes, filterStatuses, filterAlerts]);
+
+  const movementTypeOptions = useMemo(() =>
+    [...new Set(
+      applyFilters(afterSearch, { movementTypes: [] })
+        .map(s => s.movement_type ?? '(Blank)')
+        .filter(Boolean)
+    )].sort()
+  , [afterSearch, filterCountries, filterSegments, filterStatuses, filterAlerts]);
+
+  const statusOptions = useMemo(() =>
+    ALL_STATUS_OPTIONS.filter(st =>
+      applyFilters(afterSearch, { statuses: [] }).some(s => s.status === st)
+    )
+  , [afterSearch, filterCountries, filterSegments, filterMovementTypes, filterAlerts]);
+
+  const alertOptions = useMemo(() =>
+    ALL_ALERT_OPTIONS.filter(al =>
+      applyFilters(afterSearch, { alerts: [] }).some(s => s.alert_level === al)
+    )
+  , [afterSearch, filterCountries, filterSegments, filterMovementTypes, filterStatuses]);
+
+  /* ── Final filtered rows ── */
+
+  const rows = useMemo(() => applyFilters(afterSearch), [
+    afterSearch, filterCountries, filterSegments,
+    filterMovementTypes, filterStatuses, filterAlerts,
+  ]);
 
   const totalDep = rows.reduce((a, s) => a + (Number(s.deposit_usd) || 0), 0);
 
@@ -121,29 +220,66 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
         </div>
 
         {/* Filters */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 mb-4 flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-            <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-            <input className="flex-1 text-sm outline-none placeholder-slate-400 bg-transparent" placeholder="Search reference, invoice, customs ref, PO, AWB…" value={q} onChange={e => setQ(e.target.value)} />
-          </div>
-          <div className="w-px h-5 bg-slate-200 hidden sm:block" />
-          <select className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20" value={seg} onChange={e => setSeg(e.target.value)}>
-            {segments.map(x => <option key={x}>{x === 'All' ? 'Segment: All' : x}</option>)}
-          </select>
-          <select className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20" value={movement} onChange={e => setMovement(e.target.value)}>
-            <option>All</option><option>Import</option><option>Export</option>
-          </select>
-          <select className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20" value={country} onChange={e => setCountry(e.target.value)}>
-            {countries.map(x => <option key={x}>{x === 'All' ? 'Country: All' : x}</option>)}
-          </select>
-          <div className="flex-1" />
-          <div className="flex flex-wrap gap-1">
-            {(['All', ...ALERT_FILTERS] as const).map(a => (
-              <button key={a} onClick={() => setAlertFilter(a)}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${alertFilter === a ? 'bg-[#006B0C] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                {a === 'All' ? 'All status' : ALERT_LABEL[a] || a}
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 mb-4">
+          {/* Search row */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              <input
+                className="flex-1 text-sm outline-none placeholder-slate-400 bg-transparent"
+                placeholder="Search by description, reference, invoice no, customs ref..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="text-slate-400 hover:text-slate-600 transition-colors shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              )}
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={clearAllFilters}
+                className="text-sm text-slate-500 hover:text-slate-700 whitespace-nowrap transition-colors shrink-0"
+              >
+                Clear All
               </button>
-            ))}
+            )}
+          </div>
+
+          {/* Dropdown row */}
+          <div className="flex flex-wrap gap-2">
+            <MultiSelectDropdown
+              label="Country"
+              options={countryOptions}
+              selectedOptions={filterCountries}
+              onChange={setFilterCountries}
+            />
+            <MultiSelectDropdown
+              label="Segment"
+              options={segmentOptions}
+              selectedOptions={filterSegments}
+              onChange={setFilterSegments}
+            />
+            <MultiSelectDropdown
+              label="Movement Type"
+              options={movementTypeOptions}
+              selectedOptions={filterMovementTypes}
+              onChange={setFilterMovementTypes}
+            />
+            <MultiSelectDropdown
+              label="Status"
+              options={statusOptions}
+              selectedOptions={filterStatuses}
+              onChange={setFilterStatuses}
+            />
+            <MultiSelectDropdown
+              label="Alert"
+              options={alertOptions}
+              selectedOptions={filterAlerts}
+              onChange={setFilterAlerts}
+              displayMap={ALERT_DISPLAY}
+            />
           </div>
         </div>
 
