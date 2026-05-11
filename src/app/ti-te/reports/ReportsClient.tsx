@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
-import { sarFmt } from '@/lib/tite-utils';
+import { usdFmt } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
 
 const REPORTS = [
@@ -38,15 +38,15 @@ export default function ReportsClient({ shipments }: { shipments: Shipment[] | n
   const activeCount  = open.length;
   const urgentCount  = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
 
-  const totalDeposit  = open.reduce((a, s) => a + (Number(s.deposit_local) || 0), 0);
-  const refunded      = closed.reduce((a, s) => a + (Number(s.deposit_local) || 0), 0);
-  const penaltyRisk   = shipments.filter(s => s.alert_level === 'overdue').reduce((a, s) => a + (Number(s.deposit_local) || 0), 0);
+  const totalDeposit  = open.reduce((a, s) => a + (Number(s.deposit_usd) || 0), 0);
+  const refunded      = closed.reduce((a, s) => a + (Number(s.deposit_usd) || 0), 0);
+  const penaltyRisk   = shipments.filter(s => s.alert_level === 'overdue').reduce((a, s) => a + (Number(s.deposit_usd) || 0), 0);
   const completionPct = shipments.length > 0 ? Math.round((closed.length / shipments.length) * 100) : 0;
 
   const kpis = [
-    { label: 'Total active deposit',    value: sarFmt(totalDeposit),    sub: `${open.length} open shipments`,   accent: '#006B0C' },
-    { label: 'Refunds initiated YTD',   value: sarFmt(refunded),         sub: `${closed.length} closed`,         accent: '#059669' },
-    { label: 'Penalty risk exposure',   value: sarFmt(penaltyRisk),      sub: 'From overdue shipments',          accent: '#f59e0b' },
+    { label: 'Total active deposit',    value: usdFmt(totalDeposit),    sub: `${open.length} open shipments`,   accent: '#006B0C' },
+    { label: 'Refunds initiated YTD',   value: usdFmt(refunded),         sub: `${closed.length} closed`,         accent: '#059669' },
+    { label: 'Penalty risk exposure',   value: usdFmt(penaltyRisk),      sub: 'From overdue shipments',          accent: '#f59e0b' },
     { label: 'Re-export completion',    value: `${completionPct}%`,      sub: 'Closed / total all-time',         accent: '#3b82f6' },
   ];
 

@@ -18,19 +18,19 @@ interface ParsedFile {
 /* ─── Country options ────────────────────────────────────────── */
 
 const COUNTRIES = [
-  { label: 'Saudi Arabia (KSA)', currency: 'SAR' },
-  { label: 'United Arab Emirates (UAE)', currency: 'AED' },
-  { label: 'Qatar', currency: 'QAR' },
-  { label: 'Kuwait', currency: 'KWD' },
-  { label: 'Oman', currency: 'OMR' },
-  { label: 'Bahrain', currency: 'BHD' },
-  { label: 'Egypt', currency: 'EGP' },
-  { label: 'Algeria', currency: 'DZD' },
-  { label: 'Iraq', currency: 'IQD' },
-  { label: 'Libya', currency: 'LYD' },
-  { label: 'Chad', currency: 'XAF' },
-  { label: 'Congo', currency: 'XAF' },
-  { label: 'Other', currency: '—' },
+  { label: 'Saudi Arabia (KSA)' },
+  { label: 'United Arab Emirates (UAE)' },
+  { label: 'Qatar' },
+  { label: 'Kuwait' },
+  { label: 'Oman' },
+  { label: 'Bahrain' },
+  { label: 'Egypt' },
+  { label: 'Algeria' },
+  { label: 'Iraq' },
+  { label: 'Libya' },
+  { label: 'Chad' },
+  { label: 'Congo' },
+  { label: 'Other' },
 ];
 
 /* ─── Format reference data ─────────────────────────────────── */
@@ -41,14 +41,14 @@ const FORMAT_COLUMNS = [
   { col: 'C (2)', header: 'From',            field: 'from_country',     notes: 'Origin country name.' },
   { col: 'D (3)', header: 'To',              field: 'to_country',       notes: 'Destination country name.' },
   { col: 'E (4)', header: 'Invoice Number',  field: 'invoice_number',   notes: 'Text.' },
-  { col: 'F (5)', header: 'Invoice Value',   field: 'invoice_value',    notes: 'Numeric. Cells starting with = are treated as null.' },
+  { col: 'F (5)', header: 'Invoice Value (USD)',   field: 'invoice_value_usd',    notes: 'Numeric. Cells starting with = are treated as null.' },
   { col: 'G (6)', header: 'Bayan Number',    field: 'bayan_number',     notes: 'Text. Multi-line cells — only the first line is used.' },
   { col: 'H (7)', header: 'Description',     field: 'description',      notes: 'Text.' },
   { col: 'I (8)', header: 'MOT',             field: 'mot',              notes: 'Mode of transport. "Lnad" and "Lnd" are auto-corrected to "Land".' },
   { col: 'J (9)', header: 'AWB',             field: 'awb_number',       notes: 'Air waybill number. Text.' },
   { col: 'K (10)', header: 'Import Date',    field: 'import_date',      notes: 'Date. Accepts DD/MM/YYYY or YYYY-MM-DD.' },
-  { col: 'L (11)', header: 'Deposit Value (Local)', field: 'deposit_local', notes: 'Local currency amount. Currency symbols (SAR, AED, etc.) are stripped automatically.' },
-  { col: 'M (12)', header: 'Deposit Value (USD)',  field: 'deposit_usd',   notes: 'USD equivalent. Read directly from this column. If empty, estimated as col L ÷ 3.75.' },
+  { col: 'L (11)', header: 'Deposit Value (Local)', field: '(fallback)',    notes: 'Local currency amount — used as-is for deposit_usd if column M is empty. Currency symbols (SAR, AED, etc.) are stripped automatically.' },
+  { col: 'M (12)', header: 'Deposit Value (USD)',  field: 'deposit_usd',   notes: 'USD equivalent. Read directly from this column. If empty, the value from col L is used as-is (no conversion applied).' },
   { col: 'N (13)', header: 'PO',             field: 'po_number',        notes: 'Text.' },
   { col: 'O (14)', header: 'Movement Type',  field: 'movement_type',    notes: 'Text — e.g. Import, Export. Extra whitespace is collapsed.' },
   { col: 'P (15)', header: 'Expiry Date',    field: 'expiry_date',      notes: 'Date. Cells starting with = are null.' },
@@ -201,7 +201,7 @@ function parseExcel(file: File): Promise<ParsedFile> {
               from: row[2] ? String(row[2]).trim() || null : null,
               to: row[3] ? String(row[3]).trim() || null : null,
               invoiceNumber: row[4] ? String(row[4]).trim() || null : null,
-              invoiceValue: parseNum(row[5]),
+              invoiceValueUsd: parseNum(row[5]),
               bayanNumber: row[6]
                 ? String(row[6]).trim().split('\n')[0] || null
                 : null,
@@ -214,8 +214,7 @@ function parseExcel(file: File): Promise<ParsedFile> {
                 : null,
               awb: row[9] ? String(row[9]).trim() || null : null,
               importDate: parseDate(row[10]),
-              depositLocal: parseNum(row[11]),
-              depositUsd: parseNum(row[12]) ?? (parseNum(row[11]) != null ? parseNum(row[11])! / 3.75 : null),
+              depositUsd: parseNum(row[12]) ?? parseNum(row[11]) ?? null,
               poNumber: row[13] ? String(row[13]).trim() || null : null,
               movementType: row[14]
                 ? String(row[14]).trim().replace(/\s+/g, ' ') || null
@@ -327,7 +326,7 @@ function MigrationLogTable({
 
 function downloadTemplate() {
   const headers = [
-    'No.', 'Segment', 'From', 'To', 'Invoice Number', 'Invoice Value',
+    'No.', 'Segment', 'From', 'To', 'Invoice Number', 'Invoice Value (USD)',
     'Bayan Number', 'Description', 'MOT', 'AWB / BL', 'Import Date',
     'Deposit Value (Local)', 'Deposit Value (USD)', 'PO Number',
     'Movement Type', 'Expiry Date', 'Extended Date', 'Comments', 'Status',
@@ -525,12 +524,7 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
                 className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 hover:border-[#307c4c]/50 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 transition-all"
               >
                 <span className={country ? 'text-slate-900 font-medium' : 'text-slate-400'}>
-                  {country
-                    ? (() => {
-                        const c = COUNTRIES.find((c) => c.label === country)!;
-                        return `${c.label} — ${c.currency}`;
-                      })()
-                    : 'Select a country…'}
+                  {country || 'Select a country…'}
                 </span>
                 <svg className={`w-4 h-4 text-slate-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -558,10 +552,9 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
                         key={c.label}
                         type="button"
                         onClick={() => { setCountry(c.label); setDropdownOpen(false); }}
-                        className={`w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-[#307c4c]/5 transition-colors ${country === c.label ? 'bg-[#307c4c]/10 text-[#307c4c] font-semibold' : 'text-slate-700'}`}
+                        className={`w-full px-4 py-2.5 text-sm text-left hover:bg-[#307c4c]/5 transition-colors ${country === c.label ? 'bg-[#307c4c]/10 text-[#307c4c] font-semibold' : 'text-slate-700'}`}
                       >
-                        <span>{c.label}</span>
-                        <span className="text-xs text-slate-400 font-normal">{c.currency}</span>
+                        {c.label}
                       </button>
                     ))}
                   </div>
@@ -697,14 +690,14 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
                       { col: 'C', field: 'From',                  fmt: 'Text',   notes: 'Origin country' },
                       { col: 'D', field: 'To',                    fmt: 'Text',   notes: 'Destination country' },
                       { col: 'E', field: 'Invoice Number',        fmt: 'Text',   notes: 'Invoice/CI reference' },
-                      { col: 'F', field: 'Invoice Value',         fmt: 'Number', notes: 'Numeric value only' },
+                      { col: 'F', field: 'Invoice Value (USD)',    fmt: 'Number', notes: 'Numeric value only' },
                       { col: 'G', field: 'Bayan Number',          fmt: 'Text',   notes: 'Customs declaration number' },
                       { col: 'H', field: 'Description',           fmt: 'Text',   notes: 'Description of goods' },
                       { col: 'I', field: 'MOT',                   fmt: 'Text',   notes: 'Air / Sea / Land' },
                       { col: 'J', field: 'AWB / BL',              fmt: 'Text',   notes: 'Airway bill or Bill of Lading' },
                       { col: 'K', field: 'Import Date',           fmt: 'Date',   notes: 'DD/MM/YYYY' },
-                      { col: 'L', field: 'Deposit Value (Local)', fmt: 'Number', notes: 'Local currency amount' },
-                      { col: 'M', field: 'Deposit Value (USD)',   fmt: 'Number', notes: 'USD equivalent' },
+                      { col: 'L', field: 'Deposit Value (Local)', fmt: 'Number', notes: 'Used as fallback if col M is empty (no conversion)' },
+                      { col: 'M', field: 'Deposit Value (USD)',   fmt: 'Number', notes: 'USD equivalent — preferred; enter converted value' },
                       { col: 'N', field: 'PO Number',             fmt: 'Text/Number', notes: 'PO reference' },
                       { col: 'O', field: 'Movement Type',         fmt: 'Text',   notes: 'Import / Export' },
                       { col: 'P', field: 'Expiry Date',           fmt: 'Date',   notes: 'DD/MM/YYYY' },
@@ -722,7 +715,7 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
                   </tbody>
                 </table>
                 <div className="px-4 py-3 bg-amber-50 border-t border-amber-100 text-[11.5px] text-amber-800 leading-relaxed">
-                  💡 Currency symbols (SAR, $, AED etc.) in deposit columns are handled automatically. Deposit USD is read directly from column M — please calculate the conversion before uploading. If column M is empty, USD will be estimated from the local value.
+                  💡 Deposit USD (col M) is read directly — please enter converted USD values before uploading. If col M is empty, the value from col L is used as-is (no currency conversion is applied). Currency symbols (SAR, $, AED, etc.) are stripped automatically.
                 </div>
               </div>
             )}
@@ -1067,7 +1060,7 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">Key rules</p>
             <ul className="space-y-1.5 text-xs text-slate-600">
               {[
-                'Column M (Deposit USD) is read directly; if empty, deposit_usd is estimated as col L ÷ 3.75. Currency symbols (SAR, $, AED, etc.) in deposit columns are stripped automatically.',
+                'Column M (Deposit USD) is read directly; if empty, the value from column L is used as-is for deposit_usd (no conversion applied). Currency symbols (SAR, $, AED, etc.) in deposit columns are stripped automatically.',
                 'Dates accept DD/MM/YYYY or YYYY-MM-DD. Excel serial date cells work if the cell is formatted as a date.',
                 'Cells starting with = (Excel formulas) in numeric or date columns are treated as blank/null.',
                 'Rows with a blank or non-numeric value in col A (No.) are silently skipped.',

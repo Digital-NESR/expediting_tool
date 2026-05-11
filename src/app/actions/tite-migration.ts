@@ -11,13 +11,12 @@ export interface RawShipmentRow {
   from: string | null;
   to: string | null;
   invoiceNumber: string | null;
-  invoiceValue: number | null;
+  invoiceValueUsd: number | null;
   bayanNumber: string | null;
   description: string | null;
   mot: string | null;
   awb: string | null;
   importDate: string | null;
-  depositLocal: number | null;
   depositUsd: number | null;
   poNumber: string | null;
   movementType: string | null;
@@ -130,14 +129,14 @@ export async function importShipments(params: {
       const result = await titePool.query(
         `INSERT INTO shipments (
           reference_number, segment, from_country, to_country,
-          invoice_number, invoice_value, bayan_number, description,
+          invoice_number, invoice_value_usd, bayan_number, description,
           mot, awb_number, po_number, movement_type,
           import_date, expiry_date, extended_date,
-          deposit_local, deposit_usd,
+          deposit_usd,
           comments, status, alert_level, created_by, country
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22
+          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
         )
         ON CONFLICT (reference_number) DO NOTHING`,
         [
@@ -146,7 +145,7 @@ export async function importShipments(params: {
           row.from,
           row.to,
           row.invoiceNumber,
-          row.invoiceValue,
+          row.invoiceValueUsd,
           row.bayanNumber,
           row.description,
           row.mot,
@@ -156,7 +155,6 @@ export async function importShipments(params: {
           row.importDate,
           row.expiryDate,
           row.extendedDate,
-          row.depositLocal,
           row.depositUsd,
           row.comments,
           row.status,

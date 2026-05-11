@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import TiteSidebar from '@/components/TiteSidebar';
-import { ALERT_LABEL, BUCKET_HEX, sarFmt } from '@/lib/tite-utils';
+import { ALERT_LABEL, BUCKET_HEX, usdFmt } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
 
 export default function MapClient({ shipments }: { shipments: Shipment[] | null }) {
@@ -32,7 +32,7 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
     const key = `${s.from_country}|${s.to_country}`;
     if (!routeMap[key]) routeMap[key] = { from: s.from_country || '', to: s.to_country || '', count: 0, deposit: 0, worst: 'ok' };
     routeMap[key].count++;
-    routeMap[key].deposit += s.deposit_local || 0;
+    routeMap[key].deposit += Number(s.deposit_usd) || 0;
     if (ORDER.indexOf(s.alert_level) > ORDER.indexOf(routeMap[key].worst)) routeMap[key].worst = s.alert_level;
   });
   const routes = Object.values(routeMap).sort((a, b) => b.count - a.count);
@@ -88,7 +88,7 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    {['Route', 'Count', 'Status mix', 'Total deposit (Local)', 'Worst alert'].map((h, i) => (
+                    {['Route', 'Count', 'Status mix', 'Total deposit (USD)', 'Worst alert'].map((h, i) => (
                       <th key={i} className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-4 py-2.5 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -113,7 +113,7 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
                             ))}
                           </div>
                         </td>
-                        <td className="px-4 py-2.5 font-mono text-[12.5px] text-slate-700 tabular-nums">{sarFmt(r.deposit)}</td>
+                        <td className="px-4 py-2.5 font-mono text-[12.5px] text-slate-700 tabular-nums">{usdFmt(r.deposit)}</td>
                         <td className="px-4 py-2.5">
                           <span className="inline-block w-2.5 h-2.5 rounded-full mr-2" style={{ background: BUCKET_HEX[r.worst] || '#94a3b8' }} />
                           <span className="text-[12px] text-slate-600">{ALERT_LABEL[r.worst] || r.worst}</span>

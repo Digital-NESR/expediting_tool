@@ -16,14 +16,13 @@ export interface CreateShipmentInput {
   country?: string;
   mot?: string;
   invoice_number?: string;
-  invoice_value?: number;
+  invoice_value_usd?: number;
   bayan_number?: string;
   awb_number?: string;
   po_number?: string;
   import_date?: string;
   expiry_date?: string;
   extended_date?: string;
-  deposit_local?: number;
   deposit_usd?: number;
   comments?: string;
   status: 'Active' | 'Closed';
@@ -72,12 +71,12 @@ function calcAlertLevel(
 
 const SELECT_COLS = `
   id, reference_number, segment, from_country, to_country,
-  invoice_number, invoice_value, bayan_number, description,
+  invoice_number, invoice_value_usd, bayan_number, description,
   mot, awb_number, po_number, movement_type,
   import_date::text   AS import_date,
   expiry_date::text   AS expiry_date,
   extended_date::text AS extended_date,
-  deposit_local, deposit_usd, comments, status, alert_level,
+  deposit_usd, comments, status, alert_level,
   country, created_by
 `;
 
@@ -146,41 +145,40 @@ export async function createShipment(
     const { rows } = await titePool.query<{ id: number }>(
       `INSERT INTO shipments (
         reference_number, segment, from_country, to_country,
-        invoice_number, invoice_value, bayan_number, description,
+        invoice_number, invoice_value_usd, bayan_number, description,
         mot, awb_number, po_number, movement_type,
         import_date, expiry_date, extended_date,
-        deposit_local, deposit_usd, comments, status, alert_level,
+        deposit_usd, comments, status, alert_level,
         country, created_by
       ) VALUES (
         $1,$2,$3,$4,
         $5,$6,$7,$8,
         $9,$10,$11,$12,
         $13,$14,$15,
-        $16,$17,$18,$19,$20,
-        $21,$22
+        $16,$17,$18,$19,
+        $20,$21
       ) RETURNING id`,
       [
         reference_number,
-        input.segment       ?? null,
-        input.from_country  ?? null,
-        input.to_country    ?? null,
-        input.invoice_number ?? null,
-        input.invoice_value  ?? null,
-        input.bayan_number  ?? null,
-        input.description   ?? null,
-        input.mot           ?? null,
-        input.awb_number    ?? null,
-        input.po_number     ?? null,
+        input.segment           ?? null,
+        input.from_country      ?? null,
+        input.to_country        ?? null,
+        input.invoice_number    ?? null,
+        input.invoice_value_usd ?? null,
+        input.bayan_number      ?? null,
+        input.description       ?? null,
+        input.mot               ?? null,
+        input.awb_number        ?? null,
+        input.po_number         ?? null,
         input.movement_type,
-        input.import_date   ?? null,
-        input.expiry_date   ?? null,
-        input.extended_date ?? null,
-        input.deposit_local ?? null,
-        input.deposit_usd   ?? null,
-        input.comments      ?? null,
+        input.import_date       ?? null,
+        input.expiry_date       ?? null,
+        input.extended_date     ?? null,
+        input.deposit_usd       ?? null,
+        input.comments          ?? null,
         input.status,
         alert_level,
-        input.country       ?? null,
+        input.country           ?? null,
         createdBy,
       ],
     );
@@ -229,7 +227,6 @@ export async function getShipmentStats(approvedCountries?: string[]): Promise<Sh
         COUNT(*)                    FILTER (WHERE alert_level = 'overdue')                          AS overdue_count,
         COUNT(*)                    FILTER (WHERE alert_level = 'urgent')                           AS urgent_count,
         COUNT(*)                    FILTER (WHERE alert_level IN ('action','plan'))                 AS action_count,
-        COALESCE(SUM(deposit_local) FILTER (WHERE status != 'Closed'), 0)                          AS total_deposit_local,
         COALESCE(SUM(deposit_usd)   FILTER (WHERE status != 'Closed'), 0)                          AS total_deposit_usd,
         COUNT(*)                    FILTER (WHERE movement_type ILIKE '%import%' AND status != 'Closed') AS import_count,
         COUNT(*)                    FILTER (WHERE movement_type ILIKE '%export%' AND status != 'Closed') AS export_count
@@ -239,14 +236,13 @@ export async function getShipmentStats(approvedCountries?: string[]): Promise<Sh
     );
     const r = rows[0];
     return {
-      active_count:       Number(r.active_count),
-      overdue_count:      Number(r.overdue_count),
-      urgent_count:       Number(r.urgent_count),
-      action_count:       Number(r.action_count),
-      total_deposit_local: Number(r.total_deposit_local),
-      total_deposit_usd:  Number(r.total_deposit_usd),
-      import_count:       Number(r.import_count),
-      export_count:       Number(r.export_count),
+      active_count:      Number(r.active_count),
+      overdue_count:     Number(r.overdue_count),
+      urgent_count:      Number(r.urgent_count),
+      action_count:      Number(r.action_count),
+      total_deposit_usd: Number(r.total_deposit_usd),
+      import_count:      Number(r.import_count),
+      export_count:      Number(r.export_count),
     };
   } catch (err) {
     console.error('[TI-TE] getShipmentStats error:', err);

@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
-import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, BUCKET_HEX, fmtDate, sarFmt, calcDays } from '@/lib/tite-utils';
+import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, BUCKET_HEX, fmtDate, usdFmt, calcDays } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
 
 /* ─── Error / empty states ───────────────────────────────────── */
@@ -83,7 +83,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
     return true;
   }), [list, q, seg, movement, alertFilter, country]);
 
-  const totalDep = rows.reduce((a, s) => a + (Number(s.deposit_local) || 0), 0);
+  const totalDep = rows.reduce((a, s) => a + (Number(s.deposit_usd) || 0), 0);
 
   if (shipments === null) return <DbError />;
 
@@ -107,7 +107,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
             <p className="text-xs text-slate-400 mb-1">Home / Shipment register</p>
             <h1 className="text-2xl font-bold tracking-tight">Shipment register</h1>
             <p className="text-sm text-slate-500 mt-1">
-              {rows.length} of {list.length} records · Customs deposit on view: <strong className="tabular-nums">{sarFmt(totalDep)}</strong>
+              {rows.length} of {list.length} records · Customs deposit on view: <strong className="tabular-nums">{usdFmt(totalDep)}</strong>
             </p>
           </div>
           <button
@@ -163,7 +163,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    {['#', 'Segment / Description', 'Route', 'MOT', 'Bayan', 'Deposit (Local)', 'Import date', 'Effective expiry', 'Owner', 'Status', ''].map((h, i) => (
+                    {['#', 'Segment / Description', 'Route', 'MOT', 'Bayan', 'Deposit (USD)', 'Import date', 'Effective expiry', 'Owner', 'Status', ''].map((h, i) => (
                       <th key={i} className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-3 py-2.5 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -190,7 +190,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
                         </span>
                       </td>
                       <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{s.bayan_number || '—'}</td>
-                      <td className="px-3 py-2.5 text-right font-mono text-[12px] whitespace-nowrap">{s.deposit_local != null ? Number(s.deposit_local).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-[12px] whitespace-nowrap">{usdFmt(s.deposit_usd)}</td>
                       <td className="px-3 py-2.5 text-[12.5px] whitespace-nowrap">{fmtDate(s.import_date)}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <div className="text-[12.5px]">{fmtDate(s.extended_date || s.expiry_date)}</div>

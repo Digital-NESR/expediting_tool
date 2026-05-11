@@ -5,7 +5,7 @@ export interface Shipment {
   from_country: string | null;
   to_country: string | null;
   invoice_number: string | null;
-  invoice_value: number | null;
+  invoice_value_usd: number | null;
   bayan_number: string | null;
   description: string | null;
   mot: string | null;
@@ -15,7 +15,6 @@ export interface Shipment {
   import_date: string | null;
   expiry_date: string | null;
   extended_date: string | null;
-  deposit_local: number | null;
   deposit_usd: number | null;
   country: string | null;
   comments: string | null;
@@ -33,7 +32,6 @@ export interface ShipmentStats {
   overdue_count: number;
   urgent_count: number;
   action_count: number;
-  total_deposit_local: number;
   total_deposit_usd: number;
   import_count: number;
   export_count: number;

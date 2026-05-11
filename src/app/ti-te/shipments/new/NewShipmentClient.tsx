@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
-import { getCurrencyForCountry } from '@/lib/tite-currencies';
 import { createShipment } from '@/app/actions/tite';
 
 /* ─── Constants ──────────────────────────────────────────────── */
@@ -56,7 +55,6 @@ export default function NewShipmentClient({
   const [expiryDate,   setExpiryDate]   = useState('');
   const [showExtended, setShowExtended] = useState(false);
   const [extendedDate, setExtendedDate] = useState('');
-  const [depositSar,   setDepositSar]   = useState('');
   const [depositUsd,   setDepositUsd]   = useState('');
   const [comments,     setComments]     = useState('');
   const [status,       setStatus]       = useState<'Active' | 'Closed'>('Active');
@@ -67,10 +65,6 @@ export default function NewShipmentClient({
   const [submitting,  setSubmitting]  = useState(false);
   const [toastMsg,    setToastMsg]    = useState('');
   const [errorBanner, setErrorBanner] = useState('');
-
-  /* currency hint */
-  const relevantCountry = movementType === 'Temporary Import' ? fromCountry : toCountry;
-  const currency = getCurrencyForCountry(relevantCountry);
 
   /* helpers */
   function clearError(key: string) {
@@ -132,14 +126,13 @@ export default function NewShipmentClient({
         to_country:     toCountry      || undefined,
         mot:            mot            || undefined,
         invoice_number: invoiceNum     || undefined,
-        invoice_value:  invoiceVal     ? parseFloat(invoiceVal)  : undefined,
+        invoice_value_usd: invoiceVal  ? parseFloat(invoiceVal)  : undefined,
         bayan_number:   bayanNum       || undefined,
         awb_number:     awbNum         || undefined,
         po_number:      poNum          || undefined,
         import_date:    importDate     || undefined,
         expiry_date:    expiryDate     || undefined,
         extended_date:  showExtended && extendedDate ? extendedDate : undefined,
-        deposit_local:  depositSar     ? parseFloat(depositSar)  : undefined,
         deposit_usd:    depositUsd     ? parseFloat(depositUsd)  : undefined,
         comments:       comments       || undefined,
         status,
@@ -441,33 +434,15 @@ export default function NewShipmentClient({
           </Section>
 
           {/* ── Section 5: Deposit / Financial ── */}
-          <Section
-            title="5. Deposit / Financial"
-            subtitle={relevantCountry && currency !== 'USD'
-              ? `Local currency for ${relevantCountry}: ${currency}`
-              : undefined}
-          >
+          <Section title="5. Deposit / Financial">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={LBL}>Deposit ({currency})</label>
+                <label className={LBL}>Customs Deposit (USD)</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">{currency}</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">$</span>
                   <input
                     type="number" min="0" step="0.01"
-                    className={`${INP} pl-12`}
-                    placeholder="0.00"
-                    value={depositSar}
-                    onChange={e => setDepositSar(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className={LBL}>Deposit (USD)</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">USD</span>
-                  <input
-                    type="number" min="0" step="0.01"
-                    className={`${INP} pl-12`}
+                    className={`${INP} pl-7`}
                     placeholder="0.00"
                     value={depositUsd}
                     onChange={e => setDepositUsd(e.target.value)}
