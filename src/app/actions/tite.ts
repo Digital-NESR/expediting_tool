@@ -17,7 +17,7 @@ export interface CreateShipmentInput {
   mot?: string;
   invoice_number?: string;
   invoice_value_usd?: number;
-  bayan_number?: string;
+  customs_reference_number?: string;
   awb_number?: string;
   po_number?: string;
   import_date?: string;
@@ -71,7 +71,7 @@ function calcAlertLevel(
 
 const SELECT_COLS = `
   id, reference_number, segment, from_country, to_country,
-  invoice_number, invoice_value_usd, bayan_number, description,
+  invoice_number, invoice_value_usd, customs_reference_number, description,
   mot, awb_number, po_number, movement_type,
   import_date::text   AS import_date,
   expiry_date::text   AS expiry_date,
@@ -145,7 +145,7 @@ export async function createShipment(
     const { rows } = await titePool.query<{ id: number }>(
       `INSERT INTO shipments (
         reference_number, segment, from_country, to_country,
-        invoice_number, invoice_value_usd, bayan_number, description,
+        invoice_number, invoice_value_usd, customs_reference_number, description,
         mot, awb_number, po_number, movement_type,
         import_date, expiry_date, extended_date,
         deposit_usd, comments, status, alert_level,
@@ -164,8 +164,8 @@ export async function createShipment(
         input.from_country      ?? null,
         input.to_country        ?? null,
         input.invoice_number    ?? null,
-        input.invoice_value_usd ?? null,
-        input.bayan_number      ?? null,
+        input.invoice_value_usd          ?? null,
+        input.customs_reference_number   ?? null,
         input.description       ?? null,
         input.mot               ?? null,
         input.awb_number        ?? null,

@@ -83,7 +83,7 @@ export default function ShipmentDetailClient({
   ];
 
   const checksAll = [
-    { done: true,                                                  text: 'Bayan registered with customs' },
+    { done: !!s.customs_reference_number,                          text: 'Customs reference number on file' },
     { done: !!s.invoice_number,                                    text: 'Commercial invoice on file' },
     { done: !!s.awb_number,                                        text: 'Airway bill / Bill of lading on file' },
     { done: (Number(s.deposit_usd) || 0) > 0 || (s.movement_type || '').toLowerCase().includes('export'), text: 'Customs deposit recorded' },
@@ -183,7 +183,7 @@ export default function ShipmentDetailClient({
                     <Field label="Invoice number" value={<span className="font-mono text-[12.5px]">{s.invoice_number || '—'}</span>} />
                     <Field label="Invoice value" value={s.invoice_value_usd != null ? <span className="tabular-nums">{usdFmt(s.invoice_value_usd)}</span> : '—'} />
                     <Field label="PO number" value={<span className="font-mono text-[12.5px]">{s.po_number || '—'}</span>} />
-                    <Field label="Bayan number" value={<span className="font-mono text-[12.5px]">{s.bayan_number || '—'}</span>} />
+                    <Field label="Customs Ref. No." value={<span className="font-mono text-[12.5px]">{s.customs_reference_number || '—'}</span>} />
                     <Field label="AWB / BL" value={<span className="font-mono text-[12.5px]">{s.awb_number || '—'}</span>} />
                     <Field label="Import date" value={fmtDate(s.import_date)} />
                   </div>

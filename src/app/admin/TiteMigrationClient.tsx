@@ -42,7 +42,7 @@ const FORMAT_COLUMNS = [
   { col: 'D (3)', header: 'To',              field: 'to_country',       notes: 'Destination country name.' },
   { col: 'E (4)', header: 'Invoice Number',  field: 'invoice_number',   notes: 'Text.' },
   { col: 'F (5)', header: 'Invoice Value (USD)',   field: 'invoice_value_usd',    notes: 'Numeric. Cells starting with = are treated as null.' },
-  { col: 'G (6)', header: 'Bayan Number',    field: 'bayan_number',     notes: 'Text. Multi-line cells — only the first line is used.' },
+  { col: 'G (6)', header: 'Customs Reference Number', field: 'customs_reference_number', notes: 'Text. Multi-line cells — only the first line is used.' },
   { col: 'H (7)', header: 'Description',     field: 'description',      notes: 'Text.' },
   { col: 'I (8)', header: 'MOT',             field: 'mot',              notes: 'Mode of transport. "Lnad" and "Lnd" are auto-corrected to "Land".' },
   { col: 'J (9)', header: 'AWB',             field: 'awb_number',       notes: 'Air waybill number. Text.' },
@@ -79,7 +79,7 @@ const EXPECTED_MATCHERS: { label: string; keywords: string[] }[] = [
   { label: 'To',            keywords: ['to'] },
   { label: 'Invoice No.',   keywords: ['invoice number', 'invoice no', 'inv no', 'inv num'] },
   { label: 'Invoice Value', keywords: ['invoice value', 'inv value', 'inv val'] },
-  { label: 'Bayan No.',     keywords: ['bayan'] },
+  { label: 'Customs Ref.', keywords: ['customs reference', 'customs ref', 'bayan', 'declaration', 'entry no'] },
   { label: 'Description',   keywords: ['description', 'desc'] },
   { label: 'MOT',           keywords: ['mot', 'mode of transport', 'mode'] },
   { label: 'AWB',           keywords: ['awb'] },
@@ -202,7 +202,7 @@ function parseExcel(file: File): Promise<ParsedFile> {
               to: row[3] ? String(row[3]).trim() || null : null,
               invoiceNumber: row[4] ? String(row[4]).trim() || null : null,
               invoiceValueUsd: parseNum(row[5]),
-              bayanNumber: row[6]
+              customsReferenceNumber: row[6]
                 ? String(row[6]).trim().split('\n')[0] || null
                 : null,
               description: row[7] ? String(row[7]).trim() || null : null,
@@ -327,7 +327,7 @@ function MigrationLogTable({
 function downloadTemplate() {
   const headers = [
     'No.', 'Segment', 'From', 'To', 'Invoice Number', 'Invoice Value (USD)',
-    'Bayan Number', 'Description', 'MOT', 'AWB / BL', 'Import Date',
+    'Customs Reference Number', 'Description', 'MOT', 'AWB / BL', 'Import Date',
     'Deposit Value (Local)', 'Deposit Value (USD)', 'PO Number',
     'Movement Type', 'Expiry Date', 'Extended Date', 'Comments', 'Status',
   ];
@@ -691,7 +691,7 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
                       { col: 'D', field: 'To',                    fmt: 'Text',   notes: 'Destination country' },
                       { col: 'E', field: 'Invoice Number',        fmt: 'Text',   notes: 'Invoice/CI reference' },
                       { col: 'F', field: 'Invoice Value (USD)',    fmt: 'Number', notes: 'Numeric value only' },
-                      { col: 'G', field: 'Bayan Number',          fmt: 'Text',   notes: 'Customs declaration number' },
+                      { col: 'G', field: 'Customs Reference Number', fmt: 'Text', notes: 'e.g. Bayan No., Entry No., Declaration No.' },
                       { col: 'H', field: 'Description',           fmt: 'Text',   notes: 'Description of goods' },
                       { col: 'I', field: 'MOT',                   fmt: 'Text',   notes: 'Air / Sea / Land' },
                       { col: 'J', field: 'AWB / BL',              fmt: 'Text',   notes: 'Airway bill or Bill of Lading' },

@@ -6,7 +6,7 @@ export interface Shipment {
   to_country: string | null;
   invoice_number: string | null;
   invoice_value_usd: number | null;
-  bayan_number: string | null;
+  customs_reference_number: string | null;
   description: string | null;
   mot: string | null;
   awb_number: string | null;

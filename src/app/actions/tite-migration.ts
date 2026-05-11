@@ -12,7 +12,7 @@ export interface RawShipmentRow {
   to: string | null;
   invoiceNumber: string | null;
   invoiceValueUsd: number | null;
-  bayanNumber: string | null;
+  customsReferenceNumber: string | null;
   description: string | null;
   mot: string | null;
   awb: string | null;
@@ -129,7 +129,7 @@ export async function importShipments(params: {
       const result = await titePool.query(
         `INSERT INTO shipments (
           reference_number, segment, from_country, to_country,
-          invoice_number, invoice_value_usd, bayan_number, description,
+          invoice_number, invoice_value_usd, customs_reference_number, description,
           mot, awb_number, po_number, movement_type,
           import_date, expiry_date, extended_date,
           deposit_usd,
@@ -146,7 +146,7 @@ export async function importShipments(params: {
           row.to,
           row.invoiceNumber,
           row.invoiceValueUsd,
-          row.bayanNumber,
+          row.customsReferenceNumber,
           row.description,
           row.mot,
           row.awb,

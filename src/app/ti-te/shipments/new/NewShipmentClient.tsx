@@ -127,7 +127,7 @@ export default function NewShipmentClient({
         mot:            mot            || undefined,
         invoice_number: invoiceNum     || undefined,
         invoice_value_usd: invoiceVal  ? parseFloat(invoiceVal)  : undefined,
-        bayan_number:   bayanNum       || undefined,
+        customs_reference_number: bayanNum || undefined,
         awb_number:     awbNum         || undefined,
         po_number:      poNum          || undefined,
         import_date:    importDate     || undefined,
@@ -355,8 +355,8 @@ export default function NewShipmentClient({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={LBL}>Bayan number</label>
-                <input className={INP} placeholder="Customs declaration #" value={bayanNum} onChange={e => setBayanNum(e.target.value)} />
+                <label className={LBL}>Customs Reference Number</label>
+                <input className={INP} placeholder="Customs reference or declaration number (e.g. Bayan No., Entry No., Declaration No.)" value={bayanNum} onChange={e => setBayanNum(e.target.value)} />
               </div>
               <div>
                 <label className={LBL}>AWB / B/L number</label>

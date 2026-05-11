@@ -73,7 +73,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
 
   const rows = useMemo(() => list.filter(s => {
     if (q) {
-      const hay = `${s.id} ${s.invoice_number} ${s.bayan_number} ${s.description} ${s.po_number} ${s.awb_number} ${s.reference_number}`.toLowerCase();
+      const hay = `${s.id} ${s.invoice_number} ${s.customs_reference_number} ${s.description} ${s.po_number} ${s.awb_number} ${s.reference_number}`.toLowerCase();
       if (!hay.includes(q.toLowerCase())) return false;
     }
     if (seg !== 'All' && s.segment !== seg) return false;
@@ -124,7 +124,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 mb-4 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 flex-1 min-w-[200px]">
             <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-            <input className="flex-1 text-sm outline-none placeholder-slate-400 bg-transparent" placeholder="Search reference, invoice, Bayan, PO, AWB…" value={q} onChange={e => setQ(e.target.value)} />
+            <input className="flex-1 text-sm outline-none placeholder-slate-400 bg-transparent" placeholder="Search reference, invoice, customs ref, PO, AWB…" value={q} onChange={e => setQ(e.target.value)} />
           </div>
           <div className="w-px h-5 bg-slate-200 hidden sm:block" />
           <select className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20" value={seg} onChange={e => setSeg(e.target.value)}>
@@ -163,7 +163,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    {['#', 'Segment / Description', 'Route', 'MOT', 'Bayan', 'Deposit (USD)', 'Import date', 'Effective expiry', 'Owner', 'Status', ''].map((h, i) => (
+                    {['#', 'Segment / Description', 'Route', 'MOT', 'Customs Ref.', 'Deposit (USD)', 'Import date', 'Effective expiry', 'Owner', 'Status', ''].map((h, i) => (
                       <th key={i} className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-3 py-2.5 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -189,7 +189,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
                           {s.mot || '—'}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{s.bayan_number || '—'}</td>
+                      <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{s.customs_reference_number || '—'}</td>
                       <td className="px-3 py-2.5 text-right font-mono text-[12px] whitespace-nowrap">{usdFmt(s.deposit_usd)}</td>
                       <td className="px-3 py-2.5 text-[12.5px] whitespace-nowrap">{fmtDate(s.import_date)}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
