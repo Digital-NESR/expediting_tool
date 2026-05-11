@@ -7,7 +7,6 @@ import {
   rejectTiteAccess,
   revokeTiteAccess,
   editTiteAccess,
-  getAllTiteCountries,
 } from '@/app/actions/tite';
 import type { TiteAccessRequestRow } from '@/app/actions/tite';
 
@@ -193,7 +192,7 @@ export default function TiteAccessApprovalsClient({
   onPendingCountChange?: (count: number) => void;
 }) {
   const [requests, setRequests]           = useState<TiteAccessRequestRow[]>([]);
-  const [countries, setCountries]         = useState<string[]>([]);
+  const [countries]                        = useState<string[]>(TITE_FALLBACK_COUNTRIES);
   const [loading, setLoading]             = useState(true);
   const [isRefreshing, setIsRefreshing]   = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
@@ -216,11 +215,9 @@ export default function TiteAccessApprovalsClient({
   }, [onPendingCountChange]);
 
   useEffect(() => {
-    Promise.all([getTiteAccessRequests(), getAllTiteCountries()])
-      .then(([reqs, ctrs]) => {
+    getTiteAccessRequests()
+      .then(reqs => {
         setRequests(reqs);
-        const merged = [...new Set([...TITE_FALLBACK_COUNTRIES, ...ctrs])].sort();
-        setCountries(merged);
         setLastRefreshed(new Date());
         onPendingCountChange?.(reqs.filter(r => r.status === 'Pending').length);
       })

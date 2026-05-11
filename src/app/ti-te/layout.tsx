@@ -2,28 +2,10 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getAllTiteCountries } from '@/app/actions/tite';
 import { TiteAccessProvider } from './TiteAccessContext';
 import TiteAccessOverlay from './TiteAccessOverlay';
 
 export const metadata: Metadata = { title: 'TI-TE | SC Agents' };
-
-/* Static fallback — shown when DB has no country data yet */
-const TITE_FALLBACK_COUNTRIES = [
-  'Saudi Arabia (KSA)',
-  'United Arab Emirates (UAE)',
-  'Qatar',
-  'Kuwait',
-  'Oman',
-  'Bahrain',
-  'Egypt',
-  'Algeria',
-  'Iraq',
-  'Libya',
-  'Chad',
-  'Congo',
-  'Other',
-];
 
 export default async function TiteLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
@@ -53,10 +35,6 @@ export default async function TiteLayout({ children }: { children: React.ReactNo
   const rawStatus  = titeAccess?.status ?? 'new';
 
   if (rawStatus !== 'approved') {
-    const dbCountries = await getAllTiteCountries();
-    const allCountries =
-      dbCountries.length > 0 ? dbCountries : TITE_FALLBACK_COUNTRIES;
-
     const overlayStatus: 'new' | 'pending' | 'rejected' | 'revoked' | 'denied' =
       rawStatus === 'pending'  ? 'pending'  :
       rawStatus === 'rejected' ? 'rejected' :
@@ -70,7 +48,6 @@ export default async function TiteLayout({ children }: { children: React.ReactNo
         userName={session.user.name ?? session.user.email}
         jobTitle={session.user.jobTitle}
         department={session.user.department}
-        allCountries={allCountries}
       />
     );
   }

@@ -8,6 +8,22 @@ import { submitTiteAccessRequest } from '@/app/actions/tite';
 
 const BRAND = '#006B0C';
 
+const TITE_COUNTRIES = [
+  'Saudi Arabia (KSA)',
+  'United Arab Emirates (UAE)',
+  'Qatar',
+  'Kuwait',
+  'Oman',
+  'Bahrain',
+  'Egypt',
+  'Algeria',
+  'Iraq',
+  'Libya',
+  'Chad',
+  'Congo',
+  'Other',
+];
+
 /* ─── Props ──────────────────────────────────────────────────── */
 
 interface Props {
@@ -16,7 +32,6 @@ interface Props {
   userName: string;
   jobTitle?: string;
   department?: string;
-  allCountries: string[];
 }
 
 /* ─── Component ──────────────────────────────────────────────── */
@@ -27,7 +42,6 @@ export default function TiteAccessOverlay({
   userName,
   jobTitle,
   department,
-  allCountries,
 }: Props) {
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
@@ -38,8 +52,8 @@ export default function TiteAccessOverlay({
   const [refreshing, setRefreshing] = useState(false);
 
   const filtered = useMemo(
-    () => allCountries.filter(c => c.toLowerCase().includes(search.toLowerCase())),
-    [allCountries, search],
+    () => TITE_COUNTRIES.filter(c => c.toLowerCase().includes(search.toLowerCase())),
+    [search],
   );
 
   const allVisibleSelected =
