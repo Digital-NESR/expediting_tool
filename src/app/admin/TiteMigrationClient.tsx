@@ -324,28 +324,13 @@ function MigrationLogTable({
 
 /* ─── Main component ─────────────────────────────────────────── */
 
-function downloadTemplate() {
-  const headers = [
-    'No.', 'Segment', 'From', 'To', 'Invoice Number', 'Invoice Value (USD)',
-    'Customs Reference Number', 'Description', 'MOT', 'AWB / BL', 'Import Date',
-    'Deposit Value (Local)', 'Deposit Value (USD)', 'PO Number',
-    'Movement Type', 'Expiry Date', 'Extended Date', 'Comments', 'Status',
-  ];
-  const exampleRow = [
-    1, 'Drilling', 'Saudi Arabia', 'UAE', 'INV-001', 50000,
-    'BYN-2024-001', 'Drilling equipment', 'Air', 'AWB-123456', '01/01/2025',
-    143405, 38241.33, 'PO-001', 'Temporary Import', '31/12/2025', '', 'Sample notes', 'Active',
-  ];
-  const ws = XLSX.utils.aoa_to_sheet([
-    ['Temporary Import / Export Record'],
-    headers,
-    exampleRow,
-  ]);
-  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }];
-  ws['!cols'] = headers.map(() => ({ wch: 22 }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'TI-TE Data');
-  XLSX.writeFile(wb, 'TI_TE_Migration_Template.xlsx');
+function handleDownloadTemplate() {
+  const link = document.createElement('a');
+  link.href = '/templates/TI_TE_Migration_Template.xlsx';
+  link.download = 'TI_TE_Migration_Template.xlsx';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 export default function TiteMigrationClient({ userEmail }: { userEmail: string }) {
@@ -367,9 +352,6 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
   /* history */
   const [history, setHistory] = useState<MigrationLogRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
-
-  /* format guide */
-  const [formatExpanded, setFormatExpanded] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -498,7 +480,7 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
         </div>
         <button
           type="button"
-          onClick={downloadTemplate}
+          onClick={handleDownloadTemplate}
           className="shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:border-[#307c4c]/40 hover:text-[#307c4c] transition-all duration-150 shadow-sm"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -643,81 +625,6 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
                 </svg>
                 {parseError}
               </p>
-            )}
-          </div>
-
-          {/* Expected Format — collapsible */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <div className="flex items-center px-4 py-3 bg-slate-50">
-              <button
-                type="button"
-                className="flex-1 text-left flex items-center gap-2"
-                onClick={() => setFormatExpanded(v => !v)}
-              >
-                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Expected Excel Format</span>
-                <svg
-                  className={`w-4 h-4 text-slate-400 transition-transform ${formatExpanded ? 'rotate-180' : ''}`}
-                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={downloadTemplate}
-                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:border-[#307c4c]/40 hover:text-[#307c4c] transition-all"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download Template
-              </button>
-            </div>
-            {formatExpanded && (
-              <div className="overflow-x-auto border-t border-slate-100">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      {['Column', 'Field', 'Format', 'Notes'].map(h => (
-                        <th key={h} className="py-2 px-3 font-semibold text-slate-500 whitespace-nowrap uppercase tracking-wider text-[10px]">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {[
-                      { col: 'A', field: 'No.',                   fmt: 'Number', notes: 'Row number e.g. 1, 2, 3' },
-                      { col: 'B', field: 'Segment',               fmt: 'Text',   notes: 'e.g. Coiled Tubing, Drilling' },
-                      { col: 'C', field: 'From',                  fmt: 'Text',   notes: 'Origin country' },
-                      { col: 'D', field: 'To',                    fmt: 'Text',   notes: 'Destination country' },
-                      { col: 'E', field: 'Invoice Number',        fmt: 'Text',   notes: 'Invoice/CI reference' },
-                      { col: 'F', field: 'Invoice Value (USD)',    fmt: 'Number', notes: 'Numeric value only' },
-                      { col: 'G', field: 'Customs Reference Number', fmt: 'Text', notes: 'e.g. Bayan No., Entry No., Declaration No.' },
-                      { col: 'H', field: 'Description',           fmt: 'Text',   notes: 'Description of goods' },
-                      { col: 'I', field: 'MOT',                   fmt: 'Text',   notes: 'Air / Sea / Land' },
-                      { col: 'J', field: 'AWB / BL',              fmt: 'Text',   notes: 'Airway bill or Bill of Lading' },
-                      { col: 'K', field: 'Import Date',           fmt: 'Date',   notes: 'DD/MM/YYYY' },
-                      { col: 'L', field: 'Deposit Value (Local)', fmt: 'Number', notes: 'Used as fallback if col M is empty (no conversion)' },
-                      { col: 'M', field: 'Deposit Value (USD)',   fmt: 'Number', notes: 'USD equivalent — preferred; enter converted value' },
-                      { col: 'N', field: 'PO Number',             fmt: 'Text/Number', notes: 'PO reference' },
-                      { col: 'O', field: 'Movement Type',         fmt: 'Text',   notes: 'Import / Export' },
-                      { col: 'P', field: 'Expiry Date',           fmt: 'Date',   notes: 'DD/MM/YYYY' },
-                      { col: 'Q', field: 'Extended Date',         fmt: 'Date',   notes: 'DD/MM/YYYY (if extension granted)' },
-                      { col: 'R', field: 'Comments',              fmt: 'Text',   notes: 'Optional notes' },
-                      { col: 'S', field: 'Status',                fmt: 'Text',   notes: 'Active / Closed' },
-                    ].map((r, i) => (
-                      <tr key={r.col} className={i % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}>
-                        <td className="py-2 px-3 font-mono font-semibold text-slate-700 whitespace-nowrap">{r.col}</td>
-                        <td className="py-2 px-3 text-slate-700 whitespace-nowrap">{r.field}</td>
-                        <td className="py-2 px-3 text-slate-500 whitespace-nowrap">{r.fmt}</td>
-                        <td className="py-2 px-3 text-slate-500">{r.notes}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="px-4 py-3 bg-amber-50 border-t border-amber-100 text-[11.5px] text-amber-800 leading-relaxed">
-                  💡 Deposit USD (col M) is read directly — please enter converted USD values before uploading. If col M is empty, the value from col L is used as-is (no currency conversion is applied). Currency symbols (SAR, $, AED, etc.) are stripped automatically.
-                </div>
-              </div>
             )}
           </div>
 
