@@ -83,7 +83,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
     return true;
   }), [list, q, seg, movement, alertFilter, country]);
 
-  const totalDep = rows.reduce((a, s) => a + (s.deposit_local || 0), 0);
+  const totalDep = rows.reduce((a, s) => a + (Number(s.deposit_local) || 0), 0);
 
   if (shipments === null) return <DbError />;
 
@@ -190,7 +190,7 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
                         </span>
                       </td>
                       <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{s.bayan_number || '—'}</td>
-                      <td className="px-3 py-2.5 text-right font-mono text-[12px] whitespace-nowrap">{s.deposit_local != null ? s.deposit_local.toLocaleString() : '—'}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-[12px] whitespace-nowrap">{s.deposit_local != null ? Number(s.deposit_local).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
                       <td className="px-3 py-2.5 text-[12.5px] whitespace-nowrap">{fmtDate(s.import_date)}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <div className="text-[12.5px]">{fmtDate(s.extended_date || s.expiry_date)}</div>

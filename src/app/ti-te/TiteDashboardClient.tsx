@@ -119,7 +119,7 @@ export default function TiteDashboardClient({
     const seg = s.segment || 'Unknown';
     segMap[seg] = segMap[seg] || { count: 0, deposit: 0 };
     segMap[seg].count++;
-    segMap[seg].deposit += s.deposit_local || 0;
+    segMap[seg].deposit += Number(s.deposit_local) || 0;
   });
   const segments = Object.entries(segMap).sort((a, b) => b[1].count - a[1].count);
 

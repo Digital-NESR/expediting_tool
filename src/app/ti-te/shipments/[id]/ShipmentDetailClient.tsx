@@ -86,7 +86,7 @@ export default function ShipmentDetailClient({
     { done: true,                                                  text: 'Bayan registered with customs' },
     { done: !!s.invoice_number,                                    text: 'Commercial invoice on file' },
     { done: !!s.awb_number,                                        text: 'Airway bill / Bill of lading on file' },
-    { done: (s.deposit_local ?? 0) > 0 || (s.movement_type || '').toLowerCase().includes('export'), text: 'Customs deposit recorded' },
+    { done: (Number(s.deposit_local) || 0) > 0 || (s.movement_type || '').toLowerCase().includes('export'), text: 'Customs deposit recorded' },
     { done: s.alert_level !== 'overdue',                           text: 'Within re-export deadline' },
     { done: !!s.extended_date,                                     text: 'Extension granted (if requested)', optional: true },
     { done: s.status === 'Closed',                                 text: 'Re-export confirmed & deposit refunded' },
@@ -199,7 +199,7 @@ export default function ShipmentDetailClient({
                   <div className="px-5 py-3.5 border-b border-slate-100"><h2 className="text-sm font-bold text-slate-900">Customs deposit & duty exposure</h2></div>
                   <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
                     <Field label="Deposit (Local)" value={<span className="text-xl font-bold tabular-nums">{sarFmt(s.deposit_local)}</span>} />
-                    <Field label="Deposit (USD)" value={<span className="tabular-nums">{usdFmt(s.deposit_usd ?? (s.deposit_local != null ? s.deposit_local / 3.75 : null))}</span>} />
+                    <Field label="Deposit (USD)" value={<span className="tabular-nums">{usdFmt(s.deposit_usd ?? (s.deposit_local != null ? Number(s.deposit_local) / 3.75 : null))}</span>} />
                     <Field label="Refund status" value={
                       s.status === 'Closed'
                         ? <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />Refund initiated</span>

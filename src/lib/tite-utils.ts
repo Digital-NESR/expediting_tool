@@ -49,14 +49,18 @@ export function fmtDate(dateStr: string | null | undefined): string {
   } catch { return '—'; }
 }
 
-export function sarFmt(n: number | null | undefined): string {
-  if (n == null) return '—';
-  return 'SAR ' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+export function sarFmt(n: number | string | null | undefined): string {
+  if (n == null || n === '') return '—';
+  const num = Number(n);
+  if (isNaN(num)) return '—';
+  return 'SAR ' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function usdFmt(n: number | null | undefined): string {
-  if (n == null) return '—';
-  return 'USD ' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+export function usdFmt(n: number | string | null | undefined): string {
+  if (n == null || n === '') return '—';
+  const num = Number(n);
+  if (isNaN(num)) return '—';
+  return 'USD ' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /** Returns days until effective expiry (negative = overdue). null if no date. */
