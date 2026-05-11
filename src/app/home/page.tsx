@@ -5,8 +5,28 @@ import { useSession, signOut } from 'next-auth/react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
+import { submitTiteAccessRequest } from '@/app/actions/tite';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
+type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | null;
+
+/* ─── TI-TE static country list ─────────────────────────────── */
+
+const TITE_COUNTRIES = [
+  'Saudi Arabia (KSA)',
+  'United Arab Emirates (UAE)',
+  'Qatar',
+  'Kuwait',
+  'Oman',
+  'Bahrain',
+  'Egypt',
+  'Algeria',
+  'Iraq',
+  'Libya',
+  'Chad',
+  'Congo',
+  'Other',
+];
 
 /* ─── Spinner ────────────────────────────────────────────────── */
 
@@ -19,7 +39,7 @@ function Spinner() {
   );
 }
 
-/* ─── Access Request Modal ───────────────────────────────────── */
+/* ─── Access Request Modal (PO Expediting) ───────────────────── */
 
 function AccessRequestModal({
   userEmail,
@@ -103,7 +123,6 @@ function AccessRequestModal({
 
         {/* Body */}
         <div className="px-6 py-4">
-          {/* Search */}
           <div className="relative mb-3">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
@@ -123,7 +142,6 @@ function AccessRequestModal({
             </p>
           )}
 
-          {/* Country list */}
           <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-lg bg-white">
             {loadingCountries ? (
               <div className="flex items-center justify-center gap-2 py-8 text-slate-400">
@@ -165,6 +183,170 @@ function AccessRequestModal({
               onClick={handleSubmit}
               disabled={isPending || selected.size === 0 || loadingCountries}
               className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#307c4c] hover:bg-[#307c4c]/90 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] shadow-sm"
+            >
+              {isPending ? 'Submitting…' : 'Submit Request'}
+            </button>
+            <button
+              onClick={onClose}
+              disabled={isPending}
+              className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+/* ─── TI-TE Access Request Modal ─────────────────────────────── */
+
+function TiteAccessRequestModal({
+  userEmail,
+  displayName,
+  jobTitle,
+  department,
+  onClose,
+  onSubmitted,
+}: {
+  userEmail: string;
+  displayName: string;
+  jobTitle?: string;
+  department?: string;
+  onClose: () => void;
+  onSubmitted: () => Promise<void>;
+}) {
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const filtered = useMemo(
+    () => TITE_COUNTRIES.filter(c => c.toLowerCase().includes(search.toLowerCase())),
+    [search],
+  );
+
+  function toggle(c: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(c) ? next.delete(c) : next.add(c);
+      return next;
+    });
+  }
+
+  function handleSubmit() {
+    setError(null);
+    startTransition(async () => {
+      const res = await submitTiteAccessRequest({
+        userEmail,
+        displayName,
+        jobTitle: jobTitle ?? null,
+        department: department ?? null,
+        requestedCountries: [...selected],
+      });
+      if (res.success) {
+        await onSubmitted();
+      } else {
+        setError(res.error ?? 'Something went wrong.');
+      }
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className="relative bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md z-10 animate-in fade-in zoom-in-95 duration-200">
+
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 leading-tight">
+                Request Access — TI-TE
+              </h2>
+              <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                Select the countries you need access to. An admin will review your request.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-4">
+          <div className="relative mb-3">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search countries…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20 focus:border-[#006B0C] transition-colors placeholder-slate-400"
+            />
+          </div>
+
+          {selected.size > 0 && (
+            <p className="text-xs font-medium mb-2" style={{ color: '#006B0C' }}>
+              {selected.size} {selected.size === 1 ? 'country' : 'countries'} selected
+            </p>
+          )}
+
+          <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-lg bg-white">
+            {filtered.length === 0 ? (
+              <p className="text-sm text-slate-400 py-6 text-center">No countries found.</p>
+            ) : (
+              <div className="p-1 space-y-0.5">
+                {filtered.map(c => (
+                  <label
+                    key={c}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded cursor-pointer hover:bg-slate-50 transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(c)}
+                      onChange={() => toggle(c)}
+                      className="w-4 h-4 rounded border-slate-300 cursor-pointer"
+                      style={{ accentColor: '#006B0C' }}
+                    />
+                    <span className="text-sm font-medium text-slate-700">{c}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100">
+          {error && (
+            <p className="text-sm text-red-600 mb-3 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              {error}
+            </p>
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSubmit}
+              disabled={isPending || selected.size === 0}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] shadow-sm ${
+                isPending || selected.size === 0
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  : 'hover:opacity-90'
+              }`}
+              style={!isPending && selected.size > 0 ? { background: '#006B0C' } : undefined}
             >
               {isPending ? 'Submitting…' : 'Submit Request'}
             </button>
@@ -244,13 +426,28 @@ function PendingModal({
   );
 }
 
-
 /* ─── Access Status Badge ────────────────────────────────────── */
 
 function AccessBadge({ status, isAdmin }: { status: ToolStatus; isAdmin: boolean }) {
-  if (isAdmin || status === 'approved') {
+  if (isAdmin) {
     return (
-      <span className="inline-flex items-center gap-1.5 bg-[#307c4c]/10 border border-[#307c4c]/20 text-[#307c4c] px-2.5 py-1 rounded-full text-[11px] font-semibold">
+      <span
+        className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+        style={{ border: '1px solid #bbf7d0' }}
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+        </svg>
+        Full Access
+      </span>
+    );
+  }
+  if (status === 'approved') {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+        style={{ border: '1px solid #bbf7d0' }}
+      >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
         </svg>
@@ -260,7 +457,10 @@ function AccessBadge({ status, isAdmin }: { status: ToolStatus; isAdmin: boolean
   }
   if (status === 'pending') {
     return (
-      <span className="inline-flex items-center gap-1.5 bg-amber-100 border border-amber-200 text-amber-700 px-2.5 py-1 rounded-full text-[11px] font-semibold">
+      <span
+        className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+        style={{ border: '1px solid #fde68a' }}
+      >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
@@ -268,35 +468,21 @@ function AccessBadge({ status, isAdmin }: { status: ToolStatus; isAdmin: boolean
       </span>
     );
   }
-  if (status === 'revoked') {
+  if (status === 'rejected' || status === 'revoked' || status === 'denied') {
     return (
-      <span className="inline-flex items-center gap-1.5 bg-amber-100 border border-amber-200 text-amber-700 px-2.5 py-1 rounded-full text-[11px] font-semibold">
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-        </svg>
-        Access Revoked
-      </span>
-    );
-  }
-  if (status === 'rejected' || status === 'denied') {
-    return (
-      <span className="inline-flex items-center gap-1.5 bg-amber-100 border border-amber-200 text-amber-700 px-2.5 py-1 rounded-full text-[11px] font-semibold">
+      <span
+        className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+        style={{ border: '1px solid #fecaca' }}
+      >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
-        {status === 'rejected' ? 'Access Rejected' : 'Access Denied'}
+        Access Denied
       </span>
     );
   }
-  // 'new'
-  return (
-    <span className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-500 px-2.5 py-1 rounded-full text-[11px] font-semibold">
-      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-      </svg>
-      Request Access
-    </span>
-  );
+  // 'new' → no badge
+  return null;
 }
 
 /* ─── PO Expediting Card ─────────────────────────────────────── */
@@ -311,21 +497,19 @@ function POExpeditingCard({
   onClick: () => void;
 }) {
   const canOpen = isAdmin || status === 'approved';
-  const canReapply = status === 'denied' || status === 'revoked' || status === 'rejected';
+  const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
 
   return (
     <button
       onClick={onClick}
       className="relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 transition-all duration-200 text-left w-full cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10 group"
     >
-      {/* Icon */}
       <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
         <svg className="w-6 h-6 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11" />
         </svg>
       </div>
 
-      {/* Text */}
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-slate-900">PO Expediting</h3>
         <p className="text-sm text-gray-500 mt-2 leading-relaxed">
@@ -333,19 +517,21 @@ function POExpeditingCard({
         </p>
       </div>
 
-      {/* Footer row: badge + open arrow / reapply link */}
       <div className="flex items-center justify-between mt-auto">
         <AccessBadge status={status} isAdmin={isAdmin} />
-        {canOpen && (
+        {canOpen ? (
           <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">
             Open →
           </span>
-        )}
-        {canReapply && (
-          <span className="text-xs font-semibold text-amber-600 group-hover:underline">
+        ) : status === 'new' ? (
+          <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">
+            Request Access →
+          </span>
+        ) : isDenied ? (
+          <span className="text-xs font-semibold text-red-600 group-hover:underline">
             Reapply for access →
           </span>
-        )}
+        ) : null}
       </div>
     </button>
   );
@@ -353,15 +539,26 @@ function POExpeditingCard({
 
 /* ─── TI-TE Card ─────────────────────────────────────────────── */
 
-function TITECard() {
-  const router = useRouter();
+function TITECard({
+  status,
+  isAdmin,
+  onClick,
+}: {
+  status: ToolStatus;
+  isAdmin: boolean;
+  onClick: () => void;
+}) {
+  const canOpen = isAdmin || status === 'approved';
+  const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
+  const TITE_GREEN = '#006B0C';
+
   return (
     <button
-      onClick={() => router.push('/ti-te')}
+      onClick={onClick}
       className="relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 transition-all duration-200 text-left w-full cursor-pointer hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10 group"
     >
       <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: '#006B0C18' }}>
-        <svg className="w-6 h-6" style={{ color: '#006B0C' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+        <svg className="w-6 h-6" style={{ color: TITE_GREEN }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>
@@ -375,15 +572,20 @@ function TITECard() {
       </div>
 
       <div className="flex items-center justify-between mt-auto">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: '#006B0C18', color: '#006B0C', border: '1px solid #006B0C30' }}>
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
-          </svg>
-          Access Granted
-        </span>
-        <span className="text-sm font-semibold group-hover:underline" style={{ color: '#006B0C' }}>
-          Open →
-        </span>
+        <AccessBadge status={status} isAdmin={isAdmin} />
+        {canOpen ? (
+          <span className="text-sm font-semibold group-hover:underline" style={{ color: TITE_GREEN }}>
+            Open →
+          </span>
+        ) : status === 'new' ? (
+          <span className="text-sm font-semibold group-hover:underline" style={{ color: TITE_GREEN }}>
+            Request Access →
+          </span>
+        ) : isDenied ? (
+          <span className="text-xs font-semibold text-red-600 group-hover:underline">
+            Reapply for access →
+          </span>
+        ) : null}
       </div>
     </button>
   );
@@ -424,7 +626,6 @@ export default function HomePage() {
   const { data: session, update } = useSession();
   const router = useRouter();
 
-  type ModalType = 'request-access' | 'pending' | null;
   const [modal, setModal] = useState<ModalType>(null);
 
   const rawName = session?.user?.name ?? '';
@@ -432,18 +633,29 @@ export default function HomePage() {
   const userDisplay = session?.user?.name || session?.user?.email || '';
   const userEmail = session?.user?.email ?? '';
   const displayName = session?.user?.name ?? userEmail;
+  const jobTitle = session?.user?.jobTitle;
+  const department = session?.user?.department;
 
   const isAdmin = session?.user?.isAdmin ?? false;
-  const poStatus: ToolStatus = session?.user?.toolAccess?.po_expediting?.status ?? 'new';
+  const poStatus: ToolStatus   = session?.user?.toolAccess?.po_expediting?.status ?? 'new';
+  const titeStatus: ToolStatus = session?.user?.toolAccess?.tite?.status          ?? 'new';
 
   function handlePOClick() {
     if (isAdmin || poStatus === 'approved') {
       router.push('/po-expediting');
       return;
     }
-    if (poStatus === 'pending') { setModal('pending'); return; }
-    // 'new', 'denied', 'revoked', 'rejected' → open access request / reapply modal
-    setModal('request-access');
+    if (poStatus === 'pending') { setModal('po-pending'); return; }
+    setModal('po-request');
+  }
+
+  function handleTiteClick() {
+    if (isAdmin || titeStatus === 'approved') {
+      router.push('/ti-te');
+      return;
+    }
+    if (titeStatus === 'pending') { setModal('tite-pending'); return; }
+    setModal('tite-request');
   }
 
   async function handleRefreshStatus() {
@@ -492,7 +704,6 @@ export default function HomePage() {
       {/* ── Main ── */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
-        {/* Welcome */}
         <div className="mb-10">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
             Welcome, {firstName}
@@ -500,7 +711,6 @@ export default function HomePage() {
           <p className="text-slate-500 mt-1 text-base">Select a tool to get started.</p>
         </div>
 
-        {/* Tools grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
           <POExpeditingCard
@@ -509,7 +719,11 @@ export default function HomePage() {
             onClick={handlePOClick}
           />
 
-          <TITECard />
+          <TITECard
+            status={titeStatus}
+            isAdmin={isAdmin}
+            onClick={handleTiteClick}
+          />
 
           <ComingSoonCard
             name="Supply Chain Analytics"
@@ -525,7 +739,7 @@ export default function HomePage() {
       </main>
 
       {/* ── Modals ── */}
-      {modal === 'request-access' && (
+      {modal === 'po-request' && (
         <AccessRequestModal
           userEmail={userEmail}
           displayName={displayName}
@@ -533,7 +747,23 @@ export default function HomePage() {
           onSubmitted={handleAccessSubmitted}
         />
       )}
-      {modal === 'pending' && (
+      {modal === 'po-pending' && (
+        <PendingModal
+          onClose={() => setModal(null)}
+          onRefresh={handleRefreshStatus}
+        />
+      )}
+      {modal === 'tite-request' && (
+        <TiteAccessRequestModal
+          userEmail={userEmail}
+          displayName={displayName}
+          jobTitle={jobTitle}
+          department={department}
+          onClose={() => setModal(null)}
+          onSubmitted={handleAccessSubmitted}
+        />
+      )}
+      {modal === 'tite-pending' && (
         <PendingModal
           onClose={() => setModal(null)}
           onRefresh={handleRefreshStatus}
