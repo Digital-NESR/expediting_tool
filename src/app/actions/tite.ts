@@ -3,7 +3,14 @@
 import titePool from '@/lib/db-tite';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import type { Shipment, ShipmentStats, ShipmentStatus } from '@/types/tite';
+import type { Shipment, ShipmentStats, ShipmentStatus, ShipmentDocument, ActivityLogRow } from '@/types/tite';
+import {
+  dbInsertDocument,
+  dbGetDocuments,
+  dbDeleteDocument,
+  dbGetActivityLog,
+  dbUpdateShipmentWithLog,
+} from '@/lib/tite-documents';
 
 /* ─── CreateShipmentInput ─────────────────────────────────────── */
 
@@ -472,5 +479,166 @@ export async function getTitePendingCount(): Promise<number> {
   } catch (err) {
     console.error('[TI-TE] getTitePendingCount error:', err);
     return 0;
+  }
+}
+
+/* ─── getShipmentDocuments ────────────────────────────────────── */
+
+export async function getShipmentDocuments(
+  shipmentId: number,
+): Promise<ShipmentDocument[]> {
+  try {
+    return await dbGetDocuments(shipmentId);
+  } catch (err) {
+    console.error('[TI-TE] getShipmentDocuments error:', err);
+    return [];
+  }
+}
+
+/* ─── uploadShipmentDocument ──────────────────────────────────── */
+
+export async function uploadShipmentDocument(
+  formData: FormData,
+): Promise<{ success: boolean; document?: ShipmentDocument; error?: string }> {
+  try {
+    const session      = await getServerSession(authOptions);
+    const uploadedBy   = session?.user?.name ?? null;
+    const shipmentId   = Number(formData.get('shipment_id'));
+    const stage        = (formData.get('stage') as string) || 'creation';
+    const file         = formData.get('file') as File | null;
+
+    if (!file || !shipmentId) {
+      return { success: false, error: 'Missing required fields.' };
+    }
+
+    const arrayBuf   = await file.arrayBuffer();
+    const buffer     = Buffer.from(arrayBuf);
+    const doc        = await dbInsertDocument({
+      shipment_id:    shipmentId,
+      document_name:  file.name,
+      document_type:  formData.get('document_type') as string | null,
+      document_stage: stage as 'creation' | 'extension' | 'closure' | 'refund',
+      file_type:      file.type || null,
+      file_size:      file.size,
+      file_content:   buffer,
+      uploaded_by:    uploadedBy,
+    });
+
+    return { success: true, document: doc };
+  } catch (err) {
+    console.error('[TI-TE] uploadShipmentDocument error:', err);
+    return { success: false, error: 'Upload failed. Please try again.' };
+  }
+}
+
+/* ─── deleteShipmentDocument ──────────────────────────────────── */
+
+export async function deleteShipmentDocument(
+  documentId: number,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await dbDeleteDocument(documentId);
+    return { success: true };
+  } catch (err) {
+    console.error('[TI-TE] deleteShipmentDocument error:', err);
+    return { success: false, error: 'Delete failed. Please try again.' };
+  }
+}
+
+/* ─── getShipmentActivityLog ──────────────────────────────────── */
+
+export async function getShipmentActivityLog(
+  shipmentId: number,
+): Promise<ActivityLogRow[]> {
+  try {
+    return await dbGetActivityLog(shipmentId);
+  } catch (err) {
+    console.error('[TI-TE] getShipmentActivityLog error:', err);
+    return [];
+  }
+}
+
+/* ─── extendShipment ──────────────────────────────────────────── */
+
+export async function extendShipment(params: {
+  shipmentId: number;
+  extendedDate: string;
+  notes: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session    = await getServerSession(authOptions);
+    const performer  = session?.user?.name ?? null;
+
+    const newAlertLevel = calcAlertLevel(undefined, params.extendedDate, 'Open - Extended');
+
+    await dbUpdateShipmentWithLog({
+      shipment_id: params.shipmentId,
+      fields: {
+        extended_date: params.extendedDate,
+        status:        'Open - Extended',
+        alert_level:   newAlertLevel,
+      },
+      action:       'extended',
+      details:      `Extended to ${params.extendedDate}${params.notes ? `. ${params.notes}` : ''}`,
+      performed_by: performer,
+    });
+    return { success: true };
+  } catch (err) {
+    console.error('[TI-TE] extendShipment error:', err);
+    return { success: false, error: 'Failed to extend shipment.' };
+  }
+}
+
+/* ─── closeShipment ───────────────────────────────────────────── */
+
+export async function closeShipment(params: {
+  shipmentId: number;
+  notes: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session    = await getServerSession(authOptions);
+    const performer  = session?.user?.name ?? null;
+
+    await dbUpdateShipmentWithLog({
+      shipment_id: params.shipmentId,
+      fields: {
+        status:      'Closed',
+        alert_level: 'closed',
+      },
+      action:       'closed',
+      details:      `File closed${params.notes ? `. ${params.notes}` : ''}`,
+      performed_by: performer,
+    });
+    return { success: true };
+  } catch (err) {
+    console.error('[TI-TE] closeShipment error:', err);
+    return { success: false, error: 'Failed to close shipment.' };
+  }
+}
+
+/* ─── markRefundReceived ──────────────────────────────────────── */
+
+export async function markRefundReceived(params: {
+  shipmentId: number;
+  notes: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session    = await getServerSession(authOptions);
+    const performer  = session?.user?.name ?? null;
+
+    await dbUpdateShipmentWithLog({
+      shipment_id: params.shipmentId,
+      fields: {
+        status:      'Closed - Refund Recovered',
+        alert_level: 'closed',
+      },
+      action:       'refund_received',
+      details:      `Customs refund recovered${params.notes ? `. ${params.notes}` : ''}`,
+      performed_by: performer,
+    });
+    return { success: true };
+  } catch (err) {
+    console.error('[TI-TE] markRefundReceived error:', err);
+    return { success: false, error: 'Failed to mark refund received.' };
   }
 }

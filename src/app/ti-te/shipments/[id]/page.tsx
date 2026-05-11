@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { getShipmentById } from '@/app/actions/tite';
+import { getShipmentById, getShipmentDocuments, getShipmentActivityLog } from '@/app/actions/tite';
 import ShipmentDetailClient from './ShipmentDetailClient';
 
 export const metadata: Metadata = { title: 'Shipment Detail — TI-TE | SC Agents' };
@@ -10,6 +10,20 @@ export default async function ShipmentDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const shipment = await getShipmentById(Number(id));
-  return <ShipmentDetailClient shipment={shipment} rawId={id} />;
+  const numId  = Number(id);
+
+  const [shipment, documents, activityLog] = await Promise.all([
+    getShipmentById(numId),
+    getShipmentDocuments(numId),
+    getShipmentActivityLog(numId),
+  ]);
+
+  return (
+    <ShipmentDetailClient
+      shipment={shipment}
+      rawId={id}
+      documents={documents}
+      activityLog={activityLog}
+    />
+  );
 }

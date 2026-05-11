@@ -37,6 +37,27 @@ export interface Shipment {
   daysToExpiry?: number;
 }
 
+export interface ShipmentDocument {
+  id: number;
+  shipment_id: number;
+  document_name: string;
+  document_type: string | null;
+  document_stage: 'creation' | 'extension' | 'closure' | 'refund';
+  file_type: string | null;
+  file_size: number | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+}
+
+export interface ActivityLogRow {
+  id: number;
+  shipment_id: number;
+  action: string;
+  details: string | null;
+  performed_by: string | null;
+  performed_at: string;
+}
+
 export interface ShipmentStats {
   active_count: number;
   overdue_count: number;
