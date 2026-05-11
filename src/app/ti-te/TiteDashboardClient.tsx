@@ -156,7 +156,7 @@ export default function TiteDashboardClient({
             </p>
           </div>
           <button
-            onClick={() => router.push('/ti-te/shipments')}
+            onClick={() => router.push('/ti-te/shipments/new')}
             className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
             style={{ background: '#006B0C' }}
           >
