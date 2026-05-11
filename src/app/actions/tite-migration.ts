@@ -6,22 +6,22 @@ import titePool from '@/lib/db-tite';
 
 export interface RawShipmentRow {
   rowIndex: number;
-  no: string | null;
+  no: string;
   segment: string | null;
-  from: string | null;
-  to: string | null;
-  invoiceNumber: string | null;
-  invoiceValueUsd: number | null;
-  customsReferenceNumber: string | null;
+  from_country: string | null;
+  to_country: string | null;
+  invoice_number: string | null;
+  invoice_value_usd: number | null;
+  customs_reference_number: string | null;
   description: string | null;
   mot: string | null;
-  awb: string | null;
-  importDate: string | null;
-  depositUsd: number | null;
-  poNumber: string | null;
-  movementType: string | null;
-  expiryDate: string | null;
-  extendedDate: string | null;
+  awb_number: string | null;
+  po_number: string | null;
+  movement_type: string | null;
+  import_date: string | null;
+  expiry_date: string | null;
+  extended_date: string | null;
+  deposit_usd: number | null;
   comments: string | null;
   status: string;
 }
@@ -121,19 +121,39 @@ export async function importShipments(params: {
 
     try {
       const alert_level = calcAlertLevel(
-        row.expiryDate,
-        row.extendedDate,
+        row.expiry_date,
+        row.extended_date,
         row.status,
       );
 
+      const created_by = `migration-${country
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')}`;
+
       const result = await titePool.query(
         `INSERT INTO shipments (
-          reference_number, segment, from_country, to_country,
-          invoice_number, invoice_value_usd, customs_reference_number, description,
-          mot, awb_number, po_number, movement_type,
-          import_date, expiry_date, extended_date,
+          reference_number,
+          segment,
+          from_country,
+          to_country,
+          invoice_number,
+          invoice_value_usd,
+          customs_reference_number,
+          description,
+          mot,
+          awb_number,
+          po_number,
+          movement_type,
+          import_date,
+          expiry_date,
+          extended_date,
           deposit_usd,
-          comments, status, alert_level, created_by, country
+          comments,
+          status,
+          alert_level,
+          country,
+          created_by
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
           $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
@@ -142,25 +162,25 @@ export async function importShipments(params: {
         [
           reference_number,
           row.segment,
-          row.from,
-          row.to,
-          row.invoiceNumber,
-          row.invoiceValueUsd,
-          row.customsReferenceNumber,
+          row.from_country,
+          row.to_country,
+          row.invoice_number,
+          row.invoice_value_usd,
+          row.customs_reference_number,
           row.description,
           row.mot,
-          row.awb,
-          row.poNumber,
-          row.movementType,
-          row.importDate,
-          row.expiryDate,
-          row.extendedDate,
-          row.depositUsd,
+          row.awb_number,
+          row.po_number,
+          row.movement_type,
+          row.import_date,
+          row.expiry_date,
+          row.extended_date,
+          row.deposit_usd,
           row.comments,
           row.status,
           alert_level,
-          `migration:${userEmail}`,
           country,
+          created_by,
         ],
       );
 
@@ -169,7 +189,7 @@ export async function importShipments(params: {
         skipped++;
       } else {
         log.push(
-          `✅ ${reference_number} | ${row.segment ?? ''} | ${row.movementType ?? ''} | ${row.expiryDate ?? 'N/A'}`,
+          `✅ ${reference_number} | ${row.segment ?? ''} | ${row.movement_type ?? ''} | ${row.expiry_date ?? 'N/A'}`,
         );
         inserted++;
       }

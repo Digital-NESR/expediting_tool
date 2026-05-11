@@ -36,25 +36,24 @@ const COUNTRIES = [
 /* ─── Format reference data ─────────────────────────────────── */
 
 const FORMAT_COLUMNS = [
-  { col: 'A (0)', header: 'No.',            field: 'reference_number', notes: 'Numeric. Blank or non-numeric rows are skipped. Padded to 3 digits and prefixed with the country code — e.g. KSA-001.' },
-  { col: 'B (1)', header: 'Segment',         field: 'segment',          notes: 'Text — e.g. Coiled Tubing, ESP.' },
-  { col: 'C (2)', header: 'From',            field: 'from_country',     notes: 'Origin country name.' },
-  { col: 'D (3)', header: 'To',              field: 'to_country',       notes: 'Destination country name.' },
-  { col: 'E (4)', header: 'Invoice Number',  field: 'invoice_number',   notes: 'Text.' },
-  { col: 'F (5)', header: 'Invoice Value (USD)',   field: 'invoice_value_usd',    notes: 'Numeric. Cells starting with = are treated as null.' },
-  { col: 'G (6)', header: 'Customs Reference Number', field: 'customs_reference_number', notes: 'Text. Multi-line cells — only the first line is used.' },
-  { col: 'H (7)', header: 'Description',     field: 'description',      notes: 'Text.' },
-  { col: 'I (8)', header: 'MOT',             field: 'mot',              notes: 'Mode of transport. "Lnad" and "Lnd" are auto-corrected to "Land".' },
-  { col: 'J (9)', header: 'AWB',             field: 'awb_number',       notes: 'Air waybill number. Text.' },
-  { col: 'K (10)', header: 'Import Date',    field: 'import_date',      notes: 'Date. Accepts DD/MM/YYYY or YYYY-MM-DD.' },
-  { col: 'L (11)', header: 'Deposit Value (Local)', field: '(fallback)',    notes: 'Local currency amount — used as-is for deposit_usd if column M is empty. Currency symbols (SAR, AED, etc.) are stripped automatically.' },
-  { col: 'M (12)', header: 'Deposit Value (USD)',  field: 'deposit_usd',   notes: 'USD equivalent. Read directly from this column. If empty, the value from col L is used as-is (no conversion applied).' },
-  { col: 'N (13)', header: 'PO',             field: 'po_number',        notes: 'Text.' },
-  { col: 'O (14)', header: 'Movement Type',  field: 'movement_type',    notes: 'Text — e.g. Import, Export. Extra whitespace is collapsed.' },
-  { col: 'P (15)', header: 'Expiry Date',    field: 'expiry_date',      notes: 'Date. Cells starting with = are null.' },
-  { col: 'Q (16)', header: 'Extended Date',  field: 'extended_date',    notes: 'Date. Cells starting with = or empty are null.' },
-  { col: 'R (17)', header: 'Comments',       field: 'comments',         notes: 'Text.' },
-  { col: 'S (18)', header: 'Status',         field: 'status',           notes: 'Any value containing "closed" (case-insensitive) → Closed. Anything else → Active.' },
+  { col: 'A (0)',  header: 'No.',                       field: 'reference_number',         notes: 'Numeric. Blank or non-numeric rows are skipped. Padded to 3 digits and prefixed with the country code — e.g. KSA-001.' },
+  { col: 'B (1)',  header: 'Segment',                   field: 'segment',                  notes: 'Text — e.g. Coiled Tubing, ESP.' },
+  { col: 'C (2)',  header: 'From Country',              field: 'from_country',             notes: 'Origin country name.' },
+  { col: 'D (3)',  header: 'To Country',                field: 'to_country',               notes: 'Destination country name.' },
+  { col: 'E (4)',  header: 'Invoice number',            field: 'invoice_number',           notes: 'Text.' },
+  { col: 'F (5)',  header: 'Invoice value (USD)',       field: 'invoice_value_usd',        notes: 'Numeric. Cells starting with = are treated as null.' },
+  { col: 'G (6)',  header: 'Customs Reference Number',  field: 'customs_reference_number', notes: 'Text. Multi-line cells — only the first line is used.' },
+  { col: 'H (7)',  header: 'Description',               field: 'description',              notes: 'Text.' },
+  { col: 'I (8)',  header: 'MOT',                       field: 'mot',                      notes: 'Mode of transport. "Lnad" and "Lnd" are auto-corrected to "Land".' },
+  { col: 'J (9)',  header: 'AWB / BL Number',           field: 'awb_number',               notes: 'Air waybill or Bill of Lading number. Text.' },
+  { col: 'K (10)', header: 'PO Number',                 field: 'po_number',                notes: 'Text.' },
+  { col: 'L (11)', header: 'Movement type',             field: 'movement_type',            notes: 'Text — e.g. Import, Export. Extra whitespace is collapsed.' },
+  { col: 'M (12)', header: 'Import Date',               field: 'import_date',              notes: 'Date. Accepts DD/MM/YYYY or YYYY-MM-DD.' },
+  { col: 'N (13)', header: 'Expiry Date',               field: 'expiry_date',              notes: 'Date. Cells starting with = are null.' },
+  { col: 'O (14)', header: 'Extended date',             field: 'extended_date',            notes: 'Date. Cells starting with = or empty are null.' },
+  { col: 'P (15)', header: 'Deposit (USD)',             field: 'deposit_usd',              notes: 'Numeric. USD deposit amount. Currency symbols are stripped automatically.' },
+  { col: 'Q (16)', header: 'Comments',                  field: 'comments',                 notes: 'Text.' },
+  { col: 'R (17)', header: 'Status',                    field: 'status',                   notes: 'Any value containing "closed" (case-insensitive) → Closed. Anything else → Active.' },
 ];
 
 /* ─── Inline helper ──────────────────────────────────────────── */
@@ -73,25 +72,24 @@ function Code({ children }: { children: React.ReactNode }) {
 // A column is "matched" if the detected header at that position
 // contains at least one of its keywords (case-insensitive).
 const EXPECTED_MATCHERS: { label: string; keywords: string[] }[] = [
-  { label: 'No.',           keywords: ['no.', 'no ', 'number', 'serial', '#'] },
-  { label: 'Segment',       keywords: ['segment', 'seg'] },
-  { label: 'From',          keywords: ['from'] },
-  { label: 'To',            keywords: ['to'] },
-  { label: 'Invoice No.',   keywords: ['invoice number', 'invoice no', 'inv no', 'inv num'] },
-  { label: 'Invoice Value', keywords: ['invoice value', 'inv value', 'inv val'] },
-  { label: 'Customs Ref.', keywords: ['customs reference', 'customs ref', 'bayan', 'declaration', 'entry no'] },
-  { label: 'Description',   keywords: ['description', 'desc'] },
-  { label: 'MOT',           keywords: ['mot', 'mode of transport', 'mode'] },
-  { label: 'AWB',           keywords: ['awb'] },
-  { label: 'Import Date',   keywords: ['import date', 'import'] },
-  { label: 'Deposit Value', keywords: ['deposit value', 'deposit local', 'deposit sar', 'deposit'] },
-  { label: 'Deposit USD',   keywords: ['deposit usd', 'usd'] },
-  { label: 'PO',            keywords: ['po', 'purchase order', 'po number', 'po no'] },
-  { label: 'Movement Type', keywords: ['movement type', 'movement'] },
-  { label: 'Expiry Date',   keywords: ['expiry date', 'expiry', 'expiration'] },
-  { label: 'Extended Date', keywords: ['extended date', 'extended', 'extension'] },
-  { label: 'Comments',      keywords: ['comments', 'comment', 'remarks', 'remark', 'notes'] },
-  { label: 'Status',        keywords: ['status'] },
+  { label: 'No.',                  keywords: ['no.', 'no ', 'number', 'serial', '#'] },
+  { label: 'Segment',              keywords: ['segment', 'seg'] },
+  { label: 'From Country',         keywords: ['from'] },
+  { label: 'To Country',           keywords: ['to'] },
+  { label: 'Invoice Number',       keywords: ['invoice number', 'invoice no', 'inv no', 'inv num'] },
+  { label: 'Invoice Value (USD)',   keywords: ['invoice value', 'inv value', 'inv val'] },
+  { label: 'Customs Ref. No.',     keywords: ['customs reference', 'customs ref', 'bayan', 'declaration', 'entry no'] },
+  { label: 'Description',          keywords: ['description', 'desc'] },
+  { label: 'MOT',                  keywords: ['mot', 'mode of transport', 'mode'] },
+  { label: 'AWB / BL Number',      keywords: ['awb', 'bl number', 'bill of lading'] },
+  { label: 'PO Number',            keywords: ['po', 'purchase order', 'po number', 'po no'] },
+  { label: 'Movement Type',        keywords: ['movement type', 'movement'] },
+  { label: 'Import Date',          keywords: ['import date', 'import'] },
+  { label: 'Expiry Date',          keywords: ['expiry date', 'expiry', 'expiration'] },
+  { label: 'Extended Date',        keywords: ['extended date', 'extended', 'extension'] },
+  { label: 'Deposit (USD)',        keywords: ['deposit', 'deposit usd', 'deposit value'] },
+  { label: 'Comments',             keywords: ['comments', 'comment', 'remarks', 'remark', 'notes'] },
+  { label: 'Status',               keywords: ['status'] },
 ];
 
 interface ColMatch {
@@ -196,33 +194,32 @@ function parseExcel(file: File): Promise<ParsedFile> {
           .map((row, i) => {
             return {
               rowIndex: i + 3,
-              no: String(row[0] ?? '').trim() || null,
+              no: String(row[0] || '').trim(),
               segment: row[1] ? String(row[1]).trim() || null : null,
-              from: row[2] ? String(row[2]).trim() || null : null,
-              to: row[3] ? String(row[3]).trim() || null : null,
-              invoiceNumber: row[4] ? String(row[4]).trim() || null : null,
-              invoiceValueUsd: parseNum(row[5]),
-              customsReferenceNumber: row[6]
+              from_country: row[2] ? String(row[2]).trim() || null : null,
+              to_country: row[3] ? String(row[3]).trim() || null : null,
+              invoice_number: row[4] ? String(row[4]).trim() || null : null,
+              invoice_value_usd: parseNum(row[5]),
+              customs_reference_number: row[6]
                 ? String(row[6]).trim().split('\n')[0] || null
                 : null,
               description: row[7] ? String(row[7]).trim() || null : null,
               mot: row[8]
-                ? String(row[8])
-                    .trim()
+                ? String(row[8]).trim()
                     .replace(/lnad/i, 'Land')
-                    .replace(/\blnd\b/i, 'Land') || null
+                    .replace(/lnd/i, 'Land') || null
                 : null,
-              awb: row[9] ? String(row[9]).trim() || null : null,
-              importDate: parseDate(row[10]),
-              depositUsd: parseNum(row[12]) ?? parseNum(row[11]) ?? null,
-              poNumber: row[13] ? String(row[13]).trim() || null : null,
-              movementType: row[14]
-                ? String(row[14]).trim().replace(/\s+/g, ' ') || null
+              awb_number: row[9] ? String(row[9]).trim() || null : null,
+              po_number: row[10] ? String(row[10]).trim() || null : null,
+              movement_type: row[11]
+                ? String(row[11]).trim().replace(/\s+/g, ' ') || null
                 : null,
-              expiryDate: parseDate(row[15]),
-              extendedDate: parseDate(row[16]),
-              comments: row[17] ? String(row[17]).trim() || null : null,
-              status: parseStatus(row[18]),
+              import_date: parseDate(row[12]),
+              expiry_date: parseDate(row[13]),
+              extended_date: parseDate(row[14]),
+              deposit_usd: parseNum(row[15]),
+              comments: row[16] ? String(row[16]).trim() || null : null,
+              status: parseStatus(row[17]),
             };
           });
 
@@ -967,7 +964,7 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">Key rules</p>
             <ul className="space-y-1.5 text-xs text-slate-600">
               {[
-                'Column M (Deposit USD) is read directly; if empty, the value from column L is used as-is for deposit_usd (no conversion applied). Currency symbols (SAR, $, AED, etc.) in deposit columns are stripped automatically.',
+                'Column P (Deposit USD) — enter the deposit amount in USD. Currency symbols ($, SAR, AED, etc.) are stripped automatically.',
                 'Dates accept DD/MM/YYYY or YYYY-MM-DD. Excel serial date cells work if the cell is formatted as a date.',
                 'Cells starting with = (Excel formulas) in numeric or date columns are treated as blank/null.',
                 'Rows with a blank or non-numeric value in col A (No.) are silently skipped.',
