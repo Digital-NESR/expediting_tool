@@ -383,6 +383,8 @@ export default function DocumentUploadSection({
                       /* Download link */
                       <a
                         href={`/api/tite/documents/${f.dbId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         download={f.customName}
                         onClick={e => e.stopPropagation()}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-[#006B0C] hover:bg-white transition-colors"

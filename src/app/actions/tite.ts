@@ -514,6 +514,27 @@ export async function uploadShipmentDocument(
       return { success: false, error: 'Missing required fields.' };
     }
 
+    /* Detect MIME from extension — more reliable than browser-reported file.type */
+    const MIME_MAP: Record<string, string> = {
+      pdf:  'application/pdf',
+      doc:  'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls:  'application/vnd.ms-excel',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      png:  'image/png',
+      jpg:  'image/jpeg',
+      jpeg: 'image/jpeg',
+      gif:  'image/gif',
+      webp: 'image/webp',
+      txt:  'text/plain',
+      csv:  'text/csv',
+      zip:  'application/zip',
+      msg:  'application/vnd.ms-outlook',
+      eml:  'message/rfc822',
+    };
+    const fileExt     = (file.name.split('.').pop() ?? '').toLowerCase();
+    const detectedMime = MIME_MAP[fileExt] || file.type || 'application/octet-stream';
+
     const arrayBuf   = await file.arrayBuffer();
     const buffer     = Buffer.from(arrayBuf);
     const doc        = await dbInsertDocument({
@@ -522,7 +543,7 @@ export async function uploadShipmentDocument(
       original_name:  file.name !== customName ? file.name : null,
       document_type:  docType,
       document_stage: stage as 'creation' | 'extension' | 'closure' | 'refund',
-      file_type:      file.type || null,
+      file_type:      detectedMime,
       file_size:      file.size,
       file_content:   buffer,
       uploaded_by:    uploadedBy,
