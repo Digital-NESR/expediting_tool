@@ -6,6 +6,7 @@ import type { ShipmentDocument, ActivityLogRow } from '@/types/tite';
 export async function dbInsertDocument(params: {
   shipment_id: number;
   document_name: string;
+  original_name: string | null;
   document_type: string | null;
   document_stage: 'creation' | 'extension' | 'closure' | 'refund';
   file_type: string | null;
@@ -15,15 +16,16 @@ export async function dbInsertDocument(params: {
 }): Promise<ShipmentDocument> {
   const { rows } = await titePool.query<ShipmentDocument>(
     `INSERT INTO shipment_documents
-       (shipment_id, document_name, document_type, document_stage,
+       (shipment_id, document_name, original_name, document_type, document_stage,
         file_type, file_size, file_content, uploaded_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING id, shipment_id, document_name, document_type, document_stage,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING id, shipment_id, document_name, original_name, document_type, document_stage,
                file_type, file_size, uploaded_by,
                uploaded_at::text AS uploaded_at`,
     [
       params.shipment_id,
       params.document_name,
+      params.original_name,
       params.document_type,
       params.document_stage,
       params.file_type,
@@ -37,12 +39,12 @@ export async function dbInsertDocument(params: {
 
 export async function dbGetDocuments(shipment_id: number): Promise<ShipmentDocument[]> {
   const { rows } = await titePool.query<ShipmentDocument>(
-    `SELECT id, shipment_id, document_name, document_type, document_stage,
+    `SELECT id, shipment_id, document_name, original_name, document_type, document_stage,
             file_type, file_size, uploaded_by,
             uploaded_at::text AS uploaded_at
      FROM shipment_documents
      WHERE shipment_id = $1
-     ORDER BY uploaded_at DESC`,
+     ORDER BY document_stage, document_type, uploaded_at ASC`,
     [shipment_id],
   );
   return rows;

@@ -32,7 +32,7 @@ export interface CreateShipmentInput {
   extended_date?: string;
   deposit_usd?: number;
   comments?: string;
-  status: ShipmentStatus;
+  status?: ShipmentStatus;
   contacts?: Array<{ name: string; email: string; role: string }>;
 }
 
@@ -142,7 +142,8 @@ export async function createShipment(
     const session = await getServerSession(authOptions);
     const createdBy = session?.user?.name ?? null;
 
-    const alert_level = calcAlertLevel(input.expiry_date, input.extended_date, input.status);
+    const status: ShipmentStatus = 'Open';
+    const alert_level = calcAlertLevel(input.expiry_date, input.extended_date, status);
 
     const { rows: countRows } = await titePool.query<{ next_num: string }>(
       `SELECT LPAD((COUNT(*) + 1)::text, 4, '0') AS next_num FROM shipments`,
@@ -183,7 +184,7 @@ export async function createShipment(
         input.extended_date     ?? null,
         input.deposit_usd       ?? null,
         input.comments          ?? null,
-        input.status,
+        status,
         alert_level,
         input.country           ?? null,
         createdBy,
@@ -506,6 +507,8 @@ export async function uploadShipmentDocument(
     const shipmentId   = Number(formData.get('shipment_id'));
     const stage        = (formData.get('stage') as string) || 'creation';
     const file         = formData.get('file') as File | null;
+    const customName   = ((formData.get('custom_name') as string) || '').trim() || file?.name || 'Untitled';
+    const docType      = (formData.get('document_type') as string | null) || null;
 
     if (!file || !shipmentId) {
       return { success: false, error: 'Missing required fields.' };
@@ -515,8 +518,9 @@ export async function uploadShipmentDocument(
     const buffer     = Buffer.from(arrayBuf);
     const doc        = await dbInsertDocument({
       shipment_id:    shipmentId,
-      document_name:  file.name,
-      document_type:  formData.get('document_type') as string | null,
+      document_name:  customName,
+      original_name:  file.name !== customName ? file.name : null,
+      document_type:  docType,
       document_stage: stage as 'creation' | 'extension' | 'closure' | 'refund',
       file_type:      file.type || null,
       file_size:      file.size,

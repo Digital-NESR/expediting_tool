@@ -45,6 +45,7 @@ export interface ShipmentDocument {
   document_stage: 'creation' | 'extension' | 'closure' | 'refund';
   file_type: string | null;
   file_size: number | null;
+  original_name: string | null;
   uploaded_by: string | null;
   uploaded_at: string;
 }

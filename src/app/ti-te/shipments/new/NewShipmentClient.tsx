@@ -1,10 +1,12 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
+import DocumentUploadSection from '@/components/tite/DocumentUploadSection';
 import { createShipment, uploadShipmentDocument } from '@/app/actions/tite';
-import type { ShipmentStatus } from '@/types/tite';
+import { DOCUMENT_STAGES } from '@/lib/tite-stage-config';
+import type { PendingUpload } from '@/lib/tite-stage-config';
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
@@ -18,8 +20,8 @@ const MOT_OPTIONS = ['Air', 'Sea', 'Land'];
 
 /* ─── Styles ─────────────────────────────────────────────────── */
 
-const LBL  = 'block text-xs font-semibold text-slate-600 mb-1.5';
-const INP  = 'w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20 focus:border-[#006B0C] bg-white placeholder:text-slate-400';
+const LBL     = 'block text-xs font-semibold text-slate-600 mb-1.5';
+const INP     = 'w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20 focus:border-[#006B0C] bg-white placeholder:text-slate-400';
 const INP_ERR = 'w-full border border-red-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400/20 focus:border-red-400 bg-white placeholder:text-slate-400';
 
 /* ─── Types ──────────────────────────────────────────────────── */
@@ -38,7 +40,7 @@ export default function NewShipmentClient({
 }) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const docsSectionRef = useRef<HTMLDivElement>(null);
 
   /* form state */
   const [operatingCountry, setOperatingCountry] = useState(countryOptions.length === 1 ? countryOptions[0] : '');
@@ -59,15 +61,22 @@ export default function NewShipmentClient({
   const [extendedDate, setExtendedDate] = useState('');
   const [depositUsd,   setDepositUsd]   = useState('');
   const [comments,     setComments]     = useState('');
-  const [status,       setStatus]       = useState<ShipmentStatus>('Open');
   const [contacts,     setContacts]     = useState<ContactRow[]>([{ name: '', email: '', role: '' }]);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
+  /* document state */
+  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+  const [docTypeErrors,  setDocTypeErrors]  = useState<Set<string>>(new Set());
 
   /* ui state */
   const [errors,      setErrors]      = useState<FormErrors>({});
   const [submitting,  setSubmitting]  = useState(false);
   const [toastMsg,    setToastMsg]    = useState('');
   const [errorBanner, setErrorBanner] = useState('');
+
+  /* stable callback for DocumentUploadSection */
+  const handlePendingChange = useCallback((pending: PendingUpload[]) => {
+    setPendingUploads(pending);
+  }, []);
 
   /* helpers */
   function clearError(key: string) {
@@ -109,6 +118,7 @@ export default function NewShipmentClient({
     e.preventDefault();
     setErrorBanner('');
 
+    /* Field validation */
     const errs = validate();
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -118,6 +128,24 @@ export default function NewShipmentClient({
       });
       return;
     }
+
+    /* Document validation — all required creation doc types must have ≥ 1 pending file */
+    const creationConfig = DOCUMENT_STAGES['creation'];
+    const missing = new Set<string>();
+    for (const dt of creationConfig.documents) {
+      if (dt.required && !pendingUploads.some(p => p.docTypeKey === dt.key)) {
+        missing.add(dt.key);
+      }
+    }
+    if (missing.size > 0) {
+      setDocTypeErrors(missing);
+      setErrorBanner('Please attach all required documents before submitting.');
+      requestAnimationFrame(() => {
+        docsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      return;
+    }
+    setDocTypeErrors(new Set());
 
     setSubmitting(true);
     try {
@@ -138,7 +166,6 @@ export default function NewShipmentClient({
         extended_date:  showExtended && extendedDate ? extendedDate : undefined,
         deposit_usd:    depositUsd     ? parseFloat(depositUsd)  : undefined,
         comments:       comments       || undefined,
-        status,
         country:        operatingCountry || undefined,
         contacts: contacts.filter(c => c.name || c.email || c.role),
       });
@@ -149,16 +176,18 @@ export default function NewShipmentClient({
         return;
       }
 
-      // Upload any pending files sequentially
-      for (const file of pendingFiles) {
+      /* Upload all pending documents */
+      for (const p of pendingUploads) {
         try {
           const fd = new FormData();
-          fd.append('file',        file);
-          fd.append('shipment_id', String(result.id));
-          fd.append('stage',       'creation');
+          fd.append('file',          p.file);
+          fd.append('shipment_id',   String(result.id));
+          fd.append('stage',         'creation');
+          fd.append('document_type', p.docTypeKey);
+          fd.append('custom_name',   p.customName);
           await uploadShipmentDocument(fd);
         } catch {
-          // non-fatal — shipment was created; files can be added later
+          /* non-fatal — shipment created; docs can be added later */
         }
       }
 
@@ -547,80 +576,28 @@ export default function NewShipmentClient({
                 onChange={e => setComments(e.target.value)}
               />
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className={LBL}>Status</label>
-                <select
-                  className={INP}
-                  value={status}
-                  onChange={e => setStatus(e.target.value as ShipmentStatus)}
-                >
-                  <option value="Open">Open — New TI/TE file</option>
-                  <option value="Open - Extended">Open - Extended — Validity extended</option>
-                  <option value="Closed">Closed — File completed</option>
-                  <option value="Closed - Refund Recovered">Closed - Refund Recovered — Refund received</option>
-                </select>
-              </div>
-            </div>
           </Section>
 
-          {/* ── Section 8: Attach documents ── */}
-          <Section title="8. Attach documents (optional)" subtitle="Files will be uploaded after the shipment is created">
-            <div
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => {
-                e.preventDefault();
-                const files = Array.from(e.dataTransfer.files);
-                if (files.length) setPendingFiles(prev => [...prev, ...files]);
-              }}
-              onClick={() => fileInputRef.current?.click()}
-              className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl border-2 border-dashed border-slate-200 hover:border-[#006B0C]/50 hover:bg-slate-50 cursor-pointer transition-colors bg-white"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={e => {
-                  const files = Array.from(e.target.files || []);
-                  if (files.length) setPendingFiles(prev => [...prev, ...files]);
-                  if (fileInputRef.current) fileInputRef.current.value = '';
-                }}
-              />
-              <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#006B0C18' }}>
-                <svg className="w-4.5 h-4.5" style={{ color: '#006B0C' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-              </div>
-              <p className="text-sm text-slate-500">
-                Drop files here, or <span style={{ color: '#006B0C' }} className="font-semibold">browse</span>
+          {/* ── Section 8: Required Documents ── */}
+          <section
+            ref={docsSectionRef}
+            className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
+          >
+            <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+              <h2 className="text-sm font-bold text-slate-800">8. Required Documents</h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                All five document types are required. Files are uploaded after the shipment is saved.
+                Maximum 10 MB per file.
               </p>
             </div>
-
-            {pendingFiles.length > 0 && (
-              <div className="flex flex-col gap-1.5 mt-1">
-                {pendingFiles.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
-                    <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
-                    </svg>
-                    <span className="flex-1 text-[12.5px] text-slate-700 truncate">{f.name}</span>
-                    <span className="text-[11px] text-slate-400 shrink-0">{(f.size / 1024).toFixed(0)} KB</span>
-                    <button
-                      type="button"
-                      onClick={e => { e.stopPropagation(); setPendingFiles(prev => prev.filter((_, j) => j !== i)); }}
-                      className="p-0.5 text-slate-300 hover:text-red-500 transition-colors"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
+            <div className="px-5 py-5">
+              <DocumentUploadSection
+                stage="creation"
+                docTypeErrors={docTypeErrors}
+                onPendingChange={handlePendingChange}
+              />
+            </div>
+          </section>
 
           {/* ── Submit bar ── */}
           <div className="flex items-center justify-between gap-4 pt-2">

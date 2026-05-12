@@ -7,6 +7,7 @@ import DocumentUploadSection from '@/components/tite/DocumentUploadSection';
 import {
   ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, calcDays, getStatusBadge,
 } from '@/lib/tite-utils';
+import { DOCUMENT_STAGES } from '@/lib/tite-stage-config';
 import { extendShipment, closeShipment, markRefundReceived } from '@/app/actions/tite';
 import type { Shipment, ShipmentDocument, ActivityLogRow } from '@/types/tite';
 
@@ -18,14 +19,6 @@ const DEADLINE_BG: Record<string, string> = {
   action:  'linear-gradient(135deg, #7E4A0A, #C58414)',
   closed:  'linear-gradient(135deg, #2A4A3A, #1B7F4D)',
   default: 'linear-gradient(135deg, #003D6B, #00558F)',
-};
-
-const ACTION_ICON: Record<string, React.ReactNode> = {
-  created:         <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />,
-  extended:        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />,
-  closed:          <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />,
-  refund_received: <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" />,
-  document_added:  <span className="w-2 h-2 rounded-full bg-purple-400 shrink-0" />,
 };
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -54,38 +47,80 @@ function fmtTs(iso: string): string {
       day: '2-digit', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     });
-  } catch {
-    return iso;
-  }
+  } catch { return iso; }
+}
+
+function fmtBytes(n: number | null): string {
+  if (!n) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1_048_576) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1_048_576).toFixed(1)} MB`;
 }
 
 function actionLabel(action: string): string {
-  switch (action) {
-    case 'created':         return 'Shipment created';
-    case 'extended':        return 'Validity extended';
-    case 'closed':          return 'File closed';
-    case 'refund_received': return 'Refund received';
-    case 'document_added':  return 'Document attached';
-    default: return action.replace(/_/g, ' ');
-  }
+  const map: Record<string, string> = {
+    created:         'Shipment created',
+    extended:        'Validity extended',
+    closed:          'File closed',
+    refund_received: 'Refund received',
+    document_added:  'Document attached',
+  };
+  return map[action] ?? action.replace(/_/g, ' ');
 }
+
+const ACTION_DOT: Record<string, string> = {
+  created:         'bg-blue-400',
+  extended:        'bg-amber-400',
+  closed:          'bg-slate-400',
+  refund_received: 'bg-green-400',
+  document_added:  'bg-purple-400',
+};
 
 /* ─── Modal ──────────────────────────────────────────────────── */
 
 type ModalMode = 'closed' | 'extend' | 'close' | 'refund';
 
-interface ModalProps {
-  mode:        ModalMode;
-  shipmentId:  number;
-  onClose:     () => void;
-  onSuccess:   () => void;
-}
+const MODAL_STAGE: Record<Exclude<ModalMode, 'closed'>, 'extension' | 'closure' | 'refund'> = {
+  extend: 'extension',
+  close:  'closure',
+  refund: 'refund',
+};
+const MODAL_TITLE: Record<Exclude<ModalMode, 'closed'>, string> = {
+  extend: 'Request extension',
+  close:  'Close file',
+  refund: 'Mark refund received',
+};
+const MODAL_CTA: Record<Exclude<ModalMode, 'closed'>, string> = {
+  extend: 'Save extension',
+  close:  'Close file',
+  refund: 'Mark received',
+};
+const MODAL_CTA_BG: Record<Exclude<ModalMode, 'closed'>, string> = {
+  extend: '#006B0C',
+  close:  '#475569',
+  refund: '#059669',
+};
 
-function ModifyModal({ mode, shipmentId, onClose, onSuccess }: ModalProps) {
-  const [working,      setWorking]      = useState(false);
-  const [error,        setError]        = useState('');
-  const [extendDate,   setExtendDate]   = useState('');
-  const [notes,        setNotes]        = useState('');
+function ModifyModal({
+  mode,
+  shipmentId,
+  onClose,
+  onSuccess,
+}: {
+  mode:       Exclude<ModalMode, 'closed'>;
+  shipmentId: number;
+  onClose:    () => void;
+  onSuccess:  () => void;
+}) {
+  const modalStage   = MODAL_STAGE[mode];
+  const stageConfig  = DOCUMENT_STAGES[modalStage];
+
+  const [working,     setWorking]     = useState(false);
+  const [error,       setError]       = useState('');
+  const [extendDate,  setExtendDate]  = useState('');
+  const [notes,       setNotes]       = useState('');
+  const [sessionDocs, setSessionDocs] = useState<ShipmentDocument[]>([]);
+  const [docErrors,   setDocErrors]   = useState<Set<string>>(new Set());
 
   const INP = 'w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20 focus:border-[#006B0C] bg-white';
 
@@ -95,6 +130,21 @@ function ModifyModal({ mode, shipmentId, onClose, onSuccess }: ModalProps) {
       setError('Extended date is required.');
       return;
     }
+
+    /* Validate required docs for this stage */
+    const missing = new Set<string>();
+    for (const dt of stageConfig.documents) {
+      if (dt.required && !sessionDocs.some(d => d.document_type === dt.key)) {
+        missing.add(dt.key);
+      }
+    }
+    if (missing.size > 0) {
+      setDocErrors(missing);
+      setError('Please attach all required documents before proceeding.');
+      return;
+    }
+    setDocErrors(new Set());
+
     setWorking(true);
     try {
       let result: { success: boolean; error?: string };
@@ -115,31 +165,14 @@ function ModifyModal({ mode, shipmentId, onClose, onSuccess }: ModalProps) {
     }
   }
 
-  const titles: Record<ModalMode, string> = {
-    closed:  '',
-    extend:  'Request extension',
-    close:   'Close file',
-    refund:  'Mark refund received',
-  };
-  const ctaLabels: Record<ModalMode, string> = {
-    closed:  '',
-    extend:  'Save extension',
-    close:   'Close file',
-    refund:  'Mark received',
-  };
-  const ctaBg: Record<ModalMode, string> = {
-    closed:  '',
-    extend:  '#006B0C',
-    close:   '#475569',
-    refund:  '#059669',
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-[2px]">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-6 w-full max-w-sm">
-        <h3 className="font-bold text-slate-900 mb-4">{titles[mode]}</h3>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
+        <div className="px-6 py-5 border-b border-slate-100">
+          <h3 className="font-bold text-slate-900">{MODAL_TITLE[mode]}</h3>
+        </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="px-6 py-5 flex flex-col gap-4">
           {mode === 'extend' && (
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">
@@ -153,32 +186,56 @@ function ModifyModal({ mode, shipmentId, onClose, onSuccess }: ModalProps) {
               />
             </div>
           )}
+
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Notes</label>
             <textarea
               className={`${INP} resize-none`}
-              rows={3}
+              rows={2}
               placeholder="Optional remarks…"
               value={notes}
               onChange={e => setNotes(e.target.value)}
             />
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+
+          {/* Required documents */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                Required documents
+              </span>
+            </div>
+            <DocumentUploadSection
+              stage={modalStage}
+              shipmentId={shipmentId}
+              docTypeErrors={docErrors}
+              onUploaded={doc => setSessionDocs(prev => [...prev, doc])}
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-600 flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01" />
+              </svg>
+              {error}
+            </p>
+          )}
         </div>
 
-        <div className="flex gap-2 mt-5">
+        <div className="px-6 py-4 border-t border-slate-100 flex gap-2">
           <button
             onClick={onClose}
             disabled={working}
-            className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 transition-colors disabled:opacity-50"
+            className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={working}
-            className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            style={{ background: ctaBg[mode] }}
+            className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
+            style={{ background: MODAL_CTA_BG[mode] }}
           >
             {working && (
               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -186,9 +243,87 @@ function ModifyModal({ mode, shipmentId, onClose, onSuccess }: ModalProps) {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
             )}
-            {ctaLabels[mode]}
+            {MODAL_CTA[mode]}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Read-only stage documents ──────────────────────────────── */
+
+function StageDocSection({
+  stageKey,
+  docs,
+}: {
+  stageKey: string;
+  docs:     ShipmentDocument[];
+}) {
+  const cfg = DOCUMENT_STAGES[stageKey];
+  if (!cfg || docs.length === 0) return null;
+
+  /* group by document_type */
+  const byType: Record<string, ShipmentDocument[]> = {};
+  for (const dt of cfg.documents) byType[dt.key] = [];
+  for (const d of docs) {
+    const k = d.document_type || '';
+    if (!(k in byType)) byType[k] = [];
+    byType[k].push(d);
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+        <span className="text-base">{cfg.stageIcon}</span>
+        <h3 className="text-sm font-bold text-slate-900">{cfg.label}</h3>
+        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+          {docs.length} file{docs.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+      <div className="p-4 flex flex-col gap-3">
+        {Object.entries(byType).map(([typeKey, typeDocs]) => {
+          const dtCfg = cfg.documents.find(d => d.key === typeKey);
+          if (!dtCfg && typeDocs.length === 0) return null;
+          const label = dtCfg?.label ?? typeKey;
+          return (
+            <div key={typeKey}>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">{label}</p>
+              {typeDocs.length === 0 ? (
+                <p className="text-[12px] text-slate-400 ml-1">No files attached.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {typeDocs.map(doc => {
+                    const showOrig = doc.original_name && doc.original_name !== doc.document_name;
+                    return (
+                      <div key={doc.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12.5px] font-semibold text-slate-800 truncate">{doc.document_name}</p>
+                          {showOrig && (
+                            <p className="text-[11px] text-slate-400 truncate">{doc.original_name}</p>
+                          )}
+                          <p className="text-[10.5px] text-slate-400">
+                            {fmtBytes(doc.file_size)}{doc.uploaded_by ? ` · ${doc.uploaded_by}` : ''}{doc.uploaded_at ? ` · ${fmtDate(doc.uploaded_at)}` : ''}
+                          </p>
+                        </div>
+                        <a
+                          href={`/api/tite/documents/${doc.id}`}
+                          download={doc.document_name}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-[#006B0C] hover:bg-white transition-colors"
+                          title="Download"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -199,8 +334,8 @@ function ModifyModal({ mode, shipmentId, onClose, onSuccess }: ModalProps) {
 export default function ShipmentDetailClient({
   shipment: s,
   rawId,
-  documents: initialDocuments,
-  activityLog: initialLog,
+  documents,
+  activityLog,
 }: {
   shipment:    Shipment | null;
   rawId:       string;
@@ -209,10 +344,7 @@ export default function ShipmentDetailClient({
 }) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [tab, setTab] = useState<'overview' | 'documents' | 'timeline' | 'compliance'>('overview');
-
-  const [documents,   setDocuments]   = useState<ShipmentDocument[]>(initialDocuments);
-  const [activityLog, setActivityLog] = useState<ActivityLogRow[]>(initialLog);
+  const [tab,         setTab]         = useState<'overview' | 'documents' | 'timeline' | 'compliance'>('overview');
   const [modalMode,   setModalMode]   = useState<ModalMode>('closed');
 
   /* ── DB unavailable ── */
@@ -256,33 +388,32 @@ export default function ShipmentDetailClient({
   ];
 
   const checksAll = [
-    { done: !!s.customs_reference_number,                                                           text: 'Customs reference number on file' },
-    { done: !!s.invoice_number,                                                                     text: 'Commercial invoice on file' },
-    { done: !!s.awb_number,                                                                         text: 'Airway bill / Bill of lading on file' },
+    { done: !!s.customs_reference_number, text: 'Customs reference number on file' },
+    { done: !!s.invoice_number,           text: 'Commercial invoice on file' },
+    { done: !!s.awb_number,               text: 'Airway bill / Bill of lading on file' },
     { done: (Number(s.deposit_usd) || 0) > 0 || (s.movement_type || '').toLowerCase().includes('export'), text: 'Customs deposit recorded' },
-    { done: s.alert_level !== 'overdue',                                                            text: 'Within re-export deadline' },
-    { done: !!s.extended_date,                                                                      text: 'Extension granted (if requested)', optional: true },
-    { done: isClosed,                                                                               text: 'Re-export or settlement confirmed' },
+    { done: s.alert_level !== 'overdue',  text: 'Within re-export deadline' },
+    { done: !!s.extended_date,            text: 'Extension granted (if requested)', optional: true },
+    { done: isClosed,                     text: 'Re-export or settlement confirmed' },
   ];
 
-  /* ── Callbacks ── */
-  function handleDocUploaded(doc: ShipmentDocument) {
-    setDocuments(prev => [doc, ...prev]);
-  }
-  function handleDocDeleted(id: number) {
-    setDocuments(prev => prev.filter(d => d.id !== id));
-  }
-  function handleModalSuccess() {
-    setModalMode('closed');
-    router.refresh();
-  }
-
-  /* Derive active stage from current shipment status */
+  /* Current stage for active doc uploads */
   const currentStage: 'creation' | 'extension' | 'closure' | 'refund' =
     s.status === 'Closed - Refund Recovered' ? 'refund'
     : s.status === 'Closed'                  ? 'closure'
     : s.status === 'Open - Extended'         ? 'extension'
     : 'creation';
+
+  /* Documents grouped by stage */
+  const creationDocs  = documents.filter(d => d.document_stage === 'creation');
+  const extensionDocs = documents.filter(d => d.document_stage === 'extension');
+  const closureDocs   = documents.filter(d => d.document_stage === 'closure');
+  const refundDocs    = documents.filter(d => d.document_stage === 'refund');
+
+  function handleModalSuccess() {
+    setModalMode('closed');
+    router.refresh();
+  }
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
@@ -340,7 +471,7 @@ export default function ShipmentDetailClient({
             </div>
           </div>
 
-          {/* Modify actions */}
+          {/* Actions */}
           {!isClosed && (
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -352,25 +483,15 @@ export default function ShipmentDetailClient({
               </button>
               <div className="relative group">
                 <button className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <circle cx="12" cy="5" r="1" fill="currentColor" stroke="none" />
-                    <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
-                    <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" />
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="none">
+                    <circle cx="12" cy="5"  r="1.5" fill="currentColor" />
+                    <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                    <circle cx="12" cy="19" r="1.5" fill="currentColor" />
                   </svg>
                 </button>
-                <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-20 hidden group-hover:block">
-                  <button
-                    onClick={() => setModalMode('close')}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    Close file
-                  </button>
-                  <button
-                    onClick={() => setModalMode('refund')}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    Mark refund received
-                  </button>
+                <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-20 hidden group-hover:block">
+                  <button onClick={() => setModalMode('close')}  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Close file</button>
+                  <button onClick={() => setModalMode('refund')} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Mark refund received</button>
                 </div>
               </div>
             </div>
@@ -396,9 +517,7 @@ export default function ShipmentDetailClient({
           {(['overview', 'documents', 'timeline', 'compliance'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-2.5 text-[13.5px] font-medium transition-colors border-b-2 -mb-px ${tab === t ? 'text-[#006B0C] border-[#006B0C] font-semibold' : 'text-slate-400 border-transparent hover:text-slate-700'}`}>
-              {t === 'documents'
-                ? `Documents${documents.length > 0 ? ` (${documents.length})` : ''}`
-                : t.charAt(0).toUpperCase() + t.slice(1)}
+              {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>
@@ -407,25 +526,25 @@ export default function ShipmentDetailClient({
           {/* Main column */}
           <div className="space-y-5">
 
-            {/* ── Overview tab ── */}
+            {/* ── Overview ── */}
             {tab === 'overview' && (
               <>
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="px-5 py-3.5 border-b border-slate-100"><h2 className="text-sm font-bold text-slate-900">Shipment information</h2></div>
                   <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-                    <Field label="Reference"       value={<span className="font-mono text-[12.5px]">{s.reference_number || '—'}</span>} />
-                    <Field label="Movement type"   value={s.movement_type || '—'} />
+                    <Field label="Reference"        value={<span className="font-mono text-[12.5px]">{s.reference_number || '—'}</span>} />
+                    <Field label="Movement type"    value={s.movement_type || '—'} />
                     <Field label="Business segment" value={s.segment || '—'} />
                     <Field label="Mode of transport" value={s.mot || '—'} />
-                    <Field label="Origin"          value={s.from_country || '—'} />
-                    <Field label="Destination"     value={s.to_country || '—'} />
-                    <Field label="Owner"           value={s.created_by || '—'} />
-                    <Field label="Invoice number"  value={<span className="font-mono text-[12.5px]">{s.invoice_number || '—'}</span>} />
-                    <Field label="Invoice value"   value={s.invoice_value_usd != null ? <span className="tabular-nums">{usdFmt(s.invoice_value_usd)}</span> : '—'} />
-                    <Field label="PO number"       value={<span className="font-mono text-[12.5px]">{s.po_number || '—'}</span>} />
+                    <Field label="Origin"           value={s.from_country || '—'} />
+                    <Field label="Destination"      value={s.to_country || '—'} />
+                    <Field label="Owner"            value={s.created_by || '—'} />
+                    <Field label="Invoice number"   value={<span className="font-mono text-[12.5px]">{s.invoice_number || '—'}</span>} />
+                    <Field label="Invoice value"    value={s.invoice_value_usd != null ? <span className="tabular-nums">{usdFmt(s.invoice_value_usd)}</span> : '—'} />
+                    <Field label="PO number"        value={<span className="font-mono text-[12.5px]">{s.po_number || '—'}</span>} />
                     <Field label="Customs Ref. No." value={<span className="font-mono text-[12.5px]">{s.customs_reference_number || '—'}</span>} />
-                    <Field label="AWB / BL"        value={<span className="font-mono text-[12.5px]">{s.awb_number || '—'}</span>} />
-                    <Field label="Import date"     value={fmtDate(s.import_date)} />
+                    <Field label="AWB / BL"         value={<span className="font-mono text-[12.5px]">{s.awb_number || '—'}</span>} />
+                    <Field label="Import date"      value={fmtDate(s.import_date)} />
                   </div>
                   {s.comments && (
                     <div className="px-5 pb-5 pt-0 border-t border-slate-100">
@@ -451,27 +570,38 @@ export default function ShipmentDetailClient({
               </>
             )}
 
-            {/* ── Documents tab ── */}
+            {/* ── Documents ── */}
             {tab === 'documents' && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-                <div className="px-5 py-3.5 border-b border-slate-100">
-                  <h2 className="text-sm font-bold text-slate-900">Documents</h2>
-                  <p className="text-[11.5px] text-slate-400 mt-0.5">Files are stored securely in the database. Max 50 MB per file.</p>
+              <div className="space-y-4">
+                {/* Creation stage — interactive upload */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
+                    <span className="text-base">{DOCUMENT_STAGES.creation.stageIcon}</span>
+                    <h2 className="text-sm font-bold text-slate-900">{DOCUMENT_STAGES.creation.label}</h2>
+                  </div>
+                  <div className="p-5">
+                    <DocumentUploadSection
+                      stage="creation"
+                      shipmentId={s.id}
+                      initialDocuments={creationDocs}
+                    />
+                  </div>
                 </div>
-                <div className="p-5">
-                  <DocumentUploadSection
-                    shipmentId={s.id}
-                    documents={documents}
-                    stage={currentStage}
-                    onUploaded={handleDocUploaded}
-                    onDeleted={handleDocDeleted}
-                    readOnly={false}
-                  />
-                </div>
+
+                {/* Other stages — read-only, only if docs exist */}
+                <StageDocSection stageKey="extension" docs={extensionDocs} />
+                <StageDocSection stageKey="closure"   docs={closureDocs} />
+                <StageDocSection stageKey="refund"    docs={refundDocs} />
+
+                {extensionDocs.length === 0 && closureDocs.length === 0 && refundDocs.length === 0 && (
+                  <p className="text-[12.5px] text-slate-400 text-center py-2">
+                    Extension, closure, and refund documents will appear here after those actions are performed.
+                  </p>
+                )}
               </div>
             )}
 
-            {/* ── Timeline tab ── */}
+            {/* ── Timeline ── */}
             {tab === 'timeline' && (
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
                 <div className="px-5 py-3.5 border-b border-slate-100"><h2 className="text-sm font-bold text-slate-900">Activity timeline</h2></div>
@@ -487,24 +617,16 @@ export default function ShipmentDetailClient({
                     <ol className="relative border-l border-slate-200 ml-2 space-y-5">
                       {activityLog.map(entry => (
                         <li key={entry.id} className="ml-5">
-                          <div className="absolute -left-1.5 mt-1 flex items-center justify-center">
-                            {ACTION_ICON[entry.action] ?? <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />}
+                          <div className="absolute -left-1.5 mt-1.5 flex items-center justify-center">
+                            <span className={`w-2.5 h-2.5 rounded-full ${ACTION_DOT[entry.action] ?? 'bg-slate-300'}`} />
                           </div>
                           <div className="bg-slate-50 rounded-lg border border-slate-100 px-4 py-3">
                             <div className="flex items-center justify-between gap-3 mb-0.5">
-                              <span className="text-[13px] font-semibold text-slate-800">
-                                {actionLabel(entry.action)}
-                              </span>
-                              <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">
-                                {fmtTs(entry.performed_at)}
-                              </span>
+                              <span className="text-[13px] font-semibold text-slate-800">{actionLabel(entry.action)}</span>
+                              <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">{fmtTs(entry.performed_at)}</span>
                             </div>
-                            {entry.details && (
-                              <p className="text-[12.5px] text-slate-500">{entry.details}</p>
-                            )}
-                            {entry.performed_by && (
-                              <p className="text-[11px] text-slate-400 mt-1">by {entry.performed_by}</p>
-                            )}
+                            {entry.details    && <p className="text-[12.5px] text-slate-500">{entry.details}</p>}
+                            {entry.performed_by && <p className="text-[11px] text-slate-400 mt-1">by {entry.performed_by}</p>}
                           </div>
                         </li>
                       ))}
@@ -514,7 +636,7 @@ export default function ShipmentDetailClient({
               </div>
             )}
 
-            {/* ── Compliance tab ── */}
+            {/* ── Compliance ── */}
             {tab === 'compliance' && (
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
                 <div className="px-5 py-3.5 border-b border-slate-100"><h2 className="text-sm font-bold text-slate-900">Compliance checklist</h2></div>
@@ -606,20 +728,14 @@ export default function ShipmentDetailClient({
               </div>
             </div>
 
-            {/* Quick actions (mobile) */}
+            {/* Mobile quick actions */}
             {!isClosed && (
               <div className="sm:hidden bg-white rounded-xl border border-slate-200 shadow-sm">
                 <div className="px-4 py-3 border-b border-slate-100"><h3 className="text-sm font-bold text-slate-900">Actions</h3></div>
                 <div className="p-3 flex flex-col gap-2">
-                  <button onClick={() => setModalMode('extend')} className="w-full px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: '#006B0C' }}>
-                    Request extension
-                  </button>
-                  <button onClick={() => setModalMode('close')} className="w-full px-4 py-2 rounded-xl text-sm font-semibold text-white bg-slate-500 hover:bg-slate-600 transition-colors">
-                    Close file
-                  </button>
-                  <button onClick={() => setModalMode('refund')} className="w-full px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors">
-                    Mark refund received
-                  </button>
+                  <button onClick={() => setModalMode('extend')} className="w-full px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: '#006B0C' }}>Request extension</button>
+                  <button onClick={() => setModalMode('close')}  className="w-full px-4 py-2 rounded-xl text-sm font-semibold text-white bg-slate-500 hover:bg-slate-600 transition-colors">Close file</button>
+                  <button onClick={() => setModalMode('refund')} className="w-full px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors">Mark refund received</button>
                 </div>
               </div>
             )}
