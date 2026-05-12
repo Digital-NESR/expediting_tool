@@ -650,14 +650,16 @@ export async function markRefundReceived(params: {
 /* ─── updateShipmentStatus ────────────────────────────────────── */
 
 export async function updateShipmentStatus(params: {
-  shipmentId:      number;
-  newStatus:       string;
-  newExpiryDate?:  string | null;
-  extensionNotes?: string | null;
-  closureNotes?:   string | null;
+  shipmentId:       number;
+  newStatus:        string;
+  newExpiryDate?:   string | null;
+  extensionNotes?:  string | null;
+  closureNotes?:    string | null;
   refundAmountUsd?: number | null;
-  refundDate?:     string | null;
-  refundNotes?:    string | null;
+  refundDate?:      string | null;
+  refundNotes?:     string | null;
+  depositUsd?:      number | null;
+  justification?:   string | null;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const session   = await getServerSession(authOptions);
@@ -683,12 +685,12 @@ export async function updateShipmentStatus(params: {
       if (params.closureNotes) detailLines.push(`Notes: ${params.closureNotes}`);
     } else if (params.newStatus === 'Closed - Refund Recovered') {
       fields.alert_level = 'closed';
-      if (params.refundAmountUsd != null) {
-        const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(params.refundAmountUsd);
-        detailLines.push(`Refund amount: ${formatted}`);
-      }
-      if (params.refundDate)  detailLines.push(`Refund date: ${params.refundDate}`);
-      if (params.refundNotes) detailLines.push(`Notes: ${params.refundNotes}`);
+      const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+      if (params.refundAmountUsd != null) detailLines.push(`Refund: ${fmt(params.refundAmountUsd)}`);
+      if (params.depositUsd      != null) detailLines.push(`Original deposit: ${fmt(params.depositUsd)}`);
+      if (params.justification)           detailLines.push(`Justification: ${params.justification}`);
+      if (params.refundDate)              detailLines.push(`Refund date: ${params.refundDate}`);
+      if (params.refundNotes)             detailLines.push(`Notes: ${params.refundNotes}`);
     } else {
       return { success: false, error: 'Invalid status transition.' };
     }

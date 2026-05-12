@@ -107,6 +107,7 @@ function UpdateStatusModal({
   const [refundAmount,   setRefundAmount]   = useState('');
   const [refundDate,     setRefundDate]     = useState('');
   const [refundNotes,    setRefundNotes]    = useState('');
+  const [justification,  setJustification]  = useState('');
   const [sessionDocs,    setSessionDocs]    = useState<ShipmentDocument[]>([]);
   const [docErrors,      setDocErrors]      = useState<Set<string>>(new Set());
   const [working,        setWorking]        = useState(false);
@@ -121,6 +122,10 @@ function UpdateStatusModal({
     : null;
 
   const sb = getStatusBadge(shipment.status);
+
+  const depositUsd   = shipment.deposit_usd ?? 0;
+  const refundNum    = Number(refundAmount) || 0;
+  const isDifferent  = refundNum > 0 && Math.abs(refundNum - depositUsd) > 0.01;
 
   function handleStatusChange(val: string) {
     setSelectedStatus(val);
@@ -138,6 +143,10 @@ function UpdateStatusModal({
     }
     if (selectedStatus === 'Closed - Refund Recovered' && !refundDate) {
       setError('Refund date is required.');
+      return;
+    }
+    if (selectedStatus === 'Closed - Refund Recovered' && isDifferent && !justification.trim()) {
+      setError('Justification is required when refund amount differs from deposit.');
       return;
     }
 
@@ -167,8 +176,10 @@ function UpdateStatusModal({
         extensionNotes:  selectedStatus === 'Open - Extended'             ? extensionNotes || null  : null,
         closureNotes:    selectedStatus === 'Closed'                      ? closureNotes   || null  : null,
         refundAmountUsd: selectedStatus === 'Closed - Refund Recovered' && refundAmount ? Number(refundAmount) : null,
-        refundDate:      selectedStatus === 'Closed - Refund Recovered'   ? refundDate              : null,
-        refundNotes:     selectedStatus === 'Closed - Refund Recovered'   ? refundNotes    || null  : null,
+        refundDate:      selectedStatus === 'Closed - Refund Recovered'   ? refundDate                    : null,
+        refundNotes:     selectedStatus === 'Closed - Refund Recovered'   ? refundNotes      || null      : null,
+        depositUsd:      selectedStatus === 'Closed - Refund Recovered'   ? depositUsd                    : null,
+        justification:   selectedStatus === 'Closed - Refund Recovered' && isDifferent ? justification.trim() || null : null,
       });
 
       if (result.success) {
@@ -270,7 +281,30 @@ function UpdateStatusModal({
                   value={refundAmount}
                   onChange={e => setRefundAmount(e.target.value)}
                 />
+                <p className="text-[12px] text-slate-400 mt-1.5">
+                  Original deposit: {usdFmt(depositUsd)}
+                </p>
               </div>
+
+              {/* Justification — shown only when amounts differ */}
+              {isDifferent && (
+                <div>
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#92400e', marginBottom: 12 }}>
+                    ⚠️ The refund amount ({usdFmt(refundNum)}) differs from the original deposit ({usdFmt(depositUsd)}). Please provide a justification.
+                  </div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Justification Required <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    className={`${INP} resize-none`}
+                    rows={3}
+                    placeholder="e.g. Partial refund due to customs penalty deduction of $X…"
+                    value={justification}
+                    onChange={e => setJustification(e.target.value)}
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                   Refund Date <span className="text-red-500">*</span>

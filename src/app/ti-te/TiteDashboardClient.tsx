@@ -124,7 +124,11 @@ export default function TiteDashboardClient({
   const segments = Object.entries(segMap).sort((a, b) => b[1].count - a[1].count);
 
   const actionQueue = shipments
-    .filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level))
+    .filter(s =>
+      ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level) &&
+      s.status !== 'Closed' &&
+      s.status !== 'Closed - Refund Recovered',
+    )
     .slice(0, 8);
 
   return (
@@ -184,7 +188,7 @@ export default function TiteDashboardClient({
             { label: 'Active movements',      value: stats.active_count,                      sub: `${stats.import_count} imports · ${stats.export_count} exports`, accent: '#006B0C',  color: '#1e293b' },
             { label: 'Overdue',               value: stats.overdue_count,                     sub: 'Past expiry, action required',                                   accent: '#ef4444',  color: '#ef4444' },
             { label: 'Due this week',         value: stats.urgent_count,                      sub: '≤ 7 days to expiry',                                             accent: '#f97316',  color: '#f97316' },
-            { label: 'Customs deposit at risk', value: usdFmt(stats.total_deposit_usd),       sub: 'Total open customs deposit',                                     accent: '#006B0C',  color: '#1e293b' },
+            { label: 'Customs deposit at risk', value: usdFmt(stats.total_deposit_usd),       sub: 'Open and extended shipments only',                                accent: '#006B0C',  color: '#1e293b' },
           ].map((kpi, i) => (
             <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 relative overflow-hidden">
               <div className="absolute left-0 inset-y-0 w-[3px] rounded-r-sm" style={{ background: kpi.accent }} />
