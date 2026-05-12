@@ -68,3 +68,18 @@ export interface ShipmentStats {
   import_count: number;
   export_count: number;
 }
+
+export interface NotificationContact {
+  id: number;
+  shipment_id: number;
+  name: string | null;
+  email: string;
+  role: string | null;
+}
+
+export interface CountryStakeholder {
+  id: number;
+  role: string;
+  name: string;
+  email: string;
+}

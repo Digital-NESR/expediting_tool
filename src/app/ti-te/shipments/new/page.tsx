@@ -38,5 +38,15 @@ export default async function NewShipmentPage() {
     countryOptions = session?.user?.toolAccess?.tite?.approvedCountries ?? [];
   }
 
-  return <NewShipmentClient countryOptions={countryOptions} isAdmin={isAdmin} />;
+  const creatorName  = session?.user?.name  ?? '';
+  const creatorEmail = session?.user?.email ?? '';
+
+  return (
+    <NewShipmentClient
+      countryOptions={countryOptions}
+      isAdmin={isAdmin}
+      creatorName={creatorName}
+      creatorEmail={creatorEmail}
+    />
+  );
 }

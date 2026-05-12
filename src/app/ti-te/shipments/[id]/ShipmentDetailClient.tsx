@@ -4,12 +4,13 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
 import DocumentUploadSection from '@/components/tite/DocumentUploadSection';
+import NotificationRecipientsCard from '@/components/tite/NotificationRecipientsCard';
 import {
   ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, calcDays, getStatusBadge,
 } from '@/lib/tite-utils';
 import { DOCUMENT_STAGES } from '@/lib/tite-stage-config';
 import { updateShipmentStatus } from '@/app/actions/tite';
-import type { Shipment, ShipmentDocument, ActivityLogRow } from '@/types/tite';
+import type { Shipment, ShipmentDocument, ActivityLogRow, NotificationContact } from '@/types/tite';
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
@@ -59,23 +60,25 @@ function fmtBytes(n: number | null): string {
 
 function actionLabel(action: string): string {
   const map: Record<string, string> = {
-    created:         'Shipment created',
-    extended:        'Validity extended',
-    closed:          'File closed',
-    refund_received: 'Refund received',
-    document_added:  'Document attached',
-    'Status Updated':'Status updated',
+    created:                       'Shipment created',
+    extended:                      'Validity extended',
+    closed:                        'File closed',
+    refund_received:               'Refund received',
+    document_added:                'Document attached',
+    'Status Updated':              'Status updated',
+    'Notification Contacts Updated': 'Recipients updated',
   };
   return map[action] ?? action.replace(/_/g, ' ');
 }
 
 const ACTION_DOT: Record<string, string> = {
-  created:          'bg-blue-400',
-  extended:         'bg-amber-400',
-  closed:           'bg-slate-400',
-  refund_received:  'bg-green-400',
-  document_added:   'bg-purple-400',
-  'Status Updated': 'bg-purple-500',
+  created:                         'bg-blue-400',
+  extended:                        'bg-amber-400',
+  closed:                          'bg-slate-400',
+  refund_received:                 'bg-green-400',
+  document_added:                  'bg-purple-400',
+  'Status Updated':                'bg-purple-500',
+  'Notification Contacts Updated': 'bg-cyan-400',
 };
 
 /* ─── Update Status Modal ────────────────────────────────────── */
@@ -469,11 +472,13 @@ export default function ShipmentDetailClient({
   rawId,
   documents,
   activityLog,
+  notificationContacts,
 }: {
-  shipment:    Shipment | null;
-  rawId:       string;
-  documents:   ShipmentDocument[];
-  activityLog: ActivityLogRow[];
+  shipment:              Shipment | null;
+  rawId:                 string;
+  documents:             ShipmentDocument[];
+  activityLog:           ActivityLogRow[];
+  notificationContacts:  NotificationContact[];
 }) {
   const router = useRouter();
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
@@ -855,17 +860,13 @@ export default function ShipmentDetailClient({
                   </div>
                 ))}
               </div>
-              <div className="px-4 pb-4 border-t border-slate-100 pt-3">
-                <p className="text-[11.5px] text-slate-400 mb-2">Recipients</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {[s.created_by, 'Customs Manager', 'Finance Lead'].filter(Boolean).map((p, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" /> {p}
-                    </span>
-                  ))}
-                </div>
-              </div>
             </div>
+
+            {/* Notification Recipients */}
+            <NotificationRecipientsCard
+              shipment={s}
+              notificationContacts={notificationContacts}
+            />
           </div>
         </div>
       </main>

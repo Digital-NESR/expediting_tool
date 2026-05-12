@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
 import DocumentUploadSection from '@/components/tite/DocumentUploadSection';
-import { createShipment, uploadShipmentDocument } from '@/app/actions/tite';
+import { createShipment, uploadShipmentDocument, getCountryStakeholders } from '@/app/actions/tite';
 import { DOCUMENT_STAGES } from '@/lib/tite-stage-config';
 import type { PendingUpload } from '@/lib/tite-stage-config';
+import type { CountryStakeholder } from '@/types/tite';
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
@@ -26,21 +27,39 @@ const INP_ERR = 'w-full border border-red-300 rounded-lg px-3 py-2.5 text-sm foc
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
-interface ContactRow { name: string; email: string; role: string; }
-interface FormErrors  { [key: string]: string; }
+interface AdditionalContact { name: string; email: string; role: string; }
+interface FormErrors         { [key: string]: string; }
+
+/* ─── Locked pill ────────────────────────────────────────────── */
+
+function LockedPill({ name, sub }: { name: string; sub?: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 border border-green-200 text-green-800 whitespace-nowrap">
+      <svg className="w-3 h-3 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+      </svg>
+      {name}
+      {sub && <span className="text-green-600 font-normal">— {sub}</span>}
+    </span>
+  );
+}
 
 /* ─── Component ──────────────────────────────────────────────── */
 
 export default function NewShipmentClient({
   countryOptions,
   isAdmin,
+  creatorName,
+  creatorEmail,
 }: {
   countryOptions: string[];
-  isAdmin: boolean;
+  isAdmin:        boolean;
+  creatorName:    string;
+  creatorEmail:   string;
 }) {
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const docsSectionRef = useRef<HTMLDivElement>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   /* form state */
   const [operatingCountry, setOperatingCountry] = useState(countryOptions.length === 1 ? countryOptions[0] : '');
@@ -61,7 +80,11 @@ export default function NewShipmentClient({
   const [extendedDate, setExtendedDate] = useState('');
   const [depositUsd,   setDepositUsd]   = useState('');
   const [comments,     setComments]     = useState('');
-  const [contacts,     setContacts]     = useState<ContactRow[]>([{ name: '', email: '', role: '' }]);
+
+  /* notification state */
+  const [stakeholders,        setStakeholders]        = useState<CountryStakeholder[]>([]);
+  const [stakeholdersLoading, setStakeholdersLoading] = useState(false);
+  const [additionalContacts,  setAdditionalContacts]  = useState<AdditionalContact[]>([]);
 
   /* document state */
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
@@ -78,6 +101,16 @@ export default function NewShipmentClient({
     setPendingUploads(pending);
   }, []);
 
+  /* fetch stakeholders when country changes */
+  useEffect(() => {
+    if (!operatingCountry) { setStakeholders([]); return; }
+    setStakeholdersLoading(true);
+    getCountryStakeholders(operatingCountry)
+      .then(data => setStakeholders(data))
+      .catch(() => setStakeholders([]))
+      .finally(() => setStakeholdersLoading(false));
+  }, [operatingCountry]);
+
   /* helpers */
   function clearError(key: string) {
     setErrors(prev => { const n = { ...prev }; delete n[key]; return n; });
@@ -91,23 +124,23 @@ export default function NewShipmentClient({
     clearError('expiry_date');
   }
 
-  function updateContact(i: number, key: keyof ContactRow, val: string) {
-    setContacts(prev => prev.map((c, j) => j === i ? { ...c, [key]: val } : c));
-    clearError(`contact_email_${i}`);
+  function updateAdditional(i: number, key: keyof AdditionalContact, val: string) {
+    setAdditionalContacts(prev => prev.map((c, j) => j === i ? { ...c, [key]: val } : c));
+    if (key === 'email') clearError(`additional_email_${i}`);
   }
 
-  function removeContact(i: number) {
-    setContacts(prev => prev.filter((_, j) => j !== i));
+  function removeAdditional(i: number) {
+    setAdditionalContacts(prev => prev.filter((_, j) => j !== i));
   }
 
   /* validation */
   function validate(): FormErrors {
     const e: FormErrors = {};
     if (!operatingCountry) e.operating_country = 'Operating country is required.';
-    if (!expiryDate) e.expiry_date = 'Expiry date is required.';
-    contacts.forEach((c, i) => {
+    if (!expiryDate)       e.expiry_date        = 'Expiry date is required.';
+    additionalContacts.forEach((c, i) => {
       if (c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) {
-        e[`contact_email_${i}`] = 'Invalid email address.';
+        e[`additional_email_${i}`] = 'Invalid email address.';
       }
     });
     return e;
@@ -118,7 +151,6 @@ export default function NewShipmentClient({
     e.preventDefault();
     setErrorBanner('');
 
-    /* Field validation */
     const errs = validate();
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -129,7 +161,7 @@ export default function NewShipmentClient({
       return;
     }
 
-    /* Document validation — all required creation doc types must have ≥ 1 pending file */
+    /* Document validation */
     const creationConfig = DOCUMENT_STAGES['creation'];
     const missing = new Set<string>();
     for (const dt of creationConfig.documents) {
@@ -167,7 +199,8 @@ export default function NewShipmentClient({
         deposit_usd:    depositUsd     ? parseFloat(depositUsd)  : undefined,
         comments:       comments       || undefined,
         country:        operatingCountry || undefined,
-        contacts: contacts.filter(c => c.name || c.email || c.role),
+        created_by_email: creatorEmail  || undefined,
+        additionalContacts: additionalContacts.filter(c => c.name || c.email),
       });
 
       if (!result) {
@@ -176,7 +209,6 @@ export default function NewShipmentClient({
         return;
       }
 
-      /* Upload all pending documents */
       for (const p of pendingUploads) {
         try {
           const fd = new FormData();
@@ -186,9 +218,7 @@ export default function NewShipmentClient({
           fd.append('document_type', p.docTypeKey);
           fd.append('custom_name',   p.customName);
           await uploadShipmentDocument(fd);
-        } catch {
-          /* non-fatal — shipment created; docs can be added later */
-        }
+        } catch { /* non-fatal */ }
       }
 
       setToastMsg('Shipment saved successfully!');
@@ -204,7 +234,6 @@ export default function NewShipmentClient({
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
       <TiteSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Success toast */}
       {toastMsg && (
         <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 bg-[#006B0C] text-white text-sm font-semibold px-5 py-3.5 rounded-xl shadow-lg">
           <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -214,7 +243,6 @@ export default function NewShipmentClient({
         </div>
       )}
 
-      {/* Header */}
       <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center gap-3 shrink-0 sticky top-0 z-30">
         <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -228,7 +256,6 @@ export default function NewShipmentClient({
       </header>
 
       <main className="max-w-[700px] mx-auto px-6 pb-16 pt-10">
-        {/* Breadcrumb + title */}
         <div className="mb-6">
           <p className="text-xs text-slate-400 mb-1">
             <button className="hover:underline text-[#006B0C]" onClick={() => router.push('/ti-te/shipments')}>
@@ -242,7 +269,6 @@ export default function NewShipmentClient({
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
 
-          {/* Error banner */}
           {errorBanner && (
             <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
               <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -254,7 +280,6 @@ export default function NewShipmentClient({
 
           {/* ── Section 1: Movement Details ── */}
           <Section title="1. Movement Details">
-            {/* Operating Country */}
             <div data-field-error={errors.operating_country ? 'true' : undefined}>
               <label className={LBL}>
                 Operating country <span className="text-red-500">*</span>
@@ -287,7 +312,6 @@ export default function NewShipmentClient({
               )}
             </div>
 
-            {/* Type radio */}
             <div>
               <label className={LBL}>Type</label>
               <div className="flex gap-3">
@@ -308,7 +332,6 @@ export default function NewShipmentClient({
               </div>
             </div>
 
-            {/* Segment */}
             <div>
               <label className={LBL}>Segment</label>
               <input
@@ -323,7 +346,6 @@ export default function NewShipmentClient({
               </datalist>
             </div>
 
-            {/* Description */}
             <div>
               <label className={LBL}>Description</label>
               <textarea
@@ -345,23 +367,11 @@ export default function NewShipmentClient({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={LBL}>From country</label>
-                <input
-                  list="country-list"
-                  className={INP}
-                  placeholder="Origin country"
-                  value={fromCountry}
-                  onChange={e => setFromCountry(e.target.value)}
-                />
+                <input list="country-list" className={INP} placeholder="Origin country" value={fromCountry} onChange={e => setFromCountry(e.target.value)} />
               </div>
               <div>
                 <label className={LBL}>To country</label>
-                <input
-                  list="country-list"
-                  className={INP}
-                  placeholder="Destination country"
-                  value={toCountry}
-                  onChange={e => setToCountry(e.target.value)}
-                />
+                <input list="country-list" className={INP} placeholder="Destination country" value={toCountry} onChange={e => setToCountry(e.target.value)} />
               </div>
             </div>
 
@@ -387,13 +397,7 @@ export default function NewShipmentClient({
                 <label className={LBL}>Invoice value (USD)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">USD</span>
-                  <input
-                    type="number" min="0" step="0.01"
-                    className={`${INP} pl-11`}
-                    placeholder="0.00"
-                    value={invoiceVal}
-                    onChange={e => setInvoiceVal(e.target.value)}
-                  />
+                  <input type="number" min="0" step="0.01" className={`${INP} pl-11`} placeholder="0.00" value={invoiceVal} onChange={e => setInvoiceVal(e.target.value)} />
                 </div>
               </div>
             </div>
@@ -401,7 +405,7 @@ export default function NewShipmentClient({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={LBL}>Customs Reference Number</label>
-                <input className={INP} placeholder="Customs reference or declaration number (e.g. Bayan No., Entry No., Declaration No.)" value={bayanNum} onChange={e => setBayanNum(e.target.value)} />
+                <input className={INP} placeholder="Customs reference or declaration number" value={bayanNum} onChange={e => setBayanNum(e.target.value)} />
               </div>
               <div>
                 <label className={LBL}>AWB / B/L number</label>
@@ -426,9 +430,7 @@ export default function NewShipmentClient({
               </div>
 
               <div data-field-error={errors.expiry_date ? 'true' : undefined}>
-                <label className={LBL}>
-                  Expiry date <span className="text-red-500">*</span>
-                </label>
+                <label className={LBL}>Expiry date <span className="text-red-500">*</span></label>
                 <div className="flex gap-2">
                   <input
                     type="date"
@@ -446,27 +448,17 @@ export default function NewShipmentClient({
                     +180d
                   </button>
                 </div>
-                {errors.expiry_date && (
-                  <p className="text-xs text-red-600 mt-1">{errors.expiry_date}</p>
-                )}
+                {errors.expiry_date && <p className="text-xs text-red-600 mt-1">{errors.expiry_date}</p>}
               </div>
             </div>
 
-            {/* Extension toggle */}
             <div>
-              <button
-                type="button"
-                onClick={() => setShowExtended(v => !v)}
-                className="flex items-center gap-2.5 group"
-              >
+              <button type="button" onClick={() => setShowExtended(v => !v)} className="flex items-center gap-2.5 group">
                 <span className={`relative w-9 h-5 rounded-full transition-colors ${showExtended ? 'bg-[#006B0C]' : 'bg-slate-200'}`}>
                   <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${showExtended ? 'left-[18px]' : 'left-0.5'}`} />
                 </span>
-                <span className="text-sm font-medium text-slate-600 group-hover:text-slate-800 transition-colors">
-                  Extension granted
-                </span>
+                <span className="text-sm font-medium text-slate-600 group-hover:text-slate-800 transition-colors">Extension granted</span>
               </button>
-
               {showExtended && (
                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -485,81 +477,105 @@ export default function NewShipmentClient({
                 <label className={LBL}>Customs Deposit (USD)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">$</span>
-                  <input
-                    type="number" min="0" step="0.01"
-                    className={`${INP} pl-7`}
-                    placeholder="0.00"
-                    value={depositUsd}
-                    onChange={e => setDepositUsd(e.target.value)}
-                  />
+                  <input type="number" min="0" step="0.01" className={`${INP} pl-7`} placeholder="0.00" value={depositUsd} onChange={e => setDepositUsd(e.target.value)} />
                 </div>
               </div>
             </div>
           </Section>
 
-          {/* ── Section 6: Notification Contacts ── */}
-          <Section title="6. Notification contacts" subtitle="People to notify when status changes or deadlines approach">
-            <div className="flex flex-col gap-3">
-              {contacts.map((c, i) => (
-                <div key={i}>
-                  {i === 0 && (
-                    <div className="grid grid-cols-[1fr_1fr_7rem_2.25rem] gap-2 mb-1">
-                      <span className="text-[11px] font-semibold text-slate-500">Name</span>
-                      <span className="text-[11px] font-semibold text-slate-500">Email</span>
-                      <span className="text-[11px] font-semibold text-slate-500">Role</span>
-                      <span />
-                    </div>
+          {/* ── Section 6: Notification Recipients ── */}
+          <Section
+            title="6. Notification Recipients"
+            subtitle="These people will be notified when this shipment's alert status changes (overdue, urgent, etc.)"
+          >
+            {/* Default recipients — locked */}
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                Default Recipients
+              </p>
+              {!operatingCountry ? (
+                <p className="text-xs text-slate-400">Select a country above to see default recipients.</p>
+              ) : stakeholdersLoading ? (
+                <p className="text-xs text-slate-400">Loading…</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {/* Creator */}
+                  <LockedPill name={creatorName || 'You'} sub="Creator" />
+                  {/* Stakeholders */}
+                  {stakeholders.map(s => (
+                    <LockedPill key={s.id} name={s.name} sub={s.role} />
+                  ))}
+                  {stakeholders.length === 0 && (
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      No default stakeholders configured for {operatingCountry}.
+                    </p>
                   )}
-                  <div className="grid grid-cols-[1fr_1fr_7rem_2.25rem] gap-2 items-start">
-                    <input
-                      className={INP}
-                      placeholder="Full name"
-                      value={c.name}
-                      onChange={e => updateContact(i, 'name', e.target.value)}
-                    />
-                    <div>
-                      <input
-                        type="email"
-                        className={errors[`contact_email_${i}`] ? INP_ERR : INP}
-                        placeholder="email@company.com"
-                        value={c.email}
-                        onChange={e => updateContact(i, 'email', e.target.value)}
-                      />
-                      {errors[`contact_email_${i}`] && (
-                        <p className="text-xs text-red-600 mt-1" data-field-error="true">
-                          {errors[`contact_email_${i}`]}
-                        </p>
-                      )}
-                    </div>
-                    <input
-                      className={INP}
-                      placeholder="Role"
-                      value={c.role}
-                      onChange={e => updateContact(i, 'role', e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeContact(i)}
-                      disabled={contacts.length === 1}
-                      className="w-9 h-[42px] flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
                 </div>
-              ))}
+              )}
+            </div>
+
+            {/* Additional recipients — editable */}
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Additional Recipients
+              </p>
+              <p className="text-xs text-slate-400 mb-3">Add anyone else who should be notified.</p>
+
+              {additionalContacts.length > 0 && (
+                <div className="flex flex-col gap-2 mb-2">
+                  {additionalContacts.map((c, i) => (
+                    <div key={i}>
+                      <div className="grid grid-cols-[1fr_1.5fr_7rem_2.25rem] gap-2 items-start">
+                        <input
+                          className={INP}
+                          placeholder="Full name"
+                          value={c.name}
+                          onChange={e => updateAdditional(i, 'name', e.target.value)}
+                        />
+                        <div>
+                          <input
+                            type="email"
+                            className={errors[`additional_email_${i}`] ? INP_ERR : INP}
+                            placeholder="email@company.com"
+                            value={c.email}
+                            onChange={e => updateAdditional(i, 'email', e.target.value)}
+                          />
+                          {errors[`additional_email_${i}`] && (
+                            <p className="text-xs text-red-600 mt-1" data-field-error="true">
+                              {errors[`additional_email_${i}`]}
+                            </p>
+                          )}
+                        </div>
+                        <input
+                          className={INP}
+                          placeholder="Role/Title"
+                          value={c.role}
+                          onChange={e => updateAdditional(i, 'role', e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeAdditional(i)}
+                          className="w-9 h-[42px] flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <button
                 type="button"
-                onClick={() => setContacts(prev => [...prev, { name: '', email: '', role: '' }])}
-                className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-[#006B0C] hover:underline w-fit"
+                onClick={() => setAdditionalContacts(prev => [...prev, { name: '', email: '', role: '' }])}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-[#006B0C] hover:underline w-fit"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
-                Add another
+                + Add recipient
               </button>
             </div>
           </Section>
@@ -586,8 +602,7 @@ export default function NewShipmentClient({
             <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
               <h2 className="text-sm font-bold text-slate-800">8. Required Documents</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                All five document types are required. Files are uploaded after the shipment is saved.
-                Maximum 10 MB per file.
+                All five document types are required. Files are uploaded after the shipment is saved. Maximum 10 MB per file.
               </p>
             </div>
             <div className="px-5 py-5">
@@ -641,15 +656,7 @@ export default function NewShipmentClient({
 
 /* ─── Section wrapper ─────────────────────────────────────────── */
 
-function Section({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
+function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <section className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
       <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">

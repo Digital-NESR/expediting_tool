@@ -3,12 +3,13 @@
 import titePool from '@/lib/db-tite';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import type { Shipment, ShipmentStats, ShipmentStatus, ShipmentDocument, ActivityLogRow } from '@/types/tite';
+import type { Shipment, ShipmentStats, ShipmentStatus, ShipmentDocument, ActivityLogRow, NotificationContact, CountryStakeholder } from '@/types/tite';
 import {
   dbInsertDocument,
   dbGetDocuments,
   dbDeleteDocument,
   dbGetActivityLog,
+  dbInsertActivityLog,
   dbUpdateShipmentWithLog,
 } from '@/lib/tite-documents';
 
@@ -33,7 +34,8 @@ export interface CreateShipmentInput {
   deposit_usd?: number;
   comments?: string;
   status?: ShipmentStatus;
-  contacts?: Array<{ name: string; email: string; role: string }>;
+  created_by_email?: string;
+  additionalContacts?: Array<{ name: string; email: string; role: string }>;
 }
 
 /* ─── Access request types ────────────────────────────────────── */
@@ -192,19 +194,40 @@ export async function createShipment(
     );
     const shipmentId = rows[0].id;
 
-    if (input.contacts && input.contacts.length > 0) {
-      try {
-        for (const c of input.contacts) {
-          if (!c.name && !c.email) continue;
-          await titePool.query(
-            `INSERT INTO shipment_notification_contacts (shipment_id, name, email, role)
-             VALUES ($1, $2, $3, $4)`,
-            [shipmentId, c.name || null, c.email || null, c.role || null],
-          );
+    /* ─── Insert notification contacts ─── */
+    try {
+      const notifyAll = [true, true, true, true, true, true];
+      const insertContact = (email: string | null, name: string | null, role: string | null) =>
+        titePool.query(
+          `INSERT INTO shipment_notification_contacts
+             (shipment_id, email, name, role,
+              notify_10_days, notify_5_days, notify_3_days,
+              notify_2_days, notify_1_day, notify_overdue)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           ON CONFLICT DO NOTHING`,
+          [shipmentId, email, name, role, ...notifyAll],
+        );
+
+      // 1. Country stakeholders
+      if (input.country) {
+        const stakeholders = await getCountryStakeholders(input.country);
+        for (const s of stakeholders) {
+          await insertContact(s.email, s.name, s.role);
         }
-      } catch (contactErr) {
-        console.warn('[TI-TE] createShipment: could not insert contacts:', contactErr);
       }
+
+      // 2. Creator
+      if (input.created_by_email || createdBy) {
+        await insertContact(input.created_by_email || null, createdBy, 'Creator');
+      }
+
+      // 3. Additional contacts
+      for (const c of (input.additionalContacts ?? [])) {
+        if (!c.email) continue;
+        await insertContact(c.email, c.name || null, c.role || null);
+      }
+    } catch (contactErr) {
+      console.warn('[TI-TE] createShipment: could not insert contacts:', contactErr);
     }
 
     try {
@@ -728,5 +751,87 @@ export async function updateShipmentStatus(params: {
   } catch (err) {
     console.error('[TI-TE] updateShipmentStatus error:', err);
     return { success: false, error: 'Failed to update status. Please try again.' };
+  }
+}
+
+/* ─── getCountryStakeholders ──────────────────────────────────── */
+
+export async function getCountryStakeholders(
+  country: string,
+): Promise<CountryStakeholder[]> {
+  try {
+    const { rows } = await titePool.query<CountryStakeholder>(
+      `SELECT id, role, name, email
+       FROM country_stakeholders
+       WHERE country = $1 AND active = TRUE
+       ORDER BY role`,
+      [country],
+    );
+    return rows;
+  } catch (err) {
+    console.error('[TI-TE] getCountryStakeholders error:', err);
+    return [];
+  }
+}
+
+/* ─── getShipmentNotificationContacts ────────────────────────── */
+
+export async function getShipmentNotificationContacts(
+  shipmentId: number,
+): Promise<NotificationContact[]> {
+  try {
+    const { rows } = await titePool.query<NotificationContact>(
+      `SELECT id, shipment_id, name, email, role
+       FROM shipment_notification_contacts
+       WHERE shipment_id = $1
+       ORDER BY id`,
+      [shipmentId],
+    );
+    return rows;
+  } catch (err) {
+    console.error('[TI-TE] getShipmentNotificationContacts error:', err);
+    return [];
+  }
+}
+
+/* ─── saveNotificationContacts ───────────────────────────────── */
+
+export async function saveNotificationContacts(params: {
+  shipmentId: number;
+  contacts:   Array<{ email: string; name: string; role: string | null }>;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session   = await getServerSession(authOptions);
+    const performer = session?.user?.name ?? null;
+
+    await titePool.query(
+      `DELETE FROM shipment_notification_contacts WHERE shipment_id = $1`,
+      [params.shipmentId],
+    );
+
+    for (const c of params.contacts) {
+      if (!c.email) continue;
+      await titePool.query(
+        `INSERT INTO shipment_notification_contacts
+           (shipment_id, email, name, role,
+            notify_10_days, notify_5_days, notify_3_days,
+            notify_2_days, notify_1_day, notify_overdue)
+         VALUES ($1,$2,$3,$4,true,true,true,true,true,true)
+         ON CONFLICT DO NOTHING`,
+        [params.shipmentId, c.email, c.name || null, c.role || null],
+      );
+    }
+
+    await dbInsertActivityLog({
+      shipment_id:  params.shipmentId,
+      action:       'Notification Contacts Updated',
+      details:      `Updated ${params.contacts.length} recipient${params.contacts.length !== 1 ? 's' : ''}`,
+      performed_by: performer,
+    });
+
+    return { success: true };
+  } catch (err) {
+    console.error('[TI-TE] saveNotificationContacts error:', err);
+    return { success: false, error: 'Failed to save notification contacts.' };
   }
 }
