@@ -8,7 +8,7 @@ import {
   ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, calcDays, getStatusBadge,
 } from '@/lib/tite-utils';
 import { DOCUMENT_STAGES } from '@/lib/tite-stage-config';
-import { extendShipment, closeShipment, markRefundReceived } from '@/app/actions/tite';
+import { updateShipmentStatus } from '@/app/actions/tite';
 import type { Shipment, ShipmentDocument, ActivityLogRow } from '@/types/tite';
 
 /* ─── Constants ──────────────────────────────────────────────── */
@@ -64,99 +64,115 @@ function actionLabel(action: string): string {
     closed:          'File closed',
     refund_received: 'Refund received',
     document_added:  'Document attached',
+    'Status Updated':'Status updated',
   };
   return map[action] ?? action.replace(/_/g, ' ');
 }
 
 const ACTION_DOT: Record<string, string> = {
-  created:         'bg-blue-400',
-  extended:        'bg-amber-400',
-  closed:          'bg-slate-400',
-  refund_received: 'bg-green-400',
-  document_added:  'bg-purple-400',
+  created:          'bg-blue-400',
+  extended:         'bg-amber-400',
+  closed:           'bg-slate-400',
+  refund_received:  'bg-green-400',
+  document_added:   'bg-purple-400',
+  'Status Updated': 'bg-purple-500',
 };
 
-/* ─── Modal ──────────────────────────────────────────────────── */
+/* ─── Update Status Modal ────────────────────────────────────── */
 
-type ModalMode = 'closed' | 'extend' | 'close' | 'refund';
+function getNextStatusOptions(currentStatus: string): string[] {
+  if (currentStatus === 'Open' || currentStatus === 'Open - Extended') {
+    return ['Open - Extended', 'Closed'];
+  }
+  if (currentStatus === 'Closed') {
+    return ['Closed - Refund Recovered'];
+  }
+  return [];
+}
 
-const MODAL_STAGE: Record<Exclude<ModalMode, 'closed'>, 'extension' | 'closure' | 'refund'> = {
-  extend: 'extension',
-  close:  'closure',
-  refund: 'refund',
-};
-const MODAL_TITLE: Record<Exclude<ModalMode, 'closed'>, string> = {
-  extend: 'Request extension',
-  close:  'Close file',
-  refund: 'Mark refund received',
-};
-const MODAL_CTA: Record<Exclude<ModalMode, 'closed'>, string> = {
-  extend: 'Save extension',
-  close:  'Close file',
-  refund: 'Mark received',
-};
-const MODAL_CTA_BG: Record<Exclude<ModalMode, 'closed'>, string> = {
-  extend: '#006B0C',
-  close:  '#475569',
-  refund: '#059669',
-};
-
-function ModifyModal({
-  mode,
-  shipmentId,
+function UpdateStatusModal({
+  shipment,
   onClose,
   onSuccess,
 }: {
-  mode:       Exclude<ModalMode, 'closed'>;
-  shipmentId: number;
-  onClose:    () => void;
-  onSuccess:  () => void;
+  shipment:  Shipment;
+  onClose:   () => void;
+  onSuccess: (newStatus: string) => void;
 }) {
-  const modalStage   = MODAL_STAGE[mode];
-  const stageConfig  = DOCUMENT_STAGES[modalStage];
-
-  const [working,     setWorking]     = useState(false);
-  const [error,       setError]       = useState('');
-  const [extendDate,  setExtendDate]  = useState('');
-  const [notes,       setNotes]       = useState('');
-  const [sessionDocs, setSessionDocs] = useState<ShipmentDocument[]>([]);
-  const [docErrors,   setDocErrors]   = useState<Set<string>>(new Set());
+  const options = getNextStatusOptions(shipment.status);
+  const [selectedStatus, setSelectedStatus] = useState(options[0] ?? '');
+  const [newExpiryDate,  setNewExpiryDate]  = useState('');
+  const [extensionNotes, setExtensionNotes] = useState('');
+  const [closureNotes,   setClosureNotes]   = useState('');
+  const [refundAmount,   setRefundAmount]   = useState('');
+  const [refundDate,     setRefundDate]     = useState('');
+  const [refundNotes,    setRefundNotes]    = useState('');
+  const [sessionDocs,    setSessionDocs]    = useState<ShipmentDocument[]>([]);
+  const [docErrors,      setDocErrors]      = useState<Set<string>>(new Set());
+  const [working,        setWorking]        = useState(false);
+  const [error,          setError]          = useState('');
 
   const INP = 'w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20 focus:border-[#006B0C] bg-white';
 
+  const docStage: 'extension' | 'closure' | 'refund' | null =
+    selectedStatus === 'Open - Extended'             ? 'extension'
+    : selectedStatus === 'Closed'                    ? 'closure'
+    : selectedStatus === 'Closed - Refund Recovered' ? 'refund'
+    : null;
+
+  const sb = getStatusBadge(shipment.status);
+
+  function handleStatusChange(val: string) {
+    setSelectedStatus(val);
+    setSessionDocs([]);
+    setDocErrors(new Set());
+    setError('');
+  }
+
   async function handleSubmit() {
     setError('');
-    if (mode === 'extend' && !extendDate) {
-      setError('Extended date is required.');
+
+    if (selectedStatus === 'Open - Extended' && !newExpiryDate) {
+      setError('New expiry date is required.');
+      return;
+    }
+    if (selectedStatus === 'Closed - Refund Recovered' && !refundDate) {
+      setError('Refund date is required.');
       return;
     }
 
-    /* Validate required docs for this stage */
-    const missing = new Set<string>();
-    for (const dt of stageConfig.documents) {
-      if (dt.required && !sessionDocs.some(d => d.document_type === dt.key)) {
-        missing.add(dt.key);
+    /* Validate required docs */
+    if (docStage) {
+      const stageCfg = DOCUMENT_STAGES[docStage];
+      const missing  = new Set<string>();
+      for (const dt of stageCfg.documents) {
+        if (dt.required && !sessionDocs.some(d => d.document_type === dt.key)) {
+          missing.add(dt.key);
+        }
       }
-    }
-    if (missing.size > 0) {
-      setDocErrors(missing);
-      setError('Please attach all required documents before proceeding.');
-      return;
+      if (missing.size > 0) {
+        setDocErrors(missing);
+        setError('Please attach all required documents before proceeding.');
+        return;
+      }
     }
     setDocErrors(new Set());
 
     setWorking(true);
     try {
-      let result: { success: boolean; error?: string };
-      if (mode === 'extend') {
-        result = await extendShipment({ shipmentId, extendedDate: extendDate, notes });
-      } else if (mode === 'close') {
-        result = await closeShipment({ shipmentId, notes });
-      } else {
-        result = await markRefundReceived({ shipmentId, notes });
-      }
+      const result = await updateShipmentStatus({
+        shipmentId:      shipment.id,
+        newStatus:       selectedStatus,
+        newExpiryDate:   selectedStatus === 'Open - Extended'             ? newExpiryDate           : null,
+        extensionNotes:  selectedStatus === 'Open - Extended'             ? extensionNotes || null  : null,
+        closureNotes:    selectedStatus === 'Closed'                      ? closureNotes   || null  : null,
+        refundAmountUsd: selectedStatus === 'Closed - Refund Recovered' && refundAmount ? Number(refundAmount) : null,
+        refundDate:      selectedStatus === 'Closed - Refund Recovered'   ? refundDate              : null,
+        refundNotes:     selectedStatus === 'Closed - Refund Recovered'   ? refundNotes    || null  : null,
+      });
+
       if (result.success) {
-        onSuccess();
+        onSuccess(selectedStatus);
       } else {
         setError(result.error || 'Action failed.');
       }
@@ -168,50 +184,132 @@ function ModifyModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-[2px]">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
+
+        {/* Header */}
         <div className="px-6 py-5 border-b border-slate-100">
-          <h3 className="font-bold text-slate-900">{MODAL_TITLE[mode]}</h3>
+          <h3 className="font-bold text-slate-900">Update Shipment Status</h3>
+          <p className="text-[12.5px] text-slate-500 mt-1 flex items-center gap-1.5">
+            {shipment.reference_number}
+            <span className="text-slate-300">·</span>
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10.5px] font-semibold ${sb.className}`}>
+              {sb.label}
+            </span>
+          </p>
         </div>
 
         <div className="px-6 py-5 flex flex-col gap-4">
-          {mode === 'extend' && (
+
+          {/* Status dropdown */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+              New Status <span className="text-red-500">*</span>
+            </label>
+            <select
+              className={INP}
+              value={selectedStatus}
+              onChange={e => handleStatusChange(e.target.value)}
+            >
+              {options.map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Open - Extended fields */}
+          {selectedStatus === 'Open - Extended' && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  New Expiry Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  className={INP}
+                  value={newExpiryDate}
+                  onChange={e => setNewExpiryDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Extension Notes</label>
+                <textarea
+                  className={`${INP} resize-none`}
+                  rows={2}
+                  placeholder="Optional remarks…"
+                  value={extensionNotes}
+                  onChange={e => setExtensionNotes(e.target.value)}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Closed fields */}
+          {selectedStatus === 'Closed' && (
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                New expiry date <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                className={INP}
-                value={extendDate}
-                onChange={e => setExtendDate(e.target.value)}
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Closure Notes</label>
+              <textarea
+                className={`${INP} resize-none`}
+                rows={2}
+                placeholder="Optional remarks…"
+                value={closureNotes}
+                onChange={e => setClosureNotes(e.target.value)}
               />
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Notes</label>
-            <textarea
-              className={`${INP} resize-none`}
-              rows={2}
-              placeholder="Optional remarks…"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-            />
-          </div>
+          {/* Closed - Refund Recovered fields */}
+          {selectedStatus === 'Closed - Refund Recovered' && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Refund Amount (USD)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className={INP}
+                  placeholder="0.00"
+                  value={refundAmount}
+                  onChange={e => setRefundAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Refund Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  className={INP}
+                  value={refundDate}
+                  onChange={e => setRefundDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Notes</label>
+                <textarea
+                  className={`${INP} resize-none`}
+                  rows={2}
+                  placeholder="Optional remarks…"
+                  value={refundNotes}
+                  onChange={e => setRefundNotes(e.target.value)}
+                />
+              </div>
+            </>
+          )}
 
           {/* Required documents */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          {docStage && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-3">
                 Required documents
-              </span>
+              </p>
+              <DocumentUploadSection
+                key={docStage}
+                stage={docStage}
+                shipmentId={shipment.id}
+                docTypeErrors={docErrors}
+                onUploaded={doc => setSessionDocs(prev => [...prev, doc])}
+              />
             </div>
-            <DocumentUploadSection
-              stage={modalStage}
-              shipmentId={shipmentId}
-              docTypeErrors={docErrors}
-              onUploaded={doc => setSessionDocs(prev => [...prev, doc])}
-            />
-          </div>
+          )}
 
           {error && (
             <p className="text-xs text-red-600 flex items-center gap-1.5">
@@ -223,6 +321,7 @@ function ModifyModal({
           )}
         </div>
 
+        {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 flex gap-2">
           <button
             onClick={onClose}
@@ -235,7 +334,7 @@ function ModifyModal({
             onClick={handleSubmit}
             disabled={working}
             className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
-            style={{ background: MODAL_CTA_BG[mode] }}
+            style={{ background: '#006B0C' }}
           >
             {working && (
               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -243,7 +342,7 @@ function ModifyModal({
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
             )}
-            {MODAL_CTA[mode]}
+            Save changes
           </button>
         </div>
       </div>
@@ -343,9 +442,10 @@ export default function ShipmentDetailClient({
   activityLog: ActivityLogRow[];
 }) {
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [tab,         setTab]         = useState<'overview' | 'documents' | 'timeline' | 'compliance'>('overview');
-  const [modalMode,   setModalMode]   = useState<ModalMode>('closed');
+  const [sidebarOpen,  setSidebarOpen]  = useState(false);
+  const [tab,          setTab]          = useState<'overview' | 'documents' | 'timeline' | 'compliance'>('overview');
+  const [modalOpen,    setModalOpen]    = useState(false);
+  const [toast,        setToast]        = useState<string | null>(null);
 
   /* ── DB unavailable ── */
   if (s === null) {
@@ -378,6 +478,7 @@ export default function ShipmentDetailClient({
 
   const deadlineBg = DEADLINE_BG[s.alert_level] || DEADLINE_BG.default;
   const isClosed   = s.status === 'Closed' || s.status === 'Closed - Refund Recovered';
+  const isFullyClosed = s.status === 'Closed - Refund Recovered';
 
   const notifs = [
     { label: '60 days before', sent: (days ?? 99) <= 60 || isClosed, crit: false },
@@ -397,36 +498,40 @@ export default function ShipmentDetailClient({
     { done: isClosed,                     text: 'Re-export or settlement confirmed' },
   ];
 
-  /* Current stage for active doc uploads */
-  const currentStage: 'creation' | 'extension' | 'closure' | 'refund' =
-    s.status === 'Closed - Refund Recovered' ? 'refund'
-    : s.status === 'Closed'                  ? 'closure'
-    : s.status === 'Open - Extended'         ? 'extension'
-    : 'creation';
-
   /* Documents grouped by stage */
   const creationDocs  = documents.filter(d => d.document_stage === 'creation');
   const extensionDocs = documents.filter(d => d.document_stage === 'extension');
   const closureDocs   = documents.filter(d => d.document_stage === 'closure');
   const refundDocs    = documents.filter(d => d.document_stage === 'refund');
 
-  function handleModalSuccess() {
-    setModalMode('closed');
+  function handleModalSuccess(newStatus: string) {
+    setModalOpen(false);
     router.refresh();
+    setToast(`Status updated to ${newStatus}`);
+    setTimeout(() => setToast(null), 3500);
   }
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
       <TiteSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Modal */}
-      {modalMode !== 'closed' && (
-        <ModifyModal
-          mode={modalMode}
-          shipmentId={s.id}
-          onClose={() => setModalMode('closed')}
+      {/* Update Status Modal */}
+      {modalOpen && (
+        <UpdateStatusModal
+          shipment={s}
+          onClose={() => setModalOpen(false)}
           onSuccess={handleModalSuccess}
         />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#006B0C] text-white px-5 py-3 rounded-xl shadow-lg text-sm font-semibold pointer-events-none">
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          {toast}
+        </div>
       )}
 
       <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center gap-3 shrink-0 sticky top-0 z-30">
@@ -472,30 +577,24 @@ export default function ShipmentDetailClient({
           </div>
 
           {/* Actions */}
-          {!isClosed && (
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setModalMode('extend')}
-                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
-                style={{ background: '#006B0C' }}
-              >
-                Request extension
-              </button>
-              <div className="relative group">
-                <button className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="none">
-                    <circle cx="12" cy="5"  r="1.5" fill="currentColor" />
-                    <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-                    <circle cx="12" cy="19" r="1.5" fill="currentColor" />
-                  </svg>
-                </button>
-                <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-20 hidden group-hover:block">
-                  <button onClick={() => setModalMode('close')}  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Close file</button>
-                  <button onClick={() => setModalMode('refund')} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Mark refund received</button>
-                </div>
-              </div>
-            </div>
-          )}
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <button
+              onClick={() => !isFullyClosed && setModalOpen(true)}
+              disabled={isFullyClosed}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                isFullyClosed
+                  ? 'border-slate-200 text-slate-400 bg-white cursor-not-allowed opacity-60'
+                  : 'border-[#006B0C] text-[#006B0C] bg-white hover:bg-[#006B0C] hover:text-white'
+              }`}
+            >
+              Update Status
+            </button>
+            {isFullyClosed && (
+              <p className="text-[11px] text-slate-400 text-right max-w-[200px]">
+                This record is fully closed. No further status updates required.
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Banners */}
@@ -625,7 +724,13 @@ export default function ShipmentDetailClient({
                               <span className="text-[13px] font-semibold text-slate-800">{actionLabel(entry.action)}</span>
                               <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">{fmtTs(entry.performed_at)}</span>
                             </div>
-                            {entry.details    && <p className="text-[12.5px] text-slate-500">{entry.details}</p>}
+                            {entry.details && (
+                              <div className="mt-0.5">
+                                {entry.details.split('\n').map((line, i) => (
+                                  <p key={i} className="text-[12.5px] text-slate-500">{line}</p>
+                                ))}
+                              </div>
+                            )}
                             {entry.performed_by && <p className="text-[11px] text-slate-400 mt-1">by {entry.performed_by}</p>}
                           </div>
                         </li>
@@ -727,18 +832,6 @@ export default function ShipmentDetailClient({
                 </div>
               </div>
             </div>
-
-            {/* Mobile quick actions */}
-            {!isClosed && (
-              <div className="sm:hidden bg-white rounded-xl border border-slate-200 shadow-sm">
-                <div className="px-4 py-3 border-b border-slate-100"><h3 className="text-sm font-bold text-slate-900">Actions</h3></div>
-                <div className="p-3 flex flex-col gap-2">
-                  <button onClick={() => setModalMode('extend')} className="w-full px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: '#006B0C' }}>Request extension</button>
-                  <button onClick={() => setModalMode('close')}  className="w-full px-4 py-2 rounded-xl text-sm font-semibold text-white bg-slate-500 hover:bg-slate-600 transition-colors">Close file</button>
-                  <button onClick={() => setModalMode('refund')} className="w-full px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors">Mark refund received</button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </main>

@@ -646,3 +646,64 @@ export async function markRefundReceived(params: {
     return { success: false, error: 'Failed to mark refund received.' };
   }
 }
+
+/* ─── updateShipmentStatus ────────────────────────────────────── */
+
+export async function updateShipmentStatus(params: {
+  shipmentId:      number;
+  newStatus:       string;
+  newExpiryDate?:  string | null;
+  extensionNotes?: string | null;
+  closureNotes?:   string | null;
+  refundAmountUsd?: number | null;
+  refundDate?:     string | null;
+  refundNotes?:    string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session   = await getServerSession(authOptions);
+    const performer = session?.user?.name ?? null;
+
+    const fields: Record<string, unknown> = {
+      status:          params.newStatus,
+      last_updated_by: performer,
+    };
+
+    const detailLines: string[] = [`Status → ${params.newStatus}`];
+
+    if (params.newStatus === 'Open - Extended') {
+      if (!params.newExpiryDate) {
+        return { success: false, error: 'New expiry date is required.' };
+      }
+      fields.extended_date = params.newExpiryDate;
+      fields.alert_level   = calcAlertLevel(undefined, params.newExpiryDate, 'Open - Extended');
+      detailLines.push(`New expiry: ${params.newExpiryDate}`);
+      if (params.extensionNotes) detailLines.push(`Notes: ${params.extensionNotes}`);
+    } else if (params.newStatus === 'Closed') {
+      fields.alert_level = 'closed';
+      if (params.closureNotes) detailLines.push(`Notes: ${params.closureNotes}`);
+    } else if (params.newStatus === 'Closed - Refund Recovered') {
+      fields.alert_level = 'closed';
+      if (params.refundAmountUsd != null) {
+        const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(params.refundAmountUsd);
+        detailLines.push(`Refund amount: ${formatted}`);
+      }
+      if (params.refundDate)  detailLines.push(`Refund date: ${params.refundDate}`);
+      if (params.refundNotes) detailLines.push(`Notes: ${params.refundNotes}`);
+    } else {
+      return { success: false, error: 'Invalid status transition.' };
+    }
+
+    await dbUpdateShipmentWithLog({
+      shipment_id:  params.shipmentId,
+      fields,
+      action:       'Status Updated',
+      details:      detailLines.join('\n'),
+      performed_by: performer,
+    });
+
+    return { success: true };
+  } catch (err) {
+    console.error('[TI-TE] updateShipmentStatus error:', err);
+    return { success: false, error: 'Failed to update status. Please try again.' };
+  }
+}
