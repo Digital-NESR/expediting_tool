@@ -141,7 +141,7 @@ function UpdateStatusModal({
     setError('');
 
     if (selectedStatus === 'Open - Extended' && !newExpiryDate) {
-      setError('New expiry date is required.');
+      setError('New Extended Expiry Date is required.');
       return;
     }
     if (selectedStatus === 'Closed - Refund Recovered' && !refundDate) {
@@ -234,7 +234,7 @@ function UpdateStatusModal({
             <>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  New Expiry Date <span className="text-red-500">*</span>
+                  New Extended Expiry Date <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -242,6 +242,7 @@ function UpdateStatusModal({
                   value={newExpiryDate}
                   onChange={e => setNewExpiryDate(e.target.value)}
                 />
+                <p className="text-[11px] text-slate-400 mt-1">Updated re-export deadline after extension approval</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Extension Notes</label>

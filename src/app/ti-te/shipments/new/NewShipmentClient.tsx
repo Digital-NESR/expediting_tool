@@ -462,7 +462,7 @@ export default function NewShipmentClient({
               {showExtended && (
                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className={LBL}>Extended expiry date</label>
+                    <label className={LBL}>Extended Expiry Date</label>
                     <input type="date" className={INP} value={extendedDate} onChange={e => setExtendedDate(e.target.value)} />
                   </div>
                 </div>
