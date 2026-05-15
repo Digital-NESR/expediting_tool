@@ -75,6 +75,14 @@ export interface NotificationContact {
   name: string | null;
   email: string;
   role: string | null;
+  notify_60_days: boolean;
+  notify_30_days: boolean;
+  notify_14_days: boolean;
+  notify_7_days:  boolean;
+  notify_2_days:  boolean;
+  notify_1_day:   boolean;
+  notify_0_day:   boolean;
+  notify_overdue: boolean;
 }
 
 export interface CountryStakeholder {

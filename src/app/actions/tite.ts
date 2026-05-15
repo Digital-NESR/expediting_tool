@@ -35,7 +35,19 @@ export interface CreateShipmentInput {
   comments?: string;
   status?: ShipmentStatus;
   created_by_email?: string;
-  additionalContacts?: Array<{ name: string; email: string; role: string }>;
+  additionalContacts?: Array<{
+    name: string;
+    email: string;
+    role: string;
+    notify_60_days?: boolean;
+    notify_30_days?: boolean;
+    notify_14_days?: boolean;
+    notify_7_days?:  boolean;
+    notify_2_days?:  boolean;
+    notify_1_day?:   boolean;
+    notify_0_day?:   boolean;
+    notify_overdue?: boolean;
+  }>;
 }
 
 /* ─── Access request types ────────────────────────────────────── */
@@ -196,16 +208,21 @@ export async function createShipment(
 
     /* ─── Insert notification contacts ─── */
     try {
-      const notifyAll = [true, true, true, true, true, true];
-      const insertContact = (email: string | null, name: string | null, role: string | null) =>
+      const allTrue = [true, true, true, true, true, true, true, true];
+      const insertContact = (
+        email: string | null,
+        name:  string | null,
+        role:  string | null,
+        prefs?: boolean[],
+      ) =>
         titePool.query(
           `INSERT INTO shipment_notification_contacts
              (shipment_id, email, name, role,
-              notify_10_days, notify_5_days, notify_3_days,
-              notify_2_days, notify_1_day, notify_overdue)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+              notify_60_days, notify_30_days, notify_14_days, notify_7_days,
+              notify_2_days, notify_1_day, notify_0_day, notify_overdue)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
            ON CONFLICT DO NOTHING`,
-          [shipmentId, email, name, role, ...notifyAll],
+          [shipmentId, email, name, role, ...(prefs ?? allTrue)],
         );
 
       // 1. Country stakeholders
@@ -221,10 +238,20 @@ export async function createShipment(
         await insertContact(input.created_by_email || null, createdBy, 'Creator');
       }
 
-      // 3. Additional contacts
+      // 3. Additional contacts (use per-contact prefs if provided, else default all true)
       for (const c of (input.additionalContacts ?? [])) {
         if (!c.email) continue;
-        await insertContact(c.email, c.name || null, c.role || null);
+        const prefs = [
+          c.notify_60_days ?? true,
+          c.notify_30_days ?? true,
+          c.notify_14_days ?? true,
+          c.notify_7_days  ?? true,
+          c.notify_2_days  ?? true,
+          c.notify_1_day   ?? true,
+          c.notify_0_day   ?? true,
+          c.notify_overdue ?? true,
+        ];
+        await insertContact(c.email, c.name || null, c.role || null, prefs);
       }
     } catch (contactErr) {
       console.warn('[TI-TE] createShipment: could not insert contacts:', contactErr);
@@ -781,7 +808,9 @@ export async function getShipmentNotificationContacts(
 ): Promise<NotificationContact[]> {
   try {
     const { rows } = await titePool.query<NotificationContact>(
-      `SELECT id, shipment_id, name, email, role
+      `SELECT id, shipment_id, name, email, role,
+              notify_60_days, notify_30_days, notify_14_days, notify_7_days,
+              notify_2_days, notify_1_day, notify_0_day, notify_overdue
        FROM shipment_notification_contacts
        WHERE shipment_id = $1
        ORDER BY id`,
@@ -798,7 +827,19 @@ export async function getShipmentNotificationContacts(
 
 export async function saveNotificationContacts(params: {
   shipmentId: number;
-  contacts:   Array<{ email: string; name: string; role: string | null }>;
+  contacts:   Array<{
+    email: string;
+    name: string;
+    role: string | null;
+    notify_60_days?: boolean;
+    notify_30_days?: boolean;
+    notify_14_days?: boolean;
+    notify_7_days?:  boolean;
+    notify_2_days?:  boolean;
+    notify_1_day?:   boolean;
+    notify_0_day?:   boolean;
+    notify_overdue?: boolean;
+  }>;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const session   = await getServerSession(authOptions);
@@ -814,11 +855,21 @@ export async function saveNotificationContacts(params: {
       await titePool.query(
         `INSERT INTO shipment_notification_contacts
            (shipment_id, email, name, role,
-            notify_10_days, notify_5_days, notify_3_days,
-            notify_2_days, notify_1_day, notify_overdue)
-         VALUES ($1,$2,$3,$4,true,true,true,true,true,true)
+            notify_60_days, notify_30_days, notify_14_days, notify_7_days,
+            notify_2_days, notify_1_day, notify_0_day, notify_overdue)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
          ON CONFLICT DO NOTHING`,
-        [params.shipmentId, c.email, c.name || null, c.role || null],
+        [
+          params.shipmentId, c.email, c.name || null, c.role || null,
+          c.notify_60_days ?? true,
+          c.notify_30_days ?? true,
+          c.notify_14_days ?? true,
+          c.notify_7_days  ?? true,
+          c.notify_2_days  ?? true,
+          c.notify_1_day   ?? true,
+          c.notify_0_day   ?? true,
+          c.notify_overdue ?? true,
+        ],
       );
     }
 

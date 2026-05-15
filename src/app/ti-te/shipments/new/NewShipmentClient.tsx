@@ -27,7 +27,30 @@ const INP_ERR = 'w-full border border-red-300 rounded-lg px-3 py-2.5 text-sm foc
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
-interface AdditionalContact { name: string; email: string; role: string; }
+interface AdditionalContact {
+  name: string;
+  email: string;
+  role: string;
+  notify_60_days: boolean;
+  notify_30_days: boolean;
+  notify_14_days: boolean;
+  notify_7_days:  boolean;
+  notify_2_days:  boolean;
+  notify_1_day:   boolean;
+  notify_0_day:   boolean;
+  notify_overdue: boolean;
+}
+
+const NOTIFY_FIELDS: { key: keyof AdditionalContact; label: string }[] = [
+  { key: 'notify_60_days', label: '60 days' },
+  { key: 'notify_30_days', label: '30 days' },
+  { key: 'notify_14_days', label: '14 days' },
+  { key: 'notify_7_days',  label: '7 days' },
+  { key: 'notify_2_days',  label: '2 days' },
+  { key: 'notify_1_day',   label: '1 day' },
+  { key: 'notify_0_day',   label: 'Day of expiry (0)' },
+  { key: 'notify_overdue', label: 'Overdue (daily)' },
+];
 interface FormErrors         { [key: string]: string; }
 
 /* ─── Locked pill ────────────────────────────────────────────── */
@@ -124,7 +147,7 @@ export default function NewShipmentClient({
     clearError('expiry_date');
   }
 
-  function updateAdditional(i: number, key: keyof AdditionalContact, val: string) {
+  function updateAdditional(i: number, key: keyof AdditionalContact, val: string | boolean) {
     setAdditionalContacts(prev => prev.map((c, j) => j === i ? { ...c, [key]: val } : c));
     if (key === 'email') clearError(`additional_email_${i}`);
   }
@@ -522,9 +545,9 @@ export default function NewShipmentClient({
               <p className="text-xs text-slate-400 mb-3">Add anyone else who should be notified.</p>
 
               {additionalContacts.length > 0 && (
-                <div className="flex flex-col gap-2 mb-2">
+                <div className="flex flex-col gap-3 mb-2">
                   {additionalContacts.map((c, i) => (
-                    <div key={i}>
+                    <div key={i} className="rounded-lg border border-slate-200 p-3 flex flex-col gap-2">
                       <div className="grid grid-cols-[1fr_1.5fr_7rem_2.25rem] gap-2 items-start">
                         <input
                           className={INP}
@@ -562,6 +585,22 @@ export default function NewShipmentClient({
                           </svg>
                         </button>
                       </div>
+                      <div>
+                        <p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Notify at</p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1">
+                          {NOTIFY_FIELDS.map(f => (
+                            <label key={f.key} className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="w-3.5 h-3.5 rounded accent-[#006B0C]"
+                                checked={c[f.key] as boolean}
+                                onChange={e => updateAdditional(i, f.key, e.target.checked)}
+                              />
+                              <span className="text-xs text-slate-600">{f.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -569,7 +608,11 @@ export default function NewShipmentClient({
 
               <button
                 type="button"
-                onClick={() => setAdditionalContacts(prev => [...prev, { name: '', email: '', role: '' }])}
+                onClick={() => setAdditionalContacts(prev => [...prev, {
+                  name: '', email: '', role: '',
+                  notify_60_days: true, notify_30_days: true, notify_14_days: true, notify_7_days: true,
+                  notify_2_days: true, notify_1_day: true, notify_0_day: true, notify_overdue: true,
+                }])}
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-[#006B0C] hover:underline w-fit"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

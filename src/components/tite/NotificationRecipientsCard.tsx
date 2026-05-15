@@ -42,6 +42,39 @@ function LockedPill({ name, sub }: { name: string; sub?: string }) {
 
 const INP = 'w-full border border-slate-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20 focus:border-[#006B0C] bg-white placeholder:text-slate-400';
 
+type EditableContact = {
+  name: string;
+  email: string;
+  role: string;
+  notify_60_days: boolean;
+  notify_30_days: boolean;
+  notify_14_days: boolean;
+  notify_7_days:  boolean;
+  notify_2_days:  boolean;
+  notify_1_day:   boolean;
+  notify_0_day:   boolean;
+  notify_overdue: boolean;
+};
+
+const NOTIFY_FIELDS: { key: keyof EditableContact; label: string }[] = [
+  { key: 'notify_60_days', label: '60 days' },
+  { key: 'notify_30_days', label: '30 days' },
+  { key: 'notify_14_days', label: '14 days' },
+  { key: 'notify_7_days',  label: '7 days' },
+  { key: 'notify_2_days',  label: '2 days' },
+  { key: 'notify_1_day',   label: '1 day' },
+  { key: 'notify_0_day',   label: 'Day of expiry (0)' },
+  { key: 'notify_overdue', label: 'Overdue (daily)' },
+];
+
+const ALL_NOTIFY_TRUE: Pick<EditableContact,
+  'notify_60_days'|'notify_30_days'|'notify_14_days'|'notify_7_days'|
+  'notify_2_days'|'notify_1_day'|'notify_0_day'|'notify_overdue'
+> = {
+  notify_60_days: true, notify_30_days: true, notify_14_days: true, notify_7_days: true,
+  notify_2_days: true, notify_1_day: true, notify_0_day: true, notify_overdue: true,
+};
+
 /* ─── Component ──────────────────────────────────────────────── */
 
 export default function NotificationRecipientsCard({
@@ -54,7 +87,7 @@ export default function NotificationRecipientsCard({
   const [editing,             setEditing]             = useState(false);
   const [stakeholders,        setStakeholders]        = useState<CountryStakeholder[]>([]);
   const [stakeholdersLoading, setStakeholdersLoading] = useState(false);
-  const [additionalEdits,     setAdditionalEdits]     = useState<{ name: string; email: string; role: string }[]>([]);
+  const [additionalEdits,     setAdditionalEdits]     = useState<EditableContact[]>([]);
   const [saving,              setSaving]              = useState(false);
   const [error,               setError]               = useState('');
   const [saved,               setSaved]               = useState(false);
@@ -73,7 +106,19 @@ export default function NotificationRecipientsCard({
       const extras = notificationContacts.filter(
         c => !stakeholderEmails.has(c.email) && c.role !== 'Creator',
       );
-      setAdditionalEdits(extras.map(c => ({ name: c.name ?? '', email: c.email, role: c.role ?? '' })));
+      setAdditionalEdits(extras.map(c => ({
+        name:           c.name ?? '',
+        email:          c.email,
+        role:           c.role ?? '',
+        notify_60_days: c.notify_60_days,
+        notify_30_days: c.notify_30_days,
+        notify_14_days: c.notify_14_days,
+        notify_7_days:  c.notify_7_days,
+        notify_2_days:  c.notify_2_days,
+        notify_1_day:   c.notify_1_day,
+        notify_0_day:   c.notify_0_day,
+        notify_overdue: c.notify_overdue,
+      })));
     } catch {
       setStakeholders([]);
       setAdditionalEdits([]);
@@ -247,41 +292,61 @@ export default function NotificationRecipientsCard({
           )}
 
           {additionalEdits.map((c, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1.5fr_6rem_2rem] gap-2 mb-2 items-center">
-              <input
-                className={INP}
-                placeholder="Name"
-                value={c.name}
-                onChange={e => setAdditionalEdits(prev => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
-              />
-              <input
-                type="email"
-                className={INP}
-                placeholder="email@company.com"
-                value={c.email}
-                onChange={e => setAdditionalEdits(prev => prev.map((x, j) => j === i ? { ...x, email: e.target.value } : x))}
-              />
-              <input
-                className={INP}
-                placeholder="Role"
-                value={c.role}
-                onChange={e => setAdditionalEdits(prev => prev.map((x, j) => j === i ? { ...x, role: e.target.value } : x))}
-              />
-              <button
-                type="button"
-                onClick={() => setAdditionalEdits(prev => prev.filter((_, j) => j !== i))}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            <div key={i} className="rounded-lg border border-slate-200 p-3 mb-2 flex flex-col gap-2">
+              <div className="grid grid-cols-[1fr_1.5fr_6rem_2rem] gap-2 items-center">
+                <input
+                  className={INP}
+                  placeholder="Name"
+                  value={c.name}
+                  onChange={e => setAdditionalEdits(prev => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                />
+                <input
+                  type="email"
+                  className={INP}
+                  placeholder="email@company.com"
+                  value={c.email}
+                  onChange={e => setAdditionalEdits(prev => prev.map((x, j) => j === i ? { ...x, email: e.target.value } : x))}
+                />
+                <input
+                  className={INP}
+                  placeholder="Role"
+                  value={c.role}
+                  onChange={e => setAdditionalEdits(prev => prev.map((x, j) => j === i ? { ...x, role: e.target.value } : x))}
+                />
+                <button
+                  type="button"
+                  onClick={() => setAdditionalEdits(prev => prev.filter((_, j) => j !== i))}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Notify at</p>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  {NOTIFY_FIELDS.map(f => (
+                    <label key={f.key} className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="w-3.5 h-3.5 rounded accent-[#006B0C]"
+                        checked={c[f.key] as boolean}
+                        onChange={e => setAdditionalEdits(prev =>
+                          prev.map((x, j) => j === i ? { ...x, [f.key]: e.target.checked } : x)
+                        )}
+                      />
+                      <span className="text-xs text-slate-600">{f.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           ))}
 
           <button
             type="button"
-            onClick={() => setAdditionalEdits(prev => [...prev, { name: '', email: '', role: '' }])}
+            onClick={() => setAdditionalEdits(prev => [...prev, { name: '', email: '', role: '', ...ALL_NOTIFY_TRUE }])}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-[#006B0C] hover:underline mt-1"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
