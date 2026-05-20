@@ -10,9 +10,28 @@ import {
 } from '@/lib/tite-utils';
 import { DOCUMENT_STAGES } from '@/lib/tite-stage-config';
 import { updateShipmentStatus } from '@/app/actions/tite';
+import type { NotificationLogRow } from '@/app/actions/tite';
 import type { Shipment, ShipmentDocument, ActivityLogRow, NotificationContact } from '@/types/tite';
 
 /* ─── Constants ──────────────────────────────────────────────── */
+
+type BadgeState = 'sent' | 'queued' | 'missed';
+
+const BADGE_CLASS: Record<BadgeState, string> = {
+  sent:   'bg-green-100 text-green-700',
+  queued: 'bg-slate-100 text-slate-500',
+  missed: 'bg-orange-100 text-orange-700',
+};
+
+const NOTIFICATION_MILESTONES: { label: string; dbe: number }[] = [
+  { label: '60 days before', dbe: 60 },
+  { label: '30 days before', dbe: 30 },
+  { label: '14 days before', dbe: 14 },
+  { label: '7 days before',  dbe: 7  },
+  { label: '2 days before',  dbe: 2  },
+  { label: '1 day before',   dbe: 1  },
+  { label: 'Day of expiry',  dbe: 0  },
+];
 
 const DEADLINE_BG: Record<string, string> = {
   overdue: 'linear-gradient(135deg, #6F0F0F, #B43A1F)',
@@ -23,6 +42,26 @@ const DEADLINE_BG: Record<string, string> = {
 };
 
 /* ─── Helpers ────────────────────────────────────────────────── */
+
+function getMilestoneBadge(
+  dbe: number,
+  daysRemaining: number | null,
+  log: NotificationLogRow[],
+): BadgeState {
+  if (log.some(r => r.days_before_expiry === dbe && r.status === 'sent')) return 'sent';
+  if (daysRemaining !== null && daysRemaining > dbe) return 'queued';
+  return 'missed';
+}
+
+function getPastExpiryBadge(
+  daysRemaining: number | null,
+  log: NotificationLogRow[],
+): BadgeState {
+  const isOverdue = daysRemaining !== null && daysRemaining <= 0;
+  if (!isOverdue) return 'queued';
+  if (log.some(r => r.days_before_expiry < 0 && r.status === 'sent')) return 'sent';
+  return 'missed';
+}
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -474,12 +513,14 @@ export default function ShipmentDetailClient({
   documents,
   activityLog,
   notificationContacts,
+  notificationLog,
 }: {
   shipment:              Shipment | null;
   rawId:                 string;
   documents:             ShipmentDocument[];
   activityLog:           ActivityLogRow[];
   notificationContacts:  NotificationContact[];
+  notificationLog:       NotificationLogRow[];
 }) {
   const router = useRouter();
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
@@ -519,14 +560,6 @@ export default function ShipmentDetailClient({
   const deadlineBg = DEADLINE_BG[s.alert_level] || DEADLINE_BG.default;
   const isClosed   = s.status === 'Closed' || s.status === 'Closed - Refund Recovered';
   const isFullyClosed = s.status === 'Closed - Refund Recovered';
-
-  const notifs = [
-    { label: '60 days before', sent: (days ?? 99) <= 60 || isClosed, crit: false },
-    { label: '30 days before', sent: (days ?? 99) <= 30 || isClosed, crit: false },
-    { label: '14 days before', sent: (days ?? 99) <= 14 || isClosed, crit: false },
-    { label: '7 days before',  sent: (days ?? 99) <= 7  || isClosed, crit: false },
-    { label: 'Past expiry',    sent: s.alert_level === 'overdue',     crit: true  },
-  ];
 
   const checksAll = [
     { done: !!s.customs_reference_number, text: 'Customs reference number on file' },
@@ -850,16 +883,32 @@ export default function ShipmentDetailClient({
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
               <div className="px-4 py-3 border-b border-slate-100"><h3 className="text-sm font-bold text-slate-900">Notifications</h3></div>
               <div className="p-4 space-y-2">
-                {notifs.map((n, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <svg className={`w-3.5 h-3.5 shrink-0 ${n.crit && n.sent ? 'text-red-500' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 003.4 0" /></svg>
-                    <span className="text-[12.5px] text-slate-700">{n.label}</span>
-                    <div className="flex-1" />
-                    <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full ${n.sent ? (n.crit ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700') : 'bg-slate-100 text-slate-500'}`}>
-                      {n.sent ? 'sent' : 'queued'}
-                    </span>
-                  </div>
-                ))}
+                {NOTIFICATION_MILESTONES.map(({ label, dbe }) => {
+                  const state = getMilestoneBadge(dbe, days, notificationLog);
+                  return (
+                    <div key={dbe} className="flex items-center gap-2 text-sm">
+                      <svg className="w-3.5 h-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 003.4 0" /></svg>
+                      <span className="text-[12.5px] text-slate-700">{label}</span>
+                      <div className="flex-1" />
+                      <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full ${BADGE_CLASS[state]}`}>
+                        {state}
+                      </span>
+                    </div>
+                  );
+                })}
+                {(() => {
+                  const state = getPastExpiryBadge(days, notificationLog);
+                  return (
+                    <div className="flex items-center gap-2 text-sm">
+                      <svg className={`w-3.5 h-3.5 shrink-0 ${state === 'sent' ? 'text-red-500' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 003.4 0" /></svg>
+                      <span className="text-[12.5px] text-slate-700">Past expiry (overdue)</span>
+                      <div className="flex-1" />
+                      <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full ${BADGE_CLASS[state]}`}>
+                        {state}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

@@ -801,6 +801,33 @@ export async function getCountryStakeholders(
   }
 }
 
+/* ─── getShipmentNotificationStatus ─────────────────────────── */
+
+export interface NotificationLogRow {
+  id: number;
+  shipment_id: number;
+  days_before_expiry: number;
+  status: string;
+  sent_at: string | null;
+}
+
+export async function getShipmentNotificationStatus(
+  shipmentId: number,
+): Promise<NotificationLogRow[]> {
+  try {
+    const { rows } = await titePool.query<NotificationLogRow>(
+      `SELECT id, shipment_id, days_before_expiry, status, sent_at
+       FROM notification_log
+       WHERE shipment_id = $1`,
+      [shipmentId],
+    );
+    return rows;
+  } catch (err) {
+    console.error('[TI-TE] getShipmentNotificationStatus error:', err);
+    return [];
+  }
+}
+
 /* ─── getShipmentNotificationContacts ────────────────────────── */
 
 export async function getShipmentNotificationContacts(
