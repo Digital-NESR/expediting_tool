@@ -75,6 +75,20 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
           )}
         </div>
 
+        {/* Legend */}
+        {open.length > 0 && (
+          <div className="flex items-center gap-5 mb-5 px-1">
+            <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: '#3b82f6' }} />
+              Temporary Import
+            </span>
+            <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: '#22c55e' }} />
+              Temporary Export
+            </span>
+          </div>
+        )}
+
         {/* Route summary */}
         {open.length === 0 ? (
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col items-center justify-center py-16 text-center">

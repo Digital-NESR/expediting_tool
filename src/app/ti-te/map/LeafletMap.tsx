@@ -31,15 +31,6 @@ const COORDS: Record<string, [number, number]> = {
   'Germany':            [51.2,   10.5],
 };
 
-const ALERT_ORDER = ['ok', 'closed', 'info', 'plan', 'action', 'urgent', 'overdue'];
-
-function worstOf(levels: string[]): string {
-  return levels.reduce(
-    (w, l) => (ALERT_ORDER.indexOf(l) > ALERT_ORDER.indexOf(w) ? l : w),
-    'ok',
-  );
-}
-
 /** Quadratic bezier arc — returns [lat, lng] tuples. */
 function arcPoints(
   from: [number, number],
@@ -101,13 +92,13 @@ export default function LeafletMap({ shipments }: { shipments: Shipment[] }) {
     console.log('[LeafletMap] unique from/to countries in shipments data:', uniqueCountries);
 
     /* ── Build per-country metadata ── */
-    const countryMeta: Record<string, { alertLevels: string[]; shipments: Shipment[] }> = {};
+    const countryMeta: Record<string, { movementTypes: string[]; shipments: Shipment[] }> = {};
 
     for (const s of shipments) {
       for (const country of [s.from_country, s.to_country]) {
         if (!country || !COORDS[country]) continue;
-        if (!countryMeta[country]) countryMeta[country] = { alertLevels: [], shipments: [] };
-        countryMeta[country].alertLevels.push(s.alert_level);
+        if (!countryMeta[country]) countryMeta[country] = { movementTypes: [], shipments: [] };
+        countryMeta[country].movementTypes.push(s.movement_type ?? '');
         if (!countryMeta[country].shipments.find(x => x.id === s.id)) {
           countryMeta[country].shipments.push(s);
         }
@@ -134,8 +125,9 @@ export default function LeafletMap({ shipments }: { shipments: Shipment[] }) {
       if (!coords) continue;
 
       const count = meta.shipments.length;
-      const worst = worstOf(meta.alertLevels);
-      const color = BUCKET_HEX[worst] ?? '#94a3b8';
+      // Blue if any imports present (imports take priority), green if exports only
+      const hasImport = meta.movementTypes.some(t => t === 'Temporary Import');
+      const color = hasImport ? '#3b82f6' : '#22c55e';
 
       const circle = L.circleMarker(coords, {
         radius:      6 + Math.min(count * 2, 14),
