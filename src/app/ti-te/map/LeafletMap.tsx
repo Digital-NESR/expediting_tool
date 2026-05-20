@@ -12,8 +12,8 @@ import { BUCKET_HEX, ALERT_LABEL } from '@/lib/tite-utils';
 /* ─── Country coordinates ─────────────────────────────────────── */
 
 const COORDS: Record<string, [number, number]> = {
-  'Saudi Arabia (KSA)': [24.7,   46.7],
-  'UAE':                [23.4,   53.8],
+  'Saudi Arabia (KSA)':          [24.7,   46.7],
+  'United Arab Emirates (UAE)':  [23.4,   53.8],
   'Qatar':              [25.3,   51.5],
   'Kuwait':             [29.4,   47.9],
   'Oman':               [23.6,   58.6],
@@ -93,6 +93,12 @@ export default function LeafletMap({ shipments }: { shipments: Shipment[] }) {
         maxZoom: 19,
       },
     ).addTo(map);
+
+    /* ── Debug: log unique country strings from DB ── */
+    const uniqueCountries = [...new Set(
+      shipments.flatMap(s => [s.from_country, s.to_country].filter(Boolean)),
+    )].sort();
+    console.log('[LeafletMap] unique from/to countries in shipments data:', uniqueCountries);
 
     /* ── Build per-country metadata ── */
     const countryMeta: Record<string, { alertLevels: string[]; shipments: Shipment[] }> = {};
