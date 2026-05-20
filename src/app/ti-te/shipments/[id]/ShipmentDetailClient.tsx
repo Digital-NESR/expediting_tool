@@ -69,8 +69,7 @@ function getMilestoneBadge(
   // Milestone has passed and no sent log — N/A if shipment didn't exist yet
   if (effectiveExpiry && createdAt) {
     const milestoneMs = dateUtcMs(effectiveExpiry) - dbe * 86400000;
-    const ct = new Date(createdAt);
-    const createdMs = Date.UTC(ct.getUTCFullYear(), ct.getUTCMonth(), ct.getUTCDate());
+    const createdMs   = dateUtcMs(createdAt.slice(0, 10));
     if (createdMs > milestoneMs) return 'na';
   }
   return 'missed';
@@ -88,9 +87,8 @@ function getPastExpiryBadge(
   if (log.some(r => r.days_before_expiry < 0 && r.status === 'sent')) return 'sent';
   // No sent log — N/A if shipment was somehow created after expiry
   if (effectiveExpiry && createdAt) {
-    const expiryMs = dateUtcMs(effectiveExpiry);
-    const ct = new Date(createdAt);
-    const createdMs = Date.UTC(ct.getUTCFullYear(), ct.getUTCMonth(), ct.getUTCDate());
+    const expiryMs  = dateUtcMs(effectiveExpiry);
+    const createdMs = dateUtcMs(createdAt.slice(0, 10));
     if (createdMs > expiryMs) return 'na';
   }
   return 'missed';

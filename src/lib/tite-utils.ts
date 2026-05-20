@@ -89,6 +89,6 @@ export function calcDays(s: Shipment): number | null {
   const [ey, em, ed] = effective.split('-').map(Number);
   const today = new Date();
   const expiryUtc = Date.UTC(ey, em - 1, ed);
-  const todayUtc  = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const todayUtc  = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   return (expiryUtc - todayUtc) / 86400000;
 }
