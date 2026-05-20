@@ -50,6 +50,7 @@ const COUNTRY_CODE: Record<string, string> = {
   'Saudi Arabia (KSA)':          'KSA',
   'United Arab Emirates (UAE)':  'UAE',
   'Qatar':                        'QAT',
+  'Rome':                         'ROM',
   'Kuwait':                       'KWT',
   'Oman':                         'OMN',
   'Bahrain':                      'BHR',
