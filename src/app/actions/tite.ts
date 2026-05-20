@@ -98,7 +98,8 @@ const SELECT_COLS = `
   expiry_date::text   AS expiry_date,
   extended_date::text AS extended_date,
   deposit_usd, comments, status, alert_level,
-  country, created_by
+  country, created_by,
+  created_at::text AS created_at
 `;
 
 /* ─── getAllShipments ─────────────────────────────────────────── */

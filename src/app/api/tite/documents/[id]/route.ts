@@ -81,7 +81,7 @@ export async function GET(
     /* ── Build response ── */
     const dlFilename = (doc.original_name || doc.document_name).replace(/"/g, '_');
 
-    return new Response(fileBuffer, {
+    return new Response(new Uint8Array(fileBuffer), {
       status: 200,
       headers: {
         'Content-Type':        contentType,

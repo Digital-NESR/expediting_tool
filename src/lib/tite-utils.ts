@@ -78,13 +78,17 @@ export function getStatusBadge(status: string): { label: string; className: stri
   }
 }
 
-/** Returns days until effective expiry (negative = overdue). null if no date. */
+/** Returns days until effective expiry (negative = overdue). null if no date.
+ *  Matches PostgreSQL's (COALESCE(extended_date, expiry_date) - CURRENT_DATE)
+ *  exactly: 0 = expires today, -1 = 1 day overdue, 30 = 30 days remaining.
+ *  Uses UTC arithmetic so DST transitions never cause an off-by-one.
+ */
 export function calcDays(s: Shipment): number | null {
   const effective = s.extended_date || s.expiry_date;
   if (!effective) return null;
+  const [ey, em, ed] = effective.split('-').map(Number);
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.ceil(
-    (new Date(effective).getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-  );
+  const expiryUtc = Date.UTC(ey, em - 1, ed);
+  const todayUtc  = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  return (expiryUtc - todayUtc) / 86400000;
 }

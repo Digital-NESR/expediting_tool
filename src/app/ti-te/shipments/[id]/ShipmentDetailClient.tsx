@@ -15,12 +15,20 @@ import type { Shipment, ShipmentDocument, ActivityLogRow, NotificationContact } 
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
-type BadgeState = 'sent' | 'queued' | 'missed';
+type BadgeState = 'sent' | 'queued' | 'missed' | 'na';
 
 const BADGE_CLASS: Record<BadgeState, string> = {
   sent:   'bg-green-100 text-green-700',
   queued: 'bg-slate-100 text-slate-500',
   missed: 'bg-orange-100 text-orange-700',
+  na:     'bg-slate-100 text-slate-400',
+};
+
+const BADGE_LABEL: Record<BadgeState, string> = {
+  sent:   'sent',
+  queued: 'queued',
+  missed: 'missed',
+  na:     'N/A',
 };
 
 const NOTIFICATION_MILESTONES: { label: string; dbe: number }[] = [
@@ -43,23 +51,48 @@ const DEADLINE_BG: Record<string, string> = {
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 
+/** Returns the UTC midnight timestamp for a YYYY-MM-DD date string. */
+function dateUtcMs(dateStr: string): number {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
 function getMilestoneBadge(
   dbe: number,
   daysRemaining: number | null,
   log: NotificationLogRow[],
+  effectiveExpiry: string | null,
+  createdAt: string | undefined,
 ): BadgeState {
   if (log.some(r => r.days_before_expiry === dbe && r.status === 'sent')) return 'sent';
   if (daysRemaining !== null && daysRemaining > dbe) return 'queued';
+  // Milestone has passed and no sent log — N/A if shipment didn't exist yet
+  if (effectiveExpiry && createdAt) {
+    const milestoneMs = dateUtcMs(effectiveExpiry) - dbe * 86400000;
+    const ct = new Date(createdAt);
+    const createdMs = Date.UTC(ct.getUTCFullYear(), ct.getUTCMonth(), ct.getUTCDate());
+    if (createdMs > milestoneMs) return 'na';
+  }
   return 'missed';
 }
 
 function getPastExpiryBadge(
   daysRemaining: number | null,
   log: NotificationLogRow[],
+  effectiveExpiry: string | null,
+  createdAt: string | undefined,
 ): BadgeState {
-  const isOverdue = daysRemaining !== null && daysRemaining <= 0;
+  // days < 0 means we are past the expiry date (0 = expires today = "Day of expiry" milestone)
+  const isOverdue = daysRemaining !== null && daysRemaining < 0;
   if (!isOverdue) return 'queued';
   if (log.some(r => r.days_before_expiry < 0 && r.status === 'sent')) return 'sent';
+  // No sent log — N/A if shipment was somehow created after expiry
+  if (effectiveExpiry && createdAt) {
+    const expiryMs = dateUtcMs(effectiveExpiry);
+    const ct = new Date(createdAt);
+    const createdMs = Date.UTC(ct.getUTCFullYear(), ct.getUTCMonth(), ct.getUTCDate());
+    if (createdMs > expiryMs) return 'na';
+  }
   return 'missed';
 }
 
@@ -884,27 +917,27 @@ export default function ShipmentDetailClient({
               <div className="px-4 py-3 border-b border-slate-100"><h3 className="text-sm font-bold text-slate-900">Notifications</h3></div>
               <div className="p-4 space-y-2">
                 {NOTIFICATION_MILESTONES.map(({ label, dbe }) => {
-                  const state = getMilestoneBadge(dbe, days, notificationLog);
+                  const state = getMilestoneBadge(dbe, days, notificationLog, eff, s.created_at);
                   return (
                     <div key={dbe} className="flex items-center gap-2 text-sm">
                       <svg className="w-3.5 h-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 003.4 0" /></svg>
                       <span className="text-[12.5px] text-slate-700">{label}</span>
                       <div className="flex-1" />
                       <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full ${BADGE_CLASS[state]}`}>
-                        {state}
+                        {BADGE_LABEL[state]}
                       </span>
                     </div>
                   );
                 })}
                 {(() => {
-                  const state = getPastExpiryBadge(days, notificationLog);
+                  const state = getPastExpiryBadge(days, notificationLog, eff, s.created_at);
                   return (
                     <div className="flex items-center gap-2 text-sm">
                       <svg className={`w-3.5 h-3.5 shrink-0 ${state === 'sent' ? 'text-red-500' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 003.4 0" /></svg>
                       <span className="text-[12.5px] text-slate-700">Past expiry (overdue)</span>
                       <div className="flex-1" />
                       <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full ${BADGE_CLASS[state]}`}>
-                        {state}
+                        {BADGE_LABEL[state]}
                       </span>
                     </div>
                   );
