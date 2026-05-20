@@ -1,9 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import TiteSidebar from '@/components/TiteSidebar';
 import { ALERT_LABEL, BUCKET_HEX, usdFmt } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
+
+/* Load Leaflet map client-side only — Leaflet requires window/document. */
+const LeafletMap = dynamic(() => import('./LeafletMap'), { ssr: false });
+
+const ALERT_LEVELS = ['overdue', 'urgent', 'action', 'plan', 'info', 'ok'] as const;
 
 export default function MapClient({ shipments }: { shipments: Shipment[] | null }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -26,14 +32,13 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
   const activeCount = open.length;
   const urgentCount = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
 
-  const routeMap: Record<string, { from: string; to: string; count: number; deposit: number; worst: string }> = {};
-  const ORDER = ['ok', 'info', 'plan', 'action', 'urgent', 'overdue'];
+  /* Route aggregation */
+  const routeMap: Record<string, { from: string; to: string; count: number; deposit: number }> = {};
   open.forEach(s => {
     const key = `${s.from_country}|${s.to_country}`;
-    if (!routeMap[key]) routeMap[key] = { from: s.from_country || '', to: s.to_country || '', count: 0, deposit: 0, worst: 'ok' };
+    if (!routeMap[key]) routeMap[key] = { from: s.from_country || '', to: s.to_country || '', count: 0, deposit: 0 };
     routeMap[key].count++;
     routeMap[key].deposit += Number(s.deposit_usd) || 0;
-    if (ORDER.indexOf(s.alert_level) > ORDER.indexOf(routeMap[key].worst)) routeMap[key].worst = s.alert_level;
   });
   const routes = Object.values(routeMap).sort((a, b) => b.count - a.count);
   const countrySet = new Set(open.flatMap(s => [s.from_country, s.to_country].filter(Boolean)));
@@ -59,19 +64,15 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
           <p className="text-sm text-slate-500 mt-1">{open.length} active flows across {countrySet.size} countries</p>
         </div>
 
-        {/* Placeholder */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-6">
-          <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: '#006B0C18' }}>
-              <svg className="w-8 h-8" style={{ color: '#006B0C' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
-              </svg>
+        {/* Interactive map */}
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-6" style={{ height: 460 }}>
+          {open.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center px-6">
+              <p className="text-sm text-slate-400">No active shipments to display on the map.</p>
             </div>
-            <h2 className="text-lg font-bold text-slate-900 mb-2">Map view coming soon</h2>
-            <p className="text-sm text-slate-500 max-w-md leading-relaxed">
-              Interactive map showing shipment locations and active routes will be available in the next release. Use the route summary below in the meantime.
-            </p>
-          </div>
+          ) : (
+            <LeafletMap shipments={open} />
+          )}
         </div>
 
         {/* Route summary */}
@@ -88,7 +89,7 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    {['Route', 'Count', 'Status mix', 'Total deposit (USD)', 'Worst alert'].map((h, i) => (
+                    {['Route', 'Count', 'Alert breakdown', 'Total deposit (USD)'].map((h, i) => (
                       <th key={i} className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-4 py-2.5 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -107,17 +108,23 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
                         </td>
                         <td className="px-4 py-2.5 font-mono text-[12.5px] text-slate-700 tabular-nums">{r.count}</td>
                         <td className="px-4 py-2.5">
-                          <div className="flex items-center gap-1">
-                            {items.map((s, j) => (
-                              <span key={j} className="w-2 h-3.5 rounded-[3px]" style={{ background: BUCKET_HEX[s.alert_level] || '#94a3b8' }} title={`#${s.id} ${ALERT_LABEL[s.alert_level] || s.alert_level}`} />
-                            ))}
+                          <div className="flex items-center gap-0 flex-wrap">
+                            {(() => {
+                              const parts = ALERT_LEVELS
+                                .map(level => ({ level, count: items.filter(s => s.alert_level === level).length }))
+                                .filter(x => x.count > 0);
+                              return parts.map((x, j) => (
+                                <span key={x.level} className="flex items-center">
+                                  {j > 0 && <span className="text-slate-300 mx-1 text-[11px]">·</span>}
+                                  <span style={{ color: BUCKET_HEX[x.level] || '#94a3b8' }} className="font-semibold text-[11.5px] whitespace-nowrap">
+                                    {x.count} {ALERT_LABEL[x.level] || x.level}
+                                  </span>
+                                </span>
+                              ));
+                            })()}
                           </div>
                         </td>
                         <td className="px-4 py-2.5 font-mono text-[12.5px] text-slate-700 tabular-nums">{usdFmt(r.deposit)}</td>
-                        <td className="px-4 py-2.5">
-                          <span className="inline-block w-2.5 h-2.5 rounded-full mr-2" style={{ background: BUCKET_HEX[r.worst] || '#94a3b8' }} />
-                          <span className="text-[12px] text-slate-600">{ALERT_LABEL[r.worst] || r.worst}</span>
-                        </td>
                       </tr>
                     );
                   })}
