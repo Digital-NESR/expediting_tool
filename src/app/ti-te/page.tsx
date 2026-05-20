@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getAllShipments, getShipmentStats } from '@/app/actions/tite';
+import { getAllShipments, getShipmentStats, getRecentActivity } from '@/app/actions/tite';
 import TiteDashboardClient from './TiteDashboardClient';
 
 export const metadata: Metadata = { title: 'Dashboard — TI-TE | SC Agents' };
@@ -9,6 +9,7 @@ export const metadata: Metadata = { title: 'Dashboard — TI-TE | SC Agents' };
 export default async function TiteDashboardPage() {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email ?? '';
+  const userName = session?.user?.name ?? '';
   const adminEmails = (process.env.ADMIN_EMAILS ?? '')
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   const isAdmin = adminEmails.includes(email.toLowerCase());
@@ -16,9 +17,10 @@ export default async function TiteDashboardPage() {
     ? undefined
     : (session?.user?.toolAccess?.tite?.approvedCountries ?? []);
 
-  const [stats, shipments] = await Promise.all([
+  const [stats, shipments, recentActivity] = await Promise.all([
     getShipmentStats(approvedCountries),
     getAllShipments(approvedCountries),
+    getRecentActivity(userName, 7),
   ]);
-  return <TiteDashboardClient stats={stats} shipments={shipments} />;
+  return <TiteDashboardClient stats={stats} shipments={shipments} recentActivity={recentActivity} />;
 }

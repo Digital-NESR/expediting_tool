@@ -8,6 +8,7 @@ import {
   fmtDate, usdFmt, calcDays, getStatusBadge,
 } from '@/lib/tite-utils';
 import type { Shipment, ShipmentStats } from '@/types/tite';
+import type { RecentActivityRow } from '@/app/actions/tite';
 
 /* ─── DB error / empty states ────────────────────────────────── */
 
@@ -84,14 +85,38 @@ function ComplianceDonut({ buckets, total }: { buckets: { key: string; label: st
   );
 }
 
+/* ─── Activity helpers ───────────────────────────────────────── */
+
+function activityDot(action: string): string {
+  const a = action.toLowerCase();
+  if (a.includes('created'))                         return 'bg-green-500';
+  if (a.includes('status'))                          return 'bg-blue-500';
+  if (a.includes('document') && a.includes('upload')) return 'bg-purple-500';
+  if (a.includes('document') && a.includes('delet')) return 'bg-red-500';
+  return 'bg-slate-400';
+}
+
+function timeAgo(isoStr: string): string {
+  const diffMs = Date.now() - new Date(isoStr).getTime();
+  const mins  = Math.floor(diffMs / 60000);
+  const hours = Math.floor(diffMs / 3600000);
+  const days  = Math.floor(diffMs / 86400000);
+  if (mins  < 1)   return 'just now';
+  if (mins  < 60)  return `${mins}m ago`;
+  if (hours < 24)  return `${hours}h ago`;
+  return `${days}d ago`;
+}
+
 /* ─── Dashboard ──────────────────────────────────────────────── */
 
 export default function TiteDashboardClient({
   stats,
   shipments,
+  recentActivity,
 }: {
   stats: ShipmentStats | null;
   shipments: Shipment[] | null;
+  recentActivity: RecentActivityRow[];
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
@@ -315,19 +340,49 @@ export default function TiteDashboardClient({
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
               <h2 className="text-sm font-bold text-slate-900">Recent activity</h2>
               <span className="text-[11.5px] text-slate-400">Last 7 days</span>
             </div>
-            <div className="flex flex-col items-center justify-center py-12 px-5 text-center">
-              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
-                <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+            {recentActivity.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 px-5 text-center">
+                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+                  <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p className="text-sm text-slate-400">No activity in the last 7 days</p>
               </div>
-              <p className="text-sm text-slate-500">Activity log coming soon</p>
-            </div>
+            ) : (
+              <ul className="divide-y divide-slate-50">
+                {recentActivity.map(row => (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/ti-te/shipments/${row.shipment_id}`)}
+                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors text-left"
+                    >
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${activityDot(row.action)}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12.5px] text-slate-700">
+                          {row.action}{' '}
+                          {row.reference_number && (
+                            <span className="font-semibold text-slate-900">{row.reference_number}</span>
+                          )}
+                        </p>
+                        {row.description && (
+                          <p className="text-[11.5px] text-slate-400 truncate">{row.description}</p>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
+                        {timeAgo(row.performed_at)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </main>

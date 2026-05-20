@@ -914,3 +914,48 @@ export async function saveNotificationContacts(params: {
     return { success: false, error: 'Failed to save notification contacts.' };
   }
 }
+
+/* ─── getRecentActivity ───────────────────────────────────────── */
+
+export interface RecentActivityRow {
+  id: number;
+  shipment_id: number;
+  action: string;
+  details: string | null;
+  performed_by: string | null;
+  performed_at: string;
+  reference_number: string | null;
+  description: string | null;
+  country: string | null;
+}
+
+export async function getRecentActivity(
+  userName: string,
+  days: number = 7,
+): Promise<RecentActivityRow[]> {
+  try {
+    const { rows } = await titePool.query<RecentActivityRow>(
+      `SELECT
+         sal.id,
+         sal.shipment_id,
+         sal.action,
+         sal.details,
+         sal.performed_by,
+         sal.performed_at::text AS performed_at,
+         s.reference_number,
+         s.description,
+         s.country
+       FROM shipment_activity_log sal
+       JOIN shipments s ON s.id = sal.shipment_id
+       WHERE sal.performed_by = $1
+         AND sal.performed_at >= NOW() - ($2 || ' days')::INTERVAL
+       ORDER BY sal.performed_at DESC
+       LIMIT 20`,
+      [userName, days],
+    );
+    return rows;
+  } catch (err) {
+    console.error('[TI-TE] getRecentActivity error:', err);
+    return [];
+  }
+}
