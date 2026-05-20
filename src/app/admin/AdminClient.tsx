@@ -18,6 +18,8 @@ import {
 import AccessApprovalsClient from './AccessApprovalsClient';
 import TiteMigrationClient from './TiteMigrationClient';
 import TiteAccessApprovalsClient from './TiteAccessApprovalsClient';
+import TiteAnalyticsClient from './TiteAnalyticsClient';
+import type { Shipment } from '@/types/tite';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
@@ -38,6 +40,7 @@ interface AdminClientProps {
   userName: string;
   pendingCount: number;
   titePendingCount: number;
+  titeShipments: Shipment[] | null;
 }
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -1269,7 +1272,7 @@ function AnalyticsSection({
 
 /* ─── Main AdminClient ────────────────────────────────────────── */
 
-export default function AdminClient({ analytics: initialAnalytics, userEmail, userName, pendingCount, titePendingCount }: AdminClientProps) {
+export default function AdminClient({ analytics: initialAnalytics, userEmail, userName, pendingCount, titePendingCount, titeShipments }: AdminClientProps) {
   const [selectedTool, setSelectedTool]       = useState<string>('po-expediting');
   const [liveAnalytics, setLiveAnalytics]     = useState<ExpeditingAnalytics>(initialAnalytics);
   const [isRefreshing, setIsRefreshing]       = useState(false);
@@ -1288,6 +1291,7 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
       'po-expediting':          'Analytics — PO Expediting | Admin | SC Agents',
       'access-approvals':       'Access Approvals | Admin | SC Agents',
       'tite-migration':         'Migration — TI-TE | Admin | SC Agents',
+      'tite-analytics':         'Analytics — TI-TE | Admin | SC Agents',
       'tite-access-approvals':  'TI-TE Access Approvals | Admin | SC Agents',
     };
     document.title = titles[selectedTool] ?? 'Admin — SC Agents';
@@ -1438,21 +1442,20 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
             Migration
           </button>
 
-          {/* TI-TE Analytics — coming soon */}
-          <div
+          {/* TI-TE Analytics */}
+          <button
+            onClick={() => setSelectedTool('tite-analytics')}
             style={{
               ...navItemBase,
               paddingLeft: 24,
-              borderLeft: '3px solid transparent',
-              color: '#d1d5db',
-              cursor: 'not-allowed',
+              borderLeft: selectedTool === 'tite-analytics' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'tite-analytics' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'tite-analytics' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
             }}
           >
-            <span>Analytics</span>
-            <span style={{ background: '#f3f4f6', color: '#9ca3af', fontSize: 10, padding: '2px 6px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
-              Soon
-            </span>
-          </div>
+            Analytics
+          </button>
 
           {/* TI-TE Access Approvals — active */}
           <button
@@ -1532,6 +1535,9 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
               userEmail={userEmail}
               onPendingCountChange={setLiveTitePendingCount}
             />
+          )}
+          {selectedTool === 'tite-analytics' && (
+            <TiteAnalyticsClient shipments={titeShipments} />
           )}
           {selectedTool === 'po-expediting' && (
             <>
