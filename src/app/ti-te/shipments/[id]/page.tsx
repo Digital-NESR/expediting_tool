@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   getShipmentById, getShipmentDocuments,
   getShipmentActivityLog, getShipmentNotificationContacts,
-  getShipmentNotificationStatus,
+  getShipmentNotificationStatus, getShipmentStats,
 } from '@/app/actions/tite';
 import type { NotificationLogRow } from '@/app/actions/tite';
 import ShipmentDetailClient from './ShipmentDetailClient';
@@ -17,13 +19,26 @@ export default async function ShipmentDetailPage({
   const { id } = await params;
   const numId  = Number(id);
 
-  const [shipment, documents, activityLog, notificationContacts, notificationLog] = await Promise.all([
+  const session = await getServerSession(authOptions);
+  const email   = session?.user?.email ?? '';
+  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
+    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  const isAdmin = adminEmails.includes(email.toLowerCase());
+  const approvedCountries = isAdmin
+    ? undefined
+    : (session?.user?.toolAccess?.tite?.approvedCountries ?? []);
+
+  const [shipment, documents, activityLog, notificationContacts, notificationLog, stats] = await Promise.all([
     getShipmentById(numId),
     getShipmentDocuments(numId),
     getShipmentActivityLog(numId),
     getShipmentNotificationContacts(numId),
     getShipmentNotificationStatus(numId),
+    getShipmentStats(approvedCountries),
   ]);
+
+  const activeCount = stats?.active_count ?? 0;
+  const urgentCount = (stats?.overdue_count ?? 0) + (stats?.urgent_count ?? 0) + (stats?.action_count ?? 0);
 
   return (
     <ShipmentDetailClient
@@ -33,6 +48,8 @@ export default async function ShipmentDetailPage({
       activityLog={activityLog}
       notificationContacts={notificationContacts}
       notificationLog={notificationLog}
+      activeCount={activeCount}
+      urgentCount={urgentCount}
     />
   );
 }

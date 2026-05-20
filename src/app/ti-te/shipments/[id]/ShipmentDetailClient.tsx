@@ -543,6 +543,8 @@ export default function ShipmentDetailClient({
   activityLog,
   notificationContacts,
   notificationLog,
+  activeCount,
+  urgentCount,
 }: {
   shipment:              Shipment | null;
   rawId:                 string;
@@ -550,6 +552,8 @@ export default function ShipmentDetailClient({
   activityLog:           ActivityLogRow[];
   notificationContacts:  NotificationContact[];
   notificationLog:       NotificationLogRow[];
+  activeCount:           number;
+  urgentCount:           number;
 }) {
   const router = useRouter();
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
@@ -615,7 +619,7 @@ export default function ShipmentDetailClient({
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
-      <TiteSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <TiteSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} activeCount={activeCount} urgentCount={urgentCount} />
 
       {/* Update Status Modal */}
       {modalOpen && (
