@@ -21,7 +21,6 @@ const COUNTRIES = [
   { label: 'Saudi Arabia (KSA)' },
   { label: 'United Arab Emirates (UAE)' },
   { label: 'Qatar' },
-  { label: 'Rome' },
   { label: 'Kuwait' },
   { label: 'Oman' },
   { label: 'Bahrain' },

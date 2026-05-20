@@ -12,7 +12,6 @@ const TITE_COUNTRIES = [
   'Saudi Arabia (KSA)',
   'United Arab Emirates (UAE)',
   'Qatar',
-  'Rome',
   'Kuwait',
   'Oman',
   'Bahrain',
