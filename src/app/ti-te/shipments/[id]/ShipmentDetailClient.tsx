@@ -19,9 +19,16 @@ type BadgeState = 'sent' | 'queued' | 'missed' | 'na';
 
 const BADGE_CLASS: Record<BadgeState, string> = {
   sent:   'bg-green-100 text-green-700',
-  queued: 'bg-slate-100 text-slate-500',
+  queued: 'bg-blue-50 text-blue-600',
   missed: 'bg-orange-100 text-orange-700',
-  na:     'bg-slate-100 text-slate-400',
+  na:     'bg-slate-50 text-slate-400',
+};
+
+const BELL_CLASS: Record<BadgeState, string> = {
+  sent:   'text-green-500',
+  queued: 'text-blue-400',
+  missed: 'text-orange-500',
+  na:     'text-slate-300',
 };
 
 const BADGE_LABEL: Record<BadgeState, string> = {
@@ -920,7 +927,7 @@ export default function ShipmentDetailClient({
                   const state = getMilestoneBadge(dbe, days, notificationLog, eff, s.created_at);
                   return (
                     <div key={dbe} className="flex items-center gap-2 text-sm">
-                      <svg className="w-3.5 h-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 003.4 0" /></svg>
+                      <svg className={`w-3.5 h-3.5 shrink-0 ${BELL_CLASS[state]}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 003.4 0" /></svg>
                       <span className="text-[12.5px] text-slate-700">{label}</span>
                       <div className="flex-1" />
                       <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full ${BADGE_CLASS[state]}`}>
@@ -933,7 +940,7 @@ export default function ShipmentDetailClient({
                   const state = getPastExpiryBadge(days, notificationLog, eff, s.created_at);
                   return (
                     <div className="flex items-center gap-2 text-sm">
-                      <svg className={`w-3.5 h-3.5 shrink-0 ${state === 'sent' ? 'text-red-500' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 003.4 0" /></svg>
+                      <svg className={`w-3.5 h-3.5 shrink-0 ${BELL_CLASS[state]}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 003.4 0" /></svg>
                       <span className="text-[12.5px] text-slate-700">Past expiry (overdue)</span>
                       <div className="flex-1" />
                       <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full ${BADGE_CLASS[state]}`}>
