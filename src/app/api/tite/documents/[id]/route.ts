@@ -64,27 +64,29 @@ export async function GET(
       contentType = MIME_MAP[ext] || 'application/octet-stream';
     }
 
-    /* ── Build download filename ── */
-    /* Use document_name (custom), but ensure it carries the original extension */
-    const originalExt = ext ? `.${ext}` : '';
-    const downloadName = doc.document_name.includes('.')
-      ? doc.document_name
-      : doc.document_name + originalExt;
-
-    /* Sanitize for Content-Disposition header */
-    const safeFilename = downloadName.replace(/[^\w\s\-_.()]/g, '_');
+    /* ── Decode BYTEA ── */
+    /* pg may return BYTEA as a hex-escaped string (\x<hexdigits>) rather than a
+       Buffer. Passing that string to Buffer.from() without an encoding treats it
+       as UTF-8 and corrupts the file — decode from hex instead. */
+    let fileBuffer: Buffer;
+    if (Buffer.isBuffer(doc.file_content)) {
+      fileBuffer = doc.file_content;
+    } else {
+      const str = String(doc.file_content);
+      fileBuffer = str.startsWith('\\x')
+        ? Buffer.from(str.slice(2), 'hex')
+        : Buffer.from(str, 'binary');
+    }
 
     /* ── Build response ── */
-    const fileBuffer: Buffer = Buffer.isBuffer(doc.file_content)
-      ? doc.file_content
-      : Buffer.from(doc.file_content);
+    const dlFilename = (doc.original_name || doc.document_name).replace(/"/g, '_');
 
-    return new NextResponse(new Uint8Array(fileBuffer), {
+    return new Response(fileBuffer, {
       status: 200,
       headers: {
         'Content-Type':        contentType,
-        'Content-Disposition': `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
-        'Content-Length':      String(fileBuffer.length),
+        'Content-Disposition': `attachment; filename="${dlFilename}"`,
+        'Content-Length':      String(fileBuffer.byteLength),
         'Cache-Control':       'private, no-cache',
       },
     });
