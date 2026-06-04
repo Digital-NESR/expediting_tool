@@ -14,6 +14,7 @@ import type { TiteAccessRequestRow } from '@/app/actions/tite';
 /* ─── Static fallback country list ──────────────────────────── */
 
 const TITE_FALLBACK_COUNTRIES = [
+  'All Countries - View Only',
   'Saudi Arabia (KSA)',
   'United Arab Emirates (UAE)',
   'Qatar',
