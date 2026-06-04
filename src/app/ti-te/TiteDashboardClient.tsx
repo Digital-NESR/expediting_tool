@@ -28,7 +28,7 @@ function DbError() {
   );
 }
 
-function EmptyState() {
+function EmptyState({ viewOnly }: { viewOnly?: boolean }) {
   const router = useRouter();
   return (
     <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50 p-6">
@@ -40,13 +40,15 @@ function EmptyState() {
         </div>
         <p className="font-semibold text-slate-900 mb-1">No shipments found</p>
         <p className="text-sm text-slate-500 mb-5">Add your first TI-TE shipment to get started.</p>
-        <button
-          onClick={() => router.push('/ti-te/shipments/new')}
-          className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
-          style={{ background: '#006B0C' }}
-        >
-          Add Shipment
-        </button>
+        {!viewOnly && (
+          <button
+            onClick={() => router.push('/ti-te/shipments/new')}
+            className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
+            style={{ background: '#006B0C' }}
+          >
+            Add Shipment
+          </button>
+        )}
       </div>
     </div>
   );
@@ -113,16 +115,18 @@ export default function TiteDashboardClient({
   stats,
   shipments,
   recentActivity,
+  viewOnly,
 }: {
   stats: ShipmentStats | null;
   shipments: Shipment[] | null;
   recentActivity: RecentActivityRow[];
+  viewOnly?: boolean;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
 
   if (shipments === null || stats === null) return <DbError />;
-  if (shipments.length === 0) return <EmptyState />;
+  if (shipments.length === 0) return <EmptyState viewOnly={viewOnly} />;
 
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const open = shipments.filter(s => s.status !== 'Closed' && s.status !== 'Closed - Refund Recovered');
@@ -184,14 +188,16 @@ export default function TiteDashboardClient({
               {today} · {activeCount} active temporary movements · {stats.overdue_count + stats.urgent_count} need action this week
             </p>
           </div>
-          <button
-            onClick={() => router.push('/ti-te/shipments/new')}
-            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
-            style={{ background: '#006B0C' }}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-            New shipment
-          </button>
+          {!viewOnly && (
+            <button
+              onClick={() => router.push('/ti-te/shipments/new')}
+              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+              style={{ background: '#006B0C' }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+              New shipment
+            </button>
+          )}
         </div>
 
         {/* Overdue banner */}

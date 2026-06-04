@@ -13,14 +13,20 @@ export default async function TiteDashboardPage() {
   const adminEmails = (process.env.ADMIN_EMAILS ?? '')
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   const isAdmin = adminEmails.includes(email.toLowerCase());
-  const approvedCountries = isAdmin
+
+  const titeApprovedCountries = session?.user?.toolAccess?.tite?.approvedCountries ?? [];
+  const titeViewOnly =
+    session?.user?.titeViewOnly === true ||
+    titeApprovedCountries.includes('All Countries - View Only');
+
+  const approvedCountries = (isAdmin || titeViewOnly)
     ? undefined
-    : (session?.user?.toolAccess?.tite?.approvedCountries ?? []);
+    : titeApprovedCountries;
 
   const [stats, shipments, recentActivity] = await Promise.all([
     getShipmentStats(approvedCountries),
     getAllShipments(approvedCountries),
     getRecentActivity(userName, 7),
   ]);
-  return <TiteDashboardClient stats={stats} shipments={shipments} recentActivity={recentActivity} />;
+  return <TiteDashboardClient stats={stats} shipments={shipments} recentActivity={recentActivity} viewOnly={titeViewOnly} />;
 }
