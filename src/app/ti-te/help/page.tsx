@@ -7,7 +7,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
 
 const TUTORIAL_VIDEO_URL = 'https://nesrcorp-my.sharepoint.com/personal/mfarhan1_nesr_com/_layouts/15/embed.aspx?UniqueId=6d6aa2cc-81db-4eb1-aec6-24014ef1aa7f&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
@@ -18,7 +17,6 @@ const DOCS_PDF_URL       = '/help/documentation.pdf';
 export default function HelpPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tab,         setTab]         = useState<'video' | 'docs'>('video');
-  const router = useRouter();
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
@@ -38,19 +36,6 @@ export default function HelpPage() {
         </div>
         <span className="font-semibold text-slate-900 text-sm">Help &amp; Documentation</span>
         <div className="flex-1" />
-        <button
-          onClick={() => router.push('/ti-te/help')}
-          aria-current="page"
-          className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
-          style={{ color: '#006B0C', borderColor: '#006B0C33', background: '#006B0C10' }}
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <circle cx="12" cy="12" r="10" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          Help
-        </button>
       </header>
 
       <main className="max-w-[900px] mx-auto px-6 pb-16 pt-6">
