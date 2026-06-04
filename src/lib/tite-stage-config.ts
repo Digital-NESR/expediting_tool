@@ -30,7 +30,8 @@ export const DOCUMENT_STAGES: Record<string, StageConfig> = {
     label:     'At Extension',
     stageIcon: '📅',
     documents: [
-      { key: 'customs_approval_email', label: 'Customs Approval \u2013 Email', required: true },
+      { key: 'customs_approval_email', label: 'Customs Approval \u2013 Email',      required: true },
+      { key: 'customs_declaration',    label: 'Customs Declaration Document', required: true },
     ],
   },
   closure: {
