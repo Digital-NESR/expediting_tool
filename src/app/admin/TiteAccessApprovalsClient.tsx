@@ -7,6 +7,7 @@ import {
   rejectTiteAccess,
   revokeTiteAccess,
   editTiteAccess,
+  deleteTiteAccessRequest,
 } from '@/app/actions/tite';
 import type { TiteAccessRequestRow } from '@/app/actions/tite';
 
@@ -278,6 +279,16 @@ export default function TiteAccessApprovalsClient({
     });
   }
 
+  function handleDelete(email: string) {
+    if (!confirm('Are you sure you want to delete this access request? This cannot be undone.')) return;
+    setProcessingEmail(email);
+    startTransition(async () => {
+      await deleteTiteAccessRequest(email);
+      await refreshData();
+      setProcessingEmail(null);
+    });
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
 
@@ -390,6 +401,16 @@ export default function TiteAccessApprovalsClient({
                             className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
                             {isProcessing && !isExpanded ? 'Rejecting…' : 'Reject'}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(r.user_email)}
+                            disabled={isProcessing}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            title="Delete request"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
                           </button>
                         </div>
                       </td>
@@ -506,9 +527,16 @@ export default function TiteAccessApprovalsClient({
                               </button>
                             </>
                           )}
-                          {(r.status === 'Rejected' || r.status === 'Revoked') && (
-                            <span className="text-xs text-slate-400">—</span>
-                          )}
+                          <button
+                            onClick={() => handleDelete(r.user_email)}
+                            disabled={isProcessing}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            title="Delete request"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
                         </div>
                       </td>
                     </tr>

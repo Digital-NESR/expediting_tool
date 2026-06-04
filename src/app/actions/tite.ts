@@ -475,6 +475,23 @@ export async function rejectTiteAccess(
   }
 }
 
+/* ─── deleteTiteAccessRequest ────────────────────────────────── */
+
+export async function deleteTiteAccessRequest(
+  userEmail: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await titePool.query(
+      `DELETE FROM access_requests WHERE user_email = $1`,
+      [userEmail],
+    );
+    return { success: true };
+  } catch (err) {
+    console.error('[TI-TE] deleteTiteAccessRequest error:', err);
+    return { success: false, error: 'Failed to delete access request.' };
+  }
+}
+
 /* ─── revokeTiteAccess ────────────────────────────────────────── */
 
 export async function revokeTiteAccess(

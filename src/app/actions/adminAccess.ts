@@ -111,6 +111,23 @@ export async function rejectAccessRequest(
   }
 }
 
+/* ─── deleteAccessRequest ────────────────────────────────────── */
+
+export async function deleteAccessRequest(
+  userEmail: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await pool.query(
+      `DELETE FROM access_requests WHERE user_email = $1`,
+      [userEmail],
+    );
+    return { success: true };
+  } catch (err) {
+    console.error('[deleteAccessRequest]', err);
+    return { success: false, error: 'Failed to delete access request.' };
+  }
+}
+
 /* ─── revokeAccess ───────────────────────────────────────────── */
 
 export async function revokeAccess(
