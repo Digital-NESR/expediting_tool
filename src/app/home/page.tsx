@@ -13,6 +13,7 @@ type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' |
 /* ─── TI-TE static country list ─────────────────────────────── */
 
 const TITE_COUNTRIES = [
+  'All Countries - View Only',
   'Saudi Arabia (KSA)',
   'United Arab Emirates (UAE)',
   'Qatar',
