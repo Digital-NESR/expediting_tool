@@ -23,13 +23,22 @@ export default async function ShipmentDetailPage({
   const email   = session?.user?.email ?? '';
   const adminEmails = (process.env.ADMIN_EMAILS ?? '')
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-  const isAdmin      = adminEmails.includes(email.toLowerCase());
-  const titeViewOnly = session?.user?.titeViewOnly === true;
+  const isAdmin = adminEmails.includes(email.toLowerCase());
+
+  // Derive titeViewOnly from BOTH the dedicated JWT field AND approvedCountries directly.
+  // The fallback on approvedCountries handles users whose JWT cookie predates the titeViewOnly
+  // field — they do not need to re-login for view-only enforcement to work.
+  const titeApprovedCountries = session?.user?.toolAccess?.tite?.approvedCountries ?? [];
+  const titeViewOnly =
+    session?.user?.titeViewOnly === true ||
+    titeApprovedCountries.includes('All Countries - View Only');
+
+  console.log('[TI-TE] shipment detail — titeViewOnly:', titeViewOnly, '| session.titeViewOnly:', session?.user?.titeViewOnly, '| approvedCountries:', titeApprovedCountries);
 
   /* View-only users see all countries, same as admin, but cannot mutate */
   const approvedCountries = (isAdmin || titeViewOnly)
     ? undefined
-    : (session?.user?.toolAccess?.tite?.approvedCountries ?? []);
+    : titeApprovedCountries;
 
   const [shipment, documents, activityLog, notificationContacts, notificationLog, stats] = await Promise.all([
     getShipmentById(numId),

@@ -144,6 +144,11 @@ export const authOptions: NextAuthOptions = {
             titeCountries = [];
           }
 
+          // NOTE: titeViewOnly is derived from approvedCountries at JWT evaluation time.
+          // Because the JWT is re-evaluated from the DB on every token callback invocation,
+          // changes take effect on the next request after approval. If a user's JWT cookie
+          // predates this field being introduced, the fallback in the page server components
+          // (checking approvedCountries directly) ensures correct enforcement without re-login.
           const titeViewOnly = titeCountries.includes('All Countries - View Only');
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -151,8 +156,7 @@ export const authOptions: NextAuthOptions = {
             po_expediting: { status: poStatus,   approvedCountries: poCountries   },
             tite:          { status: titeStatus, approvedCountries: titeCountries },
           };
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (token as any).titeViewOnly = titeViewOnly;
+          token.titeViewOnly = titeViewOnly;
         } catch (err) {
           console.error('JWT access check failed:', err);
           if (!token.toolAccess) {
