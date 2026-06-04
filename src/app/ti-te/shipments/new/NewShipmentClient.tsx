@@ -99,8 +99,6 @@ export default function NewShipmentClient({
   const [poNum,        setPoNum]        = useState('');
   const [importDate,   setImportDate]   = useState('');
   const [expiryDate,   setExpiryDate]   = useState('');
-  const [showExtended, setShowExtended] = useState(false);
-  const [extendedDate, setExtendedDate] = useState('');
   const [depositUsd,   setDepositUsd]   = useState('');
   const [comments,     setComments]     = useState('');
 
@@ -218,7 +216,6 @@ export default function NewShipmentClient({
         po_number:      poNum          || undefined,
         import_date:    importDate     || undefined,
         expiry_date:    expiryDate     || undefined,
-        extended_date:  showExtended && extendedDate ? extendedDate : undefined,
         deposit_usd:    depositUsd     ? parseFloat(depositUsd)  : undefined,
         comments:       comments       || undefined,
         country:        operatingCountry || undefined,
@@ -475,22 +472,6 @@ export default function NewShipmentClient({
               </div>
             </div>
 
-            <div>
-              <button type="button" onClick={() => setShowExtended(v => !v)} className="flex items-center gap-2.5 group">
-                <span className={`relative w-9 h-5 rounded-full transition-colors ${showExtended ? 'bg-[#006B0C]' : 'bg-slate-200'}`}>
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${showExtended ? 'left-[18px]' : 'left-0.5'}`} />
-                </span>
-                <span className="text-sm font-medium text-slate-600 group-hover:text-slate-800 transition-colors">Extension granted</span>
-              </button>
-              {showExtended && (
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className={LBL}>Extended Expiry Date</label>
-                    <input type="date" className={INP} value={extendedDate} onChange={e => setExtendedDate(e.target.value)} />
-                  </div>
-                </div>
-              )}
-            </div>
           </Section>
 
           {/* ── Section 5: Deposit / Financial ── */}
