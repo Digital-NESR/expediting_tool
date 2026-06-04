@@ -541,6 +541,35 @@ function StageDocSection({
   );
 }
 
+/* ─── Interactive stage upload card ──────────────────────────── */
+
+function StageUploadCard({
+  stage,
+  shipmentId,
+  docs,
+}: {
+  stage:      'creation' | 'extension' | 'closure' | 'refund';
+  shipmentId: number;
+  docs:       ShipmentDocument[];
+}) {
+  const cfg = DOCUMENT_STAGES[stage];
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
+        <span className="text-base">{cfg.stageIcon}</span>
+        <h2 className="text-sm font-bold text-slate-900">{cfg.label}</h2>
+      </div>
+      <div className="p-5">
+        <DocumentUploadSection
+          stage={stage}
+          shipmentId={shipmentId}
+          initialDocuments={docs}
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main component ─────────────────────────────────────────── */
 
 export default function ShipmentDetailClient({
@@ -598,8 +627,11 @@ export default function ShipmentDetailClient({
   const pct       = Math.max(0, Math.min(100, (elapsed / (totalDays || 1)) * 100));
 
   const deadlineBg = DEADLINE_BG[s.alert_level] || DEADLINE_BG.default;
-  const isClosed   = s.status === 'Closed' || s.status === 'Closed - Refund Recovered';
-  const isFullyClosed = s.status === 'Closed - Refund Recovered';
+  const isClosed          = s.status === 'Closed' || s.status === 'Closed - Refund Recovered';
+  const isFullyClosed     = s.status === 'Closed - Refund Recovered';
+  const showExtensionDocs = s.status === 'Open - Extended' || (isClosed && !!s.extended_date);
+  const showClosureDocs   = isClosed;
+  const showRefundDocs    = s.status === 'Closed - Refund Recovered';
 
   const checksAll = [
     { done: !!s.customs_reference_number, text: 'Customs reference number on file' },
@@ -785,31 +817,10 @@ export default function ShipmentDetailClient({
             {/* ── Documents ── */}
             {tab === 'documents' && (
               <div className="space-y-4">
-                {/* Creation stage — interactive upload */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
-                    <span className="text-base">{DOCUMENT_STAGES.creation.stageIcon}</span>
-                    <h2 className="text-sm font-bold text-slate-900">{DOCUMENT_STAGES.creation.label}</h2>
-                  </div>
-                  <div className="p-5">
-                    <DocumentUploadSection
-                      stage="creation"
-                      shipmentId={s.id}
-                      initialDocuments={creationDocs}
-                    />
-                  </div>
-                </div>
-
-                {/* Other stages — read-only, only if docs exist */}
-                <StageDocSection stageKey="extension" docs={extensionDocs} />
-                <StageDocSection stageKey="closure"   docs={closureDocs} />
-                <StageDocSection stageKey="refund"    docs={refundDocs} />
-
-                {extensionDocs.length === 0 && closureDocs.length === 0 && refundDocs.length === 0 && (
-                  <p className="text-[12.5px] text-slate-400 text-center py-2">
-                    Extension, closure, and refund documents will appear here after those actions are performed.
-                  </p>
-                )}
+                <StageUploadCard stage="creation"  shipmentId={s.id} docs={creationDocs} />
+                {showExtensionDocs && <StageUploadCard stage="extension" shipmentId={s.id} docs={extensionDocs} />}
+                {showClosureDocs   && <StageUploadCard stage="closure"   shipmentId={s.id} docs={closureDocs} />}
+                {showRefundDocs    && <StageUploadCard stage="refund"    shipmentId={s.id} docs={refundDocs} />}
               </div>
             )}
 
