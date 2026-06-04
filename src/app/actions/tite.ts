@@ -125,8 +125,29 @@ export async function getAllShipments(approvedCountries?: string[]): Promise<Shi
          COALESCE(extended_date, expiry_date) ASC NULLS LAST`,
       filtered ? [approvedCountries] : [],
     );
-    console.log(`[TI-TE] getAllShipments: ${rows.length} rows returned`);
-    return rows;
+    // Recalculate alert_level from the effective date rather than trusting the
+    // stored column, which only updates on create/extend/close and goes stale.
+    const ALERT_ORDER: Record<string, number> = {
+      overdue: 1, urgent: 2, action: 3, plan: 4, info: 5, ok: 6, closed: 7,
+    };
+    const fresh = rows.map(r => ({
+      ...r,
+      alert_level: calcAlertLevel(
+        r.expiry_date   ?? undefined,
+        r.extended_date ?? undefined,
+        r.status        ?? '',
+      ),
+    }));
+    fresh.sort((a, b) => {
+      const oa = ALERT_ORDER[a.alert_level] ?? 8;
+      const ob = ALERT_ORDER[b.alert_level] ?? 8;
+      if (oa !== ob) return oa - ob;
+      const da = a.extended_date || a.expiry_date || '';
+      const db = b.extended_date || b.expiry_date || '';
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+    console.log(`[TI-TE] getAllShipments: ${fresh.length} rows returned`);
+    return fresh;
   } catch (err) {
     console.error('[TI-TE] getAllShipments error:', err);
     return null;
@@ -141,7 +162,16 @@ export async function getShipmentById(id: number): Promise<Shipment | null> {
       `SELECT ${SELECT_COLS} FROM shipments WHERE id = $1`,
       [id],
     );
-    return rows[0] ?? null;
+    if (!rows[0]) return null;
+    const r = rows[0];
+    return {
+      ...r,
+      alert_level: calcAlertLevel(
+        r.expiry_date   ?? undefined,
+        r.extended_date ?? undefined,
+        r.status        ?? '',
+      ),
+    };
   } catch (err) {
     console.error('[TI-TE] getShipmentById error:', err);
     return null;
