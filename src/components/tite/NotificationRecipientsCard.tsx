@@ -80,9 +80,11 @@ const ALL_NOTIFY_TRUE: Pick<EditableContact,
 export default function NotificationRecipientsCard({
   shipment,
   notificationContacts,
+  viewOnly,
 }: {
   shipment:             Shipment;
   notificationContacts: NotificationContact[];
+  viewOnly?:            boolean;
 }) {
   const [editing,             setEditing]             = useState(false);
   const [stakeholders,        setStakeholders]        = useState<CountryStakeholder[]>([]);
@@ -189,15 +191,17 @@ export default function NotificationRecipientsCard({
             <h3 className="text-sm font-bold text-slate-900">Notification Recipients</h3>
             <p className="text-[11px] text-slate-400 mt-0.5">Notified on alert status changes</p>
           </div>
-          <button
-            onClick={handleEditClick}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 transition-colors"
-          >
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            Edit
-          </button>
+          {!viewOnly && (
+            <button
+              onClick={handleEditClick}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 transition-colors"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit
+            </button>
+          )}
         </div>
 
         <div className="p-4">

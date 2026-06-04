@@ -11,11 +11,14 @@ export default async function ShipmentsPage() {
   const email = session?.user?.email ?? '';
   const adminEmails = (process.env.ADMIN_EMAILS ?? '')
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = adminEmails.includes(email.toLowerCase());
-  const approvedCountries = isAdmin
+  const isAdmin      = adminEmails.includes(email.toLowerCase());
+  const titeViewOnly = session?.user?.titeViewOnly === true;
+
+  /* View-only users see all countries, same as admin, but cannot mutate */
+  const approvedCountries = (isAdmin || titeViewOnly)
     ? undefined
     : (session?.user?.toolAccess?.tite?.approvedCountries ?? []);
 
   const shipments = await getAllShipments(approvedCountries);
-  return <ShipmentsClient shipments={shipments} />;
+  return <ShipmentsClient shipments={shipments} viewOnly={titeViewOnly} />;
 }

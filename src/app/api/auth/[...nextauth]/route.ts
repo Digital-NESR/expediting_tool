@@ -144,11 +144,15 @@ export const authOptions: NextAuthOptions = {
             titeCountries = [];
           }
 
+          const titeViewOnly = titeCountries.includes('All Countries - View Only');
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (token as any).toolAccess = {
             po_expediting: { status: poStatus,   approvedCountries: poCountries   },
             tite:          { status: titeStatus, approvedCountries: titeCountries },
           };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (token as any).titeViewOnly = titeViewOnly;
         } catch (err) {
           console.error('JWT access check failed:', err);
           if (!token.toolAccess) {
@@ -175,6 +179,7 @@ export const authOptions: NextAuthOptions = {
           po_expediting?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
           tite?:          { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
         } | undefined;
+        session.user.titeViewOnly = token.titeViewOnly as boolean | undefined;
       }
       return session;
     },

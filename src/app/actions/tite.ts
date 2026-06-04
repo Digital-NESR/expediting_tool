@@ -88,6 +88,10 @@ function calcAlertLevel(
   return 'ok';
 }
 
+/* ─── Special role sentinel ──────────────────────────────────── */
+
+const VIEW_ALL_COUNTRIES = 'All Countries - View Only';
+
 /* ─── SELECT columns ──────────────────────────────────────────── */
 
 const SELECT_COLS = `
@@ -106,7 +110,8 @@ const SELECT_COLS = `
 
 export async function getAllShipments(approvedCountries?: string[]): Promise<Shipment[] | null> {
   try {
-    const filtered = approvedCountries && approvedCountries.length > 0;
+    const isViewAll = approvedCountries?.includes(VIEW_ALL_COUNTRIES);
+    const filtered  = !isViewAll && approvedCountries != null && approvedCountries.length > 0;
     const { rows } = await titePool.query<Shipment>(
       `SELECT ${SELECT_COLS}
        FROM shipments
@@ -309,7 +314,8 @@ export async function createShipment(
 
 export async function getShipmentStats(approvedCountries?: string[]): Promise<ShipmentStats | null> {
   try {
-    const filtered = approvedCountries && approvedCountries.length > 0;
+    const isViewAll = approvedCountries?.includes(VIEW_ALL_COUNTRIES);
+    const filtered  = !isViewAll && approvedCountries != null && approvedCountries.length > 0;
     const { rows } = await titePool.query(
       `SELECT
         COUNT(*)                    FILTER (WHERE status NOT IN ('Closed', 'Closed - Refund Recovered'))                               AS active_count,

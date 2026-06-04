@@ -68,7 +68,7 @@ const ALL_STATUS_OPTIONS = ['Open', 'Open - Extended', 'Closed', 'Closed - Refun
 
 /* ─── Main ───────────────────────────────────────────────────── */
 
-export default function ShipmentsClient({ shipments }: { shipments: Shipment[] | null }) {
+export default function ShipmentsClient({ shipments, viewOnly }: { shipments: Shipment[] | null; viewOnly?: boolean }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
 
@@ -209,14 +209,16 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
               {rows.length} of {list.length} records · Customs deposit on view: <strong className="tabular-nums">{usdFmt(totalDep)}</strong>
             </p>
           </div>
-          <button
-            onClick={() => router.push('/ti-te/shipments/new')}
-            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
-            style={{ background: '#006B0C' }}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-            New shipment
-          </button>
+          {!viewOnly && (
+            <button
+              onClick={() => router.push('/ti-te/shipments/new')}
+              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+              style={{ background: '#006B0C' }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+              New shipment
+            </button>
+          )}
         </div>
 
         {/* Filters */}
@@ -292,7 +294,9 @@ export default function ShipmentsClient({ shipments }: { shipments: Shipment[] |
               </div>
               <p className="font-semibold text-slate-900 mb-1">No shipments found</p>
               <p className="text-sm text-slate-500 mb-5">Add your first TI-TE shipment to get started.</p>
-              <button onClick={() => router.push('/ti-te/shipments/new')} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#006B0C' }}>Add Shipment</button>
+              {!viewOnly && (
+                <button onClick={() => router.push('/ti-te/shipments/new')} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#006B0C' }}>Add Shipment</button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">

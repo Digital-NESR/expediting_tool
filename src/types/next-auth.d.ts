@@ -15,6 +15,7 @@ declare module "next-auth" {
       department?: string;
       country?: string;
       isAdmin?: boolean;
+      titeViewOnly?: boolean;
       toolAccess?: {
         po_expediting?: ToolAccessEntry;
         tite?: ToolAccessEntry;
@@ -29,6 +30,7 @@ declare module "next-auth/jwt" {
     department?: string;
     country?: string;
     isAdmin?: boolean;
+    titeViewOnly?: boolean;
     toolAccess?: {
       po_expediting?: ToolAccessEntry;
       tite?: ToolAccessEntry;

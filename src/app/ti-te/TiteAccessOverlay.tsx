@@ -9,6 +9,7 @@ import { submitTiteAccessRequest } from '@/app/actions/tite';
 const BRAND = '#006B0C';
 
 const TITE_COUNTRIES = [
+  'All Countries - View Only',
   'Saudi Arabia (KSA)',
   'United Arab Emirates (UAE)',
   'Qatar',

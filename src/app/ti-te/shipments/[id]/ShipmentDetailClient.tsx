@@ -581,6 +581,7 @@ export default function ShipmentDetailClient({
   notificationLog,
   activeCount,
   urgentCount,
+  viewOnly,
 }: {
   shipment:              Shipment | null;
   rawId:                 string;
@@ -590,6 +591,7 @@ export default function ShipmentDetailClient({
   notificationLog:       NotificationLogRow[];
   activeCount:           number;
   urgentCount:           number;
+  viewOnly?:             boolean;
 }) {
   const router = useRouter();
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
@@ -967,6 +969,7 @@ export default function ShipmentDetailClient({
             <NotificationRecipientsCard
               shipment={s}
               notificationContacts={notificationContacts}
+              viewOnly={viewOnly}
             />
           </div>
         </div>
