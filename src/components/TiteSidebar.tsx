@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
+import { HelpCircle } from 'lucide-react';
 
 interface TiteSidebarProps {
   isOpen: boolean;
@@ -206,13 +207,7 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
           <NavLink
             href="/ti-te/help"
             label="Help"
-            icon={
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <circle cx="12" cy="12" r="10" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-            }
+            icon={<HelpCircle className="w-5 h-5" />}
           />
 
         </nav>
@@ -242,18 +237,6 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
               <p className="text-xs text-gray-400 truncate">{jobTitle}</p>
             </div>
           </div>
-          <Link
-            href="/ti-te/help"
-            onClick={onClose}
-            className="w-full py-2.5 px-3 bg-white border border-slate-200 text-slate-600 font-medium text-sm rounded-lg shadow-sm hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition-all flex items-center gap-2 mb-2"
-          >
-            <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <circle cx="12" cy="12" r="10" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            Help &amp; Documentation
-          </Link>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
             className="w-full py-2.5 px-3 bg-white border border-slate-200 text-slate-600 font-medium text-sm rounded-lg shadow-sm hover:bg-slate-50 hover:text-red-600 hover:border-red-200 transition-all active:scale-95 flex items-center justify-center gap-2"
