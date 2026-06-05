@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useId, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import ProcureGuardSidebar from '../../components/ProcureGuardSidebar';
 import ProcureGuardNotificationContactsPanel from '../../components/ProcureGuardNotificationContactsPanel';
@@ -36,6 +36,49 @@ function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1_048_576) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1_048_576).toFixed(1)} MB`;
+}
+
+function AttachmentPicker({
+  files,
+  onFilesSelected,
+}: {
+  files: File[];
+  onFilesSelected: (files: File[]) => void;
+}) {
+  const inputId = useId();
+
+  return (
+    <div className="min-h-44 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <input
+        id={inputId}
+        type="file"
+        multiple
+        className="sr-only"
+        onChange={e => onFilesSelected(Array.from(e.target.files || []))}
+      />
+      <div className="flex flex-col gap-3">
+        <label
+          htmlFor={inputId}
+          className="inline-flex w-fit cursor-pointer items-center justify-center rounded-md border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] shadow-sm transition hover:border-[#307c4c]/60 hover:bg-[#307c4c]/5 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+        >
+          Choose files
+        </label>
+        <p className="text-xs leading-relaxed text-slate-500">Attach supporting documents up to 10 MB each.</p>
+      </div>
+      {files.length === 0 ? (
+        <p className="mt-5 rounded-md border border-dashed border-slate-200 bg-white px-3 py-3 text-sm text-slate-500">There is nothing attached.</p>
+      ) : (
+        <div className="mt-4 space-y-2">
+          {files.map(file => (
+            <div key={`${file.name}-${file.size}`} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm">
+              <span className="min-w-0 truncate font-semibold text-slate-900">{file.name}</span>
+              <span className="shrink-0 text-slate-400">{fmtBytes(file.size)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AdhocPaymentFormClient(_props: {
@@ -255,20 +298,7 @@ export default function AdhocPaymentFormClient(_props: {
             </div>
             <div>
               <Field label="Attachments" error={errors.attachments}>
-                <div className="min-h-44 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <input type="file" multiple className="w-full text-sm" onChange={e => setSelectedFiles(Array.from(e.target.files || []))} />
-                  {selectedFiles.length === 0 ? (
-                    <p className="mt-5 text-sm text-slate-700">There is nothing attached.</p>
-                  ) : (
-                    <div className="mt-4 space-y-2">
-                      {selectedFiles.map(file => (
-                        <div key={`${file.name}-${file.size}`} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
-                          <span className="font-semibold text-slate-900">{file.name}</span> <span className="text-slate-400">({fmtBytes(file.size)})</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <AttachmentPicker files={selectedFiles} onFilesSelected={setSelectedFiles} />
               </Field>
             </div>
             <div className="lg:col-span-2">
