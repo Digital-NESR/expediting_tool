@@ -85,6 +85,23 @@ function detectMime(file: File): string {
 type QueryParam = string | number | boolean | null | Date | Buffer | undefined;
 type QueryParams = QueryParam[];
 type ExecResult = { rowCount: number; insertId: number };
+export type ProcureGuardAccessRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
+
+export interface ProcureGuardAccessRequestRow {
+  user_email: string;
+  display_name: string | null;
+  job_title: string | null;
+  department: string | null;
+  status: ProcureGuardAccessRequestStatus;
+  requested_role: ProcureGuardPermissionRole;
+  approved_role: ProcureGuardPermissionRole | null;
+  country: string | null;
+  segment: string | null;
+  requested_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  notes: string | null;
+}
 
 function toPostgresQuery(statement: string): string {
   let index = 0;
@@ -142,6 +159,37 @@ async function ensureProcureGuardUsageTables(): Promise<void> {
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_path ON procure_guard_usage_events (path)`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_user ON procure_guard_usage_events (user_email)`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_type ON procure_guard_usage_events (event_type)`);
+}
+
+async function ensureProcureGuardAccessRequestTable(): Promise<void> {
+  async function execSchema(statement: string) {
+    try {
+      await exec(statement);
+    } catch (err) {
+      const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
+      if (code !== '23505' && code !== '42P07' && code !== '42710') throw err;
+    }
+  }
+
+  await execSchema(`
+    CREATE TABLE IF NOT EXISTS procure_guard_access_requests (
+      user_email TEXT PRIMARY KEY,
+      display_name TEXT,
+      job_title TEXT,
+      department TEXT,
+      status TEXT NOT NULL CHECK (status IN ('Pending', 'Approved', 'Rejected', 'Revoked')),
+      requested_role TEXT NOT NULL DEFAULT 'Requester',
+      approved_role TEXT,
+      country TEXT,
+      segment TEXT,
+      requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      reviewed_at TIMESTAMPTZ,
+      reviewed_by TEXT,
+      notes TEXT
+    )
+  `);
+  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_access_requests_status ON procure_guard_access_requests (status)`);
+  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_access_requests_requested_at ON procure_guard_access_requests (requested_at DESC)`);
 }
 
 async function ensureProcureGuardPermissionRoleValues(): Promise<void> {
@@ -2103,6 +2151,259 @@ export async function updateProcureGuardNotificationRecipient(input: {
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update notification recipient.' };
   }
 }
+
+function normaliseProcureGuardRole(role: unknown): ProcureGuardPermissionRole {
+  return PERMISSION_ROLE_OPTIONS.includes(role as ProcureGuardPermissionRole)
+    ? role as ProcureGuardPermissionRole
+    : 'Requester';
+}
+
+function serialiseProcureGuardAccessRequest(row: QueryResultRow): ProcureGuardAccessRequestRow {
+  return {
+    user_email: String(row.user_email),
+    display_name: row.display_name ? String(row.display_name) : null,
+    job_title: row.job_title ? String(row.job_title) : null,
+    department: row.department ? String(row.department) : null,
+    status: row.status as ProcureGuardAccessRequestStatus,
+    requested_role: normaliseProcureGuardRole(row.requested_role),
+    approved_role: row.approved_role ? normaliseProcureGuardRole(row.approved_role) : null,
+    country: row.country ? String(row.country) : null,
+    segment: row.segment ? String(row.segment) : null,
+    requested_at: row.requested_at instanceof Date ? row.requested_at.toISOString() : String(row.requested_at),
+    reviewed_at: row.reviewed_at instanceof Date ? row.reviewed_at.toISOString() : (row.reviewed_at ?? null),
+    reviewed_by: row.reviewed_by ? String(row.reviewed_by) : null,
+    notes: row.notes ? String(row.notes) : null,
+  };
+}
+
+export async function submitProcureGuardAccessRequest(input: {
+  userEmail: string;
+  displayName: string;
+  jobTitle?: string | null;
+  department?: string | null;
+  requestedRole?: ProcureGuardPermissionRole;
+}): Promise<ActionResult> {
+  try {
+    await ensureProcureGuardAccessRequestTable();
+    const email = requireText(input.userEmail, 'Email').toLowerCase();
+    const displayName = requireText(input.displayName, 'Display name');
+    const requestedRole = normaliseProcureGuardRole(input.requestedRole ?? 'Requester');
+
+    await exec(
+      `INSERT INTO procure_guard_access_requests
+         (user_email, display_name, job_title, department, requested_role, status, requested_at)
+       VALUES (?, ?, ?, ?, ?, 'Pending', CURRENT_TIMESTAMP)
+       ON CONFLICT (user_email) DO UPDATE SET
+         display_name = EXCLUDED.display_name,
+         job_title = EXCLUDED.job_title,
+         department = EXCLUDED.department,
+         requested_role = EXCLUDED.requested_role,
+         status = 'Pending',
+         requested_at = CURRENT_TIMESTAMP,
+         reviewed_at = NULL,
+         reviewed_by = NULL,
+         notes = NULL`,
+      [email, displayName, blankToNull(input.jobTitle), blankToNull(input.department), requestedRole],
+    );
+
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err) {
+    console.error('[submitProcureGuardAccessRequest]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to submit ProcureGuard access request.' };
+  }
+}
+
+export async function getProcureGuardAccessRequests(): Promise<ProcureGuardAccessRequestRow[]> {
+  try {
+    await ensureProcureGuardAccessRequestTable();
+    const [requestRows, permissionRows] = await Promise.all([
+      sql<QueryResultRow[]>(
+        `SELECT * FROM procure_guard_access_requests
+         ORDER BY CASE status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END, requested_at DESC`,
+      ),
+      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_permissions ORDER BY updated_at DESC, email`),
+    ]);
+
+    const byEmail = new Map<string, ProcureGuardAccessRequestRow>();
+    for (const row of requestRows) {
+      byEmail.set(String(row.user_email).toLowerCase(), serialiseProcureGuardAccessRequest(row));
+    }
+
+    for (const row of permissionRows) {
+      const email = String(row.email).toLowerCase();
+      if (byEmail.has(email)) continue;
+      const role = normaliseProcureGuardRole(row.role);
+      byEmail.set(email, {
+        user_email: email,
+        display_name: row.name ? String(row.name) : null,
+        job_title: null,
+        department: null,
+        status: 'Approved',
+        requested_role: role,
+        approved_role: role,
+        country: row.country ? String(row.country) : null,
+        segment: row.segment ? String(row.segment) : null,
+        requested_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+        reviewed_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+        reviewed_by: 'ProcureGuard permissions',
+        notes: null,
+      });
+    }
+
+    return [...byEmail.values()].sort((a, b) => {
+      const rank = (status: ProcureGuardAccessRequestStatus) => status === 'Pending' ? 0 : status === 'Approved' ? 1 : 2;
+      return rank(a.status) - rank(b.status) || Date.parse(b.requested_at) - Date.parse(a.requested_at);
+    });
+  } catch (err) {
+    console.error('[getProcureGuardAccessRequests]', err);
+    return [];
+  }
+}
+
+export async function getProcureGuardPendingAccessCount(): Promise<number> {
+  try {
+    await ensureProcureGuardAccessRequestTable();
+    const rows = await sql<QueryResultRow[]>(`SELECT COUNT(*) AS cnt FROM procure_guard_access_requests WHERE status = 'Pending'`);
+    return Number(rows[0]?.cnt ?? 0);
+  } catch (err) {
+    console.error('[getProcureGuardPendingAccessCount]', err);
+    return 0;
+  }
+}
+
+export async function approveProcureGuardAccess(input: {
+  userEmail: string;
+  approvedRole: ProcureGuardPermissionRole;
+  reviewedBy: string;
+  country?: string | null;
+  segment?: string | null;
+  notes?: string | null;
+}): Promise<ActionResult> {
+  try {
+    await requirePermissionManager();
+    await ensureProcureGuardAccessRequestTable();
+    await ensureProcureGuardPermissionRoleValues();
+    const email = requireText(input.userEmail, 'Email').toLowerCase();
+    const role = normaliseProcureGuardRole(input.approvedRole);
+
+    await exec(
+      `INSERT INTO procure_guard_access_requests
+         (user_email, display_name, status, requested_role, approved_role, country, segment, requested_at, reviewed_at, reviewed_by, notes)
+       VALUES (?, ?, 'Approved', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
+       ON CONFLICT (user_email) DO UPDATE SET
+         status = 'Approved',
+         approved_role = EXCLUDED.approved_role,
+         country = EXCLUDED.country,
+         segment = EXCLUDED.segment,
+         reviewed_at = CURRENT_TIMESTAMP,
+         reviewed_by = EXCLUDED.reviewed_by,
+         notes = EXCLUDED.notes`,
+      [email, email, role, role, blankToNull(input.country), blankToNull(input.segment), input.reviewedBy, blankToNull(input.notes)],
+    );
+
+    await exec(
+      `INSERT INTO procure_guard_permissions (email, name, role, country, segment)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (email) DO UPDATE SET
+         role = EXCLUDED.role,
+         country = EXCLUDED.country,
+         segment = EXCLUDED.segment,
+         updated_at = CURRENT_TIMESTAMP`,
+      [email, null, role, blankToNull(input.country), blankToNull(input.segment)],
+    );
+
+    revalidateProcureGuardPaths();
+    return { success: true };
+  } catch (err) {
+    console.error('[approveProcureGuardAccess]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to approve ProcureGuard access.' };
+  }
+}
+
+export async function rejectProcureGuardAccess(userEmail: string, reviewedBy: string): Promise<ActionResult> {
+  try {
+    await requirePermissionManager();
+    await ensureProcureGuardAccessRequestTable();
+    const email = requireText(userEmail, 'Email').toLowerCase();
+    await exec(
+      `UPDATE procure_guard_access_requests
+       SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
+       WHERE user_email = ?`,
+      [reviewedBy, email],
+    );
+    if (!adminEmails().includes(email)) {
+      await exec(`DELETE FROM procure_guard_permissions WHERE email = ?`, [email]);
+    }
+    revalidateProcureGuardPaths();
+    return { success: true };
+  } catch (err) {
+    console.error('[rejectProcureGuardAccess]', err);
+    return { success: false, error: 'Failed to reject ProcureGuard access.' };
+  }
+}
+
+export async function revokeProcureGuardAccess(userEmail: string, reviewedBy: string): Promise<ActionResult> {
+  try {
+    await requirePermissionManager();
+    await ensureProcureGuardAccessRequestTable();
+    const email = requireText(userEmail, 'Email').toLowerCase();
+    await exec(
+      `INSERT INTO procure_guard_access_requests
+         (user_email, display_name, status, requested_role, requested_at, reviewed_at, reviewed_by)
+       VALUES (?, ?, 'Revoked', 'Requester', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+       ON CONFLICT (user_email) DO UPDATE SET
+         status = 'Revoked',
+         approved_role = NULL,
+         reviewed_at = CURRENT_TIMESTAMP,
+         reviewed_by = EXCLUDED.reviewed_by`,
+      [email, email, reviewedBy],
+    );
+    if (!adminEmails().includes(email)) {
+      await exec(`DELETE FROM procure_guard_permissions WHERE email = ?`, [email]);
+    }
+    revalidateProcureGuardPaths();
+    return { success: true };
+  } catch (err) {
+    console.error('[revokeProcureGuardAccess]', err);
+    return { success: false, error: 'Failed to revoke ProcureGuard access.' };
+  }
+}
+
+export async function editProcureGuardAccess(input: {
+  userEmail: string;
+  approvedRole: ProcureGuardPermissionRole;
+  reviewedBy: string;
+  country?: string | null;
+  segment?: string | null;
+}): Promise<ActionResult> {
+  return approveProcureGuardAccess({
+    userEmail: input.userEmail,
+    approvedRole: input.approvedRole,
+    reviewedBy: input.reviewedBy,
+    country: input.country,
+    segment: input.segment,
+    notes: 'Access edited by admin',
+  });
+}
+
+export async function deleteProcureGuardAccessRequest(userEmail: string): Promise<ActionResult> {
+  try {
+    await requirePermissionManager();
+    await ensureProcureGuardAccessRequestTable();
+    const email = requireText(userEmail, 'Email').toLowerCase();
+    await exec(`DELETE FROM procure_guard_access_requests WHERE user_email = ?`, [email]);
+    if (!adminEmails().includes(email)) {
+      await exec(`DELETE FROM procure_guard_permissions WHERE email = ?`, [email]);
+    }
+    revalidateProcureGuardPaths();
+    return { success: true };
+  } catch (err) {
+    console.error('[deleteProcureGuardAccessRequest]', err);
+    return { success: false, error: 'Failed to delete ProcureGuard access record.' };
+  }
+}
+
 export async function updateProcureGuardPermission(input: UpdateProcureGuardPermissionInput): Promise<ActionResult> {
   try {
     await requirePermissionManager();

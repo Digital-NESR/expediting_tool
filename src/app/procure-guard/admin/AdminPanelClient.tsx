@@ -765,7 +765,7 @@ function ActivityTable({ rows, onDone }: { rows: ProcureGuardActivityRow[]; onDo
   );
 }
 
-export default function AdminPanelClient({ data }: { data: ProcureGuardAdminData | null }) {
+export default function AdminPanelClient({ data, embedded = false }: { data: ProcureGuardAdminData | null; embedded?: boolean }) {
   const [tab, setTab] = useState<TabKey>('permissions');
   const [notice, setNotice] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -795,9 +795,9 @@ export default function AdminPanelClient({ data }: { data: ProcureGuardAdminData
   ]) as ReadonlyArray<{ key: TabKey; label: string; count: number; description: string }>;
 
   return (
-    <div className="min-h-[100dvh] bg-white text-slate-900">
-      <ProcureGuardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={data.stats.pending_review} accessView={data.actor.permissions.accessView} />
-      <header className="sticky top-0 z-20 border-b border-gray-100 bg-white/80 backdrop-blur-md">
+    <div className={`${embedded ? '' : 'min-h-[100dvh]'} bg-white text-slate-900`}>
+      {!embedded && <ProcureGuardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={data.stats.pending_review} accessView={data.actor.permissions.accessView} />}
+      {!embedded && <header className="sticky top-0 z-20 border-b border-gray-100 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1320px] items-center gap-3 px-4 py-3">
           <button onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -816,9 +816,9 @@ export default function AdminPanelClient({ data }: { data: ProcureGuardAdminData
             </Link>
           </div>
         </div>
-      </header>
+      </header>}
 
-      <main className="mx-auto max-w-[1320px] px-4 py-5">
+      <main className={`${embedded ? '' : 'mx-auto max-w-[1320px] px-4 py-5'}`}>
         {isFullAdmin && <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-semibold uppercase text-slate-400">Adhoc</p>

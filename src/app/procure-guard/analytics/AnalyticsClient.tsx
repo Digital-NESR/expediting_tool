@@ -332,7 +332,7 @@ function HighValueTable({ rows, sortMode }: { rows: ProcureGuardHighValueRequest
   );
 }
 
-export default function AnalyticsClient({ data }: { data: ProcureGuardAnalyticsData | null }) {
+export default function AnalyticsClient({ data, embedded = false }: { data: ProcureGuardAnalyticsData | null; embedded?: boolean }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>('requests-desc');
   const topAdhocVendor = useMemo(() => data?.top_adhoc_vendors[0], [data]);
@@ -340,19 +340,27 @@ export default function AnalyticsClient({ data }: { data: ProcureGuardAnalyticsD
   if (!data) return <EmptyOrForbidden />;
 
   return (
-    <div className="min-h-[100dvh] bg-white text-slate-900">
-      <ProcureGuardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={data.stats.pending_review} accessView={data.actor.permissions.accessView} />
+    <div className={`${embedded ? '' : 'min-h-[100dvh]'} bg-white text-slate-900`}>
+      {!embedded && <ProcureGuardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={data.stats.pending_review} accessView={data.actor.permissions.accessView} />}
 
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-gray-100 bg-white/80 px-4 backdrop-blur-md md:px-8">
+      {!embedded && <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-gray-100 bg-white/80 px-4 backdrop-blur-md md:px-8">
         <button onClick={() => setSidebarOpen(true)} className="rounded-md p-2 text-slate-500 hover:bg-slate-100">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
         <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#307c4c] text-[10px] font-black text-white">PG</div>
         <span className="text-sm font-bold">Analytics</span>
         <div className="ml-auto hidden text-xs text-slate-500 sm:block">Generated {fmtDateTime(data.generated_at)}</div>
-      </header>
+      </header>}
 
-      <main className="mx-auto max-w-[1320px] space-y-5 px-4 py-5">
+      <main className={`${embedded ? '' : 'mx-auto max-w-[1320px] px-4 py-5'} space-y-5`}>
+        {embedded && (
+          <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight">ProcureGuard Payment Analytics</h2>
+              <p className="text-[12px] text-gray-400 mt-0.5">Generated {fmtDateTime(data.generated_at)}</p>
+            </div>
+          </section>
+        )}
         <section className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <MetricCard label="Total USD Eq." value={usdFmt(data.stats.total_requested_amount)} detail={`${data.stats.adhoc_total + data.stats.advance_total} total requests`} tone="green" />
           <MetricCard label="Average USD Eq." value={usdFmt(data.stats.average_request_amount)} detail="Mean request value normalized to USD" tone="blue" />

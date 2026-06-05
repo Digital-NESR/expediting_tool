@@ -14,8 +14,8 @@ const NAV = [
   { href: '/procure-guard/advance-payments', label: 'Advance Requests', icon: 'wallet', access: ['requester', 'reviewer', 'admin'] },
   { href: '/procure-guard/advance-payments/new', label: 'New Advance Request', icon: 'plus', access: ['requester', 'reviewer', 'admin'] },
   { href: '/procure-guard/analytics', label: 'Analytics', icon: 'chart', access: ['analyst', 'reviewer', 'admin'] },
-  { href: '/procure-guard/admin', label: 'Admin Panel', icon: 'grid', access: ['admin'] },
-  { href: '/procure-guard/admin-analytics', label: 'Admin Analytics', icon: 'chart', access: ['admin'] },
+  { href: '/admin?tool=procureguard-admin', label: 'Admin Panel', icon: 'grid', access: ['admin'] },
+  { href: '/admin?tool=procureguard-usage', label: 'Admin Analytics', icon: 'chart', access: ['admin'] },
 ];
 
 function Icon({ name }: { name: string }) {

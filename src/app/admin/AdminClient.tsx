@@ -19,7 +19,12 @@ import AccessApprovalsClient from './AccessApprovalsClient';
 import TiteMigrationClient from './TiteMigrationClient';
 import TiteAccessApprovalsClient from './TiteAccessApprovalsClient';
 import TiteAnalyticsClient from './TiteAnalyticsClient';
+import ProcureGuardAccessApprovalsClient from './ProcureGuardAccessApprovalsClient';
+import ProcureGuardAdminPanelClient from '../procure-guard/admin/AdminPanelClient';
+import ProcureGuardAnalyticsClient from '../procure-guard/analytics/AnalyticsClient';
+import ProcureGuardAdminAnalyticsClient from '../procure-guard/admin-analytics/AdminAnalyticsClient';
 import type { Shipment } from '@/types/tite';
+import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
@@ -41,6 +46,11 @@ interface AdminClientProps {
   pendingCount: number;
   titePendingCount: number;
   titeShipments: Shipment[] | null;
+  procureGuardPendingCount: number;
+  procureGuardAdminData: ProcureGuardAdminData | null;
+  procureGuardAnalyticsData: ProcureGuardAnalyticsData | null;
+  procureGuardAdminAnalyticsData: ProcureGuardAdminAnalyticsData | null;
+  initialTool?: string;
 }
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -233,7 +243,6 @@ function BuyerDetailModal({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
     getBuyerDetail(buyer.email)
       .then(setRows)
       .finally(() => setLoading(false));
@@ -358,7 +367,6 @@ function AdminSupplierDetailModal({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    setLoading(true);
     getAdminSupplierDetail(supplierName)
       .then(data => {
         setLines(data);
@@ -384,7 +392,11 @@ function AdminSupplierDetailModal({
   function togglePO(po: string) {
     setExpanded(prev => {
       const next = new Set(prev);
-      next.has(po) ? next.delete(po) : next.add(po);
+      if (next.has(po)) {
+        next.delete(po);
+      } else {
+        next.add(po);
+      }
       return next;
     });
   }
@@ -488,7 +500,6 @@ function AdminSessionDetailModal({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    setLoading(true);
     getAdminSessionDetail(session.session_ref)
       .then(data => {
         setLines(data);
@@ -514,7 +525,11 @@ function AdminSessionDetailModal({
   function toggleSupplier(supplier: string) {
     setExpanded(prev => {
       const next = new Set(prev);
-      next.has(supplier) ? next.delete(supplier) : next.add(supplier);
+      if (next.has(supplier)) {
+        next.delete(supplier);
+      } else {
+        next.add(supplier);
+      }
       return next;
     });
   }
@@ -1272,13 +1287,26 @@ function AnalyticsSection({
 
 /* ─── Main AdminClient ────────────────────────────────────────── */
 
-export default function AdminClient({ analytics: initialAnalytics, userEmail, userName, pendingCount, titePendingCount, titeShipments }: AdminClientProps) {
-  const [selectedTool, setSelectedTool]       = useState<string>('po-expediting');
+export default function AdminClient({
+  analytics: initialAnalytics,
+  userEmail,
+  userName,
+  pendingCount,
+  titePendingCount,
+  titeShipments,
+  procureGuardPendingCount,
+  procureGuardAdminData,
+  procureGuardAnalyticsData,
+  procureGuardAdminAnalyticsData,
+  initialTool = 'po-expediting',
+}: AdminClientProps) {
+  const [selectedTool, setSelectedTool]       = useState<string>(initialTool);
   const [liveAnalytics, setLiveAnalytics]     = useState<ExpeditingAnalytics>(initialAnalytics);
   const [isRefreshing, setIsRefreshing]       = useState(false);
   const [lastRefreshed, setLastRefreshed]     = useState<Date>(() => new Date());
   const [livePendingCount, setLivePendingCount]       = useState(pendingCount);
   const [liveTitePendingCount, setLiveTitePendingCount] = useState(titePendingCount);
+  const [liveProcureGuardPendingCount, setLiveProcureGuardPendingCount] = useState(procureGuardPendingCount);
 
   // Modal state
   const [buyerModal, setBuyerModal]             = useState<BuyerRow | null>(null);
@@ -1293,6 +1321,10 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
       'tite-migration':         'Migration — TI-TE | Admin | SC Agents',
       'tite-analytics':         'Analytics — TI-TE | Admin | SC Agents',
       'tite-access-approvals':  'TI-TE Access Approvals | Admin | SC Agents',
+      'procureguard-admin':     'ProcureGuard Admin | Admin | SC Agents',
+      'procureguard-analytics': 'ProcureGuard Analytics | Admin | SC Agents',
+      'procureguard-usage':     'ProcureGuard Usage Analytics | Admin | SC Agents',
+      'procureguard-access':    'ProcureGuard Access Approvals | Admin | SC Agents',
     };
     document.title = titles[selectedTool] ?? 'Admin — SC Agents';
   }, [selectedTool]);
@@ -1492,6 +1524,86 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
 
           <div style={{ margin: '8px 0' }} />
 
+          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+            ProcureGuard
+          </div>
+
+          <button
+            onClick={() => setSelectedTool('procureguard-admin')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'procureguard-admin' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'procureguard-admin' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'procureguard-admin' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Admin Panel
+          </button>
+
+          <button
+            onClick={() => setSelectedTool('procureguard-analytics')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'procureguard-analytics' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'procureguard-analytics' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'procureguard-analytics' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Payment Analytics
+          </button>
+
+          <button
+            onClick={() => setSelectedTool('procureguard-usage')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'procureguard-usage' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'procureguard-usage' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'procureguard-usage' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Usage Analytics
+          </button>
+
+          <button
+            onClick={() => setSelectedTool('procureguard-access')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'procureguard-access' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'procureguard-access' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'procureguard-access' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            <span>Access Approvals</span>
+            {liveProcureGuardPendingCount > 0 && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 18,
+                height: 18,
+                padding: '0 5px',
+                borderRadius: 9999,
+                fontSize: 10,
+                fontWeight: 700,
+                background: '#fef3c7',
+                color: '#b45309',
+                border: '1px solid #fde68a',
+              }}>
+                {liveProcureGuardPendingCount}
+              </span>
+            )}
+          </button>
+
+          <div style={{ margin: '8px 0' }} />
+
           {/* Coming-soon tools */}
           <div
             style={{
@@ -1538,6 +1650,21 @@ export default function AdminClient({ analytics: initialAnalytics, userEmail, us
           )}
           {selectedTool === 'tite-analytics' && (
             <TiteAnalyticsClient shipments={titeShipments} />
+          )}
+          {selectedTool === 'procureguard-admin' && (
+            <ProcureGuardAdminPanelClient data={procureGuardAdminData} embedded />
+          )}
+          {selectedTool === 'procureguard-analytics' && (
+            <ProcureGuardAnalyticsClient data={procureGuardAnalyticsData} embedded />
+          )}
+          {selectedTool === 'procureguard-usage' && (
+            <ProcureGuardAdminAnalyticsClient data={procureGuardAdminAnalyticsData} embedded />
+          )}
+          {selectedTool === 'procureguard-access' && (
+            <ProcureGuardAccessApprovalsClient
+              userEmail={userEmail}
+              onPendingCountChange={setLiveProcureGuardPendingCount}
+            />
           )}
           {selectedTool === 'po-expediting' && (
             <>

@@ -4,12 +4,34 @@ import { authOptions } from '@/lib/auth';
 import { getExpeditingAnalytics } from '@/app/actions/adminAnalytics';
 import { getPendingAccessCount } from '@/app/actions/adminAccess';
 import { getTitePendingCount, getAllShipments } from '@/app/actions/tite';
+import {
+  getProcureGuardAdminAnalyticsData,
+  getProcureGuardAdminData,
+  getProcureGuardAnalyticsData,
+  getProcureGuardPendingAccessCount,
+} from '@/app/actions/procureGuard';
 import AdminClient from './AdminClient';
 
 export const metadata = { title: 'Admin — SC Agents' };
 // Per-tab titles are set client-side via useEffect in AdminClient
 
-export default async function AdminPage() {
+const ADMIN_TOOLS = new Set([
+  'po-expediting',
+  'access-approvals',
+  'tite-migration',
+  'tite-analytics',
+  'tite-access-approvals',
+  'procureguard-admin',
+  'procureguard-analytics',
+  'procureguard-usage',
+  'procureguard-access',
+]);
+
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tool?: string }>;
+}) {
   /* ── Auth check ── */
   const session = await getServerSession(authOptions);
 
@@ -44,12 +66,28 @@ export default async function AdminPage() {
     );
   }
 
+  const params = searchParams ? await searchParams : {};
+  const initialTool = params.tool && ADMIN_TOOLS.has(params.tool) ? params.tool : 'po-expediting';
+
   /* ── Fetch analytics + pending counts + TI-TE shipments ── */
-  const [analytics, pendingCount, titePendingCount, titeShipments] = await Promise.all([
+  const [
+    analytics,
+    pendingCount,
+    titePendingCount,
+    titeShipments,
+    procureGuardPendingCount,
+    procureGuardAdminData,
+    procureGuardAnalyticsData,
+    procureGuardAdminAnalyticsData,
+  ] = await Promise.all([
     getExpeditingAnalytics(),
     getPendingAccessCount(),
     getTitePendingCount(),
     getAllShipments(), // admins see all shipments (no country filter)
+    getProcureGuardPendingAccessCount(),
+    getProcureGuardAdminData(),
+    getProcureGuardAnalyticsData(),
+    getProcureGuardAdminAnalyticsData(),
   ]);
 
   return (
@@ -60,6 +98,11 @@ export default async function AdminPage() {
       pendingCount={pendingCount}
       titePendingCount={titePendingCount}
       titeShipments={titeShipments}
+      procureGuardPendingCount={procureGuardPendingCount}
+      procureGuardAdminData={procureGuardAdminData}
+      procureGuardAnalyticsData={procureGuardAnalyticsData}
+      procureGuardAdminAnalyticsData={procureGuardAdminAnalyticsData}
+      initialTool={initialTool}
     />
   );
 }

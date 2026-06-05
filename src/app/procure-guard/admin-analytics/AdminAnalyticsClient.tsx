@@ -207,16 +207,16 @@ function UserMetricsTable({ rows }: { rows: ProcureGuardUsageUserMetric[] }) {
   );
 }
 
-export default function AdminAnalyticsClient({ data }: { data: ProcureGuardAdminAnalyticsData | null }) {
+export default function AdminAnalyticsClient({ data, embedded = false }: { data: ProcureGuardAdminAnalyticsData | null; embedded?: boolean }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>('activity');
 
   if (!data) return <EmptyOrForbidden />;
 
   return (
-    <div className="min-h-[100dvh] bg-white text-slate-900">
-      <ProcureGuardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={data.pending_review} accessView={data.actor.permissions.accessView} />
-      <header className="sticky top-0 z-20 border-b border-gray-100 bg-white/80 backdrop-blur-md">
+    <div className={`${embedded ? '' : 'min-h-[100dvh]'} bg-white text-slate-900`}>
+      {!embedded && <ProcureGuardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={data.pending_review} accessView={data.actor.permissions.accessView} />}
+      {!embedded && <header className="sticky top-0 z-20 border-b border-gray-100 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1320px] items-center gap-3 px-4 py-3">
           <button onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -227,14 +227,14 @@ export default function AdminAnalyticsClient({ data }: { data: ProcureGuardAdmin
             <p className="text-xs text-slate-500">Last 30 days · generated {fmtDateTime(data.generated_at)}</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <Link href="/procure-guard/admin" className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5">
+            <Link href="/admin?tool=procureguard-admin" className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5">
               Admin Panel
             </Link>
           </div>
         </div>
-      </header>
+      </header>}
 
-      <main className="mx-auto max-w-[1320px] px-4 py-5">
+      <main className={`${embedded ? '' : 'mx-auto max-w-[1320px] px-4 py-5'}`}>
         <section className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm font-black uppercase tracking-wide text-[#307c4c]">Usage Tracking</p>

@@ -55,7 +55,7 @@ export default function MyWorkClient({ data }: { data: ProcureGuardWorkQueueData
           <span className="text-[10px] font-extrabold tracking-tight text-white">PG</span>
         </div>
         <span className="text-sm font-semibold text-slate-900">My Work</span>
-        <Link href="/procure-guard/admin" className="ml-auto rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5">
+        <Link href="/admin?tool=procureguard-admin" className="ml-auto rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5">
           Change Test Role
         </Link>
       </header>
