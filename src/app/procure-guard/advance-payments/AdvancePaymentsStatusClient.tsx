@@ -68,8 +68,8 @@ export default function AdvancePaymentsStatusClient({ data }: { data: ProcureGua
       const matchesSearch = !q ||
         r.reference_number.toLowerCase().includes(q) ||
         r.vendor_name.toLowerCase().includes(q) ||
-        (r.contract_reference ?? '').toLowerCase().includes(q) ||
-        (r.po_number ?? '').toLowerCase().includes(q) ||
+        (r.requisition_number ?? '').toLowerCase().includes(q) ||
+        (r.country ?? '').toLowerCase().includes(q) ||
         (r.requested_by_name ?? '').toLowerCase().includes(q) ||
         r.requested_by_email.toLowerCase().includes(q) ||
         (r.rejection_reason ?? '').toLowerCase().includes(q) ||
@@ -128,7 +128,7 @@ export default function AdvancePaymentsStatusClient({ data }: { data: ProcureGua
               <p className="text-sm text-slate-500 mt-1">Supplier advances, prepayments, milestone deposits, and settlement tracking.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vendor, ref, contract…" className="w-full sm:w-72 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c]" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vendor, ref, country..." className="w-full sm:w-72 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c]" />
               <select value={status} onChange={e => setStatus(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
                 <option>All</option>
                 {ADVANCE_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
@@ -149,7 +149,7 @@ export default function AdvancePaymentsStatusClient({ data }: { data: ProcureGua
                   <th className="text-left px-5 py-3 font-semibold">Vendor</th>
                   <th className="text-left px-5 py-3 font-semibold">Amount</th>
                   <th className="text-left px-5 py-3 font-semibold">Status</th>
-                  <th className="text-left px-5 py-3 font-semibold">Settlement</th>
+                  <th className="text-left px-5 py-3 font-semibold">Country</th>
                   <th className="text-left px-5 py-3 font-semibold">Requester</th>
                   <th className="text-right px-5 py-3 font-semibold">Review</th>
                 </tr>
@@ -163,7 +163,7 @@ export default function AdvancePaymentsStatusClient({ data }: { data: ProcureGua
                       <Link href={`/procure-guard/advance-payments/${r.id}`} className="font-bold text-slate-900 hover:text-[#307c4c] hover:underline">
                         {r.reference_number}
                       </Link>
-                      <p className="text-xs text-slate-500 mt-1">Contract {r.contract_reference || '—'} · PO {r.po_number || '—'}</p>
+                      <p className="text-xs text-slate-500 mt-1">Req {r.requisition_number || 'N/A'}</p>
                       <p className="text-xs text-slate-400 mt-1">Created {fmtDate(r.created_at)}</p>
                     </td>
                     <td className="px-5 py-4 align-top">
@@ -173,13 +173,12 @@ export default function AdvancePaymentsStatusClient({ data }: { data: ProcureGua
                     </td>
                     <td className="px-5 py-4 align-top">
                       <p className="font-bold text-slate-900">{usdFmt(r.amount, r.currency)}</p>
-                      {r.advance_percentage !== null && <p className="text-xs text-slate-500">{Number(r.advance_percentage).toFixed(1)}% advance</p>}
                     </td>
                     <td className="px-5 py-4 align-top"><StatusPill status={r.status} /><RejectionContext request={r} /></td>
-                    <td className="px-5 py-4 align-top text-slate-600">{fmtDate(r.expected_settlement_date)}</td>
+                    <td className="px-5 py-4 align-top text-slate-600">{r.country || '-'}</td>
                     <td className="px-5 py-4 align-top">
                       <p className="text-slate-900">{r.requested_by_name || '—'}</p>
-                      <p className="text-xs text-slate-500">{r.department || r.requested_by_email}</p>
+                      <p className="text-xs text-slate-500">{r.requested_by_email}</p>
                     </td>
                     <td className="px-5 py-4 align-top text-right">
                       <Link href={`/procure-guard/advance-payments/${r.id}`} className="inline-flex min-w-[4.5rem] items-center justify-center whitespace-nowrap rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5">

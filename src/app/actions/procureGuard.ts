@@ -6,7 +6,8 @@ import type { QueryResultRow } from 'pg';
 import { revalidatePath } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
 import procureGuardPool from '@/lib/db-procureguard';
-import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, getCountryControllerEmail, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, toUsd } from '@/lib/procureGuard-utils';
+import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, getCountryControllerEmail, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, normalizeProcureGuardCountry, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, toUsd } from '@/lib/procureGuard-utils';
+import type { ProcureGuardAvailableActions } from '@/lib/procureGuard-utils';
 import type {
   ActionResult,
   AdminCreateAdhocPaymentInput,
@@ -204,6 +205,24 @@ function serialise<T>(value: unknown): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function normalisePaymentCountry<T extends { country?: string | null }>(row: T): T {
+  return { ...row, country: normalizeProcureGuardCountry(row.country) };
+}
+
+function normalisePaymentCountries<T extends { country?: string | null }>(rows: T[]): T[] {
+  return rows.map(row => normalisePaymentCountry(row));
+}
+
+function normalisePermissionCountry<T extends { country?: string | null }>(row: T): T {
+  return { ...row, country: normalizeProcureGuardCountry(row.country) };
+}
+
+function requireCountryOption(value: string | null | undefined, label = 'Country'): string {
+  const country = normalizeProcureGuardCountry(requireText(value, label));
+  if (!country) throw new Error(`${label} is required.`);
+  return country;
+}
+
 function stripEnvQuotes(value: string): string {
   const trimmed = value.trim();
   if (
@@ -228,7 +247,7 @@ async function getPermissionRowForEmail(email: string): Promise<ProcureGuardPerm
       `SELECT * FROM procure_guard_permissions WHERE email = ? LIMIT 1`,
       [email],
     );
-    return rows[0] ? serialise<ProcureGuardPermissionRow>(rows[0]) : null;
+    return rows[0] ? normalisePermissionCountry(serialise<ProcureGuardPermissionRow>(rows[0])) : null;
   } catch (err) {
     console.error('[getPermissionRowForEmail]', err);
     return null;
@@ -256,7 +275,7 @@ async function getActor(): Promise<ProcureGuardActor> {
     isAdmin: permissions.role === 'Admin',
     role: permissions.role,
     permissions,
-    country: permissionRow?.country ?? null,
+    country: normalizeProcureGuardCountry(permissionRow?.country),
     segment: permissionRow?.segment ?? null,
   };
 }
@@ -283,6 +302,7 @@ export async function canAccessProcureGuardApp(): Promise<boolean> {
 
 function scopedWhere(actor: ProcureGuardActor): { where: string; params: string[] } {
   if (!actor.permissions.canViewAll) return { where: 'WHERE requested_by_email = ?', params: [actor.email] };
+  if (actor.role === 'Admin') return { where: '', params: [] };
 
   const filters: string[] = [];
   const params: string[] = [];
@@ -295,6 +315,62 @@ function scopedWhere(actor: ProcureGuardActor): { where: string; params: string[
     params.push(actor.segment);
   }
   return { where: filters.length ? `WHERE ${filters.join(' AND ')}` : '', params };
+}
+
+function normaliseScopeValue(value: string | null | undefined): string {
+  const trimmed = (value ?? '').trim().toLowerCase();
+  const aliases: Record<string, string> = {
+    ksa: 'saudi arabia (ksa)',
+    'saudi arabia': 'saudi arabia (ksa)',
+    uae: 'united arab emirates (uae)',
+    'united arab emirates': 'united arab emirates (uae)',
+  };
+  return aliases[trimmed] ?? trimmed;
+}
+
+function actorCanAccessRequestScope(
+  actor: ProcureGuardActor,
+  request: { country?: string | null; segment?: string | null },
+): boolean {
+  if (actor.role === 'Admin') return true;
+
+  const countryOk = !actor.country || normalizeProcureGuardCountry(actor.country) === normalizeProcureGuardCountry(request.country);
+  const segmentOk = !actor.segment || normaliseScopeValue(actor.segment) === normaliseScopeValue(request.segment);
+  return countryOk && segmentOk;
+}
+
+function getScopeRestrictionMessage(
+  actor: ProcureGuardActor,
+  request: { country?: string | null; segment?: string | null },
+): string {
+  const actorCountry = actor.country?.trim();
+  const actorSegment = actor.segment?.trim();
+  const requestCountry = request.country?.trim() || 'an unassigned country';
+  const requestSegment = request.segment?.trim() || 'an unassigned segment';
+
+  if (actorCountry && normalizeProcureGuardCountry(actorCountry) !== normalizeProcureGuardCountry(request.country)) {
+    return `${actor.role} access is limited to ${actorCountry}. This request is for ${requestCountry}.`;
+  }
+  if (actorSegment && normaliseScopeValue(actorSegment) !== normaliseScopeValue(request.segment)) {
+    return `${actor.role} access is limited to ${actorSegment}. This request is for ${requestSegment}.`;
+  }
+  return `${actor.role} access is limited to your assigned scope.`;
+}
+
+function getScopedProcureGuardAvailableActions(
+  actor: ProcureGuardActor,
+  requestType: ProcureGuardRequestType,
+  request: { status: ProcureGuardStatus; amount?: number | string | null; currency?: string | null; country?: string | null; segment?: string | null },
+): ProcureGuardAvailableActions {
+  const actions = getProcureGuardAvailableActions(actor.permissions, requestType, request.status, request.amount, request.currency);
+  if (actorCanAccessRequestScope(actor, request)) return actions;
+
+  return {
+    ...actions,
+    canApprove: false,
+    canReject: false,
+    canMarkPaid: false,
+  };
 }
 
 async function requireAdminActor(): Promise<ProcureGuardActor> {
@@ -432,7 +508,7 @@ function getRequestDetailUrl(requestType: ProcureGuardRequestType, id: number): 
 }
 
 function countryRecipientKeys(country: string | null | undefined): string[] {
-  const raw = country?.trim();
+  const raw = normalizeProcureGuardCountry(country)?.trim();
   if (!raw) return [];
 
   const keys = new Set([raw]);
@@ -907,7 +983,7 @@ export async function getAdhocPayments(): Promise<AdhocPaymentRequest[] | null> 
        ORDER BY created_at DESC`,
       scope.params,
     );
-    return serialise<AdhocPaymentRequest[]>(rows);
+    return normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(rows));
   } catch (err) {
     console.error('[getAdhocPayments]', err);
     return null;
@@ -925,7 +1001,7 @@ export async function getAdhocPaymentsData(): Promise<ProcureGuardRequestListDat
        ORDER BY created_at DESC`,
       scope.params,
     );
-    return { actor, requests: serialise<AdhocPaymentRequest[]>(rows) };
+    return { actor, requests: normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(rows)) };
   } catch (err) {
     console.error('[getAdhocPaymentsData]', err);
     return null;
@@ -943,7 +1019,7 @@ export async function getAdvancePaymentRequestsData(): Promise<ProcureGuardReque
        ORDER BY created_at DESC`,
       scope.params,
     );
-    return { actor, requests: serialise<AdvancePaymentRequest[]>(rows) };
+    return { actor, requests: normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(rows)) };
   } catch (err) {
     console.error('[getAdvancePaymentRequestsData]', err);
     return null;
@@ -961,7 +1037,7 @@ export async function getAdvancePaymentRequests(): Promise<AdvancePaymentRequest
        ORDER BY created_at DESC`,
       scope.params,
     );
-    return serialise<AdvancePaymentRequest[]>(rows);
+    return normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(rows));
   } catch (err) {
     console.error('[getAdvancePaymentRequests]', err);
     return null;
@@ -977,18 +1053,18 @@ export async function getProcureGuardWorkQueueData(): Promise<ProcureGuardWorkQu
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
     ]);
-    const adhoc = serialise<AdhocPaymentRequest[]>(adhocRows);
-    const advance = serialise<AdvancePaymentRequest[]>(advanceRows);
+    const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
+    const advance = normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(advanceRows));
     const items = [
       ...adhoc.map(request => ({
         request_type: 'adhoc' as const,
         request,
-        actions: getProcureGuardAvailableActions(actor.permissions, 'adhoc', request.status, request.amount, request.currency),
+        actions: getScopedProcureGuardAvailableActions(actor, 'adhoc', request),
       })),
       ...advance.map(request => ({
         request_type: 'advance' as const,
         request,
-        actions: getProcureGuardAvailableActions(actor.permissions, 'advance', request.status, request.amount, request.currency),
+        actions: getScopedProcureGuardAvailableActions(actor, 'advance', request),
       })),
     ]
       .filter(item => item.actions.canApprove || item.actions.canReject || item.actions.canMarkPaid)
@@ -1049,8 +1125,11 @@ export async function getProcureGuardRequestDetail(
 
     if (!rows[0]) return null;
 
-    const request = serialise<AdhocPaymentRequest | AdvancePaymentRequest>(rows[0]);
+    const request = normalisePaymentCountry(serialise<AdhocPaymentRequest | AdvancePaymentRequest>(rows[0]));
     if (!actor.permissions.canViewAll && request.requested_by_email?.toLowerCase() !== actor.email.toLowerCase()) {
+      return null;
+    }
+    if (actor.permissions.canViewAll && !actorCanAccessRequestScope(actor, request)) {
       return null;
     }
 
@@ -1084,7 +1163,7 @@ export async function getProcureGuardRequestDetail(
       activity: serialise<ProcureGuardActivityRow[]>(activityRows),
       documents: serialise<ProcureGuardDocument[]>(documentRows),
       notification_contacts: notificationContacts,
-      actions: getProcureGuardAvailableActions(actor.permissions, requestType, request.status, request.amount, request.currency),
+      actions: getScopedProcureGuardAvailableActions(actor, requestType, request),
     };
   } catch (err) {
     console.error('[getProcureGuardRequestDetail]', err);
@@ -1117,8 +1196,8 @@ export async function getProcureGuardDashboardData(): Promise<ProcureGuardDashbo
       ),
     ]);
 
-    const adhoc = serialise<AdhocPaymentRequest[]>(adhocRows);
-    const advance = serialise<AdvancePaymentRequest[]>(advanceRows);
+    const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
+    const advance = normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(advanceRows));
     return {
       stats: buildStats(adhoc, advance),
       adhoc,
@@ -1148,9 +1227,9 @@ export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData 
       ),
     ]);
 
-    const adhoc = serialise<AdhocPaymentRequest[]>(adhocRows);
-    const advance = serialise<AdvancePaymentRequest[]>(advanceRows);
-    const permissions = serialise<ProcureGuardPermissionRow[]>(permissionRows);
+    const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
+    const advance = normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(advanceRows));
+    const permissions = normalisePaymentCountries(serialise<ProcureGuardPermissionRow[]>(permissionRows));
     return {
       actor,
       adhoc,
@@ -1175,8 +1254,8 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ORDER BY created_at DESC`),
     ]);
 
-    const adhoc = serialise<AdhocPaymentRequest[]>(adhocRows);
-    const advance = serialise<AdvancePaymentRequest[]>(advanceRows);
+    const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
+    const advance = normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(advanceRows));
     const all = [...adhoc, ...advance];
 
     const adhocVendors = new Map<string, ProcureGuardAnalyticsMetric>();
@@ -1432,7 +1511,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
     if (!actor.permissions.canCreateRequests) throw new Error('Request creation access is required.');
     const amount = validateMoney(input.amount);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
-    const country = requireText(input.country, 'Country');
+    const country = requireCountryOption(input.country);
     const segment = requireText(input.segment, 'Segment');
     const vendorName = requireText(input.vendor_name, 'ADHOC vendor name');
     const vendorTaxId = requireText(input.vendor_tax_id, 'Vendor tax ID');
@@ -1523,7 +1602,7 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
     if (!actor.permissions.canCreateRequests) throw new Error('Request creation access is required.');
     const amount = validateMoney(input.amount);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
-    const country = requireText(input.country, 'Country');
+    const country = requireCountryOption(input.country);
     const segment = requireText(input.segment, 'Segment');
     const sapVendorId = requireText(input.sap_vendor_id || input.vendor_code, 'SAP vendor ID');
     const vendorName = requireText(input.vendor_name, 'SAP vendor name');
@@ -1626,7 +1705,7 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
     const actor = await requireAdminActor();
     const amount = validateMoney(input.amount);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
-    const country = requireText(input.country, 'Country');
+    const country = requireCountryOption(input.country);
     const segment = requireText(input.segment, 'Segment');
     const vendorName = requireText(input.vendor_name, 'ADHOC vendor name');
     const vendorTaxId = requireText(input.vendor_tax_id, 'Vendor tax ID');
@@ -1717,7 +1796,7 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
     const actor = await requireAdminActor();
     const amount = validateMoney(input.amount);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
-    const country = requireText(input.country, 'Country');
+    const country = requireCountryOption(input.country);
     const segment = requireText(input.segment, 'Segment');
     const sapVendorId = requireText(input.sap_vendor_id || input.vendor_code, 'SAP vendor ID');
     const vendorName = requireText(input.vendor_name, 'SAP vendor name');
@@ -1906,6 +1985,13 @@ async function updateStatusCommon(input: {
       return {
         success: false,
         error: `${actor.role} cannot move this request from ${row.status} to ${input.status}. Change your test role in the admin permissions tab.`,
+      };
+    }
+
+    if (!actorCanAccessRequestScope(actor, row)) {
+      return {
+        success: false,
+        error: getScopeRestrictionMessage(actor, row),
       };
     }
   }
@@ -2167,7 +2253,7 @@ function serialiseProcureGuardAccessRequest(row: QueryResultRow): ProcureGuardAc
     status: row.status as ProcureGuardAccessRequestStatus,
     requested_role: normaliseProcureGuardRole(row.requested_role),
     approved_role: row.approved_role ? normaliseProcureGuardRole(row.approved_role) : null,
-    country: row.country ? String(row.country) : null,
+    country: normalizeProcureGuardCountry(row.country ? String(row.country) : null),
     segment: row.segment ? String(row.segment) : null,
     requested_at: row.requested_at instanceof Date ? row.requested_at.toISOString() : String(row.requested_at),
     reviewed_at: row.reviewed_at instanceof Date ? row.reviewed_at.toISOString() : (row.reviewed_at ?? null),
@@ -2242,7 +2328,7 @@ export async function getProcureGuardAccessRequests(): Promise<ProcureGuardAcces
         status: 'Approved',
         requested_role: role,
         approved_role: role,
-        country: row.country ? String(row.country) : null,
+        country: normalizeProcureGuardCountry(row.country ? String(row.country) : null),
         segment: row.segment ? String(row.segment) : null,
         requested_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
         reviewed_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
@@ -2286,6 +2372,7 @@ export async function approveProcureGuardAccess(input: {
     await ensureProcureGuardPermissionRoleValues();
     const email = requireText(input.userEmail, 'Email').toLowerCase();
     const role = normaliseProcureGuardRole(input.approvedRole);
+    const country = normalizeProcureGuardCountry(input.country);
 
     await exec(
       `INSERT INTO procure_guard_access_requests
@@ -2299,7 +2386,7 @@ export async function approveProcureGuardAccess(input: {
          reviewed_at = CURRENT_TIMESTAMP,
          reviewed_by = EXCLUDED.reviewed_by,
          notes = EXCLUDED.notes`,
-      [email, email, role, role, blankToNull(input.country), blankToNull(input.segment), input.reviewedBy, blankToNull(input.notes)],
+      [email, email, role, role, blankToNull(country), blankToNull(input.segment), input.reviewedBy, blankToNull(input.notes)],
     );
 
     await exec(
@@ -2310,7 +2397,7 @@ export async function approveProcureGuardAccess(input: {
          country = EXCLUDED.country,
          segment = EXCLUDED.segment,
          updated_at = CURRENT_TIMESTAMP`,
-      [email, null, role, blankToNull(input.country), blankToNull(input.segment)],
+      [email, null, role, blankToNull(country), blankToNull(input.segment)],
     );
 
     revalidateProcureGuardPaths();
@@ -2410,6 +2497,7 @@ export async function updateProcureGuardPermission(input: UpdateProcureGuardPerm
     await ensureProcureGuardPermissionRoleValues();
     const email = requireText(input.email, 'Email').toLowerCase();
     const role = input.role;
+    const country = normalizeProcureGuardCountry(input.country);
 
     if (!PERMISSION_ROLE_OPTIONS.includes(role)) {
       return { success: false, error: 'Choose a valid permission level.' };
@@ -2428,7 +2516,7 @@ export async function updateProcureGuardPermission(input: UpdateProcureGuardPerm
         email,
         blankToNull(input.name),
         role,
-        blankToNull(input.country),
+        blankToNull(country),
         blankToNull(input.segment),
       ],
     );

@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  fmtDate,
   fmtDateTime,
   getWorkflowSteps,
   getPriorityBadge,
@@ -258,7 +257,6 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
                 <Field label="Requisition Number" value={request.requisition_number} />
                 <Field label="Vendor" value={request.vendor_name} />
                 <Field label={isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID'} value={isAdvance ? request.sap_vendor_id || request.vendor_code : request.vendor_tax_id || request.vendor_code} />
-                <Field label="Supplier Email" value={request.supplier_email} />
                 <Field label="Requester" value={requester} />
                 <Field label="Requester Email" value={request.requested_by_email} />
                 <Field label="Country" value={request.country} />
@@ -271,26 +269,12 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
               <FieldGrid>
                 <Field label="Spend Category" value={request.spend_category || (isAdvance ? null : request.expense_category)} />
                 <Field label="Spend Value USD" value={request.spend_value_usd === null ? usdFmt(request.amount, 'USD') : usdFmt(request.spend_value_usd)} />
-                <Field label="Department" value={request.department} />
-                <Field label="Business Unit" value={request.business_unit} />
-                <Field label="Cost Center" value={request.cost_center} />
-                <Field label="Project Code" value={request.project_code} />
-                <Field label="PO Number" value={request.po_number} />
                 {isAdvance ? (
                   <>
-                    <Field label="Contract Reference" value={request.contract_reference} />
-                    <Field label="Contract Value" value={request.contract_value === null ? null : usdFmt(request.contract_value, request.currency)} />
-                    <Field label="Advance Percentage" value={request.advance_percentage === null ? null : `${Number(request.advance_percentage).toFixed(1)}%`} />
                     <Field label="Payment Terms Days" value={request.current_payment_terms_days} />
                     <Field label="Credit Limit USD" value={request.current_credit_limit_usd === null ? null : usdFmt(request.current_credit_limit_usd)} />
                   </>
-                ) : (
-                  <>
-                    <Field label="Invoice Number" value={request.invoice_number} />
-                    <Field label="Expense Category" value={request.expense_category} />
-                    <Field label="Payment Method" value={request.payment_method} />
-                  </>
-                )}
+                ) : null}
               </FieldGrid>
             </Section>
 
@@ -298,17 +282,11 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
               {isAdvance ? (
                 <FieldGrid>
                   <Field label="Reason / Justification" value={request.advance_purpose || request.justification} />
-                  <Field label="Recovery Method" value={request.recovery_method} />
-                  <Field label="Expected Invoice Date" value={fmtDate(request.expected_invoice_date)} />
-                  <Field label="Expected Settlement Date" value={fmtDate(request.expected_settlement_date)} />
-                  <Field label="Justification" value={request.justification} />
                   <Field label="Requester Comments" value={request.requester_comments || request.notes} />
                 </FieldGrid>
               ) : (
                 <FieldGrid>
                   <Field label="Reason / Justification" value={request.payment_reason || request.justification} />
-                  <Field label="Due Date" value={fmtDate(request.due_date)} />
-                  <Field label="Justification" value={request.justification} />
                   <Field label="Requester Comments" value={request.requester_comments || request.notes} />
                   <Field label="Acknowledged At" value={fmtDateTime(request.acknowledged_at)} />
                 </FieldGrid>

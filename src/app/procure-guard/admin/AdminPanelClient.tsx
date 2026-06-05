@@ -96,9 +96,6 @@ function AdhocForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; o
     requesterEmail: actor.email,
     paymentReason: '',
     justification: '',
-    invoiceNumber: '',
-    poNumber: '',
-    department: '',
   });
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -128,10 +125,6 @@ function AdhocForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; o
       requested_by_email: form.requesterEmail,
       payment_reason: form.paymentReason,
       justification: form.justification,
-      invoice_number: form.invoiceNumber,
-      po_number: form.poNumber,
-      department: form.department,
-      payment_method: 'Bank Transfer',
     };
 
     startTransition(async () => {
@@ -141,7 +134,7 @@ function AdhocForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; o
         return;
       }
       onDone(`Created ${result.reference_number}.`);
-      setForm(prev => ({ ...prev, requisitionNumber: '', vendorName: '', vendorTaxId: '', amount: '', paymentReason: '', justification: '', invoiceNumber: '', poNumber: '' }));
+      setForm(prev => ({ ...prev, requisitionNumber: '', vendorName: '', vendorTaxId: '', amount: '', paymentReason: '', justification: '' }));
       router.refresh();
     });
   }
@@ -196,12 +189,6 @@ function AdhocForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; o
         <Field label="Requester Email">
           <input className={inputClass} value={form.requesterEmail} onChange={e => update('requesterEmail', e.target.value)} required />
         </Field>
-        <Field label="Invoice">
-          <input className={inputClass} value={form.invoiceNumber} onChange={e => update('invoiceNumber', e.target.value)} />
-        </Field>
-        <Field label="PO">
-          <input className={inputClass} value={form.poNumber} onChange={e => update('poNumber', e.target.value)} />
-        </Field>
         <div className="md:col-span-2">
           <Field label="Reason">
             <input className={inputClass} value={form.paymentReason} onChange={e => update('paymentReason', e.target.value)} required />
@@ -237,10 +224,6 @@ function AdvanceForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor'];
     requesterEmail: actor.email,
     advancePurpose: '',
     justification: '',
-    contractReference: '',
-    poNumber: '',
-    contractValue: '',
-    advancePercentage: '',
   });
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -271,11 +254,6 @@ function AdvanceForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor'];
       requested_by_email: form.requesterEmail,
       advance_purpose: form.advancePurpose,
       justification: form.justification,
-      contract_reference: form.contractReference,
-      po_number: form.poNumber,
-      contract_value: form.contractValue ? Number(form.contractValue) : undefined,
-      advance_percentage: form.advancePercentage ? Number(form.advancePercentage) : undefined,
-      recovery_method: 'Manual reconciliation',
     };
 
     startTransition(async () => {
@@ -285,7 +263,7 @@ function AdvanceForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor'];
         return;
       }
       onDone(`Created ${result.reference_number}.`);
-      setForm(prev => ({ ...prev, requisitionNumber: '', vendorName: '', sapVendorId: '', amount: '', advancePurpose: '', justification: '', contractReference: '', poNumber: '', contractValue: '', advancePercentage: '' }));
+      setForm(prev => ({ ...prev, requisitionNumber: '', vendorName: '', sapVendorId: '', amount: '', advancePurpose: '', justification: '' }));
       router.refresh();
     });
   }
@@ -339,18 +317,6 @@ function AdvanceForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor'];
         </Field>
         <Field label="Requester Email">
           <input className={inputClass} value={form.requesterEmail} onChange={e => update('requesterEmail', e.target.value)} required />
-        </Field>
-        <Field label="Contract">
-          <input className={inputClass} value={form.contractReference} onChange={e => update('contractReference', e.target.value)} />
-        </Field>
-        <Field label="PO">
-          <input className={inputClass} value={form.poNumber} onChange={e => update('poNumber', e.target.value)} />
-        </Field>
-        <Field label="Contract Value">
-          <input className={inputClass} type="number" min="0" step="0.01" value={form.contractValue} onChange={e => update('contractValue', e.target.value)} />
-        </Field>
-        <Field label="Advance %">
-          <input className={inputClass} type="number" min="0" max="100" step="0.01" value={form.advancePercentage} onChange={e => update('advancePercentage', e.target.value)} />
         </Field>
         <Field label="Payment Terms">
           <input className={inputClass} type="number" min="0" step="1" value={form.paymentTermsDays} onChange={e => update('paymentTermsDays', e.target.value)} required />
@@ -564,10 +530,16 @@ function PermissionEditor({ row, onDone }: { row?: ProcureGuardPermissionRow; on
           </select>
         </Field>
         <Field label="Country Scope">
-          <input className={inputClass} value={country} onChange={e => setCountry(e.target.value)} placeholder="Optional" />
+          <select className={inputClass} value={country} onChange={e => setCountry(e.target.value)}>
+            <option value="">All countries</option>
+            {COUNTRY_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}
+          </select>
         </Field>
         <Field label="Segment Scope">
-          <input className={inputClass} value={segment} onChange={e => setSegment(e.target.value)} placeholder="Optional" />
+          <select className={inputClass} value={segment} onChange={e => setSegment(e.target.value)}>
+            <option value="">All segments</option>
+            {SEGMENT_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}
+          </select>
         </Field>
         <button type="button" disabled={isPending || !email.trim()} onClick={save} className="rounded-lg bg-[#307c4c] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#307c4c]/80 disabled:opacity-60">
           {isPending ? 'Saving' : 'Save'}

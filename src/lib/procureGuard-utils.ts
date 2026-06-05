@@ -327,10 +327,6 @@ export const COUNTRY_CONTROLLER_EMAILS: Record<string, string> = {
   Libya: 'libya.controller@nesr.local',
   Chad: 'chad.controller@nesr.local',
   Congo: 'congo.controller@nesr.local',
-  USA: 'usa.controller@nesr.local',
-  UK: 'uk.controller@nesr.local',
-  Germany: 'germany.controller@nesr.local',
-  France: 'france.controller@nesr.local',
   Other: 'corporate.controller@nesr.local',
 };
 
@@ -359,12 +355,22 @@ export const COUNTRY_OPTIONS = [
   'Libya',
   'Chad',
   'Congo',
-  'USA',
-  'UK',
-  'Germany',
-  'France',
   'Other',
 ];
+
+export function normalizeProcureGuardCountry(value: string | null | undefined): string | null {
+  const raw = (value ?? '').trim();
+  if (!raw) return null;
+
+  const aliases: Record<string, string> = {
+    ksa: 'Saudi Arabia (KSA)',
+    'saudi arabia': 'Saudi Arabia (KSA)',
+    uae: 'United Arab Emirates (UAE)',
+    'united arab emirates': 'United Arab Emirates (UAE)',
+  };
+  const aliased = aliases[raw.toLowerCase()] ?? raw;
+  return COUNTRY_OPTIONS.includes(aliased) ? aliased : 'Other';
+}
 
 export function usdFmt(value: number | string | null | undefined, currency = 'USD'): string {
   const n = Number(value) || 0;
@@ -497,7 +503,8 @@ export function getStatusOptionsForRequestType(requestType: 'adhoc' | 'advance')
 }
 
 export function getCountryControllerEmail(country: string | null | undefined): string {
-  return COUNTRY_CONTROLLER_EMAILS[country || ''] ?? COUNTRY_CONTROLLER_EMAILS.Other;
+  const normalizedCountry = normalizeProcureGuardCountry(country);
+  return COUNTRY_CONTROLLER_EMAILS[normalizedCountry || ''] ?? COUNTRY_CONTROLLER_EMAILS.Other;
 }
 
 export function fmtDate(value: string | null | undefined): string {
