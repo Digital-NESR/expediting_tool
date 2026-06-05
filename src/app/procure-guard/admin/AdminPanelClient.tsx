@@ -78,7 +78,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function AdhocForm({ onDone }: { onDone: (message: string) => void }) {
+function AdhocForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; onDone: (message: string) => void }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState('');
@@ -92,8 +92,8 @@ function AdhocForm({ onDone }: { onDone: (message: string) => void }) {
     spendCategory: 'Services',
     status: 'Submitted' as ProcureGuardStatus,
     priority: 'Normal' as ProcureGuardPriority,
-    requesterName: 'Carlos Morales',
-    requesterEmail: 'cmorales@nesr.com',
+    requesterName: actor.name,
+    requesterEmail: actor.email,
     paymentReason: '',
     justification: '',
     invoiceNumber: '',
@@ -217,7 +217,7 @@ function AdhocForm({ onDone }: { onDone: (message: string) => void }) {
   );
 }
 
-function AdvanceForm({ onDone }: { onDone: (message: string) => void }) {
+function AdvanceForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; onDone: (message: string) => void }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState('');
@@ -233,8 +233,8 @@ function AdvanceForm({ onDone }: { onDone: (message: string) => void }) {
     creditLimitUsd: '0',
     status: 'Submitted' as ProcureGuardStatus,
     priority: 'Normal' as ProcureGuardPriority,
-    requesterName: 'Carlos Morales',
-    requesterEmail: 'cmorales@nesr.com',
+    requesterName: actor.name,
+    requesterEmail: actor.email,
     advancePurpose: '',
     justification: '',
     contractReference: '',
@@ -845,8 +845,8 @@ export default function AdminPanelClient({ data }: { data: ProcureGuardAdminData
         )}
 
         {isFullAdmin && <section className="mt-5 grid grid-cols-1 gap-4">
-          <AdhocForm onDone={setNotice} />
-          <AdvanceForm onDone={setNotice} />
+          <AdhocForm actor={data.actor} onDone={setNotice} />
+          <AdvanceForm actor={data.actor} onDone={setNotice} />
         </section>}
 
         <section className="mt-6">

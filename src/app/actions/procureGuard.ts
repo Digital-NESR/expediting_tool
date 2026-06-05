@@ -168,7 +168,7 @@ function stripEnvQuotes(value: string): string {
 }
 
 function adminEmails(): string[] {
-  return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.PROCURE_GUARD_ADMIN_EMAILS ?? ''},cmorales@nesr.com`)
+  return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.PROCURE_GUARD_ADMIN_EMAILS ?? ''}`)
     .split(',')
     .map(e => e.trim().toLowerCase())
     .filter(Boolean);

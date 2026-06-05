@@ -696,7 +696,6 @@ export default function HomePage() {
   const department = session?.user?.department;
 
   const isAdmin = session?.user?.isAdmin ?? false;
-  const isProcureGuardAdmin = userEmail.toLowerCase() === 'cmorales@nesr.com';
   const poStatus: ToolStatus   = session?.user?.toolAccess?.po_expediting?.status ?? 'new';
   const titeStatus: ToolStatus = session?.user?.toolAccess?.tite?.status          ?? 'new';
 
@@ -719,7 +718,7 @@ export default function HomePage() {
   }
 
   function handleProcureGuardClick() {
-    if (isProcureGuardAdmin) {
+    if (isAdmin) {
       router.push('/procure-guard');
     }
   }
@@ -792,7 +791,7 @@ export default function HomePage() {
           />
 
           <ProcureGuardCard
-            canOpen={isProcureGuardAdmin}
+            canOpen={isAdmin}
             onClick={handleProcureGuardClick}
           />
 
