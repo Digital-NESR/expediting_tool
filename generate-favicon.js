@@ -28,5 +28,3 @@ async function makeCircle() {
 }
 
 makeCircle().catch(console.error);
-
-// Hi its carlos
