@@ -234,6 +234,23 @@ function stripEnvQuotes(value: string): string {
   return trimmed;
 }
 
+function isTlsCertificateError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err ?? '');
+  const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
+  return code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+    || code === 'SELF_SIGNED_CERT_IN_CHAIN'
+    || code === 'DEPTH_ZERO_SELF_SIGNED_CERT'
+    || message.toLowerCase().includes('unable to verify')
+    || message.toLowerCase().includes('self-signed certificate');
+}
+
+function procureGuardWebhookErrorMessage(err: unknown): string {
+  if (isTlsCertificateError(err)) {
+    return 'TLS certificate verification failed for n8n even though ProcureGuard is configured to bypass TLS verification for webhook calls.';
+  }
+  return err instanceof Error ? err.message : 'ProcureGuard n8n webhook failed.';
+}
+
 function adminEmails(): string[] {
   return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.PROCURE_GUARD_ADMIN_EMAILS ?? ''}`)
     .split(',')
@@ -684,7 +701,6 @@ async function postProcureGuardWebhook(
   const url = new URL(stripEnvQuotes(webhookUrl));
   const body = JSON.stringify(payload);
   const isHttps = url.protocol === 'https:';
-  const allowInsecureTls = process.env.N8N_PROCUREGUARD_ALLOW_INSECURE_TLS === 'true';
 
   return new Promise((resolve, reject) => {
     const request = (isHttps ? httpsRequest : httpRequest)({
@@ -697,7 +713,7 @@ async function postProcureGuardWebhook(
         ...headers,
         'Content-Length': Buffer.byteLength(body),
       },
-      rejectUnauthorized: isHttps && allowInsecureTls ? false : undefined,
+      rejectUnauthorized: isHttps ? false : undefined,
     }, response => {
       response.resume();
       response.on('end', () => {
@@ -855,7 +871,7 @@ async function notifyProcureGuardNextApprover(input: {
       });
     }
   } catch (err) {
-    console.error('[ProcureGuard n8n] Webhook notification failed', err);
+    console.error('[ProcureGuard n8n] Webhook notification failed', procureGuardWebhookErrorMessage(err), err);
   }
 }
 
@@ -2320,7 +2336,7 @@ export async function testProcureGuardN8nWebhook(): Promise<ActionResult<{
     console.error('[testProcureGuardN8nWebhook]', err);
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Failed to test ProcureGuard n8n webhook.',
+      error: procureGuardWebhookErrorMessage(err),
     };
   }
 }
