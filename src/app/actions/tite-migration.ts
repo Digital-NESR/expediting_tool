@@ -96,19 +96,20 @@ function excelSerialToDate(serial: number): string | null {
 }
 
 /**
- * Parse a date value coming from an Excel migration row into YYYY-MM-DD, or null.
+ * Parse a date value from an Excel migration row into YYYY-MM-DD, or null.
+ * Used internally for import_date, expiry_date, and extended_date columns.
  *
- * Handled formats (tried in order):
- *   - Native JS number              → Excel serial (e.g. 44927 → 2023-01-01)
- *   - null / "" / "—" / "="…       → null
- *   - YYYY-MM-DD                    → pass-through
- *   - DD/Mon/YY  or DD/Mon/YYYY     → e.g. "27/Apr/16" → 2016-04-27
- *   - DD-Mon-YY  or DD-Mon-YYYY     → e.g. "23-Jan-27" → 2027-01-23
- *   - DD/MM/YYYY                    → e.g. "15/06/2023" → 2023-06-15
- *   - DD-MM-YYYY                    → e.g. "15-06-2023" → 2023-06-15
- *   - Numeric string                → Excel serial fallback
+ * Formats handled (tried in order):
+ *   - Native JS number          → Excel serial  (e.g. 44927  → 2023-01-01)
+ *   - null / "" / "—" / "="…   → null
+ *   - YYYY-MM-DD                → pass-through
+ *   - DD/Mon/YY or DD/Mon/YYYY  → e.g. "27/Apr/16" → 2016-04-27
+ *   - DD-Mon-YY or DD-Mon-YYYY  → e.g. "23-Jan-27" → 2027-01-23
+ *   - DD/MM/YYYY                → e.g. "15/06/2023" → 2023-06-15
+ *   - DD-MM-YYYY                → e.g. "15-06-2023" → 2023-06-15
+ *   - Numeric string            → Excel serial fallback
  */
-export function parseDateFlexible(value: any): string | null {
+function parseDateFlexible(value: any): string | null {
   if (value == null) return null;
 
   // Native number (XLSX library returns these for unformatted date cells)
