@@ -33,6 +33,17 @@ function textValue(value: DetailValue) {
   return String(value);
 }
 
+function pdfValue(value: DetailValue) {
+  return textValue(value).replace(/\s+/g, ' ').trim();
+}
+
+function safeFileName(value: string) {
+  return value
+    .replace(/[^a-z0-9._-]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120) || 'procureguard-request';
+}
+
 function Field({ label, value }: { label: string; value: DetailValue }) {
   return (
     <div>
@@ -142,6 +153,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [highlightDecision, setHighlightDecision] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isPending, startTransition] = useTransition();
   const decisionRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -184,6 +196,142 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
     });
   }
 
+  async function exportRequestPdf() {
+    setError('');
+    setIsExportingPdf(true);
+
+    try {
+      const [{ jsPDF }, autoTableModule] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ]);
+      const autoTable = autoTableModule.default;
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 40;
+      let cursorY = 40;
+
+      const addFooter = () => {
+        const pageCount = doc.getNumberOfPages();
+        for (let page = 1; page <= pageCount; page += 1) {
+          doc.setPage(page);
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`ProcureGuard export | ${request.reference_number} | Page ${page} of ${pageCount}`, margin, doc.internal.pageSize.getHeight() - 24);
+        }
+      };
+
+      const addTable = (title: string, rows: Array<[string, DetailValue]>) => {
+        const visibleRows = rows.map(([label, value]) => [label, pdfValue(value)]);
+        if (visibleRows.length === 0) return;
+
+        doc.setFontSize(11);
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'bold');
+        doc.text(title, margin, cursorY);
+        cursorY += 8;
+
+        autoTable(doc, {
+          startY: cursorY,
+          margin: { left: margin, right: margin },
+          body: visibleRows,
+          theme: 'grid',
+          styles: {
+            font: 'helvetica',
+            fontSize: 8.5,
+            cellPadding: 5,
+            lineColor: [226, 232, 240],
+            lineWidth: 0.4,
+            textColor: [15, 23, 42],
+            valign: 'top',
+          },
+          columnStyles: {
+            0: { cellWidth: 145, fontStyle: 'bold', fillColor: [248, 250, 252], textColor: [71, 85, 105] },
+            1: { cellWidth: pageWidth - margin * 2 - 145 },
+          },
+          alternateRowStyles: { fillColor: [255, 255, 255] },
+        });
+
+        cursorY = ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? cursorY) + 20;
+      };
+
+      doc.setFillColor(48, 124, 76);
+      doc.rect(0, 0, pageWidth, 78, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.text('NESR ProcureGuard', margin, 34);
+      doc.setFontSize(12);
+      doc.text(`${requestLabel} Log Export`, margin, 56);
+      doc.setFontSize(9);
+      doc.text(`Generated ${fmtDateTime(new Date().toISOString())}`, pageWidth - margin, 34, { align: 'right' });
+
+      cursorY = 104;
+      addTable('Request Summary', [
+        ['Reference Number', request.reference_number],
+        ['Request Type', requestLabel],
+        ['Status', request.status],
+        ['Priority', request.priority],
+        ['Original Amount', usdFmt(request.amount, request.currency)],
+        ['USD Equivalent', usdEquivalentFmt(request.amount, request.currency)],
+        ['Created', fmtDateTime(request.created_at)],
+        ['Updated', fmtDateTime(request.updated_at)],
+      ]);
+
+      addTable('Vendor And Requester', [
+        ['Requisition Number', request.requisition_number],
+        ['Vendor', request.vendor_name],
+        [isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID', isAdvance ? request.sap_vendor_id || request.vendor_code : request.vendor_tax_id || request.vendor_code],
+        ['Requester', requester],
+        ['Requester Email', request.requested_by_email],
+        ['Country', request.country],
+        ['Segment', request.segment],
+        ['CC Email', request.cc_email],
+      ]);
+
+      addTable('Request Details', [
+        ['Spend Category', request.spend_category || (isAdvance ? null : request.expense_category)],
+        ['Spend Value USD', request.spend_value_usd === null ? usdFmt(request.amount, 'USD') : usdFmt(request.spend_value_usd)],
+        ...(isAdvance
+          ? [
+              ['Payment Terms Days', request.current_payment_terms_days],
+              ['Credit Limit USD', request.current_credit_limit_usd === null ? null : usdFmt(request.current_credit_limit_usd)],
+              ['Reason / Justification', request.advance_purpose || request.justification],
+              ['Requester Comments', request.requester_comments || request.notes],
+            ] satisfies Array<[string, DetailValue]>
+          : [
+              ['Reason / Justification', request.payment_reason || request.justification],
+              ['Requester Comments', request.requester_comments || request.notes],
+              ['Acknowledged At', fmtDateTime(request.acknowledged_at)],
+            ] satisfies Array<[string, DetailValue]>),
+      ]);
+
+      addTable('Review And Payment', [
+        ['Reviewed By', request.reviewed_by_name || request.reviewed_by_email],
+        ['Reviewed At', fmtDateTime(request.reviewed_at)],
+        ['Paid At', fmtDateTime(request.paid_at)],
+        ['Rejection Reason', request.rejection_reason],
+        ['Latest Review Comment', request.review_comments],
+      ]);
+
+      addTable('Attachments', documents.length
+        ? documents.map(docRow => [docRow.original_name || docRow.document_name, `${fileBadgeLabel(docRow.file_type)} | ${fmtBytes(docRow.file_size)} | Uploaded by ${docRow.uploaded_by_name || docRow.uploaded_by_email || 'Unknown'}`])
+        : [['Attachments', 'No attachments uploaded.']]);
+
+      addTable('Activity Log', activity.length
+        ? activity.map(item => [fmtDateTime(item.created_at), `${item.action}${item.actor_name || item.actor_email ? ` by ${item.actor_name || item.actor_email}` : ''}${item.notes ? ` | ${item.notes}` : ''}`])
+        : [['Activity', 'No activity has been recorded yet.']]);
+
+      addFooter();
+      doc.save(`${safeFileName(request.reference_number)}-${requestType}-log.pdf`);
+    } catch (err) {
+      console.error('[ProcureGuard PDF export]', err);
+      setError(err instanceof Error ? err.message : 'PDF export failed.');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }
+
   return (
     <div className="min-h-[100dvh] bg-white font-sans text-slate-900">
       <ProcureGuardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={pendingCount} accessView={data.actor.permissions.accessView} />
@@ -198,7 +346,15 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           <span className="text-[10px] font-extrabold tracking-tight text-white">PG</span>
         </div>
         <span className="text-sm font-semibold text-slate-900">{requestLabel} Detail</span>
-        <Link href={listHref} className="ml-auto rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5">
+        <button
+          type="button"
+          onClick={exportRequestPdf}
+          disabled={isExportingPdf}
+          className="ml-auto rounded-md border border-[#307c4c]/30 bg-white px-3 py-1.5 text-xs font-bold text-[#307c4c] shadow-sm hover:bg-[#307c4c]/5 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isExportingPdf ? 'Exporting...' : 'Export PDF'}
+        </button>
+        <Link href={listHref} className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5">
           Back to list
         </Link>
       </header>
