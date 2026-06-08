@@ -23,6 +23,25 @@ import ProcureGuardNotificationContactsPanel from './ProcureGuardNotificationCon
 import { updateAdhocPaymentStatus, updateAdvancePaymentStatus } from '@/app/actions/procureGuard';
 
 type DetailValue = string | number | null | undefined;
+type PdfSectionKey = 'summary' | 'vendor' | 'details' | 'review' | 'attachments' | 'activity';
+
+const PDF_SECTION_OPTIONS: Array<{ key: PdfSectionKey; label: string; description: string }> = [
+  { key: 'summary', label: 'Request summary', description: 'Reference, status, amount, and dates.' },
+  { key: 'vendor', label: 'Vendor and requester', description: 'Vendor, requester, country, segment, and CC email.' },
+  { key: 'details', label: 'Request details', description: 'Spend category, justification, and request comments.' },
+  { key: 'review', label: 'Review and payment', description: 'Reviewer, rejection, payment, and review comments.' },
+  { key: 'attachments', label: 'Attachments', description: 'Uploaded file names and upload details.' },
+  { key: 'activity', label: 'Activity log', description: 'Timeline of meaningful request activity.' },
+];
+
+const DEFAULT_PDF_SECTIONS: Record<PdfSectionKey, boolean> = {
+  summary: true,
+  vendor: true,
+  details: true,
+  review: true,
+  attachments: true,
+  activity: true,
+};
 
 function isAdvanceRequest(request: AdhocPaymentRequest | AdvancePaymentRequest): request is AdvancePaymentRequest {
   return 'advance_purpose' in request;
@@ -154,6 +173,8 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
   const [error, setError] = useState('');
   const [highlightDecision, setHighlightDecision] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
+  const [pdfSections, setPdfSections] = useState(DEFAULT_PDF_SECTIONS);
   const [isPending, startTransition] = useTransition();
   const decisionRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -165,6 +186,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
   const pendingCount = isActiveApprovalStatus(request.status) ? 1 : 0;
   const canCancel = request.requested_by_email === actor.email && isActiveApprovalStatus(request.status);
   const hasDecisionActions = actions.canApprove || actions.canReject || actions.canMarkPaid || canCancel;
+  const selectedPdfSectionCount = PDF_SECTION_OPTIONS.filter(option => pdfSections[option.key]).length;
 
   function jumpToDecision() {
     decisionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -196,8 +218,23 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
     });
   }
 
+  function setAllPdfSections(value: boolean) {
+    setPdfSections({
+      summary: value,
+      vendor: value,
+      details: value,
+      review: value,
+      attachments: value,
+      activity: value,
+    });
+  }
+
   async function exportRequestPdf() {
     setError('');
+    if (selectedPdfSectionCount === 0) {
+      setError('Choose at least one section to export.');
+      return;
+    }
     setIsExportingPdf(true);
 
     try {
@@ -267,63 +304,76 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
       doc.text(`Generated ${fmtDateTime(new Date().toISOString())}`, pageWidth - margin, 34, { align: 'right' });
 
       cursorY = 104;
-      addTable('Request Summary', [
-        ['Reference Number', request.reference_number],
-        ['Request Type', requestLabel],
-        ['Status', request.status],
-        ['Priority', request.priority],
-        ['Original Amount', usdFmt(request.amount, request.currency)],
-        ['USD Equivalent', usdEquivalentFmt(request.amount, request.currency)],
-        ['Created', fmtDateTime(request.created_at)],
-        ['Updated', fmtDateTime(request.updated_at)],
-      ]);
+      if (pdfSections.summary) {
+        addTable('Request Summary', [
+          ['Reference Number', request.reference_number],
+          ['Request Type', requestLabel],
+          ['Status', request.status],
+          ['Priority', request.priority],
+          ['Original Amount', usdFmt(request.amount, request.currency)],
+          ['USD Equivalent', usdEquivalentFmt(request.amount, request.currency)],
+          ['Created', fmtDateTime(request.created_at)],
+          ['Updated', fmtDateTime(request.updated_at)],
+        ]);
+      }
 
-      addTable('Vendor And Requester', [
-        ['Requisition Number', request.requisition_number],
-        ['Vendor', request.vendor_name],
-        [isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID', isAdvance ? request.sap_vendor_id || request.vendor_code : request.vendor_tax_id || request.vendor_code],
-        ['Requester', requester],
-        ['Requester Email', request.requested_by_email],
-        ['Country', request.country],
-        ['Segment', request.segment],
-        ['CC Email', request.cc_email],
-      ]);
+      if (pdfSections.vendor) {
+        addTable('Vendor And Requester', [
+          ['Requisition Number', request.requisition_number],
+          ['Vendor', request.vendor_name],
+          [isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID', isAdvance ? request.sap_vendor_id || request.vendor_code : request.vendor_tax_id || request.vendor_code],
+          ['Requester', requester],
+          ['Requester Email', request.requested_by_email],
+          ['Country', request.country],
+          ['Segment', request.segment],
+          ['CC Email', request.cc_email],
+        ]);
+      }
 
-      addTable('Request Details', [
-        ['Spend Category', request.spend_category || (isAdvance ? null : request.expense_category)],
-        ['Spend Value USD', request.spend_value_usd === null ? usdFmt(request.amount, 'USD') : usdFmt(request.spend_value_usd)],
-        ...(isAdvance
-          ? [
-              ['Payment Terms Days', request.current_payment_terms_days],
-              ['Credit Limit USD', request.current_credit_limit_usd === null ? null : usdFmt(request.current_credit_limit_usd)],
-              ['Reason / Justification', request.advance_purpose || request.justification],
-              ['Requester Comments', request.requester_comments || request.notes],
-            ] satisfies Array<[string, DetailValue]>
-          : [
-              ['Reason / Justification', request.payment_reason || request.justification],
-              ['Requester Comments', request.requester_comments || request.notes],
-              ['Acknowledged At', fmtDateTime(request.acknowledged_at)],
-            ] satisfies Array<[string, DetailValue]>),
-      ]);
+      if (pdfSections.details) {
+        addTable('Request Details', [
+          ['Spend Category', request.spend_category || (isAdvance ? null : request.expense_category)],
+          ['Spend Value USD', request.spend_value_usd === null ? usdFmt(request.amount, 'USD') : usdFmt(request.spend_value_usd)],
+          ...(isAdvance
+            ? [
+                ['Payment Terms Days', request.current_payment_terms_days],
+                ['Credit Limit USD', request.current_credit_limit_usd === null ? null : usdFmt(request.current_credit_limit_usd)],
+                ['Reason / Justification', request.advance_purpose || request.justification],
+                ['Requester Comments', request.requester_comments || request.notes],
+              ] satisfies Array<[string, DetailValue]>
+            : [
+                ['Reason / Justification', request.payment_reason || request.justification],
+                ['Requester Comments', request.requester_comments || request.notes],
+                ['Acknowledged At', fmtDateTime(request.acknowledged_at)],
+              ] satisfies Array<[string, DetailValue]>),
+        ]);
+      }
 
-      addTable('Review And Payment', [
-        ['Reviewed By', request.reviewed_by_name || request.reviewed_by_email],
-        ['Reviewed At', fmtDateTime(request.reviewed_at)],
-        ['Paid At', fmtDateTime(request.paid_at)],
-        ['Rejection Reason', request.rejection_reason],
-        ['Latest Review Comment', request.review_comments],
-      ]);
+      if (pdfSections.review) {
+        addTable('Review And Payment', [
+          ['Reviewed By', request.reviewed_by_name || request.reviewed_by_email],
+          ['Reviewed At', fmtDateTime(request.reviewed_at)],
+          ['Paid At', fmtDateTime(request.paid_at)],
+          ['Rejection Reason', request.rejection_reason],
+          ['Latest Review Comment', request.review_comments],
+        ]);
+      }
 
-      addTable('Attachments', documents.length
-        ? documents.map(docRow => [docRow.original_name || docRow.document_name, `${fileBadgeLabel(docRow.file_type)} | ${fmtBytes(docRow.file_size)} | Uploaded by ${docRow.uploaded_by_name || docRow.uploaded_by_email || 'Unknown'}`])
-        : [['Attachments', 'No attachments uploaded.']]);
+      if (pdfSections.attachments) {
+        addTable('Attachments', documents.length
+          ? documents.map(docRow => [docRow.original_name || docRow.document_name, `${fileBadgeLabel(docRow.file_type)} | ${fmtBytes(docRow.file_size)} | Uploaded by ${docRow.uploaded_by_name || docRow.uploaded_by_email || 'Unknown'}`])
+          : [['Attachments', 'No attachments uploaded.']]);
+      }
 
-      addTable('Activity Log', activity.length
-        ? activity.map(item => [fmtDateTime(item.created_at), `${item.action}${item.actor_name || item.actor_email ? ` by ${item.actor_name || item.actor_email}` : ''}${item.notes ? ` | ${item.notes}` : ''}`])
-        : [['Activity', 'No activity has been recorded yet.']]);
+      if (pdfSections.activity) {
+        addTable('Activity Log', activity.length
+          ? activity.map(item => [fmtDateTime(item.created_at), `${item.action}${item.actor_name || item.actor_email ? ` by ${item.actor_name || item.actor_email}` : ''}${item.notes ? ` | ${item.notes}` : ''}`])
+          : [['Activity', 'No activity has been recorded yet.']]);
+      }
 
       addFooter();
       doc.save(`${safeFileName(request.reference_number)}-${requestType}-log.pdf`);
+      setIsPdfDialogOpen(false);
     } catch (err) {
       console.error('[ProcureGuard PDF export]', err);
       setError(err instanceof Error ? err.message : 'PDF export failed.');
@@ -348,16 +398,89 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
         <span className="text-sm font-semibold text-slate-900">{requestLabel} Detail</span>
         <button
           type="button"
-          onClick={exportRequestPdf}
+          onClick={() => setIsPdfDialogOpen(true)}
           disabled={isExportingPdf}
           className="ml-auto rounded-md border border-[#307c4c]/30 bg-white px-3 py-1.5 text-xs font-bold text-[#307c4c] shadow-sm hover:bg-[#307c4c]/5 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isExportingPdf ? 'Exporting...' : 'Export PDF'}
+          Export PDF
         </button>
         <Link href={listHref} className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5">
           Back to list
         </Link>
       </header>
+
+      {isPdfDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" aria-labelledby="pdf-export-title" className="w-full max-w-lg rounded-lg border border-slate-200 bg-white shadow-2xl">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 id="pdf-export-title" className="text-base font-bold text-slate-950">Export PDF</h2>
+                  <p className="mt-1 text-sm text-slate-500">Choose which sections to include for this log export.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPdfDialogOpen(false)}
+                  disabled={isExportingPdf}
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{selectedPdfSectionCount} of {PDF_SECTION_OPTIONS.length} selected</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setAllPdfSections(true)} className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Select all</button>
+                  <button type="button" onClick={() => setAllPdfSections(false)} className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Clear</button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {PDF_SECTION_OPTIONS.map(option => (
+                  <label key={option.key} className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 transition hover:border-[#307c4c]/30 hover:bg-[#307c4c]/5">
+                    <input
+                      type="checkbox"
+                      checked={pdfSections[option.key]}
+                      onChange={e => setPdfSections(prev => ({ ...prev, [option.key]: e.target.checked }))}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#307c4c] focus:ring-[#307c4c]/20"
+                    />
+                    <span>
+                      <span className="block text-sm font-bold text-slate-900">{option.label}</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">{option.description}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              {selectedPdfSectionCount === 0 && (
+                <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Choose at least one section before exporting.</p>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setIsPdfDialogOpen(false)}
+                disabled={isExportingPdf}
+                className="rounded-md border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={exportRequestPdf}
+                disabled={isExportingPdf || selectedPdfSectionCount === 0}
+                className="rounded-md bg-[#307c4c] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#307c4c]/85 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isExportingPdf ? 'Exporting...' : 'Generate PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto max-w-[1220px] space-y-5 px-4 py-6 sm:px-6">
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

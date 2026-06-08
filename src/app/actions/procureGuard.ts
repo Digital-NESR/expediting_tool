@@ -728,7 +728,10 @@ async function notifyProcureGuardNextApprover(input: {
   comment?: string | null;
 }): Promise<void> {
   const webhookUrl = process.env.N8N_PROCUREGUARD_WEBHOOK_URL?.trim();
-  if (!webhookUrl) return;
+  if (!webhookUrl) {
+    console.warn('[ProcureGuard n8n] N8N_PROCUREGUARD_WEBHOOK_URL is not configured; skipping webhook notification.');
+    return;
+  }
 
   try {
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM ${input.table} WHERE id = ? LIMIT 1`, [input.requestId]);
@@ -764,7 +767,6 @@ async function notifyProcureGuardNextApprover(input: {
         approvalStatus: recipientApprovalStatus,
         ownerLabel: actions.ownerLabel,
       });
-      return;
     }
 
     const detailUrl = getRequestDetailUrl(input.requestType, request.id);
