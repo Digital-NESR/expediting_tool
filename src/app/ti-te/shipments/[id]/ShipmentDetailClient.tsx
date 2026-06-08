@@ -159,8 +159,11 @@ const ACTION_DOT: Record<string, string> = {
 /* ─── Update Status Modal ────────────────────────────────────── */
 
 function getNextStatusOptions(currentStatus: string): string[] {
-  if (currentStatus === 'Open' || currentStatus === 'Open - Extended') {
+  if (currentStatus === 'Open') {
     return ['Open - Extended', 'Closed'];
+  }
+  if (currentStatus === 'Open - Extended') {
+    return ['Open - Extended', 'Closed', 'Closed - Refund Recovered'];
   }
   if (currentStatus === 'Closed') {
     return ['Closed - Refund Recovered'];
@@ -800,19 +803,30 @@ export default function ShipmentDetailClient({
                   )}
                 </div>
 
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className="px-5 py-3.5 border-b border-slate-100"><h2 className="text-sm font-bold text-slate-900">Customs deposit &amp; duty exposure</h2></div>
-                  <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-                    <Field label="Deposit (USD)" value={<span className="text-xl font-bold tabular-nums">{usdFmt(s.deposit_usd)}</span>} />
-                    <Field label="Refund status" value={
-                      s.status === 'Closed - Refund Recovered'
-                        ? <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />Refund recovered</span>
-                        : s.status === 'Closed'
-                          ? <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 border border-gray-200"><span className="w-1.5 h-1.5 rounded-full bg-gray-400" />File closed</span>
-                          : <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Held by customs</span>
-                    } />
-                  </div>
-                </div>
+                {(() => {
+                  const hasDeposit = s.deposit_usd != null && Number(s.deposit_usd) > 0;
+                  return (
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+                      <div className="px-5 py-3.5 border-b border-slate-100"><h2 className="text-sm font-bold text-slate-900">Customs deposit &amp; duty exposure</h2></div>
+                      <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+                        <Field label="Deposit (USD)" value={
+                          hasDeposit
+                            ? <span className="text-xl font-bold tabular-nums">{usdFmt(s.deposit_usd)}</span>
+                            : <span className="text-sm text-slate-400 font-normal">No deposit</span>
+                        } />
+                        {hasDeposit && (
+                          <Field label="Refund status" value={
+                            s.status === 'Closed - Refund Recovered'
+                              ? <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />Refund recovered</span>
+                              : s.status === 'Closed'
+                                ? <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 border border-gray-200"><span className="w-1.5 h-1.5 rounded-full bg-gray-400" />File closed</span>
+                                : <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Held by customs</span>
+                          } />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </>
             )}
 

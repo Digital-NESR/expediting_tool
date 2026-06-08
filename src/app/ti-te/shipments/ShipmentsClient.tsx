@@ -200,7 +200,7 @@ export default function ShipmentsClient({ shipments, viewOnly }: { shipments: Sh
         <span className="font-semibold text-slate-900 text-sm">Shipment Register</span>
       </header>
 
-      <main className="max-w-[1500px] mx-auto px-6 pb-16 pt-6">
+      <main className="w-full px-6 pb-16 pt-6">
         <div className="flex items-end justify-between gap-4 mb-5">
           <div>
             <p className="text-xs text-slate-400 mb-1">Home / Shipment register</p>
@@ -303,7 +303,7 @@ export default function ShipmentsClient({ shipments, viewOnly }: { shipments: Sh
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    {['#', 'Segment / Description', 'Route', 'MOT', 'Customs Ref.', 'Deposit (USD)', 'Import date', 'Effective expiry', 'Owner', 'Status', ''].map((h, i) => (
+                    {['#', 'Description', 'Route', 'MOT', 'Customs Ref.', 'Deposit (USD)', 'Import date', 'Effective expiry', 'Owner', 'Status', ''].map((h, i) => (
                       <th key={i} className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-3 py-2.5 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -313,8 +313,8 @@ export default function ShipmentsClient({ shipments, viewOnly }: { shipments: Sh
                     <tr key={s.id} onClick={() => router.push(`/ti-te/shipments/${s.id}`)} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
                       <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{String(s.id).padStart(3, '0')}</td>
                       <td className="px-3 py-2.5">
-                        <div className="font-semibold text-slate-900">{s.segment || '—'}</div>
-                        <div className="text-[11.5px] text-slate-400 max-w-[220px] truncate">{(s.description || '').slice(0, 55)}{(s.description || '').length > 55 ? '…' : ''}</div>
+                        <div className="font-semibold text-slate-900 max-w-[260px] truncate">{s.description || '—'}</div>
+                        {s.segment && <div className="text-[11.5px] text-slate-400">{s.segment}</div>}
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className="flex items-center gap-1 text-[12.5px] text-slate-700">
