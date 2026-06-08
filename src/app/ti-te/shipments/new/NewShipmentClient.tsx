@@ -82,15 +82,17 @@ export default function NewShipmentClient({
 }) {
   const router = useRouter();
   const docsSectionRef = useRef<HTMLDivElement>(null);
+  const fromCountryRef = useRef<HTMLDivElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   /* form state */
   const [operatingCountry, setOperatingCountry] = useState(countryOptions.length === 1 ? countryOptions[0] : '');
   const [movementType, setMovementType] = useState<'Temporary Import' | 'Temporary Export'>('Temporary Import');
-  const [segment,      setSegment]      = useState('');
-  const [description,  setDescription]  = useState('');
-  const [fromCountry,  setFromCountry]  = useState('');
-  const [toCountry,    setToCountry]    = useState('');
+  const [segment,           setSegment]          = useState('');
+  const [description,       setDescription]      = useState('');
+  const [fromCountries,     setFromCountries]    = useState<string[]>([]);
+  const [fromCountryOpen,   setFromCountryOpen]  = useState(false);
+  const [toCountry,         setToCountry]        = useState('');
   const [mot,          setMot]          = useState('');
   const [invoiceNum,   setInvoiceNum]   = useState('');
   const [invoiceVal,   setInvoiceVal]   = useState('');
@@ -131,6 +133,17 @@ export default function NewShipmentClient({
       .catch(() => setStakeholders([]))
       .finally(() => setStakeholdersLoading(false));
   }, [operatingCountry]);
+
+  /* close from-country dropdown on outside click */
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (fromCountryRef.current && !fromCountryRef.current.contains(e.target as Node)) {
+        setFromCountryOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
 
   /* helpers */
   function clearError(key: string) {
@@ -206,7 +219,7 @@ export default function NewShipmentClient({
         movement_type:  movementType,
         segment:        segment        || undefined,
         description:    description    || undefined,
-        from_country:   fromCountry    || undefined,
+        from_country:   fromCountries.length > 0 ? fromCountries.join(', ') : undefined,
         to_country:     toCountry      || undefined,
         mot:            mot            || undefined,
         invoice_number: invoiceNum     || undefined,
@@ -384,18 +397,67 @@ export default function NewShipmentClient({
               {COUNTRIES.map(c => <option key={c} value={c} />)}
             </datalist>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className={LBL}>From country</label>
-                <input list="country-list" className={INP} placeholder="Origin country" value={fromCountry} onChange={e => setFromCountry(e.target.value)} />
+            {/* From country — multi-select with chips */}
+            <div ref={fromCountryRef} className="relative">
+              <label className={LBL}>From country</label>
+              <div
+                className="w-full min-h-[42px] border border-slate-200 rounded-lg px-2.5 py-2 bg-white flex flex-wrap gap-1.5 cursor-pointer hover:border-slate-300 transition-colors focus-within:border-[#006B0C] focus-within:ring-2 focus-within:ring-[#006B0C]/20"
+                onClick={() => setFromCountryOpen(o => !o)}
+              >
+                {fromCountries.length === 0 && (
+                  <span className="text-slate-400 text-sm py-0.5 select-none">Select origin countries…</span>
+                )}
+                {fromCountries.map(c => (
+                  <span
+                    key={c}
+                    className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-xs font-medium text-slate-700 whitespace-nowrap"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {c}
+                    <button
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation();
+                        setFromCountries(prev => prev.filter(x => x !== c));
+                      }}
+                      className="flex items-center justify-center w-3.5 h-3.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"
+                      aria-label={`Remove ${c}`}
+                    >
+                      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
               </div>
+              {fromCountryOpen && (
+                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden max-h-52 overflow-y-auto">
+                  {COUNTRIES.filter(c => !fromCountries.includes(c)).length === 0 ? (
+                    <div className="px-3 py-2.5 text-sm text-slate-400 text-center">All countries selected</div>
+                  ) : (
+                    COUNTRIES.filter(c => !fromCountries.includes(c)).map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          setFromCountries(prev => [...prev, c]);
+                        }}
+                        className="w-full text-left px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        {c}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={LBL}>To country</label>
                 <input list="country-list" className={INP} placeholder="Destination country" value={toCountry} onChange={e => setToCountry(e.target.value)} />
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={LBL}>Mode of transport</label>
                 <select className={INP} value={mot} onChange={e => setMot(e.target.value)}>

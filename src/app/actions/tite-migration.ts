@@ -8,6 +8,8 @@ export interface RawShipmentRow {
   rowIndex: number;
   no: string;
   segment: string | null;
+  /** Origin country. May contain comma-separated values (e.g. "UAE, KSA").
+   *  Stored as-is — no normalisation or splitting is applied. */
   from_country: string | null;
   to_country: string | null;
   invoice_number: string | null;

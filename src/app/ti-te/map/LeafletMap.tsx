@@ -118,7 +118,10 @@ export default function LeafletMap({ shipments }: { shipments: Shipment[] }) {
 
     /* ── Debug: log unique country strings from DB ── */
     const uniqueCountries = [
-      ...new Set(shipments.flatMap(s => [s.from_country, s.to_country].filter(Boolean))),
+      ...new Set(shipments.flatMap(s => [
+        ...(s.from_country ?? '').split(',').map(c => c.trim()).filter(Boolean),
+        s.to_country,
+      ].filter(Boolean))),
     ].sort();
     console.log('[LeafletMap] unique from/to countries in shipments data:', uniqueCountries);
 
@@ -126,8 +129,10 @@ export default function LeafletMap({ shipments }: { shipments: Shipment[] }) {
     const countryMeta: Record<string, { movementTypes: string[]; shipments: Shipment[] }> = {};
 
     for (const s of shipments) {
-      for (const country of [s.from_country, s.to_country]) {
-        if (!country) continue;
+      // from_country may be comma-separated (e.g. "UAE, KSA") — expand each
+      const fromList = (s.from_country ?? '').split(',').map(c => c.trim()).filter(Boolean);
+      const allCountries = [...fromList, s.to_country].filter((c): c is string => !!c);
+      for (const country of allCountries) {
         const coords = getCountryCoords(country);
         if (!coords) continue;
         if (!countryMeta[country]) countryMeta[country] = { movementTypes: [], shipments: [] };
@@ -140,16 +145,21 @@ export default function LeafletMap({ shipments }: { shipments: Shipment[] }) {
 
     /* ── Draw arc lines first (rendered under circle markers) ── */
     for (const s of shipments) {
-      const from = getCountryCoords(s.from_country ?? '');
-      const to   = getCountryCoords(s.to_country   ?? '');
-      if (!from || !to || s.from_country === s.to_country) continue;
-
+      const to = getCountryCoords(s.to_country ?? '');
+      if (!to) continue;
+      // from_country may be comma-separated — draw a separate arc for each origin
+      const fromList = (s.from_country ?? '').split(',').map(c => c.trim()).filter(Boolean);
       const color = BUCKET_HEX[s.alert_level] ?? '#94a3b8';
-      L.polyline(arcPoints(from, to), {
-        color,
-        weight:  2,
-        opacity: 0.7,
-      }).addTo(map);
+      for (const fromName of fromList) {
+        const from = getCountryCoords(fromName);
+        if (!from) continue;
+        if (fromName.toLowerCase() === (s.to_country ?? '').trim().toLowerCase()) continue;
+        L.polyline(arcPoints(from, to), {
+          color,
+          weight:  2,
+          opacity: 0.7,
+        }).addTo(map);
+      }
     }
 
     /* ── Draw country circle markers ── */
