@@ -64,6 +64,99 @@ const COUNTRY_CODE: Record<string, string> = {
   'Other':                        'OTH',
 };
 
+/* ─── Flexible date parser ───────────────────────────────────── */
+
+/** Month abbreviation / full-name → zero-padded 2-digit number. */
+const MONTH_NUM: Record<string, string> = {
+  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+  jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+  january: '01', february: '02', march: '03', april: '04',
+  june: '06', july: '07', august: '08', september: '09',
+  october: '10', november: '11', december: '12',
+};
+
+/** Build a YYYY-MM-DD string and validate it. Returns null if the date is invalid. */
+function toYMD(yyyy: string, mm: string, dd: string): string | null {
+  const s = `${yyyy.padStart(4, '0')}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  return isNaN(new Date(s + 'T00:00:00Z').getTime()) ? null : s;
+}
+
+/**
+ * Convert an Excel date serial number to YYYY-MM-DD.
+ * Excel epoch: serial 1 = Jan 1 1900.
+ * Excel has a well-known leap-year bug: serial 60 is the fictional Feb 29 1900.
+ * All serials ≥ 60 are corrected by subtracting 1.
+ */
+function excelSerialToDate(serial: number): string | null {
+  const n = Math.floor(serial);
+  if (n <= 0) return null;
+  const adj = n >= 60 ? n - 1 : n;
+  const d = new Date(Date.UTC(1899, 11, 31) + adj * 86400000);
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
+/**
+ * Parse a date value coming from an Excel migration row into YYYY-MM-DD, or null.
+ *
+ * Handled formats (tried in order):
+ *   - Native JS number              → Excel serial (e.g. 44927 → 2023-01-01)
+ *   - null / "" / "—" / "="…       → null
+ *   - YYYY-MM-DD                    → pass-through
+ *   - DD/Mon/YY  or DD/Mon/YYYY     → e.g. "27/Apr/16" → 2016-04-27
+ *   - DD-Mon-YY  or DD-Mon-YYYY     → e.g. "23-Jan-27" → 2027-01-23
+ *   - DD/MM/YYYY                    → e.g. "15/06/2023" → 2023-06-15
+ *   - DD-MM-YYYY                    → e.g. "15-06-2023" → 2023-06-15
+ *   - Numeric string                → Excel serial fallback
+ */
+export function parseDateFlexible(value: any): string | null {
+  if (value == null) return null;
+
+  // Native number (XLSX library returns these for unformatted date cells)
+  if (typeof value === 'number') return excelSerialToDate(value);
+
+  const s = String(value).trim();
+  if (!s || s === '—' || s === '-' || s.startsWith('=')) return null;
+
+  // YYYY-MM-DD — already the target format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return isNaN(new Date(s + 'T00:00:00Z').getTime()) ? null : s;
+  }
+
+  // DD/Mon/YY or DD/Mon/YYYY  e.g. "27/Apr/16", "24/Oct/16"
+  let m = s.match(/^(\d{1,2})\/([A-Za-z]{3,9})\/(\d{2,4})$/);
+  if (m) {
+    const mm = MONTH_NUM[m[2].toLowerCase()];
+    if (mm) {
+      const y = m[3].length <= 2 ? 2000 + parseInt(m[3], 10) : parseInt(m[3], 10);
+      return toYMD(String(y), mm, m[1]);
+    }
+  }
+
+  // DD-Mon-YY or DD-Mon-YYYY  e.g. "23-Jan-27"
+  m = s.match(/^(\d{1,2})-([A-Za-z]{3,9})-(\d{2,4})$/);
+  if (m) {
+    const mm = MONTH_NUM[m[2].toLowerCase()];
+    if (mm) {
+      const y = m[3].length <= 2 ? 2000 + parseInt(m[3], 10) : parseInt(m[3], 10);
+      return toYMD(String(y), mm, m[1]);
+    }
+  }
+
+  // DD/MM/YYYY
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return toYMD(m[3], m[2], m[1]);
+
+  // DD-MM-YYYY
+  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (m) return toYMD(m[3], m[2], m[1]);
+
+  // Numeric string → Excel serial fallback
+  const n = Number(s);
+  if (!isNaN(n) && n > 0) return excelSerialToDate(n);
+
+  return null;
+}
+
 /* ─── Alert level ────────────────────────────────────────────── */
 
 function calcAlertLevel(
@@ -122,9 +215,13 @@ export async function importShipments(params: {
       `${countryCode}-${String(Math.round(numericNo)).padStart(3, '0')}`;
 
     try {
+      const importDate   = parseDateFlexible(row.import_date);
+      const expiryDate   = parseDateFlexible(row.expiry_date);
+      const extendedDate = parseDateFlexible(row.extended_date);
+
       const alert_level = calcAlertLevel(
-        row.expiry_date,
-        row.extended_date,
+        expiryDate,
+        extendedDate,
         row.status,
       );
 
@@ -174,9 +271,9 @@ export async function importShipments(params: {
           row.awb_number,
           row.po_number,
           row.movement_type,
-          row.import_date,
-          row.expiry_date,
-          row.extended_date,
+          importDate,
+          expiryDate,
+          extendedDate,
           row.deposit_usd,
           row.comments,
           row.status,
@@ -191,7 +288,7 @@ export async function importShipments(params: {
         skipped++;
       } else {
         log.push(
-          `✅ ${reference_number} | ${row.segment ?? ''} | ${row.movement_type ?? ''} | ${row.expiry_date ?? 'N/A'}`,
+          `✅ ${reference_number} | ${row.segment ?? ''} | ${row.movement_type ?? ''} | ${expiryDate ?? 'N/A'}`,
         );
         inserted++;
       }
