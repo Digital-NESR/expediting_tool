@@ -1718,6 +1718,183 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
   }
 }
 
+export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPaymentInput): Promise<ActionResult<{ id: number }>> {
+  try {
+    const actor = await getActor();
+    requireProcureGuardOperationalAccess(actor);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments WHERE id = ? LIMIT 1`, [id]);
+    const existing = rows[0];
+    if (!existing) return { success: false, error: 'Request not found.' };
+    if (existing.status !== 'Submitted') {
+      return { success: false, error: 'This request can only be edited before review starts.' };
+    }
+
+    const ownsRequest = String(existing.requested_by_email).toLowerCase() === actor.email.toLowerCase();
+    if (!ownsRequest && !actor.permissions.canManageData) {
+      return { success: false, error: 'Only the requester can edit this request before review starts.' };
+    }
+
+    const amount = validateMoney(input.amount);
+    const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
+    const country = requireCountryOption(input.country);
+    const segment = requireText(input.segment, 'Segment');
+    const vendorName = requireText(input.vendor_name, 'ADHOC vendor name');
+    const vendorTaxId = requireText(input.vendor_tax_id, 'Vendor tax ID');
+    const spendCategory = requireText(input.spend_category, 'Spend category');
+    const reason = requireText(input.payment_reason || input.justification, 'Reason / justification of exception');
+    if (!input.acknowledged) throw new Error('Acknowledgement is required.');
+    const ccEmail = input.cc_email?.trim() || getCountryControllerEmail(country);
+
+    await exec(
+      `UPDATE procure_guard_adhoc_payments
+       SET requisition_number = ?,
+           vendor_name = ?,
+           vendor_code = ?,
+           vendor_tax_id = ?,
+           amount = ?,
+           currency = ?,
+           country = ?,
+           segment = ?,
+           expense_category = ?,
+           spend_category = ?,
+           spend_value_usd = ?,
+           payment_method = ?,
+           payment_reason = ?,
+           justification = ?,
+           notes = ?,
+           requester_comments = ?,
+           cc_email = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        requisitionNumber,
+        vendorName,
+        blankToNull(input.vendor_code || vendorTaxId),
+        vendorTaxId,
+        amount,
+        input.currency || 'USD',
+        country,
+        segment,
+        spendCategory,
+        spendCategory,
+        input.spend_value_usd ?? amount,
+        blankToNull(input.payment_method),
+        reason,
+        (input.justification || reason).trim(),
+        blankToNull(input.notes),
+        blankToNull(input.requester_comments ?? input.notes),
+        ccEmail,
+        id,
+      ],
+    );
+
+    await writeActivity({
+      requestType: 'adhoc',
+      requestId: id,
+      referenceNumber: existing.reference_number,
+      action: 'Adhoc payment edited before review',
+      actor,
+    });
+
+    revalidatePath('/procure-guard');
+    revalidatePath('/procure-guard/adhoc-payments');
+    revalidatePath(`/procure-guard/adhoc-payments/${id}`);
+    return { success: true, data: { id }, reference_number: existing.reference_number };
+  } catch (err) {
+    console.error('[updateAdhocPaymentRequest]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update adhoc payment request.' };
+  }
+}
+
+export async function updateAdvancePaymentRequest(id: number, input: CreateAdvancePaymentInput): Promise<ActionResult<{ id: number }>> {
+  try {
+    const actor = await getActor();
+    requireProcureGuardOperationalAccess(actor);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments WHERE id = ? LIMIT 1`, [id]);
+    const existing = rows[0];
+    if (!existing) return { success: false, error: 'Request not found.' };
+    if (existing.status !== 'Submitted') {
+      return { success: false, error: 'This request can only be edited before review starts.' };
+    }
+
+    const ownsRequest = String(existing.requested_by_email).toLowerCase() === actor.email.toLowerCase();
+    if (!ownsRequest && !actor.permissions.canManageData) {
+      return { success: false, error: 'Only the requester can edit this request before review starts.' };
+    }
+
+    const amount = validateMoney(input.amount);
+    const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
+    const country = requireCountryOption(input.country);
+    const segment = requireText(input.segment, 'Segment');
+    const sapVendorId = requireText(input.sap_vendor_id || input.vendor_code, 'SAP vendor ID');
+    const vendorName = requireText(input.vendor_name, 'SAP vendor name');
+    const spendCategory = requireText(input.spend_category, 'Spend category');
+    const paymentTermsDays = validateNonNegativeNumber(input.current_payment_terms_days, 'Current payment terms in days');
+    const creditLimitUsd = validateNonNegativeNumber(input.current_credit_limit_usd, 'Current credit limit in USD');
+    const reason = requireText(input.advance_purpose || input.justification, 'Reason / justification for exception');
+    const ccEmail = input.cc_email?.trim() || getCountryControllerEmail(country);
+
+    await exec(
+      `UPDATE procure_guard_advance_payments
+       SET requisition_number = ?,
+           vendor_name = ?,
+           vendor_code = ?,
+           sap_vendor_id = ?,
+           amount = ?,
+           currency = ?,
+           country = ?,
+           segment = ?,
+           spend_category = ?,
+           spend_value_usd = ?,
+           current_payment_terms_days = ?,
+           current_credit_limit_usd = ?,
+           advance_purpose = ?,
+           justification = ?,
+           notes = ?,
+           requester_comments = ?,
+           cc_email = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        requisitionNumber,
+        vendorName,
+        sapVendorId,
+        sapVendorId,
+        amount,
+        input.currency || 'USD',
+        country,
+        segment,
+        spendCategory,
+        input.spend_value_usd ?? amount,
+        paymentTermsDays,
+        creditLimitUsd,
+        reason,
+        (input.justification || reason).trim(),
+        blankToNull(input.notes),
+        blankToNull(input.requester_comments ?? input.notes),
+        ccEmail,
+        id,
+      ],
+    );
+
+    await writeActivity({
+      requestType: 'advance',
+      requestId: id,
+      referenceNumber: existing.reference_number,
+      action: 'Advance payment edited before review',
+      actor,
+    });
+
+    revalidatePath('/procure-guard');
+    revalidatePath('/procure-guard/advance-payments');
+    revalidatePath(`/procure-guard/advance-payments/${id}`);
+    return { success: true, data: { id }, reference_number: existing.reference_number };
+  } catch (err) {
+    console.error('[updateAdvancePaymentRequest]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update advance payment request.' };
+  }
+}
+
 export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInput): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await requireAdminActor();
@@ -1977,11 +2154,13 @@ async function updateStatusCommon(input: {
   const row = rows[0];
   if (!row) return { success: false, error: 'Request not found.' };
 
-  const ownsRequest = row.requested_by_email === actor.email;
+  const ownsRequest = String(row.requested_by_email).toLowerCase() === actor.email.toLowerCase();
   const userCancellingOwnRequest = ownsRequest && input.status === 'Cancelled';
 
   if (userCancellingOwnRequest && actor.permissions.canCreateRequests) {
-    // Requesters can cancel their own request from the detail page.
+    if (row.status !== 'Submitted') {
+      return { success: false, error: 'This request can only be cancelled before review starts.' };
+    }
   } else {
     const expectedNextStatus = getNextApprovalStatus(input.requestType, row.status, row.amount, row.currency);
     const requiredPermission = getRequiredPermissionForTransition(

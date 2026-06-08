@@ -174,6 +174,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
   const [highlightDecision, setHighlightDecision] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [pdfSections, setPdfSections] = useState(DEFAULT_PDF_SECTIONS);
   const [isPending, startTransition] = useTransition();
   const decisionRef = useRef<HTMLDivElement | null>(null);
@@ -184,8 +185,11 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
   const requestLabel = isAdvance ? 'Advance Payment' : 'Adhoc Payment';
   const requester = request.requested_by_name || request.requested_by_email;
   const pendingCount = isActiveApprovalStatus(request.status) ? 1 : 0;
-  const canCancel = request.requested_by_email === actor.email && isActiveApprovalStatus(request.status);
+  const ownsRequest = request.requested_by_email.toLowerCase() === actor.email.toLowerCase();
+  const canEditRequest = request.status === 'Submitted' && (ownsRequest || actor.permissions.canManageData);
+  const canCancel = ownsRequest && request.status === 'Submitted' && actor.permissions.canCreateRequests;
   const hasDecisionActions = actions.canApprove || actions.canReject || actions.canMarkPaid || canCancel;
+  const editHref = `/procure-guard/${isAdvance ? 'advance-payments' : 'adhoc-payments'}/${request.id}/edit`;
   const selectedPdfSectionCount = PDF_SECTION_OPTIONS.filter(option => pdfSections[option.key]).length;
 
   function jumpToDecision() {
@@ -210,6 +214,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
       if (result.success) {
         setReviewComment('');
+        setIsCancelDialogOpen(false);
         setNotice(`Request updated to ${nextStatus}.`);
         router.refresh();
       } else {
@@ -482,6 +487,42 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
         </div>
       )}
 
+      {isCancelDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" aria-labelledby="cancel-request-title" className="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-2xl">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 id="cancel-request-title" className="text-base font-bold text-slate-950">Are you sure?</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Cancel {request.reference_number}? This will stop the request before review starts.
+              </p>
+            </div>
+            <div className="px-5 py-4">
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                This cannot be approved after cancellation unless a new request is submitted.
+              </p>
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setIsCancelDialogOpen(false)}
+                disabled={isPending}
+                className="rounded-md border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Keep Request
+              </button>
+              <button
+                type="button"
+                onClick={() => submitStatus('Cancelled')}
+                disabled={isPending}
+                className="rounded-md bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPending ? 'Cancelling...' : 'Yes, cancel request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="mx-auto max-w-[1220px] space-y-5 px-4 py-6 sm:px-6">
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -493,6 +534,14 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {canEditRequest && (
+                <Link
+                  href={editHref}
+                  className="rounded-md border border-[#307c4c]/30 bg-white px-3 py-2 text-xs font-bold text-[#307c4c] shadow-sm hover:bg-[#307c4c]/5"
+                >
+                  Edit request
+                </Link>
+              )}
               {hasDecisionActions && (
                 <button
                   type="button"
@@ -646,7 +695,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
                         <button disabled={isPending} onClick={() => submitStatus('Paid')} className="rounded-md border border-[#307c4c]/20 bg-white px-3 py-2 text-xs font-bold text-[#307c4c] hover:bg-[#307c4c]/5 disabled:opacity-60">Mark Paid</button>
                       )}
                       {canCancel && (
-                        <button disabled={isPending} onClick={() => submitStatus('Cancelled')} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60">Cancel Request</button>
+                        <button disabled={isPending} onClick={() => setIsCancelDialogOpen(true)} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60">Cancel Request</button>
                       )}
                     </div>
                   </div>

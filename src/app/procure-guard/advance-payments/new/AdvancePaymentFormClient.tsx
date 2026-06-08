@@ -4,14 +4,14 @@ import { useEffect, useId, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import ProcureGuardSidebar from '../../components/ProcureGuardSidebar';
 import ProcureGuardNotificationContactsPanel from '../../components/ProcureGuardNotificationContactsPanel';
-import { createAdvancePayment, getProcureGuardNotificationPreview, uploadProcureGuardDocument } from '@/app/actions/procureGuard';
+import { createAdvancePayment, getProcureGuardNotificationPreview, updateAdvancePaymentRequest, uploadProcureGuardDocument } from '@/app/actions/procureGuard';
 import {
   COUNTRY_OPTIONS,
   SEGMENT_OPTIONS,
   SPEND_CATEGORY_OPTIONS,
   getCountryControllerEmail,
 } from '@/lib/procureGuard-utils';
-import type { CreateAdvancePaymentInput, ProcureGuardAccessView, ProcureGuardNotificationContact } from '@/types/procureGuard';
+import type { AdvancePaymentRequest, CreateAdvancePaymentInput, ProcureGuardAccessView, ProcureGuardNotificationContact } from '@/types/procureGuard';
 
 const LBL = 'block text-sm font-semibold text-slate-800 mb-2';
 const INP = 'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20 placeholder:text-slate-400';
@@ -86,30 +86,33 @@ export default function AdvancePaymentFormClient(_props: {
   requesterEmail: string;
   defaultDepartment: string;
   accessView: ProcureGuardAccessView;
+  editRequest?: AdvancePaymentRequest;
 }) {
-  const { accessView } = _props;
+  const { accessView, editRequest } = _props;
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [banner, setBanner] = useState('');
 
-  const [requisitionNumber, setRequisitionNumber] = useState('');
-  const [country, setCountry] = useState('');
-  const [segment, setSegment] = useState('');
-  const [sapVendorId, setSapVendorId] = useState('');
-  const [sapVendorName, setSapVendorName] = useState('');
-  const [spendCategory, setSpendCategory] = useState('');
-  const [spendValueUsd, setSpendValueUsd] = useState('');
-  const [paymentTermsDays, setPaymentTermsDays] = useState('');
-  const [creditLimitUsd, setCreditLimitUsd] = useState('');
-  const [reason, setReason] = useState('');
-  const [requesterComments, setRequesterComments] = useState('');
+  const [requisitionNumber, setRequisitionNumber] = useState(editRequest?.requisition_number ?? '');
+  const [country, setCountry] = useState(editRequest?.country ?? '');
+  const [segment, setSegment] = useState(editRequest?.segment ?? '');
+  const [sapVendorId, setSapVendorId] = useState(editRequest?.sap_vendor_id ?? editRequest?.vendor_code ?? '');
+  const [sapVendorName, setSapVendorName] = useState(editRequest?.vendor_name ?? '');
+  const [spendCategory, setSpendCategory] = useState(editRequest?.spend_category ?? '');
+  const [spendValueUsd, setSpendValueUsd] = useState(editRequest ? String(editRequest.spend_value_usd ?? editRequest.amount ?? '') : '');
+  const [paymentTermsDays, setPaymentTermsDays] = useState(editRequest?.current_payment_terms_days === null || editRequest?.current_payment_terms_days === undefined ? '' : String(editRequest.current_payment_terms_days));
+  const [creditLimitUsd, setCreditLimitUsd] = useState(editRequest?.current_credit_limit_usd === null || editRequest?.current_credit_limit_usd === undefined ? '' : String(editRequest.current_credit_limit_usd));
+  const [reason, setReason] = useState(editRequest?.advance_purpose ?? editRequest?.justification ?? '');
+  const [requesterComments, setRequesterComments] = useState(editRequest?.requester_comments ?? editRequest?.notes ?? '');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [notificationContacts, setNotificationContacts] = useState<ProcureGuardNotificationContact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
 
   const ccEmail = useMemo(() => country ? getCountryControllerEmail(country) : '', [country]);
+  const isEditMode = Boolean(editRequest);
+  const detailHref = editRequest ? `/procure-guard/advance-payments/${editRequest.id}` : '/procure-guard/advance-payments';
 
   useEffect(() => {
     let cancelled = false;
@@ -157,17 +160,17 @@ export default function AdvancePaymentFormClient(_props: {
   }
 
   function clearForm() {
-    setRequisitionNumber('');
-    setCountry('');
-    setSegment('');
-    setSapVendorId('');
-    setSapVendorName('');
-    setSpendCategory('');
-    setSpendValueUsd('');
-    setPaymentTermsDays('');
-    setCreditLimitUsd('');
-    setReason('');
-    setRequesterComments('');
+    setRequisitionNumber(editRequest?.requisition_number ?? '');
+    setCountry(editRequest?.country ?? '');
+    setSegment(editRequest?.segment ?? '');
+    setSapVendorId(editRequest?.sap_vendor_id ?? editRequest?.vendor_code ?? '');
+    setSapVendorName(editRequest?.vendor_name ?? '');
+    setSpendCategory(editRequest?.spend_category ?? '');
+    setSpendValueUsd(editRequest ? String(editRequest.spend_value_usd ?? editRequest.amount ?? '') : '');
+    setPaymentTermsDays(editRequest?.current_payment_terms_days === null || editRequest?.current_payment_terms_days === undefined ? '' : String(editRequest.current_payment_terms_days));
+    setCreditLimitUsd(editRequest?.current_credit_limit_usd === null || editRequest?.current_credit_limit_usd === undefined ? '' : String(editRequest.current_credit_limit_usd));
+    setReason(editRequest?.advance_purpose ?? editRequest?.justification ?? '');
+    setRequesterComments(editRequest?.requester_comments ?? editRequest?.notes ?? '');
     setSelectedFiles([]);
     setErrors({});
     setBanner('');
@@ -224,17 +227,19 @@ export default function AdvancePaymentFormClient(_props: {
     };
 
     startTransition(async () => {
-      const result = await createAdvancePayment(payload);
+      const result = editRequest
+        ? await updateAdvancePaymentRequest(editRequest.id, payload)
+        : await createAdvancePayment(payload);
       if (result.success && result.data?.id) {
         const uploadError = await uploadFiles(result.data.id);
         if (uploadError) {
-          setBanner(`${result.reference_number || 'Request'} was created, but an attachment failed: ${uploadError}`);
+          setBanner(`${result.reference_number || 'Request'} was ${isEditMode ? 'updated' : 'created'}, but an attachment failed: ${uploadError}`);
           return;
         }
         router.push(`/procure-guard/advance-payments/${result.data.id}`);
         router.refresh();
       } else {
-        setBanner(result.error ?? 'Failed to submit advance payment request.');
+        setBanner(result.error ?? `Failed to ${isEditMode ? 'update' : 'submit'} advance payment request.`);
       }
     });
   }
@@ -250,12 +255,12 @@ export default function AdvancePaymentFormClient(_props: {
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: '#307c4c' }}>
           <span className="text-[10px] font-extrabold tracking-tight text-white">PG</span>
         </div>
-        <span className="text-sm font-semibold text-slate-900">Advance Payment Purchase Exception Request</span>
+        <span className="text-sm font-semibold text-slate-900">{isEditMode ? 'Edit Advance Payment Purchase Exception Request' : 'Advance Payment Purchase Exception Request'}</span>
       </header>
 
       <main className="flex-1 overflow-y-auto pb-20">
         <div className="border-b border-gray-100 bg-gray-50 px-5 py-6 sm:px-8">
-          <h1 className="mx-auto max-w-[1280px] text-lg font-bold tracking-tight text-gray-900">Advance Payment Purchase Exception Request</h1>
+          <h1 className="mx-auto max-w-[1280px] text-lg font-bold tracking-tight text-gray-900">{isEditMode ? 'Edit Advance Payment Purchase Exception Request' : 'Advance Payment Purchase Exception Request'}</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="mx-auto max-w-[1280px] space-y-7 px-5 py-6 sm:px-8">
@@ -336,12 +341,12 @@ export default function AdvancePaymentFormClient(_props: {
 
           <div className="flex flex-col justify-end gap-4 sm:flex-row">
             <button disabled={isPending} className="rounded-lg bg-[#307c4c] px-12 py-2.5 text-sm font-bold text-white hover:bg-[#307c4c]/80 disabled:opacity-60">
-              {isPending ? 'Submitting...' : 'Submit'}
+              {isPending ? (isEditMode ? 'Saving...' : 'Submitting...') : (isEditMode ? 'Save Changes' : 'Submit')}
             </button>
             <button type="button" onClick={clearForm} className="rounded-lg border border-slate-200 bg-white px-12 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50">
-              Clear Form
+              {isEditMode ? 'Reset Form' : 'Clear Form'}
             </button>
-            <button type="button" onClick={() => router.push('/procure-guard/advance-payments')} className="rounded-lg border border-red-200 bg-red-50 px-12 py-2.5 text-sm font-bold text-red-700 transition-colors hover:bg-red-100">
+            <button type="button" onClick={() => router.push(detailHref)} className="rounded-lg border border-red-200 bg-red-50 px-12 py-2.5 text-sm font-bold text-red-700 transition-colors hover:bg-red-100">
               Cancel
             </button>
           </div>
