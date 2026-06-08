@@ -564,6 +564,89 @@ function PermissionEditor({ row, onDone }: { row?: ProcureGuardPermissionRow; on
   );
 }
 
+function CurrentAdminRoleSwitcher({ actor, rows, onDone }: { actor: ProcureGuardAdminData['actor']; rows: ProcureGuardPermissionRow[]; onDone: (message: string) => void }) {
+  const router = useRouter();
+  const selfRow = rows.find(row => row.email.toLowerCase() === actor.email.toLowerCase());
+  const [isPending, startTransition] = useTransition();
+  const [role, setRole] = useState<ProcureGuardPermissionRole>(selfRow?.role ?? actor.role);
+  const [country, setCountry] = useState(selfRow?.country ?? actor.country ?? '');
+  const [segment, setSegment] = useState(selfRow?.segment ?? actor.segment ?? '');
+  const [error, setError] = useState('');
+
+  function save(nextRole = role) {
+    setError('');
+    startTransition(async () => {
+      const result = await updateProcureGuardPermission({
+        email: actor.email,
+        name: actor.name,
+        role: nextRole,
+        country,
+        segment,
+      });
+      if (!result.success) {
+        setError(result.error ?? 'Role update failed.');
+        return;
+      }
+      onDone(`Your ProcureGuard role is now ${nextRole}.`);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="rounded-2xl border border-[#307c4c]/25 bg-[#f0fdf4] p-5 shadow-sm">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-black uppercase tracking-wide text-[#307c4c]">Current admin user</p>
+          <h3 className="mt-1 text-lg font-black text-slate-950">Change your ProcureGuard test role</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Signed in as <span className="font-bold text-slate-800">{actor.email}</span>. Use this dropdown to test requester, analyst, reviewer, and admin views.
+          </p>
+        </div>
+        <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-[minmax(220px,1.2fr)_minmax(180px,1fr)_minmax(180px,1fr)_auto] xl:max-w-4xl">
+          <Field label="My Role">
+            <select
+              className="w-full rounded-xl border border-[#307c4c]/30 bg-white px-4 py-3 text-base font-black text-slate-900 outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
+              value={role}
+              onChange={e => {
+                const nextRole = e.target.value as ProcureGuardPermissionRole;
+                setRole(nextRole);
+                save(nextRole);
+              }}
+              disabled={isPending}
+            >
+              {PERMISSION_ROLE_OPTIONS.map(item => <option key={item}>{item}</option>)}
+            </select>
+          </Field>
+          <Field label="Country Scope">
+            <select className={inputClass} value={country} onChange={e => setCountry(e.target.value)} disabled={isPending}>
+              <option value="">All countries</option>
+              {COUNTRY_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </Field>
+          <Field label="Segment Scope">
+            <select className={inputClass} value={segment} onChange={e => setSegment(e.target.value)} disabled={isPending}>
+              <option value="">All segments</option>
+              {SEGMENT_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </Field>
+          <button
+            type="button"
+            onClick={() => save()}
+            disabled={isPending}
+            className="rounded-xl bg-[#307c4c] px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-[#25663d] disabled:opacity-60"
+          >
+            {isPending ? 'Saving' : 'Save'}
+          </button>
+        </div>
+      </div>
+      {error && <p className="mt-4 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
+      <div className="mt-4">
+        <RoleCapabilities role={role} />
+      </div>
+    </div>
+  );
+}
+
 function PermissionsPanel({ rows, actor, isFullAdmin, onDone }: { rows: ProcureGuardPermissionRow[]; actor: ProcureGuardAdminData['actor']; isFullAdmin: boolean; onDone: (message: string) => void }) {
   const visibleRows = isFullAdmin
     ? rows
@@ -571,6 +654,8 @@ function PermissionsPanel({ rows, actor, isFullAdmin, onDone }: { rows: ProcureG
 
   return (
     <div className="space-y-4">
+      <CurrentAdminRoleSwitcher actor={actor} rows={rows} onDone={onDone} />
+
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-sm font-bold text-slate-900">Current Permission Level</p>
         <p className="mt-1 text-xs text-slate-500">

@@ -653,14 +653,6 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           </div>
 
           <div className="space-y-5">
-            <WorkflowChain requestType={requestType} status={request.status} amount={request.amount} currency={request.currency} />
-
-            <ProcureGuardNotificationContactsPanel
-              contacts={notificationContacts}
-              currentStatus={request.status}
-              emptyText="No notification recipients are configured for this request country."
-            />
-
             <Section title="Review And Payment">
               <div className="space-y-4">
                 {notice && <div className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#307c4c]">{notice}</div>}
@@ -702,6 +694,14 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
                 )}
               </div>
             </Section>
+
+            <WorkflowChain requestType={requestType} status={request.status} amount={request.amount} currency={request.currency} />
+
+            <ProcureGuardNotificationContactsPanel
+              contacts={notificationContacts}
+              currentStatus={request.status}
+              emptyText="No notification recipients are configured for this request country."
+            />
 
             <Section title="Activity">
               {activity.length === 0 ? (

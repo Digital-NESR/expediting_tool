@@ -392,7 +392,7 @@ function getScopedProcureGuardAvailableActions(
 
 async function requireAdminActor(): Promise<ProcureGuardActor> {
   const actor = await getActor();
-  if (!canUseProcureGuardAdmin(getProcureGuardAccessView(actor.role))) {
+  if (!canUseProcureGuardAdmin(getProcureGuardAccessView(actor.role)) && !adminEmails().includes(actor.email.toLowerCase())) {
     throw new Error('Admin access is required.');
   }
   return actor;
@@ -2775,11 +2775,17 @@ export async function deleteProcureGuardAccessRequest(userEmail: string): Promis
 
 export async function updateProcureGuardPermission(input: UpdateProcureGuardPermissionInput): Promise<ActionResult> {
   try {
-    await requirePermissionManager();
+    const actor = await getActor();
     await ensureProcureGuardPermissionRoleValues();
     const email = requireText(input.email, 'Email').toLowerCase();
     const role = input.role;
     const country = normalizeProcureGuardCountry(input.country);
+    const canManageAll = canUseProcureGuardAdmin(getProcureGuardAccessView(actor.role));
+    const canManageOwnConfiguredAdmin = actor.email.toLowerCase() === email && adminEmails().includes(email);
+
+    if (!canManageAll && !canManageOwnConfiguredAdmin) {
+      return { success: false, error: 'Permission management access is required.' };
+    }
 
     if (!PERMISSION_ROLE_OPTIONS.includes(role)) {
       return { success: false, error: 'Choose a valid permission level.' };

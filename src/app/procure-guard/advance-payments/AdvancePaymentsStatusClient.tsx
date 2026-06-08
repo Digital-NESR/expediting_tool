@@ -181,7 +181,7 @@ export default function AdvancePaymentsStatusClient({ data }: { data: ProcureGua
                       <p className="text-xs text-slate-500">{r.requested_by_email}</p>
                     </td>
                     <td className="px-5 py-4 align-top text-right">
-                      <Link href={`/procure-guard/advance-payments/${r.id}`} className="inline-flex min-w-[4.5rem] items-center justify-center whitespace-nowrap rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5">
+                      <Link href={`/procure-guard/advance-payments/${r.id}`} className="inline-flex min-w-[4.5rem] items-center justify-center whitespace-nowrap rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#25663d]">
                         View
                       </Link>
                     </td>
