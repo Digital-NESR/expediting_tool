@@ -231,7 +231,7 @@ export async function importShipments(params: {
         .replace(/\s+/g, '-')
         .replace(/[^a-z0-9-]/g, '')}`;
 
-      const result = await titePool.query(
+      const result = await titePool.query<{ id: number }>(
         `INSERT INTO shipments (
           reference_number,
           segment,
@@ -258,7 +258,8 @@ export async function importShipments(params: {
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
           $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
         )
-        ON CONFLICT (reference_number) DO NOTHING`,
+        ON CONFLICT (reference_number) DO NOTHING
+        RETURNING id`,
         [
           reference_number,
           row.segment,
@@ -288,6 +289,31 @@ export async function importShipments(params: {
         log.push(`⚠️  ${reference_number}: already exists, skipped`);
         skipped++;
       } else {
+        const shipmentId = result.rows[0].id;
+
+        // Seed default notification recipients from country_stakeholders (best-effort)
+        try {
+          await titePool.query(
+            `INSERT INTO shipment_notification_contacts
+               (shipment_id, email, name, role,
+                notify_60_days, notify_30_days, notify_14_days, notify_7_days,
+                notify_2_days, notify_1_day, notify_0_day, notify_overdue)
+             SELECT
+               $1,
+               email,
+               name,
+               role,
+               true, true, true, true, true, true, true, true
+             FROM country_stakeholders
+             WHERE country = $2
+               AND active = true
+             ON CONFLICT DO NOTHING`,
+            [shipmentId, country],
+          );
+        } catch {
+          // Non-fatal — country may have no stakeholders configured
+        }
+
         log.push(
           `✅ ${reference_number} | ${row.segment ?? ''} | ${row.movement_type ?? ''} | ${expiryDate ?? 'N/A'}`,
         );
