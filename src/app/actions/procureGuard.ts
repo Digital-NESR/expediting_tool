@@ -83,7 +83,7 @@ function detectMime(file: File): string {
   return FILE_MIME_MAP[fileExt] || file.type || 'application/octet-stream';
 }
 
-type QueryParam = string | number | boolean | null | Date | Buffer | undefined;
+type QueryParam = string | number | boolean | null | Date | Buffer | number[] | undefined;
 type QueryParams = QueryParam[];
 type ExecResult = { rowCount: number; insertId: number };
 export type ProcureGuardAccessRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
@@ -2237,6 +2237,91 @@ export async function updateProcureGuardNotificationRecipient(input: {
   } catch (err) {
     console.error('[updateProcureGuardNotificationRecipient]', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update notification recipient.' };
+  }
+}
+
+export async function updateProcureGuardNotificationRecipientGroup(input: {
+  ids: number[];
+  display_name: string;
+  email: string;
+}): Promise<ActionResult> {
+  try {
+    const actor = await requirePermissionManager();
+    if (!actor.permissions.canManagePermissions) {
+      return { success: false, error: 'Permission management access is required.' };
+    }
+
+    const ids = [...new Set(input.ids.map(Number).filter(Number.isFinite))];
+    if (ids.length === 0) return { success: false, error: 'Choose at least one notification recipient row.' };
+
+    const displayName = requireText(input.display_name, 'Display name');
+    const email = requireText(input.email, 'Email').toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return { success: false, error: 'Enter a valid email address.' };
+    }
+
+    const result = await exec(
+      `UPDATE procure_guard_notification_recipients
+       SET display_name = ?, email = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ANY(?::int[])`,
+      [displayName, email, ids],
+    );
+
+    if (result.rowCount === 0) return { success: false, error: 'Notification recipients not found.' };
+
+    revalidateProcureGuardPaths();
+    return { success: true };
+  } catch (err) {
+    console.error('[updateProcureGuardNotificationRecipientGroup]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update notification recipient group.' };
+  }
+}
+
+export async function testProcureGuardN8nWebhook(): Promise<ActionResult<{
+  status: number;
+  statusText: string;
+  webhookHost: string;
+  webhookPath: string;
+}>> {
+  try {
+    await requirePermissionManager();
+    const rawWebhookUrl = process.env.N8N_PROCUREGUARD_WEBHOOK_URL?.trim();
+    if (!rawWebhookUrl) {
+      return {
+        success: false,
+        error: 'N8N_PROCUREGUARD_WEBHOOK_URL is not configured in the running app environment.',
+      };
+    }
+
+    const webhookUrl = stripEnvQuotes(rawWebhookUrl);
+    const parsedUrl = new URL(webhookUrl);
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const secret = process.env.N8N_PROCUREGUARD_WEBHOOK_SECRET?.trim();
+    if (secret) headers['x-procureguard-secret'] = secret;
+
+    const response = await postProcureGuardWebhook(webhookUrl, headers, {
+      event: 'procureguard.webhook_test',
+      source: 'procureguard-admin-test',
+      occurred_at: new Date().toISOString(),
+      message: 'ProcureGuard n8n webhook connectivity test',
+    });
+
+    return {
+      success: response.ok,
+      data: {
+        status: response.status,
+        statusText: response.statusText,
+        webhookHost: parsedUrl.hostname,
+        webhookPath: parsedUrl.pathname,
+      },
+      error: response.ok ? undefined : `n8n responded with ${response.status} ${response.statusText || ''}`.trim(),
+    };
+  } catch (err) {
+    console.error('[testProcureGuardN8nWebhook]', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to test ProcureGuard n8n webhook.',
+    };
   }
 }
 

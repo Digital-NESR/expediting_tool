@@ -8,7 +8,8 @@ import {
   createAdminAdhocPayment,
   createAdminAdvancePayment,
   deleteProcureGuardRecord,
-  updateProcureGuardNotificationRecipient,
+  testProcureGuardN8nWebhook,
+  updateProcureGuardNotificationRecipientGroup,
   updateProcureGuardPermission,
 } from '@/app/actions/procureGuard';
 import {
@@ -41,6 +42,16 @@ import type {
 } from '@/types/procureGuard';
 
 type TabKey = 'adhoc' | 'advance' | 'activity' | 'permissions' | 'recipients';
+type RecipientPersonGroup = {
+  key: string;
+  displayName: string;
+  email: string;
+  rows: ProcureGuardNotificationContact[];
+  countries: string[];
+  roles: string[];
+  requestTypes: string[];
+  approvalSteps: string[];
+};
 
 const inputClass = 'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20';
 const labelClass = 'block text-xs font-semibold text-slate-500 mb-1';
@@ -585,57 +596,111 @@ function PermissionsPanel({ rows, actor, isFullAdmin, onDone }: { rows: ProcureG
     </div>
   );
 }
-function RecipientEditor({ row, onDone }: { row: ProcureGuardNotificationContact; onDone: (message: string) => void }) {
+function groupRecipientRows(rows: ProcureGuardNotificationContact[]): RecipientPersonGroup[] {
+  const groups = new Map<string, ProcureGuardNotificationContact[]>();
+
+  for (const row of rows) {
+    const key = row.email?.trim().toLowerCase() || row.display_name?.trim().toLowerCase() || `recipient-${row.id}`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+
+  return [...groups.entries()]
+    .map(([key, groupRows]) => {
+      const first = groupRows[0];
+      return {
+        key,
+        displayName: first.display_name,
+        email: first.email,
+        rows: groupRows.sort((a, b) =>
+          a.notification_role.localeCompare(b.notification_role)
+          || a.country.localeCompare(b.country)
+          || String(a.approval_status ?? '').localeCompare(String(b.approval_status ?? '')),
+        ),
+        countries: [...new Set(groupRows.map(row => row.country))].sort(),
+        roles: [...new Set(groupRows.map(row => row.notification_role))].sort(),
+        requestTypes: [...new Set(groupRows.map(row => row.request_type))].sort(),
+        approvalSteps: [...new Set(groupRows.map(row => row.approval_status || 'General notification'))].sort(),
+      };
+    })
+    .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.email.localeCompare(b.email));
+}
+
+function RecipientChipList({ label, values }: { label: string; values: string[] }) {
+  const visible = values.slice(0, 8);
+  const hiddenCount = Math.max(0, values.length - visible.length);
+
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {visible.map(value => (
+          <span key={value} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
+            {value}
+          </span>
+        ))}
+        {hiddenCount > 0 && (
+          <span className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-2 py-1 text-[11px] font-bold text-[#307c4c]">
+            +{hiddenCount} more
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RecipientPersonEditor({ group, onDone }: { group: RecipientPersonGroup; onDone: (message: string) => void }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [displayName, setDisplayName] = useState(row.display_name ?? '');
-  const [email, setEmail] = useState(row.email ?? '');
+  const [displayName, setDisplayName] = useState(group.displayName ?? '');
+  const [email, setEmail] = useState(group.email ?? '');
   const [error, setError] = useState('');
 
   function save() {
     setError('');
     startTransition(async () => {
-      const result = await updateProcureGuardNotificationRecipient({
-        id: row.id,
+      const result = await updateProcureGuardNotificationRecipientGroup({
+        ids: group.rows.map(row => row.id),
         display_name: displayName,
         email,
       });
       if (!result.success) {
-        setError(result.error ?? 'Recipient update failed.');
+        setError(result.error ?? 'Recipient group update failed.');
         return;
       }
-      onDone(`Notification recipient saved for ${row.country} ${row.notification_role}.`);
+      onDone(`Notification recipient saved for ${displayName || email} across ${group.rows.length} assignment${group.rows.length === 1 ? '' : 's'}.`);
       router.refresh();
     });
   }
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(130px,0.8fr)_minmax(110px,0.6fr)_minmax(190px,1fr)_minmax(190px,1fr)_minmax(180px,1fr)_minmax(220px,1.2fr)_auto] xl:items-end">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Country</p>
-          <p className="mt-2 text-sm font-bold text-slate-900">{row.country}</p>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.5fr)_auto] xl:items-start">
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs font-bold text-slate-900">{group.displayName || 'Unnamed recipient'}</p>
+            <p className="mt-1 break-all text-xs text-slate-500">{group.email}</p>
+          </div>
+          <div className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2">
+            <p className="text-[11px] font-bold text-[#307c4c]">{group.rows.length} assignment{group.rows.length === 1 ? '' : 's'}</p>
+            <p className="mt-0.5 text-[11px] text-slate-600">{group.countries.length} countr{group.countries.length === 1 ? 'y' : 'ies'} · {group.roles.length} role{group.roles.length === 1 ? '' : 's'}</p>
+          </div>
+          <Field label="Display Name">
+            <input className={inputClass} value={displayName} onChange={e => setDisplayName(e.target.value)} />
+          </Field>
+          <Field label="Email">
+            <input className={inputClass} type="email" value={email} onChange={e => setEmail(e.target.value)} />
+          </Field>
         </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Type</p>
-          <p className="mt-2 text-sm font-bold capitalize text-slate-900">{row.request_type}</p>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <RecipientChipList label="Roles" values={group.roles} />
+          <RecipientChipList label="Countries" values={group.countries} />
+          <RecipientChipList label="Request Types" values={group.requestTypes} />
+          <RecipientChipList label="Approval Steps" values={group.approvalSteps} />
         </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Role</p>
-          <p className="mt-2 text-sm font-bold text-slate-900">{row.notification_role}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Approval Step</p>
-          <p className="mt-2 text-sm font-bold text-slate-900">{row.approval_status || 'General notification'}</p>
-        </div>
-        <Field label="Display Name">
-          <input className={inputClass} value={displayName} onChange={e => setDisplayName(e.target.value)} />
-        </Field>
-        <Field label="Email">
-          <input className={inputClass} type="email" value={email} onChange={e => setEmail(e.target.value)} />
-        </Field>
+
         <button type="button" disabled={isPending || !displayName.trim() || !email.trim()} onClick={save} className="rounded-lg bg-[#307c4c] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#307c4c]/80 disabled:opacity-60">
-          {isPending ? 'Saving' : 'Save'}
+          {isPending ? 'Saving' : 'Save Person'}
         </button>
       </div>
       {error && <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
@@ -647,13 +712,42 @@ function NotificationRecipientsPanel({ rows, onDone }: { rows: ProcureGuardNotif
   const [country, setCountry] = useState('All');
   const [requestType, setRequestType] = useState('All');
   const [role, setRole] = useState('All');
+  const [personSearch, setPersonSearch] = useState('');
+  const [isTestingWebhook, startWebhookTest] = useTransition();
+  const [webhookTestResult, setWebhookTestResult] = useState('');
   const countries = useMemo(() => ['All', ...Array.from(new Set(rows.map(row => row.country))).sort()], [rows]);
   const roles = useMemo(() => ['All', ...Array.from(new Set(rows.map(row => row.notification_role))).sort()], [rows]);
-  const filtered = rows.filter(row =>
+  const filteredRows = rows.filter(row =>
     (country === 'All' || row.country === country) &&
     (requestType === 'All' || row.request_type === requestType) &&
     (role === 'All' || row.notification_role === role)
   );
+  const groups = useMemo(() => groupRecipientRows(filteredRows), [filteredRows]);
+  const searchedGroups = groups.filter(group => {
+    const q = personSearch.trim().toLowerCase();
+    if (!q) return true;
+    return group.displayName.toLowerCase().includes(q)
+      || group.email.toLowerCase().includes(q)
+      || group.roles.some(item => item.toLowerCase().includes(q))
+      || group.countries.some(item => item.toLowerCase().includes(q));
+  });
+
+  function runWebhookTest() {
+    setWebhookTestResult('');
+    startWebhookTest(async () => {
+      const result = await testProcureGuardN8nWebhook();
+      if (result.success && result.data) {
+        setWebhookTestResult(`Webhook reached ${result.data.webhookHost}${result.data.webhookPath}: ${result.data.status} ${result.data.statusText || 'OK'}`);
+        onDone('ProcureGuard n8n webhook test sent successfully.');
+        return;
+      }
+
+      const detail = result.data
+        ? ` (${result.data.webhookHost}${result.data.webhookPath}: ${result.data.status} ${result.data.statusText})`
+        : '';
+      setWebhookTestResult(`${result.error || 'Webhook test failed.'}${detail}`);
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -661,9 +755,27 @@ function NotificationRecipientsPanel({ rows, onDone }: { rows: ProcureGuardNotif
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-bold text-slate-900">Notification Recipients</p>
-            <p className="mt-1 text-xs text-slate-500">Change the person/email assigned to each ProcureGuard approval role. These are used for the people contacted panel and n8n email routing.</p>
+            <p className="mt-1 text-xs text-slate-500">Grouped by person so shared positions like CFO can be changed once across every assigned country and approval role.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={runWebhookTest}
+                disabled={isTestingWebhook}
+                className="rounded-md border border-[#307c4c]/30 bg-white px-3 py-2 text-xs font-bold text-[#307c4c] shadow-sm hover:bg-[#307c4c]/5 disabled:opacity-60"
+              >
+                {isTestingWebhook ? 'Testing n8n...' : 'Test n8n webhook'}
+              </button>
+              {webhookTestResult && (
+                <span className={`rounded-md border px-3 py-2 text-xs font-semibold ${webhookTestResult.startsWith('Webhook reached') ? 'border-[#307c4c]/20 bg-[#307c4c]/10 text-[#307c4c]' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                  {webhookTestResult}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:min-w-[580px]">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:min-w-[760px] xl:grid-cols-4">
+            <Field label="Person">
+              <input className={inputClass} value={personSearch} onChange={e => setPersonSearch(e.target.value)} placeholder="Search name, email, role..." />
+            </Field>
             <Field label="Country">
               <select className={inputClass} value={country} onChange={e => setCountry(e.target.value)}>
                 {countries.map(item => <option key={item}>{item}</option>)}
@@ -686,11 +798,11 @@ function NotificationRecipientsPanel({ rows, onDone }: { rows: ProcureGuardNotif
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {searchedGroups.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">No notification recipients match these filters.</div>
       ) : (
         <div className="space-y-3">
-          {filtered.map(row => <RecipientEditor key={row.id} row={row} onDone={onDone} />)}
+          {searchedGroups.map(group => <RecipientPersonEditor key={group.key} group={group} onDone={onDone} />)}
         </div>
       )}
     </div>
