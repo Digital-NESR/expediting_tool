@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
+import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, TrendingUp, HelpCircle } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | null;
@@ -566,6 +567,16 @@ function TITECard({
       onClick={onClick}
       className="relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 transition-all duration-200 text-left w-full cursor-pointer hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10 group"
     >
+      {/* Help icon — top right, stops card click propagation */}
+      <a
+        href="/help/tite"
+        title="View Help & Training"
+        onClick={e => e.stopPropagation()}
+        className="absolute top-3 right-3 p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors z-10"
+      >
+        <HelpCircle className="w-4 h-4" />
+      </a>
+
       <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: '#006B0C18' }}>
         <svg className="w-6 h-6" style={{ color: TITE_GREEN }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -733,7 +744,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 font-sans text-slate-900">
+    <div className="min-h-screen flex flex-col bg-gray-50 font-sans text-slate-900">
 
       {/* ── Header ── */}
       <header className="h-16 bg-white border-b border-gray-200 px-6 lg:px-8 flex items-center justify-between shrink-0">
@@ -767,44 +778,171 @@ export default function HomePage() {
       </header>
 
       {/* ── Main ── */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="flex-1 px-8 py-12">
+        <div className="max-w-6xl mx-auto">
 
-        <div className="mb-10">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            Welcome, {firstName}
-          </h1>
-          <p className="text-slate-500 mt-1 text-base">Select a tool to get started.</p>
-        </div>
+          <div className="mb-10">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+              Welcome, {firstName}
+            </h1>
+            <p className="text-slate-500 mt-1 text-base">Select a tool to get started.</p>
+            <p className="text-xs text-slate-400 mt-1.5">
+              {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Flex row: tool cards (flex-1, 3-col grid) + SCAI panel (fixed width) */}
+          <div className="flex gap-6 items-stretch">
 
-          <POExpeditingCard
-            status={poStatus}
-            isAdmin={isAdmin}
-            onClick={handlePOClick}
-          />
+            {/* ── Tool cards ── */}
+            <div className="flex-1 grid grid-cols-3 gap-6 content-start">
 
-          <TITECard
-            status={titeStatus}
-            isAdmin={isAdmin}
-            onClick={handleTiteClick}
-          />
+              <POExpeditingCard
+                status={poStatus}
+                isAdmin={isAdmin}
+                onClick={handlePOClick}
+              />
 
-          <ProcureGuardCard
-            canOpen={isAdmin}
-            onClick={handleProcureGuardClick}
-          />
+              <TITECard
+                status={titeStatus}
+                isAdmin={isAdmin}
+                onClick={handleTiteClick}
+              />
 
-          <ComingSoonCard
-            name="Supply Chain Analytics"
-            description="Real-time visibility into procurement performance, supplier KPIs, and delivery trends."
-            icon={
-              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            }
-          />
+              <ProcureGuardCard
+                canOpen={isAdmin}
+                onClick={handleProcureGuardClick}
+              />
 
+              <ComingSoonCard
+                name="Laptop Procurement"
+                description="Asset request and approval management"
+                icon={<Laptop className="w-6 h-6 text-gray-400" />}
+              />
+              <ComingSoonCard
+                name="The Bridge"
+                description="Cross-functional project tracking and handoffs"
+                icon={<GitMerge className="w-6 h-6 text-gray-400" />}
+              />
+              <ComingSoonCard
+                name="GRN Reconciliation"
+                description="Goods receipt and invoice matching"
+                icon={<FileCheck className="w-6 h-6 text-gray-400" />}
+              />
+              <ComingSoonCard
+                name="Price Benchmarking"
+                description="Supplier price analysis and market rate comparisons"
+                icon={<TrendingUp className="w-6 h-6 text-gray-400" />}
+              />
+
+            </div>
+
+            {/* ── SCAI Panel ── */}
+            <aside className="w-80 shrink-0">
+              <div className="h-full flex flex-col gap-4 bg-[#f0f9f4] border border-[#b6ddc8] rounded-2xl p-6">
+
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#307c4c]" />
+                  <p className="text-[10px] font-semibold tracking-widest uppercase text-[#307c4c]">
+                    AI Assistant
+                  </p>
+                </div>
+
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900 leading-tight">SCAI</h2>
+                  <p className="text-sm text-slate-500 mt-0.5">Supply Chain AI</p>
+                  <p className="text-xs text-slate-400 mt-1">3 specialized agents, one platform</p>
+                </div>
+
+                {/* Agent cards */}
+                <div className="flex flex-col gap-3">
+
+                  <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                    <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
+                      <ScanSearch className="w-4 h-4 text-[#307c4c]" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800">Materials AI</p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                        Duplicate checks, VDC stock lookups, and new material creation support
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                    <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
+                      <BookOpen className="w-4 h-4 text-[#307c4c]" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800">SC Policy AI</p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                        Instant answers from NESR's internal freight, warehouse, compliance, and field operations policies
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                    <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
+                      <Building2 className="w-4 h-4 text-[#307c4c]" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800">SourceGuide AI</p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                        Find approved suppliers, check compliance status, and access purchase history across countries
+                      </p>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Divider */}
+                <hr className="border-[#b6ddc8]/50" />
+
+                {/* Why SCAI? */}
+                <div>
+                  <p className="text-[10px] font-semibold tracking-widest uppercase text-[#307c4c] mb-2">
+                    Why SCAI?
+                  </p>
+                  <ul className="flex flex-col gap-1.5">
+                    {[
+                      "Trained on NESR's internal data — not generic AI",
+                      'Answers in seconds, not email chains',
+                      'Always up to date with the latest policies and supplier data',
+                    ].map(point => (
+                      <li key={point} className="flex items-start gap-2 text-[11px] text-slate-500">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#307c4c] shrink-0 mt-1" />
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Divider */}
+                <hr className="border-[#b6ddc8]/50" />
+
+                {/* Available 24/7 badge */}
+                <div className="flex justify-center">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/80 border border-[#b6ddc8]/60 text-[11px] font-medium text-slate-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#307c4c]" />
+                    Available 24/7
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Powered by NESR's internal data and policy documents.
+                </p>
+
+                <a
+                  href="https://scai.nesr.com"
+                  className="mt-auto w-full bg-[#307c4c] hover:bg-[#276041] text-white text-sm font-semibold py-3 rounded-xl text-center transition-colors"
+                >
+                  Launch SCAI
+                </a>
+
+              </div>
+            </aside>
+
+          </div>
         </div>
       </main>
 
