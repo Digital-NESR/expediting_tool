@@ -29,7 +29,7 @@ const PDF_SECTION_OPTIONS: Array<{ key: PdfSectionKey; label: string; descriptio
   { key: 'summary', label: 'Request summary', description: 'Reference, status, amount, and dates.' },
   { key: 'vendor', label: 'Vendor and requester', description: 'Vendor, requester, country, segment, and CC email.' },
   { key: 'details', label: 'Request details', description: 'Spend category, justification, and request comments.' },
-  { key: 'review', label: 'Review and payment', description: 'Reviewer, rejection, payment, and review comments.' },
+  { key: 'review', label: 'Review', description: 'Reviewer, rejection, and review comments.' },
   { key: 'attachments', label: 'Attachments', description: 'Uploaded file names and upload details.' },
   { key: 'activity', label: 'Activity log', description: 'Timeline of meaningful request activity.' },
 ];
@@ -115,10 +115,8 @@ function WorkflowChain({
   currency: string;
 }) {
   const steps = getWorkflowSteps(requestType, amount, currency);
-  const currentIndex = status === 'Paid'
-    ? steps.length - 1
-    : steps.findIndex(step => step.status === status);
-  const completedIndex = status === 'Approved' || status === 'Paid'
+  const currentIndex = steps.findIndex(step => step.status === status);
+  const completedIndex = status === 'Approved'
     ? steps.length - 1
     : Math.max(0, currentIndex - 1);
 
@@ -126,8 +124,8 @@ function WorkflowChain({
     <Section title="Approval Chain">
       <div className="space-y-3">
         {steps.map((step, index) => {
-          const isCurrent = index === currentIndex && status !== 'Approved' && status !== 'Paid';
-          const isComplete = index <= completedIndex || status === 'Approved' || status === 'Paid';
+          const isCurrent = index === currentIndex && status !== 'Approved';
+          const isComplete = index <= completedIndex || status === 'Approved';
           return (
             <div key={step.status} className={`rounded-md border p-3 ${isCurrent ? 'border-[#307c4c]/30 bg-[#307c4c]/10' : isComplete ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
               <div className="flex items-start gap-3">
@@ -190,7 +188,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
   const ownsRequest = request.requested_by_email.toLowerCase() === actor.email.toLowerCase();
   const canEditRequest = request.status === 'Submitted' && (ownsRequest || actor.permissions.canManageData);
   const canCancel = ownsRequest && request.status === 'Submitted' && actor.permissions.canCreateRequests;
-  const hasDecisionActions = actions.canApprove || actions.canReject || actions.canMarkPaid || canCancel;
+  const hasDecisionActions = actions.canApprove || actions.canReject || canCancel;
   const editHref = `/procure-guard/${isAdvance ? 'advance-payments' : 'adhoc-payments'}/${request.id}/edit`;
   const selectedPdfSectionCount = PDF_SECTION_OPTIONS.filter(option => pdfSections[option.key]).length;
 
@@ -357,10 +355,9 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
       }
 
       if (pdfSections.review) {
-        addTable('Review And Payment', [
+        addTable('Review', [
           ['Reviewed By', request.reviewed_by_name || request.reviewed_by_email],
           ['Reviewed At', fmtDateTime(request.reviewed_at)],
-          ['Paid At', fmtDateTime(request.paid_at)],
           ['Rejection Reason', request.rejection_reason],
           ['Latest Review Comment', request.review_comments],
         ]);
@@ -655,13 +652,12 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           </div>
 
           <div className="space-y-5">
-            <Section title="Review And Payment">
+            <Section title="Review">
               <div className="space-y-4">
                 {notice && <div className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#307c4c]">{notice}</div>}
                 {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div>}
                 <Field label="Reviewed By" value={request.reviewed_by_name || request.reviewed_by_email} />
                 <Field label="Reviewed At" value={fmtDateTime(request.reviewed_at)} />
-                <Field label="Paid At" value={fmtDateTime(request.paid_at)} />
                 <Field label="Rejection Reason" value={request.rejection_reason} />
                 <Field label="Latest Review Comment" value={request.review_comments} />
 
@@ -684,9 +680,6 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
                       )}
                       {actions.canReject && (
                         <button disabled={isPending} onClick={() => submitStatus('Rejected')} className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-60">Reject</button>
-                      )}
-                      {actions.canMarkPaid && (
-                        <button disabled={isPending} onClick={() => submitStatus('Paid')} className="rounded-md border border-[#307c4c]/20 bg-white px-3 py-2 text-xs font-bold text-[#307c4c] hover:bg-[#307c4c]/5 disabled:opacity-60">Mark Paid</button>
                       )}
                       {canCancel && (
                         <button disabled={isPending} onClick={() => setIsCancelDialogOpen(true)} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60">Cancel Request</button>

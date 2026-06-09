@@ -84,7 +84,7 @@ export default function AdvancePaymentsStatusClient({ data }: { data: ProcureGua
 
   const pendingCount = requests.filter(r => {
     const actions = getProcureGuardAvailableActions(actor.permissions, 'advance', r.status, r.amount, r.currency);
-    return actions.canApprove || actions.canReject || actions.canMarkPaid;
+    return actions.canApprove || actions.canReject;
   }).length;
   const totalAmount = requests.reduce((sum, r) => sum + toUsd(r.amount, r.currency), 0);
 

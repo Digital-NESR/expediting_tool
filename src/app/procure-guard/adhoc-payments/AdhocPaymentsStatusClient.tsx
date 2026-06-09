@@ -84,7 +84,7 @@ export default function AdhocPaymentsStatusClient({ data }: { data: ProcureGuard
 
   const pendingCount = requests.filter(r => {
     const actions = getProcureGuardAvailableActions(actor.permissions, 'adhoc', r.status, r.amount, r.currency);
-    return actions.canApprove || actions.canReject || actions.canMarkPaid;
+    return actions.canApprove || actions.canReject;
   }).length;
   const totalAmount = requests.reduce((sum, r) => sum + toUsd(r.amount, r.currency), 0);
 

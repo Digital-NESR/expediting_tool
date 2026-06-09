@@ -32,7 +32,6 @@ function PriorityPill({ priority }: { priority: string }) {
 }
 
 function actionLabel(item: ProcureGuardWorkQueueItem) {
-  if (item.actions.canMarkPaid) return 'Open request to complete payment';
   if (item.actions.nextStatus === 'Under Review') return 'Open request to start review';
   if (item.actions.nextStatus) return `Open request to approve to ${item.actions.nextStatus}`;
   return 'Open request for action';
@@ -68,11 +67,10 @@ export default function MyWorkClient({ data }: { data: ProcureGuardWorkQueueData
               <h1 className="mt-2 text-2xl font-bold text-slate-950">{data.actor.role} Work Queue</h1>
               <p className="mt-2 text-sm text-slate-500">Open a payment to review the details, add comments, and complete your action.</p>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">Total</p><p className="text-xl font-bold">{data.stats.total}</p></div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">Adhoc</p><p className="text-xl font-bold">{data.stats.adhoc}</p></div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">Advance</p><p className="text-xl font-bold">{data.stats.advance}</p></div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-xs text-slate-500">Payment</p><p className="text-xl font-bold">{data.stats.payment}</p></div>
             </div>
           </div>
         </section>

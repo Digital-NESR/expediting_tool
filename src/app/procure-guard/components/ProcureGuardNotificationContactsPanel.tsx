@@ -12,7 +12,7 @@ type Props = {
 function activeDecisionStatus(status?: ProcureGuardStatus | null): ProcureGuardStatus | null {
   if (!status) return null;
   if (status === 'Submitted') return 'Under Review';
-  if (status === 'Approved' || status === 'Rejected' || status === 'Paid' || status === 'Cancelled') return null;
+  if (status === 'Approved' || status === 'Rejected' || status === 'Cancelled') return null;
   return status;
 }
 

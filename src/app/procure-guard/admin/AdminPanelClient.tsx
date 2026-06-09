@@ -469,7 +469,6 @@ const CAPABILITY_LABELS: Array<[keyof Omit<ProcureGuardPermissionProfile, 'role'
   ['canManageData', 'Add/edit admin data'],
   ['canManagePermissions', 'Change permissions'],
   ['canDeleteRecords', 'Delete records'],
-  ['canMarkPaid', 'Mark approved requests paid'],
   ['canReject', 'Reject active requests'],
   ['canReviewAdhocScm', 'Adhoc: SCM review'],
   ['canReviewAdhocDirector', 'Adhoc: Supply Chain Director approval'],

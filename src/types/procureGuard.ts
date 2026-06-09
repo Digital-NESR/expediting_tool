@@ -8,7 +8,6 @@
   | 'Approved by Corporate Controller'
   | 'Approved'
   | 'Rejected'
-  | 'Paid'
   | 'Cancelled';
 
 export type ProcureGuardPriority = 'Low' | 'Normal' | 'High' | 'Critical';
@@ -23,7 +22,6 @@ export type ProcureGuardPermissionRole =
   | 'Treasury Director'
   | 'Corporate Controller'
   | 'CFO'
-  | 'Payment Processor'
   | 'Admin';
 export type ProcureGuardAccessView = 'requester' | 'analyst' | 'reviewer' | 'admin';
 
@@ -37,7 +35,6 @@ export interface ProcureGuardPermissionProfile {
   canManageData: boolean;
   canManagePermissions: boolean;
   canDeleteRecords: boolean;
-  canMarkPaid: boolean;
   canReject: boolean;
   canReviewAdhocScm: boolean;
   canReviewAdhocDirector: boolean;
@@ -129,7 +126,6 @@ export interface AdhocPaymentRequest {
   reviewed_by_name: string | null;
   reviewed_by_email: string | null;
   reviewed_at: string | null;
-  paid_at: string | null;
   rejection_reason: string | null;
   created_at: string;
   updated_at: string;
@@ -176,7 +172,6 @@ export interface AdvancePaymentRequest {
   reviewed_by_name: string | null;
   reviewed_by_email: string | null;
   reviewed_at: string | null;
-  paid_at: string | null;
   rejection_reason: string | null;
   created_at: string;
   updated_at: string;
@@ -264,7 +259,6 @@ export interface ProcureGuardDashboardStats {
   advance_total: number;
   pending_review: number;
   approved: number;
-  paid: number;
   rejected: number;
   total_requested_amount: number;
   adhoc_requested_amount: number;
@@ -303,7 +297,6 @@ export interface ProcureGuardRequestActions {
   nextStatus: ProcureGuardStatus | null;
   canApprove: boolean;
   canReject: boolean;
-  canMarkPaid: boolean;
   requiredPermission: string | null;
   ownerLabel: string;
 }
@@ -333,7 +326,6 @@ export interface ProcureGuardWorkQueueData {
     adhoc: number;
     advance: number;
     approval: number;
-    payment: number;
   };
 }
 

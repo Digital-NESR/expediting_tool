@@ -11,7 +11,6 @@ export const PERMISSION_ROLE_OPTIONS: ProcureGuardPermissionRole[] = [
   'Treasury Director',
   'Corporate Controller',
   'CFO',
-  'Payment Processor',
   'Admin',
 ];
 
@@ -21,7 +20,6 @@ const BASE_PERMISSION_PROFILE: Omit<ProcureGuardPermissionProfile, 'role' | 'lab
   canManageData: false,
   canManagePermissions: false,
   canDeleteRecords: false,
-  canMarkPaid: false,
   canReject: false,
   canReviewAdhocScm: false,
   canReviewAdhocDirector: false,
@@ -117,27 +115,17 @@ export const PERMISSION_PROFILES: Record<ProcureGuardPermissionRole, ProcureGuar
     canReject: true,
     canReviewAdvanceCfo: true,
   },
-  'Payment Processor': {
-    ...BASE_PERMISSION_PROFILE,
-    role: 'Payment Processor',
-    label: 'Payment Processor',
-    description: 'Can mark approved requests as paid.',
-    accessView: 'reviewer',
-    canViewAll: true,
-    canMarkPaid: true,
-  },
   Admin: {
     ...BASE_PERMISSION_PROFILE,
     role: 'Admin',
     label: 'Admin',
-    description: 'Full access to data, permissions, approvals, deletion, and payment completion.',
+    description: 'Full access to data, permissions, approvals, and deletion.',
     accessView: 'admin',
     canViewAll: true,
     canCreateRequests: true,
     canManageData: true,
     canManagePermissions: true,
     canDeleteRecords: true,
-    canMarkPaid: true,
     canReject: true,
     canReviewAdhocScm: true,
     canReviewAdhocDirector: true,
@@ -155,7 +143,6 @@ export interface ProcureGuardAvailableActions {
   nextStatus: ProcureGuardStatus | null;
   canApprove: boolean;
   canReject: boolean;
-  canMarkPaid: boolean;
   requiredPermission: ProcureGuardPermissionKey | null;
   ownerLabel: string;
 }
@@ -168,7 +155,6 @@ const PERMISSION_OWNER_LABELS: Partial<Record<ProcureGuardPermissionKey, string>
   canReviewAdvanceTreasuryDirector: 'Treasury Director',
   canReviewAdvanceCorporateController: 'Corporate Controller',
   canReviewAdvanceCfo: 'CFO',
-  canMarkPaid: 'Payment Processor',
 };
 
 export function getPermissionProfile(role: string | null | undefined): ProcureGuardPermissionProfile {
@@ -227,7 +213,7 @@ function getCurrentStepPermission(
   currency?: string | null,
 ): ProcureGuardPermissionKey | null {
   const nextStatus = getNextApprovalStatus(requestType, currentStatus, amount, currency || 'USD');
-  if (!nextStatus) return currentStatus === 'Approved' ? 'canMarkPaid' : null;
+  if (!nextStatus) return null;
   return getRequiredPermissionForApproval(requestType, currentStatus, nextStatus, amount, currency);
 }
 
@@ -238,7 +224,6 @@ export function getRequiredPermissionForTransition(
   amount?: number | string | null,
   currency?: string | null,
 ): ProcureGuardPermissionKey | null {
-  if (nextStatus === 'Paid') return currentStatus === 'Approved' ? 'canMarkPaid' : null;
   if (nextStatus === 'Rejected') return getCurrentStepPermission(requestType, currentStatus, amount, currency);
   return getRequiredPermissionForApproval(requestType, currentStatus, nextStatus, amount, currency);
 }
@@ -257,9 +242,8 @@ export function getProcureGuardAvailableActions(
     nextStatus,
     canApprove: Boolean(nextStatus && ownsCurrentApprovalStep),
     canReject: Boolean(nextStatus && ownsCurrentApprovalStep && permissions.canReject),
-    canMarkPaid: currentStatus === 'Approved' && permissions.canMarkPaid,
     requiredPermission,
-    ownerLabel: requiredPermission ? PERMISSION_OWNER_LABELS[requiredPermission] ?? 'Assigned approver' : currentStatus === 'Approved' ? 'Payment Processor' : 'No active owner',
+    ownerLabel: requiredPermission ? PERMISSION_OWNER_LABELS[requiredPermission] ?? 'Assigned approver' : 'No active owner',
   };
 }
 export const STATUS_OPTIONS: ProcureGuardStatus[] = [
@@ -272,7 +256,6 @@ export const STATUS_OPTIONS: ProcureGuardStatus[] = [
   'Approved by Corporate Controller',
   'Approved',
   'Rejected',
-  'Paid',
   'Cancelled',
 ];
 
@@ -282,7 +265,6 @@ export const ADHOC_STATUS_OPTIONS: ProcureGuardStatus[] = [
   'Approved by SCM',
   'Approved',
   'Rejected',
-  'Paid',
   'Cancelled',
 ];
 
@@ -295,7 +277,6 @@ export const ADVANCE_STATUS_OPTIONS: ProcureGuardStatus[] = [
   'Approved by Corporate Controller',
   'Approved',
   'Rejected',
-  'Paid',
   'Cancelled',
 ];
 
@@ -436,7 +417,7 @@ export function getWorkflowSteps(
       { status: 'Submitted', label: 'New Request', owner: 'Requester', description: 'Request created and ready for supply chain review.' },
       { status: 'Under Review', label: 'Country SCM Review', owner: 'Country Supply Chain Manager', description: 'Country supply chain manager reviews the exception.' },
       { status: 'Approved by SCM', label: 'Supply Chain Director Review', owner: 'Supply Chain Director', description: 'Supply chain director reviews after SCM approval.' },
-      { status: 'Approved', label: 'Approved', owner: 'Workflow Complete', description: 'Request is approved and ready for payment handling.' },
+      { status: 'Approved', label: 'Approved', owner: 'Workflow Complete', description: 'Request is fully approved.' },
     ];
   }
 
@@ -461,7 +442,7 @@ export function getWorkflowSteps(
     status: 'Approved',
     label: 'Approved',
     owner: 'Workflow Complete',
-    description: 'Request is approved and ready for payment handling.',
+    description: 'Request is fully approved.',
   });
 
   return steps;
@@ -473,7 +454,7 @@ export function getNextApprovalStatus(
   amount?: number | string | null,
   currency?: string | null,
 ): ProcureGuardStatus | null {
-  if (currentStatus === 'Cancelled' || currentStatus === 'Paid' || currentStatus === 'Rejected' || currentStatus === 'Approved') {
+  if (currentStatus === 'Cancelled' || currentStatus === 'Rejected' || currentStatus === 'Approved') {
     return null;
   }
 
@@ -593,11 +574,6 @@ export function getStatusBadge(status: string): { label: string; className: stri
       label: 'Rejected',
       className: 'bg-red-50 text-red-700 border-red-200',
       dot: 'bg-red-500',
-    },
-    Paid: {
-      label: 'Paid',
-      className: 'bg-green-50 text-green-700 border-green-200',
-      dot: 'bg-green-500',
     },
     Cancelled: {
       label: 'Cancelled',

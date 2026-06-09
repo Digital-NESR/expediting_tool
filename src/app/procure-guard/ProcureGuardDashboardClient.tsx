@@ -134,7 +134,7 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400 mb-2">Payment control center</p>
               <h1 className="text-lg font-bold tracking-tight text-gray-900">ProcureGuard</h1>
               <p className="text-slate-500 max-w-2xl mt-2 text-sm sm:text-base">
-                Track adhoc payments and advance payment requests from submission through review, approval, and payment.
+                Track adhoc payments and advance payment requests from submission through review and approval.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -148,10 +148,9 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
           </div>
         </section>
 
-        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           <MetricCard title="Pending Review" value={stats.pending_review} sub="Active approval chain items" tone="amber" />
-          <MetricCard title="Approved" value={stats.approved} sub="Approved but not yet paid" tone="green" />
-          <MetricCard title="Paid" value={stats.paid} sub="Completed payment requests" tone="blue" />
+          <MetricCard title="Approved" value={stats.approved} sub="Completed approval requests" tone="green" />
           <MetricCard title="Total USD Eq." value={usdFmt(stats.total_requested_amount)} sub="All visible request value normalized to USD" tone="green" />
         </section>
 

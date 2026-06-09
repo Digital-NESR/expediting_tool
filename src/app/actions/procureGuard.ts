@@ -49,7 +49,6 @@ const STATUS_SORT_ORDER: ProcureGuardStatus[] = [
   'Approved by Corporate Controller',
   'Approved',
   'Rejected',
-  'Paid',
   'Cancelled',
 ];
 const PRIORITY_SORT_ORDER = ['Critical', 'High', 'Normal', 'Low'];
@@ -388,7 +387,6 @@ function getScopedProcureGuardAvailableActions(
     ...actions,
     canApprove: false,
     canReject: false,
-    canMarkPaid: false,
   };
 }
 
@@ -962,7 +960,6 @@ function buildStats(adhoc: AdhocPaymentRequest[], advance: AdvancePaymentRequest
     advance_total: advance.length,
     pending_review: all.filter(r => isActiveApprovalStatus(r.status)).length,
     approved: all.filter(r => r.status === 'Approved').length,
-    paid: all.filter(r => r.status === 'Paid').length,
     rejected: all.filter(r => r.status === 'Rejected').length,
     total_requested_amount: totalAmount,
     adhoc_requested_amount: adhoc.reduce((sum, r) => sum + toUsd(r.amount, r.currency), 0),
@@ -1092,7 +1089,7 @@ export async function getProcureGuardWorkQueueData(): Promise<ProcureGuardWorkQu
         actions: getScopedProcureGuardAvailableActions(actor, 'advance', request),
       })),
     ]
-      .filter(item => item.actions.canApprove || item.actions.canReject || item.actions.canMarkPaid)
+      .filter(item => item.actions.canApprove || item.actions.canReject)
       .sort((a, b) => {
         const priorityRank: Record<string, number> = { Critical: 0, High: 1, Normal: 2, Low: 3 };
         return (priorityRank[a.request.priority] ?? 2) - (priorityRank[b.request.priority] ?? 2)
@@ -1107,7 +1104,6 @@ export async function getProcureGuardWorkQueueData(): Promise<ProcureGuardWorkQu
         adhoc: items.filter(item => item.request_type === 'adhoc').length,
         advance: items.filter(item => item.request_type === 'advance').length,
         approval: items.filter(item => item.actions.canApprove || item.actions.canReject).length,
-        payment: items.filter(item => item.actions.canMarkPaid).length,
       },
     };
   } catch (err) {
@@ -1372,7 +1368,7 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
     }
 
     const highValueOpenRequests: ProcureGuardHighValueRequest[] = all
-      .filter(row => row.status !== 'Paid' && row.status !== 'Cancelled' && row.status !== 'Rejected')
+      .filter(row => isActiveApprovalStatus(row.status))
       .map(row => {
         const requestType: ProcureGuardRequestType = 'contract_reference' in row ? 'advance' : 'adhoc';
         return {
@@ -1499,8 +1495,8 @@ export async function getProcureGuardAdminAnalyticsData(): Promise<ProcureGuardA
       `),
       sql<QueryResultRow[]>(`
         SELECT (
-          (SELECT COUNT(*) FROM procure_guard_adhoc_payments WHERE status NOT IN ('Approved', 'Rejected', 'Paid', 'Cancelled')) +
-          (SELECT COUNT(*) FROM procure_guard_advance_payments WHERE status NOT IN ('Approved', 'Rejected', 'Paid', 'Cancelled'))
+          (SELECT COUNT(*) FROM procure_guard_adhoc_payments WHERE status IN ('Submitted', 'Under Review', 'Approved by SCM')) +
+          (SELECT COUNT(*) FROM procure_guard_advance_payments WHERE status IN ('Submitted', 'Under Review', 'Approved by Country Controller', 'Approved by Supply Chain Director', 'Approved by Treasury Director', 'Approved by Corporate Controller'))
         )::int AS pending_review
       `),
     ]);
@@ -2181,9 +2177,8 @@ async function updateStatusCommon(input: {
     );
     const validApprovalMove = expectedNextStatus === input.status;
     const validRejectMove = input.status === 'Rejected' && isActiveApprovalStatus(row.status);
-    const validPaidMove = input.status === 'Paid' && row.status === 'Approved';
 
-    if (!validApprovalMove && !validRejectMove && !validPaidMove) {
+    if (!validApprovalMove && !validRejectMove) {
       return { success: false, error: `Cannot move ${row.reference_number} from ${row.status} to ${input.status}.` };
     }
 
@@ -2209,9 +2204,8 @@ async function updateStatusCommon(input: {
   }
 
   const setReviewed = REVIEWED_STATUSES.includes(input.status);
-  const setPaid = input.status === 'Paid';
   const setCancelled = input.status === 'Cancelled';
-  const shouldSetReviewer = setReviewed || setPaid || setCancelled;
+  const shouldSetReviewer = setReviewed || setCancelled;
   const rejectionReason = input.status === 'Rejected' ? blankToNull(comment) : null;
   const reviewComments = shouldSetReviewer ? blankToNull(comment) : row.review_comments;
 
@@ -2221,7 +2215,6 @@ async function updateStatusCommon(input: {
          reviewed_by_name = ?,
          reviewed_by_email = ?,
          reviewed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
-         paid_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE paid_at END,
          rejection_reason = ?,
          review_comments = ?,
          updated_at = CURRENT_TIMESTAMP
@@ -2231,7 +2224,6 @@ async function updateStatusCommon(input: {
       shouldSetReviewer ? actor.name : row.reviewed_by_name,
       shouldSetReviewer ? actor.email : row.reviewed_by_email,
       setReviewed || setCancelled,
-      setPaid,
       rejectionReason,
       reviewComments,
       input.id,
