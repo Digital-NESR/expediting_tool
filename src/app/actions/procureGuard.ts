@@ -377,9 +377,11 @@ function getScopeRestrictionMessage(
 function getScopedProcureGuardAvailableActions(
   actor: ProcureGuardActor,
   requestType: ProcureGuardRequestType,
-  request: { status: ProcureGuardStatus; amount?: number | string | null; currency?: string | null; country?: string | null; segment?: string | null },
+  request: { status: ProcureGuardStatus; amount?: number | string | null; currency?: string | null; spend_value_usd?: number | string | null; country?: string | null; segment?: string | null },
 ): ProcureGuardAvailableActions {
-  const actions = getProcureGuardAvailableActions(actor.permissions, requestType, request.status, request.amount, request.currency);
+  const thresholdAmount = request.spend_value_usd ?? request.amount;
+  const thresholdCurrency = request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD';
+  const actions = getProcureGuardAvailableActions(actor.permissions, requestType, request.status, thresholdAmount, thresholdCurrency);
   if (actorCanAccessRequestScope(actor, request)) return actions;
 
   return {
@@ -495,6 +497,7 @@ type ProcureGuardWebhookRequest = Pick<
   | 'vendor_name'
   | 'amount'
   | 'currency'
+  | 'spend_value_usd'
   | 'country'
   | 'segment'
   | 'spend_category'
@@ -542,8 +545,10 @@ function getRecipientApprovalStatus(
   request: ProcureGuardWebhookRequest,
 ): ProcureGuardStatus | null {
   if (!isActiveApprovalStatus(request.status)) return null;
+  const thresholdAmount = request.spend_value_usd ?? request.amount;
+  const thresholdCurrency = request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD';
   if (request.status === 'Submitted') {
-    return getNextApprovalStatus(requestType, request.status, request.amount, request.currency) ?? request.status;
+    return getNextApprovalStatus(requestType, request.status, thresholdAmount, thresholdCurrency) ?? request.status;
   }
   return request.status;
 }
@@ -757,13 +762,15 @@ async function notifyProcureGuardNextApprover(input: {
     const recipientApprovalStatus = getRecipientApprovalStatus(input.requestType, request);
     if (!recipientApprovalStatus) return;
 
+    const thresholdAmount = request.spend_value_usd ?? request.amount;
+    const thresholdCurrency = request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD';
     const adminPermissions = getPermissionProfile('Admin');
     const actions = getProcureGuardAvailableActions(
       adminPermissions,
       input.requestType,
       request.status,
-      request.amount,
-      request.currency,
+      thresholdAmount,
+      thresholdCurrency,
     );
 
     if (!actions.requiredPermission) return;
@@ -813,7 +820,7 @@ async function notifyProcureGuardNextApprover(input: {
         vendor_name: request.vendor_name,
         amount: request.amount,
         currency: request.currency,
-        amount_usd: toUsd(request.amount, request.currency),
+        amount_usd: toUsd(thresholdAmount, thresholdCurrency),
         country: request.country,
         segment: request.segment,
         spend_category: request.spend_category,
@@ -2162,13 +2169,15 @@ async function updateStatusCommon(input: {
       return { success: false, error: 'This request can only be cancelled before review starts.' };
     }
   } else {
-    const expectedNextStatus = getNextApprovalStatus(input.requestType, row.status, row.amount, row.currency);
+    const thresholdAmount = row.spend_value_usd ?? row.amount;
+    const thresholdCurrency = row.spend_value_usd === null || row.spend_value_usd === undefined ? row.currency : 'USD';
+    const expectedNextStatus = getNextApprovalStatus(input.requestType, row.status, thresholdAmount, thresholdCurrency);
     const requiredPermission = getRequiredPermissionForTransition(
       input.requestType,
       row.status,
       input.status,
-      row.amount,
-      row.currency,
+      thresholdAmount,
+      thresholdCurrency,
     );
     const validApprovalMove = expectedNextStatus === input.status;
     const validRejectMove = input.status === 'Rejected' && isActiveApprovalStatus(row.status);

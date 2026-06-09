@@ -183,6 +183,8 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
   const isAdvance = isAdvanceRequest(request);
   const listHref = isAdvance ? '/procure-guard/advance-payments' : '/procure-guard/adhoc-payments';
   const requestLabel = isAdvance ? 'Advance Payment' : 'Adhoc Payment';
+  const workflowAmount = request.spend_value_usd ?? request.amount;
+  const workflowCurrency = request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD';
   const requester = request.requested_by_name || request.requested_by_email;
   const pendingCount = isActiveApprovalStatus(request.status) ? 1 : 0;
   const ownsRequest = request.requested_by_email.toLowerCase() === actor.email.toLowerCase();
@@ -695,7 +697,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
               </div>
             </Section>
 
-            <WorkflowChain requestType={requestType} status={request.status} amount={request.amount} currency={request.currency} />
+            <WorkflowChain requestType={requestType} status={request.status} amount={workflowAmount} currency={workflowCurrency} />
 
             <ProcureGuardNotificationContactsPanel
               contacts={notificationContacts}
