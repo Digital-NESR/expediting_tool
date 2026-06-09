@@ -822,8 +822,8 @@ export default function HomePage() {
               icon={<TrendingUp className="w-6 h-6 text-gray-400" />}
             />
 
-            {/* ── SCAI Panel — col 4, spans all 3 rows ── */}
-            <aside className="col-start-4 row-start-1 row-span-3">
+            {/* ── SCAI Panel — cols 3-4, spans 2 rows ── */}
+            <aside className="col-start-3 col-span-2 row-start-1 row-span-2">
               <div className="h-full flex flex-col gap-4 bg-[#f0f9f4] border border-[#b6ddc8] rounded-2xl p-6">
 
                 <div className="flex items-center gap-2">
@@ -839,9 +839,10 @@ export default function HomePage() {
                   <p className="text-xs text-slate-400 mt-1">3 specialized agents, one platform</p>
                 </div>
 
-                <div className="flex flex-col gap-3">
+                {/* Agent cards — 3-col sub-grid inside the wider panel */}
+                <div className="grid grid-cols-3 gap-3">
 
-                  <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                  <div className="flex gap-2.5 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
                     <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
                       <ScanSearch className="w-4 h-4 text-[#307c4c]" />
                     </div>
@@ -853,7 +854,7 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                  <div className="flex gap-2.5 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
                     <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
                       <BookOpen className="w-4 h-4 text-[#307c4c]" />
                     </div>
@@ -865,7 +866,7 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                  <div className="flex gap-2.5 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
                     <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
                       <Building2 className="w-4 h-4 text-[#307c4c]" />
                     </div>
@@ -877,6 +878,39 @@ export default function HomePage() {
                     </div>
                   </div>
 
+                </div>
+
+                {/* Divider */}
+                <hr className="border-[#b6ddc8]/50" />
+
+                {/* Why SCAI? */}
+                <div>
+                  <p className="text-[10px] font-semibold tracking-widest uppercase text-[#307c4c] mb-2">
+                    Why SCAI?
+                  </p>
+                  <ul className="flex flex-col gap-1.5">
+                    {[
+                      "Trained on NESR's internal data — not generic AI",
+                      'Answers in seconds, not email chains',
+                      'Always up to date with the latest policies and supplier data',
+                    ].map(point => (
+                      <li key={point} className="flex items-start gap-2 text-[11px] text-slate-500">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#307c4c] shrink-0 mt-1" />
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Divider */}
+                <hr className="border-[#b6ddc8]/50" />
+
+                {/* Available 24/7 badge */}
+                <div className="flex justify-center">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/80 border border-[#b6ddc8]/60 text-[11px] font-medium text-slate-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#307c4c]" />
+                    Available 24/7
+                  </span>
                 </div>
 
                 <p className="text-[11px] text-slate-400 leading-relaxed">
