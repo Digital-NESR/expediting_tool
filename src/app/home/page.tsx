@@ -768,108 +768,111 @@ export default function HomePage() {
       </header>
 
       {/* ── Main ── */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="flex gap-8 items-start">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex items-start gap-6">
 
-          {/* ── Tool grid ── */}
+          {/* ── Tool grid (centered in remaining space) ── */}
           <div className="flex-1 min-w-0">
+            <div className="max-w-4xl mx-auto">
 
-            <div className="mb-10">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                Welcome, {firstName}
-              </h1>
-              <p className="text-slate-500 mt-1 text-base">Select a tool to get started.</p>
-              <p className="text-xs text-slate-400 mt-1.5">
-                {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
-            </div>
+              <div className="mb-10">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                  Welcome, {firstName}
+                </h1>
+                <p className="text-slate-500 mt-1 text-base">Select a tool to get started.</p>
+                <p className="text-xs text-slate-400 mt-1.5">
+                  {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
+              </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
-              <POExpeditingCard
-                status={poStatus}
-                isAdmin={isAdmin}
-                onClick={handlePOClick}
-              />
+                <POExpeditingCard
+                  status={poStatus}
+                  isAdmin={isAdmin}
+                  onClick={handlePOClick}
+                />
 
-              <TITECard
-                status={titeStatus}
-                isAdmin={isAdmin}
-                onClick={handleTiteClick}
-              />
+                <TITECard
+                  status={titeStatus}
+                  isAdmin={isAdmin}
+                  onClick={handleTiteClick}
+                />
 
-              <ProcureGuardCard
-                canOpen={isAdmin}
-                onClick={handleProcureGuardClick}
-              />
+                <ProcureGuardCard
+                  canOpen={isAdmin}
+                  onClick={handleProcureGuardClick}
+                />
 
-              <ComingSoonCard
-                name="Laptop Procurement"
-                description="Asset request and approval management"
-                icon={<Laptop className="w-6 h-6 text-gray-400" />}
-              />
-              <ComingSoonCard
-                name="The Bridge"
-                description="Cross-functional project tracking and handoffs"
-                icon={<GitMerge className="w-6 h-6 text-gray-400" />}
-              />
-              <ComingSoonCard
-                name="GRN Reconciliation"
-                description="Goods receipt and invoice matching"
-                icon={<FileCheck className="w-6 h-6 text-gray-400" />}
-              />
+                <ComingSoonCard
+                  name="Laptop Procurement"
+                  description="Asset request and approval management"
+                  icon={<Laptop className="w-6 h-6 text-gray-400" />}
+                />
+                <ComingSoonCard
+                  name="The Bridge"
+                  description="Cross-functional project tracking and handoffs"
+                  icon={<GitMerge className="w-6 h-6 text-gray-400" />}
+                />
+                <ComingSoonCard
+                  name="GRN Reconciliation"
+                  description="Goods receipt and invoice matching"
+                  icon={<FileCheck className="w-6 h-6 text-gray-400" />}
+                />
 
+              </div>
             </div>
           </div>
 
           {/* ── SCAI Panel ── */}
-          <aside className="hidden lg:flex w-[248px] shrink-0 sticky top-8 flex-col gap-3.5 bg-gray-50 border border-gray-200 rounded-xl p-5 self-start mr-6">
+          <aside className="hidden lg:flex w-[260px] shrink-0 sticky top-8 flex-col gap-4 bg-[#f0f9f4] border border-[#b6ddc8] rounded-2xl p-6 self-start mr-4">
 
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-slate-400" />
-              <p className="text-[9px] font-semibold tracking-widest uppercase text-slate-400">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#307c4c]" />
+              <p className="text-[10px] font-semibold tracking-widest uppercase text-[#307c4c]">
                 AI Assistant
               </p>
             </div>
 
             <div>
-              <h2 className="text-lg font-bold text-slate-700 leading-tight">SCAI</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Supply Chain AI · 3 agents</p>
+              <h2 className="text-2xl font-bold text-slate-900 leading-tight">SCAI</h2>
+              <p className="text-sm text-slate-500 mt-0.5">Supply Chain AI</p>
+              <p className="text-xs text-slate-400 mt-1">3 specialized agents, one platform</p>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
 
-              <div className="flex gap-2.5 items-start">
-                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <ScanSearch className="w-3.5 h-3.5 text-slate-400" />
+              <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
+                  <ScanSearch className="w-4 h-4 text-[#307c4c]" />
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold text-slate-600">Materials AI</p>
-                  <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
+                  <p className="text-xs font-semibold text-slate-800">Materials AI</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
                     Duplicate checks, VDC stock lookups, and new material creation support
                   </p>
                 </div>
               </div>
 
-              <div className="flex gap-2.5 items-start">
-                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+              <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
+                  <BookOpen className="w-4 h-4 text-[#307c4c]" />
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold text-slate-600">SC Policy AI</p>
-                  <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
+                  <p className="text-xs font-semibold text-slate-800">SC Policy AI</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
                     Instant answers from NESR's internal freight, warehouse, compliance, and field operations policies
                   </p>
                 </div>
               </div>
 
-              <div className="flex gap-2.5 items-start">
-                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
+              <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
+                  <Building2 className="w-4 h-4 text-[#307c4c]" />
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold text-slate-600">SourceGuide AI</p>
-                  <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
+                  <p className="text-xs font-semibold text-slate-800">SourceGuide AI</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
                     Find approved suppliers, check compliance status, and access purchase history across countries
                   </p>
                 </div>
@@ -877,13 +880,13 @@ export default function HomePage() {
 
             </div>
 
-            <p className="text-[10px] text-slate-300 leading-relaxed">
+            <p className="text-[11px] text-slate-400 leading-relaxed">
               Powered by NESR's internal data and policy documents.
             </p>
 
             <a
               href="https://scai.nesr.com"
-              className="text-[11px] font-medium text-[#307c4c] hover:text-[#276041] transition-colors inline-flex items-center gap-1"
+              className="w-full bg-[#307c4c] hover:bg-[#276041] text-white text-sm font-semibold py-3 rounded-xl text-center transition-colors"
             >
               Open SCAI →
             </a>
