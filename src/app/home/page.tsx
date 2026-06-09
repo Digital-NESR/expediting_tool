@@ -769,7 +769,7 @@ export default function HomePage() {
 
       {/* ── Main ── */}
       <main className="w-full px-4 sm:px-6 lg:px-8 py-12">
-        <div className="flex items-start gap-6">
+        <div className="flex items-center gap-6">
 
           {/* ── Tool grid (centered in remaining space) ── */}
           <div className="flex-1 min-w-0">
@@ -888,7 +888,7 @@ export default function HomePage() {
               href="https://scai.nesr.com"
               className="w-full bg-[#307c4c] hover:bg-[#276041] text-white text-sm font-semibold py-3 rounded-xl text-center transition-colors"
             >
-              Open SCAI →
+              Launch SCAI
             </a>
 
           </aside>
