@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
-import { Laptop, GitMerge, FileCheck } from 'lucide-react';
+import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2 } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | null;
@@ -768,49 +768,127 @@ export default function HomePage() {
       </header>
 
       {/* ── Main ── */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex gap-8 items-start">
 
-        <div className="mb-10">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            Welcome, {firstName}
-          </h1>
-          <p className="text-slate-500 mt-1 text-base">Select a tool to get started.</p>
-        </div>
+          {/* ── Tool grid ── */}
+          <div className="flex-1 min-w-0">
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="mb-10">
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                Welcome, {firstName}
+              </h1>
+              <p className="text-slate-500 mt-1 text-base">Select a tool to get started.</p>
+              <p className="text-xs text-slate-400 mt-1.5">
+                {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
 
-          <POExpeditingCard
-            status={poStatus}
-            isAdmin={isAdmin}
-            onClick={handlePOClick}
-          />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
-          <TITECard
-            status={titeStatus}
-            isAdmin={isAdmin}
-            onClick={handleTiteClick}
-          />
+              <POExpeditingCard
+                status={poStatus}
+                isAdmin={isAdmin}
+                onClick={handlePOClick}
+              />
 
-          <ProcureGuardCard
-            canOpen={isAdmin}
-            onClick={handleProcureGuardClick}
-          />
+              <TITECard
+                status={titeStatus}
+                isAdmin={isAdmin}
+                onClick={handleTiteClick}
+              />
 
-          <ComingSoonCard
-            name="Laptop Procurement"
-            description="Asset request and approval management"
-            icon={<Laptop className="w-6 h-6 text-gray-400" />}
-          />
-          <ComingSoonCard
-            name="The Bridge"
-            description="Cross-functional project tracking and handoffs"
-            icon={<GitMerge className="w-6 h-6 text-gray-400" />}
-          />
-          <ComingSoonCard
-            name="GRN Reconciliation"
-            description="Goods receipt and invoice matching"
-            icon={<FileCheck className="w-6 h-6 text-gray-400" />}
-          />
+              <ProcureGuardCard
+                canOpen={isAdmin}
+                onClick={handleProcureGuardClick}
+              />
+
+              <ComingSoonCard
+                name="Laptop Procurement"
+                description="Asset request and approval management"
+                icon={<Laptop className="w-6 h-6 text-gray-400" />}
+              />
+              <ComingSoonCard
+                name="The Bridge"
+                description="Cross-functional project tracking and handoffs"
+                icon={<GitMerge className="w-6 h-6 text-gray-400" />}
+              />
+              <ComingSoonCard
+                name="GRN Reconciliation"
+                description="Goods receipt and invoice matching"
+                icon={<FileCheck className="w-6 h-6 text-gray-400" />}
+              />
+
+            </div>
+          </div>
+
+          {/* ── SCAI Panel ── */}
+          <aside className="hidden lg:flex w-[280px] shrink-0 sticky top-8 flex-col gap-4 bg-[#f0f9f4] border border-[#b6ddc8] rounded-2xl p-6 self-start">
+
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#307c4c]" />
+              <p className="text-[10px] font-semibold tracking-widest uppercase text-[#307c4c]">
+                AI Assistant
+              </p>
+            </div>
+
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 leading-tight">SCAI — Supply Chain AI</h2>
+              <p className="text-xs text-slate-500 mt-0.5">3 specialized agents, one platform</p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+
+              <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
+                  <ScanSearch className="w-4 h-4 text-[#307c4c]" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-800">Materials AI</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                    Duplicate checks, VDC stock lookups, and new material creation support
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
+                  <BookOpen className="w-4 h-4 text-[#307c4c]" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-800">SC Policy AI</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                    Instant answers from NESR's internal freight, warehouse, compliance, and field operations policies
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
+                  <Building2 className="w-4 h-4 text-[#307c4c]" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-800">SourceGuide AI</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                    Find approved suppliers, check compliance status, and access purchase history across 10 countries
+                  </p>
+                </div>
+              </div>
+
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Powered by NESR's internal data and policy documents.
+            </p>
+
+            <a
+              href="https://scai.nesr.com"
+              className="w-full bg-[#307c4c] hover:bg-[#276041] text-white text-sm font-semibold py-3 rounded-xl text-center transition-colors"
+            >
+              Open SCAI →
+            </a>
+
+          </aside>
 
         </div>
       </main>
