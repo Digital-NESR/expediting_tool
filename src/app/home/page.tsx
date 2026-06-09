@@ -823,67 +823,67 @@ export default function HomePage() {
           </div>
 
           {/* ── SCAI Panel ── */}
-          <aside className="hidden lg:flex w-[280px] shrink-0 sticky top-8 flex-col gap-4 bg-[#f0f9f4] border border-[#b6ddc8] rounded-2xl p-6 self-start">
+          <aside className="hidden lg:flex w-[248px] shrink-0 sticky top-8 flex-col gap-3.5 bg-gray-50 border border-gray-200 rounded-xl p-5 self-start mr-6">
 
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#307c4c]" />
-              <p className="text-[10px] font-semibold tracking-widest uppercase text-[#307c4c]">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-slate-400" />
+              <p className="text-[9px] font-semibold tracking-widest uppercase text-slate-400">
                 AI Assistant
               </p>
             </div>
 
             <div>
-              <h2 className="text-xl font-bold text-slate-900 leading-tight">SCAI — Supply Chain AI</h2>
-              <p className="text-xs text-slate-500 mt-0.5">3 specialized agents, one platform</p>
+              <h2 className="text-lg font-bold text-slate-700 leading-tight">SCAI</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Supply Chain AI · 3 agents</p>
             </div>
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
 
-              <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
-                <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
-                  <ScanSearch className="w-4 h-4 text-[#307c4c]" />
+              <div className="flex gap-2.5 items-start">
+                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                  <ScanSearch className="w-3.5 h-3.5 text-slate-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-slate-800">Materials AI</p>
-                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                  <p className="text-[11px] font-semibold text-slate-600">Materials AI</p>
+                  <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
                     Duplicate checks, VDC stock lookups, and new material creation support
                   </p>
                 </div>
               </div>
 
-              <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
-                <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
-                  <BookOpen className="w-4 h-4 text-[#307c4c]" />
+              <div className="flex gap-2.5 items-start">
+                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                  <BookOpen className="w-3.5 h-3.5 text-slate-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-slate-800">SC Policy AI</p>
-                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                  <p className="text-[11px] font-semibold text-slate-600">SC Policy AI</p>
+                  <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
                     Instant answers from NESR's internal freight, warehouse, compliance, and field operations policies
                   </p>
                 </div>
               </div>
 
-              <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
-                <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
-                  <Building2 className="w-4 h-4 text-[#307c4c]" />
+              <div className="flex gap-2.5 items-start">
+                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-slate-800">SourceGuide AI</p>
-                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
-                    Find approved suppliers, check compliance status, and access purchase history across 10 countries
+                  <p className="text-[11px] font-semibold text-slate-600">SourceGuide AI</p>
+                  <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
+                    Find approved suppliers, check compliance status, and access purchase history across countries
                   </p>
                 </div>
               </div>
 
             </div>
 
-            <p className="text-[11px] text-slate-400 leading-relaxed">
+            <p className="text-[10px] text-slate-300 leading-relaxed">
               Powered by NESR's internal data and policy documents.
             </p>
 
             <a
               href="https://scai.nesr.com"
-              className="w-full bg-[#307c4c] hover:bg-[#276041] text-white text-sm font-semibold py-3 rounded-xl text-center transition-colors"
+              className="text-[11px] font-medium text-[#307c4c] hover:text-[#276041] transition-colors inline-flex items-center gap-1"
             >
               Open SCAI →
             </a>
