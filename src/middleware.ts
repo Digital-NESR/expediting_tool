@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   '/pending-approval',
   '/access-denied',
   '/supplier-update',
+  '/help',
 ];
 
 export async function middleware(req: NextRequest) {
