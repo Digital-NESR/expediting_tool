@@ -791,49 +791,54 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* 4-col grid: cols 1–3 = tool cards, col 4 = SCAI spanning all rows */}
-          <div className="grid grid-cols-4 gap-6">
+          {/* Flex row: tool cards (flex-1, 3-col grid) + SCAI panel (fixed width) */}
+          <div className="flex gap-6 items-stretch">
 
-            <POExpeditingCard
-              status={poStatus}
-              isAdmin={isAdmin}
-              onClick={handlePOClick}
-            />
+            {/* ── Tool cards ── */}
+            <div className="flex-1 grid grid-cols-3 gap-6 content-start">
 
-            <TITECard
-              status={titeStatus}
-              isAdmin={isAdmin}
-              onClick={handleTiteClick}
-            />
+              <POExpeditingCard
+                status={poStatus}
+                isAdmin={isAdmin}
+                onClick={handlePOClick}
+              />
 
-            <ProcureGuardCard
-              canOpen={isAdmin}
-              onClick={handleProcureGuardClick}
-            />
+              <TITECard
+                status={titeStatus}
+                isAdmin={isAdmin}
+                onClick={handleTiteClick}
+              />
 
-            <ComingSoonCard
-              name="Laptop Procurement"
-              description="Asset request and approval management"
-              icon={<Laptop className="w-6 h-6 text-gray-400" />}
-            />
-            <ComingSoonCard
-              name="The Bridge"
-              description="Cross-functional project tracking and handoffs"
-              icon={<GitMerge className="w-6 h-6 text-gray-400" />}
-            />
-            <ComingSoonCard
-              name="GRN Reconciliation"
-              description="Goods receipt and invoice matching"
-              icon={<FileCheck className="w-6 h-6 text-gray-400" />}
-            />
-            <ComingSoonCard
-              name="Price Benchmarking"
-              description="Supplier price analysis and market rate comparisons"
-              icon={<TrendingUp className="w-6 h-6 text-gray-400" />}
-            />
+              <ProcureGuardCard
+                canOpen={isAdmin}
+                onClick={handleProcureGuardClick}
+              />
 
-            {/* ── SCAI Panel — cols 3-4, spans 2 rows ── */}
-            <aside className="col-start-3 col-span-2 row-start-1 row-span-2">
+              <ComingSoonCard
+                name="Laptop Procurement"
+                description="Asset request and approval management"
+                icon={<Laptop className="w-6 h-6 text-gray-400" />}
+              />
+              <ComingSoonCard
+                name="The Bridge"
+                description="Cross-functional project tracking and handoffs"
+                icon={<GitMerge className="w-6 h-6 text-gray-400" />}
+              />
+              <ComingSoonCard
+                name="GRN Reconciliation"
+                description="Goods receipt and invoice matching"
+                icon={<FileCheck className="w-6 h-6 text-gray-400" />}
+              />
+              <ComingSoonCard
+                name="Price Benchmarking"
+                description="Supplier price analysis and market rate comparisons"
+                icon={<TrendingUp className="w-6 h-6 text-gray-400" />}
+              />
+
+            </div>
+
+            {/* ── SCAI Panel ── */}
+            <aside className="w-80 shrink-0">
               <div className="h-full flex flex-col gap-4 bg-[#f0f9f4] border border-[#b6ddc8] rounded-2xl p-6">
 
                 <div className="flex items-center gap-2">
@@ -849,10 +854,10 @@ export default function HomePage() {
                   <p className="text-xs text-slate-400 mt-1">3 specialized agents, one platform</p>
                 </div>
 
-                {/* Agent cards — 3-col sub-grid inside the wider panel */}
-                <div className="grid grid-cols-3 gap-3">
+                {/* Agent cards */}
+                <div className="flex flex-col gap-3">
 
-                  <div className="flex gap-2.5 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                  <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
                     <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
                       <ScanSearch className="w-4 h-4 text-[#307c4c]" />
                     </div>
@@ -864,7 +869,7 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2.5 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                  <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
                     <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
                       <BookOpen className="w-4 h-4 text-[#307c4c]" />
                     </div>
@@ -876,7 +881,7 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2.5 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
+                  <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
                     <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
                       <Building2 className="w-4 h-4 text-[#307c4c]" />
                     </div>
