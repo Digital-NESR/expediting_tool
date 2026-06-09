@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProcureGuardSidebar from './components/ProcureGuardSidebar';
+import ProcureGuardLogo from './components/ProcureGuardLogo';
 import { fmtDate, getPriorityBadge, getStatusBadge, isActiveApprovalStatus, timeAgo, usdFmt } from '@/lib/procureGuard-utils';
 import type { AdhocPaymentRequest, AdvancePaymentRequest, ProcureGuardDashboardData } from '@/types/procureGuard';
 
@@ -120,9 +121,7 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
         <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0" style={{ background: '#307c4c' }}>
-          <span className="text-white font-extrabold text-[10px] tracking-tight">PG</span>
-        </div>
+        <ProcureGuardLogo size="sm" />
         <span className="font-semibold text-slate-900 text-sm">ProcureGuard Dashboard</span>
         <div className="ml-auto text-xs text-slate-500 hidden sm:block">{today}</div>
       </header>
@@ -132,7 +131,10 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
           <div className="border-t-4 border-[#307c4c] p-6 sm:p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-5">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400 mb-2">Payment control center</p>
-              <h1 className="text-lg font-bold tracking-tight text-gray-900">ProcureGuard</h1>
+              <div className="flex items-center gap-4">
+                <ProcureGuardLogo size="hero" />
+                <h1 className="text-lg font-bold tracking-tight text-gray-900">ProcureGuard</h1>
+              </div>
               <p className="text-slate-500 max-w-2xl mt-2 text-sm sm:text-base">
                 Track adhoc payments and advance payment requests from submission through review and approval.
               </p>

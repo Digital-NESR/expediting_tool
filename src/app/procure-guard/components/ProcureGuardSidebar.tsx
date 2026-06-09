@@ -3,8 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ProcureGuardAccessView } from '@/types/procureGuard';
-
-const BRAND = '#307c4c';
+import ProcureGuardLogo from './ProcureGuardLogo';
 
 const NAV = [
   { href: '/procure-guard', label: 'Dashboard', icon: 'grid', access: ['requester', 'reviewer', 'admin'] },
@@ -78,9 +77,7 @@ export default function ProcureGuardSidebar({
         style={{ transform: isOpen ? 'translateX(0)' : 'translateX(-100%)' }}
       >
         <div className="flex h-16 items-center gap-3 border-b border-gray-100 px-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg shadow-sm" style={{ background: BRAND }}>
-            <span className="text-xs font-black tracking-tight text-white">PG</span>
-          </div>
+          <ProcureGuardLogo size="lg" />
           <div className="min-w-0">
             <p className="truncate text-sm font-bold leading-tight tracking-tight text-gray-900">ProcureGuard</p>
             <p className="text-[11px] text-gray-500">Payment request control</p>

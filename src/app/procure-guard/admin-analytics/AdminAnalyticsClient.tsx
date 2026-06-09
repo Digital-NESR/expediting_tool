@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import ProcureGuardSidebar from '../components/ProcureGuardSidebar';
+import ProcureGuardLogo from '../components/ProcureGuardLogo';
 import { fmtDateTime } from '@/lib/procureGuard-utils';
 import type {
   ProcureGuardAdminAnalyticsData,
@@ -221,7 +222,7 @@ export default function AdminAnalyticsClient({ data, embedded = false }: { data:
           <button onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#307c4c] text-xs font-black text-white">PG</div>
+          <ProcureGuardLogo size="md" />
           <div>
             <p className="text-sm font-bold leading-tight">Admin Analytics</p>
             <p className="text-xs text-slate-500">Last 30 days · generated {fmtDateTime(data.generated_at)}</p>

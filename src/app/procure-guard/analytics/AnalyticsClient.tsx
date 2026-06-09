@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import ProcureGuardSidebar from '../components/ProcureGuardSidebar';
+import ProcureGuardLogo from '../components/ProcureGuardLogo';
 import { fmtDate, fmtDateTime, getStatusBadge, usdFmt } from '@/lib/procureGuard-utils';
 import type {
   ProcureGuardAnalyticsData,
@@ -347,7 +348,7 @@ export default function AnalyticsClient({ data, embedded = false }: { data: Proc
         <button onClick={() => setSidebarOpen(true)} className="rounded-md p-2 text-slate-500 hover:bg-slate-100">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#307c4c] text-[10px] font-black text-white">PG</div>
+        <ProcureGuardLogo size="sm" />
         <span className="text-sm font-bold">Analytics</span>
         <div className="ml-auto hidden text-xs text-slate-500 sm:block">Generated {fmtDateTime(data.generated_at)}</div>
       </header>}

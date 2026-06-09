@@ -1,0 +1,15 @@
+
+> expediting_tool@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.2 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.100.129:3000
+✓ Ready in 779ms
+- Experiments (use with caution):
+  · serverActions
+
+○ Compiling /login ...
+ GET /login 200 in 3.6s (next.js: 3.5s, proxy.ts: 3ms, application-code: 133ms)
+ GET /api/auth/session 200 in 1055ms
+[?25h

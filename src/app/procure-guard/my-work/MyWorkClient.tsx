@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import ProcureGuardSidebar from '../components/ProcureGuardSidebar';
+import ProcureGuardLogo from '../components/ProcureGuardLogo';
 import { fmtDate, getPriorityBadge, getStatusBadge, usdFmt } from '@/lib/procureGuard-utils';
 import type { ProcureGuardWorkQueueData, ProcureGuardWorkQueueItem } from '@/types/procureGuard';
 
@@ -50,12 +51,10 @@ export default function MyWorkClient({ data }: { data: ProcureGuardWorkQueueData
         <button onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#307c4c]">
-          <span className="text-[10px] font-extrabold tracking-tight text-white">PG</span>
-        </div>
+        <ProcureGuardLogo size="sm" />
         <span className="text-sm font-semibold text-slate-900">My Work</span>
         <Link href="/admin?tool=procureguard-admin" className="ml-auto rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5">
-          Change Test Role
+          Manage Access
         </Link>
       </header>
 

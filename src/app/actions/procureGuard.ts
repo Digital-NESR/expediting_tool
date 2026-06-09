@@ -313,7 +313,7 @@ export async function canAccessProcureGuardApp(): Promise<boolean> {
   if (adminEmails().includes(email)) return true;
 
   const permissionRow = await getPermissionRowForEmail(email);
-  return Boolean(permissionRow);
+  return permissionRow?.role === 'Admin';
 }
 
 function scopedWhere(actor: ProcureGuardActor): { where: string; params: string[] } {
@@ -1235,6 +1235,7 @@ export async function getProcureGuardDashboardData(): Promise<ProcureGuardDashbo
 export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData | null> {
   try {
     const actor = await requireAdminActor();
+    await syncProcureGuardRecipientAccessApprovals();
     const [adhocRows, advanceRows, activityRows, permissionRows, notificationRecipientRows] = await Promise.all([
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ORDER BY created_at DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ORDER BY created_at DESC`),
@@ -2185,7 +2186,7 @@ async function updateStatusCommon(input: {
     if (!requiredPermission || !actor.permissions[requiredPermission]) {
       return {
         success: false,
-        error: `${actor.role} cannot move this request from ${row.status} to ${input.status}. Change your test role in the admin permissions tab.`,
+        error: `${actor.role} cannot move this request from ${row.status} to ${input.status}. Contact a ProcureGuard admin if your access needs to change.`,
       };
     }
 
@@ -2428,6 +2429,7 @@ export async function updateProcureGuardNotificationRecipient(input: {
 
     if (result.rowCount === 0) return { success: false, error: 'Notification recipient not found.' };
 
+    await syncProcureGuardRecipientAccessApprovals();
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
@@ -2465,6 +2467,7 @@ export async function updateProcureGuardNotificationRecipientGroup(input: {
 
     if (result.rowCount === 0) return { success: false, error: 'Notification recipients not found.' };
 
+    await syncProcureGuardRecipientAccessApprovals();
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
@@ -2527,6 +2530,135 @@ function normaliseProcureGuardRole(role: unknown): ProcureGuardPermissionRole {
     : 'Requester';
 }
 
+const PROCURE_GUARD_LOCAL_TEST_EMAILS = ['local.procureguard@example.com'];
+
+const PROCURE_GUARD_REVIEW_ROLE_RANK: Record<ProcureGuardPermissionRole, number> = {
+  Requester: 0,
+  Analyst: 1,
+  'Read Only': 1,
+  'SCM Manager': 2,
+  'Country Controller': 3,
+  'Supply Chain Director': 4,
+  'Treasury Director': 5,
+  'Corporate Controller': 6,
+  CFO: 7,
+  Admin: 8,
+};
+
+function procureGuardRoleFromRecipient(row: {
+  request_type?: ProcureGuardRequestType | 'both' | null;
+  notification_role?: string | null;
+  approval_status?: ProcureGuardStatus | null;
+}): ProcureGuardPermissionRole | null {
+  const role = (row.notification_role ?? '').toLowerCase();
+  if (role.includes('cfo')) return 'CFO';
+  if (role.includes('corporate controller')) return 'Corporate Controller';
+  if (role.includes('treasury')) return 'Treasury Director';
+  if (role.includes('supply chain director')) return 'Supply Chain Director';
+  if (role.includes('country controller') || role.includes('country finance')) return 'Country Controller';
+  if (role.includes('scm') || role.includes('supply chain manager')) return 'SCM Manager';
+
+  if (row.approval_status === 'Approved by Corporate Controller') return 'CFO';
+  if (row.approval_status === 'Approved by Treasury Director') return 'Corporate Controller';
+  if (row.approval_status === 'Approved by Supply Chain Director') return 'Treasury Director';
+  if (row.approval_status === 'Approved by Country Controller') return 'Supply Chain Director';
+  if (row.approval_status === 'Approved by SCM') return 'Supply Chain Director';
+  if (row.approval_status === 'Under Review') {
+    return row.request_type === 'advance' ? 'Country Controller' : 'SCM Manager';
+  }
+
+  return null;
+}
+
+async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
+  await ensureProcureGuardAccessRequestTable();
+  await ensureProcureGuardPermissionRoleValues();
+
+  for (const email of PROCURE_GUARD_LOCAL_TEST_EMAILS) {
+    await exec(`DELETE FROM procure_guard_access_requests WHERE user_email = ?`, [email]);
+    await exec(`DELETE FROM procure_guard_permissions WHERE email = ?`, [email]);
+  }
+
+  const rows = await sql<QueryResultRow[]>(`
+    SELECT display_name, email, country, request_type, notification_role, approval_status
+    FROM procure_guard_notification_recipients
+    WHERE is_active = TRUE
+      AND email IS NOT NULL
+      AND TRIM(email) <> ''
+  `);
+
+  const byEmail = new Map<string, {
+    email: string;
+    name: string;
+    role: ProcureGuardPermissionRole;
+    countries: Set<string>;
+  }>();
+
+  for (const row of rows) {
+    const email = String(row.email ?? '').trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
+    if (PROCURE_GUARD_LOCAL_TEST_EMAILS.includes(email)) continue;
+
+    const role = procureGuardRoleFromRecipient({
+      request_type: row.request_type as ProcureGuardRequestType | 'both' | null,
+      notification_role: row.notification_role ? String(row.notification_role) : null,
+      approval_status: row.approval_status as ProcureGuardStatus | null,
+    });
+    if (!role) continue;
+
+    const current = byEmail.get(email);
+    const currentRank = current ? PROCURE_GUARD_REVIEW_ROLE_RANK[current.role] : -1;
+    const nextRole = PROCURE_GUARD_REVIEW_ROLE_RANK[role] > currentRank ? role : current?.role ?? role;
+    const countries = current?.countries ?? new Set<string>();
+    const country = normalizeProcureGuardCountry(row.country ? String(row.country) : null);
+    if (country) countries.add(country);
+
+    byEmail.set(email, {
+      email,
+      name: String(row.display_name ?? '').trim() || current?.name || email,
+      role: nextRole,
+      countries,
+    });
+  }
+
+  const existingRows = await sql<QueryResultRow[]>(`SELECT email, role FROM procure_guard_permissions`);
+  const existingRoleByEmail = new Map(existingRows.map(row => [String(row.email).toLowerCase(), normaliseProcureGuardRole(row.role)]));
+
+  for (const recipient of byEmail.values()) {
+    if (existingRoleByEmail.get(recipient.email) === 'Admin') continue;
+
+    const country = recipient.countries.size === 1 ? [...recipient.countries][0] : null;
+    await exec(
+      `INSERT INTO procure_guard_permissions (email, name, role, country, segment)
+       VALUES (?, ?, ?, ?, NULL)
+       ON CONFLICT (email) DO UPDATE SET
+         name = COALESCE(EXCLUDED.name, procure_guard_permissions.name),
+         role = EXCLUDED.role,
+         country = EXCLUDED.country,
+         segment = NULL,
+         updated_at = CURRENT_TIMESTAMP`,
+      [recipient.email, recipient.name, recipient.role, blankToNull(country)],
+    );
+
+    await exec(
+      `INSERT INTO procure_guard_access_requests
+         (user_email, display_name, status, requested_role, approved_role, country, segment, requested_at, reviewed_at, reviewed_by, notes)
+       VALUES (?, ?, 'Approved', ?, ?, ?, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'ProcureGuard recipient sync', 'Synced from notification recipients')
+       ON CONFLICT (user_email) DO UPDATE SET
+         display_name = EXCLUDED.display_name,
+         status = 'Approved',
+         requested_role = EXCLUDED.requested_role,
+         approved_role = EXCLUDED.approved_role,
+         country = EXCLUDED.country,
+         segment = NULL,
+         reviewed_at = CURRENT_TIMESTAMP,
+         reviewed_by = EXCLUDED.reviewed_by,
+         notes = EXCLUDED.notes`,
+      [recipient.email, recipient.name, recipient.role, recipient.role, blankToNull(country)],
+    );
+  }
+}
+
 function serialiseProcureGuardAccessRequest(row: QueryResultRow): ProcureGuardAccessRequestRow {
   return {
     user_email: String(row.user_email),
@@ -2586,6 +2718,7 @@ export async function submitProcureGuardAccessRequest(input: {
 export async function getProcureGuardAccessRequests(): Promise<ProcureGuardAccessRequestRow[]> {
   try {
     await ensureProcureGuardAccessRequestTable();
+    await syncProcureGuardRecipientAccessApprovals();
     const [requestRows, permissionRows] = await Promise.all([
       sql<QueryResultRow[]>(
         `SELECT * FROM procure_guard_access_requests

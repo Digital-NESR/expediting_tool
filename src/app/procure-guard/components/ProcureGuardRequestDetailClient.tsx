@@ -20,6 +20,7 @@ import type {
 } from '@/types/procureGuard';
 import ProcureGuardSidebar from './ProcureGuardSidebar';
 import ProcureGuardNotificationContactsPanel from './ProcureGuardNotificationContactsPanel';
+import ProcureGuardLogo from './ProcureGuardLogo';
 import { updateAdhocPaymentStatus, updateAdvancePaymentStatus } from '@/app/actions/procureGuard';
 
 type DetailValue = string | number | null | undefined;
@@ -164,6 +165,10 @@ function fileBadgeLabel(mime: string | null) {
   return 'FILE';
 }
 
+function reviewActionLabel(action: string) {
+  return action.replace(/^Status updated to\s+/i, '').trim() || action;
+}
+
 export default function ProcureGuardRequestDetailClient({ data }: { data: ProcureGuardRequestDetailData }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [reviewComment, setReviewComment] = useState('');
@@ -191,6 +196,68 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
   const hasDecisionActions = actions.canApprove || actions.canReject || canCancel;
   const editHref = `/procure-guard/${isAdvance ? 'advance-payments' : 'adhoc-payments'}/${request.id}/edit`;
   const selectedPdfSectionCount = PDF_SECTION_OPTIONS.filter(option => pdfSections[option.key]).length;
+  const reviewDecisionSection = (
+    <Section title="Review And Decision">
+      <div className="space-y-4">
+        {notice && <div className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#307c4c]">{notice}</div>}
+        {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div>}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Current Owner" value={actions.nextStatus ? actions.ownerLabel : 'Workflow complete'} />
+          <Field label="Next Action" value={actions.nextStatus ?? 'No active decision'} />
+          <Field label="Reviewed By" value={request.reviewed_by_name || request.reviewed_by_email} />
+          <Field label="Reviewed At" value={fmtDateTime(request.reviewed_at)} />
+          <Field label="Rejection Reason" value={request.rejection_reason} />
+          <Field label="Latest Review Comment" value={request.review_comments} />
+        </div>
+
+        {hasDecisionActions && (
+          <div
+            ref={decisionRef}
+            className={`rounded-lg border bg-slate-50 p-4 transition-all duration-300 ${highlightDecision ? 'border-[#307c4c] ring-4 ring-[#307c4c]/20' : 'border-slate-200'}`}
+          >
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Action Comment <span className="font-normal text-slate-400">(required for rejection only)</span></label>
+            <textarea
+              className="mt-2 min-h-28 w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
+              value={reviewComment}
+              onChange={e => setReviewComment(e.target.value)}
+            />
+            <div className="mt-3 flex flex-wrap gap-2">
+              {actions.canApprove && actions.nextStatus && (
+                <button disabled={isPending} onClick={() => submitStatus(actions.nextStatus!)} className="rounded-md bg-[#307c4c] px-3 py-2 text-xs font-bold text-white hover:bg-[#307c4c]/80 disabled:opacity-60">
+                  {actions.nextStatus === 'Under Review' ? 'Start Review' : 'Approve'}
+                </button>
+              )}
+              {actions.canReject && (
+                <button disabled={isPending} onClick={() => submitStatus('Rejected')} className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-60">Reject</button>
+              )}
+              {canCancel && (
+                <button disabled={isPending} onClick={() => setIsCancelDialogOpen(true)} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60">Cancel Request</button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+  const activitySection = (
+    <Section title="Activity">
+      {activity.length === 0 ? (
+        <p className="py-4 text-sm text-slate-500">No activity has been recorded yet.</p>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {activity.map(item => (
+            <div key={item.id} className="py-3">
+              <p className="text-sm font-bold text-slate-900">{item.action}</p>
+              <p className="mt-1 text-xs text-slate-500">{item.actor_name || item.actor_email || 'System'}</p>
+              {item.notes && <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-600">{item.notes}</p>}
+              <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{fmtDateTime(item.created_at)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
 
   function jumpToDecision() {
     decisionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -297,6 +364,65 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
         cursorY = ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? cursorY) + 20;
       };
 
+      const addReviewHistoryTable = () => {
+        const reviewRows = activity
+          .filter(item => item.action.startsWith('Status updated to '))
+          .slice()
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          .map(item => [
+            fmtDateTime(item.created_at),
+            reviewActionLabel(item.action),
+            item.actor_name || item.actor_email || 'System',
+            item.notes || '-',
+          ]);
+
+        if (reviewRows.length === 0) {
+          addTable('Review History', [
+            ['Review History', request.reviewed_at
+              ? `${fmtDateTime(request.reviewed_at)} | ${request.reviewed_by_name || request.reviewed_by_email || 'Reviewer'} | ${request.status}${request.review_comments ? ` | ${request.review_comments}` : ''}`
+              : 'No review actions have been recorded yet.'],
+          ]);
+          return;
+        }
+
+        doc.setFontSize(11);
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Review History', margin, cursorY);
+        cursorY += 8;
+
+        autoTable(doc, {
+          startY: cursorY,
+          margin: { left: margin, right: margin },
+          head: [['Date', 'Decision', 'Reviewer', 'Comment']],
+          body: reviewRows,
+          theme: 'grid',
+          styles: {
+            font: 'helvetica',
+            fontSize: 8,
+            cellPadding: 5,
+            lineColor: [226, 232, 240],
+            lineWidth: 0.4,
+            textColor: [15, 23, 42],
+            valign: 'top',
+          },
+          headStyles: {
+            fillColor: [48, 124, 76],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+          },
+          columnStyles: {
+            0: { cellWidth: 105 },
+            1: { cellWidth: 128 },
+            2: { cellWidth: 132 },
+            3: { cellWidth: pageWidth - margin * 2 - 365 },
+          },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+        });
+
+        cursorY = ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? cursorY) + 20;
+      };
+
       doc.setFillColor(48, 124, 76);
       doc.rect(0, 0, pageWidth, 78, 'F');
       doc.setTextColor(255, 255, 255);
@@ -356,11 +482,12 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
       if (pdfSections.review) {
         addTable('Review', [
-          ['Reviewed By', request.reviewed_by_name || request.reviewed_by_email],
-          ['Reviewed At', fmtDateTime(request.reviewed_at)],
+          ['Latest Reviewed By', request.reviewed_by_name || request.reviewed_by_email],
+          ['Latest Reviewed At', fmtDateTime(request.reviewed_at)],
           ['Rejection Reason', request.rejection_reason],
           ['Latest Review Comment', request.review_comments],
         ]);
+        addReviewHistoryTable();
       }
 
       if (pdfSections.attachments) {
@@ -396,9 +523,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: '#307c4c' }}>
-          <span className="text-[10px] font-extrabold tracking-tight text-white">PG</span>
-        </div>
+        <ProcureGuardLogo size="sm" />
         <span className="text-sm font-semibold text-slate-900">{requestLabel} Detail</span>
         <button
           type="button"
@@ -577,6 +702,18 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           </div>
         </section>
 
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
+          <div className="space-y-5">
+            {reviewDecisionSection}
+            <ProcureGuardNotificationContactsPanel
+              contacts={notificationContacts}
+              currentStatus={request.status}
+              emptyText="No notification recipients are configured for this request country."
+            />
+          </div>
+          <WorkflowChain requestType={requestType} status={request.status} amount={workflowAmount} currency={workflowCurrency} />
+        </div>
+
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
           <div className="space-y-5">
             <Section title="Vendor And Requester">
@@ -652,75 +789,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           </div>
 
           <div className="space-y-5">
-            <Section title="Review">
-              <div className="space-y-4">
-                {notice && <div className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#307c4c]">{notice}</div>}
-                {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div>}
-                <Field label="Reviewed By" value={request.reviewed_by_name || request.reviewed_by_email} />
-                <Field label="Reviewed At" value={fmtDateTime(request.reviewed_at)} />
-                <Field label="Rejection Reason" value={request.rejection_reason} />
-                <Field label="Latest Review Comment" value={request.review_comments} />
-
-                {hasDecisionActions && (
-                  <div
-                    ref={decisionRef}
-                    className={`rounded-lg border bg-slate-50 p-4 transition-all duration-300 ${highlightDecision ? 'border-[#307c4c] ring-4 ring-[#307c4c]/20' : 'border-slate-200'}`}
-                  >
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Action Comment <span className="font-normal text-slate-400">(required for rejection only)</span></label>
-                    <textarea
-                      className="mt-2 min-h-28 w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
-                      value={reviewComment}
-                      onChange={e => setReviewComment(e.target.value)}
-                    />
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {actions.canApprove && actions.nextStatus && (
-                        <button disabled={isPending} onClick={() => submitStatus(actions.nextStatus!)} className="rounded-md bg-[#307c4c] px-3 py-2 text-xs font-bold text-white hover:bg-[#307c4c]/80 disabled:opacity-60">
-                          {actions.nextStatus === 'Under Review' ? 'Start Review' : 'Approve'}
-                        </button>
-                      )}
-                      {actions.canReject && (
-                        <button disabled={isPending} onClick={() => submitStatus('Rejected')} className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-60">Reject</button>
-                      )}
-                      {canCancel && (
-                        <button disabled={isPending} onClick={() => setIsCancelDialogOpen(true)} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60">Cancel Request</button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Section>
-
-            <WorkflowChain requestType={requestType} status={request.status} amount={workflowAmount} currency={workflowCurrency} />
-
-            <ProcureGuardNotificationContactsPanel
-              contacts={notificationContacts}
-              currentStatus={request.status}
-              emptyText="No notification recipients are configured for this request country."
-            />
-
-            <Section title="Activity">
-              {activity.length === 0 ? (
-                <p className="py-4 text-sm text-slate-500">No activity has been recorded yet.</p>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {activity.map(item => (
-                    <div key={item.id} className="py-3">
-                      <p className="text-sm font-bold text-slate-900">{item.action}</p>
-                      <p className="mt-1 text-xs text-slate-500">{item.actor_name || item.actor_email || 'System'}</p>
-                      {item.notes && <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-600">{item.notes}</p>}
-                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{fmtDateTime(item.created_at)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-
-            <Section title="Access">
-              <p className="text-sm text-slate-600">
-                Full local access is enabled for this detail view. The data fetch is ready to receive stricter permissions later.
-              </p>
-              <p className="mt-3 text-xs font-semibold text-slate-400">Type: {requestType}</p>
-            </Section>
+            {activitySection}
           </div>
         </div>
       </main>
