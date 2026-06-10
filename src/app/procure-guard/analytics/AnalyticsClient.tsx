@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import ProcureGuardSidebar from '../components/ProcureGuardSidebar';
 import ProcureGuardLogo from '../components/ProcureGuardLogo';
-import { fmtDate, fmtDateTime, getStatusBadge, usdFmt } from '@/lib/procureGuard-utils';
+import { fmtDate, fmtDateTime, formatProcureGuardStatusLabel, getStatusBadge, usdFmt } from '@/lib/procureGuard-utils';
 import type {
   ProcureGuardAnalyticsData,
   ProcureGuardAnalyticsMetric,
@@ -105,18 +105,20 @@ function BarRow({
   amount,
   maxBarValue,
   barValue,
+  formatLabel = value => value,
 }: {
   label: string;
   count: number;
   amount: number;
   maxBarValue: number;
   barValue: number;
+  formatLabel?: (value: string) => string;
 }) {
   const width = maxBarValue > 0 ? Math.max(6, Math.round((barValue / maxBarValue) * 100)) : 0;
   return (
     <div className="grid grid-cols-[minmax(120px,1fr)_minmax(160px,2fr)_120px] items-center gap-3 py-2 text-sm">
       <div className="min-w-0">
-        <p className="truncate font-semibold text-slate-900">{label}</p>
+        <p className="truncate font-semibold text-slate-900">{formatLabel(label)}</p>
         <p className="text-xs text-slate-500">{count} requests</p>
       </div>
       <div className="h-2 rounded-full bg-slate-100">
@@ -127,7 +129,7 @@ function BarRow({
   );
 }
 
-function MetricList({ title, rows, sortMode }: { title: string; rows: ProcureGuardAnalyticsMetric[]; sortMode: SortMode }) {
+function MetricList({ title, rows, sortMode, formatLabel }: { title: string; rows: ProcureGuardAnalyticsMetric[]; sortMode: SortMode; formatLabel?: (value: string) => string }) {
   const sortedRows = sortMetricRows(rows, sortMode);
   const useAmountBars = sortMode.startsWith('amount');
   const maxBarValue = sortedRows.reduce((max, row) => Math.max(max, useAmountBars ? row.amount : row.count), 0);
@@ -149,6 +151,7 @@ function MetricList({ title, rows, sortMode }: { title: string; rows: ProcureGua
               amount={row.amount}
               barValue={useAmountBars ? row.amount : row.count}
               maxBarValue={maxBarValue}
+              formatLabel={formatLabel}
             />
           ))}
         </div>
@@ -384,7 +387,7 @@ export default function AnalyticsClient({ data, embedded = false }: { data: Proc
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <MetricList title="Vendors That Adhoced The Most" rows={data.top_adhoc_vendors} sortMode={sortMode} />
           <MetricList title="Top Advance Payment Vendors" rows={data.top_advance_vendors} sortMode={sortMode} />
-          <MetricList title="Status Breakdown" rows={data.status_breakdown} sortMode={sortMode} />
+          <MetricList title="Status Breakdown" rows={data.status_breakdown} sortMode={sortMode} formatLabel={formatProcureGuardStatusLabel} />
           <MetricList title="Requester Activity" rows={data.requester_breakdown} sortMode={sortMode} />
         </section>
 

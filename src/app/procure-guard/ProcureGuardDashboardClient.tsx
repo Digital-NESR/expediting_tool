@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProcureGuardSidebar from './components/ProcureGuardSidebar';
 import ProcureGuardLogo from './components/ProcureGuardLogo';
-import { fmtDate, getPriorityBadge, getStatusBadge, isActiveApprovalStatus, timeAgo, usdFmt } from '@/lib/procureGuard-utils';
+import { fmtDate, formatProcureGuardStatusLabel, getPriorityBadge, getStatusBadge, isActiveApprovalStatus, timeAgo, usdFmt } from '@/lib/procureGuard-utils';
 import type { AdhocPaymentRequest, AdvancePaymentRequest, ProcureGuardDashboardData } from '@/types/procureGuard';
 
 function DbError() {
@@ -61,6 +61,10 @@ function StatusPill({ status }: { status: string }) {
 
 function PriorityPill({ priority }: { priority: string }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full border text-[11px] font-semibold ${getPriorityBadge(priority)}`}>{priority}</span>;
+}
+
+function activityActionLabel(action: string) {
+  return action.replace(/^Status updated to\s+(.+)$/i, (_, status: string) => `Status updated to ${formatProcureGuardStatusLabel(status)}`);
 }
 
 function RequestRow({ request, type }: { request: AdhocPaymentRequest | AdvancePaymentRequest; type: 'Adhoc' | 'Advance' }) {
@@ -205,7 +209,7 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
                 <div className="p-6 text-sm text-slate-500 text-center">No activity yet.</div>
               ) : activity.map(item => (
                 <div key={item.id} className="p-4">
-                  <p className="text-sm font-semibold text-slate-900">{item.action}</p>
+                  <p className="text-sm font-semibold text-slate-900">{activityActionLabel(item.action)}</p>
                   <p className="text-xs text-slate-500 mt-1">{item.reference_number} · {item.actor_name || item.actor_email || 'System'}</p>
                   <p className="text-[11px] text-slate-400 mt-1">{timeAgo(item.created_at)}</p>
                 </div>

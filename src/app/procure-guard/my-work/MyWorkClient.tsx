@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import ProcureGuardSidebar from '../components/ProcureGuardSidebar';
 import ProcureGuardLogo from '../components/ProcureGuardLogo';
-import { fmtDate, getPriorityBadge, getStatusBadge, usdFmt } from '@/lib/procureGuard-utils';
+import { fmtDate, formatProcureGuardStatusLabel, getPriorityBadge, getStatusBadge, usdFmt } from '@/lib/procureGuard-utils';
 import type { ProcureGuardWorkQueueData, ProcureGuardWorkQueueItem } from '@/types/procureGuard';
 
 function DbError() {
@@ -34,7 +34,7 @@ function PriorityPill({ priority }: { priority: string }) {
 
 function actionLabel(item: ProcureGuardWorkQueueItem) {
   if (item.actions.nextStatus === 'Under Review') return 'Open request to start review';
-  if (item.actions.nextStatus) return `Open request to approve to ${item.actions.nextStatus}`;
+  if (item.actions.nextStatus) return `Open request to move to ${formatProcureGuardStatusLabel(item.actions.nextStatus)}`;
   return 'Open request for action';
 }
 

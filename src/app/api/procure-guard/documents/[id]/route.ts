@@ -1,6 +1,8 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { getProcureGuardUser } from '@/lib/auth';
 import procureGuardPool from '@/lib/db-procureguard';
+import { getPermissionProfile, normalizeProcureGuardCountry } from '@/lib/procureGuard-utils';
+import type { ProcureGuardPermissionRole } from '@/types/procureGuard';
 
 const MIME_MAP: Record<string, string> = {
   pdf: 'application/pdf',
@@ -25,6 +27,24 @@ function extOf(filename: string): string {
   return parts.length > 1 ? parts.pop()!.toLowerCase() : '';
 }
 
+function adminEmails(): string[] {
+  return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.PROCURE_GUARD_ADMIN_EMAILS ?? ''}`)
+    .split(',')
+    .map(email => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function normaliseScopeValue(value: string | null | undefined): string {
+  const trimmed = (value ?? '').trim().toLowerCase();
+  const aliases: Record<string, string> = {
+    ksa: 'saudi arabia (ksa)',
+    'saudi arabia': 'saudi arabia (ksa)',
+    uae: 'united arab emirates (uae)',
+    'united arab emirates': 'united arab emirates (uae)',
+  };
+  return aliases[trimmed] ?? trimmed;
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -41,8 +61,17 @@ export async function GET(
   }
 
   try {
+    const userEmail = user.email.toLowerCase();
     const { rows } = await procureGuardPool.query(
-      'SELECT document_name, original_name, file_content, file_type, file_size FROM procure_guard_documents WHERE id = $1',
+      `SELECT d.document_name, d.original_name, d.file_content, d.file_type, d.file_size,
+              COALESCE(a.requested_by_email, adv.requested_by_email) AS requested_by_email,
+              COALESCE(a.requester_notification_emails, adv.requester_notification_emails, ARRAY[]::TEXT[]) AS requester_notification_emails,
+              COALESCE(a.country, adv.country) AS country,
+              COALESCE(a.segment, adv.segment) AS segment
+       FROM procure_guard_documents d
+       LEFT JOIN procure_guard_adhoc_payments a ON d.request_type = 'adhoc' AND d.request_id = a.id
+       LEFT JOIN procure_guard_advance_payments adv ON d.request_type = 'advance' AND d.request_id = adv.id
+       WHERE d.id = $1`,
       [docId],
     );
 
@@ -51,6 +80,24 @@ export async function GET(
     }
 
     const doc = rows[0];
+    const permissionRows = await procureGuardPool.query(
+      'SELECT role, country, segment FROM procure_guard_permissions WHERE LOWER(email) = $1 LIMIT 1',
+      [userEmail],
+    );
+    const permission = permissionRows.rows[0];
+    const role = (permission?.role ?? (adminEmails().includes(userEmail) ? 'Admin' : 'Requester')) as ProcureGuardPermissionRole;
+    const profile = getPermissionProfile(role);
+    const requesterEmails = Array.isArray(doc.requester_notification_emails)
+      ? doc.requester_notification_emails.map((email: string) => email.trim().toLowerCase()).filter(Boolean)
+      : [];
+    const requesterSideAccess = String(doc.requested_by_email ?? '').toLowerCase() === userEmail || requesterEmails.includes(userEmail);
+    const countryOk = !permission?.country || normalizeProcureGuardCountry(permission.country) === normalizeProcureGuardCountry(doc.country);
+    const segmentOk = !permission?.segment || normaliseScopeValue(permission.segment) === normaliseScopeValue(doc.segment);
+
+    if (!requesterSideAccess && !(profile.canViewAll && countryOk && segmentOk)) {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
+
     const nameForExt: string = doc.original_name || doc.document_name;
     const ext = extOf(nameForExt);
     let contentType: string = doc.file_type || '';

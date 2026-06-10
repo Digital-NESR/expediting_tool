@@ -6,7 +6,7 @@ import type { QueryResultRow } from 'pg';
 import { revalidatePath } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
 import procureGuardPool from '@/lib/db-procureguard';
-import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, getCountryControllerEmail, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, normalizeProcureGuardCountry, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, toUsd } from '@/lib/procureGuard-utils';
+import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, formatProcureGuardStatusLabel, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, normalizeProcureGuardCountry, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, toUsd } from '@/lib/procureGuard-utils';
 import type { ProcureGuardAvailableActions } from '@/lib/procureGuard-utils';
 import type {
   ActionResult,
@@ -82,7 +82,7 @@ function detectMime(file: File): string {
   return FILE_MIME_MAP[fileExt] || file.type || 'application/octet-stream';
 }
 
-type QueryParam = string | number | boolean | null | Date | Buffer | number[] | undefined;
+type QueryParam = string | number | boolean | null | Date | Buffer | number[] | string[] | undefined;
 type QueryParams = QueryParam[];
 type ExecResult = { rowCount: number; insertId: number };
 export type ProcureGuardAccessRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
@@ -199,6 +199,22 @@ async function ensureProcureGuardPermissionRoleValues(): Promise<void> {
     const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
     if (code !== '42710' && code !== '42704') throw err;
   }
+}
+
+async function ensureProcureGuardPaymentRequestColumns(): Promise<void> {
+  async function execSchema(statement: string) {
+    try {
+      await exec(statement);
+    } catch (err) {
+      const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
+      if (code !== '23505' && code !== '42P07' && code !== '42710' && code !== '42701') throw err;
+    }
+  }
+
+  await execSchema(`ALTER TABLE procure_guard_adhoc_payments ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[]`);
+  await execSchema(`ALTER TABLE procure_guard_advance_payments ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[]`);
+  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_adhoc_requester_notification_emails ON procure_guard_adhoc_payments USING GIN (requester_notification_emails)`);
+  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_advance_requester_notification_emails ON procure_guard_advance_payments USING GIN (requester_notification_emails)`);
 }
 function serialise<T>(value: unknown): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -317,7 +333,13 @@ export async function canAccessProcureGuardApp(): Promise<boolean> {
 }
 
 function scopedWhere(actor: ProcureGuardActor): { where: string; params: string[] } {
-  if (!actor.permissions.canViewAll) return { where: 'WHERE requested_by_email = ?', params: [actor.email] };
+  if (!actor.permissions.canViewAll) {
+    const email = actor.email.toLowerCase();
+    return {
+      where: 'WHERE (LOWER(requested_by_email) = ? OR ? = ANY(COALESCE(requester_notification_emails, ARRAY[]::TEXT[])))',
+      params: [email, email],
+    };
+  }
   if (actor.role === 'Admin') return { where: '', params: [] };
 
   const filters: string[] = [];
@@ -454,6 +476,41 @@ function validateNonNegativeNumber(value: unknown, label: string) {
   return n;
 }
 
+function normalizeRequesterNotificationEmails(value: unknown, requesterEmail?: string | null): string[] {
+  const rawValues = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(/[\s,;]+/)
+      : [];
+  const requester = requesterEmail?.trim().toLowerCase();
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emails = new Set<string>();
+
+  for (const raw of rawValues) {
+    const email = String(raw ?? '').trim().toLowerCase();
+    if (!email) continue;
+    if (!emailPattern.test(email)) throw new Error(`Invalid notification email: ${email}`);
+    if (email !== requester) emails.add(email);
+  }
+
+  return [...emails];
+}
+
+function requesterNotificationEmailsOf(request: Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requester_notification_emails'>): string[] {
+  return Array.isArray(request.requester_notification_emails)
+    ? request.requester_notification_emails.map(email => email.trim().toLowerCase()).filter(Boolean)
+    : [];
+}
+
+function actorCanAccessRequesterSideRequest(
+  actor: ProcureGuardActor,
+  request: Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requested_by_email' | 'requester_notification_emails'>,
+): boolean {
+  const actorEmail = actor.email.toLowerCase();
+  return request.requested_by_email?.toLowerCase() === actorEmail
+    || requesterNotificationEmailsOf(request).includes(actorEmail);
+}
+
 function requestMonth(value: string | null | undefined): string {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) return 'Unknown';
@@ -483,7 +540,7 @@ function hoursBetween(startValue: string | null | undefined, endMs: number): num
 
 type ReviewDurationDraft = ProcureGuardReviewDurationMetric & { longestUpdatedAtMs: number };
 
-type ProcureGuardWorkflowEvent = 'request.submitted' | 'request.status_changed';
+type ProcureGuardWorkflowEvent = 'request.submitted' | 'request.status_changed' | 'request.requester_status_changed';
 
 type ProcureGuardWebhookRequest = Pick<
   AdhocPaymentRequest | AdvancePaymentRequest,
@@ -501,6 +558,7 @@ type ProcureGuardWebhookRequest = Pick<
   | 'spend_category'
   | 'requested_by_name'
   | 'requested_by_email'
+  | 'requester_notification_emails'
   | 'requester_comments'
   | 'created_at'
   | 'updated_at'
@@ -664,8 +722,8 @@ function buildProcureGuardNotificationEmail(input: {
   const subject = `ProcureGuard: ${input.request.reference_number} needs ${input.ownerLabel} review`;
   const comment = input.comment || input.request.requester_comments || '';
   const statusLine = input.previousStatus
-    ? `${input.previousStatus} -> ${input.request.status}`
-    : input.request.status;
+    ? `${formatProcureGuardStatusLabel(input.previousStatus)} -> ${formatProcureGuardStatusLabel(input.request.status)}`
+    : formatProcureGuardStatusLabel(input.request.status);
 
   const bodyHtml = `
     <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:24px;color:#1f2937;">
@@ -680,7 +738,7 @@ function buildProcureGuardNotificationEmail(input: {
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Amount</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(formatWebhookAmount(input.request.amount, input.request.currency))}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Country</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.country || 'Unspecified')}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Status</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(statusLine)}</td></tr>
-        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Next action</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.nextStatus || 'Review decision')}</td></tr>
+        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Next action</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.nextStatus ? formatProcureGuardStatusLabel(input.nextStatus) : 'Review decision')}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Requester</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.requested_by_name || input.request.requested_by_email)}</td></tr>
       </table>
       ${comment ? `<div style="background:#f9fafb;border-left:4px solid #006B0C;padding:12px 14px;margin-bottom:22px;"><div style="font-weight:600;margin-bottom:6px;">Comment</div><div style="white-space:pre-wrap;color:#374151;">${escapeHtml(comment)}</div></div>` : ''}
@@ -689,6 +747,58 @@ function buildProcureGuardNotificationEmail(input: {
       </div>
       <div style="border-top:1px solid #e5e7eb;padding-top:14px;font-size:12px;color:#6b7280;">
         Triggered by ${escapeHtml(input.actor.name || input.actor.email)}. This message was generated by the ProcureGuard workflow.
+      </div>
+    </div>
+  `;
+
+  return { subject, bodyHtml };
+}
+
+function isRequesterAcceptedStage(status: ProcureGuardStatus): boolean {
+  return status !== 'Rejected' && status !== 'Cancelled';
+}
+
+function buildProcureGuardRequesterStageEmail(input: {
+  requestType: ProcureGuardRequestType;
+  request: ProcureGuardWebhookRequest;
+  detailUrl: string;
+  actor: ProcureGuardActor;
+  ownerLabel: string;
+  nextStatus: ProcureGuardStatus | null;
+  previousStatus?: ProcureGuardStatus | null;
+  comment?: string | null;
+}) {
+  const typeLabel = input.requestType === 'adhoc' ? 'ADHOC payment' : 'Advance payment';
+  const statusLine = input.previousStatus
+    ? `${formatProcureGuardStatusLabel(input.previousStatus)} -> ${formatProcureGuardStatusLabel(input.request.status)}`
+    : formatProcureGuardStatusLabel(input.request.status);
+  const nextLine = input.nextStatus
+    ? `It is now waiting for ${input.ownerLabel}.`
+    : 'The approval workflow is complete.';
+  const comment = input.comment || '';
+  const subject = `ProcureGuard: ${input.request.reference_number} moved to ${formatProcureGuardStatusLabel(input.request.status)}`;
+
+  const bodyHtml = `
+    <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:24px;color:#1f2937;">
+      <div style="border-bottom:3px solid #006B0C;padding-bottom:14px;margin-bottom:22px;">
+        <div style="font-size:19px;font-weight:700;color:#006B0C;">NESR ProcureGuard</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px;">Requester status update</div>
+      </div>
+      <h2 style="margin:0 0 8px 0;color:#111827;">${escapeHtml(input.request.reference_number)} has moved forward</h2>
+      <p style="margin:0 0 20px 0;color:#4b5563;">Your ${escapeHtml(typeLabel)} request changed stage. ${escapeHtml(nextLine)}</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:22px;">
+        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;width:170px;">Vendor</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.vendor_name)}</td></tr>
+        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Amount</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(formatWebhookAmount(input.request.amount, input.request.currency))}</td></tr>
+        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Country</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.country || 'Unspecified')}</td></tr>
+        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Status</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(statusLine)}</td></tr>
+        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Next step</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.nextStatus ? formatProcureGuardStatusLabel(input.nextStatus) : 'Approved')}</td></tr>
+      </table>
+      ${comment ? `<div style="background:#f9fafb;border-left:4px solid #006B0C;padding:12px 14px;margin-bottom:22px;"><div style="font-weight:600;margin-bottom:6px;">Reviewer comment</div><div style="white-space:pre-wrap;color:#374151;">${escapeHtml(comment)}</div></div>` : ''}
+      <div style="text-align:center;margin:24px 0;">
+        <a href="${escapeHtml(input.detailUrl)}" style="display:inline-block;background:#006B0C;color:#ffffff;padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:700;">Open request</a>
+      </div>
+      <div style="border-top:1px solid #e5e7eb;padding-top:14px;font-size:12px;color:#6b7280;">
+        Updated by ${escapeHtml(input.actor.name || input.actor.email)}. This message was generated by the ProcureGuard workflow.
       </div>
     </div>
   `;
@@ -757,9 +867,6 @@ async function notifyProcureGuardNextApprover(input: {
     const request = rows[0] ? serialise<ProcureGuardWebhookRequest>(rows[0]) : null;
     if (!request) return;
 
-    const recipientApprovalStatus = getRecipientApprovalStatus(input.requestType, request);
-    if (!recipientApprovalStatus) return;
-
     const thresholdAmount = request.spend_value_usd ?? request.amount;
     const thresholdCurrency = request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD';
     const adminPermissions = getPermissionProfile('Admin');
@@ -770,6 +877,114 @@ async function notifyProcureGuardNextApprover(input: {
       thresholdAmount,
       thresholdCurrency,
     );
+    const detailUrl = getRequestDetailUrl(input.requestType, request.id);
+    const requestPayload = {
+      id: request.id,
+      reference_number: request.reference_number,
+      requisition_number: request.requisition_number,
+      status: request.status,
+      previous_status: input.previousStatus ?? null,
+      priority: request.priority,
+      vendor_name: request.vendor_name,
+      amount: request.amount,
+      currency: request.currency,
+      amount_usd: toUsd(thresholdAmount, thresholdCurrency),
+      country: request.country,
+      segment: request.segment,
+      spend_category: request.spend_category,
+      requested_by_name: request.requested_by_name,
+      requested_by_email: request.requested_by_email,
+      requester_notification_emails: requesterNotificationEmailsOf(request),
+      requester_comments: request.requester_comments,
+      created_at: request.created_at,
+      updated_at: request.updated_at,
+      detail_url: detailUrl,
+    };
+    const actorPayload = {
+      name: input.actor.name,
+      email: input.actor.email,
+      role: input.actor.role,
+    };
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const secret = process.env.N8N_PROCUREGUARD_WEBHOOK_SECRET?.trim();
+    if (secret) headers['x-procureguard-secret'] = secret;
+
+    if (
+      input.event === 'request.status_changed'
+      && isRequesterAcceptedStage(request.status)
+      && request.requested_by_email?.trim()
+    ) {
+      const requesterEmail = buildProcureGuardRequesterStageEmail({
+        requestType: input.requestType,
+        request,
+        detailUrl,
+        ownerLabel: actions.ownerLabel,
+        nextStatus: actions.nextStatus,
+        actor: input.actor,
+        previousStatus: input.previousStatus,
+        comment: input.comment,
+      });
+      const requesterName = request.requested_by_name || request.requested_by_email;
+      const requesterSideRecipients = [
+        {
+          name: requesterName,
+          email: request.requested_by_email.trim().toLowerCase(),
+          role: 'Requester',
+          source_column: 'requested_by_email',
+        },
+        ...requesterNotificationEmailsOf(request).map(email => ({
+          name: email,
+          email,
+          role: 'Requester notification',
+          source_column: 'requester_notification_emails',
+        })),
+      ];
+      const requesterPayload = {
+        event: 'request.requester_status_changed' as ProcureGuardWorkflowEvent,
+        source: 'procureguard-local',
+        occurred_at: new Date().toISOString(),
+        request_type: input.requestType,
+        request: requestPayload,
+        workflow: {
+          owner_role: actions.ownerLabel,
+          required_permission: actions.requiredPermission,
+          decision_status: request.status,
+          next_status: actions.nextStatus,
+        },
+        actor: actorPayload,
+        comment: input.comment ?? null,
+        recipients: requesterSideRecipients.map(row => ({
+          name: row.name,
+          email: row.email,
+          role: row.role,
+          approval_status: null,
+          country: request.country,
+          source_column: row.source_column,
+        })),
+        email: {
+          subject: requesterEmail.subject,
+          body_html: requesterEmail.bodyHtml,
+          to: requesterSideRecipients.map(row => row.email),
+          to_recipients: requesterSideRecipients.map(row => ({
+            emailAddress: { address: row.email, name: row.name },
+          })),
+        },
+      };
+
+      const requesterResponse = await postProcureGuardWebhook(webhookUrl, headers, requesterPayload);
+      if (!requesterResponse.ok) {
+        console.error('[ProcureGuard n8n] Requester webhook failed', requesterResponse.status, requesterResponse.statusText);
+      } else {
+        console.log('[ProcureGuard n8n] Requester webhook sent', {
+          requestType: input.requestType,
+          requestId: input.requestId,
+          status: requesterResponse.status,
+        });
+      }
+    }
+
+    const recipientApprovalStatus = getRecipientApprovalStatus(input.requestType, request);
+    if (!recipientApprovalStatus) return;
 
     if (!actions.requiredPermission) return;
 
@@ -790,7 +1005,6 @@ async function notifyProcureGuardNextApprover(input: {
       });
     }
 
-    const detailUrl = getRequestDetailUrl(input.requestType, request.id);
     const email = buildProcureGuardNotificationEmail({
       event: input.event,
       requestType: input.requestType,
@@ -808,38 +1022,14 @@ async function notifyProcureGuardNextApprover(input: {
       source: 'procureguard-local',
       occurred_at: new Date().toISOString(),
       request_type: input.requestType,
-      request: {
-        id: request.id,
-        reference_number: request.reference_number,
-        requisition_number: request.requisition_number,
-        status: request.status,
-        previous_status: input.previousStatus ?? null,
-        priority: request.priority,
-        vendor_name: request.vendor_name,
-        amount: request.amount,
-        currency: request.currency,
-        amount_usd: toUsd(thresholdAmount, thresholdCurrency),
-        country: request.country,
-        segment: request.segment,
-        spend_category: request.spend_category,
-        requested_by_name: request.requested_by_name,
-        requested_by_email: request.requested_by_email,
-        requester_comments: request.requester_comments,
-        created_at: request.created_at,
-        updated_at: request.updated_at,
-        detail_url: detailUrl,
-      },
+      request: requestPayload,
       workflow: {
         owner_role: actions.ownerLabel,
         required_permission: actions.requiredPermission,
         decision_status: recipientApprovalStatus,
         next_status: actions.nextStatus,
       },
-      actor: {
-        name: input.actor.name,
-        email: input.actor.email,
-        role: input.actor.role,
-      },
+      actor: actorPayload,
       comment: input.comment ?? null,
       recipients: recipients.map(row => ({
         name: row.display_name,
@@ -858,10 +1048,6 @@ async function notifyProcureGuardNextApprover(input: {
         })),
       },
     };
-
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const secret = process.env.N8N_PROCUREGUARD_WEBHOOK_SECRET?.trim();
-    if (secret) headers['x-procureguard-secret'] = secret;
 
     const response = await postProcureGuardWebhook(webhookUrl, headers, payload);
 
@@ -998,6 +1184,8 @@ export async function getAdhocPayments(): Promise<AdhocPaymentRequest[] | null> 
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
+    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardPaymentRequestColumns();
     const scope = scopedWhere(actor);
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_adhoc_payments
@@ -1016,6 +1204,7 @@ export async function getAdhocPaymentsData(): Promise<ProcureGuardRequestListDat
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
+    await ensureProcureGuardPaymentRequestColumns();
     const scope = scopedWhere(actor);
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_adhoc_payments
@@ -1034,6 +1223,7 @@ export async function getAdvancePaymentRequestsData(): Promise<ProcureGuardReque
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
+    await ensureProcureGuardPaymentRequestColumns();
     const scope = scopedWhere(actor);
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_advance_payments
@@ -1052,6 +1242,7 @@ export async function getAdvancePaymentRequests(): Promise<AdvancePaymentRequest
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
+    await ensureProcureGuardPaymentRequestColumns();
     const scope = scopedWhere(actor);
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_advance_payments
@@ -1070,6 +1261,7 @@ export async function getProcureGuardWorkQueueData(): Promise<ProcureGuardWorkQu
   try {
     const actor = await getActor();
     requireProcureGuardReviewerQueueAccess(actor);
+    await ensureProcureGuardPaymentRequestColumns();
     const scope = scopedWhere(actor);
     const [adhocRows, advanceRows] = await Promise.all([
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
@@ -1136,6 +1328,7 @@ export async function getProcureGuardRequestDetail(
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
+    await ensureProcureGuardPaymentRequestColumns();
     const table = requestType === 'adhoc'
       ? 'procure_guard_adhoc_payments'
       : 'procure_guard_advance_payments';
@@ -1147,7 +1340,7 @@ export async function getProcureGuardRequestDetail(
     if (!rows[0]) return null;
 
     const request = normalisePaymentCountry(serialise<AdhocPaymentRequest | AdvancePaymentRequest>(rows[0]));
-    if (!actor.permissions.canViewAll && request.requested_by_email?.toLowerCase() !== actor.email.toLowerCase()) {
+    if (!actor.permissions.canViewAll && !actorCanAccessRequesterSideRequest(actor, request)) {
       return null;
     }
     if (actor.permissions.canViewAll && !actorCanAccessRequestScope(actor, request)) {
@@ -1196,6 +1389,7 @@ export async function getProcureGuardDashboardData(): Promise<ProcureGuardDashbo
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
+    await ensureProcureGuardPaymentRequestColumns();
     const scope = scopedWhere(actor);
 
     const [adhocRows, advanceRows, activityRows] = await Promise.all([
@@ -1209,11 +1403,16 @@ export async function getProcureGuardDashboardData(): Promise<ProcureGuardDashbo
                ON a.request_type = 'adhoc' AND a.request_id = ap.id
              LEFT JOIN procure_guard_advance_payments adv
                ON a.request_type = 'advance' AND a.request_id = adv.id
-             WHERE (ap.requested_by_email = ? OR adv.requested_by_email = ?)
+             WHERE (
+                 LOWER(ap.requested_by_email) = ?
+                 OR ? = ANY(COALESCE(ap.requester_notification_emails, ARRAY[]::TEXT[]))
+                 OR LOWER(adv.requested_by_email) = ?
+                 OR ? = ANY(COALESCE(adv.requester_notification_emails, ARRAY[]::TEXT[]))
+               )
                AND a.request_id > 0
                AND a.action NOT ILIKE '%seeded%'
              ORDER BY a.created_at DESC LIMIT 12`,
-        actor.permissions.canViewAll ? [] : [actor.email, actor.email],
+        actor.permissions.canViewAll ? [] : [actor.email.toLowerCase(), actor.email.toLowerCase(), actor.email.toLowerCase(), actor.email.toLowerCase()],
       ),
     ]);
 
@@ -1235,6 +1434,7 @@ export async function getProcureGuardDashboardData(): Promise<ProcureGuardDashbo
 export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData | null> {
   try {
     const actor = await requireAdminActor();
+    await ensureProcureGuardPaymentRequestColumns();
     await syncProcureGuardRecipientAccessApprovals();
     const [adhocRows, advanceRows, activityRows, permissionRows, notificationRecipientRows] = await Promise.all([
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ORDER BY created_at DESC`),
@@ -1531,6 +1731,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
     if (!actor.permissions.canCreateRequests) throw new Error('Request creation access is required.');
+    await ensureProcureGuardPaymentRequestColumns();
     const amount = validateMoney(input.amount);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
     const country = requireCountryOption(input.country);
@@ -1540,7 +1741,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
     const spendCategory = requireText(input.spend_category, 'Spend category');
     const reason = requireText(input.payment_reason || input.justification, 'Reason / justification of exception');
     if (!input.acknowledged) throw new Error('Acknowledgement is required.');
-    const ccEmail = input.cc_email?.trim() || getCountryControllerEmail(country);
+    const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, actor.email);
 
     const reference = makeReference('ADH');
     const result = await exec(
@@ -1548,9 +1749,9 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
         (reference_number, requisition_number, status, priority, vendor_name, vendor_code, vendor_tax_id, supplier_email,
          amount, currency, country, segment, department, business_unit, cost_center, project_code,
          po_number, invoice_number, due_date, expense_category, spend_category, spend_value_usd, payment_method,
-         payment_reason, justification, notes, attachment_link, cc_email, acknowledged_at,
+         payment_reason, justification, notes, attachment_link, cc_email, requester_notification_emails, acknowledged_at,
          requested_by_name, requested_by_email)
-       VALUES (?, ?, 'Submitted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?) RETURNING id`,
+       VALUES (?, ?, 'Submitted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?) RETURNING id`,
       [
         reference,
         requisitionNumber,
@@ -1578,7 +1779,8 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
         (input.justification || reason).trim(),
         blankToNull(input.notes),
         blankToNull(input.attachment_link),
-        ccEmail,
+        null,
+        requesterNotificationEmails,
         actor.name,
         actor.email,
       ],
@@ -1622,6 +1824,7 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
     if (!actor.permissions.canCreateRequests) throw new Error('Request creation access is required.');
+    await ensureProcureGuardPaymentRequestColumns();
     const amount = validateMoney(input.amount);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
     const country = requireCountryOption(input.country);
@@ -1632,7 +1835,7 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
     const paymentTermsDays = validateNonNegativeNumber(input.current_payment_terms_days, 'Current payment terms in days');
     const creditLimitUsd = validateNonNegativeNumber(input.current_credit_limit_usd, 'Current credit limit in USD');
     const reason = requireText(input.advance_purpose || input.justification, 'Reason / justification for exception');
-    const ccEmail = input.cc_email?.trim() || getCountryControllerEmail(country);
+    const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, actor.email);
 
     const contractValue = input.contract_value === undefined || input.contract_value === null || Number.isNaN(Number(input.contract_value))
       ? null
@@ -1649,9 +1852,9 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
          contract_reference, po_number, contract_value, advance_percentage, spend_category, spend_value_usd,
          current_payment_terms_days, current_credit_limit_usd,
          expected_invoice_date, expected_settlement_date, recovery_method,
-         advance_purpose, justification, notes, attachment_link, cc_email,
+         advance_purpose, justification, notes, attachment_link, cc_email, requester_notification_emails,
          requested_by_name, requested_by_email)
-       VALUES (?, ?, 'Submitted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       VALUES (?, ?, 'Submitted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [
         reference,
         requisitionNumber,
@@ -1683,7 +1886,8 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
         (input.justification || reason).trim(),
         blankToNull(input.notes),
         blankToNull(input.attachment_link),
-        ccEmail,
+        null,
+        requesterNotificationEmails,
         actor.name,
         actor.email,
       ],
@@ -1726,6 +1930,7 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
+    await ensureProcureGuardPaymentRequestColumns();
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments WHERE id = ? LIMIT 1`, [id]);
     const existing = rows[0];
     if (!existing) return { success: false, error: 'Request not found.' };
@@ -1747,7 +1952,7 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
     const spendCategory = requireText(input.spend_category, 'Spend category');
     const reason = requireText(input.payment_reason || input.justification, 'Reason / justification of exception');
     if (!input.acknowledged) throw new Error('Acknowledgement is required.');
-    const ccEmail = input.cc_email?.trim() || getCountryControllerEmail(country);
+    const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, existing.requested_by_email);
 
     await exec(
       `UPDATE procure_guard_adhoc_payments
@@ -1768,6 +1973,7 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
            notes = ?,
            requester_comments = ?,
            cc_email = ?,
+           requester_notification_emails = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
@@ -1787,7 +1993,8 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
         (input.justification || reason).trim(),
         blankToNull(input.notes),
         blankToNull(input.requester_comments ?? input.notes),
-        ccEmail,
+        null,
+        requesterNotificationEmails,
         id,
       ],
     );
@@ -1814,6 +2021,7 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
+    await ensureProcureGuardPaymentRequestColumns();
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments WHERE id = ? LIMIT 1`, [id]);
     const existing = rows[0];
     if (!existing) return { success: false, error: 'Request not found.' };
@@ -1836,7 +2044,7 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
     const paymentTermsDays = validateNonNegativeNumber(input.current_payment_terms_days, 'Current payment terms in days');
     const creditLimitUsd = validateNonNegativeNumber(input.current_credit_limit_usd, 'Current credit limit in USD');
     const reason = requireText(input.advance_purpose || input.justification, 'Reason / justification for exception');
-    const ccEmail = input.cc_email?.trim() || getCountryControllerEmail(country);
+    const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, existing.requested_by_email);
 
     await exec(
       `UPDATE procure_guard_advance_payments
@@ -1857,6 +2065,7 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
            notes = ?,
            requester_comments = ?,
            cc_email = ?,
+           requester_notification_emails = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
@@ -1876,7 +2085,8 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
         (input.justification || reason).trim(),
         blankToNull(input.notes),
         blankToNull(input.requester_comments ?? input.notes),
-        ccEmail,
+        null,
+        requesterNotificationEmails,
         id,
       ],
     );
@@ -1902,6 +2112,7 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
 export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInput): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await requireAdminActor();
+    await ensureProcureGuardPaymentRequestColumns();
     const amount = validateMoney(input.amount);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
     const country = requireCountryOption(input.country);
@@ -1910,20 +2121,20 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
     const vendorTaxId = requireText(input.vendor_tax_id, 'Vendor tax ID');
     const spendCategory = requireText(input.spend_category, 'Spend category');
     const reason = requireText(input.payment_reason || input.justification, 'Reason / justification of exception');
-    const ccEmail = input.cc_email?.trim() || getCountryControllerEmail(country);
 
     const reference = makeReference('ADH');
     const requestedByEmail = input.requested_by_email?.trim() || actor.email;
     const requestedByName = input.requested_by_name?.trim() || actor.name;
+    const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, requestedByEmail);
     const status = input.status || 'Submitted';
     const result = await exec(
       `INSERT INTO procure_guard_adhoc_payments
         (reference_number, requisition_number, status, priority, vendor_name, vendor_code, vendor_tax_id, supplier_email,
          amount, currency, country, segment, department, business_unit, cost_center, project_code,
          po_number, invoice_number, due_date, expense_category, spend_category, spend_value_usd, payment_method,
-         payment_reason, justification, notes, attachment_link, cc_email, acknowledged_at,
+         payment_reason, justification, notes, attachment_link, cc_email, requester_notification_emails, acknowledged_at,
          requested_by_name, requested_by_email)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?) RETURNING id`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?) RETURNING id`,
       [
         reference,
         requisitionNumber,
@@ -1952,7 +2163,8 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
         (input.justification || reason).trim(),
         blankToNull(input.notes),
         blankToNull(input.attachment_link),
-        ccEmail,
+        null,
+        requesterNotificationEmails,
         requestedByName,
         requestedByEmail,
       ],
@@ -1993,6 +2205,7 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
 export async function createAdminAdvancePayment(input: AdminCreateAdvancePaymentInput): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await requireAdminActor();
+    await ensureProcureGuardPaymentRequestColumns();
     const amount = validateMoney(input.amount);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
     const country = requireCountryOption(input.country);
@@ -2003,7 +2216,6 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
     const paymentTermsDays = validateNonNegativeNumber(input.current_payment_terms_days, 'Current payment terms in days');
     const creditLimitUsd = validateNonNegativeNumber(input.current_credit_limit_usd, 'Current credit limit in USD');
     const reason = requireText(input.advance_purpose || input.justification, 'Reason / justification for exception');
-    const ccEmail = input.cc_email?.trim() || getCountryControllerEmail(country);
 
     const contractValue = input.contract_value === undefined || input.contract_value === null || Number.isNaN(Number(input.contract_value))
       ? null
@@ -2015,6 +2227,7 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
     const reference = makeReference('ADV');
     const requestedByEmail = input.requested_by_email?.trim() || actor.email;
     const requestedByName = input.requested_by_name?.trim() || actor.name;
+    const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, requestedByEmail);
     const status = input.status || 'Submitted';
     const result = await exec(
       `INSERT INTO procure_guard_advance_payments
@@ -2023,9 +2236,9 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
          contract_reference, po_number, contract_value, advance_percentage, spend_category, spend_value_usd,
          current_payment_terms_days, current_credit_limit_usd,
          expected_invoice_date, expected_settlement_date, recovery_method,
-         advance_purpose, justification, notes, attachment_link, cc_email,
+         advance_purpose, justification, notes, attachment_link, cc_email, requester_notification_emails,
          requested_by_name, requested_by_email)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [
         reference,
         requisitionNumber,
@@ -2058,7 +2271,8 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
         (input.justification || reason).trim(),
         blankToNull(input.notes),
         blankToNull(input.attachment_link),
-        ccEmail,
+        null,
+        requesterNotificationEmails,
         requestedByName,
         requestedByEmail,
       ],
@@ -2180,13 +2394,13 @@ async function updateStatusCommon(input: {
     const validRejectMove = input.status === 'Rejected' && isActiveApprovalStatus(row.status);
 
     if (!validApprovalMove && !validRejectMove) {
-      return { success: false, error: `Cannot move ${row.reference_number} from ${row.status} to ${input.status}.` };
+      return { success: false, error: `Cannot move ${row.reference_number} from ${formatProcureGuardStatusLabel(row.status)} to ${formatProcureGuardStatusLabel(input.status)}.` };
     }
 
     if (!requiredPermission || !actor.permissions[requiredPermission]) {
       return {
         success: false,
-        error: `${actor.role} cannot move this request from ${row.status} to ${input.status}. Contact a ProcureGuard admin if your access needs to change.`,
+        error: `${actor.role} cannot move this request from ${formatProcureGuardStatusLabel(row.status)} to ${formatProcureGuardStatusLabel(input.status)}. Contact a ProcureGuard admin if your access needs to change.`,
       };
     }
 
@@ -2235,7 +2449,7 @@ async function updateStatusCommon(input: {
     requestType: input.requestType,
     requestId: input.id,
     referenceNumber: row.reference_number,
-    action: `Status updated to ${input.status}`,
+    action: `Status updated to ${formatProcureGuardStatusLabel(input.status)}`,
     actor,
     notes: comment || null,
   });
@@ -2318,9 +2532,10 @@ export async function uploadProcureGuardDocument(
     }
 
     const table = requestType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
-    const requestRows = await sql<QueryResultRow[]>(`SELECT id, reference_number, requested_by_email FROM ${table} WHERE id = ? LIMIT 1`, [requestId]);
+    const requestRows = await sql<QueryResultRow[]>(`SELECT id, reference_number, requested_by_email, requester_notification_emails FROM ${table} WHERE id = ? LIMIT 1`, [requestId]);
     if (!requestRows[0]) return { success: false, error: 'Request not found.' };
-    if (!actor.permissions.canViewAll && requestRows[0].requested_by_email?.toLowerCase() !== actor.email.toLowerCase()) {
+    const request = serialise<Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requested_by_email' | 'requester_notification_emails'>>(requestRows[0]);
+    if (!actor.permissions.canViewAll && !actorCanAccessRequesterSideRequest(actor, request)) {
       return { success: false, error: 'You can only upload files to your own requests.' };
     }
 

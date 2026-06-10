@@ -21,8 +21,8 @@ import {
   PRIORITY_OPTIONS,
   SEGMENT_OPTIONS,
   SPEND_CATEGORY_OPTIONS,
+  formatProcureGuardStatusLabel,
   fmtDateTime,
-  getCountryControllerEmail,
   getPermissionProfile,
   getStatusBadge,
   usdFmt,
@@ -81,6 +81,10 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
+function activityActionLabel(action: string) {
+  return action.replace(/^Status updated to\s+(.+)$/i, (_, status: string) => `Status updated to ${formatProcureGuardStatusLabel(status)}`);
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label>
@@ -129,7 +133,7 @@ function AdhocForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; o
       segment: form.segment,
       spend_category: form.spendCategory,
       spend_value_usd: Number(form.amount),
-      cc_email: getCountryControllerEmail(form.country),
+      requester_notification_emails: [],
       acknowledged: true,
       status: form.status,
       priority: form.priority,
@@ -190,7 +194,7 @@ function AdhocForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; o
         </Field>
         <Field label="Status">
           <select className={inputClass} value={form.status} onChange={e => update('status', e.target.value as ProcureGuardStatus)}>
-            {ADHOC_STATUS_OPTIONS.map(item => <option key={item}>{item}</option>)}
+            {ADHOC_STATUS_OPTIONS.map(item => <option key={item} value={item}>{formatProcureGuardStatusLabel(item)}</option>)}
           </select>
         </Field>
         <Field label="Priority">
@@ -259,7 +263,7 @@ function AdvanceForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor'];
       spend_value_usd: Number(form.amount),
       current_payment_terms_days: Number(form.paymentTermsDays),
       current_credit_limit_usd: Number(form.creditLimitUsd),
-      cc_email: getCountryControllerEmail(form.country),
+      requester_notification_emails: [],
       status: form.status,
       priority: form.priority,
       requested_by_name: form.requesterName,
@@ -319,7 +323,7 @@ function AdvanceForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor'];
         </Field>
         <Field label="Status">
           <select className={inputClass} value={form.status} onChange={e => update('status', e.target.value as ProcureGuardStatus)}>
-            {ADVANCE_STATUS_OPTIONS.map(item => <option key={item}>{item}</option>)}
+            {ADVANCE_STATUS_OPTIONS.map(item => <option key={item} value={item}>{formatProcureGuardStatusLabel(item)}</option>)}
           </select>
         </Field>
         <Field label="Priority">
@@ -696,7 +700,7 @@ function RecipientPersonEditor({ group, onDone }: { group: RecipientPersonGroup;
           <RecipientChipList label="Roles" values={group.roles} />
           <RecipientChipList label="Countries" values={group.countries} />
           <RecipientChipList label="Request Types" values={group.requestTypes} />
-          <RecipientChipList label="Approval Steps" values={group.approvalSteps} />
+          <RecipientChipList label="Approval Steps" values={group.approvalSteps.map(formatProcureGuardStatusLabel)} />
         </div>
 
         <button type="button" disabled={isPending || !displayName.trim() || !email.trim()} onClick={save} className="rounded-lg bg-[#307c4c] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#307c4c]/80 disabled:opacity-60">
@@ -835,7 +839,7 @@ function ActivityTable({ rows, onDone }: { rows: ProcureGuardActivityRow[]; onDo
                 ) : row.reference_number}
               </td>
               <td className="px-4 py-3 capitalize text-slate-600">{row.request_type}</td>
-              <td className="px-4 py-3 text-slate-900">{row.action}</td>
+              <td className="px-4 py-3 text-slate-900">{activityActionLabel(row.action)}</td>
               <td className="px-4 py-3 text-slate-600">{row.actor_email || row.actor_name || 'System'}</td>
               <td className="px-4 py-3 text-slate-500">{fmtDateTime(row.created_at)}</td>
               <td className="px-4 py-3 text-right">

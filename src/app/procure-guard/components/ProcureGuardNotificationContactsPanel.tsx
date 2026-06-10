@@ -1,6 +1,7 @@
 'use client';
 
 import type { ProcureGuardNotificationContact, ProcureGuardStatus } from '@/types/procureGuard';
+import { formatProcureGuardStatusLabel } from '@/lib/procureGuard-utils';
 
 type Props = {
   contacts: ProcureGuardNotificationContact[];
@@ -55,7 +56,7 @@ export default function ProcureGuardNotificationContactsPanel({
               return (
                 <div key={status} className={`rounded-md border bg-white p-3 ${isCurrent ? 'border-[#307c4c]/40 ring-2 ring-[#307c4c]/10' : 'border-slate-200'}`}>
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{status}</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{formatProcureGuardStatusLabel(status)}</p>
                     {isCurrent && <span className="rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#307c4c]">Current step</span>}
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

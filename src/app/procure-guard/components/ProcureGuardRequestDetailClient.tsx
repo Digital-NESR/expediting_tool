@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  formatProcureGuardStatusLabel,
   fmtDateTime,
   getWorkflowSteps,
   getPriorityBadge,
@@ -28,7 +29,7 @@ type PdfSectionKey = 'summary' | 'vendor' | 'details' | 'review' | 'attachments'
 
 const PDF_SECTION_OPTIONS: Array<{ key: PdfSectionKey; label: string; description: string }> = [
   { key: 'summary', label: 'Request summary', description: 'Reference, status, amount, and dates.' },
-  { key: 'vendor', label: 'Vendor and requester', description: 'Vendor, requester, country, segment, and CC email.' },
+  { key: 'vendor', label: 'Vendor and requester', description: 'Vendor, requester, country, segment, and additional request notifications.' },
   { key: 'details', label: 'Request details', description: 'Spend category, justification, and request comments.' },
   { key: 'review', label: 'Review', description: 'Reviewer, rejection, and review comments.' },
   { key: 'attachments', label: 'Attachments', description: 'Uploaded file names and upload details.' },
@@ -166,7 +167,16 @@ function fileBadgeLabel(mime: string | null) {
 }
 
 function reviewActionLabel(action: string) {
-  return action.replace(/^Status updated to\s+/i, '').trim() || action;
+  const decision = action.replace(/^Status updated to\s+/i, '').trim();
+  return decision ? formatProcureGuardStatusLabel(decision) : action;
+}
+
+function activityActionLabel(action: string) {
+  return action.replace(/^Status updated to\s+(.+)$/i, (_, status: string) => `Status updated to ${formatProcureGuardStatusLabel(status)}`);
+}
+
+function emailListLabel(emails: string[] | null | undefined) {
+  return emails?.length ? emails.join(', ') : null;
 }
 
 export default function ProcureGuardRequestDetailClient({ data }: { data: ProcureGuardRequestDetailData }) {
@@ -204,7 +214,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Current Owner" value={actions.nextStatus ? actions.ownerLabel : 'Workflow complete'} />
-          <Field label="Next Action" value={actions.nextStatus ?? 'No active decision'} />
+          <Field label="Next Action" value={actions.nextStatus ? formatProcureGuardStatusLabel(actions.nextStatus) : 'No active decision'} />
           <Field label="Reviewed By" value={request.reviewed_by_name || request.reviewed_by_email} />
           <Field label="Reviewed At" value={fmtDateTime(request.reviewed_at)} />
           <Field label="Rejection Reason" value={request.rejection_reason} />
@@ -248,7 +258,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
         <div className="divide-y divide-slate-100">
           {activity.map(item => (
             <div key={item.id} className="py-3">
-              <p className="text-sm font-bold text-slate-900">{item.action}</p>
+              <p className="text-sm font-bold text-slate-900">{activityActionLabel(item.action)}</p>
               <p className="mt-1 text-xs text-slate-500">{item.actor_name || item.actor_email || 'System'}</p>
               {item.notes && <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-600">{item.notes}</p>}
               <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{fmtDateTime(item.created_at)}</p>
@@ -282,7 +292,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
       if (result.success) {
         setReviewComment('');
         setIsCancelDialogOpen(false);
-        setNotice(`Request updated to ${nextStatus}.`);
+        setNotice(`Request updated to ${formatProcureGuardStatusLabel(nextStatus)}.`);
         router.refresh();
       } else {
         setError(result.error ?? 'Status update failed.');
@@ -379,7 +389,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
         if (reviewRows.length === 0) {
           addTable('Review History', [
             ['Review History', request.reviewed_at
-              ? `${fmtDateTime(request.reviewed_at)} | ${request.reviewed_by_name || request.reviewed_by_email || 'Reviewer'} | ${request.status}${request.review_comments ? ` | ${request.review_comments}` : ''}`
+              ? `${fmtDateTime(request.reviewed_at)} | ${request.reviewed_by_name || request.reviewed_by_email || 'Reviewer'} | ${formatProcureGuardStatusLabel(request.status)}${request.review_comments ? ` | ${request.review_comments}` : ''}`
               : 'No review actions have been recorded yet.'],
           ]);
           return;
@@ -439,7 +449,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
         addTable('Request Summary', [
           ['Reference Number', request.reference_number],
           ['Request Type', requestLabel],
-          ['Status', request.status],
+          ['Status', formatProcureGuardStatusLabel(request.status)],
           ['Priority', request.priority],
           ['Original Amount', usdFmt(request.amount, request.currency)],
           ['USD Equivalent', usdEquivalentFmt(request.amount, request.currency)],
@@ -457,7 +467,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           ['Requester Email', request.requested_by_email],
           ['Country', request.country],
           ['Segment', request.segment],
-          ['CC Email', request.cc_email],
+          ['Additional Request Notifications', emailListLabel(request.requester_notification_emails)],
         ]);
       }
 
@@ -498,7 +508,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
       if (pdfSections.activity) {
         addTable('Activity Log', activity.length
-          ? activity.map(item => [fmtDateTime(item.created_at), `${item.action}${item.actor_name || item.actor_email ? ` by ${item.actor_name || item.actor_email}` : ''}${item.notes ? ` | ${item.notes}` : ''}`])
+          ? activity.map(item => [fmtDateTime(item.created_at), `${activityActionLabel(item.action)}${item.actor_name || item.actor_email ? ` by ${item.actor_name || item.actor_email}` : ''}${item.notes ? ` | ${item.notes}` : ''}`])
           : [['Activity', 'No activity has been recorded yet.']]);
       }
 
@@ -725,7 +735,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
                 <Field label="Requester Email" value={request.requested_by_email} />
                 <Field label="Country" value={request.country} />
                 <Field label="Segment" value={request.segment} />
-                <Field label="CC Email" value={request.cc_email} />
+                <Field label="Additional Request Notifications" value={emailListLabel(request.requester_notification_emails)} />
               </FieldGrid>
             </Section>
 

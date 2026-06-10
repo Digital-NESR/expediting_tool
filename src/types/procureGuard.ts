@@ -120,6 +120,7 @@ export interface AdhocPaymentRequest {
   review_comments: string | null;
   attachment_link: string | null;
   cc_email: string | null;
+  requester_notification_emails: string[];
   acknowledged_at: string | null;
   requested_by_name: string | null;
   requested_by_email: string;
@@ -167,6 +168,7 @@ export interface AdvancePaymentRequest {
   review_comments: string | null;
   attachment_link: string | null;
   cc_email: string | null;
+  requester_notification_emails: string[];
   requested_by_name: string | null;
   requested_by_email: string;
   reviewed_by_name: string | null;
@@ -205,6 +207,7 @@ export interface CreateAdhocPaymentInput {
   requester_comments?: string;
   attachment_link?: string;
   cc_email?: string;
+  requester_notification_emails?: string[];
   acknowledged?: boolean;
 }
 
@@ -240,6 +243,7 @@ export interface CreateAdvancePaymentInput {
   requester_comments?: string;
   attachment_link?: string;
   cc_email?: string;
+  requester_notification_emails?: string[];
 }
 
 export interface AdminCreateAdhocPaymentInput extends CreateAdhocPaymentInput {

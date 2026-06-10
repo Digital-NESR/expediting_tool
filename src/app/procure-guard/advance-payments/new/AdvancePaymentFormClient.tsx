@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState, useTransition } from 'react';
+import { useEffect, useId, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import ProcureGuardSidebar from '../../components/ProcureGuardSidebar';
 import ProcureGuardNotificationContactsPanel from '../../components/ProcureGuardNotificationContactsPanel';
@@ -10,7 +10,6 @@ import {
   COUNTRY_OPTIONS,
   SEGMENT_OPTIONS,
   SPEND_CATEGORY_OPTIONS,
-  getCountryControllerEmail,
 } from '@/lib/procureGuard-utils';
 import type { AdvancePaymentRequest, CreateAdvancePaymentInput, ProcureGuardAccessView, ProcureGuardNotificationContact } from '@/types/procureGuard';
 
@@ -37,6 +36,15 @@ function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1_048_576) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1_048_576).toFixed(1)} MB`;
+}
+
+function parseNotificationEmails(value: string): string[] {
+  return [...new Set(value.split(/[\s,;]+/).map(email => email.trim().toLowerCase()).filter(Boolean))];
+}
+
+function invalidNotificationEmails(value: string): string[] {
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return parseNotificationEmails(value).filter(email => !emailPattern.test(email));
 }
 
 function AttachmentPicker({
@@ -107,11 +115,11 @@ export default function AdvancePaymentFormClient(_props: {
   const [creditLimitUsd, setCreditLimitUsd] = useState(editRequest?.current_credit_limit_usd === null || editRequest?.current_credit_limit_usd === undefined ? '' : String(editRequest.current_credit_limit_usd));
   const [reason, setReason] = useState(editRequest?.advance_purpose ?? editRequest?.justification ?? '');
   const [requesterComments, setRequesterComments] = useState(editRequest?.requester_comments ?? editRequest?.notes ?? '');
+  const [requesterNotificationEmails, setRequesterNotificationEmails] = useState((editRequest?.requester_notification_emails ?? []).join('\n'));
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [notificationContacts, setNotificationContacts] = useState<ProcureGuardNotificationContact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
 
-  const ccEmail = useMemo(() => country ? getCountryControllerEmail(country) : '', [country]);
   const isEditMode = Boolean(editRequest);
   const detailHref = editRequest ? `/procure-guard/advance-payments/${editRequest.id}` : '/procure-guard/advance-payments';
 
@@ -156,6 +164,8 @@ export default function AdvancePaymentFormClient(_props: {
     if (paymentTermsDays === '' || Number(paymentTermsDays) < 0) e.paymentTermsDays = 'Current payment terms in days is required.';
     if (creditLimitUsd === '' || Number(creditLimitUsd) < 0) e.creditLimitUsd = 'Current credit limit in USD is required.';
     if (!reason.trim()) e.reason = 'Reason / justification is required.';
+    const invalidEmails = invalidNotificationEmails(requesterNotificationEmails);
+    if (invalidEmails.length > 0) e.requesterNotificationEmails = `Invalid email: ${invalidEmails[0]}`;
     if (selectedFiles.some(file => file.size > MAX_FILE_BYTES)) e.attachments = 'Each file must be 10 MB or smaller.';
     return e;
   }
@@ -172,6 +182,7 @@ export default function AdvancePaymentFormClient(_props: {
     setCreditLimitUsd(editRequest?.current_credit_limit_usd === null || editRequest?.current_credit_limit_usd === undefined ? '' : String(editRequest.current_credit_limit_usd));
     setReason(editRequest?.advance_purpose ?? editRequest?.justification ?? '');
     setRequesterComments(editRequest?.requester_comments ?? editRequest?.notes ?? '');
+    setRequesterNotificationEmails((editRequest?.requester_notification_emails ?? []).join('\n'));
     setSelectedFiles([]);
     setErrors({});
     setBanner('');
@@ -224,7 +235,7 @@ export default function AdvancePaymentFormClient(_props: {
       recovery_method: 'Manual reconciliation',
       notes: requesterComments,
       requester_comments: requesterComments,
-      cc_email: ccEmail,
+      requester_notification_emails: parseNotificationEmails(requesterNotificationEmails).filter(email => email !== _props.requesterEmail.toLowerCase()),
     };
 
     startTransition(async () => {
@@ -324,8 +335,14 @@ export default function AdvancePaymentFormClient(_props: {
               </Field>
             </div>
             <div className="lg:col-span-2">
-              <Field label="CC Email">
-                <input className={`${INP} bg-slate-50`} value={ccEmail || 'Select a country to determine CC email'} readOnly />
+              <Field label="Additional Request Notifications" error={errors.requesterNotificationEmails}>
+                <textarea
+                  className={`${errors.requesterNotificationEmails ? ERR : INP} min-h-28 resize-none`}
+                  value={requesterNotificationEmails}
+                  onChange={e => setRequesterNotificationEmails(e.target.value)}
+                  placeholder="Add emails separated by commas, spaces, or new lines"
+                />
+                <p className="mt-1.5 text-xs text-slate-500">These people will receive requester-side status updates and can view this request.</p>
               </Field>
             </div>
             <div className="lg:col-span-4">

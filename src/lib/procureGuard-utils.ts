@@ -528,6 +528,11 @@ export function timeAgo(value: string | null | undefined): string {
   return `${days}d ago`;
 }
 
+export function formatProcureGuardStatusLabel(status: string | null | undefined): string {
+  if (!status) return '-';
+  return status.replace(/^Approved by\b/, 'Approval by');
+}
+
 export function getStatusBadge(status: string): { label: string; className: string; dot: string } {
   const map: Record<string, { label: string; className: string; dot: string }> = {
     Submitted: {
@@ -541,27 +546,27 @@ export function getStatusBadge(status: string): { label: string; className: stri
       dot: 'bg-amber-500',
     },
     'Approved by SCM': {
-      label: 'Approved by SCM',
+      label: 'Approval by SCM',
       className: 'bg-lime-50 text-lime-800 border-lime-200',
       dot: 'bg-lime-500',
     },
     'Approved by Country Controller': {
-      label: 'Approved by Country Controller',
+      label: 'Approval by Country Controller',
       className: 'bg-cyan-50 text-cyan-800 border-cyan-200',
       dot: 'bg-cyan-500',
     },
     'Approved by Supply Chain Director': {
-      label: 'Approved by Supply Chain Director',
+      label: 'Approval by Supply Chain Director',
       className: 'bg-teal-50 text-teal-800 border-teal-200',
       dot: 'bg-teal-500',
     },
     'Approved by Treasury Director': {
-      label: 'Approved by Treasury Director',
+      label: 'Approval by Treasury Director',
       className: 'bg-indigo-50 text-indigo-800 border-indigo-200',
       dot: 'bg-indigo-500',
     },
     'Approved by Corporate Controller': {
-      label: 'Approved by Corporate Controller',
+      label: 'Approval by Corporate Controller',
       className: 'bg-violet-50 text-violet-800 border-violet-200',
       dot: 'bg-violet-500',
     },
@@ -582,7 +587,7 @@ export function getStatusBadge(status: string): { label: string; className: stri
     },
   };
   return map[status] ?? {
-    label: status,
+    label: formatProcureGuardStatusLabel(status),
     className: 'bg-slate-50 text-slate-600 border-slate-200',
     dot: 'bg-slate-400',
   };

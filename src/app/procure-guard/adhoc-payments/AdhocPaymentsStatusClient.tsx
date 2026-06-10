@@ -7,6 +7,7 @@ import ProcureGuardSidebar from '../components/ProcureGuardSidebar';
 import ProcureGuardLogo from '../components/ProcureGuardLogo';
 import {
   ADHOC_STATUS_OPTIONS,
+  formatProcureGuardStatusLabel,
   fmtDate,
   getProcureGuardAvailableActions,
   getPriorityBadge,
@@ -130,7 +131,7 @@ export default function AdhocPaymentsStatusClient({ data }: { data: ProcureGuard
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vendor, ref, country..." className="w-full sm:w-72 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c]" />
               <select value={status} onChange={e => setStatus(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
                 <option>All</option>
-                {ADHOC_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+                {ADHOC_STATUS_OPTIONS.map(s => <option key={s} value={s}>{formatProcureGuardStatusLabel(s)}</option>)}
               </select>
               <select value={priority} onChange={e => setPriority(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
                 <option>All</option>
