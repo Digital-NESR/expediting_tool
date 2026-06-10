@@ -22,6 +22,7 @@ import type {
 import ProcureGuardSidebar from './ProcureGuardSidebar';
 import ProcureGuardNotificationContactsPanel from './ProcureGuardNotificationContactsPanel';
 import ProcureGuardLogo from './ProcureGuardLogo';
+import ProcureGuardHomeButton from './ProcureGuardHomeButton';
 import { updateAdhocPaymentStatus, updateAdvancePaymentStatus } from '@/app/actions/procureGuard';
 
 type DetailValue = string | number | null | undefined;
@@ -541,6 +542,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
+        <ProcureGuardHomeButton />
         <ProcureGuardLogo size="sm" />
         <span className="text-sm font-semibold text-slate-900">{requestLabel} Detail</span>
         <button

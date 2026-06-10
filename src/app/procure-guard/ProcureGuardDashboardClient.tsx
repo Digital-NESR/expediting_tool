@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProcureGuardSidebar from './components/ProcureGuardSidebar';
 import ProcureGuardLogo from './components/ProcureGuardLogo';
+import ProcureGuardHomeButton from './components/ProcureGuardHomeButton';
 import { fmtDate, formatProcureGuardStatusLabel, getPriorityBadge, getStatusBadge, isActiveApprovalStatus, timeAgo, usdFmt } from '@/lib/procureGuard-utils';
 import type { AdhocPaymentRequest, AdvancePaymentRequest, ProcureGuardDashboardData } from '@/types/procureGuard';
 
@@ -125,6 +126,7 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
         <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
+        <ProcureGuardHomeButton />
         <ProcureGuardLogo size="sm" />
         <span className="font-semibold text-slate-900 text-sm">ProcureGuard Dashboard</span>
         <div className="ml-auto text-xs text-slate-500 hidden sm:block">{today}</div>

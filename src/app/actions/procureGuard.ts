@@ -990,7 +990,7 @@ async function notifyProcureGuardNextApprover(input: {
     if (secret) headers['x-procureguard-secret'] = secret;
 
     if (
-      input.event === 'request.status_changed'
+      (input.event === 'request.status_changed' || input.event === 'request.submitted')
       && isRequesterAcceptedStage(request.status)
       && request.requested_by_email?.trim()
     ) {
@@ -1067,15 +1067,20 @@ async function notifyProcureGuardNextApprover(input: {
         },
       };
 
-      const requesterResponse = await postProcureGuardWebhook(webhookUrl, headers, requesterPayload);
-      if (!requesterResponse.ok) {
-        console.error('[ProcureGuard n8n] Requester webhook failed', requesterResponse.status, requesterResponse.statusText);
-      } else {
-        console.log('[ProcureGuard n8n] Requester webhook sent', {
-          requestType: input.requestType,
-          requestId: input.requestId,
-          status: requesterResponse.status,
-        });
+      try {
+        const requesterResponse = await postProcureGuardWebhook(webhookUrl, headers, requesterPayload);
+        if (!requesterResponse.ok) {
+          console.error('[ProcureGuard n8n] Requester webhook failed', requesterResponse.status, requesterResponse.statusText);
+        } else {
+          console.log('[ProcureGuard n8n] Requester webhook sent', {
+            requestType: input.requestType,
+            requestId: input.requestId,
+            status: requesterResponse.status,
+          });
+        }
+      } catch (err) {
+        // Isolated so a requester-side failure never blocks the approver notification below.
+        console.error('[ProcureGuard n8n] Requester webhook failed', procureGuardWebhookErrorMessage(err), err);
       }
     }
 
