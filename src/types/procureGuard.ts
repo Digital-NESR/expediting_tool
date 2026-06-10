@@ -121,6 +121,9 @@ export interface AdhocPaymentRequest {
   attachment_link: string | null;
   cc_email: string | null;
   requester_notification_emails: string[];
+  email_test_mode: boolean;
+  email_test_recipients: string[];
+  email_test_recipient_overrides: Record<string, string[]>;
   acknowledged_at: string | null;
   requested_by_name: string | null;
   requested_by_email: string;
@@ -169,6 +172,9 @@ export interface AdvancePaymentRequest {
   attachment_link: string | null;
   cc_email: string | null;
   requester_notification_emails: string[];
+  email_test_mode: boolean;
+  email_test_recipients: string[];
+  email_test_recipient_overrides: Record<string, string[]>;
   requested_by_name: string | null;
   requested_by_email: string;
   reviewed_by_name: string | null;
@@ -208,6 +214,9 @@ export interface CreateAdhocPaymentInput {
   attachment_link?: string;
   cc_email?: string;
   requester_notification_emails?: string[];
+  email_test_mode?: boolean;
+  email_test_recipients?: string[];
+  email_test_recipient_overrides?: Record<string, string[]>;
   acknowledged?: boolean;
 }
 
@@ -244,6 +253,9 @@ export interface CreateAdvancePaymentInput {
   attachment_link?: string;
   cc_email?: string;
   requester_notification_emails?: string[];
+  email_test_mode?: boolean;
+  email_test_recipients?: string[];
+  email_test_recipient_overrides?: Record<string, string[]>;
 }
 
 export interface AdminCreateAdhocPaymentInput extends CreateAdhocPaymentInput {

@@ -213,6 +213,12 @@ async function ensureProcureGuardPaymentRequestColumns(): Promise<void> {
 
   await execSchema(`ALTER TABLE procure_guard_adhoc_payments ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[]`);
   await execSchema(`ALTER TABLE procure_guard_advance_payments ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[]`);
+  await execSchema(`ALTER TABLE procure_guard_adhoc_payments ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE`);
+  await execSchema(`ALTER TABLE procure_guard_advance_payments ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE`);
+  await execSchema(`ALTER TABLE procure_guard_adhoc_payments ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[]`);
+  await execSchema(`ALTER TABLE procure_guard_advance_payments ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[]`);
+  await execSchema(`ALTER TABLE procure_guard_adhoc_payments ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB`);
+  await execSchema(`ALTER TABLE procure_guard_advance_payments ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_adhoc_requester_notification_emails ON procure_guard_adhoc_payments USING GIN (requester_notification_emails)`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_advance_requester_notification_emails ON procure_guard_advance_payments USING GIN (requester_notification_emails)`);
 }
@@ -273,6 +279,13 @@ function adminEmails(): string[] {
     .filter(Boolean);
 }
 
+function testerEmails(): string[] {
+  return (`${process.env.PROCURE_GUARD_TESTER_EMAILS ?? ''},${process.env.PROCURE_GUARD_TEST_EMAILS ?? ''}`)
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 async function getPermissionRowForEmail(email: string): Promise<ProcureGuardPermissionRow | null> {
   try {
     const rows = await sql<QueryResultRow[]>(
@@ -327,6 +340,7 @@ export async function canAccessProcureGuardApp(): Promise<boolean> {
 
   if (!email) return false;
   if (adminEmails().includes(email)) return true;
+  if (testerEmails().includes(email)) return true;
 
   const permissionRow = await getPermissionRowForEmail(email);
   return permissionRow?.role === 'Admin';
@@ -496,10 +510,68 @@ function normalizeRequesterNotificationEmails(value: unknown, requesterEmail?: s
   return [...emails];
 }
 
+function normalizeEmailTestRecipients(value: unknown): string[] {
+  return normalizeRequesterNotificationEmails(value);
+}
+
+function normalizeEmailTestRecipientOverrides(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .map(([role, emails]) => [role.trim(), normalizeEmailTestRecipients(emails)] as const)
+      .filter(([role, emails]) => role && emails.length > 0),
+  );
+}
+
+function validateEmailTestRouting(enabled: boolean | undefined, fallbackValue: unknown, overrideValue: unknown) {
+  if (!enabled) return { recipients: [] as string[], overrides: {} as Record<string, string[]> };
+  const recipients = normalizeEmailTestRecipients(fallbackValue);
+  const overrides = normalizeEmailTestRecipientOverrides(overrideValue);
+  const hasRoleRecipients = Object.values(overrides).some(emails => emails.length > 0);
+  if (recipients.length === 0 && !hasRoleRecipients) {
+    throw new Error('Email test mode needs at least one fallback or role-specific test recipient.');
+  }
+  return { recipients, overrides };
+}
+
 function requesterNotificationEmailsOf(request: Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requester_notification_emails'>): string[] {
   return Array.isArray(request.requester_notification_emails)
     ? request.requester_notification_emails.map(email => email.trim().toLowerCase()).filter(Boolean)
     : [];
+}
+
+function emailTestRecipientOverridesOf(request: Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'email_test_recipient_overrides'>): Record<string, string[]> {
+  return normalizeEmailTestRecipientOverrides(request.email_test_recipient_overrides);
+}
+
+function emailTestRecipientsOf(
+  request: Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'email_test_mode' | 'email_test_recipients' | 'email_test_recipient_overrides'>,
+  fallbackEmail?: string | null,
+  roleLabel?: string | null,
+) {
+  if (!request.email_test_mode) return [];
+  const overrides = emailTestRecipientOverridesOf(request);
+  const normalizedRole = roleLabel?.trim().toLowerCase();
+  const roleEmails = normalizedRole
+    ? Object.entries(overrides).find(([role]) => role.toLowerCase() === normalizedRole)?.[1] ?? []
+    : [];
+  const fallbackEmails = Array.isArray(request.email_test_recipients)
+    ? request.email_test_recipients.map(email => email.trim().toLowerCase()).filter(Boolean)
+    : [];
+  const routedEmails = roleEmails.length > 0
+    ? roleEmails
+    : fallbackEmails.length > 0
+      ? fallbackEmails
+      : (fallbackEmail ? [fallbackEmail.trim().toLowerCase()] : []);
+  return [...new Set(routedEmails)].map(email => ({
+    name: email,
+    email,
+    role: roleLabel ? `Email test recipient: ${roleLabel}` : 'Email test recipient',
+    approval_status: null as ProcureGuardStatus | null,
+    country: null as string | null,
+    source_column: roleLabel ? `email_test_recipient_overrides.${roleLabel}` : 'email_test_recipients',
+  }));
 }
 
 function actorCanAccessRequesterSideRequest(
@@ -559,6 +631,9 @@ type ProcureGuardWebhookRequest = Pick<
   | 'requested_by_name'
   | 'requested_by_email'
   | 'requester_notification_emails'
+  | 'email_test_mode'
+  | 'email_test_recipients'
+  | 'email_test_recipient_overrides'
   | 'requester_comments'
   | 'created_at'
   | 'updated_at'
@@ -878,6 +953,8 @@ async function notifyProcureGuardNextApprover(input: {
       thresholdCurrency,
     );
     const detailUrl = getRequestDetailUrl(input.requestType, request.id);
+    const isEmailTestMode = request.email_test_mode === true;
+    const emailTestRecipientOverrides = emailTestRecipientOverridesOf(request);
     const requestPayload = {
       id: request.id,
       reference_number: request.reference_number,
@@ -895,6 +972,9 @@ async function notifyProcureGuardNextApprover(input: {
       requested_by_name: request.requested_by_name,
       requested_by_email: request.requested_by_email,
       requester_notification_emails: requesterNotificationEmailsOf(request),
+      email_test_mode: isEmailTestMode,
+      email_test_recipients: emailTestRecipientsOf(request, input.actor.email).map(row => row.email),
+      email_test_recipient_overrides: emailTestRecipientOverrides,
       requester_comments: request.requester_comments,
       created_at: request.created_at,
       updated_at: request.updated_at,
@@ -930,30 +1010,38 @@ async function notifyProcureGuardNextApprover(input: {
           name: requesterName,
           email: request.requested_by_email.trim().toLowerCase(),
           role: 'Requester',
+          approval_status: null as ProcureGuardStatus | null,
+          country: request.country,
           source_column: 'requested_by_email',
         },
         ...requesterNotificationEmailsOf(request).map(email => ({
           name: email,
           email,
           role: 'Requester notification',
+          approval_status: null as ProcureGuardStatus | null,
+          country: request.country,
           source_column: 'requester_notification_emails',
         })),
       ];
+      const requesterTestRole = 'Requester Updates';
+      const routedRequesterRecipients = isEmailTestMode ? emailTestRecipientsOf(request, input.actor.email, requesterTestRole) : requesterSideRecipients;
       const requesterPayload = {
         event: 'request.requester_status_changed' as ProcureGuardWorkflowEvent,
         source: 'procureguard-local',
+        test_mode: isEmailTestMode,
         occurred_at: new Date().toISOString(),
         request_type: input.requestType,
         request: requestPayload,
         workflow: {
           owner_role: actions.ownerLabel,
+          test_role: requesterTestRole,
           required_permission: actions.requiredPermission,
           decision_status: request.status,
           next_status: actions.nextStatus,
         },
         actor: actorPayload,
         comment: input.comment ?? null,
-        recipients: requesterSideRecipients.map(row => ({
+        intended_recipients: requesterSideRecipients.map(row => ({
           name: row.name,
           email: row.email,
           role: row.role,
@@ -961,11 +1049,19 @@ async function notifyProcureGuardNextApprover(input: {
           country: request.country,
           source_column: row.source_column,
         })),
+        recipients: routedRequesterRecipients.map(row => ({
+          name: row.name,
+          email: row.email,
+          role: row.role,
+          approval_status: row.approval_status ?? null,
+          country: row.country ?? request.country,
+          source_column: row.source_column,
+        })),
         email: {
           subject: requesterEmail.subject,
           body_html: requesterEmail.bodyHtml,
-          to: requesterSideRecipients.map(row => row.email),
-          to_recipients: requesterSideRecipients.map(row => ({
+          to: routedRequesterRecipients.map(row => row.email),
+          to_recipients: routedRequesterRecipients.map(row => ({
             emailAddress: { address: row.email, name: row.name },
           })),
         },
@@ -994,6 +1090,17 @@ async function notifyProcureGuardNextApprover(input: {
       approvalStatus: recipientApprovalStatus,
       ownerLabel: actions.ownerLabel,
     });
+    const approverTestRecipients = emailTestRecipientsOf(request, input.actor.email, actions.ownerLabel);
+    const routedRecipients = isEmailTestMode
+      ? approverTestRecipients.map(row => ({
+          display_name: row.name,
+          email: row.email,
+          notification_role: row.role,
+          approval_status: row.approval_status,
+          country: request.country || '',
+          source_column: row.source_column,
+        }))
+      : recipients;
 
     if (recipients.length === 0) {
       console.warn('[ProcureGuard n8n] No notification recipients found', {
@@ -1020,18 +1127,28 @@ async function notifyProcureGuardNextApprover(input: {
     const payload = {
       event: input.event,
       source: 'procureguard-local',
+      test_mode: isEmailTestMode,
       occurred_at: new Date().toISOString(),
       request_type: input.requestType,
       request: requestPayload,
       workflow: {
         owner_role: actions.ownerLabel,
+        test_role: actions.ownerLabel,
         required_permission: actions.requiredPermission,
         decision_status: recipientApprovalStatus,
         next_status: actions.nextStatus,
       },
       actor: actorPayload,
       comment: input.comment ?? null,
-      recipients: recipients.map(row => ({
+      intended_recipients: recipients.map(row => ({
+        name: row.display_name,
+        email: row.email,
+        role: row.notification_role,
+        approval_status: row.approval_status,
+        country: row.country,
+        source_column: row.source_column,
+      })),
+      recipients: routedRecipients.map(row => ({
         name: row.display_name,
         email: row.email,
         role: row.notification_role,
@@ -1042,8 +1159,8 @@ async function notifyProcureGuardNextApprover(input: {
       email: {
         subject: email.subject,
         body_html: email.bodyHtml,
-        to: recipients.map(row => row.email),
-        to_recipients: recipients.map(row => ({
+        to: routedRecipients.map(row => row.email),
+        to_recipients: routedRecipients.map(row => ({
           emailAddress: { address: row.email, name: row.display_name },
         })),
       },
@@ -1742,6 +1859,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
     const reason = requireText(input.payment_reason || input.justification, 'Reason / justification of exception');
     if (!input.acknowledged) throw new Error('Acknowledgement is required.');
     const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, actor.email);
+    const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
 
     const reference = makeReference('ADH');
     const result = await exec(
@@ -1749,9 +1867,9 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
         (reference_number, requisition_number, status, priority, vendor_name, vendor_code, vendor_tax_id, supplier_email,
          amount, currency, country, segment, department, business_unit, cost_center, project_code,
          po_number, invoice_number, due_date, expense_category, spend_category, spend_value_usd, payment_method,
-         payment_reason, justification, notes, attachment_link, cc_email, requester_notification_emails, acknowledged_at,
+         payment_reason, justification, notes, attachment_link, cc_email, requester_notification_emails, email_test_mode, email_test_recipients, email_test_recipient_overrides, acknowledged_at,
          requested_by_name, requested_by_email)
-       VALUES (?, ?, 'Submitted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?) RETURNING id`,
+       VALUES (?, ?, 'Submitted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, CURRENT_TIMESTAMP, ?, ?) RETURNING id`,
       [
         reference,
         requisitionNumber,
@@ -1781,6 +1899,9 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
         blankToNull(input.attachment_link),
         null,
         requesterNotificationEmails,
+        Boolean(input.email_test_mode),
+        emailTestRouting.recipients,
+        JSON.stringify(emailTestRouting.overrides),
         actor.name,
         actor.email,
       ],
@@ -1836,6 +1957,7 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
     const creditLimitUsd = validateNonNegativeNumber(input.current_credit_limit_usd, 'Current credit limit in USD');
     const reason = requireText(input.advance_purpose || input.justification, 'Reason / justification for exception');
     const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, actor.email);
+    const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
 
     const contractValue = input.contract_value === undefined || input.contract_value === null || Number.isNaN(Number(input.contract_value))
       ? null
@@ -1852,9 +1974,9 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
          contract_reference, po_number, contract_value, advance_percentage, spend_category, spend_value_usd,
          current_payment_terms_days, current_credit_limit_usd,
          expected_invoice_date, expected_settlement_date, recovery_method,
-         advance_purpose, justification, notes, attachment_link, cc_email, requester_notification_emails,
+         advance_purpose, justification, notes, attachment_link, cc_email, requester_notification_emails, email_test_mode, email_test_recipients, email_test_recipient_overrides,
          requested_by_name, requested_by_email)
-       VALUES (?, ?, 'Submitted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       VALUES (?, ?, 'Submitted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?) RETURNING id`,
       [
         reference,
         requisitionNumber,
@@ -1888,6 +2010,9 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
         blankToNull(input.attachment_link),
         null,
         requesterNotificationEmails,
+        Boolean(input.email_test_mode),
+        emailTestRouting.recipients,
+        JSON.stringify(emailTestRouting.overrides),
         actor.name,
         actor.email,
       ],
@@ -1953,6 +2078,7 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
     const reason = requireText(input.payment_reason || input.justification, 'Reason / justification of exception');
     if (!input.acknowledged) throw new Error('Acknowledgement is required.');
     const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, existing.requested_by_email);
+    const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
 
     await exec(
       `UPDATE procure_guard_adhoc_payments
@@ -1974,6 +2100,9 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
            requester_comments = ?,
            cc_email = ?,
            requester_notification_emails = ?,
+           email_test_mode = ?,
+           email_test_recipients = ?,
+           email_test_recipient_overrides = ?::jsonb,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
@@ -1995,6 +2124,9 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
         blankToNull(input.requester_comments ?? input.notes),
         null,
         requesterNotificationEmails,
+        Boolean(input.email_test_mode),
+        emailTestRouting.recipients,
+        JSON.stringify(emailTestRouting.overrides),
         id,
       ],
     );
@@ -2045,6 +2177,7 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
     const creditLimitUsd = validateNonNegativeNumber(input.current_credit_limit_usd, 'Current credit limit in USD');
     const reason = requireText(input.advance_purpose || input.justification, 'Reason / justification for exception');
     const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, existing.requested_by_email);
+    const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
 
     await exec(
       `UPDATE procure_guard_advance_payments
@@ -2066,6 +2199,9 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
            requester_comments = ?,
            cc_email = ?,
            requester_notification_emails = ?,
+           email_test_mode = ?,
+           email_test_recipients = ?,
+           email_test_recipient_overrides = ?::jsonb,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
@@ -2087,6 +2223,9 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
         blankToNull(input.requester_comments ?? input.notes),
         null,
         requesterNotificationEmails,
+        Boolean(input.email_test_mode),
+        emailTestRouting.recipients,
+        JSON.stringify(emailTestRouting.overrides),
         id,
       ],
     );
@@ -2126,15 +2265,16 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
     const requestedByEmail = input.requested_by_email?.trim() || actor.email;
     const requestedByName = input.requested_by_name?.trim() || actor.name;
     const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, requestedByEmail);
+    const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
     const status = input.status || 'Submitted';
     const result = await exec(
       `INSERT INTO procure_guard_adhoc_payments
         (reference_number, requisition_number, status, priority, vendor_name, vendor_code, vendor_tax_id, supplier_email,
          amount, currency, country, segment, department, business_unit, cost_center, project_code,
          po_number, invoice_number, due_date, expense_category, spend_category, spend_value_usd, payment_method,
-         payment_reason, justification, notes, attachment_link, cc_email, requester_notification_emails, acknowledged_at,
+         payment_reason, justification, notes, attachment_link, cc_email, requester_notification_emails, email_test_mode, email_test_recipients, email_test_recipient_overrides, acknowledged_at,
          requested_by_name, requested_by_email)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?) RETURNING id`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, CURRENT_TIMESTAMP, ?, ?) RETURNING id`,
       [
         reference,
         requisitionNumber,
@@ -2165,6 +2305,9 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
         blankToNull(input.attachment_link),
         null,
         requesterNotificationEmails,
+        Boolean(input.email_test_mode),
+        emailTestRouting.recipients,
+        JSON.stringify(emailTestRouting.overrides),
         requestedByName,
         requestedByEmail,
       ],
@@ -2228,6 +2371,7 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
     const requestedByEmail = input.requested_by_email?.trim() || actor.email;
     const requestedByName = input.requested_by_name?.trim() || actor.name;
     const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, requestedByEmail);
+    const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
     const status = input.status || 'Submitted';
     const result = await exec(
       `INSERT INTO procure_guard_advance_payments
@@ -2236,9 +2380,9 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
          contract_reference, po_number, contract_value, advance_percentage, spend_category, spend_value_usd,
          current_payment_terms_days, current_credit_limit_usd,
          expected_invoice_date, expected_settlement_date, recovery_method,
-         advance_purpose, justification, notes, attachment_link, cc_email, requester_notification_emails,
+         advance_purpose, justification, notes, attachment_link, cc_email, requester_notification_emails, email_test_mode, email_test_recipients, email_test_recipient_overrides,
          requested_by_name, requested_by_email)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?) RETURNING id`,
       [
         reference,
         requisitionNumber,
@@ -2273,6 +2417,9 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
         blankToNull(input.attachment_link),
         null,
         requesterNotificationEmails,
+        Boolean(input.email_test_mode),
+        emailTestRouting.recipients,
+        JSON.stringify(emailTestRouting.overrides),
         requestedByName,
         requestedByEmail,
       ],

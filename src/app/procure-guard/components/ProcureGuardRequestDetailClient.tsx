@@ -179,6 +179,11 @@ function emailListLabel(emails: string[] | null | undefined) {
   return emails?.length ? emails.join(', ') : null;
 }
 
+function emailOverrideLabel(overrides: Record<string, string[]> | null | undefined) {
+  const rows = Object.entries(overrides ?? {}).filter(([, emails]) => emails.length > 0);
+  return rows.length ? rows.map(([role, emails]) => `${role}: ${emails.join(', ')}`).join(' | ') : null;
+}
+
 export default function ProcureGuardRequestDetailClient({ data }: { data: ProcureGuardRequestDetailData }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [reviewComment, setReviewComment] = useState('');
@@ -468,6 +473,9 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           ['Country', request.country],
           ['Segment', request.segment],
           ['Additional Request Notifications', emailListLabel(request.requester_notification_emails)],
+          ['Email Test Mode', request.email_test_mode ? 'Enabled' : 'Disabled'],
+          ...(request.email_test_mode ? [['Test Email Recipients', emailListLabel(request.email_test_recipients)] satisfies [string, DetailValue]] : []),
+          ...(request.email_test_mode ? [['Role Test Recipients', emailOverrideLabel(request.email_test_recipient_overrides)] satisfies [string, DetailValue]] : []),
         ]);
       }
 
@@ -736,6 +744,9 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
                 <Field label="Country" value={request.country} />
                 <Field label="Segment" value={request.segment} />
                 <Field label="Additional Request Notifications" value={emailListLabel(request.requester_notification_emails)} />
+                <Field label="Email Test Mode" value={request.email_test_mode ? 'Enabled' : 'Disabled'} />
+                {request.email_test_mode && <Field label="Test Email Recipients" value={emailListLabel(request.email_test_recipients)} />}
+                {request.email_test_mode && <Field label="Role Test Recipients" value={emailOverrideLabel(request.email_test_recipient_overrides)} />}
               </FieldGrid>
             </Section>
 

@@ -95,8 +95,17 @@ export const authOptions: NextAuthOptions = {
             .split(',')
             .map(e => e.trim().toLowerCase())
             .filter(Boolean);
+          const procureGuardAdminEmails = (process.env.PROCURE_GUARD_ADMIN_EMAILS || '')
+            .split(',')
+            .map(e => e.trim().toLowerCase())
+            .filter(Boolean);
+          const procureGuardTesterEmails = (`${process.env.PROCURE_GUARD_TESTER_EMAILS ?? ''},${process.env.PROCURE_GUARD_TEST_EMAILS ?? ''}`)
+            .split(',')
+            .map(e => e.trim().toLowerCase())
+            .filter(Boolean);
+          const email = (token.email as string).toLowerCase();
 
-          token.isAdmin = adminEmails.includes((token.email as string).toLowerCase());
+          token.isAdmin = adminEmails.includes(email);
 
           // Query both tools in parallel
           const [poResult, titeResult] = await Promise.all([
@@ -150,11 +159,15 @@ export const authOptions: NextAuthOptions = {
           // predates this field being introduced, the fallback in the page server components
           // (checking approvedCountries directly) ensures correct enforcement without re-login.
           const titeViewOnly = titeCountries.includes('All Countries - View Only');
+          const procureGuardStatus = token.isAdmin || procureGuardAdminEmails.includes(email) || procureGuardTesterEmails.includes(email)
+            ? 'approved'
+            : 'new';
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (token as any).toolAccess = {
             po_expediting: { status: poStatus,   approvedCountries: poCountries   },
             tite:          { status: titeStatus, approvedCountries: titeCountries },
+            procure_guard: { status: procureGuardStatus, approvedCountries: [] },
           };
           token.titeViewOnly = titeViewOnly;
         } catch (err) {
@@ -163,6 +176,7 @@ export const authOptions: NextAuthOptions = {
             token.toolAccess = {
               po_expediting: { status: 'new', approvedCountries: [] },
               tite:          { status: 'new', approvedCountries: [] },
+              procure_guard: { status: 'new', approvedCountries: [] },
             };
           }
         }
@@ -182,6 +196,7 @@ export const authOptions: NextAuthOptions = {
         session.user.toolAccess = token.toolAccess as {
           po_expediting?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
           tite?:          { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
+          procure_guard?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
         } | undefined;
         session.user.titeViewOnly = token.titeViewOnly as boolean | undefined;
       }

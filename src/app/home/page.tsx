@@ -709,6 +709,8 @@ export default function HomePage() {
   const isAdmin = session?.user?.isAdmin ?? false;
   const poStatus: ToolStatus   = session?.user?.toolAccess?.po_expediting?.status ?? 'new';
   const titeStatus: ToolStatus = session?.user?.toolAccess?.tite?.status          ?? 'new';
+  const procureGuardStatus: ToolStatus = session?.user?.toolAccess?.procure_guard?.status ?? 'new';
+  const canOpenProcureGuard = isAdmin || procureGuardStatus === 'approved';
 
   function handlePOClick() {
     if (isAdmin || poStatus === 'approved') {
@@ -729,7 +731,7 @@ export default function HomePage() {
   }
 
   function handleProcureGuardClick() {
-    if (isAdmin) {
+    if (canOpenProcureGuard) {
       router.push('/procure-guard');
     }
   }
@@ -810,7 +812,7 @@ export default function HomePage() {
               />
 
               <ProcureGuardCard
-                canOpen={isAdmin}
+                canOpen={canOpenProcureGuard}
                 onClick={handleProcureGuardClick}
               />
 
@@ -876,7 +878,7 @@ export default function HomePage() {
                     <div>
                       <p className="text-xs font-semibold text-slate-800">SC Policy AI</p>
                       <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
-                        Instant answers from NESR's internal freight, warehouse, compliance, and field operations policies
+                        Instant answers from NESR&apos;s internal freight, warehouse, compliance, and field operations policies
                       </p>
                     </div>
                   </div>
@@ -929,7 +931,7 @@ export default function HomePage() {
                 </div>
 
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Powered by NESR's internal data and policy documents.
+                  Powered by NESR&apos;s internal data and policy documents.
                 </p>
 
                 <a

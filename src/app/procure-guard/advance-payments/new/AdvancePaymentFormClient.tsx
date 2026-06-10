@@ -17,6 +17,7 @@ const LBL = 'block text-sm font-semibold text-slate-800 mb-2';
 const INP = 'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20 placeholder:text-slate-400';
 const ERR = 'w-full rounded-lg border border-red-300 bg-red-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-slate-400';
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const ADVANCE_EMAIL_TEST_ROLES = ['Country Controller', 'Supply Chain Director', 'Treasury Director', 'Corporate Controller', 'CFO', 'Requester Updates'];
 
 function Field({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
   return (
@@ -45,6 +46,24 @@ function parseNotificationEmails(value: string): string[] {
 function invalidNotificationEmails(value: string): string[] {
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return parseNotificationEmails(value).filter(email => !emailPattern.test(email));
+}
+
+function initialRoleTestRecipients(editRequest: AdvancePaymentRequest | undefined, requesterEmail: string) {
+  const overrides = editRequest?.email_test_recipient_overrides ?? {};
+  return Object.fromEntries(
+    ADVANCE_EMAIL_TEST_ROLES.map(role => [
+      role,
+      (overrides[role]?.length ? overrides[role] : [requesterEmail]).join('\n'),
+    ]),
+  );
+}
+
+function roleTestRecipientOverrides(values: Record<string, string>) {
+  return Object.fromEntries(
+    Object.entries(values)
+      .map(([role, emails]) => [role, parseNotificationEmails(emails)] as const)
+      .filter(([, emails]) => emails.length > 0),
+  );
 }
 
 function AttachmentPicker({
@@ -116,6 +135,9 @@ export default function AdvancePaymentFormClient(_props: {
   const [reason, setReason] = useState(editRequest?.advance_purpose ?? editRequest?.justification ?? '');
   const [requesterComments, setRequesterComments] = useState(editRequest?.requester_comments ?? editRequest?.notes ?? '');
   const [requesterNotificationEmails, setRequesterNotificationEmails] = useState((editRequest?.requester_notification_emails ?? []).join('\n'));
+  const [emailTestMode, setEmailTestMode] = useState(Boolean(editRequest?.email_test_mode));
+  const [emailTestRecipients, setEmailTestRecipients] = useState((editRequest?.email_test_recipients?.length ? editRequest.email_test_recipients : [_props.requesterEmail]).join('\n'));
+  const [roleTestRecipients, setRoleTestRecipients] = useState<Record<string, string>>(() => initialRoleTestRecipients(editRequest, _props.requesterEmail));
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [notificationContacts, setNotificationContacts] = useState<ProcureGuardNotificationContact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
@@ -166,6 +188,16 @@ export default function AdvancePaymentFormClient(_props: {
     if (!reason.trim()) e.reason = 'Reason / justification is required.';
     const invalidEmails = invalidNotificationEmails(requesterNotificationEmails);
     if (invalidEmails.length > 0) e.requesterNotificationEmails = `Invalid email: ${invalidEmails[0]}`;
+    const invalidTestEmails = invalidNotificationEmails(emailTestRecipients);
+    const hasRoleTestRecipients = Object.values(roleTestRecipientOverrides(roleTestRecipients)).some(emails => emails.length > 0);
+    if (emailTestMode && parseNotificationEmails(emailTestRecipients).length === 0 && !hasRoleTestRecipients) e.emailTestRecipients = 'Add at least one fallback or role-specific test recipient.';
+    if (invalidTestEmails.length > 0) e.emailTestRecipients = `Invalid email: ${invalidTestEmails[0]}`;
+    if (emailTestMode) {
+      for (const [role, emails] of Object.entries(roleTestRecipients)) {
+        const invalidRoleEmails = invalidNotificationEmails(emails);
+        if (invalidRoleEmails.length > 0) e[`roleTest-${role}`] = `Invalid email: ${invalidRoleEmails[0]}`;
+      }
+    }
     if (selectedFiles.some(file => file.size > MAX_FILE_BYTES)) e.attachments = 'Each file must be 10 MB or smaller.';
     return e;
   }
@@ -183,6 +215,9 @@ export default function AdvancePaymentFormClient(_props: {
     setReason(editRequest?.advance_purpose ?? editRequest?.justification ?? '');
     setRequesterComments(editRequest?.requester_comments ?? editRequest?.notes ?? '');
     setRequesterNotificationEmails((editRequest?.requester_notification_emails ?? []).join('\n'));
+    setEmailTestMode(Boolean(editRequest?.email_test_mode));
+    setEmailTestRecipients((editRequest?.email_test_recipients?.length ? editRequest.email_test_recipients : [_props.requesterEmail]).join('\n'));
+    setRoleTestRecipients(initialRoleTestRecipients(editRequest, _props.requesterEmail));
     setSelectedFiles([]);
     setErrors({});
     setBanner('');
@@ -236,6 +271,9 @@ export default function AdvancePaymentFormClient(_props: {
       notes: requesterComments,
       requester_comments: requesterComments,
       requester_notification_emails: parseNotificationEmails(requesterNotificationEmails).filter(email => email !== _props.requesterEmail.toLowerCase()),
+      email_test_mode: emailTestMode,
+      email_test_recipients: emailTestMode ? parseNotificationEmails(emailTestRecipients) : [],
+      email_test_recipient_overrides: emailTestMode ? roleTestRecipientOverrides(roleTestRecipients) : {},
     };
 
     startTransition(async () => {
@@ -344,6 +382,34 @@ export default function AdvancePaymentFormClient(_props: {
                 />
                 <p className="mt-1.5 text-xs text-slate-500">These people will receive requester-side status updates and can view this request.</p>
               </Field>
+            </div>
+            <div className="lg:col-span-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <label className="flex items-start gap-3 text-sm font-semibold text-slate-900">
+                <input type="checkbox" checked={emailTestMode} onChange={e => setEmailTestMode(e.target.checked)} className="mt-0.5 h-5 w-5 rounded border-amber-300 text-[#307c4c] focus:ring-[#307c4c]/20" />
+                <span>
+                  Email test mode
+                  <span className="mt-1 block text-xs font-normal leading-relaxed text-slate-600">Webhook emails for this request will go only to the test recipients below. Actual approvers and requester notification emails will be listed as intended recipients but will not be in the send list.</span>
+                </span>
+              </label>
+              {emailTestMode && (
+                <div className="mt-4">
+                  <Field label="Fallback Test Recipients" error={errors.emailTestRecipients}>
+                    <textarea className={`${errors.emailTestRecipients ? ERR : INP} min-h-20 resize-none bg-white`} value={emailTestRecipients} onChange={e => setEmailTestRecipients(e.target.value)} />
+                  </Field>
+                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    {ADVANCE_EMAIL_TEST_ROLES.map(role => (
+                      <Field key={role} label={role} error={errors[`roleTest-${role}`]}>
+                        <textarea
+                          className={`${errors[`roleTest-${role}`] ? ERR : INP} min-h-20 resize-none bg-white`}
+                          value={roleTestRecipients[role] ?? ''}
+                          onChange={e => setRoleTestRecipients(prev => ({ ...prev, [role]: e.target.value }))}
+                          placeholder="Optional role-specific test emails"
+                        />
+                      </Field>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="lg:col-span-4">
               <ProcureGuardNotificationContactsPanel
