@@ -650,9 +650,20 @@ function ProcureGuardCard({
       </div>
 
       <div className="flex items-center justify-between mt-auto">
-        <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-400">
-          Admin Preview
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-400">
+            Admin Preview
+          </span>
+          <a
+            href="/help/procureguard"
+            title="View Help & Training"
+            onClick={e => e.stopPropagation()}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-400 transition-colors hover:text-[#307c4c]"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            Help
+          </a>
+        </div>
         {canOpen && (
           <span className="text-sm font-semibold text-gray-500 hover:underline">
             Open preview -&gt;

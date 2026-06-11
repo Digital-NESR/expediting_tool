@@ -13,6 +13,7 @@ const NAV = [
   { href: '/procure-guard/advance-payments', label: 'Advance Requests', icon: 'wallet', access: ['requester', 'reviewer', 'admin'] },
   { href: '/procure-guard/advance-payments/new', label: 'New Advance Request', icon: 'plus', access: ['requester', 'reviewer', 'admin'] },
   { href: '/procure-guard/analytics', label: 'Analytics', icon: 'chart', access: ['analyst', 'reviewer', 'admin'] },
+  { href: '/procure-guard/help', label: 'Help & Training', icon: 'help', access: ['requester', 'reviewer', 'admin', 'analyst'] },
   { href: '/admin?tool=procureguard-admin', label: 'Admin Panel', icon: 'grid', access: ['admin'] },
   { href: '/admin?tool=procureguard-usage', label: 'Admin Analytics', icon: 'chart', access: ['admin'] },
 ];
@@ -46,6 +47,11 @@ function Icon({ name }: { name: string }) {
   if (name === 'home') return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10" />
+    </svg>
+  );
+  if (name === 'help') return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   );
   return (
