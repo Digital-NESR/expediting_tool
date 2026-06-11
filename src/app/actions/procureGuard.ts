@@ -861,7 +861,7 @@ function buildProcureGuardNotificationEmail(input: {
   previousStatus?: ProcureGuardStatus | null;
   comment?: string | null;
 }) {
-  const typeLabel = input.requestType === 'adhoc' ? 'ADHOC payment' : 'Advance payment';
+  const typeLabel = input.requestType === 'adhoc' ? 'ADHOC PO' : 'Advance payment';
   const actionLabel = input.event === 'request.submitted' ? 'New request submitted' : 'Request moved forward';
   const subject = `ProcureGuard: ${input.request.reference_number} needs ${input.ownerLabel} review`;
   const comment = input.comment || input.request.requester_comments || '';
@@ -912,7 +912,7 @@ function buildProcureGuardRequesterStageEmail(input: {
   previousStatus?: ProcureGuardStatus | null;
   comment?: string | null;
 }) {
-  const typeLabel = input.requestType === 'adhoc' ? 'ADHOC payment' : 'Advance payment';
+  const typeLabel = input.requestType === 'adhoc' ? 'ADHOC PO' : 'Advance payment';
   const statusLine = input.previousStatus
     ? `${formatProcureGuardStatusLabel(input.previousStatus)} -> ${formatProcureGuardStatusLabel(input.request.status)}`
     : formatProcureGuardStatusLabel(input.request.status);
@@ -1992,7 +1992,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
       requestType: 'adhoc',
       requestId: result.insertId,
       referenceNumber: reference,
-      action: 'Adhoc payment submitted',
+      action: 'Adhoc PO submitted',
       actor,
     });
 
@@ -2010,7 +2010,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
     console.error('[createAdhocPayment]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create adhoc payment request.' };
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to create adhoc PO request.' };
   }
 }
 
@@ -2209,7 +2209,7 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
       requestType: 'adhoc',
       requestId: id,
       referenceNumber: existing.reference_number,
-      action: 'Adhoc payment edited before review',
+      action: 'Adhoc PO edited before review',
       actor,
     });
 
@@ -2219,7 +2219,7 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
     return { success: true, data: { id }, reference_number: existing.reference_number };
   } catch (err) {
     console.error('[updateAdhocPaymentRequest]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update adhoc payment request.' };
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update adhoc PO request.' };
   }
 }
 
@@ -2398,7 +2398,7 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
       requestType: 'adhoc',
       requestId: result.insertId,
       referenceNumber: reference,
-      action: 'Admin created adhoc payment',
+      action: 'Admin created adhoc PO',
       actor,
     });
 
@@ -2415,7 +2415,7 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
     console.error('[createAdminAdhocPayment]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create adhoc payment.' };
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to create adhoc PO.' };
   }
 }
 
@@ -2709,7 +2709,7 @@ export async function updateAdhocPaymentStatus(
     });
   } catch (err) {
     console.error('[updateAdhocPaymentStatus]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update adhoc payment status.' };
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update adhoc PO status.' };
   }
 }
 

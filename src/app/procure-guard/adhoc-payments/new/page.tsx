@@ -5,7 +5,7 @@ import { getProcureGuardUser } from '@/lib/auth';
 import { canUseProcureGuardOperationalPages } from '@/lib/procureGuard-utils';
 import AdhocPaymentFormClient from './AdhocPaymentFormClient';
 
-export const metadata: Metadata = { title: 'New Adhoc Payment | ProcureGuard' };
+export const metadata: Metadata = { title: 'New Adhoc PO | ProcureGuard' };
 
 export default async function NewAdhocPaymentPage() {
   const user = await getProcureGuardUser();

@@ -8,8 +8,8 @@ import ProcureGuardLogo from './ProcureGuardLogo';
 const NAV = [
   { href: '/procure-guard', label: 'Dashboard', icon: 'grid', access: ['requester', 'reviewer', 'admin'] },
   { href: '/procure-guard/my-work', label: 'My Work', icon: 'check', access: ['reviewer', 'admin'] },
-  { href: '/procure-guard/adhoc-payments', label: 'Adhoc Payments', icon: 'bolt', access: ['requester', 'reviewer', 'admin'] },
-  { href: '/procure-guard/adhoc-payments/new', label: 'New Adhoc Payment', icon: 'plus', access: ['requester', 'reviewer', 'admin'] },
+  { href: '/procure-guard/adhoc-payments', label: 'Adhoc POs', icon: 'bolt', access: ['requester', 'reviewer', 'admin'] },
+  { href: '/procure-guard/adhoc-payments/new', label: 'New Adhoc PO', icon: 'plus', access: ['requester', 'reviewer', 'admin'] },
   { href: '/procure-guard/advance-payments', label: 'Advance Requests', icon: 'wallet', access: ['requester', 'reviewer', 'admin'] },
   { href: '/procure-guard/advance-payments/new', label: 'New Advance Request', icon: 'plus', access: ['requester', 'reviewer', 'admin'] },
   { href: '/procure-guard/analytics', label: 'Analytics', icon: 'chart', access: ['analyst', 'reviewer', 'admin'] },

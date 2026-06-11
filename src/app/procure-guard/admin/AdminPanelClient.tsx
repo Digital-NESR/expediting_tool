@@ -146,7 +146,7 @@ function AdhocForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; o
     startTransition(async () => {
       const result = await createAdminAdhocPayment(payload);
       if (!result.success) {
-        setError(result.error ?? 'Failed to create adhoc payment.');
+        setError(result.error ?? 'Failed to create adhoc PO.');
         return;
       }
       onDone(`Created ${result.reference_number}.`);
@@ -158,7 +158,7 @@ function AdhocForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; o
   return (
     <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-bold text-slate-900">Add Adhoc Payment</h2>
+        <h2 className="text-sm font-bold text-slate-900">Add Adhoc PO</h2>
         <button disabled={isPending} className="rounded-md bg-[#307c4c] px-3 py-2 text-xs font-bold text-white hover:bg-[#307c4c] disabled:opacity-60">
           {isPending ? 'Adding' : 'Add'}
         </button>
@@ -399,7 +399,7 @@ function AdhocTable({ rows, onDone }: { rows: AdhocPaymentRequest[]; onDone: (me
         </thead>
         <tbody className="divide-y divide-slate-100">
           {rows.length === 0 ? (
-            <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No adhoc payment records.</td></tr>
+            <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No adhoc PO records.</td></tr>
           ) : rows.map(row => (
             <tr key={row.id} className="hover:bg-[#307c4c]/5">
               <td className="px-4 py-3 font-bold text-slate-900">
@@ -875,7 +875,7 @@ export default function AdminPanelClient({ data, embedded = false }: { data: Pro
   const tabItems = (isFullAdmin ? [
     { key: 'permissions', label: 'Access Roles', count: counts.permissions, description: 'Manage approved SSO users and recipient-derived approval roles.' },
     { key: 'recipients', label: 'Email Recipients', count: counts.recipients, description: 'Update who receives approval notifications for each role and country.' },
-    { key: 'adhoc', label: 'Adhoc Payments', count: counts.adhoc, description: 'Review and remove adhoc test records.' },
+    { key: 'adhoc', label: 'Adhoc POs', count: counts.adhoc, description: 'Review and remove adhoc test records.' },
     { key: 'advance', label: 'Advance Payments', count: counts.advance, description: 'Review and remove advance test records.' },
     { key: 'activity', label: 'Activity Log', count: counts.activity, description: 'See meaningful approval activity.' },
   ] : [

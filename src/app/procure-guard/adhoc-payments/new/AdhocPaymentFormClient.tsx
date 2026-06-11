@@ -287,7 +287,7 @@ export default function AdhocPaymentFormClient(_props: {
         router.push(`/procure-guard/adhoc-payments/${result.data.id}`);
         router.refresh();
       } else {
-        setBanner(result.error ?? `Failed to ${isEditMode ? 'update' : 'submit'} adhoc payment request.`);
+        setBanner(result.error ?? `Failed to ${isEditMode ? 'update' : 'submit'} adhoc PO request.`);
       }
     });
   }

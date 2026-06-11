@@ -4,7 +4,7 @@ import { getAdhocPaymentsData, getProcureGuardActor } from '@/app/actions/procur
 import { canUseProcureGuardOperationalPages } from '@/lib/procureGuard-utils';
 import AdhocPaymentsStatusClient from './AdhocPaymentsStatusClient';
 
-export const metadata: Metadata = { title: 'Adhoc Payment Status | ProcureGuard' };
+export const metadata: Metadata = { title: 'Adhoc PO Status | ProcureGuard' };
 
 export default async function AdhocPaymentsStatusPage() {
   const actor = await getProcureGuardActor();

@@ -136,18 +136,18 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-t-4 border-[#307c4c] p-6 sm:p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-5">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400 mb-2">Payment control center</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400 mb-2">Guarding every purchase</p>
               <div className="flex items-center gap-4">
                 <ProcureGuardLogo size="hero" />
                 <h1 className="text-lg font-bold tracking-tight text-gray-900">ProcureGuard</h1>
               </div>
               <p className="text-slate-500 max-w-2xl mt-2 text-sm sm:text-base">
-                Track adhoc payments and advance payment requests from submission through review and approval.
+                Track adhoc POs and advance payment requests from submission through review and approval.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => router.push('/procure-guard/adhoc-payments/new')} className="px-4 py-2.5 rounded-lg bg-[#307c4c] text-white text-sm font-bold shadow-sm hover:bg-[#307c4c]/80">
-                New Adhoc Payment
+                New Adhoc PO
               </button>
               <button onClick={() => router.push('/procure-guard/advance-payments/new')} className="px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-bold shadow-sm hover:bg-slate-50">
                 New Advance Request
@@ -164,7 +164,7 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
 
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Adhoc Payments</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Adhoc POs</p>
             <p className="text-3xl font-bold text-slate-900 mt-2">{stats.adhoc_total}</p>
             <p className="text-sm text-slate-500 mt-1">{usdFmt(stats.adhoc_requested_amount)} USD equivalent</p>
             <button onClick={() => router.push('/procure-guard/adhoc-payments')} className="mt-4 text-sm font-bold text-[#307c4c] hover:text-[#1f1f1d]">View status page →</button>
