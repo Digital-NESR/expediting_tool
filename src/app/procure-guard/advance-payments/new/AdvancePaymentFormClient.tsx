@@ -9,8 +9,11 @@ import ProcureGuardHomeButton from '../../components/ProcureGuardHomeButton';
 import { createAdvancePayment, getProcureGuardNotificationPreview, updateAdvancePaymentRequest, uploadProcureGuardDocument } from '@/app/actions/procureGuard';
 import {
   COUNTRY_OPTIONS,
+  CURRENCY_OPTIONS,
   SEGMENT_OPTIONS,
   SPEND_CATEGORY_OPTIONS,
+  toUsd,
+  usdEquivalentFmt,
 } from '@/lib/procureGuard-utils';
 import type { AdvancePaymentRequest, CreateAdvancePaymentInput, ProcureGuardAccessView, ProcureGuardNotificationContact } from '@/types/procureGuard';
 
@@ -130,7 +133,8 @@ export default function AdvancePaymentFormClient(_props: {
   const [sapVendorId, setSapVendorId] = useState(editRequest?.sap_vendor_id ?? editRequest?.vendor_code ?? '');
   const [sapVendorName, setSapVendorName] = useState(editRequest?.vendor_name ?? '');
   const [spendCategory, setSpendCategory] = useState(editRequest?.spend_category ?? '');
-  const [spendValueUsd, setSpendValueUsd] = useState(editRequest ? String(editRequest.spend_value_usd ?? editRequest.amount ?? '') : '');
+  const [amountValue, setAmountValue] = useState(editRequest ? String(editRequest.amount ?? '') : '');
+  const [currency, setCurrency] = useState(editRequest?.currency ?? 'USD');
   const [paymentTermsDays, setPaymentTermsDays] = useState(editRequest?.current_payment_terms_days === null || editRequest?.current_payment_terms_days === undefined ? '' : String(editRequest.current_payment_terms_days));
   const [creditLimitUsd, setCreditLimitUsd] = useState(editRequest?.current_credit_limit_usd === null || editRequest?.current_credit_limit_usd === undefined ? '' : String(editRequest.current_credit_limit_usd));
   const [reason, setReason] = useState(editRequest?.advance_purpose ?? editRequest?.justification ?? '');
@@ -162,8 +166,8 @@ export default function AdvancePaymentFormClient(_props: {
       const contacts = await getProcureGuardNotificationPreview({
         requestType: 'advance',
         country,
-        amount: Number(spendValueUsd) || 0,
-        currency: 'USD',
+        amount: Number(amountValue) || 0,
+        currency,
       });
       if (!cancelled) {
         setNotificationContacts(contacts);
@@ -173,7 +177,7 @@ export default function AdvancePaymentFormClient(_props: {
 
     void loadNotificationContacts();
     return () => { cancelled = true; };
-  }, [country, spendValueUsd]);
+  }, [country, amountValue, currency]);
 
   function validate() {
     const e: Record<string, string> = {};
@@ -183,7 +187,7 @@ export default function AdvancePaymentFormClient(_props: {
     if (!sapVendorId.trim()) e.sapVendorId = 'SAP vendor ID is required.';
     if (!sapVendorName.trim()) e.sapVendorName = 'SAP vendor name is required.';
     if (!spendCategory) e.spendCategory = 'Spend category is required.';
-    if (!spendValueUsd || Number(spendValueUsd) <= 0) e.spendValueUsd = 'Spend value in USD must be greater than zero.';
+    if (!amountValue || Number(amountValue) <= 0) e.amountValue = 'Amount must be greater than zero.';
     if (paymentTermsDays === '' || Number(paymentTermsDays) < 0) e.paymentTermsDays = 'Current payment terms in days is required.';
     if (creditLimitUsd === '' || Number(creditLimitUsd) < 0) e.creditLimitUsd = 'Current credit limit in USD is required.';
     if (!reason.trim()) e.reason = 'Reason / justification is required.';
@@ -210,7 +214,8 @@ export default function AdvancePaymentFormClient(_props: {
     setSapVendorId(editRequest?.sap_vendor_id ?? editRequest?.vendor_code ?? '');
     setSapVendorName(editRequest?.vendor_name ?? '');
     setSpendCategory(editRequest?.spend_category ?? '');
-    setSpendValueUsd(editRequest ? String(editRequest.spend_value_usd ?? editRequest.amount ?? '') : '');
+    setAmountValue(editRequest ? String(editRequest.amount ?? '') : '');
+    setCurrency(editRequest?.currency ?? 'USD');
     setPaymentTermsDays(editRequest?.current_payment_terms_days === null || editRequest?.current_payment_terms_days === undefined ? '' : String(editRequest.current_payment_terms_days));
     setCreditLimitUsd(editRequest?.current_credit_limit_usd === null || editRequest?.current_credit_limit_usd === undefined ? '' : String(editRequest.current_credit_limit_usd));
     setReason(editRequest?.advance_purpose ?? editRequest?.justification ?? '');
@@ -251,7 +256,7 @@ export default function AdvancePaymentFormClient(_props: {
     }
     setErrors({});
 
-    const amount = Number(spendValueUsd);
+    const amount = Number(amountValue);
     const payload: CreateAdvancePaymentInput = {
       priority: 'Normal',
       requisition_number: requisitionNumber,
@@ -259,11 +264,11 @@ export default function AdvancePaymentFormClient(_props: {
       vendor_code: sapVendorId,
       sap_vendor_id: sapVendorId,
       amount,
-      currency: 'USD',
+      currency,
       country,
       segment,
       spend_category: spendCategory,
-      spend_value_usd: amount,
+      spend_value_usd: toUsd(amount, currency),
       current_payment_terms_days: Number(paymentTermsDays),
       current_credit_limit_usd: Number(creditLimitUsd),
       advance_purpose: reason,
@@ -350,8 +355,16 @@ export default function AdvancePaymentFormClient(_props: {
                 {SPEND_CATEGORY_OPTIONS.map(item => <option key={item}>{item}</option>)}
               </select>
             </Field>
-            <Field label="Spend Value in USD" required error={errors.spendValueUsd}>
-              <input type="number" min="0.01" step="0.01" className={errors.spendValueUsd ? ERR : INP} value={spendValueUsd} onChange={e => setSpendValueUsd(e.target.value)} />
+            <Field label="Amount" required error={errors.amountValue}>
+              <div className="flex gap-2">
+                <select className={`${errors.amountValue ? ERR : INP} w-28 shrink-0`} value={currency} onChange={e => setCurrency(e.target.value)}>
+                  {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input type="number" min="0.01" step="0.01" className={errors.amountValue ? ERR : INP} value={amountValue} onChange={e => setAmountValue(e.target.value)} />
+              </div>
+              {currency !== 'USD' && Number(amountValue) > 0 && (
+                <p className="mt-1.5 text-xs text-slate-400">≈ {usdEquivalentFmt(amountValue, currency)} (used for approval thresholds)</p>
+              )}
             </Field>
             <Field label="Current Payment Terms in Days" required error={errors.paymentTermsDays}>
               <input type="number" min="0" step="1" className={errors.paymentTermsDays ? ERR : INP} value={paymentTermsDays} onChange={e => setPaymentTermsDays(e.target.value)} />

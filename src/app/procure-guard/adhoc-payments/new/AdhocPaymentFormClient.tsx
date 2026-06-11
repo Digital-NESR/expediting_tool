@@ -9,8 +9,11 @@ import ProcureGuardHomeButton from '../../components/ProcureGuardHomeButton';
 import { createAdhocPayment, getProcureGuardNotificationPreview, updateAdhocPaymentRequest, uploadProcureGuardDocument } from '@/app/actions/procureGuard';
 import {
   COUNTRY_OPTIONS,
+  CURRENCY_OPTIONS,
   SEGMENT_OPTIONS,
   SPEND_CATEGORY_OPTIONS,
+  toUsd,
+  usdEquivalentFmt,
 } from '@/lib/procureGuard-utils';
 import type { AdhocPaymentRequest, CreateAdhocPaymentInput, ProcureGuardAccessView, ProcureGuardNotificationContact } from '@/types/procureGuard';
 
@@ -130,7 +133,8 @@ export default function AdhocPaymentFormClient(_props: {
   const [vendorName, setVendorName] = useState(editRequest?.vendor_name ?? '');
   const [vendorTaxId, setVendorTaxId] = useState(editRequest?.vendor_tax_id ?? editRequest?.vendor_code ?? '');
   const [spendCategory, setSpendCategory] = useState(editRequest?.spend_category ?? editRequest?.expense_category ?? '');
-  const [spendValueUsd, setSpendValueUsd] = useState(editRequest ? String(editRequest.spend_value_usd ?? editRequest.amount ?? '') : '');
+  const [amountValue, setAmountValue] = useState(editRequest ? String(editRequest.amount ?? '') : '');
+  const [currency, setCurrency] = useState(editRequest?.currency ?? 'USD');
   const [reason, setReason] = useState(editRequest?.payment_reason ?? editRequest?.justification ?? '');
   const [requesterComments, setRequesterComments] = useState(editRequest?.requester_comments ?? editRequest?.notes ?? '');
   const [requesterNotificationEmails, setRequesterNotificationEmails] = useState((editRequest?.requester_notification_emails ?? []).join('\n'));
@@ -161,8 +165,8 @@ export default function AdhocPaymentFormClient(_props: {
       const contacts = await getProcureGuardNotificationPreview({
         requestType: 'adhoc',
         country,
-        amount: Number(spendValueUsd) || 0,
-        currency: 'USD',
+        amount: Number(amountValue) || 0,
+        currency,
       });
       if (!cancelled) {
         setNotificationContacts(contacts);
@@ -172,7 +176,7 @@ export default function AdhocPaymentFormClient(_props: {
 
     void loadNotificationContacts();
     return () => { cancelled = true; };
-  }, [country, spendValueUsd]);
+  }, [country, amountValue, currency]);
 
   function validate() {
     const e: Record<string, string> = {};
@@ -182,7 +186,7 @@ export default function AdhocPaymentFormClient(_props: {
     if (!vendorName.trim()) e.vendorName = 'ADHOC vendor name is required.';
     if (!vendorTaxId.trim()) e.vendorTaxId = 'Vendor tax ID is required.';
     if (!spendCategory) e.spendCategory = 'Spend category is required.';
-    if (!spendValueUsd || Number(spendValueUsd) <= 0) e.spendValueUsd = 'Spend value in USD must be greater than zero.';
+    if (!amountValue || Number(amountValue) <= 0) e.amountValue = 'Amount must be greater than zero.';
     if (!reason.trim()) e.reason = 'Reason / justification is required.';
     const invalidEmails = invalidNotificationEmails(requesterNotificationEmails);
     if (invalidEmails.length > 0) e.requesterNotificationEmails = `Invalid email: ${invalidEmails[0]}`;
@@ -208,7 +212,8 @@ export default function AdhocPaymentFormClient(_props: {
     setVendorName(editRequest?.vendor_name ?? '');
     setVendorTaxId(editRequest?.vendor_tax_id ?? editRequest?.vendor_code ?? '');
     setSpendCategory(editRequest?.spend_category ?? editRequest?.expense_category ?? '');
-    setSpendValueUsd(editRequest ? String(editRequest.spend_value_usd ?? editRequest.amount ?? '') : '');
+    setAmountValue(editRequest ? String(editRequest.amount ?? '') : '');
+    setCurrency(editRequest?.currency ?? 'USD');
     setReason(editRequest?.payment_reason ?? editRequest?.justification ?? '');
     setRequesterComments(editRequest?.requester_comments ?? editRequest?.notes ?? '');
     setRequesterNotificationEmails((editRequest?.requester_notification_emails ?? []).join('\n'));
@@ -248,7 +253,7 @@ export default function AdhocPaymentFormClient(_props: {
     }
     setErrors({});
 
-    const amount = Number(spendValueUsd);
+    const amount = Number(amountValue);
     const payload: CreateAdhocPaymentInput = {
       priority: 'Normal',
       requisition_number: requisitionNumber,
@@ -256,11 +261,11 @@ export default function AdhocPaymentFormClient(_props: {
       vendor_code: vendorTaxId,
       vendor_tax_id: vendorTaxId,
       amount,
-      currency: 'USD',
+      currency,
       country,
       segment,
       spend_category: spendCategory,
-      spend_value_usd: amount,
+      spend_value_usd: toUsd(amount, currency),
       expense_category: spendCategory,
       payment_method: 'Bank Transfer',
       payment_reason: reason,
@@ -343,8 +348,16 @@ export default function AdhocPaymentFormClient(_props: {
                 {SPEND_CATEGORY_OPTIONS.map(item => <option key={item}>{item}</option>)}
               </select>
             </Field>
-            <Field label="Spend Value in USD" required error={errors.spendValueUsd}>
-              <input type="number" min="0.01" step="0.01" className={errors.spendValueUsd ? ERR : INP} value={spendValueUsd} onChange={e => setSpendValueUsd(e.target.value)} />
+            <Field label="Amount" required error={errors.amountValue}>
+              <div className="flex gap-2">
+                <select className={`${errors.amountValue ? ERR : INP} w-28 shrink-0`} value={currency} onChange={e => setCurrency(e.target.value)}>
+                  {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input type="number" min="0.01" step="0.01" className={errors.amountValue ? ERR : INP} value={amountValue} onChange={e => setAmountValue(e.target.value)} />
+              </div>
+              {currency !== 'USD' && Number(amountValue) > 0 && (
+                <p className="mt-1.5 text-xs text-slate-400">≈ {usdEquivalentFmt(amountValue, currency)} (used for approval thresholds)</p>
+              )}
             </Field>
             <div className="lg:col-span-3">
               <Field label="Reason/ Justification of Exception" required error={errors.reason}>
