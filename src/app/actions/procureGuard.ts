@@ -2,6 +2,7 @@
 
 import { request as httpRequest } from 'http';
 import { request as httpsRequest } from 'https';
+import { randomBytes } from 'crypto';
 import type { QueryResultRow } from 'pg';
 import { revalidatePath } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
@@ -221,6 +222,51 @@ async function ensureProcureGuardPaymentRequestColumns(): Promise<void> {
   await execSchema(`ALTER TABLE procure_guard_advance_payments ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_adhoc_requester_notification_emails ON procure_guard_adhoc_payments USING GIN (requester_notification_emails)`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_advance_requester_notification_emails ON procure_guard_advance_payments USING GIN (requester_notification_emails)`);
+  await ensureProcureGuardReferenceUniqueness();
+}
+
+// Creates the UNIQUE indexes on reference_number and reports, once per process, whether
+// they are actually in place. If legacy duplicate references block an index, this logs a
+// warning with the offending values instead of failing — so the diagnostic never breaks a
+// create. Memoized so it runs (and logs) only on the first request after startup.
+let referenceUniquenessChecked: Promise<void> | null = null;
+
+async function ensureProcureGuardReferenceUniqueness(): Promise<void> {
+  if (referenceUniquenessChecked) return referenceUniquenessChecked;
+  referenceUniquenessChecked = (async () => {
+    const targets = [
+      { table: 'procure_guard_adhoc_payments', index: 'uq_procure_guard_adhoc_reference_number' },
+      { table: 'procure_guard_advance_payments', index: 'uq_procure_guard_advance_reference_number' },
+    ];
+    for (const { table, index } of targets) {
+      try {
+        try {
+          await exec(`CREATE UNIQUE INDEX IF NOT EXISTS ${index} ON ${table} (reference_number)`);
+        } catch (err) {
+          const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
+          // 23505 = duplicate data blocks the index; 42P07/42710 = index already exists.
+          if (code !== '23505' && code !== '42P07' && code !== '42710') throw err;
+        }
+        const present = await sql<QueryResultRow[]>(`SELECT 1 FROM pg_indexes WHERE indexname = ? LIMIT 1`, [index]);
+        if (present.length > 0) {
+          console.log(`[ProcureGuard] reference_number uniqueness ENFORCED on ${table} (index ${index}).`);
+        } else {
+          const dups = await sql<QueryResultRow[]>(
+            `SELECT reference_number, COUNT(*)::int AS n FROM ${table}
+             GROUP BY reference_number HAVING COUNT(*) > 1 ORDER BY n DESC LIMIT 5`,
+          );
+          console.warn(
+            `[ProcureGuard] reference_number uniqueness NOT enforced on ${table}: unique index ${index} could not be created. ` +
+            `${dups.length} duplicate reference value(s) found (top 5 shown). De-duplicate, then restart to enforce.`,
+            dups.map(r => `${r.reference_number} x${r.n}`),
+          );
+        }
+      } catch (err) {
+        console.warn(`[ProcureGuard] reference_number uniqueness check failed for ${table}`, err);
+      }
+    }
+  })();
+  return referenceUniquenessChecked;
 }
 function serialise<T>(value: unknown): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -463,8 +509,31 @@ function requireProcureGuardReviewerQueueAccess(actor: ProcureGuardActor): void 
 function makeReference(prefix: 'ADH' | 'ADV') {
   const d = new Date();
   const stamp = d.toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
-  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  // 5 crypto-random bytes (40 bits) make same-second collisions effectively impossible;
+  // the UNIQUE index on reference_number is the hard guarantee (see ensureProcureGuardPaymentRequestColumns).
+  const rand = randomBytes(5).toString('hex').toUpperCase();
   return `PG-${prefix}-${stamp}-${rand}`;
+}
+
+// Runs an INSERT that includes a generated reference_number, regenerating and
+// retrying on the (astronomically rare) UNIQUE-index collision (pg code 23505)
+// instead of surfacing it as an error.
+async function insertProcureGuardPaymentRequest(
+  prefix: 'ADH' | 'ADV',
+  run: (reference: string) => Promise<ExecResult>,
+): Promise<ExecResult & { reference: string }> {
+  for (let attempt = 0; ; attempt++) {
+    const reference = makeReference(prefix);
+    try {
+      const result = await run(reference);
+      return { ...result, reference };
+    } catch (err) {
+      const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
+      const constraint = typeof err === 'object' && err && 'constraint' in err ? String(err.constraint) : '';
+      if (code === '23505' && constraint.includes('reference') && attempt < 4) continue;
+      throw err;
+    }
+  }
 }
 
 function blankToNull(value: unknown): string | number | null {
@@ -1866,8 +1935,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
     const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, actor.email);
     const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
 
-    const reference = makeReference('ADH');
-    const result = await exec(
+    const result = await insertProcureGuardPaymentRequest('ADH', reference => exec(
       `INSERT INTO procure_guard_adhoc_payments
         (reference_number, requisition_number, status, priority, vendor_name, vendor_code, vendor_tax_id, supplier_email,
          amount, currency, country, segment, department, business_unit, cost_center, project_code,
@@ -1910,7 +1978,8 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
         actor.name,
         actor.email,
       ],
-    );
+    ));
+    const reference = result.reference;
     await exec(
       `UPDATE procure_guard_adhoc_payments
        SET requester_comments = ?, updated_at = CURRENT_TIMESTAMP
@@ -1971,8 +2040,7 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
       ? null
       : Number(input.advance_percentage);
 
-    const reference = makeReference('ADV');
-    const result = await exec(
+    const result = await insertProcureGuardPaymentRequest('ADV', reference => exec(
       `INSERT INTO procure_guard_advance_payments
         (reference_number, requisition_number, status, priority, vendor_name, vendor_code, sap_vendor_id, supplier_email,
          amount, currency, country, segment, department, business_unit, cost_center, project_code,
@@ -2021,7 +2089,8 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
         actor.name,
         actor.email,
       ],
-    );
+    ));
+    const reference = result.reference;
     await exec(
       `UPDATE procure_guard_advance_payments
        SET requester_comments = ?, updated_at = CURRENT_TIMESTAMP
@@ -2266,13 +2335,12 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
     const spendCategory = requireText(input.spend_category, 'Spend category');
     const reason = requireText(input.payment_reason || input.justification, 'Reason / justification of exception');
 
-    const reference = makeReference('ADH');
     const requestedByEmail = input.requested_by_email?.trim() || actor.email;
     const requestedByName = input.requested_by_name?.trim() || actor.name;
     const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, requestedByEmail);
     const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
     const status = input.status || 'Submitted';
-    const result = await exec(
+    const result = await insertProcureGuardPaymentRequest('ADH', reference => exec(
       `INSERT INTO procure_guard_adhoc_payments
         (reference_number, requisition_number, status, priority, vendor_name, vendor_code, vendor_tax_id, supplier_email,
          amount, currency, country, segment, department, business_unit, cost_center, project_code,
@@ -2316,7 +2384,8 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
         requestedByName,
         requestedByEmail,
       ],
-    );
+    ));
+    const reference = result.reference;
     await exec(
       `UPDATE procure_guard_adhoc_payments
        SET requester_comments = ?, updated_at = CURRENT_TIMESTAMP
@@ -2372,13 +2441,12 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
       ? null
       : Number(input.advance_percentage);
 
-    const reference = makeReference('ADV');
     const requestedByEmail = input.requested_by_email?.trim() || actor.email;
     const requestedByName = input.requested_by_name?.trim() || actor.name;
     const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, requestedByEmail);
     const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
     const status = input.status || 'Submitted';
-    const result = await exec(
+    const result = await insertProcureGuardPaymentRequest('ADV', reference => exec(
       `INSERT INTO procure_guard_advance_payments
         (reference_number, requisition_number, status, priority, vendor_name, vendor_code, sap_vendor_id, supplier_email,
          amount, currency, country, segment, department, business_unit, cost_center, project_code,
@@ -2428,7 +2496,8 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
         requestedByName,
         requestedByEmail,
       ],
-    );
+    ));
+    const reference = result.reference;
     await exec(
       `UPDATE procure_guard_advance_payments
        SET requester_comments = ?, updated_at = CURRENT_TIMESTAMP
