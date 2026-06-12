@@ -117,7 +117,10 @@ function WorkflowChain({
   amount: number;
   currency: string;
 }) {
-  const steps = getWorkflowSteps(requestType, amount, currency);
+  // 'Under Review' is no longer part of the active flow (the first approver acts in one step),
+  // so it's hidden from the chain except for legacy records that are still sitting in it.
+  const steps = getWorkflowSteps(requestType, amount, currency)
+    .filter(step => step.status !== 'Under Review' || status === 'Under Review');
   const currentIndex = steps.findIndex(step => step.status === status);
   const completedIndex = status === 'Approved'
     ? steps.length - 1
@@ -241,7 +244,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
             <div className="mt-3 flex flex-wrap gap-2">
               {actions.canApprove && actions.nextStatus && (
                 <button disabled={isPending} onClick={() => submitStatus(actions.nextStatus!)} className="rounded-md bg-[#307c4c] px-3 py-2 text-xs font-bold text-white hover:bg-[#307c4c]/80 disabled:opacity-60">
-                  {actions.nextStatus === 'Under Review' ? 'Start Review' : 'Approve'}
+                  Approve
                 </button>
               )}
               {actions.canReject && (

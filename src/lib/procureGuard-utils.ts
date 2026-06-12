@@ -189,15 +189,15 @@ function getRequiredPermissionForApproval(
   currency?: string | null,
 ): ProcureGuardPermissionKey | null {
   if (requestType === 'adhoc') {
-    if (currentStatus === 'Submitted' && nextStatus === 'Under Review') return 'canReviewAdhocScm';
-    if (currentStatus === 'Under Review' && nextStatus === 'Approved by SCM') return 'canReviewAdhocScm';
+    if (currentStatus === 'Submitted' && nextStatus === 'Approved by SCM') return 'canReviewAdhocScm';
+    if (currentStatus === 'Under Review' && nextStatus === 'Approved by SCM') return 'canReviewAdhocScm'; // legacy Under Review records
     if (currentStatus === 'Approved by SCM' && nextStatus === 'Approved') return 'canReviewAdhocDirector';
     return null;
   }
 
   const spendUsd = toUsd(amount, currency || 'USD');
-  if (currentStatus === 'Submitted' && nextStatus === 'Under Review') return 'canReviewAdvanceCountryController';
-  if (currentStatus === 'Under Review' && nextStatus === 'Approved by Country Controller') return 'canReviewAdvanceCountryController';
+  if (currentStatus === 'Submitted' && nextStatus === 'Approved by Country Controller') return 'canReviewAdvanceCountryController';
+  if (currentStatus === 'Under Review' && nextStatus === 'Approved by Country Controller') return 'canReviewAdvanceCountryController'; // legacy Under Review records
   if (currentStatus === 'Approved by Country Controller' && nextStatus === 'Approved by Supply Chain Director') return 'canReviewAdvanceSupplyChainDirector';
   if (currentStatus === 'Approved by Supply Chain Director' && nextStatus === 'Approved by Treasury Director') return 'canReviewAdvanceTreasuryDirector';
   if (currentStatus === 'Approved by Treasury Director' && nextStatus === 'Approved') return spendUsd < 500000 ? 'canReviewAdvanceCorporateController' : null;
@@ -414,7 +414,7 @@ export function getWorkflowSteps(
 ): ProcureGuardWorkflowStep[] {
   if (requestType === 'adhoc') {
     return [
-      { status: 'Submitted', label: 'New Request', owner: 'Requester', description: 'Request created and ready for supply chain review.' },
+      { status: 'Submitted', label: 'Country SCM Review', owner: 'Country Supply Chain Manager', description: 'New request submitted; awaiting country supply chain manager approval.' },
       { status: 'Under Review', label: 'Country SCM Review', owner: 'Country Supply Chain Manager', description: 'Country supply chain manager reviews the exception.' },
       { status: 'Approved by SCM', label: 'Supply Chain Director Review', owner: 'Supply Chain Director', description: 'Supply chain director reviews after SCM approval.' },
       { status: 'Approved', label: 'Approved', owner: 'Workflow Complete', description: 'Request is fully approved.' },
@@ -422,7 +422,7 @@ export function getWorkflowSteps(
   }
 
   const steps: ProcureGuardWorkflowStep[] = [
-    { status: 'Submitted', label: 'New Request', owner: 'Requester', description: 'Request created and ready for finance review.' },
+    { status: 'Submitted', label: 'Country Finance Review', owner: 'Country Finance Controller', description: 'New request submitted; awaiting country finance controller approval.' },
     { status: 'Under Review', label: 'Country Finance Review', owner: 'Country Finance Controller', description: 'Country finance controller reviews the advance request.' },
     { status: 'Approved by Country Controller', label: 'Supply Chain Director Review', owner: 'Supply Chain Director', description: 'Supply chain director reviews after country controller approval.' },
     { status: 'Approved by Supply Chain Director', label: 'Treasury Director Review', owner: 'Treasury Director', description: 'Treasury director reviews funding and timing.' },
@@ -460,8 +460,8 @@ export function getNextApprovalStatus(
 
   if (requestType === 'adhoc') {
     const transitions: Partial<Record<ProcureGuardStatus, ProcureGuardStatus>> = {
-      Submitted: 'Under Review',
-      'Under Review': 'Approved by SCM',
+      Submitted: 'Approved by SCM',
+      'Under Review': 'Approved by SCM', // legacy Under Review records
       'Approved by SCM': 'Approved',
     };
     return transitions[currentStatus] ?? null;
@@ -469,8 +469,8 @@ export function getNextApprovalStatus(
 
   const spendUsd = toUsd(amount, currency || 'USD');
   const transitions: Partial<Record<ProcureGuardStatus, ProcureGuardStatus>> = {
-    Submitted: 'Under Review',
-    'Under Review': 'Approved by Country Controller',
+    Submitted: 'Approved by Country Controller',
+    'Under Review': 'Approved by Country Controller', // legacy Under Review records
     'Approved by Country Controller': 'Approved by Supply Chain Director',
     'Approved by Supply Chain Director': 'Approved by Treasury Director',
     'Approved by Treasury Director': spendUsd < 500000 ? 'Approved' : 'Approved by Corporate Controller',

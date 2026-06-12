@@ -745,10 +745,11 @@ function getRecipientApprovalStatus(
   request: ProcureGuardWebhookRequest,
 ): ProcureGuardStatus | null {
   if (!isActiveApprovalStatus(request.status)) return null;
-  const thresholdAmount = request.spend_value_usd ?? request.amount;
-  const thresholdCurrency = request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD';
   if (request.status === 'Submitted') {
-    return getNextApprovalStatus(requestType, request.status, thresholdAmount, thresholdCurrency) ?? request.status;
+    // First-approver notification recipients (SCM / Country Controller) are keyed to
+    // 'Under Review', so route submission notifications there even though the request now
+    // moves straight to the first approved status when approved.
+    return 'Under Review';
   }
   return request.status;
 }
