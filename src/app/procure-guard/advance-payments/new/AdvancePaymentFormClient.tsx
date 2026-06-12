@@ -357,10 +357,14 @@ export default function AdvancePaymentFormClient(_props: {
             </Field>
             <Field label="Amount" required error={errors.amountValue}>
               <div className="flex gap-2">
-                <select className={`${errors.amountValue ? ERR : INP} w-28 shrink-0`} value={currency} onChange={e => setCurrency(e.target.value)}>
+                <select
+                  className="w-20 shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
+                  value={currency}
+                  onChange={e => setCurrency(e.target.value)}
+                >
                   {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <input type="number" min="0.01" step="0.01" className={errors.amountValue ? ERR : INP} value={amountValue} onChange={e => setAmountValue(e.target.value)} />
+                <input type="number" min="0.01" step="0.01" className={`${errors.amountValue ? ERR : INP} min-w-0 flex-1`} value={amountValue} onChange={e => setAmountValue(e.target.value)} />
               </div>
               {currency !== 'USD' && Number(amountValue) > 0 && (
                 <p className="mt-1.5 text-xs text-slate-400">≈ {usdEquivalentFmt(amountValue, currency)} (used for approval thresholds)</p>
