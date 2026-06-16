@@ -6,8 +6,7 @@ import ProcureGuardSidebar from '../../components/ProcureGuardSidebar';
 import ProcureGuardNotificationContactsPanel from '../../components/ProcureGuardNotificationContactsPanel';
 import ProcureGuardLogo from '../../components/ProcureGuardLogo';
 import ProcureGuardHomeButton from '../../components/ProcureGuardHomeButton';
-import ProcureGuardHero from '../../components/ProcureGuardHero';
-import { createAdvancePayment, getProcureGuardNotificationPreview, updateAdvancePaymentRequest, uploadProcureGuardDocument } from '@/app/actions/procureGuard';
+import { createAdhocPayment, getProcureGuardNotificationPreview, updateAdhocPaymentRequest, uploadProcureGuardDocument } from '@/app/actions/procureGuard';
 import {
   COUNTRY_OPTIONS,
   CURRENCY_OPTIONS,
@@ -16,13 +15,13 @@ import {
   toUsd,
   usdEquivalentFmt,
 } from '@/lib/procureGuard-utils';
-import type { AdvancePaymentRequest, CreateAdvancePaymentInput, ProcureGuardAccessView, ProcureGuardNotificationContact } from '@/types/procureGuard';
+import type { AdhocPaymentRequest, CreateAdhocPaymentInput, ProcureGuardAccessView, ProcureGuardNotificationContact } from '@/types/procureGuard';
 
 const LBL = 'block text-sm font-semibold text-slate-800 mb-2';
 const INP = 'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20 placeholder:text-slate-400';
 const ERR = 'w-full rounded-lg border border-red-300 bg-red-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-slate-400';
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const ADVANCE_EMAIL_TEST_ROLES = ['Country Controller', 'Supply Chain Director', 'Treasury Director', 'Corporate Controller', 'CFO', 'Requester Updates'];
+const ADHOC_EMAIL_TEST_ROLES = ['SCM Manager', 'Supply Chain Director', 'Requester Updates'];
 
 function Field({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
   return (
@@ -53,10 +52,10 @@ function invalidNotificationEmails(value: string): string[] {
   return parseNotificationEmails(value).filter(email => !emailPattern.test(email));
 }
 
-function initialRoleTestRecipients(editRequest: AdvancePaymentRequest | undefined, requesterEmail: string) {
+function initialRoleTestRecipients(editRequest: AdhocPaymentRequest | undefined, requesterEmail: string) {
   const overrides = editRequest?.email_test_recipient_overrides ?? {};
   return Object.fromEntries(
-    ADVANCE_EMAIL_TEST_ROLES.map(role => [
+    ADHOC_EMAIL_TEST_ROLES.map(role => [
       role,
       (overrides[role]?.length ? overrides[role] : [requesterEmail]).join('\n'),
     ]),
@@ -81,7 +80,7 @@ function AttachmentPicker({
   const inputId = useId();
 
   return (
-    <div className="min-h-36 rounded-lg border border-slate-200 bg-slate-50 p-4">
+    <div className="min-h-44 rounded-lg border border-slate-200 bg-slate-50 p-4">
       <input
         id={inputId}
         type="file"
@@ -114,12 +113,12 @@ function AttachmentPicker({
   );
 }
 
-export default function AdvancePaymentFormClient(_props: {
+export default function AdhocPaymentFormClient(_props: {
   requesterName: string;
   requesterEmail: string;
   defaultDepartment: string;
   accessView: ProcureGuardAccessView;
-  editRequest?: AdvancePaymentRequest;
+  editRequest?: AdhocPaymentRequest;
 }) {
   const { accessView, editRequest } = _props;
   const router = useRouter();
@@ -131,25 +130,24 @@ export default function AdvancePaymentFormClient(_props: {
   const [requisitionNumber, setRequisitionNumber] = useState(editRequest?.requisition_number ?? '');
   const [country, setCountry] = useState(editRequest?.country ?? '');
   const [segment, setSegment] = useState(editRequest?.segment ?? '');
-  const [sapVendorId, setSapVendorId] = useState(editRequest?.sap_vendor_id ?? editRequest?.vendor_code ?? '');
-  const [sapVendorName, setSapVendorName] = useState(editRequest?.vendor_name ?? '');
-  const [spendCategory, setSpendCategory] = useState(editRequest?.spend_category ?? '');
+  const [vendorName, setVendorName] = useState(editRequest?.vendor_name ?? '');
+  const [vendorTaxId, setVendorTaxId] = useState(editRequest?.vendor_tax_id ?? editRequest?.vendor_code ?? '');
+  const [spendCategory, setSpendCategory] = useState(editRequest?.spend_category ?? editRequest?.expense_category ?? '');
   const [amountValue, setAmountValue] = useState(editRequest ? String(editRequest.amount ?? '') : '');
   const [currency, setCurrency] = useState(editRequest?.currency ?? 'USD');
-  const [paymentTermsDays, setPaymentTermsDays] = useState(editRequest?.current_payment_terms_days === null || editRequest?.current_payment_terms_days === undefined ? '' : String(editRequest.current_payment_terms_days));
-  const [creditLimitUsd, setCreditLimitUsd] = useState(editRequest?.current_credit_limit_usd === null || editRequest?.current_credit_limit_usd === undefined ? '' : String(editRequest.current_credit_limit_usd));
-  const [reason, setReason] = useState(editRequest?.advance_purpose ?? editRequest?.justification ?? '');
+  const [reason, setReason] = useState(editRequest?.payment_reason ?? editRequest?.justification ?? '');
   const [requesterComments, setRequesterComments] = useState(editRequest?.requester_comments ?? editRequest?.notes ?? '');
   const [requesterNotificationEmails, setRequesterNotificationEmails] = useState((editRequest?.requester_notification_emails ?? []).join('\n'));
   const [emailTestMode, setEmailTestMode] = useState(Boolean(editRequest?.email_test_mode));
   const [emailTestRecipients, setEmailTestRecipients] = useState((editRequest?.email_test_recipients?.length ? editRequest.email_test_recipients : [_props.requesterEmail]).join('\n'));
   const [roleTestRecipients, setRoleTestRecipients] = useState<Record<string, string>>(() => initialRoleTestRecipients(editRequest, _props.requesterEmail));
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [acknowledged, setAcknowledged] = useState(Boolean(editRequest?.acknowledged_at));
   const [notificationContacts, setNotificationContacts] = useState<ProcureGuardNotificationContact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
 
   const isEditMode = Boolean(editRequest);
-  const detailHref = editRequest ? `/procure-guard/advance-payments/${editRequest.id}` : '/procure-guard/advance-payments';
+  const detailHref = editRequest ? `/procure-guard/adhoc-payments/${editRequest.id}` : '/procure-guard/adhoc-payments';
 
   useEffect(() => {
     let cancelled = false;
@@ -165,7 +163,7 @@ export default function AdvancePaymentFormClient(_props: {
 
       setContactsLoading(true);
       const contacts = await getProcureGuardNotificationPreview({
-        requestType: 'advance',
+        requestType: 'adhoc',
         country,
         amount: Number(amountValue) || 0,
         currency,
@@ -185,12 +183,10 @@ export default function AdvancePaymentFormClient(_props: {
     if (!requisitionNumber.trim()) e.requisitionNumber = 'Requisition number is required.';
     if (!country) e.country = 'Country is required.';
     if (!segment) e.segment = 'Segment is required.';
-    if (!sapVendorId.trim()) e.sapVendorId = 'SAP vendor ID is required.';
-    if (!sapVendorName.trim()) e.sapVendorName = 'SAP vendor name is required.';
+    if (!vendorName.trim()) e.vendorName = 'ADHOC vendor name is required.';
+    if (!vendorTaxId.trim()) e.vendorTaxId = 'Vendor tax ID is required.';
     if (!spendCategory) e.spendCategory = 'Spend category is required.';
     if (!amountValue || Number(amountValue) <= 0) e.amountValue = 'Amount must be greater than zero.';
-    if (paymentTermsDays === '' || Number(paymentTermsDays) < 0) e.paymentTermsDays = 'Current payment terms in days is required.';
-    if (creditLimitUsd === '' || Number(creditLimitUsd) < 0) e.creditLimitUsd = 'Current credit limit in USD is required.';
     if (!reason.trim()) e.reason = 'Reason / justification is required.';
     const invalidEmails = invalidNotificationEmails(requesterNotificationEmails);
     if (invalidEmails.length > 0) e.requesterNotificationEmails = `Invalid email: ${invalidEmails[0]}`;
@@ -205,6 +201,7 @@ export default function AdvancePaymentFormClient(_props: {
       }
     }
     if (selectedFiles.some(file => file.size > MAX_FILE_BYTES)) e.attachments = 'Each file must be 10 MB or smaller.';
+    if (!acknowledged) e.acknowledged = 'Acknowledgement is required.';
     return e;
   }
 
@@ -212,20 +209,19 @@ export default function AdvancePaymentFormClient(_props: {
     setRequisitionNumber(editRequest?.requisition_number ?? '');
     setCountry(editRequest?.country ?? '');
     setSegment(editRequest?.segment ?? '');
-    setSapVendorId(editRequest?.sap_vendor_id ?? editRequest?.vendor_code ?? '');
-    setSapVendorName(editRequest?.vendor_name ?? '');
-    setSpendCategory(editRequest?.spend_category ?? '');
+    setVendorName(editRequest?.vendor_name ?? '');
+    setVendorTaxId(editRequest?.vendor_tax_id ?? editRequest?.vendor_code ?? '');
+    setSpendCategory(editRequest?.spend_category ?? editRequest?.expense_category ?? '');
     setAmountValue(editRequest ? String(editRequest.amount ?? '') : '');
     setCurrency(editRequest?.currency ?? 'USD');
-    setPaymentTermsDays(editRequest?.current_payment_terms_days === null || editRequest?.current_payment_terms_days === undefined ? '' : String(editRequest.current_payment_terms_days));
-    setCreditLimitUsd(editRequest?.current_credit_limit_usd === null || editRequest?.current_credit_limit_usd === undefined ? '' : String(editRequest.current_credit_limit_usd));
-    setReason(editRequest?.advance_purpose ?? editRequest?.justification ?? '');
+    setReason(editRequest?.payment_reason ?? editRequest?.justification ?? '');
     setRequesterComments(editRequest?.requester_comments ?? editRequest?.notes ?? '');
     setRequesterNotificationEmails((editRequest?.requester_notification_emails ?? []).join('\n'));
     setEmailTestMode(Boolean(editRequest?.email_test_mode));
     setEmailTestRecipients((editRequest?.email_test_recipients?.length ? editRequest.email_test_recipients : [_props.requesterEmail]).join('\n'));
     setRoleTestRecipients(initialRoleTestRecipients(editRequest, _props.requesterEmail));
     setSelectedFiles([]);
+    setAcknowledged(Boolean(editRequest?.acknowledged_at));
     setErrors({});
     setBanner('');
   }
@@ -234,7 +230,7 @@ export default function AdvancePaymentFormClient(_props: {
     for (const file of selectedFiles) {
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('request_type', 'advance');
+      fd.append('request_type', 'adhoc');
       fd.append('request_id', String(requestId));
       fd.append('document_type', 'request_attachment');
       fd.append('custom_name', fileBaseName(file.name));
@@ -258,45 +254,45 @@ export default function AdvancePaymentFormClient(_props: {
     setErrors({});
 
     const amount = Number(amountValue);
-    const payload: CreateAdvancePaymentInput = {
+    const payload: CreateAdhocPaymentInput = {
       priority: 'Normal',
       requisition_number: requisitionNumber,
-      vendor_name: sapVendorName,
-      vendor_code: sapVendorId,
-      sap_vendor_id: sapVendorId,
+      vendor_name: vendorName,
+      vendor_code: vendorTaxId,
+      vendor_tax_id: vendorTaxId,
       amount,
       currency,
       country,
       segment,
       spend_category: spendCategory,
       spend_value_usd: toUsd(amount, currency),
-      current_payment_terms_days: Number(paymentTermsDays),
-      current_credit_limit_usd: Number(creditLimitUsd),
-      advance_purpose: reason,
+      expense_category: spendCategory,
+      payment_method: 'Bank Transfer',
+      payment_reason: reason,
       justification: reason,
-      recovery_method: 'Manual reconciliation',
       notes: requesterComments,
       requester_comments: requesterComments,
       requester_notification_emails: parseNotificationEmails(requesterNotificationEmails).filter(email => email !== _props.requesterEmail.toLowerCase()),
       email_test_mode: emailTestMode,
       email_test_recipients: emailTestMode ? parseNotificationEmails(emailTestRecipients) : [],
       email_test_recipient_overrides: emailTestMode ? roleTestRecipientOverrides(roleTestRecipients) : {},
+      acknowledged,
     };
 
     startTransition(async () => {
       const result = editRequest
-        ? await updateAdvancePaymentRequest(editRequest.id, payload)
-        : await createAdvancePayment(payload);
+        ? await updateAdhocPaymentRequest(editRequest.id, payload)
+        : await createAdhocPayment(payload);
       if (result.success && result.data?.id) {
         const uploadError = await uploadFiles(result.data.id);
         if (uploadError) {
           setBanner(`${result.reference_number || 'Request'} was ${isEditMode ? 'updated' : 'created'}, but an attachment failed: ${uploadError}`);
           return;
         }
-        router.push(`/procure-guard/advance-payments/${result.data.id}`);
+        router.push(`/procure-guard/adhoc-payments/${result.data.id}`);
         router.refresh();
       } else {
-        setBanner(result.error ?? `Failed to ${isEditMode ? 'update' : 'submit'} advance payment request.`);
+        setBanner(result.error ?? `Failed to ${isEditMode ? 'update' : 'submit'} adhoc PO request.`);
       }
     });
   }
@@ -311,15 +307,12 @@ export default function AdvancePaymentFormClient(_props: {
         </button>
         <ProcureGuardHomeButton />
         <ProcureGuardLogo size="sm" />
-        <span className="text-sm font-semibold text-slate-900">{isEditMode ? 'Edit Advance Payment Purchase Exception Request' : 'Advance Payment Purchase Exception Request'}</span>
+        <span className="text-sm font-semibold text-slate-900">{isEditMode ? 'Edit ADHOC Vendor Purchase Exception Request' : 'ADHOC Vendor Purchase Exception Request'}</span>
       </header>
 
       <main className="flex-1 overflow-y-auto pb-20">
-        <div className="mx-auto max-w-[1280px] px-5 pt-6 sm:px-8">
-          <ProcureGuardHero
-            title={isEditMode ? 'Edit Advance Payment Purchase Exception Request' : 'Advance Payment Purchase Exception Request'}
-            subtitle="Complete the required fields below and submit for finance review."
-          />
+        <div className="border-b border-gray-100 bg-gray-50 px-5 py-6 sm:px-8">
+          <h1 className="mx-auto max-w-[1280px] text-lg font-bold tracking-tight text-gray-900">{isEditMode ? 'Edit ADHOC Vendor Purchase Exception Request' : 'ADHOC Vendor Purchase Exception Request'}</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="mx-auto max-w-[1280px] space-y-7 px-5 py-6 sm:px-8">
@@ -343,16 +336,12 @@ export default function AdvancePaymentFormClient(_props: {
                 {SEGMENT_OPTIONS.map(item => <option key={item}>{item}</option>)}
               </select>
             </Field>
-            <div className="lg:col-span-2">
-              <Field label="SAP Vendor ID" required error={errors.sapVendorId}>
-                <input className={errors.sapVendorId ? ERR : INP} value={sapVendorId} onChange={e => setSapVendorId(e.target.value)} />
-              </Field>
-            </div>
-            <div className="lg:col-span-2">
-              <Field label="SAP Vendor Name" required error={errors.sapVendorName}>
-                <input className={errors.sapVendorName ? ERR : INP} value={sapVendorName} onChange={e => setSapVendorName(e.target.value)} />
-              </Field>
-            </div>
+            <Field label="ADHOC Vendor Name" required error={errors.vendorName}>
+              <input className={errors.vendorName ? ERR : INP} value={vendorName} onChange={e => setVendorName(e.target.value)} />
+            </Field>
+            <Field label="Vendor Tax ID" required error={errors.vendorTaxId}>
+              <input className={errors.vendorTaxId ? ERR : INP} value={vendorTaxId} onChange={e => setVendorTaxId(e.target.value)} />
+            </Field>
             <Field label="Spend Category" required error={errors.spendCategory}>
               <select className={errors.spendCategory ? ERR : INP} value={spendCategory} onChange={e => setSpendCategory(e.target.value)}>
                 <option value="">Find Category</option>
@@ -374,15 +363,9 @@ export default function AdvancePaymentFormClient(_props: {
                 <p className="mt-1.5 text-xs text-slate-400">≈ {usdEquivalentFmt(amountValue, currency)} (used for approval thresholds)</p>
               )}
             </Field>
-            <Field label="Current Payment Terms in Days" required error={errors.paymentTermsDays}>
-              <input type="number" min="0" step="1" className={errors.paymentTermsDays ? ERR : INP} value={paymentTermsDays} onChange={e => setPaymentTermsDays(e.target.value)} />
-            </Field>
-            <Field label="Current Credit Limit in USD" required error={errors.creditLimitUsd}>
-              <input type="number" min="0" step="0.01" className={errors.creditLimitUsd ? ERR : INP} value={creditLimitUsd} onChange={e => setCreditLimitUsd(e.target.value)} />
-            </Field>
             <div className="lg:col-span-3">
-              <Field label="Reason / Justification for Exception" required error={errors.reason}>
-                <textarea className={`${errors.reason ? ERR : INP} min-h-36 resize-none`} value={reason} onChange={e => setReason(e.target.value)} />
+              <Field label="Reason/ Justification of Exception" required error={errors.reason}>
+                <textarea className={`${errors.reason ? ERR : INP} min-h-44 resize-none`} value={reason} onChange={e => setReason(e.target.value)} />
               </Field>
             </div>
             <div>
@@ -420,7 +403,7 @@ export default function AdvancePaymentFormClient(_props: {
                     <textarea className={`${errors.emailTestRecipients ? ERR : INP} min-h-20 resize-none bg-white`} value={emailTestRecipients} onChange={e => setEmailTestRecipients(e.target.value)} />
                   </Field>
                   <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-                    {ADVANCE_EMAIL_TEST_ROLES.map(role => (
+                    {ADHOC_EMAIL_TEST_ROLES.map(role => (
                       <Field key={role} label={role} error={errors[`roleTest-${role}`]}>
                         <textarea
                           className={`${errors[`roleTest-${role}`] ? ERR : INP} min-h-20 resize-none bg-white`}
@@ -441,6 +424,14 @@ export default function AdvancePaymentFormClient(_props: {
                 loading={contactsLoading}
                 emptyText="Select a country to see the approvers who will be contacted."
               />
+            </div>
+            <div className="lg:col-span-2">
+              <Field label="Acknowledgement" required error={errors.acknowledged}>
+                <label className="flex items-center gap-3 text-sm text-slate-900">
+                  <input type="checkbox" checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)} className="h-5 w-5 rounded border-slate-300 text-[#307c4c] focus:ring-[#307c4c]/20" />
+                  By checking this box, I acknowledge that this is a one-time vendor.
+                </label>
+              </Field>
             </div>
           </section>
 

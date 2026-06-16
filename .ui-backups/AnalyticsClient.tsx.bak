@@ -5,7 +5,6 @@ import { useMemo, useState } from 'react';
 import ProcureGuardSidebar from '../components/ProcureGuardSidebar';
 import ProcureGuardLogo from '../components/ProcureGuardLogo';
 import ProcureGuardHomeButton from '../components/ProcureGuardHomeButton';
-import ProcureGuardHero from '../components/ProcureGuardHero';
 import { fmtDate, fmtDateTime, formatProcureGuardStatusLabel, getStatusBadge, usdFmt } from '@/lib/procureGuard-utils';
 import type {
   ProcureGuardAnalyticsData,
@@ -346,7 +345,7 @@ export default function AnalyticsClient({ data, embedded = false }: { data: Proc
   if (!data) return <EmptyOrForbidden />;
 
   return (
-    <div className={`${embedded ? 'bg-white' : 'min-h-[100dvh] bg-slate-50'} text-slate-900`}>
+    <div className={`${embedded ? '' : 'min-h-[100dvh]'} bg-white text-slate-900`}>
       {!embedded && <ProcureGuardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={data.stats.pending_review} accessView={data.actor.permissions.accessView} />}
 
       {!embedded && <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-gray-100 bg-white/80 px-4 backdrop-blur-md md:px-8">
@@ -360,7 +359,6 @@ export default function AnalyticsClient({ data, embedded = false }: { data: Proc
       </header>}
 
       <main className={`${embedded ? '' : 'mx-auto max-w-[1320px] px-4 py-5'} space-y-5`}>
-        {!embedded && <ProcureGuardHero title="Analytics" subtitle="Spend, vendor, and approval insights across all ProcureGuard requests." />}
         {embedded && (
           <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>

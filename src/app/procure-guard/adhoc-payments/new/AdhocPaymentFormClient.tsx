@@ -6,6 +6,7 @@ import ProcureGuardSidebar from '../../components/ProcureGuardSidebar';
 import ProcureGuardNotificationContactsPanel from '../../components/ProcureGuardNotificationContactsPanel';
 import ProcureGuardLogo from '../../components/ProcureGuardLogo';
 import ProcureGuardHomeButton from '../../components/ProcureGuardHomeButton';
+import ProcureGuardHero from '../../components/ProcureGuardHero';
 import { createAdhocPayment, getProcureGuardNotificationPreview, updateAdhocPaymentRequest, uploadProcureGuardDocument } from '@/app/actions/procureGuard';
 import {
   COUNTRY_OPTIONS,
@@ -311,8 +312,11 @@ export default function AdhocPaymentFormClient(_props: {
       </header>
 
       <main className="flex-1 overflow-y-auto pb-20">
-        <div className="border-b border-gray-100 bg-gray-50 px-5 py-6 sm:px-8">
-          <h1 className="mx-auto max-w-[1280px] text-lg font-bold tracking-tight text-gray-900">{isEditMode ? 'Edit ADHOC Vendor Purchase Exception Request' : 'ADHOC Vendor Purchase Exception Request'}</h1>
+        <div className="mx-auto max-w-[1280px] px-5 pt-6 sm:px-8">
+          <ProcureGuardHero
+            title={isEditMode ? 'Edit ADHOC Vendor Purchase Exception Request' : 'ADHOC Vendor Purchase Exception Request'}
+            subtitle="Complete the required fields below and submit for supply chain review."
+          />
         </div>
 
         <form onSubmit={handleSubmit} className="mx-auto max-w-[1280px] space-y-7 px-5 py-6 sm:px-8">

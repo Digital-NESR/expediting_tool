@@ -25,27 +25,30 @@ function DbError() {
   );
 }
 
+const METRIC_TONES = {
+  green: { chip: 'bg-[#307c4c]/10 text-[#307c4c]', bar: 'bg-[#307c4c]' },
+  amber: { chip: 'bg-amber-100 text-amber-700', bar: 'bg-amber-400' },
+  blue: { chip: 'bg-blue-100 text-blue-700', bar: 'bg-blue-400' },
+  red: { chip: 'bg-red-100 text-red-700', bar: 'bg-red-400' },
+} as const;
+
 function MetricCard({ title, value, sub, tone }: { title: string; value: string | number; sub: string; tone?: 'green' | 'amber' | 'blue' | 'red' }) {
-  const tones = {
-    green: 'bg-[#307c4c]/10 text-[#307c4c] border-[#307c4c]/10',
-    amber: 'bg-amber-50 text-amber-700 border-amber-100',
-    blue: 'bg-blue-50 text-blue-700 border-blue-100',
-    red: 'bg-red-50 text-red-700 border-red-100',
-  };
+  const t = METRIC_TONES[tone ?? 'green'];
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+    <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60">
+      <span className={`absolute inset-x-0 top-0 h-1 ${t.bar}`} />
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{title}</p>
-          <p className="text-3xl font-bold text-slate-900 mt-2">{value}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">{value}</p>
         </div>
-        <div className={`h-9 w-9 rounded-xl border flex items-center justify-center ${tones[tone ?? 'green']}`}>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${t.chip}`}>
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 10v2" />
           </svg>
         </div>
       </div>
-      <p className="text-sm text-slate-500 mt-3">{sub}</p>
+      <p className="mt-3 text-sm text-slate-500">{sub}</p>
     </div>
   );
 }
@@ -74,7 +77,7 @@ function RequestRow({ request, type }: { request: AdhocPaymentRequest | AdvanceP
     : `/procure-guard/advance-payments/${request.id}`;
 
   return (
-    <Link href={href} className="flex items-center justify-between gap-4 p-4 hover:bg-[#307c4c]/5 transition-colors">
+    <Link href={href} className="group flex items-center justify-between gap-4 p-4 transition-colors hover:bg-[#307c4c]/5">
       <div className="min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-semibold text-slate-900 text-sm">{request.reference_number}</span>
@@ -84,11 +87,50 @@ function RequestRow({ request, type }: { request: AdhocPaymentRequest | AdvanceP
         <p className="text-sm text-slate-600 truncate mt-1">{type} request · {request.vendor_name}</p>
         <p className="text-xs text-slate-400 mt-0.5">Created {fmtDate(request.created_at)} by {request.requested_by_name || request.requested_by_email}</p>
       </div>
-      <div className="text-right shrink-0">
-        <p className="font-bold text-slate-900">{usdFmt(request.amount, request.currency)}</p>
-        <p className="text-xs text-slate-400">{request.currency}</p>
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="text-right">
+          <p className="font-bold text-slate-900">{usdFmt(request.amount, request.currency)}</p>
+          <p className="text-xs text-slate-400">{request.currency}</p>
+        </div>
+        <svg className="h-4 w-4 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
       </div>
     </Link>
+  );
+}
+
+function StatCard({ label, value, sub, icon, onClick }: { label: string; value: string | number; sub: string; icon: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#307c4c]/30 hover:shadow-lg hover:shadow-slate-200/60"
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#307c4c]/10 text-[#307c4c]">{icon}</div>
+      </div>
+      <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-1 text-sm text-slate-500">{sub}</p>
+      <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-[#307c4c]">
+        View status page <span className="transition-transform group-hover:translate-x-0.5">→</span>
+      </span>
+    </button>
+  );
+}
+
+function SectionHeading({ title, subtitle, right }: { title: string; subtitle: string; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+      <div className="flex items-start gap-2.5">
+        <span className="mt-0.5 h-5 w-1 rounded-full bg-[#307c4c]" />
+        <div>
+          <h2 className="font-bold text-slate-900">{title}</h2>
+          <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>
+        </div>
+      </div>
+      {right}
+    </div>
   );
 }
 
@@ -119,10 +161,10 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
   return (
-    <div className="min-h-[100dvh] bg-white font-sans text-slate-900">
+    <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
       <ProcureGuardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={stats.pending_review} accessView={data.actor.permissions.accessView} />
 
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-gray-100 bg-white/80 px-4 backdrop-blur-md md:h-16 md:px-8">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200/70 bg-white/80 px-4 backdrop-blur-md md:h-16 md:px-8">
         <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
@@ -133,23 +175,27 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
       </header>
 
       <main className="max-w-[1220px] mx-auto px-4 sm:px-6 py-6 space-y-6">
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-t-4 border-[#307c4c] p-6 sm:p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] p-6 sm:p-8 text-white shadow-lg shadow-[#307c4c]/25">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-24 -left-10 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
+          <div className="relative flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400 mb-2">Guarding every purchase</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70">Guarding every purchase</p>
               <div className="flex items-center gap-4">
                 <ProcureGuardLogo size="hero" />
-                <h1 className="text-lg font-bold tracking-tight text-gray-900">ProcureGuard</h1>
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight">ProcureGuard</h1>
+                  <p className="mt-1 max-w-2xl text-sm text-white/80">
+                    Track adhoc POs and advance payment requests from submission through review and approval.
+                  </p>
+                </div>
               </div>
-              <p className="text-slate-500 max-w-2xl mt-2 text-sm sm:text-base">
-                Track adhoc POs and advance payment requests from submission through review and approval.
-              </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => router.push('/procure-guard/adhoc-payments/new')} className="px-4 py-2.5 rounded-lg bg-[#307c4c] text-white text-sm font-bold shadow-sm hover:bg-[#307c4c]/80">
+              <button onClick={() => router.push('/procure-guard/adhoc-payments/new')} className="rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-[#1d4f31] shadow-sm transition hover:bg-white/90">
                 New Adhoc PO
               </button>
-              <button onClick={() => router.push('/procure-guard/advance-payments/new')} className="px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-bold shadow-sm hover:bg-slate-50">
+              <button onClick={() => router.push('/procure-guard/advance-payments/new')} className="rounded-lg border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white/20">
                 New Advance Request
               </button>
             </div>
@@ -163,35 +209,42 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
         </section>
 
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Adhoc POs</p>
-            <p className="text-3xl font-bold text-slate-900 mt-2">{stats.adhoc_total}</p>
-            <p className="text-sm text-slate-500 mt-1">{usdFmt(stats.adhoc_requested_amount)} USD equivalent</p>
-            <button onClick={() => router.push('/procure-guard/adhoc-payments')} className="mt-4 text-sm font-bold text-[#307c4c] hover:text-[#1f1f1d]">View status page →</button>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Advance Payments</p>
-            <p className="text-3xl font-bold text-slate-900 mt-2">{stats.advance_total}</p>
-            <p className="text-sm text-slate-500 mt-1">{usdFmt(stats.advance_requested_amount)} USD equivalent</p>
-            <button onClick={() => router.push('/procure-guard/advance-payments')} className="mt-4 text-sm font-bold text-[#307c4c] hover:text-[#1f1f1d]">View status page →</button>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Current User</p>
-            <p className="text-lg font-bold text-slate-900 mt-2 truncate">{actor.name}</p>
+          <StatCard
+            label="Adhoc POs"
+            value={stats.adhoc_total}
+            sub={`${usdFmt(stats.adhoc_requested_amount)} USD equivalent`}
+            onClick={() => router.push('/procure-guard/adhoc-payments')}
+            icon={<svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+          />
+          <StatCard
+            label="Advance Payments"
+            value={stats.advance_total}
+            sub={`${usdFmt(stats.advance_requested_amount)} USD equivalent`}
+            onClick={() => router.push('/procure-guard/advance-payments')}
+            icon={<svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7zm14 5h.01" /></svg>}
+          />
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Current User</p>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              </div>
+            </div>
+            <p className="mt-2 text-lg font-bold text-slate-900 truncate">{actor.name}</p>
             <p className="text-sm text-slate-500 truncate">{actor.email}</p>
-            <p className="text-xs text-slate-400 mt-3">{actor.isAdmin ? 'Admin view: all requests' : 'User view: your requests only'}</p>
+            <p className="mt-3 inline-flex items-center rounded-full bg-[#307c4c]/10 px-2.5 py-1 text-[11px] font-semibold text-[#307c4c]">
+              {actor.isAdmin ? 'Admin view: all requests' : 'User view: your requests only'}
+            </p>
           </div>
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h2 className="font-bold text-slate-900">Action Queue</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Highest priority submitted and under-review items.</p>
-              </div>
-              <span className="text-xs font-semibold text-slate-400">{pendingQueue.length} shown</span>
-            </div>
+            <SectionHeading
+              title="Action Queue"
+              subtitle="Highest priority submitted and under-review items."
+              right={<span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">{pendingQueue.length} shown</span>}
+            />
             {pendingQueue.length === 0 ? (
               <div className="p-8 text-center text-sm text-slate-500">No pending requests right now.</div>
             ) : (
@@ -202,18 +255,18 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100">
-              <h2 className="font-bold text-slate-900">Recent Activity</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Latest workflow movements.</p>
-            </div>
+            <SectionHeading title="Recent Activity" subtitle="Latest workflow movements." />
             <div className="divide-y divide-slate-100">
               {activity.length === 0 ? (
                 <div className="p-6 text-sm text-slate-500 text-center">No activity yet.</div>
               ) : activity.map(item => (
-                <div key={item.id} className="p-4">
-                  <p className="text-sm font-semibold text-slate-900">{activityActionLabel(item.action)}</p>
-                  <p className="text-xs text-slate-500 mt-1">{item.reference_number} · {item.actor_name || item.actor_email || 'System'}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">{timeAgo(item.created_at)}</p>
+                <div key={item.id} className="flex gap-3 p-4">
+                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#307c4c]/40" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">{activityActionLabel(item.action)}</p>
+                    <p className="text-xs text-slate-500 mt-1">{item.reference_number} · {item.actor_name || item.actor_email || 'System'}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{timeAgo(item.created_at)}</p>
+                  </div>
                 </div>
               ))}
             </div>
