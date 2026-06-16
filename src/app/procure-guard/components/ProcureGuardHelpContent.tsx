@@ -3,7 +3,11 @@
  * (/help/procureguard) and the in-app page (/procure-guard/help).
  *
  * TO WIRE UP TRAINING MATERIAL (edit the AUDIENCES array below):
- *   videoUrl — paste the SharePoint / Stream embed URL (Share > Embed). Leave '' to show "coming soon".
+ *   videoUrl — two options, auto-detected:
+ *                • SharePoint/Stream embed URL (https://...embed.aspx...) → rendered in an <iframe>,
+ *                  so SharePoint streams it and the app serves nothing (no size/load on the site).
+ *                • Local file in /public/help/, e.g. '/help/procureguard-requester.mp4' → native <video>.
+ *              Leave '' to show "coming soon".
  *   pdfUrl   — place the PDF in /public/help/ and point here, e.g. '/help/procureguard-requester.pdf'.
  *              Leave '' to show "coming soon".
  */
@@ -29,7 +33,7 @@ const AUDIENCES: AudienceMaterial[] = [
     key: 'requester',
     label: 'For Requesters',
     blurb: 'How to submit and track adhoc PO and advance payment requests through the approval chain.',
-    videoUrl: '',
+    videoUrl: 'https://nesrcorp-my.sharepoint.com/personal/cmorales_nesr_com/_layouts/15/embed.aspx?UniqueId=7b907d0d-d647-4c08-a8a8-9a22264013ab&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
     pdfUrl: '/help/procureguard-requester.pdf', // placeholder PDF in public/help/ — replace with final guide
     pdfDownloadName: 'ProcureGuard-Requester-Guide.pdf',
   },
@@ -37,7 +41,7 @@ const AUDIENCES: AudienceMaterial[] = [
     key: 'approver',
     label: 'For Approvers',
     blurb: 'How to review, approve, and reject requests at your stage of the approval workflow.',
-    videoUrl: '',
+    videoUrl: 'https://nesrcorp-my.sharepoint.com/personal/cmorales_nesr_com/_layouts/15/embed.aspx?UniqueId=072e46f1-e586-47c1-bfe8-476a6598959d&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
     pdfUrl: '/help/procureguard-approver.pdf', // placeholder PDF in public/help/ — replace with final guide
     pdfDownloadName: 'ProcureGuard-Approver-Guide.pdf',
   },
@@ -45,7 +49,7 @@ const AUDIENCES: AudienceMaterial[] = [
     key: 'general',
     label: 'General Overview',
     blurb: 'A general introduction to ProcureGuard — roles, workflow, and notifications.',
-    videoUrl: '',
+    videoUrl: 'https://nesrcorp-my.sharepoint.com/personal/cmorales_nesr_com/_layouts/15/embed.aspx?UniqueId=16ca0d2c-d4be-4e75-b5b9-e335b246a6cf&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
     pdfUrl: '/help/procureguard-overview.pdf', // placeholder PDF in public/help/ — replace with final guide
     pdfDownloadName: 'ProcureGuard-Overview.pdf',
   },
@@ -149,16 +153,29 @@ export default function ProcureGuardHelpContent() {
           </div>
           <div className="p-5">
             {audience.videoUrl ? (
-              <iframe
-                src={audience.videoUrl}
-                width="100%"
-                height="500"
-                frameBorder="0"
-                scrolling="no"
-                allowFullScreen
-                title={`ProcureGuard Training Video — ${audience.label}`}
-                className="rounded-lg"
-              />
+              audience.videoUrl.startsWith('http') ? (
+                <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
+                  <iframe
+                    key={audience.videoUrl}
+                    src={audience.videoUrl}
+                    frameBorder="0"
+                    scrolling="no"
+                    allowFullScreen
+                    title={`ProcureGuard Training Video — ${audience.label}`}
+                    className="h-full w-full"
+                  />
+                </div>
+              ) : (
+                <video
+                  key={audience.videoUrl}
+                  controls
+                  preload="metadata"
+                  className="aspect-video w-full rounded-lg bg-black object-contain"
+                >
+                  <source src={audience.videoUrl} type="video/mp4" />
+                  Your browser does not support embedded video. <a href={audience.videoUrl}>Download the video</a> instead.
+                </video>
+              )
             ) : (
               <ComingSoon kind="video" />
             )}

@@ -336,9 +336,14 @@ export const COUNTRY_OPTIONS = [
   'Iraq',
   'Libya',
   'Chad',
+  'India',
+  'Indonesia + Malaysia',
+  'EOS',
+  'HQ Dubai',
+  'Jordan',
+  'Yemen',
   'Congo',
   'Test',
-  'Other',
 ];
 
 export function normalizeProcureGuardCountry(value: string | null | undefined): string | null {

@@ -737,6 +737,9 @@ function countryRecipientKeys(country: string | null | undefined): string[] {
   if (normalized === 'saudi arabia') keys.add('Saudi Arabia (KSA)');
   if (normalized === 'united arab emirates (uae)' || normalized === 'united arab emirates') keys.add('UAE');
   if (normalized === 'uae') keys.add('United Arab Emirates (UAE)');
+  // 'Indonesia + Malaysia' is one combined country in the UI; its notification recipients are
+  // still stored per-country, so match both. getProcureGuardNotificationRecipients dedupes by email.
+  if (normalized === 'indonesia + malaysia') { keys.add('Indonesia'); keys.add('Malaysia'); }
   return [...keys];
 }
 
