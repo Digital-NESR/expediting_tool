@@ -914,33 +914,56 @@ function buildProcureGuardRequesterStageEmail(input: {
   comment?: string | null;
 }) {
   const typeLabel = input.requestType === 'adhoc' ? 'ADHOC PO' : 'Advance payment';
+  const isRejected = input.request.status === 'Rejected';
+  const isCancelled = input.request.status === 'Cancelled';
+  const isTerminalStop = isRejected || isCancelled;
   const statusLine = input.previousStatus
     ? `${formatProcureGuardStatusLabel(input.previousStatus)} -> ${formatProcureGuardStatusLabel(input.request.status)}`
     : formatProcureGuardStatusLabel(input.request.status);
-  const nextLine = input.nextStatus
-    ? `It is now waiting for ${input.ownerLabel}.`
-    : 'The approval workflow is complete.';
+  const nextLine = isTerminalStop
+    ? 'It will not proceed any further.'
+    : input.nextStatus
+      ? `It is now waiting for ${input.ownerLabel}.`
+      : 'The approval workflow is complete.';
   const comment = input.comment || '';
-  const subject = `ProcureGuard: ${input.request.reference_number} moved to ${formatProcureGuardStatusLabel(input.request.status)}`;
+  const accent = isRejected ? '#b42318' : isCancelled ? '#475569' : '#006B0C';
+  const eyebrow = isRejected ? 'Request rejected' : isCancelled ? 'Request cancelled' : 'Requester status update';
+  const heading = isRejected
+    ? `${input.request.reference_number} has been rejected`
+    : isCancelled
+      ? `${input.request.reference_number} has been cancelled`
+      : `${input.request.reference_number} has moved forward`;
+  const intro = isRejected
+    ? `Your ${typeLabel} request has been rejected. ${nextLine}`
+    : isCancelled
+      ? `Your ${typeLabel} request has been cancelled. ${nextLine}`
+      : `Your ${typeLabel} request changed stage. ${nextLine}`;
+  const nextStepText = isTerminalStop ? 'No further action' : (input.nextStatus ? formatProcureGuardStatusLabel(input.nextStatus) : 'Approved');
+  const commentLabel = isRejected ? 'Rejection reason' : isCancelled ? 'Cancellation note' : 'Reviewer comment';
+  const subject = isRejected
+    ? `ProcureGuard: ${input.request.reference_number} was rejected`
+    : isCancelled
+      ? `ProcureGuard: ${input.request.reference_number} was cancelled`
+      : `ProcureGuard: ${input.request.reference_number} moved to ${formatProcureGuardStatusLabel(input.request.status)}`;
 
   const bodyHtml = `
     <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:24px;color:#1f2937;">
-      <div style="border-bottom:3px solid #006B0C;padding-bottom:14px;margin-bottom:22px;">
-        <div style="font-size:19px;font-weight:700;color:#006B0C;">NESR ProcureGuard</div>
-        <div style="font-size:12px;color:#6b7280;margin-top:4px;">Requester status update</div>
+      <div style="border-bottom:3px solid ${accent};padding-bottom:14px;margin-bottom:22px;">
+        <div style="font-size:19px;font-weight:700;color:${accent};">NESR ProcureGuard</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px;">${escapeHtml(eyebrow)}</div>
       </div>
-      <h2 style="margin:0 0 8px 0;color:#111827;">${escapeHtml(input.request.reference_number)} has moved forward</h2>
-      <p style="margin:0 0 20px 0;color:#4b5563;">Your ${escapeHtml(typeLabel)} request changed stage. ${escapeHtml(nextLine)}</p>
+      <h2 style="margin:0 0 8px 0;color:#111827;">${escapeHtml(heading)}</h2>
+      <p style="margin:0 0 20px 0;color:#4b5563;">${escapeHtml(intro)}</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:22px;">
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;width:170px;">Vendor</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.vendor_name)}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Amount</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(formatWebhookAmount(input.request.amount, input.request.currency))}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Country</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.country || 'Unspecified')}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Status</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(statusLine)}</td></tr>
-        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Next step</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.nextStatus ? formatProcureGuardStatusLabel(input.nextStatus) : 'Approved')}</td></tr>
+        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Next step</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(nextStepText)}</td></tr>
       </table>
-      ${comment ? `<div style="background:#f9fafb;border-left:4px solid #006B0C;padding:12px 14px;margin-bottom:22px;"><div style="font-weight:600;margin-bottom:6px;">Reviewer comment</div><div style="white-space:pre-wrap;color:#374151;">${escapeHtml(comment)}</div></div>` : ''}
+      ${comment ? `<div style="background:#f9fafb;border-left:4px solid ${accent};padding:12px 14px;margin-bottom:22px;"><div style="font-weight:600;margin-bottom:6px;">${escapeHtml(commentLabel)}</div><div style="white-space:pre-wrap;color:#374151;">${escapeHtml(comment)}</div></div>` : ''}
       <div style="text-align:center;margin:24px 0;">
-        <a href="${escapeHtml(input.detailUrl)}" style="display:inline-block;background:#006B0C;color:#ffffff;padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:700;">Open request</a>
+        <a href="${escapeHtml(input.detailUrl)}" style="display:inline-block;background:${accent};color:#ffffff;padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:700;">Open request</a>
       </div>
       <div style="border-top:1px solid #e5e7eb;padding-top:14px;font-size:12px;color:#6b7280;">
         Updated by ${escapeHtml(input.actor.name || input.actor.email)}. This message was generated by the ProcureGuard workflow.
@@ -1061,7 +1084,7 @@ async function notifyProcureGuardNextApprover(input: {
 
     if (
       (input.event === 'request.status_changed' || input.event === 'request.submitted')
-      && isRequesterAcceptedStage(request.status)
+      && (isRequesterAcceptedStage(request.status) || request.status === 'Rejected' || request.status === 'Cancelled')
       && request.requested_by_email?.trim()
     ) {
       const requesterEmail = buildProcureGuardRequesterStageEmail({
