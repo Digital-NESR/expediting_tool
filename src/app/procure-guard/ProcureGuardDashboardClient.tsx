@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import ProcureGuardSidebar from './components/ProcureGuardSidebar';
 import ProcureGuardLogo from './components/ProcureGuardLogo';
 import ProcureGuardHomeButton from './components/ProcureGuardHomeButton';
-import { fmtDate, formatProcureGuardStatusLabel, getPriorityBadge, getStatusBadge, isActiveApprovalStatus, timeAgo, usdFmt } from '@/lib/procureGuard-utils';
+import { canUseProcureGuardReviewerQueue, fmtDate, formatProcureGuardStatusLabel, getPriorityBadge, getStatusBadge, isActiveApprovalStatus, timeAgo, usdFmt } from '@/lib/procureGuard-utils';
 import type { AdhocPaymentRequest, AdvancePaymentRequest, ProcureGuardDashboardData } from '@/types/procureGuard';
 
 function DbError() {
@@ -235,6 +235,17 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
             <p className="mt-3 inline-flex items-center rounded-full bg-[#307c4c]/10 px-2.5 py-1 text-[11px] font-semibold text-[#307c4c]">
               {actor.isAdmin ? 'Admin view: all requests' : 'User view: your requests only'}
             </p>
+            {canUseProcureGuardReviewerQueue(actor.permissions.accessView) && (
+              <button
+                onClick={() => router.push('/procure-guard/my-work')}
+                className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#307c4c] px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/85"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Go to My Work
+              </button>
+            )}
           </div>
         </section>
 
