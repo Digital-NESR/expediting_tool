@@ -33,6 +33,7 @@ export interface CreateShipmentInput {
   extended_date?: string;
   deposit_usd?: number;
   comments?: string;
+  customs_docs_location?: string;
   status?: ShipmentStatus;
   created_by_email?: string;
   additionalContacts?: Array<{
@@ -101,7 +102,7 @@ const SELECT_COLS = `
   import_date::text   AS import_date,
   expiry_date::text   AS expiry_date,
   extended_date::text AS extended_date,
-  deposit_usd, comments, status, alert_level,
+  deposit_usd, comments, customs_docs_location, status, alert_level,
   country, created_by,
   created_at::text AS created_at
 `;
@@ -206,15 +207,15 @@ export async function createShipment(
         invoice_number, invoice_value_usd, customs_reference_number, description,
         mot, awb_number, po_number, movement_type,
         import_date, expiry_date, extended_date,
-        deposit_usd, comments, status, alert_level,
+        deposit_usd, comments, customs_docs_location, status, alert_level,
         country, created_by
       ) VALUES (
         $1,$2,$3,$4,
         $5,$6,$7,$8,
         $9,$10,$11,$12,
         $13,$14,$15,
-        $16,$17,$18,$19,
-        $20,$21
+        $16,$17,$18,$19,$20,
+        $21,$22
       ) RETURNING id`,
       [
         reference_number,
@@ -234,6 +235,7 @@ export async function createShipment(
         input.extended_date     ?? null,
         input.deposit_usd       ?? null,
         input.comments          ?? null,
+        input.customs_docs_location      ?? null,
         status,
         alert_level,
         input.country           ?? null,

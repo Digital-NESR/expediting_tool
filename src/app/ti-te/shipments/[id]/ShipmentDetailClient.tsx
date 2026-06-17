@@ -801,6 +801,12 @@ export default function ShipmentDetailClient({
                       <p className="text-[13.5px] text-slate-800">{s.comments}</p>
                     </div>
                   )}
+                  {s.customs_docs_location && (
+                    <div className={`px-5 pb-5 pt-0 ${s.comments ? '' : 'border-t border-slate-100'}`}>
+                      <p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400 mb-1 mt-4">Customs Docs Location</p>
+                      <p className="text-[13.5px] text-slate-800">{s.customs_docs_location}</p>
+                    </div>
+                  )}
                 </div>
 
                 {(() => {

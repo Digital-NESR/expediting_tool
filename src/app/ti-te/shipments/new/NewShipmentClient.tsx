@@ -103,6 +103,7 @@ export default function NewShipmentClient({
   const [expiryDate,   setExpiryDate]   = useState('');
   const [depositUsd,   setDepositUsd]   = useState('');
   const [comments,     setComments]     = useState('');
+  const [customsDocsLocation, setCustomsDocsLocation] = useState('');
 
   /* notification state */
   const [stakeholders,        setStakeholders]        = useState<CountryStakeholder[]>([]);
@@ -170,8 +171,9 @@ export default function NewShipmentClient({
   /* validation */
   function validate(): FormErrors {
     const e: FormErrors = {};
-    if (!operatingCountry) e.operating_country = 'Operating country is required.';
-    if (!expiryDate)       e.expiry_date        = 'Expiry date is required.';
+    if (!operatingCountry)        e.operating_country      = 'Operating country is required.';
+    if (!expiryDate)              e.expiry_date            = 'Expiry date is required.';
+    if (!customsDocsLocation.trim()) e.customs_docs_location = 'Customs documents archival location is required.';
     additionalContacts.forEach((c, i) => {
       if (c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) {
         e[`additional_email_${i}`] = 'Invalid email address.';
@@ -231,6 +233,7 @@ export default function NewShipmentClient({
         expiry_date:    expiryDate     || undefined,
         deposit_usd:    depositUsd     ? parseFloat(depositUsd)  : undefined,
         comments:       comments       || undefined,
+        customs_docs_location: customsDocsLocation.trim() || undefined,
         country:        operatingCountry || undefined,
         created_by_email: creatorEmail  || undefined,
         additionalContacts: additionalContacts.filter(c => c.name || c.email),
@@ -677,6 +680,22 @@ export default function NewShipmentClient({
                 value={comments}
                 onChange={e => setComments(e.target.value)}
               />
+            </div>
+
+            <div data-field-error={errors.customs_docs_location ? 'true' : undefined}>
+              <label className={LBL}>
+                Original Customs Documents Archival Location <span className="text-red-500">*</span>
+              </label>
+              <input
+                className={errors.customs_docs_location ? INP_ERR : INP}
+                placeholder="e.g. SharePoint > Supply Chain > TI-TE > KSA > 2025"
+                value={customsDocsLocation}
+                onChange={e => { setCustomsDocsLocation(e.target.value); clearError('customs_docs_location'); }}
+              />
+              {errors.customs_docs_location && (
+                <p className="text-xs text-red-600 mt-1">{errors.customs_docs_location}</p>
+              )}
+              <p className="text-[11px] text-slate-400 mt-1">Specify where the physical or digital originals are stored</p>
             </div>
           </Section>
 

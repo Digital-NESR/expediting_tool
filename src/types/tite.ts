@@ -28,6 +28,7 @@ export interface Shipment {
   deposit_usd: number | null;
   country: string | null;
   comments: string | null;
+  customs_docs_location: string | null;
   status: ShipmentStatus;
   alert_level: string;
   created_at?: string;
