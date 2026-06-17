@@ -631,9 +631,14 @@ function ProcureGuardCard({
           : 'opacity-50 cursor-default select-none'
       }`}
     >
-      <span className="absolute top-4 right-4 bg-gray-100 text-gray-400 text-[11px] font-medium px-2 py-1 rounded-full">
-        Coming Soon
-      </span>
+      <a
+        href="/help/procureguard"
+        title="View Help & Training"
+        onClick={e => e.stopPropagation()}
+        className="absolute top-3 right-3 z-10 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+      >
+        <HelpCircle className="w-4 h-4" />
+      </a>
 
       <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
         <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
@@ -650,20 +655,9 @@ function ProcureGuardCard({
       </div>
 
       <div className="flex items-center justify-between mt-auto">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-400">
-            Admin Preview
-          </span>
-          <a
-            href="/help/procureguard"
-            title="View Help & Training"
-            onClick={e => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-400 transition-colors hover:text-[#307c4c]"
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-            Help
-          </a>
-        </div>
+        <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-400">
+          Admin Preview
+        </span>
         {canOpen && (
           <span className="text-sm font-semibold text-gray-500 hover:underline">
             Open preview -&gt;
