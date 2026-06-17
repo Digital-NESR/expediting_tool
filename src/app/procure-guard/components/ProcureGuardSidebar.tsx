@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import type { ProcureGuardAccessView } from '@/types/procureGuard';
 import ProcureGuardLogo from './ProcureGuardLogo';
 
@@ -73,7 +74,15 @@ export default function ProcureGuardSidebar({
   accessView?: ProcureGuardAccessView;
 }) {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const visibleNav = NAV.filter(item => item.access.includes(accessView));
+
+  const rawName = session?.user?.name || 'Unknown User';
+  const nameParts = rawName.split(' ').filter(Boolean);
+  const initials = nameParts.length > 1
+    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
+    : rawName.substring(0, 2).toUpperCase();
+  const jobTitle = (session?.user as { jobTitle?: string })?.jobTitle || 'User';
 
   return (
     <>
@@ -142,12 +151,47 @@ export default function ProcureGuardSidebar({
           </div>
         </nav>
 
-        <div className="border-t border-slate-100 p-4">
-          <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] p-4 text-white shadow-md shadow-[#307c4c]/20">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Review Queue</p>
-            <p className="mt-1 text-3xl font-bold">{pendingCount ?? 0}</p>
-            <p className="mt-1 text-xs text-white/70">active approval items</p>
+        <div className="border-t border-slate-100 px-3 pb-2 pt-3">
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-4 py-2.5 text-white shadow-sm shadow-[#307c4c]/20">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/70">Review Queue</p>
+              <p className="text-[11px] text-white/70">active approval items</p>
+            </div>
+            <p className="text-2xl font-bold leading-none">{pendingCount ?? 0}</p>
           </div>
+        </div>
+
+        <div className="border-t border-slate-100 bg-slate-50/60 p-4">
+          <div className="mb-3 flex items-center gap-3">
+            {session?.user?.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={session.user.image}
+                alt={rawName}
+                width={36}
+                height={36}
+                className="h-9 w-9 shrink-0 rounded-full border border-slate-200 object-cover shadow-sm"
+              />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#307c4c] to-[#1d4f31] text-xs font-bold text-white shadow-sm">
+                {initials}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-800">{rawName}</p>
+              <p className="truncate text-xs text-slate-400">{jobTitle}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-600 active:scale-95"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Sign out
+          </button>
         </div>
       </aside>
     </>
