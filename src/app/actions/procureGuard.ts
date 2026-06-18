@@ -19,6 +19,7 @@ import type {
   CreateAdvancePaymentInput,
   ProcureGuardActor,
   ProcureGuardPermissionRole,
+  ProcureGuardPermissionProfile,
   ProcureGuardPermissionRow,
   ProcureGuardAdminData,
   ProcureGuardAnalyticsData,
@@ -34,6 +35,9 @@ import type {
   ProcureGuardRequestListData,
   ProcureGuardReviewDurationMetric,
   ProcureGuardWorkQueueData,
+  ProcureGuardReviewGrant,
+  ProcureGuardDelegation,
+  ProcureGuardDelegationData,
   ProcureGuardRequestType,
   ProcureGuardStatus,
   UpdateProcureGuardPermissionInput,
@@ -345,6 +349,65 @@ async function getPermissionRowForEmail(email: string): Promise<ProcureGuardPerm
   }
 }
 
+const ACCESS_VIEW_RANK: Record<string, number> = { requester: 0, analyst: 1, reviewer: 2, admin: 3 };
+
+// Delegation grants the delegate the delegator's APPROVAL authority only — not data/permission/delete
+// admin powers — and never elevates the UI past 'reviewer'. So an admin can hand off their approvals
+// without handing over the admin panel.
+function mergeApprovalAuthority(base: ProcureGuardPermissionProfile, granted: ProcureGuardPermissionProfile): ProcureGuardPermissionProfile {
+  const grantedView = granted.accessView === 'admin' ? 'reviewer' : granted.accessView;
+  const accessView = ACCESS_VIEW_RANK[grantedView] > ACCESS_VIEW_RANK[base.accessView] ? grantedView : base.accessView;
+  return {
+    ...base,
+    accessView,
+    canViewAll: base.canViewAll || granted.canViewAll,
+    canReject: base.canReject || granted.canReject,
+    canReviewAdhocScm: base.canReviewAdhocScm || granted.canReviewAdhocScm,
+    canReviewAdhocDirector: base.canReviewAdhocDirector || granted.canReviewAdhocDirector,
+    canReviewAdvanceCountryController: base.canReviewAdvanceCountryController || granted.canReviewAdvanceCountryController,
+    canReviewAdvanceSupplyChainDirector: base.canReviewAdvanceSupplyChainDirector || granted.canReviewAdvanceSupplyChainDirector,
+    canReviewAdvanceTreasuryDirector: base.canReviewAdvanceTreasuryDirector || granted.canReviewAdvanceTreasuryDirector,
+    canReviewAdvanceCorporateController: base.canReviewAdvanceCorporateController || granted.canReviewAdvanceCorporateController,
+    canReviewAdvanceCfo: base.canReviewAdvanceCfo || granted.canReviewAdvanceCfo,
+  };
+}
+
+let delegationTableEnsured: Promise<void> | null = null;
+async function ensureProcureGuardDelegationTable(): Promise<void> {
+  if (delegationTableEnsured) return delegationTableEnsured;
+  delegationTableEnsured = (async () => {
+    try {
+      await exec(`CREATE TABLE IF NOT EXISTS procure_guard_delegations (
+        id SERIAL PRIMARY KEY,
+        delegator_email TEXT NOT NULL,
+        delegator_name TEXT,
+        delegate_email TEXT NOT NULL,
+        delegate_name TEXT,
+        expires_at TIMESTAMPTZ,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        revoked_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`);
+      await exec(`CREATE INDEX IF NOT EXISTS idx_pg_delegations_delegate ON procure_guard_delegations (LOWER(delegate_email))`);
+      await exec(`CREATE INDEX IF NOT EXISTS idx_pg_delegations_delegator ON procure_guard_delegations (LOWER(delegator_email))`);
+    } catch (err) {
+      delegationTableEnsured = null; // allow a later retry
+      console.error('[ensureProcureGuardDelegationTable]', err);
+    }
+  })();
+  return delegationTableEnsured;
+}
+
+// The scopes an actor may review within: their own (only if they can review) plus any active delegation.
+function actorReviewGrants(actor: ProcureGuardActor): ProcureGuardReviewGrant[] {
+  if (actor.reviewGrants) return actor.reviewGrants;
+  // Backward-compatible fallback for actors built without delegation resolution.
+  return actor.permissions.canViewAll
+    ? [{ source: 'self', fromEmail: actor.email, fromName: actor.name, role: actor.role, country: actor.country ?? null, segment: actor.segment ?? null, isAdmin: actor.role === 'Admin' }]
+    : [];
+}
+
 async function getActor(): Promise<ProcureGuardActor> {
   const user = await getProcureGuardUser();
   const email = user?.email ?? '';
@@ -356,18 +419,57 @@ async function getActor(): Promise<ProcureGuardActor> {
   const permissionRow = await getPermissionRowForEmail(email);
   const fallbackRole: ProcureGuardPermissionRole = adminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
   const role = (permissionRow?.role ?? fallbackRole) as ProcureGuardPermissionRole;
-  const permissions = getPermissionProfile(role);
+  const basePermissions = getPermissionProfile(role);
+  const baseName = permissionRow?.name ?? user?.name ?? email;
+  const baseCountry = normalizeProcureGuardCountry(permissionRow?.country);
+  const baseSegment = permissionRow?.segment ?? null;
+
+  const reviewGrants: ProcureGuardReviewGrant[] = [];
+  if (basePermissions.canViewAll) {
+    reviewGrants.push({ source: 'self', fromEmail: email, fromName: baseName, role: basePermissions.role, country: baseCountry, segment: baseSegment, isAdmin: basePermissions.role === 'Admin' });
+  }
+
+  let permissions = basePermissions;
+  try {
+    await ensureProcureGuardDelegationTable();
+    const delegations = await sql<QueryResultRow[]>(
+      `SELECT delegator_email, delegator_name FROM procure_guard_delegations
+       WHERE LOWER(delegate_email) = LOWER(?) AND is_active = TRUE
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
+      [email],
+    );
+    for (const row of delegations) {
+      const delegatorEmail = String(row.delegator_email);
+      const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
+      const delegatorRole = (delegatorRow?.role ?? (adminEmails().includes(delegatorEmail.toLowerCase()) ? 'Admin' : 'Requester')) as ProcureGuardPermissionRole;
+      const delegatorProfile = getPermissionProfile(delegatorRole);
+      if (!delegatorProfile.canViewAll) continue; // delegator had no approval authority to hand off
+      permissions = mergeApprovalAuthority(permissions, delegatorProfile);
+      reviewGrants.push({
+        source: 'delegation',
+        fromEmail: delegatorEmail,
+        fromName: (row.delegator_name as string) || delegatorRow?.name || delegatorEmail,
+        role: delegatorRole,
+        country: normalizeProcureGuardCountry(delegatorRow?.country),
+        segment: delegatorRow?.segment ?? null,
+        isAdmin: delegatorRole === 'Admin',
+      });
+    }
+  } catch (err) {
+    console.error('[getActor delegations]', err);
+  }
 
   return {
     email,
-    name: permissionRow?.name ?? user?.name ?? email,
+    name: baseName,
     department: user?.department ?? null,
     jobTitle: user?.jobTitle ?? null,
-    isAdmin: permissions.role === 'Admin',
-    role: permissions.role,
+    isAdmin: basePermissions.role === 'Admin',
+    role: basePermissions.role,
     permissions,
-    country: normalizeProcureGuardCountry(permissionRow?.country),
-    segment: permissionRow?.segment ?? null,
+    country: baseCountry,
+    segment: baseSegment,
+    reviewGrants,
   };
 }
 
@@ -393,26 +495,28 @@ export async function canAccessProcureGuardApp(): Promise<boolean> {
 }
 
 function scopedWhere(actor: ProcureGuardActor): { where: string; params: string[] } {
-  if (!actor.permissions.canViewAll) {
-    const email = actor.email.toLowerCase();
-    return {
-      where: 'WHERE (LOWER(requested_by_email) = ? OR ? = ANY(COALESCE(requester_notification_emails, ARRAY[]::TEXT[])))',
-      params: [email, email],
-    };
-  }
-  if (actor.role === 'Admin') return { where: '', params: [] };
+  const email = actor.email.toLowerCase();
+  const ownClause = '(LOWER(requested_by_email) = ? OR ? = ANY(COALESCE(requester_notification_emails, ARRAY[]::TEXT[])))';
+  const grants = actorReviewGrants(actor);
 
-  const filters: string[] = [];
-  const params: string[] = [];
-  if (actor.country) {
-    filters.push('country = ?');
-    params.push(actor.country);
+  // Everyone can always see their own requests.
+  if (grants.length === 0) {
+    return { where: `WHERE ${ownClause}`, params: [email, email] };
   }
-  if (actor.segment) {
-    filters.push('segment = ?');
-    params.push(actor.segment);
+
+  const clauses = [ownClause];
+  const params: string[] = [email, email];
+  for (const grant of grants) {
+    if (grant.isAdmin || (!grant.country && !grant.segment)) {
+      // A full-scope grant (admin or unscoped reviewer) can see everything.
+      return { where: '', params: [] };
+    }
+    const parts: string[] = [];
+    if (grant.country) { parts.push('country = ?'); params.push(grant.country); }
+    if (grant.segment) { parts.push('segment = ?'); params.push(grant.segment); }
+    clauses.push(`(${parts.join(' AND ')})`);
   }
-  return { where: filters.length ? `WHERE ${filters.join(' AND ')}` : '', params };
+  return { where: `WHERE (${clauses.join(' OR ')})`, params };
 }
 
 function normaliseScopeValue(value: string | null | undefined): string {
@@ -430,11 +534,13 @@ function actorCanAccessRequestScope(
   actor: ProcureGuardActor,
   request: { country?: string | null; segment?: string | null },
 ): boolean {
-  if (actor.role === 'Admin') return true;
-
-  const countryOk = !actor.country || normalizeProcureGuardCountry(actor.country) === normalizeProcureGuardCountry(request.country);
-  const segmentOk = !actor.segment || normaliseScopeValue(actor.segment) === normaliseScopeValue(request.segment);
-  return countryOk && segmentOk;
+  // True if any review grant (own or delegated) covers this request's scope.
+  return actorReviewGrants(actor).some(grant => {
+    if (grant.isAdmin) return true;
+    const countryOk = !grant.country || normalizeProcureGuardCountry(grant.country) === normalizeProcureGuardCountry(request.country);
+    const segmentOk = !grant.segment || normaliseScopeValue(grant.segment) === normaliseScopeValue(request.segment);
+    return countryOk && segmentOk;
+  });
 }
 
 function getScopeRestrictionMessage(
@@ -1521,6 +1627,220 @@ export async function getProcureGuardWorkQueueData(): Promise<ProcureGuardWorkQu
     return null;
   }
 }
+
+// ── Approver delegation ──────────────────────────────────────────────────────
+
+function fmtDelegationDate(value: string | null): string {
+  if (!value) return '';
+  try {
+    return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return value;
+  }
+}
+
+type DelegationOpenItem = { reference: string; requestType: ProcureGuardRequestType; status: string };
+
+// The delegator's currently-open approval items, so the grant email can tell the delegate what's waiting.
+async function getDelegatorOpenItems(grant: ProcureGuardReviewGrant): Promise<DelegationOpenItem[]> {
+  try {
+    const synthetic: ProcureGuardActor = {
+      email: grant.fromEmail,
+      name: grant.fromName,
+      isAdmin: grant.isAdmin,
+      role: grant.role,
+      permissions: getPermissionProfile(grant.role),
+      country: grant.country,
+      segment: grant.segment,
+      reviewGrants: [{ ...grant, source: 'self' }],
+    };
+    const scope = scopedWhere(synthetic);
+    const [adhocRows, advanceRows] = await Promise.all([
+      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
+      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
+    ]);
+    const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
+    const advance = normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(advanceRows));
+    return [
+      ...adhoc.map(request => ({ requestType: 'adhoc' as const, request, actions: getScopedProcureGuardAvailableActions(synthetic, 'adhoc', request) })),
+      ...advance.map(request => ({ requestType: 'advance' as const, request, actions: getScopedProcureGuardAvailableActions(synthetic, 'advance', request) })),
+    ]
+      .filter(item => item.actions.canApprove || item.actions.canReject)
+      .slice(0, 8)
+      .map(item => ({ reference: item.request.reference_number, requestType: item.requestType, status: item.request.status }));
+  } catch (err) {
+    console.error('[getDelegatorOpenItems]', err);
+    return [];
+  }
+}
+
+async function sendProcureGuardDelegationEmail(
+  kind: 'granted' | 'revoked',
+  params: { delegateEmail: string; delegateName: string | null; delegatorName: string; expiresAt: string | null; openItems: DelegationOpenItem[] },
+): Promise<void> {
+  const webhookUrl = process.env.N8N_PROCUREGUARD_WEBHOOK_URL?.trim();
+  if (!webhookUrl) {
+    console.warn('[ProcureGuard n8n] N8N_PROCUREGUARD_WEBHOOK_URL not configured; skipping delegation email.');
+    return;
+  }
+  const to = params.delegateEmail.trim().toLowerCase();
+  const name = params.delegateName || to;
+  const granted = kind === 'granted';
+  const accent = granted ? '#006B0C' : '#b42318';
+  const subject = granted
+    ? `ProcureGuard: ${params.delegatorName} delegated their approvals to you`
+    : `ProcureGuard: your delegated access from ${params.delegatorName} was revoked`;
+  const heading = granted ? 'Approval authority delegated to you' : 'Delegated approval access revoked';
+  const lead = granted
+    ? `${escapeHtml(params.delegatorName)} has delegated their ProcureGuard approval authority to you. You can now review and act on requests within their scope.`
+    : `${escapeHtml(params.delegatorName)} has revoked the ProcureGuard approval authority that was delegated to you. You no longer have access to their approvals.`;
+  const expiryLine = granted
+    ? (params.expiresAt ? `This access is active until ${escapeHtml(fmtDelegationDate(params.expiresAt))}.` : 'This access stays active until it is revoked.')
+    : '';
+  const openBlock = granted
+    ? (params.openItems.length
+        ? `<div style="background:#f9fafb;border-left:4px solid ${accent};padding:12px 14px;margin-bottom:22px;"><div style="font-weight:600;margin-bottom:6px;">Currently open for your action</div><ul style="margin:0;padding-left:18px;color:#374151;">${params.openItems.map(i => `<li>${escapeHtml(i.reference)} — ${escapeHtml(i.requestType === 'adhoc' ? 'Adhoc PO' : 'Advance payment')} (${escapeHtml(i.status)})</li>`).join('')}</ul></div>`
+        : `<p style="margin:0 0 22px 0;color:#4b5563;">There are no items awaiting action right now.</p>`)
+    : '';
+  const bodyHtml = `
+    <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:24px;color:#1f2937;">
+      <div style="border-bottom:3px solid ${accent};padding-bottom:14px;margin-bottom:22px;">
+        <div style="font-size:19px;font-weight:700;color:${accent};">NESR ProcureGuard</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px;">Approval delegation</div>
+      </div>
+      <h2 style="margin:0 0 8px 0;color:#111827;">${escapeHtml(heading)}</h2>
+      <p style="margin:0 0 ${expiryLine ? '8' : '22'}px 0;color:#4b5563;">${lead}</p>
+      ${expiryLine ? `<p style="margin:0 0 22px 0;color:#4b5563;">${expiryLine}</p>` : ''}
+      ${openBlock}
+      ${granted ? `<div style="text-align:center;margin:24px 0;"><a href="${escapeHtml(getAppBaseUrl())}/procure-guard/my-work" style="display:inline-block;background:${accent};color:#ffffff;padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:700;">Open ProcureGuard</a></div>` : ''}
+      <div style="border-top:1px solid #e5e7eb;padding-top:14px;font-size:12px;color:#6b7280;">This message was generated by the ProcureGuard workflow.</div>
+    </div>
+  `;
+  const payload = {
+    event: granted ? 'delegation.granted' : 'delegation.revoked',
+    source: 'procureguard-local',
+    occurred_at: new Date().toISOString(),
+    email: {
+      subject,
+      body_html: bodyHtml,
+      to: [to],
+      to_recipients: [{ emailAddress: { address: to, name } }],
+    },
+    recipients: [{ name, email: to, role: 'Delegate', approval_status: null, country: null, source_column: 'delegation' }],
+    delegation: { delegator_name: params.delegatorName, delegate_email: to, expires_at: params.expiresAt },
+  };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const secret = process.env.N8N_PROCUREGUARD_WEBHOOK_SECRET?.trim();
+  if (secret) headers['x-procureguard-secret'] = secret;
+  try {
+    const response = await postProcureGuardWebhook(webhookUrl, headers, payload);
+    if (!response.ok) console.error('[ProcureGuard n8n] Delegation email failed', response.status, response.statusText);
+  } catch (err) {
+    console.error('[ProcureGuard n8n] Delegation email failed', procureGuardWebhookErrorMessage(err), err);
+  }
+}
+
+export async function getProcureGuardDelegationData(): Promise<ProcureGuardDelegationData | null> {
+  try {
+    const actor = await getActor();
+    await ensureProcureGuardDelegationTable();
+    const grantedRows = await sql<QueryResultRow[]>(
+      `SELECT * FROM procure_guard_delegations WHERE LOWER(delegator_email) = LOWER(?) ORDER BY is_active DESC, created_at DESC`,
+      [actor.email],
+    );
+    const receivedRows = await sql<QueryResultRow[]>(
+      `SELECT * FROM procure_guard_delegations WHERE LOWER(delegate_email) = LOWER(?) AND is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP) ORDER BY created_at DESC`,
+      [actor.email],
+    );
+    return {
+      actor,
+      granted: serialise<ProcureGuardDelegation[]>(grantedRows),
+      received: serialise<ProcureGuardDelegation[]>(receivedRows),
+    };
+  } catch (err) {
+    console.error('[getProcureGuardDelegationData]', err);
+    return null;
+  }
+}
+
+export async function grantProcureGuardDelegation(input: { delegateEmail: string; delegateName?: string; expiresAt?: string | null }): Promise<ActionResult<{ id: number }>> {
+  try {
+    const actor = await getActor();
+    await ensureProcureGuardDelegationTable();
+    const selfGrant = actorReviewGrants(actor).find(grant => grant.source === 'self');
+    if (!selfGrant) {
+      return { success: false, error: 'Only approvers can delegate their approval authority.' };
+    }
+    const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(delegateEmail)) {
+      return { success: false, error: 'Enter a valid delegate email address.' };
+    }
+    if (delegateEmail === actor.email.toLowerCase()) {
+      return { success: false, error: 'You cannot delegate to yourself.' };
+    }
+    const expiresAt = input.expiresAt && input.expiresAt.trim() ? input.expiresAt.trim() : null;
+
+    // Replace any existing active delegation to the same person so there is only one live grant.
+    await exec(
+      `UPDATE procure_guard_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE LOWER(delegator_email) = LOWER(?) AND LOWER(delegate_email) = LOWER(?) AND is_active = TRUE`,
+      [actor.email, delegateEmail],
+    );
+    const result = await exec(
+      `INSERT INTO procure_guard_delegations (delegator_email, delegator_name, delegate_email, delegate_name, expires_at)
+       VALUES (?, ?, ?, ?, ?) RETURNING id`,
+      [actor.email.toLowerCase(), actor.name, delegateEmail, blankToNull(input.delegateName), expiresAt],
+    );
+
+    const openItems = await getDelegatorOpenItems(selfGrant);
+    await sendProcureGuardDelegationEmail('granted', {
+      delegateEmail,
+      delegateName: input.delegateName?.trim() || null,
+      delegatorName: actor.name,
+      expiresAt,
+      openItems,
+    });
+
+    revalidatePath('/procure-guard/delegate');
+    return { success: true, data: { id: result.insertId } };
+  } catch (err) {
+    console.error('[grantProcureGuardDelegation]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
+  }
+}
+
+export async function revokeProcureGuardDelegation(id: number): Promise<ActionResult> {
+  try {
+    const actor = await getActor();
+    await ensureProcureGuardDelegationTable();
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM procure_guard_delegations WHERE id = ? LIMIT 1`, [id]);
+    const row = rows[0];
+    if (!row) return { success: false, error: 'Delegation not found.' };
+    const isOwner = String(row.delegator_email).toLowerCase() === actor.email.toLowerCase();
+    if (!isOwner && !actor.permissions.canManagePermissions) {
+      return { success: false, error: 'You can only revoke delegations you created.' };
+    }
+    if (row.is_active) {
+      await exec(
+        `UPDATE procure_guard_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [id],
+      );
+      await sendProcureGuardDelegationEmail('revoked', {
+        delegateEmail: String(row.delegate_email),
+        delegateName: (row.delegate_name as string) ?? null,
+        delegatorName: (row.delegator_name as string) || actor.name,
+        expiresAt: null,
+        openItems: [],
+      });
+    }
+    revalidatePath('/procure-guard/delegate');
+    return { success: true };
+  } catch (err) {
+    console.error('[revokeProcureGuardDelegation]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to revoke delegation.' };
+  }
+}
+
 export async function getProcureGuardNotificationPreview(input: {
   requestType: ProcureGuardRequestType;
   country?: string;
@@ -2160,13 +2480,14 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments WHERE id = ? LIMIT 1`, [id]);
     const existing = rows[0];
     if (!existing) return { success: false, error: 'Request not found.' };
-    if (existing.status !== 'Submitted') {
-      return { success: false, error: 'This request can only be edited before review starts.' };
+    if (existing.status !== 'Submitted' && existing.status !== 'Rejected') {
+      return { success: false, error: 'This request can only be edited before review starts or after it is rejected.' };
     }
+    const wasRejected = existing.status === 'Rejected';
 
     const ownsRequest = String(existing.requested_by_email).toLowerCase() === actor.email.toLowerCase();
     if (!ownsRequest && !actor.permissions.canManageData) {
-      return { success: false, error: 'Only the requester can edit this request before review starts.' };
+      return { success: false, error: 'Only the requester can edit this request.' };
     }
 
     const amount = validateMoney(input.amount);
@@ -2232,13 +2553,36 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
       ],
     );
 
+    if (wasRejected) {
+      // Resubmit: send it back to the start of the approval chain and clear the rejection trail.
+      await exec(
+        `UPDATE procure_guard_adhoc_payments
+           SET status = 'Submitted', rejection_reason = NULL, reviewed_by_name = NULL,
+               reviewed_by_email = NULL, reviewed_at = NULL, review_comments = NULL,
+               updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [id],
+      );
+    }
+
     await writeActivity({
       requestType: 'adhoc',
       requestId: id,
       referenceNumber: existing.reference_number,
-      action: 'Adhoc PO edited before review',
+      action: wasRejected ? 'Adhoc PO resubmitted after rejection' : 'Adhoc PO edited before review',
       actor,
     });
+
+    if (wasRejected) {
+      await notifyProcureGuardNextApprover({
+        event: 'request.submitted',
+        requestType: 'adhoc',
+        table: 'procure_guard_adhoc_payments',
+        requestId: id,
+        actor,
+        comment: input.requester_comments ?? input.notes ?? null,
+      });
+    }
 
     revalidatePath('/procure-guard');
     revalidatePath('/procure-guard/adhoc-payments');
@@ -2258,13 +2602,14 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments WHERE id = ? LIMIT 1`, [id]);
     const existing = rows[0];
     if (!existing) return { success: false, error: 'Request not found.' };
-    if (existing.status !== 'Submitted') {
-      return { success: false, error: 'This request can only be edited before review starts.' };
+    if (existing.status !== 'Submitted' && existing.status !== 'Rejected') {
+      return { success: false, error: 'This request can only be edited before review starts or after it is rejected.' };
     }
+    const wasRejected = existing.status === 'Rejected';
 
     const ownsRequest = String(existing.requested_by_email).toLowerCase() === actor.email.toLowerCase();
     if (!ownsRequest && !actor.permissions.canManageData) {
-      return { success: false, error: 'Only the requester can edit this request before review starts.' };
+      return { success: false, error: 'Only the requester can edit this request.' };
     }
 
     const amount = validateMoney(input.amount);
@@ -2331,13 +2676,36 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
       ],
     );
 
+    if (wasRejected) {
+      // Resubmit: send it back to the start of the approval chain and clear the rejection trail.
+      await exec(
+        `UPDATE procure_guard_advance_payments
+           SET status = 'Submitted', rejection_reason = NULL, reviewed_by_name = NULL,
+               reviewed_by_email = NULL, reviewed_at = NULL, review_comments = NULL,
+               updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [id],
+      );
+    }
+
     await writeActivity({
       requestType: 'advance',
       requestId: id,
       referenceNumber: existing.reference_number,
-      action: 'Advance payment edited before review',
+      action: wasRejected ? 'Advance payment resubmitted after rejection' : 'Advance payment edited before review',
       actor,
     });
+
+    if (wasRejected) {
+      await notifyProcureGuardNextApprover({
+        event: 'request.submitted',
+        requestType: 'advance',
+        table: 'procure_guard_advance_payments',
+        requestId: id,
+        actor,
+        comment: input.requester_comments ?? input.notes ?? null,
+      });
+    }
 
     revalidatePath('/procure-guard');
     revalidatePath('/procure-guard/advance-payments');

@@ -64,6 +64,16 @@ export interface UpdateProcureGuardPermissionInput {
   segment?: string;
 }
 
+export interface ProcureGuardReviewGrant {
+  source: 'self' | 'delegation';
+  fromEmail: string;
+  fromName: string;
+  role: ProcureGuardPermissionRole;
+  country: string | null;
+  segment: string | null;
+  isAdmin: boolean;
+}
+
 export interface ProcureGuardActor {
   email: string;
   name: string;
@@ -74,6 +84,29 @@ export interface ProcureGuardActor {
   permissions: ProcureGuardPermissionProfile;
   country?: string | null;
   segment?: string | null;
+  // Scopes the actor can review within: their own (if a reviewer) plus any active delegations.
+  reviewGrants?: ProcureGuardReviewGrant[];
+}
+
+export interface ProcureGuardDelegation {
+  id: number;
+  delegator_email: string;
+  delegator_name: string | null;
+  delegate_email: string;
+  delegate_name: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+  revoked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProcureGuardDelegationData {
+  actor: ProcureGuardActor;
+  // Delegations this user has granted to others.
+  granted: ProcureGuardDelegation[];
+  // Delegations granted TO this user (whose authority they currently hold).
+  received: ProcureGuardDelegation[];
 }
 
 export interface ProcureGuardActivityRow {

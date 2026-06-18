@@ -210,7 +210,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
   const requester = request.requested_by_name || request.requested_by_email;
   const pendingCount = isActiveApprovalStatus(request.status) ? 1 : 0;
   const ownsRequest = request.requested_by_email.toLowerCase() === actor.email.toLowerCase();
-  const canEditRequest = request.status === 'Submitted' && (ownsRequest || actor.permissions.canManageData);
+  const canEditRequest = (request.status === 'Submitted' || request.status === 'Rejected') && (ownsRequest || actor.permissions.canManageData);
   const canCancel = ownsRequest && request.status === 'Submitted' && actor.permissions.canCreateRequests;
   const hasDecisionActions = actions.canApprove || actions.canReject || canCancel;
   const editHref = `/procure-guard/${isAdvance ? 'advance-payments' : 'adhoc-payments'}/${request.id}/edit`;
