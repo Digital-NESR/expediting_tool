@@ -648,9 +648,9 @@ function ProcureGuardCard({
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-gray-500">ProcureGuard</h3>
-        <p className="text-[13px] text-slate-400 font-medium mt-0.5">Payment exception control</p>
+        <p className="text-[13px] text-slate-400 font-medium mt-0.5">Payment Request Approvals</p>
         <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-          Review adhoc and advance payment exceptions, approval chains, analytics, and notification routing.
+          Submit adhoc PO and advance payment requests and route them through multi-stage approvals, keeping approvers and requesters notified at each step.
         </p>
       </div>
 
