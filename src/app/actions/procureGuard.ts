@@ -4,6 +4,7 @@ import { request as httpRequest } from 'http';
 import { request as httpsRequest } from 'https';
 import { randomBytes } from 'crypto';
 import type { QueryResultRow } from 'pg';
+import { cache } from 'react';
 import { revalidatePath } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
 import procureGuardPool from '@/lib/db-procureguard';
@@ -206,7 +207,13 @@ async function ensureProcureGuardPermissionRoleValues(): Promise<void> {
   }
 }
 
+// Memoized so the ~11 idempotent schema statements run once per process (e.g. on a warm serverless
+// instance) instead of on every page load — that per-request DDL was the main ProcureGuard load lag.
+// A fresh deploy starts a new process, so genuinely new columns still get applied.
+let paymentRequestColumnsEnsured: Promise<void> | null = null;
 async function ensureProcureGuardPaymentRequestColumns(): Promise<void> {
+  if (paymentRequestColumnsEnsured) return paymentRequestColumnsEnsured;
+  paymentRequestColumnsEnsured = (async () => {
   async function execSchema(statement: string) {
     try {
       await exec(statement);
@@ -227,6 +234,11 @@ async function ensureProcureGuardPaymentRequestColumns(): Promise<void> {
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_adhoc_requester_notification_emails ON procure_guard_adhoc_payments USING GIN (requester_notification_emails)`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_advance_requester_notification_emails ON procure_guard_advance_payments USING GIN (requester_notification_emails)`);
   await ensureProcureGuardReferenceUniqueness();
+  })().catch(err => {
+    paymentRequestColumnsEnsured = null; // allow a retry on the next request if it genuinely failed
+    throw err;
+  });
+  return paymentRequestColumnsEnsured;
 }
 
 // Creates the UNIQUE indexes on reference_number and reports, once per process, whether
@@ -408,7 +420,9 @@ function actorReviewGrants(actor: ProcureGuardActor): ProcureGuardReviewGrant[] 
     : [];
 }
 
-async function getActor(): Promise<ProcureGuardActor> {
+// Memoized per request (React cache) so the several actions that each resolve the actor during one
+// page render share a single resolution instead of re-querying the DB every time.
+const getActor = cache(async (): Promise<ProcureGuardActor> => {
   const user = await getProcureGuardUser();
   const email = user?.email ?? '';
 
@@ -416,7 +430,21 @@ async function getActor(): Promise<ProcureGuardActor> {
     throw new Error('You must be signed in to use ProcureGuard.');
   }
 
-  const permissionRow = await getPermissionRowForEmail(email);
+  // The permission row and the user's delegations are independent — fetch them in parallel.
+  await ensureProcureGuardDelegationTable();
+  const [permissionRow, delegationRows] = await Promise.all([
+    getPermissionRowForEmail(email),
+    sql<QueryResultRow[]>(
+      `SELECT delegator_email, delegator_name FROM procure_guard_delegations
+       WHERE LOWER(delegate_email) = LOWER(?) AND is_active = TRUE
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
+      [email],
+    ).catch(err => {
+      console.error('[getActor delegations]', err);
+      return [] as QueryResultRow[];
+    }),
+  ]);
+
   const fallbackRole: ProcureGuardPermissionRole = adminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
   const role = (permissionRow?.role ?? fallbackRole) as ProcureGuardPermissionRole;
   const basePermissions = getPermissionProfile(role);
@@ -430,33 +458,22 @@ async function getActor(): Promise<ProcureGuardActor> {
   }
 
   let permissions = basePermissions;
-  try {
-    await ensureProcureGuardDelegationTable();
-    const delegations = await sql<QueryResultRow[]>(
-      `SELECT delegator_email, delegator_name FROM procure_guard_delegations
-       WHERE LOWER(delegate_email) = LOWER(?) AND is_active = TRUE
-         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
-      [email],
-    );
-    for (const row of delegations) {
-      const delegatorEmail = String(row.delegator_email);
-      const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
-      const delegatorRole = (delegatorRow?.role ?? (adminEmails().includes(delegatorEmail.toLowerCase()) ? 'Admin' : 'Requester')) as ProcureGuardPermissionRole;
-      const delegatorProfile = getPermissionProfile(delegatorRole);
-      if (!delegatorProfile.canViewAll) continue; // delegator had no approval authority to hand off
-      permissions = mergeApprovalAuthority(permissions, delegatorProfile);
-      reviewGrants.push({
-        source: 'delegation',
-        fromEmail: delegatorEmail,
-        fromName: (row.delegator_name as string) || delegatorRow?.name || delegatorEmail,
-        role: delegatorRole,
-        country: normalizeProcureGuardCountry(delegatorRow?.country),
-        segment: delegatorRow?.segment ?? null,
-        isAdmin: delegatorRole === 'Admin',
-      });
-    }
-  } catch (err) {
-    console.error('[getActor delegations]', err);
+  for (const row of delegationRows) {
+    const delegatorEmail = String(row.delegator_email);
+    const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
+    const delegatorRole = (delegatorRow?.role ?? (adminEmails().includes(delegatorEmail.toLowerCase()) ? 'Admin' : 'Requester')) as ProcureGuardPermissionRole;
+    const delegatorProfile = getPermissionProfile(delegatorRole);
+    if (!delegatorProfile.canViewAll) continue; // delegator had no approval authority to hand off
+    permissions = mergeApprovalAuthority(permissions, delegatorProfile);
+    reviewGrants.push({
+      source: 'delegation',
+      fromEmail: delegatorEmail,
+      fromName: (row.delegator_name as string) || delegatorRow?.name || delegatorEmail,
+      role: delegatorRole,
+      country: normalizeProcureGuardCountry(delegatorRow?.country),
+      segment: delegatorRow?.segment ?? null,
+      isAdmin: delegatorRole === 'Admin',
+    });
   }
 
   return {
@@ -471,7 +488,7 @@ async function getActor(): Promise<ProcureGuardActor> {
     segment: baseSegment,
     reviewGrants,
   };
-}
+});
 
 export async function getProcureGuardActor(): Promise<ProcureGuardActor | null> {
   try {
