@@ -3,16 +3,15 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { signOut } from 'next-auth/react';
-import { Search, Lock } from 'lucide-react';
+import { Search, Menu } from 'lucide-react';
 import { SG_BRAND } from './constants';
 import { useSourceGuideAccess } from './SourceGuideAccessContext';
 import { initials } from './constants';
+import SourceGuideSidebar from './SourceGuideSidebar';
 
 export default function SourceGuideShell({
   children,
   userName,
-  userEmail,
 }: {
   children: React.ReactNode;
   userName: string;
@@ -21,64 +20,38 @@ export default function SourceGuideShell({
   const pathname = usePathname();
   const router = useRouter();
   const { isAdmin, viewOnly, approvedCountries } = useSourceGuideAccess();
+  const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
 
-  const canManage = isAdmin || (!viewOnly && approvedCountries.length > 0);
-
-  const tabs: { href: string; label: string; match: (p: string) => boolean }[] = [
-    { href: '/sourceguide', label: 'Home', match: p => p === '/sourceguide' },
-    { href: '/sourceguide/browse', label: 'Browse', match: p => p.startsWith('/sourceguide/browse') },
-  ];
-  if (canManage) {
-    tabs.push({
-      href: '/sourceguide/mappings',
-      label: isAdmin ? 'Mappings' : 'My Mappings',
-      match: p => p.startsWith('/sourceguide/mappings'),
-    });
-  }
-  if (isAdmin) {
-    tabs.push({ href: '/admin?tool=sourceguide-guides', label: 'Source Guides', match: () => false });
-  }
+  const role = isAdmin ? 'Administrator' : viewOnly ? 'Viewer' : approvedCountries.length ? 'Champion' : 'Viewer';
+  const showHeaderSearch = pathname !== '/sourceguide';
 
   function runSearch(e: React.FormEvent) {
     e.preventDefault();
     router.push(`/sourceguide/search?q=${encodeURIComponent(q.trim())}`);
   }
 
-  const showHeaderSearch = pathname !== '/sourceguide';
-
   return (
     <div className="min-h-[100dvh] flex flex-col bg-[#f5f6f5] font-sans text-slate-900">
-      {/* Top bar */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-5 px-6 lg:px-8">
+      <SourceGuideSidebar isOpen={open} onClose={() => setOpen(false)} />
+
+      {/* Slim top bar with hamburger */}
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
+          <button
+            onClick={() => setOpen(true)}
+            aria-label="Open menu"
+            className="grid h-9 w-9 place-items-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+
           <Link href="/sourceguide" className="flex items-center gap-2.5">
             <span className="grid h-8 w-8 place-items-center rounded-[9px]" style={{ background: SG_BRAND }}>
-              <span className="text-white font-extrabold text-[10px] tracking-tight">SG</span>
+              <span className="text-[10px] font-extrabold tracking-tight text-white">SG</span>
             </span>
-            <span className="flex flex-col leading-none">
-              <b className="text-[15px] font-bold tracking-tight">NESR</b>
-              <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-500">SourceGuide</span>
-            </span>
+            <span className="text-[15px] font-semibold tracking-tight text-slate-900">SourceGuide</span>
           </Link>
-
-          <nav className="ml-2 flex items-center gap-1">
-            {tabs.map(t => {
-              const active = t.match(pathname);
-              return (
-                <Link
-                  key={t.href}
-                  href={t.href}
-                  className="rounded-full px-3.5 py-2 text-[13.5px] font-medium transition-colors"
-                  style={active
-                    ? { background: '#eaf4ef', color: '#1f5d3a' }
-                    : { color: '#58595B' }}
-                >
-                  {t.label}
-                </Link>
-              );
-            })}
-          </nav>
 
           <div className="flex-1" />
 
@@ -97,13 +70,11 @@ export default function SourceGuideShell({
           <div className="flex items-center gap-2.5">
             <div className="hidden text-right leading-tight sm:block">
               <div className="text-[12.5px] font-semibold">{userName}</div>
-              <div className="text-[11px] text-slate-500">
-                {isAdmin ? 'Administrator' : viewOnly ? 'Viewer' : approvedCountries.length ? 'Champion' : 'Viewer'}
-              </div>
+              <div className="text-[11px] text-slate-500">{role}</div>
             </div>
             <button
-              onClick={() => signOut({ callbackUrl: '/login' })}
-              title="Sign out"
+              onClick={() => setOpen(true)}
+              title="Menu"
               className="grid h-9 w-9 place-items-center rounded-full text-[13px] font-semibold text-white"
               style={{ background: SG_BRAND }}
             >
@@ -114,19 +85,6 @@ export default function SourceGuideShell({
       </header>
 
       <main className="flex-1">{children}</main>
-
-      {/* Footer */}
-      <footer className="mt-auto border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-3 px-6 py-5 lg:px-8">
-          <span className="flex items-center gap-2 text-[12.5px] text-slate-500">
-            <span className="h-6 w-6 rounded-md" style={{ background: SG_BRAND }} />
-            NESR SourceGuide · Sourcing Intelligence Portal
-          </span>
-          <span className="flex items-center gap-1.5 text-[11.5px] text-slate-400">
-            <Lock className="h-3 w-3" /> Internal Use Only · TLS 1.2+ · AES-256
-          </span>
-        </div>
-      </footer>
     </div>
   );
 }

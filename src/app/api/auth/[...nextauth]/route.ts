@@ -3,7 +3,6 @@ import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
 import pool from "@/lib/db";
 import titePool from "@/lib/db-tite";
-import sourceGuidePool from "@/lib/db-sourceguide";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -108,8 +107,17 @@ export const authOptions: NextAuthOptions = {
 
           token.isAdmin = adminEmails.includes(email);
 
+          const sourceGuideAdminEmails = (`${process.env.ADMIN_EMAILS ?? ''},${process.env.SOURCEGUIDE_ADMIN_EMAILS ?? ''}`)
+            .split(',')
+            .map(e => e.trim().toLowerCase())
+            .filter(Boolean);
+          const sourceGuideTesterEmails = (`${process.env.SOURCEGUIDE_TESTER_EMAILS ?? ''},${process.env.SOURCEGUIDE_TEST_EMAILS ?? ''}`)
+            .split(',')
+            .map(e => e.trim().toLowerCase())
+            .filter(Boolean);
+
           // Query each tool's access table in parallel
-          const [poResult, titeResult, sourceGuideResult] = await Promise.all([
+          const [poResult, titeResult] = await Promise.all([
             pool.query(
               `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
               [token.email]
@@ -118,10 +126,6 @@ export const authOptions: NextAuthOptions = {
               `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
               [token.email]
             ),
-            sourceGuidePool.query(
-              `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
-              [token.email]
-            ).catch(() => ({ rows: [] as { status: string; approved_countries: string[] }[] })),
           ]);
 
           // PO Expediting access
@@ -168,29 +172,17 @@ export const authOptions: NextAuthOptions = {
             ? 'approved'
             : 'new';
 
-          // SourceGuide access
-          let sgStatus: string;
-          let sgCountries: string[];
-          if (sourceGuideResult.rows.length > 0) {
-            const sr = sourceGuideResult.rows[0];
-            const ss = sr.status.toLowerCase();
-            sgStatus =
-              ss === 'pending'  ? 'pending'  :
-              ss === 'approved' ? 'approved' :
-              ss === 'revoked'  ? 'revoked'  :
-              ss === 'rejected' ? 'rejected' : 'denied';
-            sgCountries = sgStatus === 'approved' ? (sr.approved_countries || []) : [];
-          } else {
-            sgStatus = 'new';
-            sgCountries = [];
-          }
+          // SourceGuide access — env-gated preview (admins + listed testers only)
+          const sourceGuideStatus = token.isAdmin || sourceGuideAdminEmails.includes(email) || sourceGuideTesterEmails.includes(email)
+            ? 'approved'
+            : 'new';
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (token as any).toolAccess = {
             po_expediting: { status: poStatus,   approvedCountries: poCountries   },
             tite:          { status: titeStatus, approvedCountries: titeCountries },
             procure_guard: { status: procureGuardStatus, approvedCountries: [] },
-            sourceguide:   { status: sgStatus,   approvedCountries: sgCountries   },
+            sourceguide:   { status: sourceGuideStatus, approvedCountries: [] },
           };
           token.titeViewOnly = titeViewOnly;
         } catch (err) {

@@ -6,15 +6,10 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
-import { submitSourceGuideAccessRequest, getCountries as getSourceGuideCountries } from '@/app/actions/sourceguide';
-import type { SgCountry } from '@/types/sourceguide';
 import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
-type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | null;
-
-const SOURCEGUIDE_BRAND = '#2A7E4F';
-const SOURCEGUIDE_VIEW_ONLY = 'All Countries - View Only';
+type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | null;
 
 /* ─── TI-TE static country list ─────────────────────────────── */
 
@@ -380,123 +375,6 @@ function TiteAccessRequestModal({
   );
 }
 
-/* ─── SourceGuide Access Request Modal ───────────────────────── */
-
-function SourceGuideAccessRequestModal({
-  userEmail,
-  displayName,
-  jobTitle,
-  department,
-  onClose,
-  onSubmitted,
-}: {
-  userEmail: string;
-  displayName: string;
-  jobTitle?: string;
-  department?: string;
-  onClose: () => void;
-  onSubmitted: () => Promise<void>;
-}) {
-  const [countries, setCountries] = useState<SgCountry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getSourceGuideCountries().then(c => { setCountries(c); setLoading(false); });
-  }, []);
-
-  const options = useMemo(
-    () => [{ code: SOURCEGUIDE_VIEW_ONLY, name: SOURCEGUIDE_VIEW_ONLY }, ...countries.map(c => ({ code: c.code, name: c.name }))],
-    [countries],
-  );
-  const filtered = useMemo(
-    () => options.filter(c => c.name.toLowerCase().includes(search.toLowerCase())),
-    [options, search],
-  );
-
-  function toggle(code: string) {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(code)) next.delete(code); else next.add(code);
-      return next;
-    });
-  }
-
-  function handleSubmit() {
-    setError(null);
-    startTransition(async () => {
-      const res = await submitSourceGuideAccessRequest({
-        userEmail, displayName, jobTitle: jobTitle ?? null, department: department ?? null,
-        requestedCountries: [...selected],
-      });
-      if (res.success) await onSubmitted();
-      else setError(res.error ?? 'Something went wrong.');
-    });
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-xl">
-        <div className="border-b border-slate-100 px-6 pb-4 pt-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-base font-bold leading-tight text-slate-900">Request Access — SourceGuide</h2>
-              <p className="mt-1 text-sm leading-relaxed text-slate-500">
-                Select the country guides you need. Choose <b>{SOURCEGUIDE_VIEW_ONLY}</b> for read-only access.
-              </p>
-            </div>
-            <button onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-        </div>
-        <div className="px-6 py-4">
-          <input
-            type="text" placeholder="Search countries…" value={search} onChange={e => setSearch(e.target.value)}
-            className="mb-3 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none placeholder-slate-400 focus:border-[#2A7E4F]"
-          />
-          {selected.size > 0 && (
-            <p className="mb-2 text-xs font-medium" style={{ color: SOURCEGUIDE_BRAND }}>{selected.size} selected</p>
-          )}
-          <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white">
-            {loading ? (
-              <div className="flex items-center justify-center gap-2 py-8 text-slate-400"><Spinner /><span className="text-sm">Loading countries…</span></div>
-            ) : filtered.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-400">No countries found.</p>
-            ) : (
-              <div className="space-y-0.5 p-1">
-                {filtered.map(c => (
-                  <label key={c.code} className="flex cursor-pointer items-center gap-2.5 rounded px-3 py-2 hover:bg-slate-50">
-                    <input type="checkbox" checked={selected.has(c.code)} onChange={() => toggle(c.code)} className="h-4 w-4 cursor-pointer rounded border-slate-300" style={{ accentColor: SOURCEGUIDE_BRAND }} />
-                    <span className="text-sm font-medium text-slate-700">{c.name}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="border-t border-slate-100 px-6 py-4">
-          {error && <p className="mb-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSubmit} disabled={isPending || selected.size === 0 || loading}
-              className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-              style={!isPending && selected.size > 0 ? { background: SOURCEGUIDE_BRAND } : undefined}
-            >
-              {isPending ? 'Submitting…' : 'Submit Request'}
-            </button>
-            <button onClick={onClose} disabled={isPending} className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ─── Pending Modal ──────────────────────────────────────────── */
 
 function PendingModal({
@@ -733,31 +611,32 @@ function TITECard({
   );
 }
 
-/* ─── SourceGuide Card ───────────────────────────────────────── */
+/* ─── SourceGuide Card (Admin Preview — coming soon for everyone else) ─── */
 
 function SourceGuideCard({
-  status,
-  isAdmin,
+  canOpen,
   onClick,
 }: {
-  status: ToolStatus;
-  isAdmin: boolean;
+  canOpen: boolean;
   onClick: () => void;
 }) {
-  const canOpen = isAdmin || status === 'approved';
-  const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
-
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="group relative flex w-full cursor-pointer flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10"
+      disabled={!canOpen}
+      className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
+        canOpen
+          ? 'opacity-75 cursor-pointer hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10'
+          : 'opacity-50 cursor-default select-none'
+      }`}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#2A7E4F18' }}>
-        <Building2 className="h-6 w-6" style={{ color: SOURCEGUIDE_BRAND }} />
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+        <Building2 className="h-6 w-6 text-gray-400" />
       </div>
 
       <div className="flex-1">
-        <h3 className="text-[18px] font-semibold text-slate-900">SourceGuide</h3>
+        <h3 className="text-[18px] font-semibold text-gray-500">SourceGuide</h3>
         <p className="mt-0.5 text-[13px] font-medium text-slate-400">Sourcing Intelligence</p>
         <p className="mt-2 text-sm leading-relaxed text-gray-500">
           Search NESR&apos;s preferred and backup suppliers across the full commodity taxonomy and every country guide.
@@ -765,14 +644,12 @@ function SourceGuideCard({
       </div>
 
       <div className="mt-auto flex items-center justify-between">
-        <AccessBadge status={status} isAdmin={isAdmin} />
-        {canOpen ? (
-          <span className="text-sm font-semibold group-hover:underline" style={{ color: SOURCEGUIDE_BRAND }}>Open →</span>
-        ) : status === 'new' ? (
-          <span className="text-sm font-semibold group-hover:underline" style={{ color: SOURCEGUIDE_BRAND }}>Request Access →</span>
-        ) : isDenied ? (
-          <span className="text-xs font-semibold text-red-600 group-hover:underline">Reapply for access →</span>
-        ) : null}
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
+          {canOpen ? 'Admin Preview' : 'Coming Soon'}
+        </span>
+        {canOpen && (
+          <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open preview →</span>
+        )}
       </div>
     </button>
   );
@@ -884,6 +761,7 @@ export default function HomePage() {
   const procureGuardStatus: ToolStatus = session?.user?.toolAccess?.procure_guard?.status ?? 'new';
   const canOpenProcureGuard = isAdmin || procureGuardStatus === 'approved';
   const sourceGuideStatus: ToolStatus = session?.user?.toolAccess?.sourceguide?.status ?? 'new';
+  const canOpenSourceGuide = isAdmin || sourceGuideStatus === 'approved';
 
   function handlePOClick() {
     if (isAdmin || poStatus === 'approved') {
@@ -910,9 +788,7 @@ export default function HomePage() {
   }
 
   function handleSourceGuideClick() {
-    if (isAdmin || sourceGuideStatus === 'approved') { router.push('/sourceguide'); return; }
-    if (sourceGuideStatus === 'pending') { setModal('sg-pending'); return; }
-    setModal('sg-request');
+    if (canOpenSourceGuide) router.push('/sourceguide');
   }
 
   async function handleRefreshStatus() {
@@ -996,8 +872,7 @@ export default function HomePage() {
               />
 
               <SourceGuideCard
-                status={sourceGuideStatus}
-                isAdmin={isAdmin}
+                canOpen={canOpenSourceGuide}
                 onClick={handleSourceGuideClick}
               />
 
@@ -1154,22 +1029,6 @@ export default function HomePage() {
         />
       )}
       {modal === 'tite-pending' && (
-        <PendingModal
-          onClose={() => setModal(null)}
-          onRefresh={handleRefreshStatus}
-        />
-      )}
-      {modal === 'sg-request' && (
-        <SourceGuideAccessRequestModal
-          userEmail={userEmail}
-          displayName={displayName}
-          jobTitle={jobTitle}
-          department={department}
-          onClose={() => setModal(null)}
-          onSubmitted={handleAccessSubmitted}
-        />
-      )}
-      {modal === 'sg-pending' && (
         <PendingModal
           onClose={() => setModal(null)}
           onRefresh={handleRefreshStatus}
