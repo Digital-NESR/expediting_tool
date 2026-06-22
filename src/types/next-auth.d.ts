@@ -20,6 +20,7 @@ declare module "next-auth" {
         po_expediting?: ToolAccessEntry;
         tite?: ToolAccessEntry;
         procure_guard?: ToolAccessEntry;
+        sourceguide?: ToolAccessEntry;
       };
     };
   }
@@ -36,6 +37,7 @@ declare module "next-auth/jwt" {
       po_expediting?: ToolAccessEntry;
       tite?: ToolAccessEntry;
       procure_guard?: ToolAccessEntry;
+      sourceguide?: ToolAccessEntry;
     };
   }
 }

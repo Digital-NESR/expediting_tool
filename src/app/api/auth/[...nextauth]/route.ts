@@ -3,6 +3,7 @@ import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
 import pool from "@/lib/db";
 import titePool from "@/lib/db-tite";
+import sourceGuidePool from "@/lib/db-sourceguide";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -107,8 +108,8 @@ export const authOptions: NextAuthOptions = {
 
           token.isAdmin = adminEmails.includes(email);
 
-          // Query both tools in parallel
-          const [poResult, titeResult] = await Promise.all([
+          // Query each tool's access table in parallel
+          const [poResult, titeResult, sourceGuideResult] = await Promise.all([
             pool.query(
               `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
               [token.email]
@@ -117,6 +118,10 @@ export const authOptions: NextAuthOptions = {
               `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
               [token.email]
             ),
+            sourceGuidePool.query(
+              `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
+              [token.email]
+            ).catch(() => ({ rows: [] as { status: string; approved_countries: string[] }[] })),
           ]);
 
           // PO Expediting access
@@ -163,11 +168,29 @@ export const authOptions: NextAuthOptions = {
             ? 'approved'
             : 'new';
 
+          // SourceGuide access
+          let sgStatus: string;
+          let sgCountries: string[];
+          if (sourceGuideResult.rows.length > 0) {
+            const sr = sourceGuideResult.rows[0];
+            const ss = sr.status.toLowerCase();
+            sgStatus =
+              ss === 'pending'  ? 'pending'  :
+              ss === 'approved' ? 'approved' :
+              ss === 'revoked'  ? 'revoked'  :
+              ss === 'rejected' ? 'rejected' : 'denied';
+            sgCountries = sgStatus === 'approved' ? (sr.approved_countries || []) : [];
+          } else {
+            sgStatus = 'new';
+            sgCountries = [];
+          }
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (token as any).toolAccess = {
             po_expediting: { status: poStatus,   approvedCountries: poCountries   },
             tite:          { status: titeStatus, approvedCountries: titeCountries },
             procure_guard: { status: procureGuardStatus, approvedCountries: [] },
+            sourceguide:   { status: sgStatus,   approvedCountries: sgCountries   },
           };
           token.titeViewOnly = titeViewOnly;
         } catch (err) {
@@ -177,6 +200,7 @@ export const authOptions: NextAuthOptions = {
               po_expediting: { status: 'new', approvedCountries: [] },
               tite:          { status: 'new', approvedCountries: [] },
               procure_guard: { status: 'new', approvedCountries: [] },
+              sourceguide:   { status: 'new', approvedCountries: [] },
             };
           }
         }
@@ -197,6 +221,7 @@ export const authOptions: NextAuthOptions = {
           po_expediting?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
           tite?:          { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
           procure_guard?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
+          sourceguide?:   { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
         } | undefined;
         session.user.titeViewOnly = token.titeViewOnly as boolean | undefined;
       }

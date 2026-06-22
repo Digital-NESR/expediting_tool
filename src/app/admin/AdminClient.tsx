@@ -23,6 +23,7 @@ import ProcureGuardAccessApprovalsClient from './ProcureGuardAccessApprovalsClie
 import ProcureGuardAdminPanelClient from '../procure-guard/admin/AdminPanelClient';
 import ProcureGuardAnalyticsClient from '../procure-guard/analytics/AnalyticsClient';
 import ProcureGuardAdminAnalyticsClient from '../procure-guard/admin-analytics/AdminAnalyticsClient';
+import { SourceGuideAccessApprovalsClient, SourceGuideGuidesClient, SourceGuideAnalyticsClient } from './SourceGuideAdmin';
 import type { Shipment } from '@/types/tite';
 import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
 import type {
@@ -50,6 +51,7 @@ interface AdminClientProps {
   procureGuardAdminData: ProcureGuardAdminData | null;
   procureGuardAnalyticsData: ProcureGuardAnalyticsData | null;
   procureGuardAdminAnalyticsData: ProcureGuardAdminAnalyticsData | null;
+  sourceGuidePendingCount?: number;
   initialTool?: string;
 }
 
@@ -1298,6 +1300,7 @@ export default function AdminClient({
   procureGuardAdminData,
   procureGuardAnalyticsData,
   procureGuardAdminAnalyticsData,
+  sourceGuidePendingCount = 0,
   initialTool = 'po-expediting',
 }: AdminClientProps) {
   const [selectedTool, setSelectedTool]       = useState<string>(initialTool);
@@ -1307,6 +1310,7 @@ export default function AdminClient({
   const [livePendingCount, setLivePendingCount]       = useState(pendingCount);
   const [liveTitePendingCount, setLiveTitePendingCount] = useState(titePendingCount);
   const [liveProcureGuardPendingCount, setLiveProcureGuardPendingCount] = useState(procureGuardPendingCount);
+  const [liveSourceGuidePendingCount, setLiveSourceGuidePendingCount] = useState(sourceGuidePendingCount);
 
   // Modal state
   const [buyerModal, setBuyerModal]             = useState<BuyerRow | null>(null);
@@ -1325,6 +1329,9 @@ export default function AdminClient({
       'procureguard-analytics': 'ProcureGuard Analytics | Admin | SC Agents',
       'procureguard-usage':     'ProcureGuard Usage Analytics | Admin | SC Agents',
       'procureguard-access':    'ProcureGuard Access Approvals | Admin | SC Agents',
+      'sourceguide-guides':     'Source Guides — SourceGuide | Admin | SC Agents',
+      'sourceguide-analytics':  'Analytics — SourceGuide | Admin | SC Agents',
+      'sourceguide-access':     'SourceGuide Access Approvals | Admin | SC Agents',
     };
     document.title = titles[selectedTool] ?? 'Admin — SC Agents';
   }, [selectedTool]);
@@ -1604,6 +1611,64 @@ export default function AdminClient({
 
           <div style={{ margin: '8px 0' }} />
 
+          {/* SourceGuide group label */}
+          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+            SourceGuide
+          </div>
+
+          <button
+            onClick={() => setSelectedTool('sourceguide-guides')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'sourceguide-guides' ? '3px solid #2A7E4F' : '3px solid transparent',
+              background: selectedTool === 'sourceguide-guides' ? '#eaf4ef' : 'transparent',
+              color: selectedTool === 'sourceguide-guides' ? '#1f5d3a' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Source Guides
+          </button>
+
+          <button
+            onClick={() => setSelectedTool('sourceguide-analytics')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'sourceguide-analytics' ? '3px solid #2A7E4F' : '3px solid transparent',
+              background: selectedTool === 'sourceguide-analytics' ? '#eaf4ef' : 'transparent',
+              color: selectedTool === 'sourceguide-analytics' ? '#1f5d3a' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Analytics
+          </button>
+
+          <button
+            onClick={() => setSelectedTool('sourceguide-access')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'sourceguide-access' ? '3px solid #2A7E4F' : '3px solid transparent',
+              background: selectedTool === 'sourceguide-access' ? '#eaf4ef' : 'transparent',
+              color: selectedTool === 'sourceguide-access' ? '#1f5d3a' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            <span>Access Approvals</span>
+            {liveSourceGuidePendingCount > 0 && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999,
+                fontSize: 10, fontWeight: 700, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a',
+              }}>
+                {liveSourceGuidePendingCount}
+              </span>
+            )}
+          </button>
+
+          <div style={{ margin: '8px 0' }} />
+
           {/* Coming-soon tools */}
           <div
             style={{
@@ -1664,6 +1729,18 @@ export default function AdminClient({
             <ProcureGuardAccessApprovalsClient
               userEmail={userEmail}
               onPendingCountChange={setLiveProcureGuardPendingCount}
+            />
+          )}
+          {selectedTool === 'sourceguide-guides' && (
+            <SourceGuideGuidesClient />
+          )}
+          {selectedTool === 'sourceguide-analytics' && (
+            <SourceGuideAnalyticsClient />
+          )}
+          {selectedTool === 'sourceguide-access' && (
+            <SourceGuideAccessApprovalsClient
+              userEmail={userEmail}
+              onPendingCountChange={setLiveSourceGuidePendingCount}
             />
           )}
           {selectedTool === 'po-expediting' && (

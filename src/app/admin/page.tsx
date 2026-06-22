@@ -10,6 +10,7 @@ import {
   getProcureGuardAnalyticsData,
   getProcureGuardPendingAccessCount,
 } from '@/app/actions/procureGuard';
+import { getSourceGuidePendingCount } from '@/app/actions/sourceguide';
 import AdminClient from './AdminClient';
 
 export const metadata = { title: 'Admin — SC Agents' };
@@ -25,6 +26,9 @@ const ADMIN_TOOLS = new Set([
   'procureguard-analytics',
   'procureguard-usage',
   'procureguard-access',
+  'sourceguide-guides',
+  'sourceguide-analytics',
+  'sourceguide-access',
 ]);
 
 export default async function AdminPage({
@@ -79,6 +83,7 @@ export default async function AdminPage({
     procureGuardAdminData,
     procureGuardAnalyticsData,
     procureGuardAdminAnalyticsData,
+    sourceGuidePendingCount,
   ] = await Promise.all([
     getExpeditingAnalytics(),
     getPendingAccessCount(),
@@ -88,6 +93,7 @@ export default async function AdminPage({
     getProcureGuardAdminData(),
     getProcureGuardAnalyticsData(),
     getProcureGuardAdminAnalyticsData(),
+    getSourceGuidePendingCount(),
   ]);
 
   return (
@@ -102,6 +108,7 @@ export default async function AdminPage({
       procureGuardAdminData={procureGuardAdminData}
       procureGuardAnalyticsData={procureGuardAnalyticsData}
       procureGuardAdminAnalyticsData={procureGuardAdminAnalyticsData}
+      sourceGuidePendingCount={sourceGuidePendingCount}
       initialTool={initialTool}
     />
   );
