@@ -5,7 +5,7 @@ import { request as httpsRequest } from 'https';
 import { randomBytes } from 'crypto';
 import type { QueryResultRow } from 'pg';
 import { cache } from 'react';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
 import procureGuardPool from '@/lib/db-procureguard';
 import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, formatProcureGuardStatusLabel, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, normalizeProcureGuardCountry, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, toUsd } from '@/lib/procureGuard-utils';
@@ -1952,18 +1952,18 @@ export async function getProcureGuardRequestDetail(
   }
 }
 
-export async function getProcureGuardDashboardData(): Promise<ProcureGuardDashboardData | null> {
-  try {
-    const actor = await getActor();
-    requireProcureGuardOperationalAccess(actor);
-    await ensureProcureGuardPaymentRequestColumns();
-    const scope = scopedWhere(actor);
+// Short-lived per-user cache for the read-only dashboard queries, so repeat navigations are instant.
+// Keyed by the scope/email arguments (so one user never sees another's data) and busted on any write
+// via revalidateTag(PROCUREGUARD_DATA_TAG); the TTL is a backstop in case a write path is missed.
+const PROCUREGUARD_DATA_TAG = 'procureguard-data';
 
+const getCachedDashboardRows = unstable_cache(
+  async (where: string, params: string[], canViewAll: boolean, email: string) => {
     const [adhocRows, advanceRows, activityRows] = await Promise.all([
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
+      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ${where} ORDER BY created_at DESC`, params),
+      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ${where} ORDER BY created_at DESC`, params),
       sql<QueryResultRow[]>(
-        actor.permissions.canViewAll
+        canViewAll
           ? `SELECT * FROM procure_guard_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 12`
           : `SELECT a.* FROM procure_guard_activity_log a
              LEFT JOIN procure_guard_adhoc_payments ap
@@ -1979,9 +1979,28 @@ export async function getProcureGuardDashboardData(): Promise<ProcureGuardDashbo
                AND a.request_id > 0
                AND a.action NOT ILIKE '%seeded%'
              ORDER BY a.created_at DESC LIMIT 12`,
-        actor.permissions.canViewAll ? [] : [actor.email.toLowerCase(), actor.email.toLowerCase(), actor.email.toLowerCase(), actor.email.toLowerCase()],
+        canViewAll ? [] : [email, email, email, email],
       ),
     ]);
+    return { adhocRows, advanceRows, activityRows };
+  },
+  ['procureguard-dashboard'],
+  { revalidate: 20, tags: [PROCUREGUARD_DATA_TAG] },
+);
+
+export async function getProcureGuardDashboardData(): Promise<ProcureGuardDashboardData | null> {
+  try {
+    const actor = await getActor();
+    requireProcureGuardOperationalAccess(actor);
+    await ensureProcureGuardPaymentRequestColumns();
+    const scope = scopedWhere(actor);
+
+    const { adhocRows, advanceRows, activityRows } = await getCachedDashboardRows(
+      scope.where,
+      scope.params,
+      actor.permissions.canViewAll,
+      actor.email.toLowerCase(),
+    );
 
     const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
     const advance = normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(advanceRows));
@@ -2382,6 +2401,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
     });
 
     revalidatePath('/procure-guard');
+    revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
     revalidatePath('/procure-guard/adhoc-payments');
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
@@ -2493,6 +2513,7 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
     });
 
     revalidatePath('/procure-guard');
+    revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
     revalidatePath('/procure-guard/advance-payments');
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
@@ -2614,6 +2635,7 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
     }
 
     revalidatePath('/procure-guard');
+    revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
     revalidatePath('/procure-guard/adhoc-payments');
     revalidatePath(`/procure-guard/adhoc-payments/${id}`);
     return { success: true, data: { id }, reference_number: existing.reference_number };
@@ -2737,6 +2759,7 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
     }
 
     revalidatePath('/procure-guard');
+    revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
     revalidatePath('/procure-guard/advance-payments');
     revalidatePath(`/procure-guard/advance-payments/${id}`);
     return { success: true, data: { id }, reference_number: existing.reference_number };
@@ -2956,6 +2979,7 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
 }
 
 function revalidateProcureGuardPaths() {
+  revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
   revalidatePath('/admin');
   revalidatePath('/procure-guard/admin');
   revalidatePath('/procure-guard/analytics');
@@ -3110,6 +3134,7 @@ async function updateStatusCommon(input: {
   });
 
   revalidatePath('/procure-guard');
+  revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
   revalidatePath('/procure-guard/my-work');
   revalidatePath('/procure-guard/adhoc-payments');
   revalidatePath(`/procure-guard/adhoc-payments/${input.id}`);
@@ -3221,6 +3246,7 @@ export async function uploadProcureGuardDocument(
     });
 
     revalidatePath('/procure-guard');
+    revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
     revalidatePath(`/procure-guard/${requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${requestId}`);
     return { success: true, document: serialise<ProcureGuardDocument>(docs[0]) };
   } catch (err) {
@@ -3254,6 +3280,7 @@ export async function deleteProcureGuardDocument(documentId: number): Promise<Ac
     });
 
     revalidatePath('/procure-guard');
+    revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
     revalidatePath(`/procure-guard/${doc.request_type === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${doc.request_id}`);
     return { success: true };
   } catch (err) {
