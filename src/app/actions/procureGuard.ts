@@ -223,17 +223,27 @@ async function ensureProcureGuardPaymentRequestColumns(): Promise<void> {
     }
   }
 
-  await execSchema(`ALTER TABLE procure_guard_adhoc_payments ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[]`);
-  await execSchema(`ALTER TABLE procure_guard_advance_payments ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[]`);
-  await execSchema(`ALTER TABLE procure_guard_adhoc_payments ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE`);
-  await execSchema(`ALTER TABLE procure_guard_advance_payments ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE`);
-  await execSchema(`ALTER TABLE procure_guard_adhoc_payments ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[]`);
-  await execSchema(`ALTER TABLE procure_guard_advance_payments ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[]`);
-  await execSchema(`ALTER TABLE procure_guard_adhoc_payments ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB`);
-  await execSchema(`ALTER TABLE procure_guard_advance_payments ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_adhoc_requester_notification_emails ON procure_guard_adhoc_payments USING GIN (requester_notification_emails)`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_advance_requester_notification_emails ON procure_guard_advance_payments USING GIN (requester_notification_emails)`);
-  await ensureProcureGuardReferenceUniqueness();
+  // Add all columns per table in a single ALTER (one round-trip, one lock), and run the two tables
+  // in parallel — collapses the cold-start cost from ~8 sequential round-trips to ~1.
+  await Promise.all([
+    execSchema(`ALTER TABLE procure_guard_adhoc_payments
+      ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
+      ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
+      ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB`),
+    execSchema(`ALTER TABLE procure_guard_advance_payments
+      ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
+      ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
+      ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB`),
+  ]);
+  // Indexes after the columns exist (they depend on requester_notification_emails); both in parallel.
+  await Promise.all([
+    execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_adhoc_requester_notification_emails ON procure_guard_adhoc_payments USING GIN (requester_notification_emails)`),
+    execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_advance_requester_notification_emails ON procure_guard_advance_payments USING GIN (requester_notification_emails)`),
+  ]);
+  // Note: the reference_number UNIQUE index is ensured in the insert path
+  // (insertProcureGuardPaymentRequest), not here — read-only page loads don't need it.
   })().catch(err => {
     paymentRequestColumnsEnsured = null; // allow a retry on the next request if it genuinely failed
     throw err;
@@ -645,6 +655,8 @@ async function insertProcureGuardPaymentRequest(
   prefix: 'ADH' | 'ADV',
   run: (reference: string) => Promise<ExecResult>,
 ): Promise<ExecResult & { reference: string }> {
+  // The reference_number UNIQUE index backs the retry-on-collision below, so ensure it before inserting.
+  await ensureProcureGuardReferenceUniqueness();
   for (let attempt = 0; ; attempt++) {
     const reference = makeReference(prefix);
     try {
