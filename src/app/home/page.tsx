@@ -821,6 +821,18 @@ export default function HomePage() {
         <div className="absolute bottom-24 right-1/4 w-[220px] h-[220px] rounded-full border-[30px] border-[#307c4c]/[0.03]" />
         {/* Center-left half-circle clipped */}
         <div className="absolute top-2/3 -left-24 w-[350px] h-[350px] rounded-full border-[50px] border-[#307c4c]/[0.03] border-r-transparent border-t-transparent" />
+        {/* Top-center arc */}
+        <div className="absolute -top-16 left-1/3 w-[400px] h-[400px] rounded-full border-[45px] border-[#307c4c]/[0.03] border-b-transparent border-l-transparent" />
+        {/* Mid-left semicircle */}
+        <div className="absolute top-1/2 -left-48 w-[450px] h-[450px] rounded-full border-[55px] border-[#307c4c]/[0.035] border-l-transparent" />
+        {/* Bottom-center filled */}
+        <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full bg-[#307c4c]/[0.02]" />
+        {/* Right edge mid-bottom arc */}
+        <div className="absolute bottom-1/3 -right-36 w-[380px] h-[380px] rounded-full border-[42px] border-[#307c4c]/[0.03] border-r-transparent border-t-transparent" />
+        {/* Small accent dot top-right area */}
+        <div className="absolute top-28 right-1/3 w-[120px] h-[120px] rounded-full bg-[#307c4c]/[0.025]" />
+        {/* Large faint ring center */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full border-[35px] border-[#307c4c]/[0.018]" />
       </div>
 
       {/* ── Header ── */}
