@@ -204,18 +204,16 @@ export default function SearchClient({
                       {com.code && <span className="ml-2 font-mono text-[11.5px] font-semibold" style={{ color: SG_BRAND }}>{com.code}</span>}
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {com.countries.length
-                        ? com.countries.map(c => { const cc = countryByCode.get(c); return cc ? <CountryFlag key={c} country={cc} /> : null; })
-                        : <span className="text-[12px] text-slate-400">No suppliers mapped yet</span>}
+                      {com.countries.map(c => { const cc = countryByCode.get(c); return cc ? <CountryFlag key={c} country={cc} /> : null; })}
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    {pref ? (
+                    {pref && (
                       <div className="text-right">
                         <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-400">Preferred · {pref.country}</div>
                         <div className="mt-0.5 text-[13.5px] font-semibold">{pref.supplierName}</div>
                       </div>
-                    ) : <span className="text-[12.5px] text-slate-400">—</span>}
+                    )}
                     {com.backupCount > 0 && (
                       <span className="rounded-full bg-[#ececed] px-2.5 py-1 text-[11px] font-semibold text-slate-500">+{com.backupCount} backup</span>
                     )}
