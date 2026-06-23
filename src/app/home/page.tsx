@@ -938,30 +938,12 @@ export default function HomePage() {
                 />
               )}
 
-              {show('laptop procurement asset request') && (
-                <ComingSoonCard
-                  name="Laptop Procurement"
-                  description="Asset request and approval management"
-                  icon={<Laptop className="w-6 h-6 text-gray-400" />}
-                />
-              )}
-              {show('the bridge project tracking handoffs cross-functional') && (
-                <ComingSoonCard
-                  name="The Bridge"
-                  description="Cross-functional project tracking and handoffs"
-                  icon={<GitMerge className="w-6 h-6 text-gray-400" />}
-                />
-              )}
-              {show('grn reconciliation goods receipt invoice matching') && (
-                <ComingSoonCard
-                  name="GRN Reconciliation"
-                  description="Goods receipt and invoice matching"
-                  icon={<FileCheck className="w-6 h-6 text-gray-400" />}
-                />
-              )}
               {show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management') && (
-                <div
-                  className={`relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 text-left w-full transition-all duration-200 ${
+                <button
+                  type="button"
+                  onClick={() => { if (isAdmin) router.push('/supply-chain-analytics'); }}
+                  disabled={!isAdmin}
+                  className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
                     isAdmin
                       ? 'opacity-75 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10'
                       : 'opacity-50 cursor-default select-none'
@@ -982,10 +964,31 @@ export default function HomePage() {
                       {isAdmin ? 'Admin Preview' : 'Coming Soon'}
                     </span>
                     {isAdmin && (
-                      <span className="text-sm font-semibold text-gray-500">See below ↓</span>
+                      <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open preview →</span>
                     )}
                   </div>
-                </div>
+                </button>
+              )}
+              {show('laptop procurement asset request') && (
+                <ComingSoonCard
+                  name="Laptop Procurement"
+                  description="Asset request and approval management"
+                  icon={<Laptop className="w-6 h-6 text-gray-400" />}
+                />
+              )}
+              {show('the bridge project tracking handoffs cross-functional') && (
+                <ComingSoonCard
+                  name="The Bridge"
+                  description="Cross-functional project tracking and handoffs"
+                  icon={<GitMerge className="w-6 h-6 text-gray-400" />}
+                />
+              )}
+              {show('grn reconciliation goods receipt invoice matching') && (
+                <ComingSoonCard
+                  name="GRN Reconciliation"
+                  description="Goods receipt and invoice matching"
+                  icon={<FileCheck className="w-6 h-6 text-gray-400" />}
+                />
               )}
               {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('bridge') && !show('grn') && !show('supply chain analytics') && (
                 <div className="col-span-3 py-12 text-center">
@@ -1101,34 +1104,6 @@ export default function HomePage() {
             </aside>
 
           </div>
-
-          {/* ── Supply Chain Analytics — KPI Dashboard (admin only) ── */}
-          {isAdmin && show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management kpi') && (
-            <div className="mt-8 bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
-                    <BarChart3 className="w-5 h-5 text-[#307c4c]" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-900">Supply Chain Analytics</h3>
-                    <p className="text-xs text-slate-400">Supply Chain Health Board — KPI Dashboard</p>
-                  </div>
-                </div>
-                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
-                  Admin Preview
-                </span>
-              </div>
-              <div className="w-full aspect-[1140/541]">
-                <iframe
-                  title="Supply Chain Health Board - 2026"
-                  src="https://app.powerbi.com/reportEmbed?reportId=c1485412-17dc-476d-8c80-dc56714d9e53&autoAuth=true&ctid=5f13d1c2-10ac-49b8-a85e-4bb3d91135b9"
-                  className="w-full h-full border-0"
-                  allowFullScreen
-                />
-              </div>
-            </div>
-          )}
 
         </div>
       </main>
