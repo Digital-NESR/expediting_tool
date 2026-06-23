@@ -856,7 +856,7 @@ export default function HomePage() {
 
       {/* ── Main ── */}
       <main className="flex-1 px-8 py-12 relative z-10">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-[1400px] mx-auto">
 
           <div className="mb-10">
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">
