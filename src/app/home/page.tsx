@@ -960,13 +960,33 @@ export default function HomePage() {
                 />
               )}
               {show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management') && (
-                <ComingSoonCard
-                  name="Supply Chain Analytics"
-                  description="Repository of all Supply Chain Power BI dashboards — covering sourcing, procurement, logistics, inventory, and materials management."
-                  icon={<BarChart3 className="w-6 h-6 text-gray-400" />}
-                />
+                <div
+                  className={`relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 text-left w-full transition-all duration-200 ${
+                    isAdmin
+                      ? 'opacity-75 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10'
+                      : 'opacity-50 cursor-default select-none'
+                  }`}
+                >
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
+                    <BarChart3 className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-[18px] font-semibold text-gray-500">Supply Chain Analytics</h3>
+                    <p className="mt-0.5 text-[13px] font-medium text-slate-400">Power BI Dashboards</p>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                      Repository of all Supply Chain Power BI dashboards — covering sourcing, procurement, logistics, inventory, and materials management.
+                    </p>
+                  </div>
+                  <div className="mt-auto flex items-center justify-between">
+                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
+                      {isAdmin ? 'Admin Preview' : 'Coming Soon'}
+                    </span>
+                    {isAdmin && (
+                      <span className="text-sm font-semibold text-gray-500">See below ↓</span>
+                    )}
+                  </div>
+                </div>
               )}
-
               {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('bridge') && !show('grn') && !show('supply chain analytics') && (
                 <div className="col-span-3 py-12 text-center">
                   <p className="text-sm text-slate-400">No applications match &ldquo;{appSearch}&rdquo;</p>
@@ -1081,6 +1101,35 @@ export default function HomePage() {
             </aside>
 
           </div>
+
+          {/* ── Supply Chain Analytics — KPI Dashboard (admin only) ── */}
+          {isAdmin && show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management kpi') && (
+            <div className="mt-8 bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
+                    <BarChart3 className="w-5 h-5 text-[#307c4c]" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900">Supply Chain Analytics</h3>
+                    <p className="text-xs text-slate-400">Supply Chain Health Board — KPI Dashboard</p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
+                  Admin Preview
+                </span>
+              </div>
+              <div className="w-full aspect-[1140/541]">
+                <iframe
+                  title="Supply Chain Health Board - 2026"
+                  src="https://app.powerbi.com/reportEmbed?reportId=c1485412-17dc-476d-8c80-dc56714d9e53&autoAuth=true&ctid=5f13d1c2-10ac-49b8-a85e-4bb3d91135b9"
+                  className="w-full h-full border-0"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          )}
+
         </div>
       </main>
 
