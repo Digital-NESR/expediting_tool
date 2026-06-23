@@ -947,8 +947,15 @@ export default function HomePage() {
                   icon={<FileCheck className="w-6 h-6 text-gray-400" />}
                 />
               )}
+              {show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management') && (
+                <ComingSoonCard
+                  name="Supply Chain Analytics"
+                  description="Repository of all Supply Chain Power BI dashboards — covering sourcing, procurement, logistics, inventory, and materials management."
+                  icon={<BarChart3 className="w-6 h-6 text-gray-400" />}
+                />
+              )}
 
-              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('bridge') && !show('grn') && (
+              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('bridge') && !show('grn') && !show('supply chain analytics') && (
                 <div className="col-span-3 py-12 text-center">
                   <p className="text-sm text-slate-400">No applications match &ldquo;{appSearch}&rdquo;</p>
                 </div>
