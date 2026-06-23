@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
-import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle } from 'lucide-react';
+import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | null;
@@ -746,6 +746,7 @@ export default function HomePage() {
   const router = useRouter();
 
   const [modal, setModal] = useState<ModalType>(null);
+  const [appSearch, setAppSearch] = useState('');
 
   const rawName = session?.user?.name ?? '';
   const firstName = rawName.split(' ')[0] || 'there';
@@ -800,8 +801,27 @@ export default function HomePage() {
     setModal(null);
   }
 
+  const q = appSearch.toLowerCase();
+  const show = (keywords: string) => !q || keywords.toLowerCase().includes(q);
+
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 font-sans text-slate-900">
+    <div className="min-h-screen flex flex-col bg-gray-50 font-sans text-slate-900 relative overflow-hidden">
+
+      {/* ── Decorative background graphics ── */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
+        {/* Top-right large semicircle */}
+        <div className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full border-[60px] border-[#307c4c]/[0.04]" />
+        {/* Bottom-left semicircle */}
+        <div className="absolute -bottom-40 -left-40 w-[600px] h-[600px] rounded-full bg-[#307c4c]/[0.03]" />
+        {/* Mid-right arc */}
+        <div className="absolute top-1/3 -right-20 w-[300px] h-[300px] rounded-full border-[40px] border-[#307c4c]/[0.035] border-l-transparent border-b-transparent" />
+        {/* Top-left small circle */}
+        <div className="absolute top-48 left-16 w-[180px] h-[180px] rounded-full bg-[#307c4c]/[0.025]" />
+        {/* Bottom-right ring */}
+        <div className="absolute bottom-24 right-1/4 w-[220px] h-[220px] rounded-full border-[30px] border-[#307c4c]/[0.03]" />
+        {/* Center-left half-circle clipped */}
+        <div className="absolute top-2/3 -left-24 w-[350px] h-[350px] rounded-full border-[50px] border-[#307c4c]/[0.03] border-r-transparent border-t-transparent" />
+      </div>
 
       {/* ── Header ── */}
       <header className="h-16 bg-white border-b border-gray-200 px-6 lg:px-8 flex items-center justify-between shrink-0">
@@ -835,7 +855,7 @@ export default function HomePage() {
       </header>
 
       {/* ── Main ── */}
-      <main className="flex-1 px-8 py-12">
+      <main className="flex-1 px-8 py-12 relative z-10">
         <div className="max-w-6xl mx-auto">
 
           <div className="mb-10">
@@ -846,6 +866,28 @@ export default function HomePage() {
             <p className="text-xs text-slate-400 mt-1.5">
               {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
+
+            {/* Search bar */}
+            <div className="relative mt-5 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search applications..."
+                value={appSearch}
+                onChange={e => setAppSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors placeholder-slate-400 shadow-sm"
+              />
+              {appSearch && (
+                <button
+                  onClick={() => setAppSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-300 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Flex row: tool cards (flex-1, 3-col grid) + SCAI panel (fixed width) */}
@@ -854,43 +896,63 @@ export default function HomePage() {
             {/* ── Tool cards ── */}
             <div className="flex-1 grid grid-cols-3 gap-6 content-start">
 
-              <POExpeditingCard
-                status={poStatus}
-                isAdmin={isAdmin}
-                onClick={handlePOClick}
-              />
+              {show('po expediting purchase orders monitor expedite supplier delivery') && (
+                <POExpeditingCard
+                  status={poStatus}
+                  isAdmin={isAdmin}
+                  onClick={handlePOClick}
+                />
+              )}
 
-              <TITECard
-                status={titeStatus}
-                isAdmin={isAdmin}
-                onClick={handleTiteClick}
-              />
+              {show('ti-te tite temporary import export customs shipments') && (
+                <TITECard
+                  status={titeStatus}
+                  isAdmin={isAdmin}
+                  onClick={handleTiteClick}
+                />
+              )}
 
-              <ProcureGuardCard
-                canOpen={canOpenProcureGuard}
-                onClick={handleProcureGuardClick}
-              />
+              {show('procureguard payment request approvals procurement') && (
+                <ProcureGuardCard
+                  canOpen={canOpenProcureGuard}
+                  onClick={handleProcureGuardClick}
+                />
+              )}
 
-              <SourceGuideCard
-                canOpen={canOpenSourceGuide}
-                onClick={handleSourceGuideClick}
-              />
+              {show('sourceguide sourcing intelligence suppliers commodity') && (
+                <SourceGuideCard
+                  canOpen={canOpenSourceGuide}
+                  onClick={handleSourceGuideClick}
+                />
+              )}
 
-              <ComingSoonCard
-                name="Laptop Procurement"
-                description="Asset request and approval management"
-                icon={<Laptop className="w-6 h-6 text-gray-400" />}
-              />
-              <ComingSoonCard
-                name="The Bridge"
-                description="Cross-functional project tracking and handoffs"
-                icon={<GitMerge className="w-6 h-6 text-gray-400" />}
-              />
-              <ComingSoonCard
-                name="GRN Reconciliation"
-                description="Goods receipt and invoice matching"
-                icon={<FileCheck className="w-6 h-6 text-gray-400" />}
-              />
+              {show('laptop procurement asset request') && (
+                <ComingSoonCard
+                  name="Laptop Procurement"
+                  description="Asset request and approval management"
+                  icon={<Laptop className="w-6 h-6 text-gray-400" />}
+                />
+              )}
+              {show('the bridge project tracking handoffs cross-functional') && (
+                <ComingSoonCard
+                  name="The Bridge"
+                  description="Cross-functional project tracking and handoffs"
+                  icon={<GitMerge className="w-6 h-6 text-gray-400" />}
+                />
+              )}
+              {show('grn reconciliation goods receipt invoice matching') && (
+                <ComingSoonCard
+                  name="GRN Reconciliation"
+                  description="Goods receipt and invoice matching"
+                  icon={<FileCheck className="w-6 h-6 text-gray-400" />}
+                />
+              )}
+
+              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('bridge') && !show('grn') && (
+                <div className="col-span-3 py-12 text-center">
+                  <p className="text-sm text-slate-400">No applications match &ldquo;{appSearch}&rdquo;</p>
+                </div>
+              )}
 
             </div>
 
