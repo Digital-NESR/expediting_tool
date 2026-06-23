@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
-import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search } from 'lucide-react';
+import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3 } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | null;
