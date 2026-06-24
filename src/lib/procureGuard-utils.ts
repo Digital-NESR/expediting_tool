@@ -308,7 +308,7 @@ export const COUNTRY_CONTROLLER_EMAILS: Record<string, string> = {
   Libya: 'libya.controller@nesr.local',
   Chad: 'chad.controller@nesr.local',
   Congo: 'congo.controller@nesr.local',
-  Test: 'cmorales@nesr.com',
+  Test: 'mfarhan1@nesr.com',
   Other: 'corporate.controller@nesr.local',
 };
 
