@@ -264,8 +264,8 @@ async function ensureProcureGuardReferenceUniqueness(): Promise<void> {
     // counter on a populated database (the renumber migration set them); on a fresh DB they
     // start at 1.
     try {
-      await execSchema(`CREATE SEQUENCE IF NOT EXISTS procure_guard_adhoc_reference_seq`);
-      await execSchema(`CREATE SEQUENCE IF NOT EXISTS procure_guard_advance_reference_seq`);
+      await exec(`CREATE SEQUENCE IF NOT EXISTS procure_guard_adhoc_reference_seq`);
+      await exec(`CREATE SEQUENCE IF NOT EXISTS procure_guard_advance_reference_seq`);
     } catch (err) {
       console.warn('[ProcureGuard] reference sequence ensure failed', err);
     }
