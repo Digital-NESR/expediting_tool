@@ -25,7 +25,8 @@
       "Bash(cat next.config.js)",
       "Bash(cat next.config.mjs)",
       "Bash(leaflet.min.css\")",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(npx next:*)"
     ]
   }
 }

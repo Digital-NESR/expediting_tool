@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, User, Box } from 'lucide-react';
+import { ArrowLeft, ArrowRight, User } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from '../../constants';
 import { TierBadge, CountryFlag, SupAvatar, PathTrail } from '../../ui';
 import type { SgCommodityDetail, SgCountry, SgMapping } from '@/types/sourceguide';
@@ -93,22 +93,9 @@ export default function CommodityDetailClient({
                   </div>
                 </>
               )}
-              {maps.length === 0 && (
-                <div className="py-12 text-center text-[13.5px] text-slate-500">
-                  No active suppliers mapped for {countryByCode.get(country!)?.name ?? country}.
-                </div>
-              )}
             </div>
           </>
-        ) : (
-          <div className="px-6 py-12 text-center">
-            <Box className="mx-auto h-8 w-8 text-slate-300" />
-            <div className="mt-2.5 font-semibold text-slate-900">No suppliers mapped yet</div>
-            <div className="mt-1.5 text-[13.5px] text-slate-500">
-              This commodity exists in the taxonomy but has no preferred or backup supplier in any country guide.
-            </div>
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

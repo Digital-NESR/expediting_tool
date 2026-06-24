@@ -175,7 +175,7 @@ function ChipRow({ label, chips, onChange }: { label: string; chips: SgMapping[]
   return (
     <div className="flex flex-wrap items-center gap-2.5">
       <span className="w-[70px] font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{label}</span>
-      {chips.length ? chips.map(m => <Chip key={m.id} m={m} onChange={onChange} />) : <span className="text-[12.5px] text-slate-400">none set</span>}
+      {chips.map(m => <Chip key={m.id} m={m} onChange={onChange} />)}
     </div>
   );
 }
