@@ -58,8 +58,8 @@ function formatDuration(hours: number): string {
 
 function EmptyOrForbidden() {
   return (
-    <div className="min-h-[100dvh] bg-slate-50 p-6">
-      <div className="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="min-h-[100dvh] bg-slate-50 p-4">
+      <div className="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-lg font-bold text-slate-900">Analytics unavailable</p>
         <p className="mt-2 text-sm text-slate-500">Sign in with an account that has ProcureGuard analytics access.</p>
         <Link href="/procure-guard" className="mt-5 inline-flex rounded-md bg-[#307c4c] px-4 py-2 text-sm font-bold text-white hover:bg-[#307c4c]">
@@ -142,7 +142,7 @@ function MetricList({ title, rows, sortMode, formatLabel }: { title: string; row
         <span className="text-xs font-semibold text-slate-400">{sortedRows.length} shown</span>
       </div>
       {sortedRows.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-500">No data yet.</p>
+        <p className="py-5 text-center text-sm text-slate-500">No data yet.</p>
       ) : (
         <div className="divide-y divide-slate-100">
           {sortedRows.map(row => (
@@ -182,7 +182,7 @@ function VendorTable({ rows, sortMode }: { rows: ProcureGuardVendorMetric[]; sor
           </thead>
           <tbody className="divide-y divide-slate-100">
             {sortedRows.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No vendor activity yet.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-5 text-center text-slate-500">No vendor activity yet.</td></tr>
             ) : sortedRows.map(row => (
               <tr key={row.label} className="hover:bg-[#307c4c]/5">
                 <td className="px-4 py-3 font-bold text-slate-900">{row.label}</td>
@@ -208,7 +208,7 @@ function MonthlyTrend({ rows }: { rows: ProcureGuardMonthlyMetric[] }) {
         <span className="text-xs text-slate-500">Last 12 active months</span>
       </div>
       {rows.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-500">No monthly trend yet.</p>
+        <p className="py-5 text-center text-sm text-slate-500">No monthly trend yet.</p>
       ) : (
         <div className="grid min-h-52 grid-cols-2 items-end gap-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-12">
           {rows.map(row => {
@@ -254,7 +254,7 @@ function ReviewAgingTable({ rows }: { rows: ProcureGuardReviewDurationMetric[] }
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No active review items.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-5 text-center text-slate-500">No active review items.</td></tr>
             ) : rows.map(row => {
               const badge = getStatusBadge(row.status);
               const href = `/procure-guard/${row.request_type === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${row.oldest_request_id}`;
@@ -306,7 +306,7 @@ function HighValueTable({ rows, sortMode }: { rows: ProcureGuardHighValueRequest
           </thead>
           <tbody className="divide-y divide-slate-100">
             {sortedRows.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No open requests.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-5 text-center text-slate-500">No open requests.</td></tr>
             ) : sortedRows.map(row => {
               const badge = getStatusBadge(row.status);
               return (
@@ -359,7 +359,7 @@ export default function AnalyticsClient({ data, embedded = false }: { data: Proc
         <div className="ml-auto hidden text-xs text-slate-500 sm:block">Generated {fmtDateTime(data.generated_at)}</div>
       </header>}
 
-      <main className={`${embedded ? '' : 'mx-auto max-w-[1320px] px-4 py-5'} space-y-5`}>
+      <main className={`${embedded ? '' : 'mx-auto max-w-[1320px] px-4 py-5'} space-y-4`}>
         {!embedded && <ProcureGuardHero title="Analytics" subtitle="Spend, vendor, and approval insights across all ProcureGuard requests." />}
         {embedded && (
           <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">

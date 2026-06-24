@@ -319,7 +319,7 @@ export default function AdhocPaymentFormClient(_props: {
           />
         </div>
 
-        <form onSubmit={handleSubmit} className="mx-auto max-w-[1280px] space-y-7 px-5 py-6 sm:px-8">
+        <form onSubmit={handleSubmit} className="mx-auto max-w-[1280px] space-y-7 px-5 py-4 sm:px-8">
           {banner && <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{banner}</div>}
 
           <section className="grid grid-cols-1 gap-x-10 gap-y-7 lg:grid-cols-4">

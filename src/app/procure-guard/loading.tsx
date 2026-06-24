@@ -11,10 +11,10 @@ export default function ProcureGuardLoading() {
         <div className="ml-auto hidden h-3 w-24 rounded bg-slate-100 sm:block" />
       </header>
 
-      <main className="mx-auto max-w-[1220px] space-y-6 px-4 py-6 sm:px-6">
-        <div className="animate-pulse space-y-6">
+      <main className="mx-auto max-w-[1220px] space-y-4 px-4 py-4 sm:px-6">
+        <div className="animate-pulse space-y-4">
           {/* Hero banner */}
-          <div className="rounded-2xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] p-6 shadow-lg shadow-[#307c4c]/25 sm:p-8">
+          <div className="rounded-2xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] p-4 shadow-lg shadow-[#307c4c]/25 sm:p-4">
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl bg-white/20" />
               <div className="space-y-2">
@@ -27,7 +27,7 @@ export default function ProcureGuardLoading() {
           {/* Metric cards */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {[0, 1, 2].map(i => (
-              <div key={i} className="relative space-y-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div key={i} className="relative space-y-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span className="absolute inset-x-0 top-0 h-1 bg-[#307c4c]/30" />
                 <div className="h-3 w-24 rounded bg-slate-100" />
                 <div className="h-8 w-20 rounded bg-slate-100" />
@@ -37,7 +37,7 @@ export default function ProcureGuardLoading() {
           </div>
 
           {/* List / table block */}
-          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="h-4 w-40 rounded bg-slate-100" />
             {[0, 1, 2, 3, 4].map(i => (
               <div key={i} className="flex items-center justify-between gap-4">

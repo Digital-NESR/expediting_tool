@@ -47,7 +47,7 @@ function RejectionContext({ request }: { request: AdvancePaymentRequest }) {
 }
 function DbError() {
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50 p-6">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50 p-4">
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-10 text-center max-w-sm">
         <p className="font-semibold text-slate-900 mb-1">Database connection unavailable</p>
         <p className="text-sm text-slate-500">Check the ProcureGuard advance payment table.</p>
@@ -108,28 +108,28 @@ export default function AdvancePaymentsStatusClient({ data }: { data: ProcureGua
         </button>
       </header>
 
-      <main className="max-w-[1220px] mx-auto px-4 sm:px-6 py-6 space-y-5">
+      <main className="max-w-[1220px] mx-auto px-4 sm:px-6 py-4 space-y-4">
         <ProcureGuardHero title="Advance Payment Status" subtitle="Track and review advance payment requests through the approval workflow." />
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60">
+          <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60">
             <span className="absolute inset-x-0 top-0 h-1 bg-[#307c4c]" />
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Requests</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{requests.length}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{requests.length}</p>
           </div>
-          <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60">
+          <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60">
             <span className="absolute inset-x-0 top-0 h-1 bg-amber-400" />
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Pending Review</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{pendingCount}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{pendingCount}</p>
           </div>
-          <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60">
+          <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60">
             <span className="absolute inset-x-0 top-0 h-1 bg-[#307c4c]" />
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Requested USD Eq.</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{usdFmt(totalAmount)}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{usdFmt(totalAmount)}</p>
           </div>
         </section>
 
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+          <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
             <div>
               <h1 className="text-xl font-bold text-slate-900">Advance Payment Requests</h1>
               <p className="text-sm text-slate-500 mt-1">Supplier advances, prepayments, milestone deposits, and settlement tracking.</p>

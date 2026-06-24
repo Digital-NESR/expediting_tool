@@ -10,8 +10,8 @@ import type { ProcureGuardWorkQueueData, ProcureGuardWorkQueueItem } from '@/typ
 
 function DbError() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 p-6">
-      <div className="max-w-sm rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 p-4">
+      <div className="max-w-sm rounded-lg border border-slate-200 bg-white p-4 text-center shadow-sm">
         <p className="font-semibold text-slate-900">Work queue unavailable</p>
         <p className="mt-1 text-sm text-slate-500">Check the local ProcureGuard database connection.</p>
       </div>
@@ -60,8 +60,8 @@ export default function MyWorkClient({ data }: { data: ProcureGuardWorkQueueData
         </Link>
       </header>
 
-      <main className="mx-auto max-w-[1220px] space-y-5 px-4 py-6 sm:px-6">
-        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] p-5 text-white shadow-lg shadow-[#307c4c]/25 sm:p-6">
+      <main className="mx-auto max-w-[1220px] space-y-4 px-4 py-4 sm:px-6">
+        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] p-4 text-white shadow-lg shadow-[#307c4c]/25 sm:p-4">
           <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
           <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex items-center gap-3.5">
@@ -93,7 +93,7 @@ export default function MyWorkClient({ data }: { data: ProcureGuardWorkQueueData
                   ? `/procure-guard/adhoc-payments/${item.request.id}`
                   : `/procure-guard/advance-payments/${item.request.id}`;
                 return (
-                  <div key={`${item.request_type}-${item.request.id}`} className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                  <div key={`${item.request_type}-${item.request.id}`} className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <Link href={href} className="font-bold text-slate-900 hover:text-[#307c4c] hover:underline">{item.request.reference_number}</Link>

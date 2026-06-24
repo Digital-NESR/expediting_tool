@@ -74,14 +74,14 @@ export default function ProcureGuardDelegateClient({ data }: { data: ProcureGuar
         <span className="text-sm font-semibold text-slate-900">Delegation</span>
       </header>
 
-      <main className="mx-auto max-w-[900px] space-y-5 px-4 py-6 sm:px-6">
+      <main className="mx-auto max-w-[900px] space-y-4 px-4 py-4 sm:px-6">
         <ProcureGuardHero title="Delegation" subtitle="Hand your approval authority to a colleague while you're away. You both keep the ability to act, and you can revoke any time." />
 
         {banner && <div className="rounded-lg border border-[#307c4c]/20 bg-[#307c4c]/10 px-4 py-3 text-sm font-semibold text-[#307c4c]">{banner}</div>}
         {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
         {canDelegate ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-sm font-bold text-slate-900">Delegate my approvals</h2>
             <p className="mt-0.5 text-xs text-slate-500">The delegate is identified by their NESR sign-in email and inherits your approval scope.</p>
             <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -106,7 +106,7 @@ export default function ProcureGuardDelegateClient({ data }: { data: ProcureGuar
             </form>
           </section>
         ) : (
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-sm">
             You don&apos;t have approval authority of your own to delegate. This page shows any authority delegated to you below.
           </section>
         )}
@@ -117,7 +117,7 @@ export default function ProcureGuardDelegateClient({ data }: { data: ProcureGuar
             <p className="mt-0.5 text-xs text-slate-500">People who can currently act on your behalf.</p>
           </div>
           {data.granted.length === 0 ? (
-            <div className="p-8 text-center text-sm text-slate-500">You haven&apos;t delegated to anyone.</div>
+            <div className="p-4 text-center text-sm text-slate-500">You haven&apos;t delegated to anyone.</div>
           ) : (
             <div className="divide-y divide-slate-100">
               {data.granted.map(d => {

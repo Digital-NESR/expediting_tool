@@ -59,8 +59,8 @@ const labelClass = 'block text-xs font-semibold text-slate-500 mb-1';
 
 function EmptyOrForbidden() {
   return (
-    <div className="min-h-[100dvh] bg-slate-50 p-6">
-      <div className="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="min-h-[100dvh] bg-slate-50 p-4">
+      <div className="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-lg font-bold text-slate-900">Admin panel unavailable</p>
         <p className="mt-2 text-sm text-slate-500">Sign in with an account that has ProcureGuard admin access.</p>
         <Link href="/procure-guard" className="mt-5 inline-flex rounded-md bg-[#307c4c] px-4 py-2 text-sm font-bold text-white hover:bg-[#307c4c]">
@@ -399,7 +399,7 @@ function AdhocTable({ rows, onDone }: { rows: AdhocPaymentRequest[]; onDone: (me
         </thead>
         <tbody className="divide-y divide-slate-100">
           {rows.length === 0 ? (
-            <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No adhoc PO records.</td></tr>
+            <tr><td colSpan={6} className="px-4 py-5 text-center text-slate-500">No adhoc PO records.</td></tr>
           ) : rows.map(row => (
             <tr key={row.id} className="hover:bg-[#307c4c]/5">
               <td className="px-4 py-3 font-bold text-slate-900">
@@ -441,7 +441,7 @@ function AdvanceTable({ rows, onDone }: { rows: AdvancePaymentRequest[]; onDone:
         </thead>
         <tbody className="divide-y divide-slate-100">
           {rows.length === 0 ? (
-            <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No advance payment records.</td></tr>
+            <tr><td colSpan={6} className="px-4 py-5 text-center text-slate-500">No advance payment records.</td></tr>
           ) : rows.map(row => (
             <tr key={row.id} className="hover:bg-[#307c4c]/5">
               <td className="px-4 py-3 font-bold text-slate-900">
@@ -575,7 +575,7 @@ function PermissionsPanel({ rows, actor, isFullAdmin, onDone }: { rows: ProcureG
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-sm font-bold text-slate-900">Current Permission Level</p>
         <p className="mt-1 text-xs text-slate-500">
           Your signed-in user is <span className="font-semibold text-slate-700">{actor.email}</span>.
@@ -592,7 +592,7 @@ function PermissionsPanel({ rows, actor, isFullAdmin, onDone }: { rows: ProcureG
 
       <div className="space-y-3">
         {visibleRows.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">No permission records yet.</div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">No permission records yet.</div>
         ) : visibleRows.map(row => (
           <PermissionEditor key={`${row.email}-${row.id}`} row={row} onDone={onDone} />
         ))}
@@ -755,7 +755,7 @@ function NotificationRecipientsPanel({ rows, onDone }: { rows: ProcureGuardNotif
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-bold text-slate-900">Notification Recipients</p>
@@ -803,7 +803,7 @@ function NotificationRecipientsPanel({ rows, onDone }: { rows: ProcureGuardNotif
       </div>
 
       {searchedGroups.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">No notification recipients match these filters.</div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">No notification recipients match these filters.</div>
       ) : (
         <div className="space-y-3">
           {searchedGroups.map(group => <RecipientPersonEditor key={group.key} group={group} onDone={onDone} />)}
@@ -828,7 +828,7 @@ function ActivityTable({ rows, onDone }: { rows: ProcureGuardActivityRow[]; onDo
         </thead>
         <tbody className="divide-y divide-slate-100">
           {rows.length === 0 ? (
-            <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No activity records.</td></tr>
+            <tr><td colSpan={6} className="px-4 py-5 text-center text-slate-500">No activity records.</td></tr>
           ) : rows.map(row => (
             <tr key={row.id} className="hover:bg-[#307c4c]/5">
               <td className="px-4 py-3 font-bold text-slate-900">

@@ -29,8 +29,8 @@ function formatDuration(ms: number | null | undefined): string {
 
 function EmptyOrForbidden() {
   return (
-    <div className="min-h-[100dvh] bg-slate-50 p-6">
-      <div className="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="min-h-[100dvh] bg-slate-50 p-4">
+      <div className="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-lg font-bold text-slate-900">Admin analytics unavailable</p>
         <p className="mt-2 text-sm text-slate-500">Sign in with admin access to view ProcureGuard usage analytics.</p>
         <Link href="/procure-guard" className="mt-5 inline-flex rounded-md bg-[#307c4c] px-4 py-2 text-sm font-bold text-white hover:bg-[#307c4c]/90">
@@ -95,7 +95,7 @@ function PageMetricsTable({ rows, sortMode }: { rows: ProcureGuardUsagePageMetri
           </thead>
           <tbody className="divide-y divide-slate-100">
             {sortedRows.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No page tracking yet. Open a few ProcureGuard pages, then come back here.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-5 text-center text-slate-500">No page tracking yet. Open a few ProcureGuard pages, then come back here.</td></tr>
             ) : sortedRows.map(row => (
               <tr key={row.path} className="hover:bg-[#307c4c]/5">
                 <td className="max-w-[420px] px-4 py-3">
@@ -143,7 +143,7 @@ function ClickMetricsTable({ rows, sortMode }: { rows: ProcureGuardUsageClickMet
           </thead>
           <tbody className="divide-y divide-slate-100">
             {sortedRows.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No click tracking yet.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-5 text-center text-slate-500">No click tracking yet.</td></tr>
             ) : sortedRows.map(row => (
               <tr key={`${row.path}-${row.target_label}-${row.target_href || row.target_tag}`} className="hover:bg-[#307c4c]/5">
                 <td className="max-w-[340px] px-4 py-3">
@@ -186,7 +186,7 @@ function UserMetricsTable({ rows }: { rows: ProcureGuardUsageUserMetric[] }) {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No user activity yet.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-5 text-center text-slate-500">No user activity yet.</td></tr>
             ) : rows.map(row => (
               <tr key={row.user_email} className="hover:bg-[#307c4c]/5">
                 <td className="px-4 py-3">
@@ -254,7 +254,7 @@ export default function AdminAnalyticsClient({ data, embedded = false }: { data:
           <MetricCard label="Avg. To Click" value={formatDuration(data.summary.average_click_delay_ms)} detail="Average delay before a click" />
         </section>
 
-        <section className="mt-5 grid grid-cols-1 gap-5">
+        <section className="mt-5 grid grid-cols-1 gap-4">
           <PageMetricsTable rows={data.page_metrics} sortMode={sortMode} />
           <ClickMetricsTable rows={data.click_metrics} sortMode={sortMode} />
           <UserMetricsTable rows={data.user_metrics} />
@@ -278,7 +278,7 @@ export default function AdminAnalyticsClient({ data, embedded = false }: { data:
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {data.recent_events.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No events recorded yet.</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-5 text-center text-slate-500">No events recorded yet.</td></tr>
                 ) : data.recent_events.map(row => (
                   <tr key={row.id} className="hover:bg-[#307c4c]/5">
                     <td className="px-4 py-3">

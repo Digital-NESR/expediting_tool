@@ -151,7 +151,7 @@ export default function ProcureGuardHelpContent() {
             <h2 className="text-sm font-bold text-slate-900">Video Tutorial — {audience.label}</h2>
             <p className="mt-0.5 text-xs text-slate-400">A step-by-step walkthrough of ProcureGuard.</p>
           </div>
-          <div className="p-5">
+          <div className="p-4">
             {audience.videoUrl ? (
               audience.videoUrl.startsWith('http') ? (
                 <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
@@ -193,7 +193,7 @@ export default function ProcureGuardHelpContent() {
             </div>
             {audience.pdfUrl && <DownloadButton href={audience.pdfUrl} name={audience.pdfDownloadName} />}
           </div>
-          <div className="p-5">
+          <div className="p-4">
             {audience.pdfUrl ? (
               <object
                 data={audience.pdfUrl}

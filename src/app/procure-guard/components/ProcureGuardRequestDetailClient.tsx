@@ -17,10 +17,10 @@ import {
 import type {
   AdhocPaymentRequest,
   AdvancePaymentRequest,
+  ProcureGuardNotificationContact,
   ProcureGuardRequestDetailData,
 } from '@/types/procureGuard';
 import ProcureGuardSidebar from './ProcureGuardSidebar';
-import ProcureGuardNotificationContactsPanel from './ProcureGuardNotificationContactsPanel';
 import ProcureGuardLogo from './ProcureGuardLogo';
 import ProcureGuardHomeButton from './ProcureGuardHomeButton';
 import { updateAdhocPaymentStatus, updateAdvancePaymentStatus } from '@/app/actions/procureGuard';
@@ -76,14 +76,14 @@ function Field({ label, value }: { label: string; value: DetailValue }) {
 }
 
 function FieldGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{children}</div>;
+  return <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{children}</div>;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <h2 className="text-sm font-bold text-slate-900">{title}</h2>
-      <div className="mt-4">{children}</div>
+      <div className="mt-3">{children}</div>
     </section>
   );
 }
@@ -111,11 +111,13 @@ function WorkflowChain({
   status,
   amount,
   currency,
+  contacts,
 }: {
   requestType: 'adhoc' | 'advance';
   status: AdhocPaymentRequest['status'];
   amount: number;
   currency: string;
+  contacts: ProcureGuardNotificationContact[];
 }) {
   // 'Under Review' is no longer part of the active flow (the first approver acts in one step),
   // so it's hidden from the chain except for legacy records that are still sitting in it.
@@ -126,27 +128,64 @@ function WorkflowChain({
     ? steps.length - 1
     : Math.max(0, currentIndex - 1);
 
+  // Notification recipients grouped by the approval stage they are contacted at, so each chain
+  // step can show exactly who gets notified there (merges the old separate "contacted" panel).
+  const contactsByStatus = contacts.reduce<Record<string, ProcureGuardNotificationContact[]>>((acc, contact) => {
+    const key = contact.approval_status || 'Other notifications';
+    (acc[key] ??= []).push(contact);
+    return acc;
+  }, {});
+  const stepStatuses = new Set(steps.map(step => step.status));
+  const extraContactGroups = Object.entries(contactsByStatus).filter(([key]) => !stepStatuses.has(key as AdhocPaymentRequest['status']));
+
   return (
-    <Section title="Approval Chain">
-      <div className="space-y-3">
+    <Section title="Approval Chain & Notifications">
+      <div className="space-y-2.5">
         {steps.map((step, index) => {
           const isCurrent = index === currentIndex && status !== 'Approved';
           const isComplete = index <= completedIndex || status === 'Approved';
+          const stepContacts = contactsByStatus[step.status] ?? [];
           return (
             <div key={step.status} className={`rounded-md border p-3 ${isCurrent ? 'border-[#307c4c]/30 bg-[#307c4c]/10' : isComplete ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
               <div className="flex items-start gap-3">
                 <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isCurrent ? 'bg-[#307c4c] text-white' : isComplete ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-500'}`}>
                   {index + 1}
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-slate-900">{step.label}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-bold text-slate-900">{step.label}</p>
+                    {isCurrent && <span className="shrink-0 rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#307c4c]">Current step</span>}
+                  </div>
                   <p className="mt-0.5 text-xs font-semibold text-slate-500">{step.owner}</p>
                   <p className="mt-1 text-xs text-slate-500">{step.description}</p>
+                  {stepContacts.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {stepContacts.map(contact => (
+                        <span key={`${contact.email}-${contact.id}`} title={contact.email} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700">
+                          {contact.display_name || contact.email}
+                          <span className="text-slate-400">· {contact.notification_role}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           );
         })}
+        {extraContactGroups.map(([groupStatus, groupContacts]) => (
+          <div key={groupStatus} className="rounded-md border border-slate-200 bg-white p-3">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{formatProcureGuardStatusLabel(groupStatus)}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {groupContacts.map(contact => (
+                <span key={`${contact.email}-${contact.id}`} title={contact.email} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                  {contact.display_name || contact.email}
+                  <span className="text-slate-400">· {contact.notification_role}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </Section>
   );
@@ -336,8 +375,20 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
       const autoTable = autoTableModule.default;
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 40;
+      const bottomMargin = 48; // keep table content clear of the page footer
       let cursorY = 40;
+
+      // Start a fresh page when there isn't enough room left for a section heading plus its
+      // first row — otherwise a title prints at the bottom of a page while the table that
+      // belongs to it flows onto the next page (orphaned heading).
+      const ensureSpace = (needed: number) => {
+        if (cursorY + needed > pageHeight - bottomMargin) {
+          doc.addPage();
+          cursorY = margin;
+        }
+      };
 
       const addFooter = () => {
         const pageCount = doc.getNumberOfPages();
@@ -353,6 +404,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
         const visibleRows = rows.map(([label, value]) => [label, pdfValue(value)]);
         if (visibleRows.length === 0) return;
 
+        ensureSpace(46);
         doc.setFontSize(11);
         doc.setTextColor(15, 23, 42);
         doc.setFont('helvetica', 'bold');
@@ -361,7 +413,8 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
         autoTable(doc, {
           startY: cursorY,
-          margin: { left: margin, right: margin },
+          margin: { top: margin, bottom: bottomMargin, left: margin, right: margin },
+          rowPageBreak: 'avoid',
           body: visibleRows,
           theme: 'grid',
           styles: {
@@ -372,6 +425,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
             lineWidth: 0.4,
             textColor: [15, 23, 42],
             valign: 'top',
+            overflow: 'linebreak',
           },
           columnStyles: {
             0: { cellWidth: 145, fontStyle: 'bold', fillColor: [248, 250, 252], textColor: [71, 85, 105] },
@@ -404,6 +458,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           return;
         }
 
+        ensureSpace(56);
         doc.setFontSize(11);
         doc.setTextColor(15, 23, 42);
         doc.setFont('helvetica', 'bold');
@@ -412,7 +467,9 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
         autoTable(doc, {
           startY: cursorY,
-          margin: { left: margin, right: margin },
+          margin: { top: margin, bottom: bottomMargin, left: margin, right: margin },
+          rowPageBreak: 'avoid',
+          showHead: 'everyPage',
           head: [['Date', 'Decision', 'Reviewer', 'Comment']],
           body: reviewRows,
           theme: 'grid',
@@ -424,6 +481,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
             lineWidth: 0.4,
             textColor: [15, 23, 42],
             valign: 'top',
+            overflow: 'linebreak',
           },
           headStyles: {
             fillColor: [48, 124, 76],
@@ -670,13 +728,13 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
         </div>
       )}
 
-      <main className="mx-auto max-w-[1220px] space-y-5 px-4 py-6 sm:px-6">
-        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] p-5 text-white shadow-lg shadow-[#307c4c]/25 sm:p-6">
+      <main className="mx-auto max-w-[1220px] space-y-4 px-4 py-4 sm:px-6">
+        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] p-4 text-white shadow-lg shadow-[#307c4c]/25 sm:p-4">
           <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="relative flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">{requestLabel}</p>
-              <h1 className="mt-1 break-words text-2xl font-bold tracking-tight sm:text-3xl">{request.reference_number}</h1>
+              <h1 className="mt-1 break-words text-xl font-bold tracking-tight sm:text-2xl">{request.reference_number}</h1>
               <p className="mt-1 text-sm text-white/80">
                 {request.vendor_name} requested by {requester}
               </p>
@@ -704,42 +762,30 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
             </div>
           </div>
 
-          <div className="relative mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+          <div className="relative mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="rounded-lg border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Original Amount</p>
-              <p className="mt-2 text-xl font-bold">{usdFmt(request.amount, request.currency)}</p>
-              <p className="mt-1 text-xs text-white/70">{request.currency}</p>
+              <p className="mt-1 text-lg font-bold">{usdFmt(request.amount, request.currency)}</p>
+              <p className="mt-0.5 text-xs text-white/70">{request.currency}</p>
             </div>
-            <div className="rounded-lg border border-white/25 bg-white/15 p-4 backdrop-blur-sm">
+            <div className="rounded-lg border border-white/25 bg-white/15 p-3 backdrop-blur-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">USD Equivalent</p>
-              <p className="mt-2 text-xl font-bold">{usdEquivalentFmt(request.amount, request.currency)}</p>
-              <p className="mt-1 text-xs text-white/70">Normalized using local FX table</p>
+              <p className="mt-1 text-lg font-bold">{usdEquivalentFmt(request.amount, request.currency)}</p>
+              <p className="mt-0.5 text-xs text-white/70">Normalized using local FX table</p>
             </div>
-            <div className="rounded-lg border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+            <div className="rounded-lg border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Created</p>
-              <p className="mt-2 text-sm font-bold">{fmtDateTime(request.created_at)}</p>
+              <p className="mt-1 text-sm font-bold">{fmtDateTime(request.created_at)}</p>
             </div>
-            <div className="rounded-lg border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+            <div className="rounded-lg border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Updated</p>
-              <p className="mt-2 text-sm font-bold">{fmtDateTime(request.updated_at)}</p>
+              <p className="mt-1 text-sm font-bold">{fmtDateTime(request.updated_at)}</p>
             </div>
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
-          <div className="space-y-5">
-            {reviewDecisionSection}
-            <ProcureGuardNotificationContactsPanel
-              contacts={notificationContacts}
-              currentStatus={request.status}
-              emptyText="No notification recipients are configured for this request country."
-            />
-          </div>
-          <WorkflowChain requestType={requestType} status={request.status} amount={workflowAmount} currency={workflowCurrency} />
-        </div>
-
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-          <div className="space-y-5">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,1fr)]">
+          <div className="space-y-4">
             <Section title="Vendor And Requester">
               <FieldGrid>
                 <Field label="Requisition Number" value={request.requisition_number} />
@@ -782,7 +828,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
                   <Field label="Acknowledged At" value={fmtDateTime(request.acknowledged_at)} />
                 </FieldGrid>
               )}
-              <div className="mt-5">
+              <div className="mt-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Attachments</p>
                 {documents.length === 0 && !request.attachment_link ? (
                   <p className="mt-2 text-sm text-slate-500">No attachments uploaded.</p>
@@ -815,7 +861,9 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
             </Section>
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-4">
+            {reviewDecisionSection}
+            <WorkflowChain requestType={requestType} status={request.status} amount={workflowAmount} currency={workflowCurrency} contacts={notificationContacts} />
             {activitySection}
           </div>
         </div>
