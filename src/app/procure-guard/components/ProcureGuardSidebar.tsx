@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import type { ProcureGuardAccessView } from '@/types/procureGuard';
@@ -90,17 +91,35 @@ export default function ProcureGuardSidebar({
     : rawName.substring(0, 2).toUpperCase();
   const jobTitle = (session?.user as { jobTitle?: string })?.jobTitle || 'User';
 
+  // Pinned by default: on large screens the sidebar docks open and shifts page content right.
+  // Users can unpin it (collapses back to the slide-over drawer). Choice persists per browser.
+  const [pinned, setPinned] = useState(true);
+  useEffect(() => {
+    const stored = window.localStorage.getItem('pg-sidebar-pinned');
+    if (stored !== null) setPinned(stored === '1');
+    if (!document.getElementById('pg-sidebar-pin-style')) {
+      const el = document.createElement('style');
+      el.id = 'pg-sidebar-pin-style';
+      el.textContent = '@media (min-width:1024px){body.pg-sidebar-pinned{padding-left:280px}}';
+      document.head.appendChild(el);
+    }
+  }, []);
+  useEffect(() => {
+    window.localStorage.setItem('pg-sidebar-pinned', pinned ? '1' : '0');
+    document.body.classList.toggle('pg-sidebar-pinned', pinned);
+    return () => { document.body.classList.remove('pg-sidebar-pinned'); };
+  }, [pinned]);
+
   return (
     <>
       <button
         type="button"
         aria-label="Close ProcureGuard menu"
-        className={`fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm transition-opacity ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm transition-opacity ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'} ${pinned ? 'lg:hidden' : ''}`}
         onClick={onClose}
       />
       <aside
-        className="fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[280px] flex-shrink-0 flex-col border-r border-slate-200 bg-white shadow-2xl transition-transform duration-200 ease-in-out"
-        style={{ transform: isOpen ? 'translateX(0)' : 'translateX(-100%)' }}
+        className={`fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[280px] flex-shrink-0 flex-col border-r border-slate-200 bg-white shadow-2xl transition-transform duration-200 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} ${pinned ? 'lg:translate-x-0 lg:shadow-none' : ''}`}
       >
         <div className="flex h-16 items-center gap-3 bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-5 text-white">
           <ProcureGuardLogo size="lg" />
@@ -108,16 +127,35 @@ export default function ProcureGuardSidebar({
             <p className="truncate text-sm font-bold leading-tight tracking-tight">ProcureGuard</p>
             <p className="text-[11px] text-white/70">Payment request control</p>
           </div>
-          <button
-            type="button"
-            aria-label="Close menu"
-            onClick={onClose}
-            className="ml-auto rounded-lg p-2 text-white/70 transition-colors hover:bg-white/15 hover:text-white"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              aria-label={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
+              title={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
+              onClick={() => setPinned(p => !p)}
+              className="hidden rounded-lg p-2 text-white/70 transition-colors hover:bg-white/15 hover:text-white lg:inline-flex"
+            >
+              {pinned ? (
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M16 3l5 5-1.5 1.5-1-1-3.5 3.5.5 4.5L14 19l-3.5-3.5L5 21l-1-1 5.5-5.5L6 11l2-1 4.5.5L16 7l-1-1L16.5 4.5 16 3z" />
+                </svg>
+              ) : (
+                <svg className="h-4 w-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 4h6l-1 5 3 3v2H7v-2l3-3-1-5zM12 14v6" />
+                </svg>
+              )}
+            </button>
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={onClose}
+              className={`rounded-lg p-2 text-white/70 transition-colors hover:bg-white/15 hover:text-white ${pinned ? 'lg:hidden' : ''}`}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3">

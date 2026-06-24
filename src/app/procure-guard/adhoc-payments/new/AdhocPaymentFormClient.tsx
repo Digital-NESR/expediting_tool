@@ -393,34 +393,6 @@ export default function AdhocPaymentFormClient(_props: {
                 <p className="mt-1.5 text-xs text-slate-500">These people will receive requester-side status updates and can view this request.</p>
               </Field>
             </div>
-            <div className="lg:col-span-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <label className="flex items-start gap-3 text-sm font-semibold text-slate-900">
-                <input type="checkbox" checked={emailTestMode} onChange={e => setEmailTestMode(e.target.checked)} className="mt-0.5 h-5 w-5 rounded border-amber-300 text-[#307c4c] focus:ring-[#307c4c]/20" />
-                <span>
-                  Email test mode
-                  <span className="mt-1 block text-xs font-normal leading-relaxed text-slate-600">Webhook emails for this request will go only to the test recipients below. Actual approvers and requester notification emails will be listed as intended recipients but will not be in the send list.</span>
-                </span>
-              </label>
-              {emailTestMode && (
-                <div className="mt-4">
-                  <Field label="Fallback Test Recipients" error={errors.emailTestRecipients}>
-                    <textarea className={`${errors.emailTestRecipients ? ERR : INP} min-h-20 resize-none bg-white`} value={emailTestRecipients} onChange={e => setEmailTestRecipients(e.target.value)} />
-                  </Field>
-                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-                    {ADHOC_EMAIL_TEST_ROLES.map(role => (
-                      <Field key={role} label={role} error={errors[`roleTest-${role}`]}>
-                        <textarea
-                          className={`${errors[`roleTest-${role}`] ? ERR : INP} min-h-20 resize-none bg-white`}
-                          value={roleTestRecipients[role] ?? ''}
-                          onChange={e => setRoleTestRecipients(prev => ({ ...prev, [role]: e.target.value }))}
-                          placeholder="Optional role-specific test emails"
-                        />
-                      </Field>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
             <div className="lg:col-span-4">
               <ProcureGuardNotificationContactsPanel
                 contacts={notificationContacts}
