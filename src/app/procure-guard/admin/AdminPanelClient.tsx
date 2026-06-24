@@ -74,7 +74,7 @@ function EmptyOrForbidden() {
 function StatusPill({ status }: { status: string }) {
   const badge = getStatusBadge(status);
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${badge.className}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[0.6875rem] font-semibold whitespace-nowrap ${badge.className}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
       {badge.label}
     </span>
@@ -491,14 +491,14 @@ function RoleCapabilities({ role }: { role: ProcureGuardPermissionRole }) {
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
       <p className="text-xs font-bold text-slate-900">{profile.label}</p>
       <p className="mt-1 text-xs text-slate-500">{profile.description}</p>
-      <p className="mt-2 inline-flex rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">
+      <p className="mt-2 inline-flex rounded-md border border-slate-200 bg-white px-2 py-1 text-[0.6875rem] font-bold uppercase tracking-wide text-slate-600">
         {profile.accessView} view
       </p>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {enabled.length === 0 ? (
-          <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-500">No elevated permissions</span>
+          <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[0.6875rem] font-semibold text-slate-500">No elevated permissions</span>
         ) : enabled.map(([, label]) => (
-          <span key={label} className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-2 py-1 text-[11px] font-semibold text-[#307c4c]">
+          <span key={label} className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-2 py-1 text-[0.6875rem] font-semibold text-[#307c4c]">
             {label}
           </span>
         ))}
@@ -635,15 +635,15 @@ function RecipientChipList({ label, values }: { label: string; values: string[] 
 
   return (
     <div>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {visible.map(value => (
-          <span key={value} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
+          <span key={value} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[0.6875rem] font-semibold text-slate-700">
             {value}
           </span>
         ))}
         {hiddenCount > 0 && (
-          <span className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-2 py-1 text-[11px] font-bold text-[#307c4c]">
+          <span className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-2 py-1 text-[0.6875rem] font-bold text-[#307c4c]">
             +{hiddenCount} more
           </span>
         )}
@@ -685,8 +685,8 @@ function RecipientPersonEditor({ group, onDone }: { group: RecipientPersonGroup;
             <p className="mt-1 break-all text-xs text-slate-500">{group.email}</p>
           </div>
           <div className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2">
-            <p className="text-[11px] font-bold text-[#307c4c]">{group.rows.length} assignment{group.rows.length === 1 ? '' : 's'}</p>
-            <p className="mt-0.5 text-[11px] text-slate-600">{group.countries.length} countr{group.countries.length === 1 ? 'y' : 'ies'} · {group.roles.length} role{group.roles.length === 1 ? '' : 's'}</p>
+            <p className="text-[0.6875rem] font-bold text-[#307c4c]">{group.rows.length} assignment{group.rows.length === 1 ? '' : 's'}</p>
+            <p className="mt-0.5 text-[0.6875rem] text-slate-600">{group.countries.length} countr{group.countries.length === 1 ? 'y' : 'ies'} · {group.roles.length} role{group.roles.length === 1 ? '' : 's'}</p>
           </div>
           <Field label="Display Name">
             <input className={inputClass} value={displayName} onChange={e => setDisplayName(e.target.value)} />

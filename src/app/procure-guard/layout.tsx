@@ -21,6 +21,13 @@ export default async function ProcureGuardLayout({ children }: { children: React
 
   return (
     <>
+      {/*
+        Fluid root font-size while inside ProcureGuard. Every ProcureGuard size is rem-based
+        (Tailwind spacing/text + the converted text-[…rem] labels), so scaling the root scales
+        the whole UI together — cards and text shrink to fit smaller / shorter screens instead
+        of using fixed sizes. Scoped to this layout: it unmounts (and resets) when you leave PG.
+      */}
+      <style dangerouslySetInnerHTML={{ __html: ':root{font-size:clamp(11px,calc(0.45vw + 0.45vh + 5px),16px)}' }} />
       <ProcureGuardUsageTracker />
       {children}
     </>

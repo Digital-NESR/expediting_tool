@@ -79,7 +79,7 @@ function MetricCard({ label, value, detail, tone = 'green' }: { label: string; v
   };
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className={`inline-flex rounded-md border px-2 py-1 text-[11px] font-bold uppercase ${tones[tone]}`}>{label}</div>
+      <div className={`inline-flex rounded-md border px-2 py-1 text-[0.6875rem] font-bold uppercase ${tones[tone]}`}>{label}</div>
       <p className="mt-3 text-2xl font-bold text-slate-950">{value}</p>
       <p className="mt-1 text-xs text-slate-500">{detail}</p>
     </div>
@@ -219,8 +219,8 @@ function MonthlyTrend({ rows }: { rows: ProcureGuardMonthlyMetric[] }) {
                   <div className="w-7 rounded-t-md bg-[#307c4c]" style={{ height }} />
                 </div>
                 <div className="text-center">
-                  <p className="text-[11px] font-bold text-slate-700">{row.month}</p>
-                  <p className="text-[11px] text-slate-500">{row.total_count} req</p>
+                  <p className="text-[0.6875rem] font-bold text-slate-700">{row.month}</p>
+                  <p className="text-[0.6875rem] text-slate-500">{row.total_count} req</p>
                 </div>
               </div>
             );
@@ -261,11 +261,11 @@ function ReviewAgingTable({ rows }: { rows: ProcureGuardReviewDurationMetric[] }
               return (
                 <tr key={`${row.request_type}-${row.status}-${row.owner_label}`} className="hover:bg-[#307c4c]/5">
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[0.6875rem] font-semibold ${badge.className}`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
                       {badge.label}
                     </span>
-                    <p className="mt-1 text-[11px] font-semibold uppercase text-slate-400">{row.request_type}</p>
+                    <p className="mt-1 text-[0.6875rem] font-semibold uppercase text-slate-400">{row.request_type}</p>
                   </td>
                   <td className="px-4 py-3 font-semibold text-slate-800">{row.owner_label}</td>
                   <td className="px-4 py-3 text-right font-bold text-slate-900">{row.count}</td>
@@ -318,14 +318,14 @@ function HighValueTable({ rows, sortMode }: { rows: ProcureGuardHighValueRequest
                   </td>
                   <td className="px-4 py-3 text-slate-700">{row.vendor_name}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[0.6875rem] font-semibold ${badge.className}`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
                       {badge.label}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right font-semibold">
                     <p>{usdFmt(row.amount_usd)}</p>
-                    {row.currency !== 'USD' && <p className="text-[11px] font-normal text-slate-500">{usdFmt(row.amount, row.currency)} original</p>}
+                    {row.currency !== 'USD' && <p className="text-[0.6875rem] font-normal text-slate-500">{usdFmt(row.amount, row.currency)} original</p>}
                   </td>
                   <td className="px-4 py-3 text-slate-500">{fmtDate(row.created_at)}</td>
                 </tr>
@@ -365,7 +365,7 @@ export default function AnalyticsClient({ data, embedded = false }: { data: Proc
           <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-lg font-bold text-slate-900 tracking-tight">ProcureGuard Payment Analytics</h2>
-              <p className="text-[12px] text-gray-400 mt-0.5">Generated {fmtDateTime(data.generated_at)}</p>
+              <p className="text-[0.75rem] text-gray-400 mt-0.5">Generated {fmtDateTime(data.generated_at)}</p>
             </div>
           </section>
         )}

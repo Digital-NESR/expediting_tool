@@ -56,15 +56,15 @@ export default function ProcureGuardNotificationContactsPanel({
               return (
                 <div key={status} className={`rounded-md border bg-white p-3 ${isCurrent ? 'border-[#307c4c]/40 ring-2 ring-[#307c4c]/10' : 'border-slate-200'}`}>
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{formatProcureGuardStatusLabel(status)}</p>
-                    {isCurrent && <span className="rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#307c4c]">Current step</span>}
+                    <p className="text-[0.6875rem] font-bold uppercase tracking-wide text-slate-500">{formatProcureGuardStatusLabel(status)}</p>
+                    {isCurrent && <span className="rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-[#307c4c]">Current step</span>}
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {grouped[status].map(contact => (
                       <div key={`${contact.approval_status}-${contact.email}-${contact.id}`} className="min-w-0 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                        <p className="truncate text-[12.5px] font-bold text-slate-900">{contact.display_name || contact.email}</p>
-                        <p className="truncate text-[11px] text-slate-500">{contact.email}</p>
-                        <p className="mt-1 truncate text-[10.5px] font-semibold text-slate-400">{contact.notification_role}</p>
+                        <p className="truncate text-[0.78125rem] font-bold text-slate-900">{contact.display_name || contact.email}</p>
+                        <p className="truncate text-[0.6875rem] text-slate-500">{contact.email}</p>
+                        <p className="mt-1 truncate text-[0.65625rem] font-semibold text-slate-400">{contact.notification_role}</p>
                       </div>
                     ))}
                   </div>

@@ -22,7 +22,7 @@ import type { AdhocPaymentRequest, ProcureGuardRequestListData } from '@/types/p
 function StatusPill({ status }: { status: string }) {
   const badge = getStatusBadge(status);
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap ${badge.className}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[0.6875rem] font-semibold whitespace-nowrap ${badge.className}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
       {badge.label}
     </span>
@@ -35,10 +35,10 @@ function RejectionContext({ request }: { request: AdhocPaymentRequest }) {
   const reviewer = request.reviewed_by_name || request.reviewed_by_email;
   return (
     <div className="mt-2 max-w-xs rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-left">
-      <p className="text-[11px] font-bold uppercase tracking-wide text-red-700">Rejection Reason</p>
+      <p className="text-[0.6875rem] font-bold uppercase tracking-wide text-red-700">Rejection Reason</p>
       <p className="mt-1 text-xs leading-relaxed text-red-800">{reason}</p>
       {(reviewer || request.reviewed_at) && (
-        <p className="mt-1.5 text-[11px] text-red-600">
+        <p className="mt-1.5 text-[0.6875rem] text-red-600">
           {reviewer || 'Reviewer'}{request.reviewed_at ? ` | ${fmtDate(request.reviewed_at)}` : ''}
         </p>
       )}
@@ -113,17 +113,17 @@ export default function AdhocPaymentsStatusClient({ data }: { data: ProcureGuard
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60">
             <span className="absolute inset-x-0 top-0 h-1 bg-[#307c4c]" />
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Requests</p>
+            <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">Requests</p>
             <p className="mt-2 text-2xl font-bold text-slate-900">{requests.length}</p>
           </div>
           <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60">
             <span className="absolute inset-x-0 top-0 h-1 bg-amber-400" />
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Pending Review</p>
+            <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">Pending Review</p>
             <p className="mt-2 text-2xl font-bold text-slate-900">{pendingCount}</p>
           </div>
           <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60">
             <span className="absolute inset-x-0 top-0 h-1 bg-[#307c4c]" />
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Requested USD Eq.</p>
+            <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">Requested USD Eq.</p>
             <p className="mt-2 text-2xl font-bold text-slate-900">{usdFmt(totalAmount)}</p>
           </div>
         </section>
@@ -176,7 +176,7 @@ export default function AdhocPaymentsStatusClient({ data }: { data: ProcureGuard
                     <td className="px-5 py-4 align-top">
                       <p className="font-semibold text-slate-900">{r.vendor_name}</p>
                       <p className="text-xs text-slate-500">{r.vendor_code || 'No vendor code'}</p>
-                      <span className={`mt-2 inline-flex px-2 py-0.5 rounded-full border text-[11px] font-semibold ${getPriorityBadge(r.priority)}`}>{r.priority}</span>
+                      <span className={`mt-2 inline-flex px-2 py-0.5 rounded-full border text-[0.6875rem] font-semibold ${getPriorityBadge(r.priority)}`}>{r.priority}</span>
                     </td>
                     <td className="px-5 py-4 align-top font-bold text-slate-900">{usdFmt(r.amount, r.currency)}</td>
                     <td className="px-5 py-4 align-top"><StatusPill status={r.status} /><RejectionContext request={r} /></td>

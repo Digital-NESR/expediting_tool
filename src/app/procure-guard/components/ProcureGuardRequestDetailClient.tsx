@@ -154,14 +154,14 @@ function WorkflowChain({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-bold text-slate-900">{step.label}</p>
-                    {isCurrent && <span className="shrink-0 rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#307c4c]">Current step</span>}
+                    {isCurrent && <span className="shrink-0 rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-[#307c4c]">Current step</span>}
                   </div>
                   <p className="mt-0.5 text-xs font-semibold text-slate-500">{step.owner}</p>
                   <p className="mt-1 text-xs text-slate-500">{step.description}</p>
                   {stepContacts.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {stepContacts.map(contact => (
-                        <span key={`${contact.email}-${contact.id}`} title={contact.email} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700">
+                        <span key={`${contact.email}-${contact.id}`} title={contact.email} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[0.6875rem] font-semibold text-slate-700">
                           {contact.display_name || contact.email}
                           <span className="text-slate-400">· {contact.notification_role}</span>
                         </span>
@@ -175,10 +175,10 @@ function WorkflowChain({
         })}
         {extraContactGroups.map(([groupStatus, groupContacts]) => (
           <div key={groupStatus} className="rounded-md border border-slate-200 bg-white p-3">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{formatProcureGuardStatusLabel(groupStatus)}</p>
+            <p className="text-[0.6875rem] font-bold uppercase tracking-wide text-slate-500">{formatProcureGuardStatusLabel(groupStatus)}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {groupContacts.map(contact => (
-                <span key={`${contact.email}-${contact.id}`} title={contact.email} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                <span key={`${contact.email}-${contact.id}`} title={contact.email} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[0.6875rem] font-semibold text-slate-700">
                   {contact.display_name || contact.email}
                   <span className="text-slate-400">· {contact.notification_role}</span>
                 </span>
@@ -309,7 +309,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
               <p className="text-sm font-bold text-slate-900">{activityActionLabel(item.action)}</p>
               <p className="mt-1 text-xs text-slate-500">{item.actor_name || item.actor_email || 'System'}</p>
               {item.notes && <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-600">{item.notes}</p>}
-              <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{fmtDateTime(item.created_at)}</p>
+              <p className="mt-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-slate-400">{fmtDateTime(item.created_at)}</p>
             </div>
           ))}
         </div>
@@ -733,7 +733,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
           <div className="relative flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">{requestLabel}</p>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-white/70">{requestLabel}</p>
               <h1 className="mt-1 break-words text-xl font-bold tracking-tight sm:text-2xl">{request.reference_number}</h1>
               <p className="mt-1 text-sm text-white/80">
                 {request.vendor_name} requested by {requester}
@@ -764,21 +764,21 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
           <div className="relative mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div className="rounded-lg border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Original Amount</p>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/70">Original Amount</p>
               <p className="mt-1 text-lg font-bold">{usdFmt(request.amount, request.currency)}</p>
               <p className="mt-0.5 text-xs text-white/70">{request.currency}</p>
             </div>
             <div className="rounded-lg border border-white/25 bg-white/15 p-3 backdrop-blur-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">USD Equivalent</p>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/80">USD Equivalent</p>
               <p className="mt-1 text-lg font-bold">{usdEquivalentFmt(request.amount, request.currency)}</p>
               <p className="mt-0.5 text-xs text-white/70">Normalized using local FX table</p>
             </div>
             <div className="rounded-lg border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Created</p>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/70">Created</p>
               <p className="mt-1 text-sm font-bold">{fmtDateTime(request.created_at)}</p>
             </div>
             <div className="rounded-lg border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Updated</p>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/70">Updated</p>
               <p className="mt-1 text-sm font-bold">{fmtDateTime(request.updated_at)}</p>
             </div>
           </div>
@@ -841,7 +841,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
                         className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm hover:bg-[#307c4c]/5"
                       >
                         <span className="flex min-w-0 items-center gap-3">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#307c4c] text-[9px] font-bold text-white">{fileBadgeLabel(doc.file_type)}</span>
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#307c4c] text-[0.5625rem] font-bold text-white">{fileBadgeLabel(doc.file_type)}</span>
                           <span className="min-w-0">
                             <span className="block truncate font-semibold text-slate-900">{doc.original_name || doc.document_name}</span>
                             <span className="text-xs text-slate-500">{fmtBytes(doc.file_size)} | Uploaded by {doc.uploaded_by_name || doc.uploaded_by_email || 'Unknown'}</span>

@@ -39,7 +39,7 @@ function MetricCard({ title, value, sub, tone }: { title: string; value: string 
       <span className={`absolute inset-x-0 top-0 h-1 ${t.bar}`} />
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</p>
+          <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">{title}</p>
           <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{value}</p>
         </div>
         <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${t.chip}`}>
@@ -56,7 +56,7 @@ function MetricCard({ title, value, sub, tone }: { title: string; value: string 
 function StatusPill({ status }: { status: string }) {
   const badge = getStatusBadge(status);
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap ${badge.className}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[0.6875rem] font-semibold whitespace-nowrap ${badge.className}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
       {badge.label}
     </span>
@@ -64,7 +64,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function PriorityPill({ priority }: { priority: string }) {
-  return <span className={`inline-flex px-2 py-0.5 rounded-full border text-[11px] font-semibold ${getPriorityBadge(priority)}`}>{priority}</span>;
+  return <span className={`inline-flex px-2 py-0.5 rounded-full border text-[0.6875rem] font-semibold ${getPriorityBadge(priority)}`}>{priority}</span>;
 }
 
 function activityActionLabel(action: string) {
@@ -107,7 +107,7 @@ function StatCard({ label, value, sub, icon, onClick }: { label: string; value: 
       className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#307c4c]/30 hover:shadow-lg hover:shadow-slate-200/60"
     >
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
+        <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#307c4c]/10 text-[#307c4c]">{icon}</div>
       </div>
       <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{value}</p>
@@ -180,7 +180,7 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
           <div className="pointer-events-none absolute -bottom-24 -left-10 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
           <div className="relative flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
             <div>
-              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70">Guarding every purchase</p>
+              <p className="mb-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.3em] text-white/70">Guarding every purchase</p>
               <div className="flex items-center gap-3">
                 <ProcureGuardLogo size="hero" />
                 <div>
@@ -225,14 +225,14 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
           />
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Current User</p>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">Current User</p>
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
               </div>
             </div>
             <p className="mt-1 text-lg font-bold text-slate-900 truncate">{actor.name}</p>
             <p className="text-sm text-slate-500 truncate">{actor.email}</p>
-            <p className="mt-2 inline-flex items-center rounded-full bg-[#307c4c]/10 px-2.5 py-1 text-[11px] font-semibold text-[#307c4c]">
+            <p className="mt-2 inline-flex items-center rounded-full bg-[#307c4c]/10 px-2.5 py-1 text-[0.6875rem] font-semibold text-[#307c4c]">
               {actor.isAdmin ? 'Admin view: all requests' : 'User view: your requests only'}
             </p>
             {canUseProcureGuardReviewerQueue(actor.permissions.accessView) && (
@@ -276,7 +276,7 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900">{activityActionLabel(item.action)}</p>
                     <p className="text-xs text-slate-500 mt-1">{item.reference_number} · {item.actor_name || item.actor_email || 'System'}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">{timeAgo(item.created_at)}</p>
+                    <p className="text-[0.6875rem] text-slate-400 mt-1">{timeAgo(item.created_at)}</p>
                   </div>
                 </div>
               ))}

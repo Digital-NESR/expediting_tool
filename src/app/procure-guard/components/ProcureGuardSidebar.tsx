@@ -125,7 +125,7 @@ export default function ProcureGuardSidebar({
           <ProcureGuardLogo size="lg" />
           <div className="min-w-0">
             <p className="truncate text-sm font-bold leading-tight tracking-tight">ProcureGuard</p>
-            <p className="text-[11px] text-white/70">Payment request control</p>
+            <p className="text-[0.6875rem] text-white/70">Payment request control</p>
           </div>
           <div className="ml-auto flex items-center gap-1">
             <button
@@ -198,8 +198,8 @@ export default function ProcureGuardSidebar({
         <div className="border-t border-slate-100 px-3 pb-2 pt-3">
           <div className="flex items-center justify-between gap-3 rounded-xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-4 py-2.5 text-white shadow-sm shadow-[#307c4c]/20">
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/70">Review Queue</p>
-              <p className="text-[11px] text-white/70">active approval items</p>
+              <p className="text-[0.625rem] font-semibold uppercase tracking-wider text-white/70">Review Queue</p>
+              <p className="text-[0.6875rem] text-white/70">active approval items</p>
             </div>
             <p className="text-2xl font-bold leading-none">{pendingCount ?? 0}</p>
           </div>

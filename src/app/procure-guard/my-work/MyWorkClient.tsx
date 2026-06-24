@@ -22,7 +22,7 @@ function DbError() {
 function StatusPill({ status }: { status: string }) {
   const badge = getStatusBadge(status);
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${badge.className}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[0.6875rem] font-semibold whitespace-nowrap ${badge.className}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
       {badge.label}
     </span>
@@ -30,7 +30,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function PriorityPill({ priority }: { priority: string }) {
-  return <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getPriorityBadge(priority)}`}>{priority}</span>;
+  return <span className={`inline-flex rounded-full border px-2 py-0.5 text-[0.6875rem] font-semibold ${getPriorityBadge(priority)}`}>{priority}</span>;
 }
 
 function actionLabel(item: ProcureGuardWorkQueueItem) {
@@ -67,15 +67,15 @@ export default function MyWorkClient({ data }: { data: ProcureGuardWorkQueueData
             <div className="flex items-center gap-3.5">
               <ProcureGuardLogo size="lg" />
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">Assigned queue</p>
+                <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-white/70">Assigned queue</p>
                 <h1 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">{data.actor.role} Work Queue</h1>
                 <p className="mt-1 max-w-2xl text-sm text-white/80">Open a payment to review the details, add comments, and complete your action.</p>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-center backdrop-blur-sm"><p className="text-[11px] text-white/70">Total</p><p className="text-xl font-bold">{data.stats.total}</p></div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-center backdrop-blur-sm"><p className="text-[11px] text-white/70">Adhoc</p><p className="text-xl font-bold">{data.stats.adhoc}</p></div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-center backdrop-blur-sm"><p className="text-[11px] text-white/70">Advance</p><p className="text-xl font-bold">{data.stats.advance}</p></div>
+              <div className="rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-center backdrop-blur-sm"><p className="text-[0.6875rem] text-white/70">Total</p><p className="text-xl font-bold">{data.stats.total}</p></div>
+              <div className="rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-center backdrop-blur-sm"><p className="text-[0.6875rem] text-white/70">Adhoc</p><p className="text-xl font-bold">{data.stats.adhoc}</p></div>
+              <div className="rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-center backdrop-blur-sm"><p className="text-[0.6875rem] text-white/70">Advance</p><p className="text-xl font-bold">{data.stats.advance}</p></div>
             </div>
           </div>
         </section>
@@ -97,7 +97,7 @@ export default function MyWorkClient({ data }: { data: ProcureGuardWorkQueueData
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <Link href={href} className="font-bold text-slate-900 hover:text-[#307c4c] hover:underline">{item.request.reference_number}</Link>
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-bold capitalize text-slate-600">{item.request_type}</span>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[0.6875rem] font-bold capitalize text-slate-600">{item.request_type}</span>
                         <StatusPill status={item.request.status} />
                         <PriorityPill priority={item.request.priority} />
                       </div>

@@ -127,12 +127,12 @@ export default function ProcureGuardDelegateClient({ data }: { data: ProcureGuar
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-semibold text-slate-900">{d.delegate_name || d.delegate_email}</span>
-                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${live ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'bg-slate-100 text-slate-500'}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold ${live ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'bg-slate-100 text-slate-500'}`}>
                           {live ? 'Active' : 'Inactive'}
                         </span>
                       </div>
                       <p className="mt-0.5 truncate text-xs text-slate-500">{d.delegate_email}</p>
-                      <p className="mt-0.5 text-[11px] text-slate-400">
+                      <p className="mt-0.5 text-[0.6875rem] text-slate-400">
                         Granted {fmtDate(d.created_at)}
                         {d.expires_at ? ` · ends ${fmtDate(d.expires_at)}` : ''}
                         {d.revoked_at ? ` · revoked ${fmtDate(d.revoked_at)}` : ''}
@@ -165,7 +165,7 @@ export default function ProcureGuardDelegateClient({ data }: { data: ProcureGuar
                 <div key={d.id} className="p-4">
                   <p className="text-sm font-semibold text-slate-900">{d.delegator_name || d.delegator_email}</p>
                   <p className="mt-0.5 truncate text-xs text-slate-500">{d.delegator_email}</p>
-                  <p className="mt-0.5 text-[11px] text-slate-400">Since {fmtDate(d.created_at)}{d.expires_at ? ` · ends ${fmtDate(d.expires_at)}` : ''}</p>
+                  <p className="mt-0.5 text-[0.6875rem] text-slate-400">Since {fmtDate(d.created_at)}{d.expires_at ? ` · ends ${fmtDate(d.expires_at)}` : ''}</p>
                 </div>
               ))}
             </div>

@@ -133,7 +133,7 @@ export default function ProcureGuardHelpContent() {
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`-mb-px border-b-2 px-4 py-2.5 text-[13.5px] font-medium transition-colors ${
+            className={`-mb-px border-b-2 px-4 py-2.5 text-[0.84375rem] font-medium transition-colors ${
               tab === key
                 ? 'border-[#307c4c] font-semibold text-[#307c4c]'
                 : 'border-transparent text-slate-400 hover:text-slate-700'
