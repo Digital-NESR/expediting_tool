@@ -2,7 +2,6 @@
 
 import { request as httpRequest } from 'http';
 import { request as httpsRequest } from 'https';
-import { randomBytes } from 'crypto';
 import type { QueryResultRow } from 'pg';
 import { cache } from 'react';
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
@@ -260,6 +259,16 @@ let referenceUniquenessChecked: Promise<void> | null = null;
 async function ensureProcureGuardReferenceUniqueness(): Promise<void> {
   if (referenceUniquenessChecked) return referenceUniquenessChecked;
   referenceUniquenessChecked = (async () => {
+    // Sequential reference numbers (ADH-000001 / ADV-000001) are drawn from these per-type
+    // sequences. CREATE ... IF NOT EXISTS is a no-op once they exist, so this never resets the
+    // counter on a populated database (the renumber migration set them); on a fresh DB they
+    // start at 1.
+    try {
+      await execSchema(`CREATE SEQUENCE IF NOT EXISTS procure_guard_adhoc_reference_seq`);
+      await execSchema(`CREATE SEQUENCE IF NOT EXISTS procure_guard_advance_reference_seq`);
+    } catch (err) {
+      console.warn('[ProcureGuard] reference sequence ensure failed', err);
+    }
     const targets = [
       { table: 'procure_guard_adhoc_payments', index: 'uq_procure_guard_adhoc_reference_number' },
       { table: 'procure_guard_advance_payments', index: 'uq_procure_guard_advance_reference_number' },
@@ -643,13 +652,15 @@ function requireProcureGuardReviewerQueueAccess(actor: ProcureGuardActor): void 
   }
 }
 
-function makeReference(prefix: 'ADH' | 'ADV') {
-  const d = new Date();
-  const stamp = d.toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
-  // 5 crypto-random bytes (40 bits) make same-second collisions effectively impossible;
-  // the UNIQUE index on reference_number is the hard guarantee (see ensureProcureGuardPaymentRequestColumns).
-  const rand = randomBytes(5).toString('hex').toUpperCase();
-  return `PG-${prefix}-${stamp}-${rand}`;
+// Sequential, human-friendly reference numbers: ADH-000001, ADV-000001, ... drawn atomically
+// from a per-type Postgres sequence (nextval is concurrency-safe, so no two requests collide).
+// The UNIQUE index on reference_number remains the hard backstop.
+async function makeReference(prefix: 'ADH' | 'ADV'): Promise<string> {
+  await ensureProcureGuardReferenceUniqueness();
+  const seq = prefix === 'ADH' ? 'procure_guard_adhoc_reference_seq' : 'procure_guard_advance_reference_seq';
+  const rows = await sql<QueryResultRow[]>(`SELECT nextval('${seq}') AS n`);
+  const n = Number(rows[0]?.n ?? 0);
+  return `${prefix}-${String(n).padStart(6, '0')}`;
 }
 
 // Runs an INSERT that includes a generated reference_number, regenerating and
@@ -662,7 +673,7 @@ async function insertProcureGuardPaymentRequest(
   // The reference_number UNIQUE index backs the retry-on-collision below, so ensure it before inserting.
   await ensureProcureGuardReferenceUniqueness();
   for (let attempt = 0; ; attempt++) {
-    const reference = makeReference(prefix);
+    const reference = await makeReference(prefix);
     try {
       const result = await run(reference);
       return { ...result, reference };
