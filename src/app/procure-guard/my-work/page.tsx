@@ -8,7 +8,8 @@ export const metadata: Metadata = { title: 'My Work | ProcureGuard' };
 
 export default async function MyWorkPage() {
   const actor = await getProcureGuardActor();
-  if (actor && !canUseProcureGuardReviewerQueue(actor.permissions.accessView)) {
+  if (!actor) redirect('/');
+  if (!canUseProcureGuardReviewerQueue(actor.permissions.accessView)) {
     redirect(actor.permissions.accessView === 'analyst' ? '/procure-guard/analytics' : '/procure-guard');
   }
   const data = await getProcureGuardWorkQueueData();

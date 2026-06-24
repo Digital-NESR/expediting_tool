@@ -8,7 +8,8 @@ export const metadata: Metadata = { title: 'Advance Payment Status | ProcureGuar
 
 export default async function AdvancePaymentsStatusPage() {
   const actor = await getProcureGuardActor();
-  if (actor && !canUseProcureGuardOperationalPages(actor.permissions.accessView)) {
+  if (!actor) redirect('/');
+  if (!canUseProcureGuardOperationalPages(actor.permissions.accessView)) {
     redirect('/procure-guard/analytics');
   }
   const data = await getAdvancePaymentRequestsData();

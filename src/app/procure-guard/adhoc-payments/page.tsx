@@ -8,7 +8,8 @@ export const metadata: Metadata = { title: 'Adhoc PO Status | ProcureGuard' };
 
 export default async function AdhocPaymentsStatusPage() {
   const actor = await getProcureGuardActor();
-  if (actor && !canUseProcureGuardOperationalPages(actor.permissions.accessView)) {
+  if (!actor) redirect('/');
+  if (!canUseProcureGuardOperationalPages(actor.permissions.accessView)) {
     redirect('/procure-guard/analytics');
   }
   const data = await getAdhocPaymentsData();

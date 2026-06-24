@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function AnalyticsPage() {
   const actor = await getProcureGuardActor();
-  if (actor && !canUseProcureGuardAnalytics(actor.permissions.accessView)) {
+  if (!actor) redirect('/');
+  if (!canUseProcureGuardAnalytics(actor.permissions.accessView)) {
     redirect('/procure-guard');
   }
   const data = await getProcureGuardAnalyticsData();

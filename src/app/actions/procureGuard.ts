@@ -621,20 +621,24 @@ async function requirePermissionManager(): Promise<ProcureGuardActor> {
   return actor;
 }
 
+// These guards key off actor.permissions.accessView (the MERGED view that includes any
+// delegated authority) so a delegate passes the same checks the page gates use. Admin
+// checks deliberately stay on the base role — delegation caps accessView at 'reviewer'
+// and must never confer admin.
 function requireProcureGuardOperationalAccess(actor: ProcureGuardActor): void {
-  if (!canUseProcureGuardOperationalPages(getProcureGuardAccessView(actor.role))) {
+  if (!canUseProcureGuardOperationalPages(actor.permissions.accessView)) {
     throw new Error('Operational ProcureGuard access is required.');
   }
 }
 
 function requireProcureGuardAnalyticsAccess(actor: ProcureGuardActor): void {
-  if (!canUseProcureGuardAnalytics(getProcureGuardAccessView(actor.role))) {
+  if (!canUseProcureGuardAnalytics(actor.permissions.accessView)) {
     throw new Error('Analytics access is required.');
   }
 }
 
 function requireProcureGuardReviewerQueueAccess(actor: ProcureGuardActor): void {
-  if (!canUseProcureGuardReviewerQueue(getProcureGuardAccessView(actor.role))) {
+  if (!canUseProcureGuardReviewerQueue(actor.permissions.accessView)) {
     throw new Error('Reviewer access is required.');
   }
 }
