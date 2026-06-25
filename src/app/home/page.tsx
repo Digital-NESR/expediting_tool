@@ -655,6 +655,52 @@ function SourceGuideCard({
   );
 }
 
+/* ─── Catalog Manager Card (Admin Preview) ───────────────────── */
+
+function CatalogManagerCard({
+  canOpen,
+  onClick,
+}: {
+  canOpen: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!canOpen}
+      className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
+        canOpen
+          ? 'opacity-75 cursor-pointer hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10'
+          : 'opacity-50 cursor-default select-none'
+      }`}
+    >
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+        <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </div>
+
+      <div className="flex-1">
+        <h3 className="text-[18px] font-semibold text-gray-500">Catalog Manager</h3>
+        <p className="mt-0.5 text-[13px] font-medium text-slate-400">Supplier Service &amp; Indirect Item Rates</p>
+        <p className="mt-2 text-sm leading-relaxed text-gray-500">
+          Maintain country-segmented supplier price catalogs, route rate approvals, and keep an audit-ready record of agreed prices.
+        </p>
+      </div>
+
+      <div className="mt-auto flex items-center justify-between">
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
+          {canOpen ? 'Admin Preview' : 'Coming Soon'}
+        </span>
+        {canOpen && (
+          <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open preview →</span>
+        )}
+      </div>
+    </button>
+  );
+}
+
 /* ─── Coming-Soon Card ───────────────────────────────────────── */
 
 function ProcureGuardCard({
@@ -763,6 +809,7 @@ export default function HomePage() {
   const canOpenProcureGuard = isAdmin || procureGuardStatus === 'approved';
   const sourceGuideStatus: ToolStatus = session?.user?.toolAccess?.sourceguide?.status ?? 'new';
   const canOpenSourceGuide = isAdmin || sourceGuideStatus === 'approved';
+  const canOpenCatalogManager = isAdmin;
 
   function handlePOClick() {
     if (isAdmin || poStatus === 'approved') {
@@ -790,6 +837,10 @@ export default function HomePage() {
 
   function handleSourceGuideClick() {
     if (canOpenSourceGuide) router.push('/sourceguide');
+  }
+
+  function handleCatalogManagerClick() {
+    if (canOpenCatalogManager) router.push('/catalog-manager');
   }
 
   async function handleRefreshStatus() {
@@ -935,6 +986,13 @@ export default function HomePage() {
                 <SourceGuideCard
                   canOpen={canOpenSourceGuide}
                   onClick={handleSourceGuideClick}
+                />
+              )}
+
+              {show('catalog manager supplier service indirect item rates price catalog spend') && (
+                <CatalogManagerCard
+                  canOpen={canOpenCatalogManager}
+                  onClick={handleCatalogManagerClick}
                 />
               )}
 
