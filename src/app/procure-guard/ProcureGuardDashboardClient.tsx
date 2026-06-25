@@ -221,8 +221,8 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
           />
         </section>
 
-        <section className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-          <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <section className="grid grid-cols-3 gap-3">
+          <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <SectionHeading
               title="Action Queue"
               subtitle="Highest priority submitted and under-review items."
