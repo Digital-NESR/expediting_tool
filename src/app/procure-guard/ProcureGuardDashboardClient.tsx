@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import ProcureGuardSidebar from './components/ProcureGuardSidebar';
 import ProcureGuardLogo from './components/ProcureGuardLogo';
 import ProcureGuardHomeButton from './components/ProcureGuardHomeButton';
-import { canUseProcureGuardReviewerQueue, fmtDate, formatProcureGuardStatusLabel, getPriorityBadge, getStatusBadge, isActiveApprovalStatus, timeAgo, usdFmt } from '@/lib/procureGuard-utils';
+import { fmtDate, formatProcureGuardStatusLabel, getPriorityBadge, getStatusBadge, isActiveApprovalStatus, timeAgo, usdFmt } from '@/lib/procureGuard-utils';
 import type { AdhocPaymentRequest, AdvancePaymentRequest, ProcureGuardDashboardData } from '@/types/procureGuard';
 
 function DbError() {
@@ -156,7 +156,7 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
 
   if (!data) return <DbError />;
 
-  const { stats, activity, actor } = data;
+  const { stats, activity } = data;
 
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -202,13 +202,9 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
           </div>
         </section>
 
-        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           <MetricCard title="Pending Review" value={stats.pending_review} sub="Active approval chain items" tone="amber" />
           <MetricCard title="Approved" value={stats.approved} sub="Completed approval requests" tone="green" />
-          <MetricCard title="Total USD Eq." value={usdFmt(stats.total_requested_amount)} sub="All visible request value normalized to USD" tone="green" />
-        </section>
-
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <StatCard
             label="Adhoc POs"
             value={stats.adhoc_total}
@@ -223,30 +219,6 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
             onClick={() => router.push('/procure-guard/advance-payments')}
             icon={<svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7zm14 5h.01" /></svg>}
           />
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">Current User</p>
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-              </div>
-            </div>
-            <p className="mt-1 text-lg font-bold text-slate-900 truncate">{actor.name}</p>
-            <p className="text-sm text-slate-500 truncate">{actor.email}</p>
-            <p className="mt-2 inline-flex items-center rounded-full bg-[#307c4c]/10 px-2.5 py-1 text-[0.6875rem] font-semibold text-[#307c4c]">
-              {actor.isAdmin ? 'Admin view: all requests' : 'User view: your requests only'}
-            </p>
-            {canUseProcureGuardReviewerQueue(actor.permissions.accessView) && (
-              <button
-                onClick={() => router.push('/procure-guard/my-work')}
-                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#307c4c] px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/85"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Go to My Work
-              </button>
-            )}
-          </div>
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-3 gap-3">
