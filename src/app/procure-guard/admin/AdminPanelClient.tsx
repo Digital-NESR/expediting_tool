@@ -6,9 +6,11 @@ import ProcureGuardLogo from '../components/ProcureGuardLogo';
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  adminGrantProcureGuardDelegation,
   createAdminAdhocPayment,
   createAdminAdvancePayment,
   deleteProcureGuardRecord,
+  revokeProcureGuardDelegation,
   testProcureGuardN8nWebhook,
   updateProcureGuardNotificationRecipientGroup,
   updateProcureGuardPermission,
@@ -22,6 +24,7 @@ import {
   SEGMENT_OPTIONS,
   SPEND_CATEGORY_OPTIONS,
   formatProcureGuardStatusLabel,
+  fmtDate,
   fmtDateTime,
   getPermissionProfile,
   getStatusBadge,
@@ -34,6 +37,7 @@ import type {
   AdvancePaymentRequest,
   ProcureGuardActivityRow,
   ProcureGuardAdminData,
+  ProcureGuardDelegation,
   ProcureGuardNotificationContact,
   ProcureGuardPermissionProfile,
   ProcureGuardPermissionRole,
@@ -42,7 +46,7 @@ import type {
   ProcureGuardStatus,
 } from '@/types/procureGuard';
 
-type TabKey = 'adhoc' | 'advance' | 'activity' | 'permissions' | 'recipients';
+type TabKey = 'adhoc' | 'advance' | 'activity' | 'permissions' | 'recipients' | 'delegations';
 type RecipientPersonGroup = {
   key: string;
   displayName: string;
@@ -853,21 +857,171 @@ function ActivityTable({ rows, onDone }: { rows: ProcureGuardActivityRow[]; onDo
   );
 }
 
+function delegationIsLive(d: ProcureGuardDelegation): boolean {
+  return d.is_active && (!d.expires_at || new Date(d.expires_at).getTime() > Date.now());
+}
+
+function DelegationsPanel({
+  delegations,
+  approvers,
+  onDone,
+}: {
+  delegations: ProcureGuardDelegation[];
+  approvers: ProcureGuardPermissionRow[];
+  onDone: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [delegatorEmail, setDelegatorEmail] = useState('');
+  const [delegateEmail, setDelegateEmail] = useState('');
+  const [delegateName, setDelegateName] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [error, setError] = useState('');
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    startTransition(async () => {
+      const result = await adminGrantProcureGuardDelegation({
+        delegatorEmail,
+        delegateEmail,
+        delegateName,
+        expiresAt: expiresAt || null,
+      });
+      if (result.success) {
+        onDone(`Delegated ${delegatorEmail}'s approvals to ${delegateEmail}. Both have been emailed.`);
+        setDelegatorEmail('');
+        setDelegateEmail('');
+        setDelegateName('');
+        setExpiresAt('');
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Failed to create delegation.');
+      }
+    });
+  }
+
+  function revoke(id: number, who: string) {
+    setError('');
+    startTransition(async () => {
+      const result = await revokeProcureGuardDelegation(id);
+      if (result.success) {
+        onDone(`Revoked delegation for ${who}. They've been emailed.`);
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Failed to revoke delegation.');
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="text-sm font-bold text-slate-900">Set up a delegation</h3>
+        <p className="mt-0.5 text-xs text-slate-500">
+          Hand an approver&apos;s authority to a delegate on their behalf. The delegate inherits the approver&apos;s scope until the end date or until you revoke it.
+        </p>
+        {error && <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+        <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Approver (delegator)">
+            <select className={inputClass} value={delegatorEmail} onChange={e => setDelegatorEmail(e.target.value)} required>
+              <option value="">Select an approver…</option>
+              {approvers.map(a => (
+                <option key={a.email} value={a.email}>
+                  {a.name ? `${a.name} (${a.email})` : a.email} — {a.role}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Delegate email">
+            <input type="email" required className={inputClass} value={delegateEmail} onChange={e => setDelegateEmail(e.target.value)} placeholder="colleague@nesr.com" />
+          </Field>
+          <Field label="Delegate name (optional)">
+            <input className={inputClass} value={delegateName} onChange={e => setDelegateName(e.target.value)} placeholder="Full name" />
+          </Field>
+          <Field label="End date (optional)">
+            <input type="date" className={inputClass} value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
+          </Field>
+          <div className="flex items-end">
+            <button type="submit" disabled={isPending} className="rounded-lg bg-[#307c4c] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#307c4c]/85 disabled:opacity-60">
+              {isPending ? 'Working…' : 'Create delegation'}
+            </button>
+          </div>
+        </form>
+        {approvers.length === 0 && (
+          <p className="mt-3 text-xs text-slate-400">No approvers found. Assign an approval role under Access Roles first.</p>
+        )}
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <h3 className="text-sm font-bold text-slate-900">All delegations</h3>
+          <p className="mt-0.5 text-xs text-slate-500">Every delegation across approvers. Revoke any active one to remove the delegate&apos;s access immediately.</p>
+        </div>
+        {delegations.length === 0 ? (
+          <div className="p-4 text-center text-sm text-slate-500">No delegations have been set up.</div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {delegations.map(d => {
+              const live = delegationIsLive(d);
+              return (
+                <div key={d.id} className="flex items-center justify-between gap-4 p-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-900">{d.delegator_name || d.delegator_email}</span>
+                      <span className="text-slate-300">→</span>
+                      <span className="text-sm font-semibold text-slate-900">{d.delegate_name || d.delegate_email}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold ${live ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'bg-slate-100 text-slate-500'}`}>
+                        {live ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-slate-500">{d.delegator_email} → {d.delegate_email}</p>
+                    <p className="mt-0.5 text-[0.6875rem] text-slate-400">
+                      Granted {fmtDate(d.created_at)}
+                      {d.expires_at ? ` · ends ${fmtDate(d.expires_at)}` : ''}
+                      {d.revoked_at ? ` · revoked ${fmtDate(d.revoked_at)}` : ''}
+                    </p>
+                  </div>
+                  {live && (
+                    <button
+                      onClick={() => revoke(d.id, d.delegate_name || d.delegate_email)}
+                      disabled={isPending}
+                      className="shrink-0 rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function AdminPanelClient({ data, embedded = false }: { data: ProcureGuardAdminData | null; embedded?: boolean }) {
   const [tab, setTab] = useState<TabKey>('permissions');
   const [notice, setNotice] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const counts = useMemo(() => {
-    if (!data) return { adhoc: 0, advance: 0, activity: 0, permissions: 0, recipients: 0 };
+    if (!data) return { adhoc: 0, advance: 0, activity: 0, permissions: 0, recipients: 0, delegations: 0 };
     return {
       adhoc: data.adhoc.length,
       advance: data.advance.length,
       activity: data.activity.length,
       permissions: data.permissions.length,
       recipients: data.notification_recipients.length,
+      delegations: data.delegations.length,
     };
   }, [data]);
+
+  const approvers = useMemo(
+    () => (data?.permissions ?? []).filter(p => getPermissionProfile(p.role).canViewAll),
+    [data],
+  );
 
   if (!data) return <EmptyOrForbidden />;
 
@@ -875,6 +1029,7 @@ export default function AdminPanelClient({ data, embedded = false }: { data: Pro
   const tabItems = (isFullAdmin ? [
     { key: 'permissions', label: 'Access Roles', count: counts.permissions, description: 'Manage approved SSO users and recipient-derived approval roles.' },
     { key: 'recipients', label: 'Email Recipients', count: counts.recipients, description: 'Update who receives approval notifications for each role and country.' },
+    { key: 'delegations', label: 'Delegations', count: counts.delegations, description: 'Set up and revoke approval delegations on behalf of approvers.' },
     { key: 'adhoc', label: 'Adhoc POs', count: counts.adhoc, description: 'Review and remove adhoc test records.' },
     { key: 'advance', label: 'Advance Payments', count: counts.advance, description: 'Review and remove advance test records.' },
     { key: 'activity', label: 'Activity Log', count: counts.activity, description: 'See meaningful approval activity.' },
@@ -949,7 +1104,7 @@ export default function AdminPanelClient({ data, embedded = false }: { data: Pro
                 : 'This panel shows the ProcureGuard permission assigned to your SSO account.'}
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
             {tabItems.map(item => (
               <button
                 key={item.key}
@@ -981,6 +1136,7 @@ export default function AdminPanelClient({ data, embedded = false }: { data: Pro
             {isFullAdmin && tab === 'activity' && <ActivityTable rows={data.activity} onDone={setNotice} />}
             {tab === 'permissions' && <PermissionsPanel rows={data.permissions} actor={data.actor} isFullAdmin={isFullAdmin} onDone={setNotice} />}
             {isFullAdmin && tab === 'recipients' && <NotificationRecipientsPanel rows={data.notification_recipients} onDone={setNotice} />}
+            {isFullAdmin && tab === 'delegations' && <DelegationsPanel delegations={data.delegations} approvers={approvers} onDone={setNotice} />}
           </div>
         </section>
       </main>

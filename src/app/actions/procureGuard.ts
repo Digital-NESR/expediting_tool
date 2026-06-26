@@ -1878,10 +1878,78 @@ export async function revokeProcureGuardDelegation(id: number): Promise<ActionRe
       });
     }
     revalidatePath('/procure-guard/delegate');
+    revalidatePath('/admin');
     return { success: true };
   } catch (err) {
     console.error('[revokeProcureGuardDelegation]', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to revoke delegation.' };
+  }
+}
+
+// Admin-managed delegation: an admin sets up a delegation on behalf of any approver (delegator → delegate),
+// rather than the delegator delegating their own authority via /procure-guard/delegate.
+export async function adminGrantProcureGuardDelegation(input: {
+  delegatorEmail: string;
+  delegateEmail: string;
+  delegateName?: string;
+  expiresAt?: string | null;
+}): Promise<ActionResult<{ id: number }>> {
+  try {
+    await requireAdminActor();
+    await ensureProcureGuardDelegationTable();
+
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const delegatorEmail = requireText(input.delegatorEmail, 'Approver email').toLowerCase();
+    const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
+    if (!emailRe.test(delegatorEmail)) return { success: false, error: 'Enter a valid approver email address.' };
+    if (!emailRe.test(delegateEmail)) return { success: false, error: 'Enter a valid delegate email address.' };
+    if (delegatorEmail === delegateEmail) return { success: false, error: 'Approver and delegate must be different people.' };
+
+    // The delegator must have approval authority to hand off.
+    const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
+    const delegatorRole = (delegatorRow?.role ?? (adminEmails().includes(delegatorEmail) ? 'Admin' : 'Requester')) as ProcureGuardPermissionRole;
+    const delegatorProfile = getPermissionProfile(delegatorRole);
+    if (!delegatorProfile.canViewAll) {
+      return { success: false, error: 'The selected approver has no approval authority to delegate.' };
+    }
+    const delegatorName = delegatorRow?.name || delegatorEmail;
+    const expiresAt = input.expiresAt && input.expiresAt.trim() ? input.expiresAt.trim() : null;
+
+    // Replace any existing active delegation for this same pair so there is only one live grant.
+    await exec(
+      `UPDATE procure_guard_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE LOWER(delegator_email) = LOWER(?) AND LOWER(delegate_email) = LOWER(?) AND is_active = TRUE`,
+      [delegatorEmail, delegateEmail],
+    );
+    const result = await exec(
+      `INSERT INTO procure_guard_delegations (delegator_email, delegator_name, delegate_email, delegate_name, expires_at)
+       VALUES (?, ?, ?, ?, ?) RETURNING id`,
+      [delegatorEmail, delegatorName, delegateEmail, blankToNull(input.delegateName), expiresAt],
+    );
+
+    const openItems = await getDelegatorOpenItems({
+      source: 'self',
+      fromEmail: delegatorEmail,
+      fromName: delegatorName,
+      role: delegatorRole,
+      country: normalizeProcureGuardCountry(delegatorRow?.country),
+      segment: delegatorRow?.segment ?? null,
+      isAdmin: delegatorRole === 'Admin',
+    });
+    await sendProcureGuardDelegationEmail('granted', {
+      delegateEmail,
+      delegateName: input.delegateName?.trim() || null,
+      delegatorName,
+      expiresAt,
+      openItems,
+    });
+
+    revalidatePath('/admin');
+    revalidatePath('/procure-guard/delegate');
+    return { success: true, data: { id: result.insertId } };
+  } catch (err) {
+    console.error('[adminGrantProcureGuardDelegation]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
   }
 }
 
@@ -2036,8 +2104,9 @@ export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData 
   try {
     const actor = await requireAdminActor();
     await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardDelegationTable();
     await syncProcureGuardRecipientAccessApprovals();
-    const [adhocRows, advanceRows, activityRows, permissionRows, notificationRecipientRows] = await Promise.all([
+    const [adhocRows, advanceRows, activityRows, permissionRows, notificationRecipientRows, delegationRows] = await Promise.all([
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ORDER BY created_at DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ORDER BY created_at DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 100`),
@@ -2048,6 +2117,7 @@ export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData 
          FROM procure_guard_notification_recipients
          ORDER BY country, request_type, approval_status NULLS LAST, notification_role, display_name`,
       ),
+      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_delegations ORDER BY is_active DESC, created_at DESC`),
     ]);
 
     const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
@@ -2060,6 +2130,7 @@ export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData 
       activity: serialise<ProcureGuardActivityRow[]>(activityRows),
       permissions,
       notification_recipients: serialise<ProcureGuardNotificationContact[]>(notificationRecipientRows),
+      delegations: serialise<ProcureGuardDelegation[]>(delegationRows),
       stats: buildStats(adhoc, advance),
     };
   } catch (err) {

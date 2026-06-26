@@ -326,6 +326,7 @@ export interface ProcureGuardAdminData extends ProcureGuardDashboardData {
   activity: ProcureGuardActivityRow[];
   permissions: ProcureGuardPermissionRow[];
   notification_recipients: ProcureGuardNotificationContact[];
+  delegations: ProcureGuardDelegation[];
 }
 
 export interface ProcureGuardDocument {
