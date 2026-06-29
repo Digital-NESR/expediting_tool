@@ -81,9 +81,9 @@ export async function getStats(): Promise<SgStats> {
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT
-        (SELECT COUNT(*) FROM sg_commodities)                      AS commodities,
-        (SELECT COUNT(*) FROM sg_suppliers)                        AS suppliers,
-        (SELECT COUNT(*) FROM sg_mappings WHERE status='Active')   AS mappings,
+        (SELECT COUNT(*) FROM sg_commodities)                                            AS commodities,
+        (SELECT COUNT(DISTINCT supplier_code) FROM sg_mappings WHERE status='Active')     AS suppliers,
+        (SELECT COUNT(*) FROM sg_mappings WHERE status='Active')                          AS mappings,
         (SELECT COUNT(*) FROM sg_countries)                        AS countries,
         (SELECT COUNT(DISTINCT category_id) FROM sg_commodities)   AS categories
     `);
@@ -205,11 +205,9 @@ export async function searchCommodities(
 
     const ids = rows.map(r => r.id);
     const mapRes = await sourceGuidePool.query(
-      `SELECT m.commodity_id, m.country_code, m.tier, m.supplier_code,
-              COALESCE(a.name, s.name) AS supplier_name
+      `SELECT m.commodity_id, m.country_code, m.tier, m.supplier_code, a.name AS supplier_name
        FROM sg_mappings m
-       LEFT JOIN supplier_avl a ON a.supplier_code = m.supplier_code
-       LEFT JOIN sg_suppliers s ON s.id = m.supplier_id
+       JOIN supplier_avl a ON a.supplier_code = m.supplier_code
        WHERE m.status = 'Active' AND m.commodity_id = ANY($1)`,
       [ids],
     );
@@ -303,12 +301,11 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
 
     const mapRes = await sourceGuidePool.query(
       `SELECT m.id, m.commodity_id, m.supplier_code, m.country_code, m.tier, m.status,
-              COALESCE(a.name, s.name) AS supplier_name
+              a.name AS supplier_name
        FROM sg_mappings m
-       LEFT JOIN supplier_avl a ON a.supplier_code = m.supplier_code
-       LEFT JOIN sg_suppliers s ON s.id = m.supplier_id
+       JOIN supplier_avl a ON a.supplier_code = m.supplier_code
        WHERE m.status = 'Active' AND m.commodity_id = $1
-       ORDER BY m.country_code, (m.tier = 'Preferred') DESC, COALESCE(a.name, s.name)`,
+       ORDER BY m.country_code, (m.tier = 'Preferred') DESC, a.name`,
       [commodityId],
     );
 
@@ -524,10 +521,9 @@ export async function getMappingEditList(
 
     const mapRes = await sourceGuidePool.query(
       `SELECT m.id, m.commodity_id, m.supplier_code, m.country_code, m.tier, m.status,
-              COALESCE(a.name, s.name) AS supplier_name
+              a.name AS supplier_name
        FROM sg_mappings m
-       LEFT JOIN supplier_avl a ON a.supplier_code = m.supplier_code
-       LEFT JOIN sg_suppliers s ON s.id = m.supplier_id
+       JOIN supplier_avl a ON a.supplier_code = m.supplier_code
        WHERE m.status='Active' AND m.country_code = $1 AND m.commodity_id = ANY($2)`,
       [country, ids],
     );
@@ -634,10 +630,9 @@ export async function removeMapping(mapId: number): Promise<{ success: boolean; 
   try {
     const m = await sourceGuidePool.query(
       `SELECT m.country_code, m.tier, m.commodity_id,
-              COALESCE(a.name, s.name, '') AS supplier_name, c.name AS com_name
+              COALESCE(a.name, '') AS supplier_name, c.name AS com_name
        FROM sg_mappings m
        LEFT JOIN supplier_avl a ON a.supplier_code = m.supplier_code
-       LEFT JOIN sg_suppliers s ON s.id = m.supplier_id
        JOIN sg_commodities c ON c.id=m.commodity_id WHERE m.id=$1`,
       [mapId],
     );
@@ -661,10 +656,9 @@ export async function changeTier(mapId: number, tier: Tier): Promise<{ success: 
   try {
     const m = await sourceGuidePool.query(
       `SELECT m.country_code, m.tier, m.commodity_id,
-              COALESCE(a.name, s.name, '') AS supplier_name, c.name AS com_name
+              COALESCE(a.name, '') AS supplier_name, c.name AS com_name
        FROM sg_mappings m
        LEFT JOIN supplier_avl a ON a.supplier_code = m.supplier_code
-       LEFT JOIN sg_suppliers s ON s.id = m.supplier_id
        JOIN sg_commodities c ON c.id=m.commodity_id WHERE m.id=$1`,
       [mapId],
     );
