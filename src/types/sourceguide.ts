@@ -26,18 +26,18 @@ export interface SgCommodity {
 }
 
 export interface SgSupplier {
-  id: number;
-  name: string;
+  /** vendor code from the Approved Vendor List (supplier_avl) — the unique key */
   code: string;
+  name: string;
   countries: string[];
 }
 
 export interface SgMapping {
   id: number;
   commodityId: number;
-  supplierId: number;
+  /** AVL vendor code; null for legacy rows not yet matched to the AVL */
+  supplierCode: string | null;
   supplierName: string;
-  supplierCode: string;
   country: string;
   tier: Tier;
   status: string;
@@ -63,7 +63,7 @@ export interface SgStats {
 /** A commodity row enriched with the preferred/backup summary for a country. */
 export interface SgCommodityResult extends SgCommodity {
   countries: string[];
-  preferred: { supplierId: number; supplierName: string; country: string } | null;
+  preferred: { supplierCode: string | null; supplierName: string; country: string } | null;
   backupCount: number;
 }
 

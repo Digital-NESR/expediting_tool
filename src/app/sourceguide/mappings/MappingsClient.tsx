@@ -234,13 +234,13 @@ function AddSupplier({ country, commodityId, onChange }: { country: string; comm
     return () => { active = false; clearTimeout(t); };
   }, [open, text, country]);
 
-  async function submit(name?: string) {
-    const n = (name ?? text).trim();
-    if (!n) return;
+  async function submit(sup?: SgSupplier) {
+    const pick = sup ?? opts[0];
+    if (!pick) return;
     setBusy(true);
-    const res = await addMapping({ commodityId, country, tier, supplierName: n });
+    const res = await addMapping({ commodityId, country, tier, supplierCode: pick.code });
     setBusy(false);
-    if (res.success) { setText(''); setOpen(false); setFocus(false); onChange(`Added ${n}`); }
+    if (res.success) { setText(''); setOpen(false); setFocus(false); onChange(`Added ${pick.name}`); }
     else onChange(res.error);
   }
 
@@ -267,7 +267,7 @@ function AddSupplier({ country, commodityId, onChange }: { country: string; comm
       </div>
       <div className="relative min-w-[200px] flex-1">
         <input
-          autoFocus value={text} placeholder="Supplier name…"
+          autoFocus value={text} placeholder="Search the Approved Vendor List…"
           onChange={e => setText(e.target.value)}
           onFocus={() => setFocus(true)} onBlur={() => setTimeout(() => setFocus(false), 160)}
           onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') setOpen(false); }}
@@ -276,19 +276,19 @@ function AddSupplier({ country, commodityId, onChange }: { country: string; comm
         {focus && (
           <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-60 overflow-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
             {opts.map(s => (
-              <div key={s.id} onMouseDown={() => submit(s.name)} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-[#eaf4ef]">
+              <div key={s.code} onMouseDown={() => submit(s)} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-[#eaf4ef]">
                 <span className="grid h-6 w-6 place-items-center rounded-md text-[10px] font-bold text-white" style={{ background: SG_BRAND }}>
                   {s.name.slice(0, 2).toUpperCase()}
                 </span>
-                <span className="flex-1 truncate text-[13px] font-medium">{s.name}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium">{s.name}</span>
+                  <span className="block font-mono text-[10.5px] text-slate-400">{s.code}</span>
+                </span>
                 {s.countries.includes(country) && <span className="rounded-full bg-[#C5E0D2] px-2 py-0.5 text-[10px] font-semibold text-[#1f5d3a]">in country</span>}
               </div>
             ))}
-            {text.trim() && !opts.some(o => o.name.toLowerCase() === text.trim().toLowerCase()) && (
-              <div onMouseDown={() => submit()} className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 hover:bg-[#eaf4ef]">
-                <Zap className="h-3.5 w-3.5" style={{ color: SG_BRAND }} />
-                <span className="text-[13px]">Create “<b>{text.trim()}</b>”</span>
-              </div>
+            {text.trim().length > 0 && opts.length === 0 && (
+              <div className="px-2.5 py-3 text-center text-[12px] text-slate-400">No matching vendor in the AVL.</div>
             )}
           </div>
         )}

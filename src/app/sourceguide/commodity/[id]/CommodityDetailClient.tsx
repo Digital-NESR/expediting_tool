@@ -81,7 +81,7 @@ export default function CommodityDetailClient({
                 <>
                   <SectionLabel>Preferred supplier{pref.length > 1 ? 's' : ''}</SectionLabel>
                   <div className={`grid gap-3.5 ${pref.length > 1 ? 'sm:grid-cols-2' : ''}`}>
-                    {pref.map(m => <SupplierCard key={m.id} mapping={m} country={countryByCode.get(m.country)} onOpen={() => router.push(`/sourceguide/suppliers/${m.supplierId}`)} />)}
+                    {pref.map(m => <SupplierCard key={m.id} mapping={m} country={countryByCode.get(m.country)} onOpen={() => router.push(`/sourceguide/suppliers/${encodeURIComponent(m.supplierCode!)}`)} />)}
                   </div>
                 </>
               )}
@@ -89,7 +89,7 @@ export default function CommodityDetailClient({
                 <>
                   <SectionLabel className="mt-6">Backup suppliers · {backups.length}</SectionLabel>
                   <div className="grid gap-3.5 sm:grid-cols-2">
-                    {backups.map(m => <SupplierCard key={m.id} mapping={m} country={countryByCode.get(m.country)} onOpen={() => router.push(`/sourceguide/suppliers/${m.supplierId}`)} />)}
+                    {backups.map(m => <SupplierCard key={m.id} mapping={m} country={countryByCode.get(m.country)} onOpen={() => router.push(`/sourceguide/suppliers/${encodeURIComponent(m.supplierCode!)}`)} />)}
                   </div>
                 </>
               )}
@@ -145,12 +145,14 @@ function SupplierCard({ mapping, country, onOpen }: { mapping: SgMapping; countr
         <span className="text-slate-500">Source Guide owner</span>
         <b>{country?.champion || 'Unassigned'}</b>
       </div>
-      <button
-        onClick={onOpen}
-        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white py-2 text-[12.5px] font-semibold text-slate-700 hover:border-[#6AAF8E]"
-      >
-        View full profile <ArrowRight className="h-3.5 w-3.5" />
-      </button>
+      {mapping.supplierCode && (
+        <button
+          onClick={onOpen}
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white py-2 text-[12.5px] font-semibold text-slate-700 hover:border-[#6AAF8E]"
+        >
+          View full profile <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }

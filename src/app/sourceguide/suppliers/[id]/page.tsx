@@ -7,10 +7,10 @@ export const metadata: Metadata = { title: 'Supplier · SourceGuide | SC Agents'
 
 export default async function SupplierProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const numId = Number(id);
-  if (!Number.isFinite(numId)) notFound();
+  const code = decodeURIComponent(id);   // the dynamic segment is the AVL vendor code
+  if (!code) notFound();
 
-  const profile = await getSupplierProfile(numId);
+  const profile = await getSupplierProfile(code);
   if (!profile) notFound();
 
   const [commodities, countries] = await Promise.all([

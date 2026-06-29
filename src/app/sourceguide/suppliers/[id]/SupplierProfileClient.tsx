@@ -40,15 +40,19 @@ export default function SupplierProfileClient({
             <h1 className="text-[24px] font-bold tracking-tight">{profile.name}</h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-[13.5px] text-slate-500">
               {profile.code && <span className="font-mono">Vendor {profile.code}</span>}
+              {profile.countries.length > 0 && <span className="text-slate-400">Used in:</span>}
               {profile.countries.map(c => { const cc = countryByCode.get(c); return cc ? <CountryFlag key={c} country={cc} showName /> : null; })}
             </div>
           </div>
           <div className="flex gap-6">
             <Stat value={profile.totalCommodities} label="commodities" />
             <Stat value={profile.preferredCount} label="preferred" color={SG_BRAND} />
-            <Stat value={profile.countries.length} label="countries" />
+            <Stat value={profile.countries.length} label="countries used" />
           </div>
         </div>
+        <p className="mt-4 text-[11.5px] leading-relaxed text-slate-400">
+          Countries reflect where this vendor is approved and utilized for NESR — not necessarily where the supplier is located.
+        </p>
         {profile.champions.length > 0 && (
           <>
             <hr className="my-4 border-slate-100" />
@@ -62,7 +66,7 @@ export default function SupplierProfileClient({
       </div>
 
       <div className="mb-3 ml-0.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: SG_BRAND }}>
-        Commodity-country coverage
+        Coverage by country · where this vendor is utilized
       </div>
       {Object.keys(byCountry).map(code => {
         const c = countryByCode.get(code);

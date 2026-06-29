@@ -263,7 +263,7 @@ export function SourceGuideAnalyticsClient() {
           <h3 className="mb-4 text-[14px] font-bold text-slate-900">Top suppliers by mappings</h3>
           <div className="space-y-2.5">
             {data.topSuppliers.map(s => (
-              <div key={s.id} className="flex items-center gap-3">
+              <div key={s.code} className="flex items-center gap-3">
                 <span className="w-40 shrink-0 truncate text-[12.5px] text-slate-600" title={s.name}>{s.name}</span>
                 <div className="h-3.5 flex-1 overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full rounded-full" style={{ width: `${(s.mappings / maxSup) * 100}%`, background: BRAND }} />

@@ -164,14 +164,15 @@ export default function SearchClient({
               <div className="flex flex-wrap gap-3">
                 {supHits.map(s => (
                   <button
-                    key={s.id}
-                    onClick={() => router.push(`/sourceguide/suppliers/${s.id}`)}
+                    key={s.code}
+                    onClick={() => router.push(`/sourceguide/suppliers/${encodeURIComponent(s.code)}`)}
                     className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left hover:border-[#6AAF8E]"
                   >
                     <SupAvatar name={s.name} size={36} />
                     <div className="min-w-0">
                       <div className="max-w-[240px] truncate text-[13.5px] font-semibold">{s.name}</div>
                       <div className="text-[12px] text-slate-500">
+                        {s.countries.length > 0 && <span className="text-slate-400">Used in: </span>}
                         {s.countries.map(c => countryByCode.get(c)?.name).filter(Boolean).join(', ')}
                       </div>
                     </div>

@@ -205,17 +205,20 @@ export async function searchCommodities(
 
     const ids = rows.map(r => r.id);
     const mapRes = await sourceGuidePool.query(
-      `SELECT m.commodity_id, m.country_code, m.tier, m.supplier_id, s.name AS supplier_name
-       FROM sg_mappings m JOIN sg_suppliers s ON s.id = m.supplier_id
+      `SELECT m.commodity_id, m.country_code, m.tier, m.supplier_code,
+              COALESCE(a.name, s.name) AS supplier_name
+       FROM sg_mappings m
+       LEFT JOIN supplier_avl a ON a.supplier_code = m.supplier_code
+       LEFT JOIN sg_suppliers s ON s.id = m.supplier_id
        WHERE m.status = 'Active' AND m.commodity_id = ANY($1)`,
       [ids],
     );
 
-    interface MiniMap { country: string; tier: Tier; supplierId: number; supplierName: string; }
+    interface MiniMap { country: string; tier: Tier; supplierCode: string | null; supplierName: string; }
     const byCom = new Map<number, MiniMap[]>();
     for (const m of mapRes.rows) {
       const arr = byCom.get(m.commodity_id) ?? [];
-      arr.push({ country: m.country_code, tier: m.tier, supplierId: m.supplier_id, supplierName: m.supplier_name });
+      arr.push({ country: m.country_code, tier: m.tier, supplierCode: m.supplier_code, supplierName: m.supplier_name });
       byCom.set(m.commodity_id, arr);
     }
 
@@ -244,7 +247,7 @@ export async function searchCommodities(
       results.push({
         ...rowToCommodity(r),
         countries,
-        preferred: pref ? { supplierId: pref.supplierId, supplierName: pref.supplierName, country: displayCountry! } : null,
+        preferred: pref ? { supplierCode: pref.supplierCode, supplierName: pref.supplierName, country: displayCountry! } : null,
         backupCount,
       });
       if (results.length >= limit) break;
@@ -267,18 +270,19 @@ export async function searchSuppliers(query: string, limit = 6): Promise<SgSuppl
   try {
     const q = (query || '').trim();
     if (q.length < 2) return [];
+    // Only suppliers that are actually mapped somewhere (joined to the AVL by code)
     const { rows } = await sourceGuidePool.query(
-      `SELECT s.id, s.name, s.code,
-              COALESCE(ARRAY_AGG(sc.country_code) FILTER (WHERE sc.country_code IS NOT NULL), '{}') AS countries
-       FROM sg_suppliers s
-       LEFT JOIN sg_supplier_countries sc ON sc.supplier_id = s.id
-       WHERE s.name ILIKE $1
-       GROUP BY s.id, s.name, s.code
-       ORDER BY s.name
+      `SELECT a.supplier_code, a.name,
+              COALESCE(ARRAY_AGG(DISTINCT m.country_code) FILTER (WHERE m.country_code IS NOT NULL), '{}') AS countries
+       FROM supplier_avl a
+       JOIN sg_mappings m ON m.supplier_code = a.supplier_code AND m.status='Active'
+       WHERE a.name ILIKE $1
+       GROUP BY a.supplier_code, a.name
+       ORDER BY a.name
        LIMIT $2`,
       [`%${q}%`, limit],
     );
-    return rows.map(r => ({ id: r.id, name: r.name, code: r.code, countries: r.countries || [] }));
+    return rows.map(r => ({ code: r.supplier_code, name: r.name, countries: r.countries || [] }));
   } catch (err) {
     console.error('[sg.searchSuppliers]', err);
     return [];
@@ -298,19 +302,21 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
     const commodity = rowToCommodity(comRes.rows[0]);
 
     const mapRes = await sourceGuidePool.query(
-      `SELECT m.id, m.commodity_id, m.supplier_id, m.country_code, m.tier, m.status,
-              s.name AS supplier_name, s.code AS supplier_code
-       FROM sg_mappings m JOIN sg_suppliers s ON s.id = m.supplier_id
+      `SELECT m.id, m.commodity_id, m.supplier_code, m.country_code, m.tier, m.status,
+              COALESCE(a.name, s.name) AS supplier_name
+       FROM sg_mappings m
+       LEFT JOIN supplier_avl a ON a.supplier_code = m.supplier_code
+       LEFT JOIN sg_suppliers s ON s.id = m.supplier_id
        WHERE m.status = 'Active' AND m.commodity_id = $1
-       ORDER BY m.country_code, (m.tier = 'Preferred') DESC, s.name`,
+       ORDER BY m.country_code, (m.tier = 'Preferred') DESC, COALESCE(a.name, s.name)`,
       [commodityId],
     );
 
     const mappingsByCountry: Record<string, SgMapping[]> = {};
     for (const m of mapRes.rows) {
       const mapping: SgMapping = {
-        id: m.id, commodityId: m.commodity_id, supplierId: m.supplier_id,
-        supplierName: m.supplier_name, supplierCode: m.supplier_code,
+        id: m.id, commodityId: m.commodity_id,
+        supplierName: m.supplier_name ?? '', supplierCode: m.supplier_code,
         country: m.country_code, tier: m.tier, status: m.status,
       };
       (mappingsByCountry[m.country_code] ??= []).push(mapping);
@@ -326,41 +332,36 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
 
 /* ─── supplier profile ───────────────────────────────────────── */
 
-export async function getSupplierProfile(supplierId: number): Promise<SgSupplierProfile | null> {
+export async function getSupplierProfile(supplierCode: string): Promise<SgSupplierProfile | null> {
   try {
     const sRes = await sourceGuidePool.query(
-      `SELECT s.id, s.name, s.code,
-              COALESCE(ARRAY_AGG(DISTINCT sc.country_code) FILTER (WHERE sc.country_code IS NOT NULL), '{}') AS countries
-       FROM sg_suppliers s
-       LEFT JOIN sg_supplier_countries sc ON sc.supplier_id = s.id
-       WHERE s.id = $1
-       GROUP BY s.id, s.name, s.code`,
-      [supplierId],
+      `SELECT supplier_code, name FROM supplier_avl WHERE supplier_code = $1`,
+      [supplierCode],
     );
     if (!sRes.rows.length) return null;
     const s = sRes.rows[0];
 
     const mapRes = await sourceGuidePool.query(
-      `SELECT m.id, m.commodity_id, m.supplier_id, m.country_code, m.tier, m.status,
-              s.name AS supplier_name, s.code AS supplier_code
-       FROM sg_mappings m JOIN sg_suppliers s ON s.id = m.supplier_id
-       WHERE m.status = 'Active' AND m.supplier_id = $1
+      `SELECT m.id, m.commodity_id, m.supplier_code, m.country_code, m.tier, m.status
+       FROM sg_mappings m
+       WHERE m.status = 'Active' AND m.supplier_code = $1
        ORDER BY m.country_code`,
-      [supplierId],
+      [supplierCode],
     );
     const mappings: SgMapping[] = mapRes.rows.map(m => ({
-      id: m.id, commodityId: m.commodity_id, supplierId: m.supplier_id,
-      supplierName: m.supplier_name, supplierCode: m.supplier_code,
+      id: m.id, commodityId: m.commodity_id,
+      supplierName: s.name, supplierCode: m.supplier_code,
       country: m.country_code, tier: m.tier, status: m.status,
     }));
 
+    const countries = [...new Set(mappings.map(m => m.country))];
     const champRes = await sourceGuidePool.query(
       `SELECT DISTINCT champion FROM sg_countries WHERE code = ANY($1) AND champion <> ''`,
-      [s.countries || []],
+      [countries],
     );
 
     return {
-      id: s.id, name: s.name, code: s.code, countries: s.countries || [],
+      code: s.supplier_code, name: s.name, countries,
       totalCommodities: new Set(mappings.map(m => m.commodityId)).size,
       preferredCount: mappings.filter(m => m.tier === 'Preferred').length,
       champions: champRes.rows.map(r => r.champion),
@@ -522,17 +523,19 @@ export async function getMappingEditList(
     const ids = comRes.rows.map(r => r.id);
 
     const mapRes = await sourceGuidePool.query(
-      `SELECT m.id, m.commodity_id, m.supplier_id, m.country_code, m.tier, m.status,
-              s.name AS supplier_name, s.code AS supplier_code
-       FROM sg_mappings m JOIN sg_suppliers s ON s.id = m.supplier_id
+      `SELECT m.id, m.commodity_id, m.supplier_code, m.country_code, m.tier, m.status,
+              COALESCE(a.name, s.name) AS supplier_name
+       FROM sg_mappings m
+       LEFT JOIN supplier_avl a ON a.supplier_code = m.supplier_code
+       LEFT JOIN sg_suppliers s ON s.id = m.supplier_id
        WHERE m.status='Active' AND m.country_code = $1 AND m.commodity_id = ANY($2)`,
       [country, ids],
     );
     const byCom = new Map<number, SgMapping[]>();
     for (const m of mapRes.rows) {
       (byCom.get(m.commodity_id) ?? byCom.set(m.commodity_id, []).get(m.commodity_id)!).push({
-        id: m.id, commodityId: m.commodity_id, supplierId: m.supplier_id,
-        supplierName: m.supplier_name, supplierCode: m.supplier_code,
+        id: m.id, commodityId: m.commodity_id,
+        supplierName: m.supplier_name ?? '', supplierCode: m.supplier_code,
         country: m.country_code, tier: m.tier, status: m.status,
       });
     }
@@ -544,22 +547,21 @@ export async function getMappingEditList(
   }
 }
 
+/** Approved-vendor picker for the mapping workspace — sourced from supplier_avl. */
 export async function supplierOptions(country: string, prefix: string, limit = 8): Promise<SgSupplier[]> {
   try {
     const p = (prefix || '').trim();
+    if (!p) return [];
     const { rows } = await sourceGuidePool.query(
-      `SELECT s.id, s.name, s.code,
-              COALESCE(ARRAY_AGG(DISTINCT sc.country_code) FILTER (WHERE sc.country_code IS NOT NULL), '{}') AS countries,
-              BOOL_OR(sc.country_code = $1) AS in_country
-       FROM sg_suppliers s
-       LEFT JOIN sg_supplier_countries sc ON sc.supplier_id = s.id
-       WHERE ($2 = '' OR s.name ILIKE $3)
-       GROUP BY s.id, s.name, s.code
-       ORDER BY in_country DESC NULLS LAST, s.name
-       LIMIT $4`,
-      [country, p, `%${p}%`, limit],
+      `SELECT a.supplier_code, a.name,
+              EXISTS (SELECT 1 FROM sg_mappings m WHERE m.supplier_code = a.supplier_code AND m.country_code = $1 AND m.status='Active') AS in_country
+       FROM supplier_avl a
+       WHERE a.name ILIKE $2
+       ORDER BY in_country DESC, a.name
+       LIMIT $3`,
+      [country, `%${p}%`, limit],
     );
-    return rows.map(r => ({ id: r.id, name: r.name, code: r.code, countries: r.countries || [] }));
+    return rows.map(r => ({ code: r.supplier_code, name: r.name, countries: r.in_country ? [country] : [] }));
   } catch (err) {
     console.error('[sg.supplierOptions]', err);
     return [];
@@ -586,65 +588,43 @@ async function logActivity(
 }
 
 export async function addMapping(input: {
-  commodityId: number; country: string; tier: Tier; supplierName: string;
+  commodityId: number; country: string; tier: Tier; supplierCode: string;
 }): Promise<{ success: boolean; error?: string }> {
   const user = await getSgUser();
   if (!user) return { success: false, error: 'Unauthorized' };
   if (!(await canEdit(user, input.country))) return { success: false, error: 'You cannot edit this country.' };
 
-  const name = input.supplierName.trim();
-  if (!name) return { success: false, error: 'Supplier name is required.' };
+  const code = (input.supplierCode || '').trim();
+  if (!code) return { success: false, error: 'Please pick a supplier from the Approved Vendor List.' };
 
-  const client = await sourceGuidePool.connect();
   try {
-    await client.query('BEGIN');
+    // supplier must exist in the AVL
+    const avl = await sourceGuidePool.query(`SELECT name FROM supplier_avl WHERE supplier_code = $1`, [code]);
+    if (!avl.rows.length) return { success: false, error: 'That supplier code is not in the Approved Vendor List.' };
+    const supplierName = avl.rows[0].name;
 
-    // ensure supplier (case-insensitive name match) — generate id for new ones
-    const found = await client.query(`SELECT id FROM sg_suppliers WHERE LOWER(name) = LOWER($1) LIMIT 1`, [name]);
-    let supplierId: number;
-    if (found.rows.length) {
-      supplierId = found.rows[0].id;
-    } else {
-      const ins = await client.query(
-        `INSERT INTO sg_suppliers (id, name, code)
-         VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM sg_suppliers), $1, '')
-         RETURNING id`,
-        [name],
-      );
-      supplierId = ins.rows[0].id;
-    }
-    await client.query(
-      `INSERT INTO sg_supplier_countries (supplier_id, country_code) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-      [supplierId, input.country],
-    );
-
-    // upsert the mapping
-    const existing = await client.query(
-      `SELECT id FROM sg_mappings WHERE commodity_id=$1 AND country_code=$2 AND supplier_id=$3 AND status='Active'`,
-      [input.commodityId, input.country, supplierId],
+    // upsert the mapping (keyed by vendor code)
+    const existing = await sourceGuidePool.query(
+      `SELECT id FROM sg_mappings WHERE commodity_id=$1 AND country_code=$2 AND supplier_code=$3 AND status='Active'`,
+      [input.commodityId, input.country, code],
     );
     if (existing.rows.length) {
-      await client.query(`UPDATE sg_mappings SET tier=$2 WHERE id=$1`, [existing.rows[0].id, input.tier]);
+      await sourceGuidePool.query(`UPDATE sg_mappings SET tier=$2 WHERE id=$1`, [existing.rows[0].id, input.tier]);
     } else {
-      await client.query(
-        `INSERT INTO sg_mappings (commodity_id, supplier_id, country_code, tier, status)
+      await sourceGuidePool.query(
+        `INSERT INTO sg_mappings (commodity_id, supplier_code, country_code, tier, status)
          VALUES ($1, $2, $3, $4, 'Active')`,
-        [input.commodityId, supplierId, input.country, input.tier],
+        [input.commodityId, code, input.country, input.tier],
       );
     }
 
-    const com = await client.query(`SELECT name FROM sg_commodities WHERE id=$1`, [input.commodityId]);
-    await client.query('COMMIT');
-
+    const com = await sourceGuidePool.query(`SELECT name FROM sg_commodities WHERE id=$1`, [input.commodityId]);
     await logActivity(input.country, input.commodityId, 'Add',
-      `${input.tier} · ${name} → ${com.rows[0]?.name ?? ''}`, user.name);
+      `${input.tier} · ${supplierName} → ${com.rows[0]?.name ?? ''}`, user.name);
     return { success: true };
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
     console.error('[sg.addMapping]', err);
     return { success: false, error: 'Failed to add supplier.' };
-  } finally {
-    client.release();
   }
 }
 
@@ -653,8 +633,11 @@ export async function removeMapping(mapId: number): Promise<{ success: boolean; 
   if (!user) return { success: false, error: 'Unauthorized' };
   try {
     const m = await sourceGuidePool.query(
-      `SELECT m.country_code, m.tier, m.commodity_id, s.name AS supplier_name, c.name AS com_name
-       FROM sg_mappings m JOIN sg_suppliers s ON s.id=m.supplier_id
+      `SELECT m.country_code, m.tier, m.commodity_id,
+              COALESCE(a.name, s.name, '') AS supplier_name, c.name AS com_name
+       FROM sg_mappings m
+       LEFT JOIN supplier_avl a ON a.supplier_code = m.supplier_code
+       LEFT JOIN sg_suppliers s ON s.id = m.supplier_id
        JOIN sg_commodities c ON c.id=m.commodity_id WHERE m.id=$1`,
       [mapId],
     );
@@ -677,8 +660,11 @@ export async function changeTier(mapId: number, tier: Tier): Promise<{ success: 
   if (!user) return { success: false, error: 'Unauthorized' };
   try {
     const m = await sourceGuidePool.query(
-      `SELECT m.country_code, m.tier, m.commodity_id, s.name AS supplier_name, c.name AS com_name
-       FROM sg_mappings m JOIN sg_suppliers s ON s.id=m.supplier_id
+      `SELECT m.country_code, m.tier, m.commodity_id,
+              COALESCE(a.name, s.name, '') AS supplier_name, c.name AS com_name
+       FROM sg_mappings m
+       LEFT JOIN supplier_avl a ON a.supplier_code = m.supplier_code
+       LEFT JOIN sg_suppliers s ON s.id = m.supplier_id
        JOIN sg_commodities c ON c.id=m.commodity_id WHERE m.id=$1`,
       [mapId],
     );
@@ -748,7 +734,7 @@ export async function getGuides(): Promise<SgGuide[]> {
 export interface SgAnalytics {
   stats: SgStats;
   perCountry: { country: string; name: string; tone: string | null; mappings: number; commodities: number; preferred: number }[];
-  topSuppliers: { id: number; name: string; mappings: number; countries: number }[];
+  topSuppliers: { code: string; name: string; mappings: number; countries: number }[];
   spendTypeBreakdown: { spendType: string; count: number }[];
 }
 
@@ -767,12 +753,12 @@ export async function getSourceGuideAnalytics(): Promise<SgAnalytics> {
         ORDER BY c.sort_order
       `),
       sourceGuidePool.query(`
-        SELECT s.id, s.name,
+        SELECT a.supplier_code, a.name,
                COUNT(m.id)::int AS mappings,
                COUNT(DISTINCT m.country_code)::int AS countries
-        FROM sg_suppliers s
-        JOIN sg_mappings m ON m.supplier_id = s.id AND m.status='Active'
-        GROUP BY s.id, s.name
+        FROM supplier_avl a
+        JOIN sg_mappings m ON m.supplier_code = a.supplier_code AND m.status='Active'
+        GROUP BY a.supplier_code, a.name
         ORDER BY mappings DESC
         LIMIT 10
       `),
@@ -789,7 +775,7 @@ export async function getSourceGuideAnalytics(): Promise<SgAnalytics> {
         mappings: Number(r.mappings), commodities: Number(r.commodities), preferred: Number(r.preferred),
       })),
       topSuppliers: topSuppliersRes.rows.map(r => ({
-        id: r.id, name: r.name, mappings: Number(r.mappings), countries: Number(r.countries),
+        code: r.supplier_code, name: r.name, mappings: Number(r.mappings), countries: Number(r.countries),
       })),
       spendTypeBreakdown: spendRes.rows.map(r => ({ spendType: r.spend_type, count: Number(r.count) })),
     };
