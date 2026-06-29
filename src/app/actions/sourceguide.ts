@@ -67,8 +67,14 @@ function rowToCommodity(r: CommodityRow): SgCommodity {
 
 export async function getCountries(): Promise<SgCountry[]> {
   try {
+    // champion display is driven by the assigned champions (sg_champions)
     const { rows } = await sourceGuidePool.query(
-      `SELECT code, name, champion, tone FROM sg_countries ORDER BY sort_order, name`,
+      `SELECT c.code, c.name, c.tone,
+              COALESCE(STRING_AGG(ch.name, ', ' ORDER BY ch.name), '') AS champion
+       FROM sg_countries c
+       LEFT JOIN sg_champions ch ON ch.country_code = c.code
+       GROUP BY c.code, c.name, c.tone, c.sort_order
+       ORDER BY c.sort_order, c.name`,
     );
     return rows.map(r => ({ code: r.code, name: r.name, champion: r.champion, tone: r.tone }));
   } catch (err) {
@@ -353,7 +359,7 @@ export async function getSupplierProfile(supplierCode: string): Promise<SgSuppli
 
     const countries = [...new Set(mappings.map(m => m.country))];
     const champRes = await sourceGuidePool.query(
-      `SELECT DISTINCT champion FROM sg_countries WHERE code = ANY($1) AND champion <> ''`,
+      `SELECT DISTINCT name FROM sg_champions WHERE country_code = ANY($1) AND COALESCE(TRIM(name),'') <> ''`,
       [countries],
     );
 
@@ -361,7 +367,7 @@ export async function getSupplierProfile(supplierCode: string): Promise<SgSuppli
       code: s.supplier_code, name: s.name, countries,
       totalCommodities: new Set(mappings.map(m => m.commodityId)).size,
       preferredCount: mappings.filter(m => m.tier === 'Preferred').length,
-      champions: champRes.rows.map(r => r.champion),
+      champions: champRes.rows.map(r => r.name),
       mappings,
     };
   } catch (err) {
@@ -699,7 +705,8 @@ export async function getActivityLog(country: string | null, limit = 20): Promis
 export async function getGuides(): Promise<SgGuide[]> {
   try {
     const { rows } = await sourceGuidePool.query(`
-      SELECT c.code, c.name, c.champion, c.tone,
+      SELECT c.code, c.name, c.tone,
+             COALESCE(ch.champions, '') AS champion,
              COALESCE(g.version, 'v1.0') AS version,
              COALESCE(g.status, 'Published') AS status,
              COALESCE(g.updated_at, NOW()) AS updated_at,
@@ -708,6 +715,10 @@ export async function getGuides(): Promise<SgGuide[]> {
              COALESCE(mp.commodities, 0)::int AS commodities
       FROM sg_countries c
       LEFT JOIN sg_guide_meta g ON g.country_code = c.code
+      LEFT JOIN (
+        SELECT country_code, STRING_AGG(name, ', ' ORDER BY name) AS champions
+        FROM sg_champions GROUP BY country_code
+      ) ch ON ch.country_code = c.code
       LEFT JOIN (
         SELECT country_code, COUNT(*) AS mappings, COUNT(DISTINCT commodity_id) AS commodities
         FROM sg_mappings WHERE status='Active' GROUP BY country_code
@@ -779,6 +790,62 @@ export async function getSourceGuideAnalytics(): Promise<SgAnalytics> {
   }
 }
 
+/* ─── champions (admin-managed, per country) ─────────────────── */
+
+export interface SgChampion { id: number; countryCode: string; name: string; email: string | null; }
+export interface SgCountryChampions { country: string; name: string; tone: string | null; champions: SgChampion[]; }
+
+export async function getChampionsByCountry(): Promise<SgCountryChampions[]> {
+  try {
+    const [countries, champs] = await Promise.all([
+      sourceGuidePool.query(`SELECT code, name, tone FROM sg_countries ORDER BY sort_order, name`),
+      sourceGuidePool.query(`SELECT id, country_code, name, email FROM sg_champions ORDER BY name`),
+    ]);
+    const byCountry = new Map<string, SgChampion[]>();
+    for (const r of champs.rows) {
+      (byCountry.get(r.country_code) ?? byCountry.set(r.country_code, []).get(r.country_code)!)
+        .push({ id: r.id, countryCode: r.country_code, name: r.name, email: r.email });
+    }
+    return countries.rows.map(c => ({ country: c.code, name: c.name, tone: c.tone, champions: byCountry.get(c.code) ?? [] }));
+  } catch (err) {
+    console.error('[sg.getChampionsByCountry]', err);
+    return [];
+  }
+}
+
+export async function addChampion(countryCode: string, name: string, email: string | null): Promise<{ success: boolean; error?: string }> {
+  const user = await getSgUser();
+  if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
+  const n = (name || '').trim();
+  if (!n) return { success: false, error: 'Name is required.' };
+  const e = (email || '').trim() || null;
+  try {
+    if (e) {
+      const dup = await sourceGuidePool.query(
+        `SELECT 1 FROM sg_champions WHERE country_code=$1 AND LOWER(email)=LOWER($2)`, [countryCode, e]);
+      if (dup.rows.length) return { success: false, error: 'That email is already a champion for this country.' };
+    }
+    await sourceGuidePool.query(
+      `INSERT INTO sg_champions (country_code, name, email) VALUES ($1, $2, $3)`, [countryCode, n, e]);
+    return { success: true };
+  } catch (err) {
+    console.error('[sg.addChampion]', err);
+    return { success: false, error: 'Failed to add champion.' };
+  }
+}
+
+export async function removeChampion(id: number): Promise<{ success: boolean; error?: string }> {
+  const user = await getSgUser();
+  if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
+  try {
+    await sourceGuidePool.query(`DELETE FROM sg_champions WHERE id=$1`, [id]);
+    return { success: true };
+  } catch (err) {
+    console.error('[sg.removeChampion]', err);
+    return { success: false, error: 'Failed to remove champion.' };
+  }
+}
+
 /* ─── access requests (mirror TI-TE) ─────────────────────────── */
 
 export interface SgAccessRequest {
@@ -813,23 +880,20 @@ export async function getSourceGuideAccessRequest(userEmail: string): Promise<Sg
   }
 }
 
+/** Users request tool access (no country picking — approval grants all-country view). */
 export async function submitSourceGuideAccessRequest(input: {
-  userEmail: string; displayName: string; jobTitle?: string | null;
-  department?: string | null; requestedCountries: string[];
+  userEmail: string; displayName: string; jobTitle?: string | null; department?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
-  if (!input.requestedCountries.length) {
-    return { success: false, error: 'Please select at least one country.' };
-  }
+  if (!input.userEmail) return { success: false, error: 'Not signed in.' };
   try {
     await sourceGuidePool.query(
       `INSERT INTO access_requests (user_email, display_name, job_title, department, status, requested_countries, requested_at)
-       VALUES ($1, $2, $3, $4, 'Pending', $5, NOW())
+       VALUES ($1, $2, $3, $4, 'Pending', '{}', NOW())
        ON CONFLICT (user_email) DO UPDATE SET
-         requested_countries = EXCLUDED.requested_countries,
          display_name = EXCLUDED.display_name,
          status = 'Pending', requested_at = NOW(),
          reviewed_at = NULL, reviewed_by = NULL, notes = NULL, approved_countries = NULL`,
-      [input.userEmail, input.displayName, input.jobTitle ?? null, input.department ?? null, input.requestedCountries],
+      [input.userEmail, input.displayName, input.jobTitle ?? null, input.department ?? null],
     );
     return { success: true };
   } catch (err) {
@@ -867,13 +931,13 @@ export async function getSourceGuidePendingCount(): Promise<number> {
   }
 }
 
-export async function approveSourceGuideAccessRequest(userEmail: string, countries: string[]): Promise<{ success: boolean; error?: string }> {
-  if (!countries.length) return { success: false, error: 'Please select at least one country to approve.' };
+/** Approve a user for all-country (read-only) access. */
+export async function approveSourceGuideAccessRequest(userEmail: string): Promise<{ success: boolean; error?: string }> {
   try {
     const reviewer = (await getSgUser())?.name ?? null;
     await sourceGuidePool.query(
-      `UPDATE access_requests SET status='Approved', approved_countries=$2, reviewed_at=NOW(), reviewed_by=$3 WHERE user_email=$1`,
-      [userEmail, countries, reviewer],
+      `UPDATE access_requests SET status='Approved', approved_countries='{}', reviewed_at=NOW(), reviewed_by=$2 WHERE user_email=$1`,
+      [userEmail, reviewer],
     );
     return { success: true };
   } catch (err) {

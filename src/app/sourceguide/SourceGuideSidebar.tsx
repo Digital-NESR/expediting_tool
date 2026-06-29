@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
-import { LayoutGrid, LayoutDashboard, Layers, ListTree, BookOpen, Grid3x3 } from 'lucide-react';
+import { LayoutGrid, LayoutDashboard, Layers, ListTree, Grid3x3 } from 'lucide-react';
 import { SG_BRAND } from './constants';
 import { useSourceGuideAccess } from './SourceGuideAccessContext';
 
@@ -131,13 +131,6 @@ export default function SourceGuideSidebar({
           <NavLink href="/sourceguide/browse" label="Browse" icon={<Layers className="w-5 h-5" />} />
           {canManage && (
             <NavLink href="/sourceguide/mappings" label={isAdmin ? 'Mappings' : 'My Mappings'} icon={<ListTree className="w-5 h-5" />} />
-          )}
-
-          {isAdmin && (
-            <>
-              <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Admin</p>
-              <NavLink href="/admin?tool=sourceguide-guides" external label="Source Guides" icon={<BookOpen className="w-5 h-5" />} />
-            </>
           )}
         </nav>
 

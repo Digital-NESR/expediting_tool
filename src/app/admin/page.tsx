@@ -27,6 +27,7 @@ const ADMIN_TOOLS = new Set([
   'procureguard-usage',
   'procureguard-access',
   'sourceguide-guides',
+  'sourceguide-champions',
   'sourceguide-analytics',
   'sourceguide-access',
 ]);

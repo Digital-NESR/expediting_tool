@@ -6,10 +6,11 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
+import { submitSourceGuideAccessRequest } from '@/app/actions/sourceguide';
 import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3 } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
-type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | null;
+type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | null;
 
 /* ─── TI-TE static country list ─────────────────────────────── */
 
@@ -611,32 +612,86 @@ function TITECard({
   );
 }
 
-/* ─── SourceGuide Card (Admin Preview — coming soon for everyone else) ─── */
+/* ─── SourceGuide Request Modal (simple — no country picking) ─── */
+
+function SourceGuideAccessRequestModal({
+  userEmail,
+  displayName,
+  jobTitle,
+  department,
+  onClose,
+  onSubmitted,
+}: {
+  userEmail: string;
+  displayName: string;
+  jobTitle?: string;
+  department?: string;
+  onClose: () => void;
+  onSubmitted: () => Promise<void>;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function handleSubmit() {
+    setError(null);
+    startTransition(async () => {
+      const res = await submitSourceGuideAccessRequest({
+        userEmail, displayName, jobTitle: jobTitle ?? null, department: department ?? null,
+      });
+      if (res.success) await onSubmitted();
+      else setError(res.error ?? 'Something went wrong.');
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#2A7E4F18' }}>
+          <Building2 className="h-6 w-6" style={{ color: '#2A7E4F' }} />
+        </div>
+        <h2 className="mt-4 text-base font-bold text-slate-900">Request Access — SourceGuide</h2>
+        <p className="mt-1 text-sm leading-relaxed text-slate-500">
+          SourceGuide lets you search NESR&apos;s approved suppliers across every country guide. An admin will review your request and grant access.
+        </p>
+        {error && <p className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        <div className="mt-5 flex items-center gap-2">
+          <button onClick={handleSubmit} disabled={isPending}
+            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:opacity-60"
+            style={{ background: '#2A7E4F' }}>
+            {isPending ? 'Submitting…' : 'Request Access'}
+          </button>
+          <button onClick={onClose} disabled={isPending} className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SourceGuide Card ───────────────────────────────────────── */
 
 function SourceGuideCard({
-  canOpen,
+  status,
+  isAdmin,
   onClick,
 }: {
-  canOpen: boolean;
+  status: ToolStatus;
+  isAdmin: boolean;
   onClick: () => void;
 }) {
+  const canOpen = isAdmin || status === 'approved';
+  const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
   return (
     <button
-      type="button"
       onClick={onClick}
-      disabled={!canOpen}
-      className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
-        canOpen
-          ? 'opacity-75 cursor-pointer hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10'
-          : 'opacity-50 cursor-default select-none'
-      }`}
+      className="group relative flex w-full cursor-pointer flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10"
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
-        <Building2 className="h-6 w-6 text-gray-400" />
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#2A7E4F18' }}>
+        <Building2 className="h-6 w-6" style={{ color: '#2A7E4F' }} />
       </div>
 
       <div className="flex-1">
-        <h3 className="text-[18px] font-semibold text-gray-500">SourceGuide</h3>
+        <h3 className="text-[18px] font-semibold text-slate-900">SourceGuide</h3>
         <p className="mt-0.5 text-[13px] font-medium text-slate-400">Sourcing Intelligence</p>
         <p className="mt-2 text-sm leading-relaxed text-gray-500">
           Search NESR&apos;s preferred and backup suppliers across the full commodity taxonomy and every country guide.
@@ -644,12 +699,14 @@ function SourceGuideCard({
       </div>
 
       <div className="mt-auto flex items-center justify-between">
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
-          {canOpen ? 'Admin Preview' : 'Coming Soon'}
-        </span>
-        {canOpen && (
-          <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open preview →</span>
-        )}
+        <AccessBadge status={status} isAdmin={isAdmin} />
+        {canOpen ? (
+          <span className="text-sm font-semibold group-hover:underline" style={{ color: '#2A7E4F' }}>Open →</span>
+        ) : status === 'new' ? (
+          <span className="text-sm font-semibold group-hover:underline" style={{ color: '#2A7E4F' }}>Request Access →</span>
+        ) : isDenied ? (
+          <span className="text-xs font-semibold text-red-600 group-hover:underline">Reapply for access →</span>
+        ) : null}
       </div>
     </button>
   );
@@ -808,7 +865,6 @@ export default function HomePage() {
   const procureGuardStatus: ToolStatus = session?.user?.toolAccess?.procure_guard?.status ?? 'new';
   const canOpenProcureGuard = isAdmin || procureGuardStatus === 'approved';
   const sourceGuideStatus: ToolStatus = session?.user?.toolAccess?.sourceguide?.status ?? 'new';
-  const canOpenSourceGuide = isAdmin || sourceGuideStatus === 'approved';
   const canOpenCatalogManager = isAdmin;
 
   function handlePOClick() {
@@ -836,7 +892,9 @@ export default function HomePage() {
   }
 
   function handleSourceGuideClick() {
-    if (canOpenSourceGuide) router.push('/sourceguide');
+    if (isAdmin || sourceGuideStatus === 'approved') { router.push('/sourceguide'); return; }
+    if (sourceGuideStatus === 'pending') { setModal('sg-pending'); return; }
+    setModal('sg-request');
   }
 
   function handleCatalogManagerClick() {
@@ -984,7 +1042,8 @@ export default function HomePage() {
 
               {show('sourceguide sourcing intelligence suppliers commodity') && (
                 <SourceGuideCard
-                  canOpen={canOpenSourceGuide}
+                  status={sourceGuideStatus}
+                  isAdmin={isAdmin}
                   onClick={handleSourceGuideClick}
                 />
               )}
@@ -1192,6 +1251,22 @@ export default function HomePage() {
         />
       )}
       {modal === 'tite-pending' && (
+        <PendingModal
+          onClose={() => setModal(null)}
+          onRefresh={handleRefreshStatus}
+        />
+      )}
+      {modal === 'sg-request' && (
+        <SourceGuideAccessRequestModal
+          userEmail={userEmail}
+          displayName={displayName}
+          jobTitle={jobTitle}
+          department={department}
+          onClose={() => setModal(null)}
+          onSubmitted={handleAccessSubmitted}
+        />
+      )}
+      {modal === 'sg-pending' && (
         <PendingModal
           onClose={() => setModal(null)}
           onRefresh={handleRefreshStatus}

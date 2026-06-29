@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { SourceGuideAccessProvider } from './SourceGuideAccessContext';
+import SourceGuideAccessOverlay from './SourceGuideAccessOverlay';
 import SourceGuideShell from './SourceGuideShell';
 
 export const metadata: Metadata = { title: 'SourceGuide | SC Agents' };
@@ -16,19 +17,44 @@ export default async function SourceGuideLayout({ children }: { children: React.
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   const isAdmin = adminEmails.includes(session.user.email.toLowerCase());
 
-  // Env-gated preview: only admins and listed testers may enter — everyone
-  // else is bounced back to the tool picker (the home card shows "Admin Preview").
-  const sgStatus = session.user.toolAccess?.sourceguide?.status ?? 'new';
-  const canAccess = isAdmin || sgStatus === 'approved';
-  if (!canAccess) redirect('/home');
-
   const userName = session.user.name ?? session.user.email;
 
+  if (isAdmin) {
+    return (
+      <SourceGuideAccessProvider isAdmin approvedCountries={[]} viewOnly={false} userName={userName}>
+        <SourceGuideShell userName={userName} userEmail={session.user.email}>{children}</SourceGuideShell>
+      </SourceGuideAccessProvider>
+    );
+  }
+
+  const sg = session.user.toolAccess?.sourceguide;
+  const rawStatus = sg?.status ?? 'new';
+
+  // Champions + approved users are 'approved'; everyone else sees the request overlay.
+  if (rawStatus !== 'approved') {
+    const overlayStatus: 'new' | 'pending' | 'rejected' | 'revoked' | 'denied' =
+      rawStatus === 'pending'  ? 'pending'  :
+      rawStatus === 'rejected' ? 'rejected' :
+      rawStatus === 'revoked'  ? 'revoked'  :
+      rawStatus === 'denied'   ? 'denied'   : 'new';
+    return (
+      <SourceGuideAccessOverlay
+        status={overlayStatus}
+        userEmail={session.user.email}
+        userName={userName}
+        jobTitle={session.user.jobTitle}
+        department={session.user.department}
+      />
+    );
+  }
+
+  // approvedCountries: champions get their editable country codes; users get [] (view-all, no edit)
+  const approvedCountries = sg?.approvedCountries ?? [];
+  const viewOnly = approvedCountries.length === 0; // approved users (non-champions) are read-only
+
   return (
-    <SourceGuideAccessProvider isAdmin={isAdmin} approvedCountries={[]} viewOnly={false} userName={userName}>
-      <SourceGuideShell userName={userName} userEmail={session.user.email}>
-        {children}
-      </SourceGuideShell>
+    <SourceGuideAccessProvider isAdmin={false} approvedCountries={approvedCountries} viewOnly={viewOnly} userName={userName}>
+      <SourceGuideShell userName={userName} userEmail={session.user.email}>{children}</SourceGuideShell>
     </SourceGuideAccessProvider>
   );
 }

@@ -23,7 +23,7 @@ import ProcureGuardAccessApprovalsClient from './ProcureGuardAccessApprovalsClie
 import ProcureGuardAdminPanelClient from '../procure-guard/admin/AdminPanelClient';
 import ProcureGuardAnalyticsClient from '../procure-guard/analytics/AnalyticsClient';
 import ProcureGuardAdminAnalyticsClient from '../procure-guard/admin-analytics/AdminAnalyticsClient';
-import { SourceGuideAccessApprovalsClient, SourceGuideGuidesClient, SourceGuideAnalyticsClient } from './SourceGuideAdmin';
+import { SourceGuideAccessApprovalsClient, SourceGuideGuidesClient, SourceGuideAnalyticsClient, SourceGuideChampionsClient } from './SourceGuideAdmin';
 import type { Shipment } from '@/types/tite';
 import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
 import type {
@@ -1330,6 +1330,7 @@ export default function AdminClient({
       'procureguard-usage':     'ProcureGuard Usage Analytics | Admin | SC Agents',
       'procureguard-access':    'ProcureGuard Access Approvals | Admin | SC Agents',
       'sourceguide-guides':     'Source Guides — SourceGuide | Admin | SC Agents',
+      'sourceguide-champions':  'Champions — SourceGuide | Admin | SC Agents',
       'sourceguide-analytics':  'Analytics — SourceGuide | Admin | SC Agents',
       'sourceguide-access':     'SourceGuide Access Approvals | Admin | SC Agents',
     };
@@ -1631,6 +1632,20 @@ export default function AdminClient({
           </button>
 
           <button
+            onClick={() => setSelectedTool('sourceguide-champions')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'sourceguide-champions' ? '3px solid #2A7E4F' : '3px solid transparent',
+              background: selectedTool === 'sourceguide-champions' ? '#eaf4ef' : 'transparent',
+              color: selectedTool === 'sourceguide-champions' ? '#1f5d3a' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Champions
+          </button>
+
+          <button
             onClick={() => setSelectedTool('sourceguide-analytics')}
             style={{
               ...navItemBase,
@@ -1733,6 +1748,9 @@ export default function AdminClient({
           )}
           {selectedTool === 'sourceguide-guides' && (
             <SourceGuideGuidesClient />
+          )}
+          {selectedTool === 'sourceguide-champions' && (
+            <SourceGuideChampionsClient />
           )}
           {selectedTool === 'sourceguide-analytics' && (
             <SourceGuideAnalyticsClient />

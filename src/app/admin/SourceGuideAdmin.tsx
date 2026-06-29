@@ -2,19 +2,19 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  getSourceGuideAccessRequests, getSourceGuidePendingCount, getCountries,
+  getSourceGuideAccessRequests, getSourceGuidePendingCount,
   approveSourceGuideAccessRequest, rejectSourceGuideAccessRequest,
-  revokeSourceGuideAccess, editSourceGuideAccess, deleteSourceGuideAccessRequest,
+  revokeSourceGuideAccess, deleteSourceGuideAccessRequest,
+  getChampionsByCountry, addChampion, removeChampion,
   getGuides, getSourceGuideAnalytics,
 } from '@/app/actions/sourceguide';
-import type { SgAccessRequest, SgAnalytics } from '@/app/actions/sourceguide';
-import type { SgCountry, SgGuide } from '@/types/sourceguide';
+import type { SgAccessRequest, SgAnalytics, SgCountryChampions } from '@/app/actions/sourceguide';
+import type { SgGuide } from '@/types/sourceguide';
 
 const BRAND = '#2A7E4F';
-const VIEW_ONLY = 'All Countries - View Only';
 
 /* ============================================================
-   Access Approvals
+   Access Approvals — grant users all-country (read-only) access
    ============================================================ */
 export function SourceGuideAccessApprovalsClient({
   onPendingCountChange,
@@ -23,46 +23,23 @@ export function SourceGuideAccessApprovalsClient({
   onPendingCountChange?: (n: number) => void;
 }) {
   const [requests, setRequests] = useState<SgAccessRequest[]>([]);
-  const [countries, setCountries] = useState<SgCountry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-
-  const options = useMemo(
-    () => [{ code: VIEW_ONLY, name: VIEW_ONLY }, ...countries.map(c => ({ code: c.code, name: c.name }))],
-    [countries],
-  );
-  const nameOf = useMemo(() => {
-    const m = new Map(options.map(o => [o.code, o.name]));
-    return (code: string) => m.get(code) ?? code;
-  }, [options]);
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const [reqs, cs, cnt] = await Promise.all([
-      getSourceGuideAccessRequests(), getCountries(), getSourceGuidePendingCount(),
-    ]);
-    setRequests(reqs); setCountries(cs); setLoading(false);
+    const [reqs, cnt] = await Promise.all([getSourceGuideAccessRequests(), getSourceGuidePendingCount()]);
+    setRequests(reqs); setLoading(false);
     onPendingCountChange?.(cnt);
   }, [onPendingCountChange]);
 
   useEffect(() => { void reload(); }, [reload]);
-
-  function startEdit(r: SgAccessRequest) {
-    setEditing(r.user_email);
-    setPicked(new Set(r.status === 'Approved' ? r.approved_countries : r.requested_countries));
-  }
-  function toggle(code: string) {
-    setPicked(prev => { const n = new Set(prev); n.has(code) ? n.delete(code) : n.add(code); return n; });
-  }
 
   async function run(fn: () => Promise<{ success: boolean; error?: string }>) {
     setBusy(true);
     const res = await fn();
     setBusy(false);
     if (!res.success) { alert(res.error ?? 'Action failed'); return; }
-    setEditing(null);
     await reload();
   }
 
@@ -79,7 +56,7 @@ export function SourceGuideAccessApprovalsClient({
   return (
     <div>
       <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">SourceGuide · Access Approvals</h2>
-      <p className="mb-6 text-[13px] text-slate-500">Approve country-guide access. Approved countries become editable for that champion; choose “{VIEW_ONLY}” for read-only.</p>
+      <p className="mb-6 text-[13px] text-slate-500">Grant general users access to view all country guides (read-only). Champions are managed separately under the Champions tab.</p>
 
       {requests.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">No access requests yet.</div>
@@ -87,72 +64,114 @@ export function SourceGuideAccessApprovalsClient({
         <div className="space-y-3">
           {requests.map(r => {
             const ss = statusStyle[r.status] ?? statusStyle.Denied;
-            const isEditing = editing === r.user_email;
             return (
-              <div key={r.user_email} className="rounded-xl border border-slate-200 bg-white p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[15px] font-semibold text-slate-900">{r.display_name || r.user_email}</span>
-                      <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: ss.bg, color: ss.col }}>{r.status}</span>
-                    </div>
-                    <div className="mt-0.5 text-[12.5px] text-slate-500">{r.user_email}{r.job_title ? ` · ${r.job_title}` : ''}</div>
-                    <div className="mt-2 text-[12.5px] text-slate-600">
-                      <span className="text-slate-400">Requested:</span> {r.requested_countries.map(nameOf).join(', ')}
-                    </div>
-                    {r.status === 'Approved' && (
-                      <div className="mt-1 text-[12.5px] text-slate-600">
-                        <span className="text-slate-400">Approved:</span> {r.approved_countries.map(nameOf).join(', ')}
-                      </div>
-                    )}
+              <div key={r.user_email} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-5">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[15px] font-semibold text-slate-900">{r.display_name || r.user_email}</span>
+                    <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: ss.bg, color: ss.col }}>{r.status}</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {!isEditing && (r.status === 'Pending' || r.status === 'Approved') && (
-                      <button onClick={() => startEdit(r)} className="rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white" style={{ background: BRAND }}>
-                        {r.status === 'Pending' ? 'Review' : 'Edit countries'}
-                      </button>
-                    )}
-                    {!isEditing && r.status === 'Pending' && (
-                      <button disabled={busy} onClick={() => run(() => rejectSourceGuideAccessRequest(r.user_email))} className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50">Reject</button>
-                    )}
-                    {!isEditing && r.status === 'Approved' && (
-                      <button disabled={busy} onClick={() => run(() => revokeSourceGuideAccess(r.user_email))} className="rounded-lg border border-red-200 px-3 py-1.5 text-[12.5px] font-semibold text-red-600 hover:bg-red-50">Revoke</button>
-                    )}
-                    {!isEditing && (
-                      <button disabled={busy} onClick={() => { if (confirm('Delete this request?')) run(() => deleteSourceGuideAccessRequest(r.user_email)); }} className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12.5px] font-semibold text-slate-400 hover:bg-slate-50">Delete</button>
-                    )}
-                  </div>
+                  <div className="mt-0.5 text-[12.5px] text-slate-500">{r.user_email}{r.job_title ? ` · ${r.job_title}` : ''}</div>
                 </div>
-
-                {isEditing && (
-                  <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <div className="mb-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                      {options.map(o => (
-                        <label key={o.code} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-[12.5px] hover:bg-white">
-                          <input type="checkbox" checked={picked.has(o.code)} onChange={() => toggle(o.code)} style={{ accentColor: BRAND }} />
-                          <span className="truncate">{o.name}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        disabled={busy || picked.size === 0}
-                        onClick={() => run(() => r.status === 'Approved'
-                          ? editSourceGuideAccess(r.user_email, [...picked])
-                          : approveSourceGuideAccessRequest(r.user_email, [...picked]))}
-                        className="rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-50" style={{ background: BRAND }}
-                      >
-                        {r.status === 'Approved' ? 'Save' : 'Approve'}
-                      </button>
-                      <button onClick={() => setEditing(null)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:bg-white">Cancel</button>
-                    </div>
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {r.status !== 'Approved' && (
+                    <button disabled={busy} onClick={() => run(() => approveSourceGuideAccessRequest(r.user_email))}
+                      className="rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-50" style={{ background: BRAND }}>
+                      Approve
+                    </button>
+                  )}
+                  {r.status === 'Pending' && (
+                    <button disabled={busy} onClick={() => run(() => rejectSourceGuideAccessRequest(r.user_email))}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50">Reject</button>
+                  )}
+                  {r.status === 'Approved' && (
+                    <button disabled={busy} onClick={() => run(() => revokeSourceGuideAccess(r.user_email))}
+                      className="rounded-lg border border-red-200 px-3 py-1.5 text-[12.5px] font-semibold text-red-600 hover:bg-red-50">Revoke</button>
+                  )}
+                  <button disabled={busy} onClick={() => { if (confirm('Delete this request?')) run(() => deleteSourceGuideAccessRequest(r.user_email)); }}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12.5px] font-semibold text-slate-400 hover:bg-slate-50">Delete</button>
+                </div>
               </div>
             );
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ============================================================
+   Champions — assign editors per country (name + email)
+   ============================================================ */
+export function SourceGuideChampionsClient() {
+  const [data, setData] = useState<SgCountryChampions[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState<Record<string, { name: string; email: string }>>({});
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setData(await getChampionsByCountry());
+    setLoading(false);
+  }, []);
+  useEffect(() => { void reload(); }, [reload]);
+
+  function setField(code: string, field: 'name' | 'email', value: string) {
+    setDraft(d => {
+      const cur = d[code] ?? { name: '', email: '' };
+      return { ...d, [code]: { ...cur, [field]: value } };
+    });
+  }
+  async function run(fn: () => Promise<{ success: boolean; error?: string }>) {
+    setBusy(true); const res = await fn(); setBusy(false);
+    if (!res.success) { alert(res.error ?? 'Action failed'); return; }
+    await reload();
+  }
+  async function add(code: string) {
+    const d = draft[code]; if (!d?.name?.trim()) { alert('Enter a name.'); return; }
+    await run(() => addChampion(code, d.name, d.email || null));
+    setDraft(prev => ({ ...prev, [code]: { name: '', email: '' } }));
+  }
+
+  if (loading) return <div className="py-16 text-center text-sm text-slate-400">Loading champions…</div>;
+
+  return (
+    <div>
+      <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">SourceGuide · Champions</h2>
+      <p className="mb-6 text-[13px] text-slate-500">Assign champions per country. A champion gets access automatically on login (matched by email) and can edit mappings only for their country.</p>
+
+      <div className="space-y-3">
+        {data.map(c => (
+          <div key={c.country} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="flex items-center gap-2.5 border-b border-slate-100 bg-slate-50 px-5 py-3">
+              <span className="h-[14px] w-[20px] rounded-sm" style={{ background: c.tone ?? '#999' }} />
+              <span className="text-[14px] font-bold text-slate-900">{c.name}</span>
+              <span className="ml-auto font-mono text-[11.5px] text-slate-400">{c.champions.length} champion{c.champions.length === 1 ? '' : 's'}</span>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {c.champions.map(ch => (
+                <div key={ch.id} className="flex items-center gap-3 px-5 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[13.5px] font-medium text-slate-800">{ch.name}</span>
+                    <span className="ml-2 text-[12px] text-slate-500">{ch.email || <span className="italic text-amber-600">no email — add to grant access</span>}</span>
+                  </div>
+                  <button disabled={busy} onClick={() => { if (confirm(`Remove ${ch.name}?`)) run(() => removeChampion(ch.id)); }}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-[12px] font-semibold text-slate-400 hover:bg-slate-50 hover:text-red-600">Remove</button>
+                </div>
+              ))}
+              {c.champions.length === 0 && <div className="px-5 py-2.5 text-[12.5px] text-slate-400">No champions yet.</div>}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
+              <input value={draft[c.country]?.name ?? ''} onChange={e => setField(c.country, 'name', e.target.value)}
+                placeholder="Name" className="w-40 rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] outline-none focus:border-[#6AAF8E]" />
+              <input value={draft[c.country]?.email ?? ''} onChange={e => setField(c.country, 'email', e.target.value)}
+                placeholder="email@nesr.com" className="w-56 rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] outline-none focus:border-[#6AAF8E]" />
+              <button disabled={busy} onClick={() => add(c.country)}
+                className="rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-50" style={{ background: BRAND }}>Add champion</button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
