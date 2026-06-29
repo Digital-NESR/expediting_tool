@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-export const metadata: Metadata = { title: 'NESR Catalog Manager | SC Agents' };
+export const metadata: Metadata = { title: 'NESR Catalog Repo | SC Agents' };
 export const dynamic = 'force-dynamic';
 
 export default async function CatalogManagerLayout({ children }: { children: React.ReactNode }) {

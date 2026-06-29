@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import CatalogManagerShell, { type ScopeCountry } from '../../components/CatalogManagerShell';
 import { Icon } from '../../components/CatalogManagerUI';
 import BulkImportPanel from '../import/BulkImportPanel';
+import GridEntryPanel from './GridEntryPanel';
 import { createCatalogEntriesBatch, searchExpeditingSuppliers, type CatalogEntryLine } from '@/app/actions/catalog-manager';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
 import type { SpendType } from '@/types/catalog-manager';
@@ -43,14 +44,14 @@ export default function AddEntriesClient({
   services: string[];
   managers: string[];
   scope: string;
-  initialTab: 'manual' | 'bulk';
+  initialTab: 'manual' | 'grid' | 'bulk';
   roleLabel: string;
   canApprove: boolean;
   canAdmin: boolean;
   pendingCount: number;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<'manual' | 'bulk'>(initialTab);
+  const [tab, setTab] = useState<'manual' | 'grid' | 'bulk'>(initialTab);
 
   const defaultCountry = scope !== 'ALL' ? scope : countries[0]?.code ?? 'SA';
   const defaultCcy = CCY_BY_COUNTRY[defaultCountry] ?? currencies[0]?.code ?? 'USD';
@@ -179,15 +180,15 @@ export default function AddEntriesClient({
 
   return (
     <CatalogManagerShell title="Add entries" roleLabel={roleLabel} canApprove={canApprove} canAdmin={canAdmin} pendingCount={pendingCount} showScope={false}>
-      <div className="mx-auto max-w-3xl space-y-5">
+      <div className={`${tab === 'grid' ? '' : 'mx-auto max-w-3xl '}space-y-5`}>
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Add catalog entries</h1>
-          <p className="mt-1 text-sm text-slate-500">Add rates by hand (one supplier, many lines) or import a whole rate card from Excel.</p>
+          <p className="mt-1 text-sm text-slate-500">Add rates by hand (one supplier, many lines), fill a spreadsheet-style grid, or import a whole rate card from Excel.</p>
         </div>
 
         {/* mode toggle */}
         <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1">
-          {([['manual', 'Manual entry', 'edit'], ['bulk', 'Bulk import (Excel)', 'sheet']] as const).map(([v, label, icon]) => (
+          {([['manual', 'Manual entry', 'edit'], ['grid', 'Grid entry', 'catalog'], ['bulk', 'Bulk import (Excel)', 'sheet']] as const).map(([v, label, icon]) => (
             <button key={v} onClick={() => setTab(v)} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors ${tab === v ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               <Icon name={icon} className="h-4 w-4" /> {label}
             </button>
@@ -196,6 +197,8 @@ export default function AddEntriesClient({
 
         {tab === 'bulk' ? (
           <BulkImportPanel />
+        ) : tab === 'grid' ? (
+          <GridEntryPanel countries={countries} currencies={currencies} uoms={uoms} services={services} defaultCountry={scope} />
         ) : (
           <div className="space-y-4">
             {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}

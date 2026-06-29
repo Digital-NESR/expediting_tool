@@ -655,7 +655,7 @@ function SourceGuideCard({
   );
 }
 
-/* ─── Catalog Manager Card (Admin Preview) ───────────────────── */
+/* ─── Catalog Repo Card (Admin Preview) ───────────────────── */
 
 function CatalogManagerCard({
   canOpen,
@@ -682,7 +682,7 @@ function CatalogManagerCard({
       </div>
 
       <div className="flex-1">
-        <h3 className="text-[18px] font-semibold text-gray-500">Catalog Manager</h3>
+        <h3 className="text-[18px] font-semibold text-gray-500">Catalog Repo</h3>
         <p className="mt-0.5 text-[13px] font-medium text-slate-400">Supplier Service &amp; Indirect Item Rates</p>
         <p className="mt-2 text-sm leading-relaxed text-gray-500">
           Maintain country-segmented supplier price catalogs, route rate approvals, and keep an audit-ready record of agreed prices.

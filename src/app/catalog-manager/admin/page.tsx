@@ -16,7 +16,7 @@ import {
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import AdminClient from './AdminClient';
 
-export const metadata: Metadata = { title: 'Administration | NESR Catalog Manager' };
+export const metadata: Metadata = { title: 'Administration | NESR Catalog Repo' };
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {

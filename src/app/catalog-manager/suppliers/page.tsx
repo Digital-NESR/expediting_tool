@@ -7,7 +7,7 @@ import {
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import SuppliersListClient from './SuppliersListClient';
 
-export const metadata: Metadata = { title: 'Suppliers | NESR Catalog Manager' };
+export const metadata: Metadata = { title: 'Suppliers | NESR Catalog Repo' };
 export const dynamic = 'force-dynamic';
 
 export default async function SuppliersPage() {

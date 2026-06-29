@@ -670,7 +670,7 @@ export async function getCatalogActor(): Promise<CatalogActor> {
     ownApproverCountries = ca.map((c) => c.country_code);
   }
 
-  // Merge in any active delegations TO this user for the Catalog Manager app.
+  // Merge in any active delegations TO this user for the Catalog Repo app.
   const delegatedFrom = await resolveCatalogDelegations(email);
   const delegatedCountries = delegatedFrom.flatMap((d) => d.countries);
   const approverCountries = [...new Set([...ownApproverCountries, ...delegatedCountries])];
@@ -691,7 +691,7 @@ export async function getCatalogActor(): Promise<CatalogActor> {
 }
 
 /**
- * Resolve active delegations TO `email` for Catalog Manager, expanding each
+ * Resolve active delegations TO `email` for Catalog Repo, expanding each
  * delegator into the countries they can approve (from this DB's own tables).
  * Fail-safe: returns [] if delegation_db is unavailable.
  */

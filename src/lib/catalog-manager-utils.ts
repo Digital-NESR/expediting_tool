@@ -1,4 +1,4 @@
-// Pure helpers for the NESR Catalog Manager: master-data seeds, money/date formatting,
+// Pure helpers for the NESR Catalog Repo: master-data seeds, money/date formatting,
 // USD conversion, approval-tier logic, status styling, and role permissions.
 // No DB or React here — safe to import from both server actions and client components.
 

@@ -18,7 +18,7 @@ export interface DelegationAppMeta {
 export const DELEGATION_APPS: DelegationAppMeta[] = [
   { id: 'procureguard', label: 'ProcureGuard', route: '/procure-guard', color: '#1f7a4d', tasks: 'Adhoc & advance payment approvals' },
   { id: 'laptop', label: 'Laptop Procurement', route: '/laptop-procurement', color: '#307c4c', tasks: 'Device request approvals' },
-  { id: 'catalog', label: 'Catalog Manager', route: '/catalog-manager', color: '#307c4c', tasks: 'Catalog rate approvals' },
+  { id: 'catalog', label: 'Catalog Repo', route: '/catalog-manager', color: '#307c4c', tasks: 'Catalog rate approvals' },
   { id: 'tite', label: 'TI-TE', route: '/ti-te', color: '#006B0C', tasks: 'Access-request approvals' },
 ];
 

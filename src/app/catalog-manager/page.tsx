@@ -6,7 +6,7 @@ import {
 } from '@/app/actions/catalog-manager';
 import CatalogManagerDashboardClient from './CatalogManagerDashboardClient';
 
-export const metadata: Metadata = { title: 'NESR Catalog Manager Dashboard | NESR' };
+export const metadata: Metadata = { title: 'NESR Catalog Repo Dashboard | NESR' };
 export const dynamic = 'force-dynamic';
 
 export default async function CatalogManagerDashboardPage({

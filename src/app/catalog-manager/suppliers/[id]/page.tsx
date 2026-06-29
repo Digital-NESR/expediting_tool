@@ -11,7 +11,7 @@ import SupplierProfileClient from './SupplierProfileClient';
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const p = await getSupplierProfile(Number(id));
-  return { title: `${p?.name ?? 'Supplier'} | NESR Catalog Manager` };
+  return { title: `${p?.name ?? 'Supplier'} | NESR Catalog Repo` };
 }
 
 export const dynamic = 'force-dynamic';

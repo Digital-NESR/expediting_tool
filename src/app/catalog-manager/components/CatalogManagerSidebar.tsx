@@ -74,7 +74,7 @@ export default function CatalogManagerSidebar({
         <div className="flex h-16 items-center gap-3 bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-5 text-white">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white p-1.5 text-[#307c4c]"><CatalogLogoMark className="h-full w-full" /></div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold tracking-tight">NESR Catalog Manager</p>
+            <p className="truncate text-sm font-bold tracking-tight">NESR Catalog Repo</p>
             <p className="truncate text-[11px] text-white/70">Supplier Catalog Management</p>
           </div>
           <div className="ml-auto flex items-center gap-1">

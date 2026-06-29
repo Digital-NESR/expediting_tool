@@ -12,7 +12,7 @@ import {
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import AddEntriesClient from './AddEntriesClient';
 
-export const metadata: Metadata = { title: 'Add entries | NESR Catalog Manager' };
+export const metadata: Metadata = { title: 'Add entries | NESR Catalog Repo' };
 export const dynamic = 'force-dynamic';
 
 export default async function AddEntriesPage({
@@ -42,7 +42,7 @@ export default async function AddEntriesPage({
       services={services.map((s) => s.text)}
       managers={managers}
       scope={sp.country ?? 'ALL'}
-      initialTab={sp.tab === 'bulk' ? 'bulk' : 'manual'}
+      initialTab={sp.tab === 'bulk' ? 'bulk' : sp.tab === 'grid' ? 'grid' : 'manual'}
       roleLabel={getPermissionProfile(actor.role).description}
       canApprove={actor.canApprove}
       canAdmin={actor.canAdmin}

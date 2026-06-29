@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
 
 // Read-only access to the NESR expediting tool database (same Azure server) for the
-// real SAP supplier master. Catalog Manager only reads supplier_contacts for the picker.
+// real SAP supplier master. Catalog Repo only reads supplier_contacts for the picker.
 const expeditingPool = new Pool({
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT) || 5432,

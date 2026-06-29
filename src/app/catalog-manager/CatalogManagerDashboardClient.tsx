@@ -58,7 +58,7 @@ export default function CatalogManagerDashboardClient({
         <section className="flex items-center gap-3 rounded-xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-4 py-3 text-white shadow-sm shadow-[#307c4c]/20">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15"><Icon name="catalog" className="h-5 w-5" /></span>
           <div className="min-w-0">
-            <h1 className="text-base font-bold tracking-tight">NESR Catalog Manager</h1>
+            <h1 className="text-base font-bold tracking-tight">NESR Catalog Repo</h1>
             <p className="truncate text-[12px] text-white/75">Approved supplier rates for {data.scope}, segmented by country &amp; spend category.</p>
           </div>
         </section>

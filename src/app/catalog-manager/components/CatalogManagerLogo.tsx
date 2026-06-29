@@ -1,4 +1,4 @@
-// Brand mark for the Catalog Manager tool: a stack of catalog/rate cards,
+// Brand mark for the Catalog Repo tool: a stack of catalog/rate cards,
 // each with a price marker — the segmented price catalog the tool maintains.
 
 export function CatalogLogoMark({ className = '' }: { className?: string }) {

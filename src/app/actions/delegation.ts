@@ -5,10 +5,10 @@ import delegationPool from '@/lib/db-delegation';
 import type { DelegationAppId, DelegationRow } from '@/lib/delegation-shared';
 
 /* ============================================================================
-   DELEGATION RESOLVER (slim) — Catalog Manager admin preview.
+   DELEGATION RESOLVER (slim) — Catalog Repo admin preview.
 
    The cross-app Delegations hub lives in the local-dev app; here we only need the
-   read-side resolver so Catalog Manager can honor any active delegation grants.
+   read-side resolver so Catalog Repo can honor any active delegation grants.
    Everything is fail-safe: if delegation_db / the table is absent, returns [].
 ============================================================================ */
 

@@ -1,4 +1,4 @@
-// Types for the NESR Catalog Manager tool.
+// Types for the NESR Catalog Repo tool.
 // The DB schema follows the ERD: country / currency / unit_of_measure / app_user /
 // supplier / spend_category / spend_subcategory / catalog_entry / rate_version /
 // entry_document / approval_decision / audit_log, plus country_approver (per-country approvers).

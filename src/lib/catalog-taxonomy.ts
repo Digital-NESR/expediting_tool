@@ -1,4 +1,4 @@
-// NESR spend taxonomy — ported from the Catalog Manager design (real NESR taxonomy).
+// NESR spend taxonomy — ported from the Catalog Repo design (real NESR taxonomy).
 // Drives the cascading Category → Sub-category → Commodity selects on the entry form,
 // and seeds the spend_category / spend_subcategory master-data tables.
 // spend_type classifies each category as Materials & Assets, Consumables, or Services.

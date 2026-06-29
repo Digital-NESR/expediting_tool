@@ -4,7 +4,7 @@ import { getCatalogActor, getPendingApprovalCount } from '@/app/actions/catalog-
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import CatalogImportClient from './CatalogImportClient';
 
-export const metadata: Metadata = { title: 'Bulk import | NESR Catalog Manager' };
+export const metadata: Metadata = { title: 'Bulk import | NESR Catalog Repo' };
 export const dynamic = 'force-dynamic';
 
 export default async function CatalogImportPage() {
