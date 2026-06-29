@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getCommodityDetail, getCountries } from '@/app/actions/sourceguide';
 import CommodityDetailClient from './CommodityDetailClient';
 
-export const metadata: Metadata = { title: 'Commodity — SourceGuide | SC Agents' };
+export const metadata: Metadata = { title: 'Commodity · SourceGuide | SC Agents' };
 
 export default async function CommodityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

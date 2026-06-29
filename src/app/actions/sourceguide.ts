@@ -388,6 +388,47 @@ export async function getCommoditiesByIds(ids: number[]): Promise<SgCommodity[]>
   }
 }
 
+/* ─── full catalogue (for the cascading taxonomy explorer) ───── */
+
+export interface SgCatalogRow {
+  id: number;
+  name: string;
+  code: string;
+  spendType: string;
+  category: string;
+  categoryId: string;
+  subCategory: string | null;
+  family: string | null;
+  suppliers: number;   // active supplier mappings
+  countries: number;   // distinct countries mapped
+}
+
+export async function getCommodityCatalog(): Promise<SgCatalogRow[]> {
+  try {
+    const { rows } = await sourceGuidePool.query(`
+      SELECT c.id, c.name, c.code, c.spend_type, c.category, c.category_id,
+             c.sub_category, c.family,
+             COALESCE(mc.suppliers, 0)::int  AS suppliers,
+             COALESCE(mc.countries, 0)::int  AS countries
+      FROM sg_commodities c
+      LEFT JOIN (
+        SELECT commodity_id, COUNT(*) AS suppliers, COUNT(DISTINCT country_code) AS countries
+        FROM sg_mappings WHERE status='Active' GROUP BY commodity_id
+      ) mc ON mc.commodity_id = c.id
+      ORDER BY c.category, c.sub_category NULLS FIRST, c.family NULLS FIRST, c.name
+    `);
+    return rows.map(r => ({
+      id: r.id, name: r.name, code: r.code, spendType: r.spend_type,
+      category: r.category, categoryId: r.category_id,
+      subCategory: r.sub_category, family: r.family,
+      suppliers: Number(r.suppliers), countries: Number(r.countries),
+    }));
+  } catch (err) {
+    console.error('[sg.getCommodityCatalog]', err);
+    return [];
+  }
+}
+
 /* ─── browse taxonomy ────────────────────────────────────────── */
 
 export interface SgTaxonomyLeaf { id: number; name: string; code: string; countries: number; }
@@ -399,8 +440,8 @@ export async function getTaxonomy(): Promise<SgTaxonomyCategory[]> {
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT c.id, c.code, c.name, c.category, c.category_id,
-             COALESCE(c.sub_category, '—') AS sub_category,
-             COALESCE(c.family, '—') AS family,
+             COALESCE(c.sub_category, 'General') AS sub_category,
+             COALESCE(c.family, 'General') AS family,
              COALESCE(cc.cnt, 0)::int AS countries
       FROM sg_commodities c
       LEFT JOIN (

@@ -60,7 +60,7 @@ export default function MappingsClient({
         <h1 className="text-[30px] font-bold tracking-tight">Manage mappings</h1>
         <p className="mt-2 max-w-[620px] text-[15px] leading-relaxed text-slate-500">
           Amend the preferred and backup supplier mappings for your country. Promote, demote, add or deactivate
-          suppliers — every change is audit-logged.
+          suppliers. Every change is audit-logged.
         </p>
       </div>
 
@@ -107,7 +107,7 @@ export default function MappingsClient({
           </div>
           <div className="mb-3.5 text-[12.5px] text-slate-500">
             {q.trim()
-              ? <>Showing matches across the full taxonomy — add suppliers to any commodity.</>
+              ? <>Showing matches across the full taxonomy. Add suppliers to any commodity.</>
               : <>Showing the <b className="text-slate-900">{list.length}</b> commodities currently mapped in {c?.name}.</>}
           </div>
 

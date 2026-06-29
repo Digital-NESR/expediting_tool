@@ -47,8 +47,8 @@ export default function CommodityDetailClient({
           {com.description && <p className="mt-2.5 max-w-[640px] text-[14px] leading-relaxed text-slate-500">{com.description}</p>}
           <div className="mt-4 flex flex-wrap gap-6">
             <Meta label="Category" value={com.category} />
-            <Meta label="Sub-Category" value={com.subCategory ?? '—'} />
-            <Meta label="Family" value={com.family ?? '—'} />
+            <Meta label="Sub-Category" value={com.subCategory ?? ''} />
+            <Meta label="Family" value={com.family ?? ''} />
           </div>
         </div>
 

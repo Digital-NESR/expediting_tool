@@ -4,29 +4,49 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
-import { LayoutGrid, LayoutDashboard, Layers, ListTree, BookOpen } from 'lucide-react';
+import { LayoutGrid, LayoutDashboard, Layers, ListTree, BookOpen, Grid3x3 } from 'lucide-react';
 import { SG_BRAND } from './constants';
 import { useSourceGuideAccess } from './SourceGuideAccessContext';
 
 const ACCENT = SG_BRAND;
 
-export default function SourceGuideSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+function PinIcon({ filled }: { filled?: boolean }) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 17v5" />
+      <path d="M9 10.76V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v5.76a2 2 0 0 0 .59 1.41l1 1A2 2 0 0 1 17 14.59V16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .41-1.42l1-1A2 2 0 0 0 9 10.76z" />
+    </svg>
+  );
+}
+
+export default function SourceGuideSidebar({
+  isOpen, onClose, pinned, onTogglePin,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  pinned: boolean;
+  onTogglePin: () => void;
+}) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { isAdmin, viewOnly, approvedCountries } = useSourceGuideAccess();
   const canManage = isAdmin || (!viewOnly && approvedCountries.length > 0);
 
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    if (isOpen) window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [isOpen, onClose]);
+  // when pinned, navigation keeps the sidebar in place
+  const closeOnNav = () => { if (!pinned) onClose(); };
 
   useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !pinned) onClose(); };
+    if (isOpen) window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isOpen, onClose, pinned]);
+
+  useEffect(() => {
+    // only lock scroll for the overlay drawer, never when docked
+    if (isOpen && !pinned) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
     return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
+  }, [isOpen, pinned]);
 
   const rawName = session?.user?.name || 'Unknown User';
   const nameParts = rawName.split(' ');
@@ -45,7 +65,7 @@ export default function SourceGuideSidebar({ isOpen, onClose }: { isOpen: boolea
     return (
       <Link
         href={href}
-        onClick={onClose}
+        onClick={closeOnNav}
         className={[
           'w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all text-sm font-medium relative group',
           isActive ? 'text-slate-900 shadow-sm ring-1 ring-black/5'
@@ -65,11 +85,11 @@ export default function SourceGuideSidebar({ isOpen, onClose }: { isOpen: boolea
   return (
     <>
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300" onClick={onClose} />
+        <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300 ${pinned ? 'lg:hidden' : ''}`} onClick={onClose} />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-white border-r border-slate-200 flex flex-col h-full shadow-[24px_0_40px_rgba(0,0,0,0.1)] transform transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-white border-r border-slate-200 flex flex-col h-full shadow-[24px_0_40px_rgba(0,0,0,0.1)] transform transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isOpen ? 'translate-x-0' : '-translate-x-full'} ${pinned ? 'lg:translate-x-0 lg:shadow-none' : ''}`}
       >
         {/* Header */}
         <div className="h-14 md:h-16 px-5 flex items-center justify-between shrink-0" style={{ background: ACCENT }}>
@@ -79,11 +99,25 @@ export default function SourceGuideSidebar({ isOpen, onClose }: { isOpen: boolea
             </div>
             <span className="text-white font-semibold text-sm tracking-tight leading-tight">SourceGuide</span>
           </div>
-          <button onClick={onClose} className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-            <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onTogglePin}
+              title={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
+              aria-pressed={pinned}
+              className={`p-1.5 rounded-lg transition-colors ${pinned ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+            >
+              <PinIcon filled={pinned} />
+            </button>
+            <button
+              onClick={onClose}
+              title="Close"
+              className={`p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors ${pinned ? 'lg:hidden' : ''}`}
+            >
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Navigation */}
@@ -93,6 +127,7 @@ export default function SourceGuideSidebar({ isOpen, onClose }: { isOpen: boolea
           <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Navigate</p>
 
           <NavLink href="/sourceguide" exact label="Dashboard" icon={<LayoutDashboard className="w-5 h-5" />} />
+          <NavLink href="/sourceguide/taxonomy" label="Spend Taxonomy" icon={<Grid3x3 className="w-5 h-5" />} />
           <NavLink href="/sourceguide/browse" label="Browse" icon={<Layers className="w-5 h-5" />} />
           {canManage && (
             <NavLink href="/sourceguide/mappings" label={isAdmin ? 'Mappings' : 'My Mappings'} icon={<ListTree className="w-5 h-5" />} />

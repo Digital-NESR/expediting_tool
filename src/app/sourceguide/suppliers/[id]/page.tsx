@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getSupplierProfile, getCommoditiesByIds, getCountries } from '@/app/actions/sourceguide';
 import SupplierProfileClient from './SupplierProfileClient';
 
-export const metadata: Metadata = { title: 'Supplier — SourceGuide | SC Agents' };
+export const metadata: Metadata = { title: 'Supplier · SourceGuide | SC Agents' };
 
 export default async function SupplierProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

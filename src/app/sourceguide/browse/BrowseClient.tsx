@@ -15,7 +15,7 @@ export default function BrowseClient({ tree, countryCount }: { tree: SgTaxonomyC
         </div>
         <h1 className="text-[30px] font-bold tracking-tight">Browse the sourcing catalogue</h1>
         <p className="mt-2 max-w-[580px] text-[15px] leading-relaxed text-slate-500">
-          Drill through the four-level hierarchy — Category → Sub-Category → Family → Commodity — to discover
+          Drill through the four-level hierarchy (Category → Sub-Category → Family → Commodity) to discover
           sourcing options across all {countryCount} country guides.
         </p>
       </div>

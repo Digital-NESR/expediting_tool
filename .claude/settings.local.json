@@ -26,7 +26,8 @@
       "Bash(cat next.config.mjs)",
       "Bash(leaflet.min.css\")",
       "Bash(npm ls:*)",
-      "Bash(npx next:*)"
+      "Bash(npx next:*)",
+      "Bash(NODE_PATH=__CMDSUB_OUTPUT__/node_modules node -e ' *)"
     ]
   }
 }

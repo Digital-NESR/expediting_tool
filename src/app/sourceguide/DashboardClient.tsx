@@ -14,7 +14,15 @@ import type { SgStats, SgCategory, SgCommodityResult } from '@/types/sourceguide
 const POPULAR = ['Insurance', 'Catering', 'Inspection', 'Crane', 'Drilling', 'Cementing', 'Valves', 'Fuel'];
 const CAT_ICONS = [Box, Zap, Shield, Layers, Grid3x3, MapPin, FileSpreadsheet, Users, Clock];
 
-export default function DashboardClient({ stats, categories }: { stats: SgStats; categories: SgCategory[] }) {
+interface CountryTile { code: string; name: string; tone: string | null; commodities: number }
+
+export default function DashboardClient({
+  stats, categories, countries,
+}: {
+  stats: SgStats;
+  categories: SgCategory[];
+  countries: CountryTile[];
+}) {
   const router = useRouter();
   const [q, setQ] = useState('');
   const [focus, setFocus] = useState(false);
@@ -38,6 +46,9 @@ export default function DashboardClient({ stats, categories }: { stats: SgStats;
   function goCategory(catId: string) {
     router.push(`/sourceguide/search?cat=${encodeURIComponent(catId)}`);
   }
+  function goCountry(code: string) {
+    router.push(`/sourceguide/search?country=${encodeURIComponent(code)}`);
+  }
 
   return (
     <div>
@@ -51,7 +62,7 @@ export default function DashboardClient({ stats, categories }: { stats: SgStats;
             Find the right supplier, in any country, in seconds.
           </h1>
           <p className="mx-auto mt-4 max-w-[560px] text-[16px] leading-relaxed text-slate-500">
-            Search NESR&apos;s preferred and backup suppliers across the full commodity taxonomy — no spreadsheet required.
+            Search NESR&apos;s preferred and backup suppliers across the full commodity taxonomy, no spreadsheet required.
           </p>
 
           {/* Big search */}
@@ -87,9 +98,9 @@ export default function DashboardClient({ stats, categories }: { stats: SgStats;
                     <Box className="h-4 w-4" style={{ color: SG_BRAND }} />
                     <div className="flex-1 min-w-0">
                       <div className="truncate text-[14px] font-semibold">{com.name}</div>
-                      <div className="truncate text-[12px] text-slate-500">{com.category} · {com.subCategory ?? '—'}</div>
+                      <div className="truncate text-[12px] text-slate-500">{com.category}{com.subCategory ? ` · ${com.subCategory}` : ''}</div>
                     </div>
-                    <span className="font-mono text-[11px] text-slate-400">{com.countries.join(' ') || '—'}</span>
+                    <span className="font-mono text-[11px] text-slate-400">{com.countries.join(' ')}</span>
                   </div>
                 ))}
               </div>
@@ -108,6 +119,28 @@ export default function DashboardClient({ stats, categories }: { stats: SgStats;
               </button>
             ))}
           </div>
+
+          {/* Country filter tiles */}
+          {countries.length > 0 && (
+            <div className="mx-auto mt-8 max-w-[940px]">
+              <div className="mb-3 text-[12.5px] font-semibold text-slate-500">Or jump straight to a country guide</div>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                {countries.map(c => (
+                  <button
+                    key={c.code}
+                    onClick={() => goCountry(c.code)}
+                    className="group flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition-all hover:-translate-y-0.5 hover:border-[#6AAF8E] hover:shadow-sm"
+                  >
+                    <span className="h-8 w-8 shrink-0 rounded-lg" style={{ background: c.tone ?? '#999' }} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[13px] font-semibold text-slate-800">{c.name}</span>
+                      <span className="block text-[11px] text-slate-400">{c.commodities.toLocaleString()} commodities</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -148,7 +181,7 @@ export default function DashboardClient({ stats, categories }: { stats: SgStats;
                   <span className="font-mono text-[12px] text-slate-400">{cat.count} items</span>
                 </div>
                 <div className="mt-4 text-[16px] font-semibold tracking-tight">{cat.name}</div>
-                <div className="mt-1.5 text-[12.5px] leading-relaxed text-slate-500">{cat.subs.join(' · ') || '—'}</div>
+                <div className="mt-1.5 text-[12.5px] leading-relaxed text-slate-500">{cat.subs.join(' · ')}</div>
               </button>
             );
           })}

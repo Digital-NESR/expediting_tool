@@ -172,7 +172,7 @@ export default function SearchClient({
                     <div className="min-w-0">
                       <div className="max-w-[240px] truncate text-[13.5px] font-semibold">{s.name}</div>
                       <div className="text-[12px] text-slate-500">
-                        {s.countries.map(c => countryByCode.get(c)?.name).filter(Boolean).join(', ') || '—'}
+                        {s.countries.map(c => countryByCode.get(c)?.name).filter(Boolean).join(', ')}
                       </div>
                     </div>
                   </button>

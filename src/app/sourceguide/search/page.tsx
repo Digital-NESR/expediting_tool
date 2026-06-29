@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { getCountries, getCategories, getSearchFacets } from '@/app/actions/sourceguide';
 import SearchClient from './SearchClient';
 
-export const metadata: Metadata = { title: 'Search — SourceGuide | SC Agents' };
+export const metadata: Metadata = { title: 'Search · SourceGuide | SC Agents' };
 
 export default async function SourceGuideSearchPage({
   searchParams,

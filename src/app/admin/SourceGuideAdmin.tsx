@@ -78,7 +78,7 @@ export function SourceGuideAccessApprovalsClient({
 
   return (
     <div>
-      <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">SourceGuide — Access Approvals</h2>
+      <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">SourceGuide · Access Approvals</h2>
       <p className="mb-6 text-[13px] text-slate-500">Approve country-guide access. Approved countries become editable for that champion; choose “{VIEW_ONLY}” for read-only.</p>
 
       {requests.length === 0 ? (
@@ -98,11 +98,11 @@ export function SourceGuideAccessApprovalsClient({
                     </div>
                     <div className="mt-0.5 text-[12.5px] text-slate-500">{r.user_email}{r.job_title ? ` · ${r.job_title}` : ''}</div>
                     <div className="mt-2 text-[12.5px] text-slate-600">
-                      <span className="text-slate-400">Requested:</span> {r.requested_countries.map(nameOf).join(', ') || '—'}
+                      <span className="text-slate-400">Requested:</span> {r.requested_countries.map(nameOf).join(', ')}
                     </div>
                     {r.status === 'Approved' && (
                       <div className="mt-1 text-[12.5px] text-slate-600">
-                        <span className="text-slate-400">Approved:</span> {r.approved_countries.map(nameOf).join(', ') || '—'}
+                        <span className="text-slate-400">Approved:</span> {r.approved_countries.map(nameOf).join(', ')}
                       </div>
                     )}
                   </div>
@@ -173,7 +173,7 @@ export function SourceGuideGuidesClient() {
 
   return (
     <div>
-      <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">SourceGuide — Country Guides</h2>
+      <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">SourceGuide · Country Guides</h2>
       <p className="mb-6 text-[13px] text-slate-500">Status and coverage of every published country source guide.</p>
 
       {stale > 0 && (
@@ -228,7 +228,7 @@ export function SourceGuideAnalyticsClient() {
 
   return (
     <div>
-      <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">SourceGuide — Analytics</h2>
+      <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">SourceGuide · Analytics</h2>
       <p className="mb-6 text-[13px] text-slate-500">Coverage across the sourcing catalogue.</p>
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
