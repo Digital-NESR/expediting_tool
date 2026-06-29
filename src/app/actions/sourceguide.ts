@@ -834,6 +834,29 @@ export async function addChampion(countryCode: string, name: string, email: stri
   }
 }
 
+export async function updateChampion(id: number, name: string, email: string | null): Promise<{ success: boolean; error?: string }> {
+  const user = await getSgUser();
+  if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
+  const n = (name || '').trim();
+  if (!n) return { success: false, error: 'Name is required.' };
+  const e = (email || '').trim() || null;
+  try {
+    const row = await sourceGuidePool.query(`SELECT country_code FROM sg_champions WHERE id=$1`, [id]);
+    if (!row.rows.length) return { success: false, error: 'Champion not found.' };
+    if (e) {
+      const dup = await sourceGuidePool.query(
+        `SELECT 1 FROM sg_champions WHERE country_code=$1 AND LOWER(email)=LOWER($2) AND id<>$3`,
+        [row.rows[0].country_code, e, id]);
+      if (dup.rows.length) return { success: false, error: 'That email is already a champion for this country.' };
+    }
+    await sourceGuidePool.query(`UPDATE sg_champions SET name=$2, email=$3 WHERE id=$1`, [id, n, e]);
+    return { success: true };
+  } catch (err) {
+    console.error('[sg.updateChampion]', err);
+    return { success: false, error: 'Failed to update champion.' };
+  }
+}
+
 export async function removeChampion(id: number): Promise<{ success: boolean; error?: string }> {
   const user = await getSgUser();
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };

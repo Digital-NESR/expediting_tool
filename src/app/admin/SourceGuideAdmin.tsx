@@ -5,7 +5,7 @@ import {
   getSourceGuideAccessRequests, getSourceGuidePendingCount,
   approveSourceGuideAccessRequest, rejectSourceGuideAccessRequest,
   revokeSourceGuideAccess, deleteSourceGuideAccessRequest,
-  getChampionsByCountry, addChampion, removeChampion,
+  getChampionsByCountry, addChampion, updateChampion, removeChampion,
   getGuides, getSourceGuideAnalytics,
 } from '@/app/actions/sourceguide';
 import type { SgAccessRequest, SgAnalytics, SgCountryChampions } from '@/app/actions/sourceguide';
@@ -108,6 +108,8 @@ export function SourceGuideChampionsClient() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Record<string, { name: string; email: string }>>({});
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<{ name: string; email: string }>({ name: '', email: '' });
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -132,6 +134,15 @@ export function SourceGuideChampionsClient() {
     await run(() => addChampion(code, d.name, d.email || null));
     setDraft(prev => ({ ...prev, [code]: { name: '', email: '' } }));
   }
+  function startEdit(ch: { id: number; name: string; email: string | null }) {
+    setEditingId(ch.id);
+    setEditDraft({ name: ch.name, email: ch.email ?? '' });
+  }
+  async function saveEdit(id: number) {
+    if (!editDraft.name.trim()) { alert('Enter a name.'); return; }
+    await run(() => updateChampion(id, editDraft.name, editDraft.email || null));
+    setEditingId(null);
+  }
 
   if (loading) return <div className="py-16 text-center text-sm text-slate-400">Loading champions…</div>;
 
@@ -150,14 +161,29 @@ export function SourceGuideChampionsClient() {
             </div>
             <div className="divide-y divide-slate-50">
               {c.champions.map(ch => (
-                <div key={ch.id} className="flex items-center gap-3 px-5 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[13.5px] font-medium text-slate-800">{ch.name}</span>
-                    <span className="ml-2 text-[12px] text-slate-500">{ch.email || <span className="italic text-amber-600">no email — add to grant access</span>}</span>
+                editingId === ch.id ? (
+                  <div key={ch.id} className="flex flex-wrap items-center gap-2 bg-[#eaf4ef]/40 px-5 py-2.5">
+                    <input value={editDraft.name} onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
+                      placeholder="Name" className="w-40 rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] outline-none focus:border-[#6AAF8E]" />
+                    <input value={editDraft.email} onChange={e => setEditDraft(d => ({ ...d, email: e.target.value }))}
+                      placeholder="email@nesr.com" className="w-56 rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] outline-none focus:border-[#6AAF8E]" />
+                    <button disabled={busy} onClick={() => saveEdit(ch.id)}
+                      className="rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-50" style={{ background: BRAND }}>Save</button>
+                    <button onClick={() => setEditingId(null)}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:bg-white">Cancel</button>
                   </div>
-                  <button disabled={busy} onClick={() => { if (confirm(`Remove ${ch.name}?`)) run(() => removeChampion(ch.id)); }}
-                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-[12px] font-semibold text-slate-400 hover:bg-slate-50 hover:text-red-600">Remove</button>
-                </div>
+                ) : (
+                  <div key={ch.id} className="flex items-center gap-3 px-5 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[13.5px] font-medium text-slate-800">{ch.name}</span>
+                      <span className="ml-2 text-[12px] text-slate-500">{ch.email || <span className="italic text-amber-600">no email — add to grant access</span>}</span>
+                    </div>
+                    <button disabled={busy} onClick={() => startEdit(ch)}
+                      className="rounded-lg border border-slate-200 px-2.5 py-1 text-[12px] font-semibold text-slate-600 hover:bg-slate-50">Edit</button>
+                    <button disabled={busy} onClick={() => { if (confirm(`Remove ${ch.name}?`)) run(() => removeChampion(ch.id)); }}
+                      className="rounded-lg border border-slate-200 px-2.5 py-1 text-[12px] font-semibold text-slate-400 hover:bg-slate-50 hover:text-red-600">Remove</button>
+                  </div>
+                )
               ))}
               {c.champions.length === 0 && <div className="px-5 py-2.5 text-[12.5px] text-slate-400">No champions yet.</div>}
             </div>
