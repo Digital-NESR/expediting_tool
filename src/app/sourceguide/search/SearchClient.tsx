@@ -94,8 +94,8 @@ export default function SearchClient({
       <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-[260px_1fr]">
         {/* Filter sidebar */}
         <aside className="sticky top-[88px] hidden md:block">
-          <div className="rounded-2xl border border-slate-200 bg-white px-5 pb-4 pt-3">
-            <div className="flex items-center justify-between pt-2">
+          <div className="max-h-[calc(100dvh-104px)] overflow-y-auto rounded-2xl border border-slate-200 bg-white px-5 pb-4 pt-3">
+            <div className="sticky top-0 z-10 -mx-5 -mt-3 mb-1 flex items-center justify-between border-b border-slate-100 bg-white px-5 pb-2 pt-3">
               <span className="text-[14px] font-bold">Filters</span>
               {activeCount > 0 && (
                 <button
@@ -185,10 +185,12 @@ export default function SearchClient({
           <div className="flex flex-col gap-2.5">
             {shown.map(com => {
               const pref = com.preferred;
+              // carry the active country filter (or the displayed preferred country) into the detail page
+              const linkCountry = filters.countries.find(c => com.countries.includes(c)) || pref?.country || '';
               return (
                 <button
                   key={com.id}
-                  onClick={() => router.push(`/sourceguide/commodity/${com.id}`)}
+                  onClick={() => router.push(`/sourceguide/commodity/${com.id}${linkCountry ? `?country=${encodeURIComponent(linkCountry)}` : ''}`)}
                   className="grid grid-cols-1 items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-px hover:border-[#6AAF8E] hover:shadow-sm sm:grid-cols-[1fr_auto]"
                 >
                   <div className="min-w-0">

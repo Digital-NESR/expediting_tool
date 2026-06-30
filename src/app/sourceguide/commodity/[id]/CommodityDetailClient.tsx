@@ -8,14 +8,17 @@ import { TierBadge, CountryFlag, SupAvatar, PathTrail } from '../../ui';
 import type { SgCommodityDetail, SgCountry, SgMapping } from '@/types/sourceguide';
 
 export default function CommodityDetailClient({
-  detail, countries,
+  detail, countries, initialCountry = null,
 }: {
   detail: SgCommodityDetail;
   countries: SgCountry[];
+  initialCountry?: string | null;
 }) {
   const router = useRouter();
   const { commodity: com, countries: cc, mappingsByCountry } = detail;
-  const [country, setCountry] = useState<string | null>(cc[0] ?? null);
+  // default to the country carried over from search/filters, if this commodity has it
+  const defaultCountry = (initialCountry && cc.includes(initialCountry)) ? initialCountry : (cc[0] ?? null);
+  const [country, setCountry] = useState<string | null>(defaultCountry);
   const countryByCode = useMemo(() => new Map(countries.map(c => [c.code, c])), [countries]);
 
   const maps = country ? mappingsByCountry[country] ?? [] : [];
