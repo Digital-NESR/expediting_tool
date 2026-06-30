@@ -57,6 +57,39 @@ export default function CommodityDetailClient({
 
         {cc.length > 0 ? (
           <>
+            {/* Coverage matrix — at-a-glance across all countries */}
+            {cc.length > 1 && (
+              <div className="border-b border-slate-100 px-7 pt-5">
+                <SectionLabel>Coverage across countries</SectionLabel>
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                  <div className="grid grid-cols-[1.1fr_2fr_auto] gap-3 border-b border-slate-100 bg-[#f5f6f5] px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                    <span>Country</span><span>Preferred</span><span className="text-right">Backup</span>
+                  </div>
+                  {cc.map(code => {
+                    const c = countryByCode.get(code);
+                    const m = mappingsByCountry[code] ?? [];
+                    const prefNames = m.filter(x => x.tier === 'Preferred').map(x => x.supplierName);
+                    const backupN = m.filter(x => x.tier === 'Backup').length;
+                    const on = country === code;
+                    return (
+                      <button
+                        key={code}
+                        onClick={() => setCountry(code)}
+                        className={`grid w-full grid-cols-[1.1fr_2fr_auto] items-center gap-3 border-b border-slate-50 px-4 py-2.5 text-left last:border-b-0 ${on ? 'bg-[#eaf4ef]' : 'hover:bg-slate-50'}`}
+                      >
+                        <span className="flex items-center gap-2 text-[13px] font-medium text-slate-800">
+                          <span className="h-3 w-4 shrink-0 rounded-sm" style={{ background: c?.tone ?? '#999' }} />
+                          <span className="truncate">{c?.name ?? code}</span>
+                        </span>
+                        <span className="truncate text-[12.5px] text-slate-600">{prefNames.join(', ')}</span>
+                        <span className="text-right text-[12px] font-semibold text-slate-500">{backupN ? `+${backupN}` : ''}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Country selector */}
             <div className="flex flex-wrap items-center gap-2 px-7 pt-4">
               <span className="mr-1 text-[12.5px] font-semibold text-slate-500">Country:</span>

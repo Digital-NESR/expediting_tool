@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Search, Menu } from 'lucide-react';
 import { SG_BRAND } from './constants';
 import { useSourceGuideAccess } from './SourceGuideAccessContext';
 import { initials } from './constants';
 import SourceGuideSidebar from './SourceGuideSidebar';
+import SourceGuideCommandPalette from './SourceGuideCommandPalette';
 
 const PIN_KEY = 'sg-sidebar-pinned';
 
@@ -20,15 +21,26 @@ export default function SourceGuideShell({
   userEmail: string;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { isAdmin, viewOnly, approvedCountries } = useSourceGuideAccess();
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
-  const [q, setQ] = useState('');
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   // restore pin preference
   useEffect(() => {
     try { if (localStorage.getItem(PIN_KEY) === '1') setPinned(true); } catch { /* ignore */ }
+  }, []);
+
+  // Cmd/Ctrl-K opens the command palette
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setPaletteOpen(o => !o);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   function togglePin() {
@@ -43,14 +55,10 @@ export default function SourceGuideShell({
   const role = isAdmin ? 'Administrator' : viewOnly ? 'Viewer' : approvedCountries.length ? 'Champion' : 'Viewer';
   const showHeaderSearch = pathname !== '/sourceguide';
 
-  function runSearch(e: React.FormEvent) {
-    e.preventDefault();
-    router.push(`/sourceguide/search?q=${encodeURIComponent(q.trim())}`);
-  }
-
   return (
     <div className="min-h-[100dvh] bg-[#f5f6f5] font-sans text-slate-900">
       <SourceGuideSidebar isOpen={open} onClose={() => setOpen(false)} pinned={pinned} onTogglePin={togglePin} />
+      <SourceGuideCommandPalette isOpen={paletteOpen} onClose={() => setPaletteOpen(false)} />
 
       {/* Content shifts right when the sidebar is pinned (lg+) */}
       <div className={`flex min-h-[100dvh] flex-col transition-[padding] duration-300 ${pinned ? 'lg:pl-[280px]' : ''}`}>
@@ -75,15 +83,14 @@ export default function SourceGuideShell({
             <div className="flex-1" />
 
             {showHeaderSearch && (
-              <form onSubmit={runSearch} className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-slate-400 focus-within:border-[#6AAF8E] sm:flex">
+              <button
+                onClick={() => setPaletteOpen(true)}
+                className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-slate-400 transition-colors hover:border-[#6AAF8E] sm:flex"
+              >
                 <Search className="h-4 w-4" />
-                <input
-                  value={q}
-                  onChange={e => setQ(e.target.value)}
-                  placeholder="Search…"
-                  className="w-44 bg-transparent text-[13.5px] text-slate-900 outline-none placeholder:text-slate-400"
-                />
-              </form>
+                <span className="w-32 text-left text-[13.5px]">Search…</span>
+                <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">⌘K</kbd>
+              </button>
             )}
 
             <div className="flex items-center gap-2.5">

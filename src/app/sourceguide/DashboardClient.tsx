@@ -47,7 +47,7 @@ export default function DashboardClient({
     router.push(`/sourceguide/search?cat=${encodeURIComponent(catId)}`);
   }
   function goCountry(code: string) {
-    router.push(`/sourceguide/search?country=${encodeURIComponent(code)}`);
+    router.push(`/sourceguide/country/${encodeURIComponent(code)}`);
   }
 
   return (

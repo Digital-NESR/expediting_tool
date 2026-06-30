@@ -177,7 +177,7 @@ export async function searchCommodities(
     if (q) {
       params.push(`%${q}%`);
       const likeIdx = params.length;
-      where.push(`(name ILIKE $${likeIdx} OR category ILIKE $${likeIdx} OR sub_category ILIKE $${likeIdx} OR family ILIKE $${likeIdx} OR code ILIKE $${likeIdx} OR description ILIKE $${likeIdx})`);
+      where.push(`(name ILIKE $${likeIdx} OR category ILIKE $${likeIdx} OR sub_category ILIKE $${likeIdx} OR family ILIKE $${likeIdx} OR code ILIKE $${likeIdx} OR description ILIKE $${likeIdx} OR keywords ILIKE $${likeIdx})`);
     }
     if (filters.categories?.length) {
       params.push(filters.categories);
@@ -264,6 +264,48 @@ export async function searchCommodities(
   }
 }
 
+/* ─── global command-palette search ─────────────────────────── */
+
+export interface SgGlobalResults {
+  commodities: { id: number; name: string; category: string; subCategory: string | null }[];
+  suppliers: { code: string; name: string }[];
+  categories: { id: string; name: string }[];
+  countries: { code: string; name: string; tone: string | null }[];
+}
+
+export async function globalSearch(query: string): Promise<SgGlobalResults> {
+  const q = (query || '').trim();
+  if (!q) return { commodities: [], suppliers: [], categories: [], countries: [] };
+  const like = `%${q}%`;
+  const starts = `${q}%`;
+  try {
+    const [com, sup, cat, ctry] = await Promise.all([
+      sourceGuidePool.query(
+        `SELECT id, name, category, sub_category FROM sg_commodities
+         WHERE name ILIKE $1 OR keywords ILIKE $1 OR code ILIKE $1 OR family ILIKE $1
+         ORDER BY (CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END), name LIMIT 7`, [like, starts]),
+      sourceGuidePool.query(
+        `SELECT DISTINCT a.supplier_code, a.name FROM supplier_avl a
+         JOIN sg_mappings m ON m.supplier_code = a.supplier_code AND m.status='Active'
+         WHERE a.name ILIKE $1 OR a.supplier_code ILIKE $1
+         ORDER BY a.name LIMIT 5`, [like]),
+      sourceGuidePool.query(
+        `SELECT DISTINCT category_id, category FROM sg_commodities WHERE category ILIKE $1 ORDER BY category LIMIT 4`, [like]),
+      sourceGuidePool.query(
+        `SELECT code, name, tone FROM sg_countries WHERE name ILIKE $1 ORDER BY sort_order, name LIMIT 4`, [like]),
+    ]);
+    return {
+      commodities: com.rows.map(r => ({ id: r.id, name: r.name, category: r.category, subCategory: r.sub_category })),
+      suppliers: sup.rows.map(r => ({ code: r.supplier_code, name: r.name })),
+      categories: cat.rows.map(r => ({ id: r.category_id, name: r.category })),
+      countries: ctry.rows.map(r => ({ code: r.code, name: r.name, tone: r.tone })),
+    };
+  } catch (err) {
+    console.error('[sg.globalSearch]', err);
+    return { commodities: [], suppliers: [], categories: [], countries: [] };
+  }
+}
+
 export async function countSearch(query: string, filters: SgSearchFilters = {}): Promise<number> {
   // lightweight: reuse searchCommodities with a high limit then count
   const res = await searchCommodities(query, filters, 100000);
@@ -280,7 +322,7 @@ export async function searchSuppliers(query: string, limit = 6): Promise<SgSuppl
               COALESCE(ARRAY_AGG(DISTINCT m.country_code) FILTER (WHERE m.country_code IS NOT NULL), '{}') AS countries
        FROM supplier_avl a
        JOIN sg_mappings m ON m.supplier_code = a.supplier_code AND m.status='Active'
-       WHERE a.name ILIKE $1
+       WHERE a.name ILIKE $1 OR a.supplier_code ILIKE $1
        GROUP BY a.supplier_code, a.name
        ORDER BY a.name
        LIMIT $2`,
@@ -506,7 +548,7 @@ export async function getMappingEditList(
       comFilter = `
         SELECT id, code, name, category, category_id, sub_category, family, spend_type, description
         FROM sg_commodities
-        WHERE (name ILIKE $1 OR category ILIKE $1 OR sub_category ILIKE $1 OR family ILIKE $1 OR code ILIKE $1)
+        WHERE (name ILIKE $1 OR category ILIKE $1 OR sub_category ILIKE $1 OR family ILIKE $1 OR code ILIKE $1 OR keywords ILIKE $1)
         ORDER BY (CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END), name
         LIMIT ${Number(limit)}
       `;
@@ -733,6 +775,67 @@ export async function getGuides(): Promise<SgGuide[]> {
   } catch (err) {
     console.error('[sg.getGuides]', err);
     return [];
+  }
+}
+
+/* ─── per-country dashboard ──────────────────────────────────── */
+
+export interface SgCountryDashboard {
+  code: string;
+  name: string;
+  tone: string | null;
+  champions: string[];
+  version: string;
+  status: string;
+  updatedAt: string;
+  stats: { mappings: number; commodities: number; preferred: number; suppliers: number };
+  categories: { id: string; name: string; commodities: number }[];
+  topSuppliers: { code: string; name: string; mappings: number }[];
+}
+
+export async function getCountryDashboard(code: string): Promise<SgCountryDashboard | null> {
+  try {
+    const cRes = await sourceGuidePool.query(
+      `SELECT c.code, c.name, c.tone,
+              COALESCE(g.version, 'v1.0') AS version,
+              COALESCE(g.status, 'Published') AS status,
+              COALESCE(g.updated_at, NOW()) AS updated_at,
+              COALESCE((SELECT ARRAY_AGG(name ORDER BY name) FROM sg_champions WHERE country_code = c.code), '{}') AS champions
+       FROM sg_countries c
+       LEFT JOIN sg_guide_meta g ON g.country_code = c.code
+       WHERE c.code = $1`, [code]);
+    if (!cRes.rows.length) return null;
+    const c = cRes.rows[0];
+
+    const [statsRes, catRes, supRes] = await Promise.all([
+      sourceGuidePool.query(
+        `SELECT COUNT(*)::int AS mappings,
+                COUNT(DISTINCT commodity_id)::int AS commodities,
+                COUNT(*) FILTER (WHERE tier='Preferred')::int AS preferred,
+                COUNT(DISTINCT supplier_code)::int AS suppliers
+         FROM sg_mappings WHERE country_code = $1 AND status='Active'`, [code]),
+      sourceGuidePool.query(
+        `SELECT c.category_id, c.category, COUNT(DISTINCT m.commodity_id)::int AS commodities
+         FROM sg_mappings m JOIN sg_commodities c ON c.id = m.commodity_id
+         WHERE m.country_code = $1 AND m.status='Active'
+         GROUP BY c.category_id, c.category ORDER BY commodities DESC`, [code]),
+      sourceGuidePool.query(
+        `SELECT a.supplier_code, a.name, COUNT(m.id)::int AS mappings
+         FROM sg_mappings m JOIN supplier_avl a ON a.supplier_code = m.supplier_code
+         WHERE m.country_code = $1 AND m.status='Active'
+         GROUP BY a.supplier_code, a.name ORDER BY mappings DESC LIMIT 8`, [code]),
+    ]);
+    const s = statsRes.rows[0];
+    return {
+      code: c.code, name: c.name, tone: c.tone, champions: c.champions || [],
+      version: c.version, status: c.status, updatedAt: isoOf(c.updated_at),
+      stats: { mappings: Number(s.mappings), commodities: Number(s.commodities), preferred: Number(s.preferred), suppliers: Number(s.suppliers) },
+      categories: catRes.rows.map(r => ({ id: r.category_id, name: r.category, commodities: Number(r.commodities) })),
+      topSuppliers: supRes.rows.map(r => ({ code: r.supplier_code, name: r.name, mappings: Number(r.mappings) })),
+    };
+  } catch (err) {
+    console.error('[sg.getCountryDashboard]', err);
+    return null;
   }
 }
 

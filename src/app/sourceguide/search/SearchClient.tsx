@@ -35,6 +35,21 @@ export default function SearchClient({
 
   useEffect(() => { setLimit(40); }, [query, filters]);
 
+  // keep the URL in sync so filtered views are bookmarkable/shareable and survive the back button
+  const syncedRef = useRef('');
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (query.trim()) p.set('q', query.trim());
+    if (filters.countries.length) p.set('country', filters.countries.join(','));
+    if (filters.categories.length) p.set('cat', filters.categories.join(','));
+    if (filters.tiers.length) p.set('tier', filters.tiers.join(','));
+    if (filters.spendTypes.length) p.set('spend', filters.spendTypes.join(','));
+    const qs = p.toString();
+    if (qs === syncedRef.current) return;
+    syncedRef.current = qs;
+    router.replace(`/sourceguide/search${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [query, filters, router]);
+
   useEffect(() => {
     const id = ++seq.current;
     setLoading(true);
