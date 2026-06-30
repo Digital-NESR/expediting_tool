@@ -96,14 +96,6 @@ export const authOptions: NextAuthOptions = {
             .split(',')
             .map(e => e.trim().toLowerCase())
             .filter(Boolean);
-          const procureGuardAdminEmails = (process.env.PROCURE_GUARD_ADMIN_EMAILS || '')
-            .split(',')
-            .map(e => e.trim().toLowerCase())
-            .filter(Boolean);
-          const procureGuardTesterEmails = (`${process.env.PROCURE_GUARD_TESTER_EMAILS ?? ''},${process.env.PROCURE_GUARD_TEST_EMAILS ?? ''}`)
-            .split(',')
-            .map(e => e.trim().toLowerCase())
-            .filter(Boolean);
           const email = (token.email as string).toLowerCase();
 
           token.isAdmin = adminEmails.includes(email);
@@ -173,9 +165,10 @@ export const authOptions: NextAuthOptions = {
           // predates this field being introduced, the fallback in the page server components
           // (checking approvedCountries directly) ensures correct enforcement without re-login.
           const titeViewOnly = titeCountries.includes('All Countries - View Only');
-          const procureGuardStatus = token.isAdmin || procureGuardAdminEmails.includes(email) || procureGuardTesterEmails.includes(email)
-            ? 'approved'
-            : 'new';
+          // ProcureGuard is open to everyone who is signed in — no access request needed.
+          // Anyone authenticated is "approved" for the tool and lands as a Requester (or their
+          // assigned role from procure_guard_permissions). Kept as a constant for clarity.
+          const procureGuardStatus = 'approved';
 
           // SourceGuide access: admin (env) > champion (sg_champions) > user (access_requests)
           // For champions, approvedCountries = the countries they may EDIT.

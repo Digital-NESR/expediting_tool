@@ -522,12 +522,10 @@ export async function canAccessProcureGuardApp(): Promise<boolean> {
   const user = await getProcureGuardUser();
   const email = user?.email?.toLowerCase();
 
-  if (!email) return false;
-  if (adminEmails().includes(email)) return true;
-  if (testerEmails().includes(email)) return true;
-
-  const permissionRow = await getPermissionRowForEmail(email);
-  return permissionRow?.role === 'Admin';
+  // ProcureGuard is open to everyone who is signed in. Anyone authenticated gets at least
+  // Requester access automatically; a matching row in procure_guard_permissions (resolved in
+  // getActor) upgrades them to their assigned role.
+  return Boolean(email);
 }
 
 function scopedWhere(actor: ProcureGuardActor): { where: string; params: string[] } {
