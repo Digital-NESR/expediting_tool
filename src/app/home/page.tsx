@@ -760,11 +760,28 @@ function CatalogManagerCard({
 
 /* ─── Coming-Soon Card ───────────────────────────────────────── */
 
+function ProcureGuardAccessBadge({ accessType }: { accessType: 'requester' | 'approver' | 'admin' }) {
+  const label = accessType === 'admin' ? 'Admin' : accessType === 'approver' ? 'Approver' : 'Requester';
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+      style={{ border: '1px solid #bbf7d0' }}
+    >
+      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+      </svg>
+      {label}
+    </span>
+  );
+}
+
 function ProcureGuardCard({
   canOpen,
+  accessType,
   onClick,
 }: {
   canOpen: boolean;
+  accessType: 'requester' | 'approver' | 'admin';
   onClick: () => void;
 }) {
   return (
@@ -772,9 +789,9 @@ function ProcureGuardCard({
       type="button"
       onClick={onClick}
       disabled={!canOpen}
-      className={`relative rounded-xl border border-gray-200 bg-white p-8 flex flex-col gap-4 text-left w-full transition-all duration-200 ${
+      className={`group relative rounded-xl border border-gray-200 bg-white p-8 flex flex-col gap-4 text-left w-full transition-all duration-200 ${
         canOpen
-          ? 'opacity-75 cursor-pointer hover:border-gray-400 hover:shadow-md hover:shadow-gray-200'
+          ? 'cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10'
           : 'opacity-50 cursor-default select-none'
       }`}
     >
@@ -787,14 +804,14 @@ function ProcureGuardCard({
         <HelpCircle className="w-4 h-4" />
       </a>
 
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
-        <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
+        <svg className="w-6 h-6 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
         </svg>
       </div>
 
       <div className="flex-1">
-        <h3 className="text-[18px] font-semibold text-gray-500">ProcureGuard</h3>
+        <h3 className="text-[18px] font-semibold text-slate-900">ProcureGuard</h3>
         <p className="text-[13px] text-slate-400 font-medium mt-0.5">Payment Request Approvals</p>
         <p className="text-sm text-gray-500 mt-2 leading-relaxed">
           Submit adhoc PO and advance payment requests and route them through multi-stage approvals, keeping approvers and requesters notified at each step.
@@ -802,12 +819,10 @@ function ProcureGuardCard({
       </div>
 
       <div className="flex items-center justify-between mt-auto">
-        <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-400">
-          Admin Preview
-        </span>
+        <ProcureGuardAccessBadge accessType={accessType} />
         {canOpen && (
-          <span className="text-sm font-semibold text-gray-500 hover:underline">
-            Open preview -&gt;
+          <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">
+            Open →
           </span>
         )}
       </div>
@@ -863,6 +878,7 @@ export default function HomePage() {
   const poStatus: ToolStatus   = session?.user?.toolAccess?.po_expediting?.status ?? 'new';
   const titeStatus: ToolStatus = session?.user?.toolAccess?.tite?.status          ?? 'new';
   const procureGuardStatus: ToolStatus = session?.user?.toolAccess?.procure_guard?.status ?? 'new';
+  const procureGuardAccessType = session?.user?.toolAccess?.procure_guard?.accessType ?? 'requester';
   const canOpenProcureGuard = isAdmin || procureGuardStatus === 'approved';
   const sourceGuideStatus: ToolStatus = session?.user?.toolAccess?.sourceguide?.status ?? 'new';
   const canOpenCatalogManager = isAdmin;
@@ -1036,6 +1052,7 @@ export default function HomePage() {
               {show('procureguard payment request approvals procurement') && (
                 <ProcureGuardCard
                   canOpen={canOpenProcureGuard}
+                  accessType={procureGuardAccessType}
                   onClick={handleProcureGuardClick}
                 />
               )}

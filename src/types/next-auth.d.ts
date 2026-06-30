@@ -3,6 +3,8 @@ import "next-auth";
 type ToolAccessEntry = {
   status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
   approvedCountries: string[];
+  // ProcureGuard: the kind of access the user has, derived from procure_guard_permissions.
+  accessType?: 'requester' | 'approver' | 'admin';
 };
 
 declare module "next-auth" {

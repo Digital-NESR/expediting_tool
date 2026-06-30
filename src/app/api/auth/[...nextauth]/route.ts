@@ -4,6 +4,9 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import pool from "@/lib/db";
 import titePool from "@/lib/db-tite";
 import sourceGuidePool from "@/lib/db-sourceguide";
+import procureGuardPool from "@/lib/db-procureguard";
+import { getPermissionProfile } from "@/lib/procureGuard-utils";
+import type { ProcureGuardPermissionRole } from "@/types/procureGuard";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -106,7 +109,7 @@ export const authOptions: NextAuthOptions = {
             .filter(Boolean);
 
           // Query each tool's access table in parallel
-          const [poResult, titeResult, sgChampResult, sgAccessResult] = await Promise.all([
+          const [poResult, titeResult, sgChampResult, sgAccessResult, pgPermResult] = await Promise.all([
             pool.query(
               `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
               [token.email]
@@ -123,6 +126,10 @@ export const authOptions: NextAuthOptions = {
               `SELECT status FROM access_requests WHERE user_email = $1`,
               [token.email]
             ).catch(() => ({ rows: [] as { status: string }[] })),
+            procureGuardPool.query(
+              `SELECT role FROM procure_guard_permissions WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+              [token.email]
+            ).catch(() => ({ rows: [] as { role: string }[] })),
           ]);
 
           // PO Expediting access
@@ -170,6 +177,15 @@ export const authOptions: NextAuthOptions = {
           // assigned role from procure_guard_permissions). Kept as a constant for clarity.
           const procureGuardStatus = 'approved';
 
+          // Access type shown on the home card. Admin (env ADMIN_EMAILS or an Admin permission
+          // row) > Approver (any role with review authority) > Requester (default).
+          const pgRole = (pgPermResult.rows[0]?.role ?? '').trim() as ProcureGuardPermissionRole;
+          const pgProfile = getPermissionProfile(pgRole);
+          const procureGuardAccessType: 'requester' | 'approver' | 'admin' =
+            token.isAdmin || pgRole === 'Admin' ? 'admin'
+            : pgProfile.canViewAll ? 'approver'
+            : 'requester';
+
           // SourceGuide access: admin (env) > champion (sg_champions) > user (access_requests)
           // For champions, approvedCountries = the countries they may EDIT.
           // For approved users, approvedCountries = [] (they view all countries, edit none).
@@ -198,7 +214,7 @@ export const authOptions: NextAuthOptions = {
           (token as any).toolAccess = {
             po_expediting: { status: poStatus,   approvedCountries: poCountries   },
             tite:          { status: titeStatus, approvedCountries: titeCountries },
-            procure_guard: { status: procureGuardStatus, approvedCountries: [] },
+            procure_guard: { status: procureGuardStatus, approvedCountries: [], accessType: procureGuardAccessType },
             sourceguide:   { status: sgStatus, approvedCountries: sgCountries },
           };
           token.titeViewOnly = titeViewOnly;
@@ -229,7 +245,7 @@ export const authOptions: NextAuthOptions = {
         session.user.toolAccess = token.toolAccess as {
           po_expediting?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
           tite?:          { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
-          procure_guard?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
+          procure_guard?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[]; accessType?: 'requester' | 'approver' | 'admin' };
           sourceguide?:   { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
         } | undefined;
         session.user.titeViewOnly = token.titeViewOnly as boolean | undefined;
