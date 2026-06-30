@@ -24,6 +24,7 @@ export default function CountryDashboardClient({ data }: { data: SgCountryDashbo
         Category: r.category, 'Sub-Category': r.subCategory, Family: r.family,
         Commodity: r.commodity, UNSPSC: r.unspsc, 'Spend Type': r.spendType,
         Tier: r.tier, 'Supplier Code': r.supplierCode, 'Supplier Name': r.supplierName,
+        'Supplier Email': r.supplierEmail,
       })), `${data.name} guide`);
     } finally {
       setExporting(false);

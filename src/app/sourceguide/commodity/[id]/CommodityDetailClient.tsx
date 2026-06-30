@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, User } from 'lucide-react';
+import { ArrowLeft, ArrowRight, User, Mail } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from '../../constants';
 import { TierBadge, CountryFlag, SupAvatar, PathTrail } from '../../ui';
 import { recordView, BookmarkButton } from '../../pins';
@@ -184,6 +184,16 @@ function SupplierCard({ mapping, country, onOpen }: { mapping: SgMapping; countr
         </div>
       </div>
       <hr className="my-3.5 border-slate-100" />
+      {mapping.supplierEmail && (
+        <div className="flex items-start gap-2.5 py-1.5 text-[13px]">
+          <Mail className="mt-0.5 h-4 w-4 shrink-0" style={{ color: SG_BRAND }} />
+          <span className="flex min-w-0 flex-wrap gap-x-3 gap-y-0.5">
+            {mapping.supplierEmail.split(/[,;]+/).map(e => e.trim()).filter(Boolean).slice(0, 3).map(addr => (
+              <a key={addr} href={`mailto:${addr}`} className="truncate font-medium hover:underline" style={{ color: SG_BRAND }}>{addr}</a>
+            ))}
+          </span>
+        </div>
+      )}
       <div className="flex items-center gap-2.5 py-1.5 text-[13px]">
         <User className="h-4 w-4" style={{ color: SG_BRAND }} />
         <span className="text-slate-500">Source Guide owner</span>

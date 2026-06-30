@@ -38,6 +38,8 @@ export interface SgMapping {
   /** AVL vendor code; null for legacy rows not yet matched to the AVL */
   supplierCode: string | null;
   supplierName: string;
+  /** AVL email(s); may be a comma/semicolon-separated list. Populated where surfaced. */
+  supplierEmail?: string | null;
   country: string;
   tier: Tier;
   status: string;
