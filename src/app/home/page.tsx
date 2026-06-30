@@ -761,7 +761,7 @@ function CatalogManagerCard({
 /* ─── Coming-Soon Card ───────────────────────────────────────── */
 
 function ProcureGuardAccessBadge({ accessType }: { accessType: 'requester' | 'approver' | 'admin' }) {
-  const label = accessType === 'admin' ? 'Admin' : accessType === 'approver' ? 'Approver' : 'Requester';
+  const label = accessType === 'admin' ? 'Admin Access' : accessType === 'approver' ? 'Approver Access' : 'Requester Access';
   return (
     <span
       className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-[11px] font-semibold"
