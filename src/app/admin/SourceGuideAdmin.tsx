@@ -336,7 +336,7 @@ export function SourceGuideAnalyticsClient() {
         <div className="rounded-xl border border-slate-200 bg-white p-5 lg:col-span-2">
           <h3 className="text-[14px] font-bold text-slate-900">Coverage gaps by country</h3>
           <p className="mb-4 text-[12px] text-slate-500">
-            Of the {gaps[0]?.activeTotal ?? 0} commodities sourced somewhere across NESR, how many each country covers.
+            Of the {gaps[0]?.catalogueTotal ?? 0} commodities in the full taxonomy, how many each country covers.
             Click a number to jump into the mappings workspace.
           </p>
           <div className="overflow-hidden rounded-lg border border-slate-200">

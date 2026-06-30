@@ -554,8 +554,8 @@ export async function getMappingEditList(
       conds.push(`EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active')`);
       conds.push(`NOT EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active' AND m.tier='Preferred')`);
     } else if (mode === 'missing') {
+      // any catalogue commodity not mapped in this country
       const c1 = P(country);
-      conds.push(`EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.status='Active')`);
       conds.push(`NOT EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active')`);
     } else if (!q) {
       const c1 = P(country);
@@ -608,22 +608,22 @@ export interface SgCoverageGap {
   country: string;
   name: string;
   tone: string | null;
-  activeTotal: number;   // commodities sourced anywhere across NESR
-  covered: number;       // of those, mapped in this country
-  missing: number;       // sourced elsewhere but not here
-  noPreferred: number;   // mapped here with a backup but no preferred
-  coverage: number;      // covered / activeTotal (0..1)
+  catalogueTotal: number;  // all commodities in the taxonomy
+  covered: number;         // of those, mapped in this country
+  missing: number;         // catalogue commodities not mapped here
+  noPreferred: number;     // mapped here with a backup but no preferred
+  coverage: number;        // covered / catalogueTotal (0..1)
 }
 
-/** Per-country coverage gaps. "Universe" = commodities mapped in at least one country. */
+/** Per-country coverage gaps, measured against the full commodity taxonomy. */
 export async function getCoverageGapsSummary(): Promise<SgCoverageGap[]> {
   try {
     const { rows } = await sourceGuidePool.query(`
-      WITH active_total AS (
-        SELECT COUNT(DISTINCT commodity_id)::int AS n FROM sg_mappings WHERE status='Active'
+      WITH catalogue_total AS (
+        SELECT COUNT(*)::int AS n FROM sg_commodities
       )
       SELECT c.code, c.name, c.tone,
-             (SELECT n FROM active_total) AS active_total,
+             (SELECT n FROM catalogue_total) AS catalogue_total,
              COUNT(DISTINCT m.commodity_id)::int AS covered,
              COUNT(DISTINCT m.commodity_id) FILTER (WHERE m.tier='Preferred')::int AS with_pref
       FROM sg_countries c
@@ -632,15 +632,15 @@ export async function getCoverageGapsSummary(): Promise<SgCoverageGap[]> {
       ORDER BY c.sort_order, c.name
     `);
     return rows.map(r => {
-      const activeTotal = Number(r.active_total);
+      const catalogueTotal = Number(r.catalogue_total);
       const covered = Number(r.covered);
       const withPref = Number(r.with_pref);
       return {
         country: r.code, name: r.name, tone: r.tone,
-        activeTotal, covered,
-        missing: Math.max(0, activeTotal - covered),
+        catalogueTotal, covered,
+        missing: Math.max(0, catalogueTotal - covered),
         noPreferred: Math.max(0, covered - withPref),
-        coverage: activeTotal ? covered / activeTotal : 0,
+        coverage: catalogueTotal ? covered / catalogueTotal : 0,
       };
     });
   } catch (err) {

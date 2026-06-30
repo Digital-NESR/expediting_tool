@@ -140,7 +140,7 @@ export default function MappingsClient({
             {q.trim()
               ? <>Showing matches across the full taxonomy. Add suppliers to any commodity.</>
               : mode === 'missing'
-                ? <>Commodities sourced in other countries but <b className="text-slate-900">not yet mapped</b> in {c?.name}. Add a supplier to fill the gap.</>
+                ? <>Commodities in the catalogue <b className="text-slate-900">not yet mapped</b> in {c?.name}. Add a supplier to fill the gap.</>
                 : mode === 'no-preferred'
                   ? <>Commodities in {c?.name} that have a <b className="text-slate-900">backup but no preferred</b> supplier.</>
                   : <>Showing the <b className="text-slate-900">{list.length}</b> commodities currently mapped in {c?.name}.</>}
