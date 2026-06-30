@@ -1,16 +1,34 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Box, Shield, Layers, User, ArrowRight, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Box, Shield, Layers, User, ArrowRight, ChevronRight, Download } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from '../../constants';
 import { StatTile } from '../../ui';
+import { getCountryGuideRows } from '@/app/actions/sourceguide';
 import type { SgCountryDashboard } from '@/app/actions/sourceguide';
+import { downloadXlsx } from '../../exportXlsx';
 
 const CAT_ICONS = [Box, Layers, Shield];
 
 export default function CountryDashboardClient({ data }: { data: SgCountryDashboard }) {
   const router = useRouter();
+  const [exporting, setExporting] = useState(false);
   const maxCat = Math.max(1, ...data.categories.map(c => c.commodities));
+
+  async function exportGuide() {
+    setExporting(true);
+    try {
+      const rows = await getCountryGuideRows(data.code);
+      downloadXlsx(`sourceguide-${data.code}-guide.xlsx`, rows.map(r => ({
+        Category: r.category, 'Sub-Category': r.subCategory, Family: r.family,
+        Commodity: r.commodity, UNSPSC: r.unspsc, 'Spend Type': r.spendType,
+        Tier: r.tier, 'Supplier Code': r.supplierCode, 'Supplier Name': r.supplierName,
+      })), `${data.name} guide`);
+    } finally {
+      setExporting(false);
+    }
+  }
   const statusStyle = data.status === 'Published'
     ? { bg: '#dcfce7', col: '#15803d' }
     : data.status === 'Draft' ? { bg: '#f6efdf', col: '#b07d24' } : { bg: '#ececed', col: '#58595b' };
@@ -44,10 +62,16 @@ export default function CountryDashboardClient({ data }: { data: SgCountryDashbo
               <b className="text-slate-700">{data.champions.length ? data.champions.join(' · ') : 'Unassigned'}</b>
             </div>
           </div>
-          <button onClick={() => toCountrySearch()}
-            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold text-white" style={{ background: SG_BRAND }}>
-            Browse all <ArrowRight className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={exportGuide} disabled={exporting}
+              className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 hover:border-[#6AAF8E] disabled:opacity-50">
+              <Download className="h-3.5 w-3.5" /> {exporting ? 'Exporting…' : 'Export guide'}
+            </button>
+            <button onClick={() => toCountrySearch()}
+              className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold text-white" style={{ background: SG_BRAND }}>
+              Browse all <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 p-6 md:grid-cols-4">

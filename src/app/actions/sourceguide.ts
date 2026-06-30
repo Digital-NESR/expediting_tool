@@ -380,7 +380,7 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
 export async function getSupplierProfile(supplierCode: string): Promise<SgSupplierProfile | null> {
   try {
     const sRes = await sourceGuidePool.query(
-      `SELECT supplier_code, name FROM supplier_avl WHERE supplier_code = $1`,
+      `SELECT supplier_code, name, email FROM supplier_avl WHERE supplier_code = $1`,
       [supplierCode],
     );
     if (!sRes.rows.length) return null;
@@ -406,7 +406,7 @@ export async function getSupplierProfile(supplierCode: string): Promise<SgSuppli
     );
 
     return {
-      code: s.supplier_code, name: s.name, countries,
+      code: s.supplier_code, name: s.name, email: s.email ?? null, countries,
       totalCommodities: new Set(mappings.map(m => m.commodityId)).size,
       preferredCount: mappings.filter(m => m.tier === 'Preferred').length,
       champions: champRes.rows.map(r => r.name),
@@ -531,37 +531,47 @@ export async function getCountryMappingSummary(country: string): Promise<{ mappi
   }
 }
 
-/** commodities (with their mappings for the given country) to edit in the workspace */
+export type GapMode = 'mapped' | 'no-preferred' | 'missing';
+
+/** commodities (with their mappings for the given country) to edit in the workspace.
+ *  mode: 'mapped' = mapped here (default), 'no-preferred' = backup-only here,
+ *  'missing' = sourced in another country but not here. */
 export async function getMappingEditList(
   country: string,
   query: string,
   limit = 30,
+  mode: GapMode = 'mapped',
 ): Promise<{ commodity: SgCommodity; mappings: SgMapping[] }[]> {
   try {
     const q = (query || '').trim();
-    let comFilter: string;
-    let params: unknown[];
+    const params: unknown[] = [];
+    const P = (v: unknown) => { params.push(v); return `$${params.length}`; };
+    const conds: string[] = [];
 
-    if (q) {
-      // full-catalogue search — country is not used in this branch
-      params = [`%${q}%`, `${q}%`];
-      comFilter = `
-        SELECT id, code, name, category, category_id, sub_category, family, spend_type, description
-        FROM sg_commodities
-        WHERE (name ILIKE $1 OR category ILIKE $1 OR sub_category ILIKE $1 OR family ILIKE $1 OR code ILIKE $1 OR keywords ILIKE $1)
-        ORDER BY (CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END), name
-        LIMIT ${Number(limit)}
-      `;
-    } else {
-      params = [country];
-      comFilter = `
-        SELECT c.id, c.code, c.name, c.category, c.category_id, c.sub_category, c.family, c.spend_type, c.description
-        FROM sg_commodities c
-        WHERE EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id = c.id AND m.country_code = $1 AND m.status='Active')
-        ORDER BY c.name
-        LIMIT ${Number(limit)}
-      `;
+    if (mode === 'no-preferred') {
+      const c1 = P(country);
+      conds.push(`EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active')`);
+      conds.push(`NOT EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active' AND m.tier='Preferred')`);
+    } else if (mode === 'missing') {
+      const c1 = P(country);
+      conds.push(`EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.status='Active')`);
+      conds.push(`NOT EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active')`);
+    } else if (!q) {
+      const c1 = P(country);
+      conds.push(`EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active')`);
     }
+    if (q) {
+      const lk = P(`%${q}%`);
+      conds.push(`(c.name ILIKE ${lk} OR c.category ILIKE ${lk} OR c.sub_category ILIKE ${lk} OR c.family ILIKE ${lk} OR c.code ILIKE ${lk} OR c.keywords ILIKE ${lk})`);
+    }
+
+    const comFilter = `
+      SELECT c.id, c.code, c.name, c.category, c.category_id, c.sub_category, c.family, c.spend_type, c.description
+      FROM sg_commodities c
+      ${conds.length ? 'WHERE ' + conds.join(' AND ') : ''}
+      ORDER BY c.name
+      LIMIT ${Number(limit)}
+    `;
 
     const comRes = await sourceGuidePool.query(comFilter, params);
     if (!comRes.rows.length) return [];
@@ -587,6 +597,92 @@ export async function getMappingEditList(
     return comRes.rows.map(r => ({ commodity: rowToCommodity(r), mappings: byCom.get(r.id) ?? [] }));
   } catch (err) {
     console.error('[sg.getMappingEditList]', err);
+    return [];
+  }
+}
+
+/* ─── coverage gaps ──────────────────────────────────────────── */
+
+export interface SgCoverageGap {
+  country: string;
+  name: string;
+  tone: string | null;
+  activeTotal: number;   // commodities sourced anywhere across NESR
+  covered: number;       // of those, mapped in this country
+  missing: number;       // sourced elsewhere but not here
+  noPreferred: number;   // mapped here with a backup but no preferred
+  coverage: number;      // covered / activeTotal (0..1)
+}
+
+/** Per-country coverage gaps. "Universe" = commodities mapped in at least one country. */
+export async function getCoverageGapsSummary(): Promise<SgCoverageGap[]> {
+  try {
+    const { rows } = await sourceGuidePool.query(`
+      WITH active_total AS (
+        SELECT COUNT(DISTINCT commodity_id)::int AS n FROM sg_mappings WHERE status='Active'
+      )
+      SELECT c.code, c.name, c.tone,
+             (SELECT n FROM active_total) AS active_total,
+             COUNT(DISTINCT m.commodity_id)::int AS covered,
+             COUNT(DISTINCT m.commodity_id) FILTER (WHERE m.tier='Preferred')::int AS with_pref
+      FROM sg_countries c
+      LEFT JOIN sg_mappings m ON m.country_code = c.code AND m.status='Active'
+      GROUP BY c.code, c.name, c.tone, c.sort_order
+      ORDER BY c.sort_order, c.name
+    `);
+    return rows.map(r => {
+      const activeTotal = Number(r.active_total);
+      const covered = Number(r.covered);
+      const withPref = Number(r.with_pref);
+      return {
+        country: r.code, name: r.name, tone: r.tone,
+        activeTotal, covered,
+        missing: Math.max(0, activeTotal - covered),
+        noPreferred: Math.max(0, covered - withPref),
+        coverage: activeTotal ? covered / activeTotal : 0,
+      };
+    });
+  } catch (err) {
+    console.error('[sg.getCoverageGapsSummary]', err);
+    return [];
+  }
+}
+
+/* ─── export: full country guide rows ────────────────────────── */
+
+export interface SgGuideRow {
+  country: string;
+  spendType: string;
+  category: string;
+  subCategory: string;
+  family: string;
+  commodity: string;
+  unspsc: string;
+  tier: Tier;
+  supplierCode: string;
+  supplierName: string;
+}
+
+export async function getCountryGuideRows(code: string): Promise<SgGuideRow[]> {
+  try {
+    const { rows } = await sourceGuidePool.query(
+      `SELECT c.spend_type, c.category, COALESCE(c.sub_category,'') AS sub_category,
+              COALESCE(c.family,'') AS family, c.name AS commodity, c.code AS unspsc,
+              m.tier, m.supplier_code, a.name AS supplier_name
+       FROM sg_mappings m
+       JOIN sg_commodities c ON c.id = m.commodity_id
+       JOIN supplier_avl a ON a.supplier_code = m.supplier_code
+       WHERE m.country_code = $1 AND m.status='Active'
+       ORDER BY c.category, c.sub_category NULLS FIRST, c.family NULLS FIRST, c.name, (m.tier='Preferred') DESC, a.name`,
+      [code],
+    );
+    return rows.map(r => ({
+      country: code, spendType: r.spend_type, category: r.category, subCategory: r.sub_category,
+      family: r.family, commodity: r.commodity, unspsc: r.unspsc, tier: r.tier,
+      supplierCode: r.supplier_code, supplierName: r.supplier_name,
+    }));
+  } catch (err) {
+    console.error('[sg.getCountryGuideRows]', err);
     return [];
   }
 }

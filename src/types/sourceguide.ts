@@ -68,6 +68,7 @@ export interface SgCommodityResult extends SgCommodity {
 }
 
 export interface SgSupplierProfile extends SgSupplier {
+  email: string | null;
   totalCommodities: number;
   preferredCount: number;
   champions: string[];

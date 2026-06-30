@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, User, ChevronRight } from 'lucide-react';
+import { ArrowLeft, User, ChevronRight, Mail } from 'lucide-react';
 import { SG_BRAND } from '../../constants';
 import { TierBadge, CountryFlag, SupAvatar } from '../../ui';
+import { recordView, BookmarkButton } from '../../pins';
 import type { SgSupplierProfile, SgCommodity, SgCountry, SgMapping } from '@/types/sourceguide';
 
 export default function SupplierProfileClient({
@@ -24,14 +25,21 @@ export default function SupplierProfileClient({
     return m;
   }, [profile.mappings]);
 
+  useEffect(() => {
+    recordView({ kind: 'supplier', key: profile.code, name: profile.name, sub: `Vendor ${profile.code}`, href: `/sourceguide/suppliers/${encodeURIComponent(profile.code)}` });
+  }, [profile.code, profile.name]);
+
   return (
     <div className="mx-auto max-w-[980px] px-6 py-7 lg:px-8">
-      <button
-        onClick={() => router.back()}
-        className="mb-5 inline-flex items-center gap-1.5 rounded-full bg-[#eef0ef] px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 hover:bg-slate-200"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <button
+          onClick={() => router.back()}
+          className="inline-flex items-center gap-1.5 rounded-full bg-[#eef0ef] px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 hover:bg-slate-200"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <BookmarkButton item={{ kind: 'supplier', key: profile.code, name: profile.name, sub: `Vendor ${profile.code}`, href: `/sourceguide/suppliers/${encodeURIComponent(profile.code)}` }} />
+      </div>
 
       <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-7">
         <div className="flex flex-wrap items-start gap-4">
@@ -40,6 +48,13 @@ export default function SupplierProfileClient({
             <h1 className="text-[24px] font-bold tracking-tight">{profile.name}</h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-[13.5px] text-slate-500">
               {profile.code && <span className="font-mono">Vendor {profile.code}</span>}
+              {profile.email && profile.email.split(/[,;]+/).map(e => e.trim()).filter(Boolean).map(addr => (
+                <a key={addr} href={`mailto:${addr}`} className="inline-flex items-center gap-1.5 font-medium hover:underline" style={{ color: SG_BRAND }}>
+                  <Mail className="h-3.5 w-3.5" /> {addr}
+                </a>
+              ))}
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-[13.5px] text-slate-500">
               {profile.countries.length > 0 && <span className="text-slate-400">Used in:</span>}
               {profile.countries.map(c => { const cc = countryByCode.get(c); return cc ? <CountryFlag key={c} country={cc} showName /> : null; })}
             </div>

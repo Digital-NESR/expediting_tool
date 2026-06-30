@@ -6,9 +6,9 @@ import {
   approveSourceGuideAccessRequest, rejectSourceGuideAccessRequest,
   revokeSourceGuideAccess, deleteSourceGuideAccessRequest,
   getChampionsByCountry, addChampion, updateChampion, removeChampion,
-  getGuides, getSourceGuideAnalytics,
+  getGuides, getSourceGuideAnalytics, getCoverageGapsSummary,
 } from '@/app/actions/sourceguide';
-import type { SgAccessRequest, SgAnalytics, SgCountryChampions } from '@/app/actions/sourceguide';
+import type { SgAccessRequest, SgAnalytics, SgCountryChampions, SgCoverageGap } from '@/app/actions/sourceguide';
 import type { SgGuide } from '@/types/sourceguide';
 
 const BRAND = '#2A7E4F';
@@ -263,8 +263,9 @@ export function SourceGuideGuidesClient() {
    ============================================================ */
 export function SourceGuideAnalyticsClient() {
   const [data, setData] = useState<SgAnalytics | null>(null);
+  const [gaps, setGaps] = useState<SgCoverageGap[]>([]);
 
-  useEffect(() => { getSourceGuideAnalytics().then(setData); }, []);
+  useEffect(() => { getSourceGuideAnalytics().then(setData); getCoverageGapsSummary().then(setGaps); }, []);
 
   if (!data) return <div className="py-16 text-center text-sm text-slate-400">Loading analytics…</div>;
 
@@ -326,6 +327,39 @@ export function SourceGuideAnalyticsClient() {
               <div key={s.spendType} className="rounded-lg border border-slate-200 px-4 py-2.5">
                 <div className="text-[18px] font-bold text-slate-900">{s.count.toLocaleString()}</div>
                 <div className="text-[12px] text-slate-500">{s.spendType}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Coverage gaps by country */}
+        <div className="rounded-xl border border-slate-200 bg-white p-5 lg:col-span-2">
+          <h3 className="text-[14px] font-bold text-slate-900">Coverage gaps by country</h3>
+          <p className="mb-4 text-[12px] text-slate-500">
+            Of the {gaps[0]?.activeTotal ?? 0} commodities sourced somewhere across NESR, how many each country covers.
+            Click a number to jump into the mappings workspace.
+          </p>
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <div className="grid grid-cols-[1.4fr_1.6fr_0.8fr_0.9fr_0.9fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+              <span>Country</span><span>Coverage</span><span className="text-right">Covered</span><span className="text-right">No preferred</span><span className="text-right">Missing</span>
+            </div>
+            {gaps.map(g => (
+              <div key={g.country} className="grid grid-cols-[1.4fr_1.6fr_0.8fr_0.9fr_0.9fr] items-center gap-3 border-b border-slate-50 px-4 py-2.5 last:border-b-0">
+                <span className="flex items-center gap-2 text-[13px] font-medium text-slate-800">
+                  <span className="h-3 w-4 shrink-0 rounded-sm" style={{ background: g.tone ?? '#999' }} />
+                  <span className="truncate">{g.name}</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                    <span className="block h-full rounded-full" style={{ width: `${Math.round(g.coverage * 100)}%`, background: BRAND }} />
+                  </span>
+                  <span className="w-9 shrink-0 text-right font-mono text-[11px] text-slate-500">{Math.round(g.coverage * 100)}%</span>
+                </span>
+                <span className="text-right font-mono text-[12px] text-slate-600">{g.covered}</span>
+                <a href={`/sourceguide/mappings?country=${g.country}&gap=no-preferred`}
+                  className={`text-right font-mono text-[12px] font-semibold ${g.noPreferred ? 'text-amber-600 hover:underline' : 'text-slate-300'}`}>{g.noPreferred}</a>
+                <a href={`/sourceguide/mappings?country=${g.country}&gap=missing`}
+                  className="text-right font-mono text-[12px] font-semibold text-slate-500 hover:underline" style={{ color: g.missing ? undefined : '#cbd5e1' }}>{g.missing}</a>
               </div>
             ))}
           </div>

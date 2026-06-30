@@ -4,10 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Search, Box, Shield, Layers, MapPin, Grid3x3, Zap, FileSpreadsheet,
-  Users, Clock, ArrowRight,
+  Users, Clock, ArrowRight, Building2, Star,
 } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from './constants';
 import { StatTile } from './ui';
+import { usePins } from './pins';
+import type { PinItem } from './pins';
 import { searchCommodities } from '@/app/actions/sourceguide';
 import type { SgStats, SgCategory, SgCommodityResult } from '@/types/sourceguide';
 
@@ -24,6 +26,7 @@ export default function DashboardClient({
   countries: CountryTile[];
 }) {
   const router = useRouter();
+  const { recent, bookmarks } = usePins();
   const [q, setQ] = useState('');
   const [focus, setFocus] = useState(false);
   const [suggestions, setSuggestions] = useState<SgCommodityResult[]>([]);
@@ -154,8 +157,22 @@ export default function DashboardClient({
         </div>
       </div>
 
+      {/* Jump back in: bookmarks + recently viewed */}
+      {(bookmarks.length > 0 || recent.length > 0) && (
+        <div className="mx-auto max-w-[1200px] px-6 pb-2 pt-2 lg:px-8">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {bookmarks.length > 0 && (
+              <PinStrip title="Bookmarked" icon={<Star className="h-3.5 w-3.5" />} items={bookmarks.slice(0, 6)} onOpen={h => router.push(h)} />
+            )}
+            {recent.length > 0 && (
+              <PinStrip title="Recently viewed" icon={<Clock className="h-3.5 w-3.5" />} items={recent.slice(0, 6)} onOpen={h => router.push(h)} />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Category grid */}
-      <div className="mx-auto max-w-[1200px] px-6 pb-20 pt-2 lg:px-8">
+      <div className="mx-auto max-w-[1200px] px-6 pb-20 pt-6 lg:px-8">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-[21px] font-bold tracking-tight">Browse by category</h2>
           <button
@@ -186,6 +203,30 @@ export default function DashboardClient({
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PinStrip({ title, icon, items, onOpen }: { title: string; icon: React.ReactNode; items: PinItem[]; onOpen: (href: string) => void }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mb-2 flex items-center gap-1.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+        <span style={{ color: SG_BRAND }}>{icon}</span> {title}
+      </div>
+      <div className="flex flex-col">
+        {items.map(it => (
+          <button key={`${it.kind}:${it.key}`} onClick={() => onOpen(it.href)}
+            className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-[#eaf4ef]">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-slate-50">
+              {it.kind === 'commodity' ? <Box className="h-4 w-4" style={{ color: SG_BRAND }} /> : <Building2 className="h-4 w-4 text-slate-500" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-medium text-slate-800">{it.name}</span>
+              {it.sub && <span className="block truncate text-[11.5px] text-slate-400">{it.sub}</span>}
+            </span>
+          </button>
+        ))}
       </div>
     </div>
   );

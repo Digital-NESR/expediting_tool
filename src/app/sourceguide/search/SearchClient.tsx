@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, X, Check, Layers, ChevronRight } from 'lucide-react';
+import { Search, X, Check, Layers, ChevronRight, Download } from 'lucide-react';
 import { SG_BRAND } from '../constants';
 import { CountryFlag, SupAvatar } from '../ui';
 import { searchCommodities, searchSuppliers } from '@/app/actions/sourceguide';
+import { downloadXlsx } from '../exportXlsx';
 import type {
   SgCountry, SgCategory, SgFacets, SgCommodityResult, SgSupplier, SgSearchFilters, Tier,
 } from '@/types/sourceguide';
@@ -62,6 +63,21 @@ export default function SearchClient({
     }, 150);
     return () => clearTimeout(t);
   }, [query, filters]);
+
+  function exportResults() {
+    const rows = results.map(com => ({
+      Commodity: com.name,
+      Category: com.category,
+      'Sub-Category': com.subCategory ?? '',
+      Family: com.family ?? '',
+      UNSPSC: com.code ?? '',
+      'Spend Type': com.spendType,
+      Countries: com.countries.map(c => countryByCode.get(c)?.name ?? c).join(', '),
+      'Preferred (shown)': com.preferred ? `${com.preferred.supplierName} (${com.preferred.country})` : '',
+      'Backups (shown)': com.backupCount,
+    }));
+    downloadXlsx('sourceguide-search.xlsx', rows, 'Commodities');
+  }
 
   function toggle<K extends keyof Filters>(key: K, val: string) {
     setFilters(f => {
@@ -163,12 +179,21 @@ export default function SearchClient({
               <b className="text-slate-900">{results.length.toLocaleString()}</b> commodit{results.length === 1 ? 'y' : 'ies'}
               {query && <> for “<b className="text-slate-900">{query}</b>”</>}
             </div>
-            <button
-              onClick={() => router.push('/sourceguide/browse')}
-              className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 hover:border-[#6AAF8E]"
-            >
-              <Layers className="h-3.5 w-3.5" /> Browse by category
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportResults}
+                disabled={results.length === 0}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 hover:border-[#6AAF8E] disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" /> Export
+              </button>
+              <button
+                onClick={() => router.push('/sourceguide/browse')}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 hover:border-[#6AAF8E]"
+              >
+                <Layers className="h-3.5 w-3.5" /> Browse by category
+              </button>
+            </div>
           </div>
 
           {supHits.length > 0 && (

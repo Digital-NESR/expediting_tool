@@ -8,7 +8,11 @@ import MappingsClient from './MappingsClient';
 
 export const metadata: Metadata = { title: 'Manage Mappings · SourceGuide | SC Agents' };
 
-export default async function SourceGuideMappingsPage() {
+export default async function SourceGuideMappingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ country?: string; gap?: string }>;
+}) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect('/login');
 
@@ -25,11 +29,19 @@ export default async function SourceGuideMappingsPage() {
   const allCountries = await getCountries();
   const editable = isAdmin ? allCountries : allCountries.filter(c => approved.includes(c.code));
 
+  const sp = searchParams ? await searchParams : {};
+  const initialCountry = sp.country && editable.some(c => c.code === sp.country) ? sp.country : null;
+  const gp = sp.gap;
+  const initialMode: 'mapped' | 'no-preferred' | 'missing' =
+    gp === 'missing' ? 'missing' : gp === 'no-preferred' ? 'no-preferred' : 'mapped';
+
   return (
     <MappingsClient
       countries={editable}
       isAdmin={isAdmin}
       userName={session.user.name ?? session.user.email}
+      initialCountry={initialCountry}
+      initialMode={initialMode}
     />
   );
 }

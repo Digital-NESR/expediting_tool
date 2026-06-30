@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, User } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from '../../constants';
 import { TierBadge, CountryFlag, SupAvatar, PathTrail } from '../../ui';
+import { recordView, BookmarkButton } from '../../pins';
 import type { SgCommodityDetail, SgCountry, SgMapping } from '@/types/sourceguide';
 
 export default function CommodityDetailClient({
@@ -25,14 +26,21 @@ export default function CommodityDetailClient({
   const pref = maps.filter(m => m.tier === 'Preferred');
   const backups = maps.filter(m => m.tier === 'Backup');
 
+  useEffect(() => {
+    recordView({ kind: 'commodity', key: String(com.id), name: com.name, sub: com.category, href: `/sourceguide/commodity/${com.id}` });
+  }, [com.id, com.name, com.category]);
+
   return (
     <div className="mx-auto max-w-[980px] px-6 py-7 lg:px-8">
-      <button
-        onClick={() => router.back()}
-        className="mb-5 inline-flex items-center gap-1.5 rounded-full bg-[#eef0ef] px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 hover:bg-slate-200"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <button
+          onClick={() => router.back()}
+          className="inline-flex items-center gap-1.5 rounded-full bg-[#eef0ef] px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 hover:bg-slate-200"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <BookmarkButton item={{ kind: 'commodity', key: String(com.id), name: com.name, sub: com.category, href: `/sourceguide/commodity/${com.id}` }} />
+      </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         {/* Header */}

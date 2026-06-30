@@ -6,23 +6,29 @@ import { SG_BRAND } from '../constants';
 import { PathTrail } from '../ui';
 import {
   getMappingEditList, getCountryMappingSummary, getActivityLog,
-  supplierOptions, addMapping, removeMapping, changeTier,
+  supplierOptions, addMapping, removeMapping, changeTier, getCoverageGapsSummary,
 } from '@/app/actions/sourceguide';
+import type { GapMode } from '@/app/actions/sourceguide';
 import type { SgCountry, SgCommodity, SgMapping, SgActivityEntry, Tier, SgSupplier } from '@/types/sourceguide';
 
 type EditItem = { commodity: SgCommodity; mappings: SgMapping[] };
 
 export default function MappingsClient({
-  countries, isAdmin, userName,
+  countries, isAdmin, userName, initialCountry = null, initialMode = 'mapped',
 }: {
   countries: SgCountry[];
   isAdmin: boolean;
   userName: string;
+  initialCountry?: string | null;
+  initialMode?: GapMode;
 }) {
-  const [country, setCountry] = useState(countries[0]?.code ?? '');
+  const [country, setCountry] = useState(
+    (initialCountry && countries.some(c => c.code === initialCountry)) ? initialCountry : (countries[0]?.code ?? ''));
+  const [mode, setMode] = useState<GapMode>(initialMode);
   const [q, setQ] = useState('');
   const [list, setList] = useState<EditItem[]>([]);
   const [summary, setSummary] = useState({ mappings: 0, commodities: 0 });
+  const [gaps, setGaps] = useState<{ missing: number; noPreferred: number }>({ missing: 0, noPreferred: 0 });
   const [audit, setAudit] = useState<SgActivityEntry[]>([]);
   const [limit, setLimit] = useState(15);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -33,15 +39,18 @@ export default function MappingsClient({
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const [items, sum, log] = await Promise.all([
-      getMappingEditList(country, q, 200),
+    const [items, sum, log, gapSummary] = await Promise.all([
+      getMappingEditList(country, q, 200, mode),
       getCountryMappingSummary(country),
       getActivityLog(isAdmin ? null : country, 12),
+      getCoverageGapsSummary(),
     ]);
     setList(items); setSummary(sum); setAudit(log); setLoading(false);
-  }, [country, q, isAdmin]);
+    const g = gapSummary.find(x => x.country === country);
+    setGaps({ missing: g?.missing ?? 0, noPreferred: g?.noPreferred ?? 0 });
+  }, [country, q, isAdmin, mode]);
 
-  useEffect(() => { setLimit(15); }, [country, q]);
+  useEffect(() => { setLimit(15); }, [country, q, mode]);
   useEffect(() => { void reload(); }, [reload, refreshKey]);
 
   const bump = (msg?: string) => { if (msg) setToast(msg); setRefreshKey(k => k + 1); };
@@ -96,11 +105,33 @@ export default function MappingsClient({
 
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[1fr_300px]">
         <div className="min-w-0">
+          {/* Gap-mode segmented control */}
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {([
+              { m: 'mapped' as GapMode, label: 'Mapped here', n: summary.commodities },
+              { m: 'no-preferred' as GapMode, label: 'No preferred', n: gaps.noPreferred },
+              { m: 'missing' as GapMode, label: 'Missing (sourced elsewhere)', n: gaps.missing },
+            ]).map(t => {
+              const on = mode === t.m;
+              return (
+                <button
+                  key={t.m}
+                  onClick={() => { setMode(t.m); setQ(''); }}
+                  className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-semibold transition-colors"
+                  style={on ? { background: SG_BRAND, borderColor: SG_BRAND, color: '#fff' } : { borderColor: '#D1D3D4', background: '#fff', color: '#58595B' }}
+                >
+                  {t.label}
+                  <span className="rounded-full px-1.5 py-0.5 text-[10.5px] font-bold" style={on ? { background: 'rgba(255,255,255,.25)' } : { background: '#eef0ef', color: '#58595B' }}>{t.n}</span>
+                </button>
+              );
+            })}
+          </div>
+
           <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 focus-within:border-[#6AAF8E]">
             <Search className="h-4 w-4 text-slate-400" />
             <input
               value={q} onChange={e => setQ(e.target.value)}
-              placeholder="Find a commodity to amend (search the full catalogue)…"
+              placeholder={mode === 'mapped' ? 'Find a commodity to amend (search the full catalogue)…' : 'Filter within these results…'}
               className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-slate-400"
             />
             {q && <button onClick={() => setQ('')} className="text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>}
@@ -108,7 +139,11 @@ export default function MappingsClient({
           <div className="mb-3.5 text-[12.5px] text-slate-500">
             {q.trim()
               ? <>Showing matches across the full taxonomy. Add suppliers to any commodity.</>
-              : <>Showing the <b className="text-slate-900">{list.length}</b> commodities currently mapped in {c?.name}.</>}
+              : mode === 'missing'
+                ? <>Commodities sourced in other countries but <b className="text-slate-900">not yet mapped</b> in {c?.name}. Add a supplier to fill the gap.</>
+                : mode === 'no-preferred'
+                  ? <>Commodities in {c?.name} that have a <b className="text-slate-900">backup but no preferred</b> supplier.</>
+                  : <>Showing the <b className="text-slate-900">{list.length}</b> commodities currently mapped in {c?.name}.</>}
           </div>
 
           {loading && list.length === 0 && <div className="py-10 text-center text-[13.5px] text-slate-400">Loading…</div>}
