@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import CatalogManagerShell from '../components/CatalogManagerShell';
 import { Icon, EmptyState } from '../components/CatalogManagerUI';
 import type { SupplierStats } from '@/app/actions/catalog-manager';
-import { fmtUsd } from '@/lib/catalog-manager-utils';
 
 export default function SuppliersListClient({
   suppliers, roleLabel, canApprove, canAdmin, pendingCount,
@@ -50,7 +49,6 @@ export default function SuppliersListClient({
                     <th className="px-4 py-3">Manager</th>
                     <th className="px-4 py-3 text-right">Rates</th>
                     <th className="px-4 py-3 text-right">Active</th>
-                    <th className="px-4 py-3 text-right">Active value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -61,7 +59,6 @@ export default function SuppliersListClient({
                       <td className="px-4 py-3 text-slate-600">{s.manager ?? '—'}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-slate-700">{s.entryCount}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-slate-700">{s.activeCount}</td>
-                      <td className="px-4 py-3 text-right font-mono font-semibold text-slate-900">${fmtUsd(s.totalActiveUsd)}</td>
                     </tr>
                   ))}
                 </tbody>

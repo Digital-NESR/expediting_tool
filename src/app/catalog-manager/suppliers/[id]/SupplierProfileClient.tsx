@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import CatalogManagerShell from '../../components/CatalogManagerShell';
 import { Icon, StatusPill, Avatar, Chip } from '../../components/CatalogManagerUI';
 import type { SupplierProfile } from '@/app/actions/catalog-manager';
-import { fmtMoney, fmtUsd, fmtDateNice } from '@/lib/catalog-manager-utils';
+import { fmtMoney, fmtDateNice } from '@/lib/catalog-manager-utils';
 
 export default function SupplierProfileClient({
   profile, roleLabel, canApprove, canAdmin, pendingCount,
@@ -46,10 +46,9 @@ export default function SupplierProfileClient({
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-4 grid grid-cols-3 gap-3">
             <div className="rounded-xl border border-slate-100 bg-slate-50 px-3.5 py-3"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">Rates</p><p className="mt-0.5 text-xl font-bold tabular-nums text-slate-900">{profile.entries.length}</p></div>
             <div className="rounded-xl border border-slate-100 bg-slate-50 px-3.5 py-3"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">Active</p><p className="mt-0.5 text-xl font-bold tabular-nums text-[#307c4c]">{profile.activeCount}</p></div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3.5 py-3"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">Active value</p><p className="mt-0.5 text-xl font-bold tabular-nums text-slate-900">${fmtUsd(profile.totalActiveUsd)}</p></div>
             <div className="rounded-xl border border-slate-100 bg-slate-50 px-3.5 py-3"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">Countries</p><p className="mt-0.5 text-xl font-bold tabular-nums text-slate-900">{profile.countries.length}</p></div>
           </div>
 

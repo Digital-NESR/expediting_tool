@@ -308,7 +308,6 @@ export const COUNTRY_CONTROLLER_EMAILS: Record<string, string> = {
   Libya: 'libya.controller@nesr.local',
   Chad: 'chad.controller@nesr.local',
   Congo: 'congo.controller@nesr.local',
-  Test: 'mfarhan1@nesr.com',
   Other: 'corporate.controller@nesr.local',
 };
 
@@ -343,7 +342,6 @@ export const COUNTRY_OPTIONS = [
   'Jordan',
   'Yemen',
   'Congo',
-  'Test',
 ];
 
 export function normalizeProcureGuardCountry(value: string | null | undefined): string | null {

@@ -65,10 +65,10 @@ export default function CatalogManagerDashboardClient({
 
         {/* metric cards */}
         <section className="grid grid-cols-4 gap-2.5">
-          <MetricCard label="Active rates" value={String(data.activeCount)} sub={`${data.supplierCount} suppliers · ${data.categoryCount} categories`} icon="catalog" href={catHref('&status=Active')} />
+          <MetricCard label="Active rates" value={String(data.activeCount)} sub={`across ${data.categoryCount} categories`} icon="catalog" href={catHref('&status=Active')} />
+          <MetricCard label="Suppliers" value={String(data.supplierCount)} sub="with active rates" icon="building" href="/catalog-manager/suppliers" />
           <MetricCard label="Expiring ≤ 30 days" value={String(data.expiringCount)} sub={data.expiringCount ? 'Renew before they lapse' : 'Nothing lapsing soon'} icon="clock" tone="amber" href={catHref('&expiring=1')} />
           <MetricCard label="Pending approval" value={String(data.pendingCount)} sub={data.pendingCount ? 'Awaiting sign-off' : 'Queue is clear'} icon="approve" tone="ink" href={`/catalog-manager/approvals${scope !== 'ALL' ? `?country=${scope}` : ''}`} />
-          <MetricCard label="Total active value" value={`$${(data.totalActiveUsd / 1000).toFixed(0)}k`} sub="USD equivalent, annualized" icon="money" href={catHref('&status=Active')} />
         </section>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

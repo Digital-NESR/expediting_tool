@@ -921,7 +921,6 @@ export async function getCatalogManagerDashboardData(country = 'ALL'): Promise<C
     categoryCount: byCatMap.size,
     expiringCount: expiring.length,
     pendingCount: pending.length,
-    totalActiveUsd: active.reduce((sum, e) => sum + e.usd_equivalent, 0),
     byCategory,
     expiringSoon: expiring.slice(0, 5),
     recent,
@@ -1529,26 +1528,24 @@ export async function getCatalogAnalyticsData(country = 'ALL'): Promise<CatalogA
   const today = new Date();
   const active = entries.filter((e) => e.status === 'Active');
 
-  // spend by category (active, USD-equivalent)
+  // active-rate count by category
   const catMap = new Map<string, SpendByCategory>();
   for (const e of active) {
     const name = e.category_name ?? 'Uncategorized';
-    const row = catMap.get(name) ?? { name, type: e.spend_type, activeCount: 0, totalUsd: 0 };
+    const row = catMap.get(name) ?? { name, type: e.spend_type, activeCount: 0 };
     row.activeCount += 1;
-    row.totalUsd += e.usd_equivalent;
     catMap.set(name, row);
   }
-  const byCategory = [...catMap.values()].sort((a, b) => b.totalUsd - a.totalUsd);
+  const byCategory = [...catMap.values()].sort((a, b) => b.activeCount - a.activeCount);
 
-  // spend by country
+  // active-rate count by country
   const ctyMap = new Map<string, SpendByCountry>();
   for (const e of active) {
-    const row = ctyMap.get(e.country_code) ?? { code: e.country_code, name: e.country_name, flag: e.country_flag, activeCount: 0, totalUsd: 0 };
+    const row = ctyMap.get(e.country_code) ?? { code: e.country_code, name: e.country_name, flag: e.country_flag, activeCount: 0 };
     row.activeCount += 1;
-    row.totalUsd += e.usd_equivalent;
     ctyMap.set(e.country_code, row);
   }
-  const byCountry = [...ctyMap.values()].sort((a, b) => b.totalUsd - a.totalUsd);
+  const byCountry = [...ctyMap.values()].sort((a, b) => b.activeCount - a.activeCount);
 
   // status mix
   const statusOrder: CatalogStatus[] = ['Active', 'Pending Approval', 'Draft', 'Expired', 'Rejected'];
@@ -1595,7 +1592,6 @@ export async function getCatalogAnalyticsData(country = 'ALL'): Promise<CatalogA
 
   return {
     activeCount: active.length,
-    totalActiveUsd: active.reduce((s, e) => s + e.usd_equivalent, 0),
     supplierCount: new Set(active.map((e) => e.supplier_id)).size,
     pendingCount: entries.filter((e) => e.status === 'Pending Approval').length,
     expiringCount: active.filter((e) => isExpiringSoon(e.status, e.expiry_date, today)).length,
@@ -1668,7 +1664,6 @@ export interface SupplierStats {
   manager: string | null;
   entryCount: number;
   activeCount: number;
-  totalActiveUsd: number;
 }
 
 export async function getSuppliersWithStats(): Promise<SupplierStats[]> {
@@ -1683,11 +1678,6 @@ export async function getSuppliersWithStats(): Promise<SupplierStats[]> {
      HAVING COUNT(e.id) > 0
      ORDER BY s.name`,
   );
-  const entries = await listCatalogEntries({});
-  const usdBySupplier = new Map<number, number>();
-  for (const e of entries) {
-    if (e.status === 'Active') usdBySupplier.set(e.supplier_id, (usdBySupplier.get(e.supplier_id) ?? 0) + e.usd_equivalent);
-  }
   return rows.map((r) => ({
     id: Number(r.id),
     name: String(r.name),
@@ -1695,7 +1685,6 @@ export async function getSuppliersWithStats(): Promise<SupplierStats[]> {
     manager: r.manager ?? null,
     entryCount: Number(r.entry_count),
     activeCount: Number(r.active_count),
-    totalActiveUsd: usdBySupplier.get(Number(r.id)) ?? 0,
   }));
 }
 
@@ -1707,7 +1696,6 @@ export interface SupplierProfile {
   entries: CatalogEntry[];
   countries: { code: string; name: string; flag: string | null }[];
   activeCount: number;
-  totalActiveUsd: number;
   contactEmails: string[];
 }
 
@@ -1744,7 +1732,6 @@ export async function getSupplierProfile(supplierId: number): Promise<SupplierPr
     entries,
     countries: [...countryMap.values()],
     activeCount: active.length,
-    totalActiveUsd: active.reduce((s, e) => s + e.usd_equivalent, 0),
     contactEmails,
   };
 }

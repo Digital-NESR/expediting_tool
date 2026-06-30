@@ -97,14 +97,12 @@ export interface SpendByCategory {
   name: string;
   type: SpendType | null;
   activeCount: number;
-  totalUsd: number;
 }
 export interface SpendByCountry {
   code: string;
   name: string;
   flag: string | null;
   activeCount: number;
-  totalUsd: number;
 }
 export interface RateMover {
   id: number;
@@ -121,7 +119,6 @@ export interface RateMover {
 }
 export interface CatalogAnalyticsData {
   activeCount: number;
-  totalActiveUsd: number;
   supplierCount: number;
   pendingCount: number;
   expiringCount: number;
@@ -206,7 +203,6 @@ export interface CatalogManagerDashboardData {
   categoryCount: number;
   expiringCount: number;
   pendingCount: number;
-  totalActiveUsd: number;
   byCategory: CategoryBar[];
   expiringSoon: CatalogEntry[];
   recent: AuditEvent[];

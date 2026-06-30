@@ -4,7 +4,7 @@ import Link from 'next/link';
 import CatalogManagerShell, { type ScopeCountry } from '../components/CatalogManagerShell';
 import { Icon, EmptyState } from '../components/CatalogManagerUI';
 import type { CatalogAnalyticsData, CatalogStatus } from '@/types/catalog-manager';
-import { fmtUsd, getStatusBadge } from '@/lib/catalog-manager-utils';
+import { getStatusBadge } from '@/lib/catalog-manager-utils';
 
 function Metric({ label, value, sub, icon, tone = 'green' }: { label: string; value: string; sub: string; icon: string; tone?: 'green' | 'amber' | 'ink' }) {
   const accent = tone === 'amber' ? 'bg-amber-500' : tone === 'ink' ? 'bg-slate-800' : 'bg-[#307c4c]';
@@ -22,7 +22,7 @@ function Metric({ label, value, sub, icon, tone = 'green' }: { label: string; va
   );
 }
 
-function BarRow({ label, sub, value, max, count }: { label: string; sub?: string; value: number; max: number; count: number }) {
+function BarRow({ label, sub, value, max }: { label: string; sub?: string; value: number; max: number }) {
   return (
     <div className="grid grid-cols-[160px_1fr_auto] items-center gap-3">
       <div className="min-w-0">
@@ -32,7 +32,7 @@ function BarRow({ label, sub, value, max, count }: { label: string; sub?: string
       <span className="h-2.5 overflow-hidden rounded-full bg-slate-100">
         <span className="block h-full rounded-full bg-gradient-to-r from-[#6aaf8e] to-[#307c4c]" style={{ width: `${max > 0 ? (value / max) * 100 : 0}%` }} />
       </span>
-      <span className="text-right text-[12.5px] font-semibold tabular-nums text-slate-900">${fmtUsd(value)}<span className="ml-1 font-normal text-slate-400">· {count}</span></span>
+      <span className="text-right text-[12.5px] font-semibold tabular-nums text-slate-900">{value}<span className="ml-1 font-normal text-slate-400">{value === 1 ? 'rate' : 'rates'}</span></span>
     </div>
   );
 }
@@ -48,8 +48,8 @@ export default function CatalogAnalyticsClient({
   canAdmin: boolean;
   pendingCount: number;
 }) {
-  const maxCat = Math.max(1, ...data.byCategory.map((c) => c.totalUsd));
-  const maxCty = Math.max(1, ...data.byCountry.map((c) => c.totalUsd));
+  const maxCat = Math.max(1, ...data.byCategory.map((c) => c.activeCount));
+  const maxCty = Math.max(1, ...data.byCountry.map((c) => c.activeCount));
   const totalStatus = data.statusCounts.reduce((s, x) => s + x.count, 0) || 1;
 
   return (
@@ -65,11 +65,11 @@ export default function CatalogAnalyticsClient({
       <div className="space-y-6">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Catalog analytics</h1>
-          <p className="mt-1 text-sm text-slate-500">Spend visibility and rate trends across {scope === 'ALL' ? 'all operating countries' : countries.find((c) => c.code === scope)?.name ?? scope}.</p>
+          <p className="mt-1 text-sm text-slate-500">Rate coverage and price trends across {scope === 'ALL' ? 'all operating countries' : countries.find((c) => c.code === scope)?.name ?? scope}.</p>
         </div>
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Active value" value={`$${(data.totalActiveUsd / 1000).toFixed(0)}k`} sub={`${data.activeCount} active rates · ${data.supplierCount} suppliers`} icon="money" />
+          <Metric label="Active rates" value={String(data.activeCount)} sub={`${data.supplierCount} suppliers`} icon="catalog" />
           <Metric label="Avg rate change" value={data.avgRateChangePct == null ? '—' : `${data.avgRateChangePct >= 0 ? '+' : ''}${data.avgRateChangePct.toFixed(1)}%`} sub="across re-priced entries" icon="trend" tone={data.avgRateChangePct != null && data.avgRateChangePct > 0 ? 'amber' : 'green'} />
           <Metric label="Pending approval" value={String(data.pendingCount)} sub={data.pendingCount ? 'awaiting sign-off' : 'queue clear'} icon="approve" tone="ink" />
           <Metric label="Expiring ≤ 30 days" value={String(data.expiringCount)} sub={data.expiringCount ? 'renew before they lapse' : 'nothing lapsing soon'} icon="clock" tone="amber" />
@@ -78,20 +78,20 @@ export default function CatalogAnalyticsClient({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* spend by category */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-[15px] font-bold text-slate-900">Active spend by category</h2>
+            <h2 className="mb-4 text-[15px] font-bold text-slate-900">Active rates by category</h2>
             {data.byCategory.length === 0 ? <EmptyState icon="layers" title="No active rates" /> : (
               <div className="space-y-3">
-                {data.byCategory.slice(0, 8).map((c) => <BarRow key={c.name} label={c.name} sub={c.type ?? undefined} value={c.totalUsd} max={maxCat} count={c.activeCount} />)}
+                {data.byCategory.slice(0, 8).map((c) => <BarRow key={c.name} label={c.name} sub={c.type ?? undefined} value={c.activeCount} max={maxCat} />)}
               </div>
             )}
           </div>
 
-          {/* spend by country */}
+          {/* rates by country */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-[15px] font-bold text-slate-900">Active spend by country</h2>
+            <h2 className="mb-4 text-[15px] font-bold text-slate-900">Active rates by country</h2>
             {data.byCountry.length === 0 ? <EmptyState icon="globe" title="No active rates" /> : (
               <div className="space-y-3">
-                {data.byCountry.map((c) => <BarRow key={c.code} label={`${c.flag ?? ''} ${c.name}`.trim()} value={c.totalUsd} max={maxCty} count={c.activeCount} />)}
+                {data.byCountry.map((c) => <BarRow key={c.code} label={`${c.flag ?? ''} ${c.name}`.trim()} value={c.activeCount} max={maxCty} />)}
               </div>
             )}
           </div>
