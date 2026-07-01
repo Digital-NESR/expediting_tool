@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import CatalogManagerShell from '../components/CatalogManagerShell';
 import { Icon, Chip, Avatar } from '../components/CatalogManagerUI';
-import SupplierMigrationPanel from './SupplierMigrationPanel';
+import BulkImportPanel from '../catalog/import/BulkImportPanel';
 import {
   toggleCountryStatus, toggleCategoryStatus, addUom, setUserRole,
   addCountryApprover, removeCountryApprover, setApprovalThreshold, removeApprovalThreshold,
@@ -14,8 +14,8 @@ import type {
 } from '@/types/catalog-manager';
 import { fmtUsd, ALL_ROLES, spendTypeTone } from '@/lib/catalog-manager-utils';
 
-type Tab = 'Countries' | 'Spend categories' | 'Units of measure' | 'Currencies' | 'Suppliers' | 'Supplier migration' | 'Service activities' | 'Users & roles' | 'Country approvers' | 'Thresholds';
-const TABS: Tab[] = ['Countries', 'Spend categories', 'Units of measure', 'Currencies', 'Suppliers', 'Supplier migration', 'Service activities', 'Users & roles', 'Country approvers', 'Thresholds'];
+type Tab = 'Countries' | 'Spend categories' | 'Units of measure' | 'Currencies' | 'Suppliers' | 'Catalog migration' | 'Service activities' | 'Users & roles' | 'Country approvers' | 'Thresholds';
+const TABS: Tab[] = ['Countries', 'Spend categories', 'Units of measure', 'Currencies', 'Suppliers', 'Catalog migration', 'Service activities', 'Users & roles', 'Country approvers', 'Thresholds'];
 
 interface AdminCategory { id: number; name: string; type: string; status: string; subs: string[] }
 
@@ -80,7 +80,7 @@ export default function AdminClient({
           ))}
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className={tab === 'Catalog migration' ? '' : 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'}>
           {tab === 'Countries' && (
             <table className="w-full text-[13px]">
               <thead><tr className="border-b border-slate-200"><th className={thCls}>Country</th><th className={thCls}>Code</th><th className={thCls}>Default currency</th><th className={`${thCls} text-right`}>Status</th></tr></thead>
@@ -163,7 +163,7 @@ export default function AdminClient({
             </div>
           )}
 
-          {tab === 'Supplier migration' && <SupplierMigrationPanel />}
+          {tab === 'Catalog migration' && <BulkImportPanel />}
 
           {tab === 'Service activities' && (
             <div>

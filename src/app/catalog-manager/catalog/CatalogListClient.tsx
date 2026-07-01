@@ -52,6 +52,7 @@ function FacetGroup({
 export default function CatalogListClient({
   entries, categories, countries, scope, pendingCount, roleLabel, canCreate, canApprove, canAdmin, homeCountry,
   initialStatus, initialCategory, initialExpiring,
+  initialQuery,
 }: {
   entries: CatalogEntry[];
   categories: { name: string; type: SpendType }[];
@@ -66,9 +67,10 @@ export default function CatalogListClient({
   initialStatus: string | null;
   initialCategory: string | null;
   initialExpiring: boolean;
+  initialQuery: string | null;
 }) {
   const router = useRouter();
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(initialQuery ?? '');
   const [status, setStatus] = useState<string[]>(initialStatus ? [initialStatus] : []);
   const [cats, setCats] = useState<string[]>(initialCategory ? [initialCategory] : []);
   const [stypes, setStypes] = useState<string[]>([]);
