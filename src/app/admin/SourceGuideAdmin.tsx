@@ -775,41 +775,47 @@ function AuditTab({ entries, loading }: { entries: SgAuditEntry[] | null; loadin
 function PeopleTab({ rows, loading }: { rows: SgUserActivity[] | null; loading: boolean }) {
   if (loading && rows === null) return <div className="py-16 text-center text-sm text-slate-400">Loading user activity…</div>;
   const list = rows ?? [];
-  const maxTotal = Math.max(1, ...list.map(r => r.total));
-  const totalChanges = list.reduce((s, r) => s + r.total, 0);
+  const score = (r: SgUserActivity) => r.views + r.searches + r.edits;
+  const maxScore = Math.max(1, ...list.map(score));
+  const totalViews = list.reduce((s, r) => s + r.views, 0);
+  const totalSearches = list.reduce((s, r) => s + r.searches, 0);
+  const totalEdits = list.reduce((s, r) => s + r.edits, 0);
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        <Kpi label="Active contributors" value={list.length.toLocaleString()} />
-        <Kpi label="Total recorded changes" value={totalChanges.toLocaleString()} />
-        <Kpi label="Mapping edits" value={list.reduce((s, r) => s + r.mappings, 0).toLocaleString()} tone="good" />
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <Kpi label="Active users" value={list.length.toLocaleString()} />
+        <Kpi label="Total views" value={totalViews.toLocaleString()} tone="good" />
+        <Kpi label="Total searches" value={totalSearches.toLocaleString()} tone="good" />
+        <Kpi label="Total edits" value={totalEdits.toLocaleString()} />
       </div>
 
-      <Panel title="Activity by person" subtitle="Every recorded change per user (mapping edits, champion changes and access decisions). View-only users who never edit will not appear here.">
+      <Panel title="Usage by person" subtitle="Views and searches show how much each person uses the tool; edits are recorded changes (mappings, champions, access). Anonymous or signed-out traffic is not counted.">
         {list.length === 0 ? (
-          <div className="py-8 text-center text-[13px] text-slate-400">No user activity recorded yet.</div>
+          <div className="py-8 text-center text-[13px] text-slate-400">No usage recorded yet. Views and searches start logging as people browse the tool.</div>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <div className="grid grid-cols-[1.7fr_1.4fr_0.8fr_0.9fr_0.7fr_0.8fr_1fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-              <span>Person</span><span>Changes</span><span className="text-right">Mappings</span><span className="text-right">Champions</span><span className="text-right">Access</span><span className="text-right">Countries</span><span className="text-right">Last active</span>
-            </div>
-            {list.map(r => (
-              <div key={r.user} className="grid grid-cols-[1.7fr_1.4fr_0.8fr_0.9fr_0.7fr_0.8fr_1fr] items-center gap-3 border-b border-slate-50 px-4 py-2.5 last:border-b-0">
-                <span className="truncate text-[13px] font-semibold text-slate-800" title={r.user}>{r.user}</span>
-                <span className="flex items-center gap-2">
-                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <span className="block h-full rounded-full" style={{ width: `${(r.total / maxTotal) * 100}%`, background: BRAND }} />
-                  </span>
-                  <span className="w-8 shrink-0 text-right font-mono text-[11px] text-slate-500">{r.total}</span>
-                </span>
-                <span className={`text-right font-mono text-[12px] ${r.mappings ? 'text-slate-600' : 'text-slate-300'}`}>{r.mappings}</span>
-                <span className={`text-right font-mono text-[12px] ${r.champions ? 'text-slate-600' : 'text-slate-300'}`}>{r.champions}</span>
-                <span className={`text-right font-mono text-[12px] ${r.access ? 'text-slate-600' : 'text-slate-300'}`}>{r.access}</span>
-                <span className={`text-right font-mono text-[12px] ${r.countries ? 'text-slate-600' : 'text-slate-300'}`}>{r.countries}</span>
-                <span className="text-right text-[11.5px] text-slate-500" title={fullTime(r.lastActive)}>{timeAgo(r.lastActive)}</span>
+          <div className="overflow-x-auto">
+            <div className="min-w-[720px] overflow-hidden rounded-lg border border-slate-200">
+              <div className="grid grid-cols-[1.7fr_1.3fr_0.7fr_0.8fr_0.7fr_0.8fr_1fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                <span>Person</span><span>Activity</span><span className="text-right">Views</span><span className="text-right">Searches</span><span className="text-right">Edits</span><span className="text-right">Countries</span><span className="text-right">Last active</span>
               </div>
-            ))}
+              {list.map(r => (
+                <div key={r.user} className="grid grid-cols-[1.7fr_1.3fr_0.7fr_0.8fr_0.7fr_0.8fr_1fr] items-center gap-3 border-b border-slate-50 px-4 py-2.5 last:border-b-0">
+                  <span className="truncate text-[13px] font-semibold text-slate-800" title={r.user}>{r.user}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <span className="block h-full rounded-full" style={{ width: `${(score(r) / maxScore) * 100}%`, background: BRAND }} />
+                    </span>
+                    <span className="w-8 shrink-0 text-right font-mono text-[11px] text-slate-500">{score(r)}</span>
+                  </span>
+                  <span className={`text-right font-mono text-[12px] ${r.views ? 'text-slate-700 font-semibold' : 'text-slate-300'}`}>{r.views}</span>
+                  <span className={`text-right font-mono text-[12px] ${r.searches ? 'text-slate-700 font-semibold' : 'text-slate-300'}`}>{r.searches}</span>
+                  <span className={`text-right font-mono text-[12px] ${r.edits ? 'text-slate-600' : 'text-slate-300'}`} title={`${r.mappings} mapping, ${r.champions} champion, ${r.access} access`}>{r.edits}</span>
+                  <span className={`text-right font-mono text-[12px] ${r.countries ? 'text-slate-600' : 'text-slate-300'}`}>{r.countries}</span>
+                  <span className="text-right text-[11.5px] text-slate-500" title={fullTime(r.lastActive)}>{timeAgo(r.lastActive)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </Panel>

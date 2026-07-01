@@ -369,6 +369,7 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
     }
     const countries = Object.keys(mappingsByCountry);
 
+    await logUsage('view', 'commodity', commodity.name, String(commodityId));
     return { commodity, countries, mappingsByCountry };
   } catch (err) {
     console.error('[sg.getCommodityDetail]', err);
@@ -406,6 +407,7 @@ export async function getSupplierProfile(supplierCode: string): Promise<SgSuppli
       [countries],
     );
 
+    await logUsage('view', 'supplier', s.name, s.supplier_code);
     return {
       code: s.supplier_code, name: s.name, email: s.email ?? null, countries,
       totalCommodities: new Set(mappings.map(m => m.commodityId)).size,
@@ -766,6 +768,30 @@ async function logSafe(
   }
 }
 
+/** Best-effort usage log for read paths (page views + searches). Never throws; skips anonymous. */
+async function logUsage(
+  eventType: 'view' | 'search', target: string, label: string | null, ref: string | null,
+): Promise<void> {
+  try {
+    const u = await getSgUser();
+    if (!u) return;
+    await sourceGuidePool.query(
+      `INSERT INTO sg_usage_log (user_email, user_name, event_type, target, label, ref)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [u.email, u.name, eventType, target, label, ref],
+    );
+  } catch (err) {
+    console.error('[sg.logUsage]', err);
+  }
+}
+
+/** Record a committed search from the search UI. Fire-and-forget from the client. */
+export async function recordSearch(query: string): Promise<void> {
+  const q = (query || '').trim();
+  if (!q) return;
+  await logUsage('search', 'search', q.slice(0, 200), null);
+}
+
 export async function addMapping(input: {
   commodityId: number; country: string; tier: Tier; supplierCode: string;
 }): Promise<{ success: boolean; error?: string }> {
@@ -961,6 +987,7 @@ export async function getCountryDashboard(code: string): Promise<SgCountryDashbo
          GROUP BY a.supplier_code, a.name ORDER BY mappings DESC LIMIT 8`, [code]),
     ]);
     const s = statsRes.rows[0];
+    await logUsage('view', 'country', c.name, c.code);
     return {
       code: c.code, name: c.name, tone: c.tone, champions: c.champions || [],
       version: c.version, status: c.status, updatedAt: isoOf(c.updated_at),
@@ -1165,7 +1192,9 @@ export async function getSourceGuideAuditLog(limit = 500): Promise<SgAuditEntry[
 
 export interface SgUserActivity {
   user: string;
-  total: number;
+  views: number;
+  searches: number;
+  edits: number;       // recorded change-log entries
   mappings: number;
   champions: number;
   access: number;
@@ -1177,23 +1206,47 @@ export async function getUserActivity(): Promise<SgUserActivity[]> {
   const user = await getSgUser();
   if (!user?.isAdmin) return [];
   try {
-    const { rows } = await sourceGuidePool.query(`
-      SELECT performed_by,
-             COUNT(*)::int AS total,
-             COUNT(*) FILTER (WHERE action NOT LIKE 'Champion%' AND action NOT LIKE 'Access%')::int AS mappings,
-             COUNT(*) FILTER (WHERE action LIKE 'Champion%')::int AS champions,
-             COUNT(*) FILTER (WHERE action LIKE 'Access%')::int AS access,
-             COUNT(DISTINCT country_code)::int AS countries,
-             MAX(performed_at) AS last_active
-      FROM sg_activity_log
-      WHERE performed_by IS NOT NULL AND performed_by <> ''
-      GROUP BY performed_by
-      ORDER BY total DESC, last_active DESC`);
-    return rows.map(r => ({
-      user: r.performed_by, total: Number(r.total),
-      mappings: Number(r.mappings), champions: Number(r.champions), access: Number(r.access),
-      countries: Number(r.countries), lastActive: isoOf(r.last_active),
-    }));
+    const [actRes, useRes] = await Promise.all([
+      sourceGuidePool.query(`
+        SELECT performed_by AS name,
+               COUNT(*)::int AS edits,
+               COUNT(*) FILTER (WHERE action NOT LIKE 'Champion%' AND action NOT LIKE 'Access%')::int AS mappings,
+               COUNT(*) FILTER (WHERE action LIKE 'Champion%')::int AS champions,
+               COUNT(*) FILTER (WHERE action LIKE 'Access%')::int AS access,
+               COUNT(DISTINCT country_code)::int AS countries,
+               MAX(performed_at) AS last_active
+        FROM sg_activity_log
+        WHERE performed_by IS NOT NULL AND performed_by <> ''
+        GROUP BY performed_by`),
+      sourceGuidePool.query(`
+        SELECT COALESCE(user_name, user_email) AS name,
+               COUNT(*) FILTER (WHERE event_type='view')::int AS views,
+               COUNT(*) FILTER (WHERE event_type='search')::int AS searches,
+               MAX(created_at) AS last_active
+        FROM sg_usage_log
+        WHERE COALESCE(user_name, user_email) IS NOT NULL
+        GROUP BY COALESCE(user_name, user_email)`),
+    ]);
+
+    const map = new Map<string, SgUserActivity>();
+    const ensure = (name: string): SgUserActivity => {
+      let r = map.get(name);
+      if (!r) { r = { user: name, views: 0, searches: 0, edits: 0, mappings: 0, champions: 0, access: 0, countries: 0, lastActive: '' }; map.set(name, r); }
+      return r;
+    };
+    for (const a of actRes.rows) {
+      const r = ensure(a.name);
+      r.edits = Number(a.edits); r.mappings = Number(a.mappings);
+      r.champions = Number(a.champions); r.access = Number(a.access); r.countries = Number(a.countries);
+      const la = isoOf(a.last_active); if (la > r.lastActive) r.lastActive = la;
+    }
+    for (const u of useRes.rows) {
+      const r = ensure(u.name);
+      r.views = Number(u.views); r.searches = Number(u.searches);
+      const la = isoOf(u.last_active); if (la > r.lastActive) r.lastActive = la;
+    }
+    return [...map.values()].sort((a, b) =>
+      (b.views + b.searches + b.edits) - (a.views + a.searches + a.edits) || b.lastActive.localeCompare(a.lastActive));
   } catch (err) {
     console.error('[sg.getUserActivity]', err);
     return [];
