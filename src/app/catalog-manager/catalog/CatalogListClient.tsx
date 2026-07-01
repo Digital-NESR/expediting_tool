@@ -169,6 +169,7 @@ export default function CatalogListClient({
       pendingCount={pendingCount}
       scope={scope}
       countries={countries}
+      fill
       headerAction={
         <div className="flex items-center gap-2">
           <button onClick={() => exportCsv()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
@@ -182,9 +183,9 @@ export default function CatalogListClient({
         </div>
       }
     >
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[252px_1fr]">
+      <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-full lg:grid-cols-[252px_1fr]">
         {/* facet rail */}
-        <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:h-full lg:overflow-y-auto">
           <div className="mb-4 flex items-center justify-between">
             <span className="inline-flex items-center gap-2 text-sm font-bold text-slate-900"><Icon name="filter" className="h-4 w-4 text-[#307c4c]" /> Filters</span>
             {activeFilterCount > 0 && <button onClick={clearAll} className="text-[12px] font-semibold text-[#1d4f31] hover:underline">Clear ({activeFilterCount})</button>}
@@ -205,8 +206,8 @@ export default function CatalogListClient({
         </aside>
 
         {/* main */}
-        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 p-4">
+        <div className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-sm lg:h-full">
+          <div className="shrink-0 border-b border-slate-200 p-4">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
                 <h1 className="text-xl font-bold tracking-tight text-slate-900">Catalog</h1>
@@ -277,9 +278,9 @@ export default function CatalogListClient({
           {rows.length === 0 ? (
             <EmptyState title="No matching entries" sub="Try adjusting filters or search terms." />
           ) : (
-            <div className="overflow-x-auto">
+            <div className="min-h-0 flex-1 overflow-auto">
               <table className="w-full text-[13px]">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     <th className="w-9 px-3 py-3"><input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-4 w-4 rounded border-slate-300 text-[#307c4c]" aria-label="Select all" /></th>
                     <th className="px-4 py-3">ID</th>

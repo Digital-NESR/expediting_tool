@@ -24,6 +24,7 @@ export default function CatalogManagerShell({
   countries,
   showScope = true,
   headerAction,
+  fill = false,
   children,
 }: {
   title: string;
@@ -35,6 +36,8 @@ export default function CatalogManagerShell({
   countries?: ScopeCountry[];
   showScope?: boolean;
   headerAction?: React.ReactNode;
+  /** Fill the viewport (full width + height) with internal scrolling — for the catalog list. */
+  fill?: boolean;
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -62,7 +65,7 @@ export default function CatalogManagerShell({
   }
 
   return (
-    <div className={`min-h-[100dvh] bg-slate-50 font-sans text-slate-900 transition-[padding] duration-200 ${pinned ? 'md:pl-[280px]' : ''}`}>
+    <div className={`bg-slate-50 font-sans text-slate-900 transition-[padding] duration-200 ${pinned ? 'md:pl-[280px]' : ''} ${fill ? 'flex h-[100dvh] flex-col overflow-hidden' : 'min-h-[100dvh]'}`}>
       <CatalogManagerSidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -74,7 +77,7 @@ export default function CatalogManagerShell({
         roleLabel={roleLabel}
       />
 
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200/70 bg-white/80 px-4 backdrop-blur-md md:h-16 md:px-8">
+      <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-slate-200/70 bg-white/80 px-4 backdrop-blur-md md:h-16 md:px-8">
         <button onClick={() => setSidebarOpen(true)} className={`rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 ${pinned ? 'md:hidden' : ''}`} aria-label="Open menu">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
@@ -112,7 +115,7 @@ export default function CatalogManagerShell({
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1280px] px-4 py-6 sm:px-6">{children}</main>
+      <main className={fill ? 'flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-5 sm:py-4 lg:overflow-hidden' : 'mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8'}>{children}</main>
       <CommandPalette />
     </div>
   );

@@ -6,7 +6,7 @@ import CatalogManagerShell, { type ScopeCountry } from '../../components/Catalog
 import { Icon } from '../../components/CatalogManagerUI';
 import BulkImportPanel from '../import/BulkImportPanel';
 import GridEntryPanel from './GridEntryPanel';
-import { createCatalogEntriesBatch, searchExpeditingSuppliers, type CatalogEntryLine } from '@/app/actions/catalog-manager';
+import { createCatalogEntriesBatch, searchSupplierDirectory, type CatalogEntryLine } from '@/app/actions/catalog-manager';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
 import type { SpendType } from '@/types/catalog-manager';
 import { APPROVAL_THRESHOLD_USD, fmtUsd, toUsd, SPEND_TYPE_OPTIONS } from '@/lib/catalog-manager-utils';
@@ -82,7 +82,7 @@ export default function AddEntriesClient({
     setSupSearching(true);
     setSupOpen(true);
     searchTimer.current = setTimeout(async () => {
-      const r = await searchExpeditingSuppliers(name);
+      const r = await searchSupplierDirectory(name);
       setSupResults(r);
       setSupSearching(false);
     }, 220);
@@ -180,7 +180,7 @@ export default function AddEntriesClient({
 
   return (
     <CatalogManagerShell title="Add entries" roleLabel={roleLabel} canApprove={canApprove} canAdmin={canAdmin} pendingCount={pendingCount} showScope={false}>
-      <div className={`${tab === 'grid' ? '' : 'mx-auto max-w-3xl '}space-y-5`}>
+      <div className={`${tab === 'grid' ? '' : 'mx-auto max-w-5xl '}space-y-5`}>
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Add catalog entries</h1>
           <p className="mt-1 text-sm text-slate-500">Add rates by hand (one supplier, many lines), fill a spreadsheet-style grid, or import a whole rate card from Excel.</p>

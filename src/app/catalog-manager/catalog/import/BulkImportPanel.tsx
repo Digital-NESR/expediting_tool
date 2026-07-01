@@ -5,6 +5,8 @@ import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import { Icon } from '../../components/CatalogManagerUI';
 import { bulkImportCatalogEntries, type CatalogImportRow } from '@/app/actions/catalog-manager';
+import { SEED_UOMS, SEED_CURRENCIES } from '@/lib/catalog-manager-utils';
+import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
 
 type Phase = 'form' | 'running' | 'done';
 
@@ -87,15 +89,62 @@ function parseFile(file: File): Promise<ParsedFile> {
 }
 
 function downloadTemplate() {
-  const header = COLUMNS.map((c) => c.label);
+  const wb = XLSX.utils.book_new();
+
+  // ── Instructions sheet ──
+  const instructions: string[][] = [
+    ['NESR Catalog Repo — Bulk Import Template'],
+    [],
+    ['HOW TO FILL'],
+    ['1. Enter one catalog rate per row on the "Catalog" sheet, starting at row 2 (row 1 is the header).'],
+    ['2. Required columns are marked with * on the Catalog sheet: Supplier, Supplier Code, Country, Spend Category, Description, UOM, Unit Price, Currency, Effective Date.'],
+    ['3. Country: use the 2-letter code (e.g. SA) or full name — see the "Currencies" and "Spend Categories" tabs for valid values.'],
+    ['4. Spend Category and Sub-Category must match the "Spend Categories" tab exactly.'],
+    ['5. UOM must be one of the values on the "UOMs" tab. Currency must be a code on the "Currencies" tab.'],
+    ['6. Dates: DD/MM/YYYY or YYYY-MM-DD. Unit Price: plain numbers only, e.g. 128000.'],
+    ['7. Description is free text — describe the service or item being priced.'],
+    [],
+    ['HOW NOT TO FILL'],
+    ['1. Do NOT rename, remove, or reorder the header columns — rows are read by column position.'],
+    ['2. Do NOT merge cells, add total rows, or leave blank rows between entries.'],
+    ['3. Do NOT add currency symbols or thousands separators to Unit Price (enter 128000, not "SAR 128,000").'],
+    ['4. Do NOT invent categories, UOMs, or currencies — unknown values are rejected row by row.'],
+    ['5. A row matching an existing active rate (same vendor code + country + description) is skipped as a duplicate.'],
+    [],
+    ['Rates at or above the approval threshold (USD equivalent) are routed to Pending Approval; the rest activate immediately.'],
+  ];
+  const wsInfo = XLSX.utils.aoa_to_sheet(instructions);
+  wsInfo['!cols'] = [{ wch: 130 }];
+  XLSX.utils.book_append_sheet(wb, wsInfo, 'Instructions');
+
+  // ── Catalog (data entry) sheet ──
+  const header = COLUMNS.map((c) => `${c.label}${c.required ? ' *' : ''}`);
   const example = [
     'Gulf Cementing Co.', 'V-100482', 'SA', 'Field Technical Equipment & Services', 'Drilling Product & Services',
     'Primary Cementing', 'Primary cementing — 9-5/8" casing string', 'Per Well', '128000', 'SAR',
     '2026-07-01', '2027-06-30', 'Omar Haddad', 'SIR-CN-231004', 'Annual rate card',
   ];
-  const ws = XLSX.utils.aoa_to_sheet([header, example]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Catalog');
+  const wsCat = XLSX.utils.aoa_to_sheet([header, example]);
+  wsCat['!cols'] = COLUMNS.map(() => ({ wch: 20 }));
+  XLSX.utils.book_append_sheet(wb, wsCat, 'Catalog');
+
+  // ── Reference: UOMs ──
+  const wsUom = XLSX.utils.aoa_to_sheet([['Valid units of measure'], ...SEED_UOMS.map((u) => [u])]);
+  wsUom['!cols'] = [{ wch: 24 }];
+  XLSX.utils.book_append_sheet(wb, wsUom, 'UOMs');
+
+  // ── Reference: Currencies ──
+  const wsCcy = XLSX.utils.aoa_to_sheet([['Currency code', 'Decimals'], ...SEED_CURRENCIES.map((c) => [c.code, String(c.decimals)])]);
+  wsCcy['!cols'] = [{ wch: 16 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, wsCcy, 'Currencies');
+
+  // ── Reference: Spend Category mapping ──
+  const catRows: string[][] = [['Spend Type', 'Spend Category', 'Sub-Category']];
+  for (const c of SPEND_TAXONOMY) for (const s of c.subs) catRows.push([c.type, c.name, s.name]);
+  const wsMap = XLSX.utils.aoa_to_sheet(catRows);
+  wsMap['!cols'] = [{ wch: 20 }, { wch: 42 }, { wch: 34 }];
+  XLSX.utils.book_append_sheet(wb, wsMap, 'Spend Categories');
+
   XLSX.writeFile(wb, 'NESR_Catalog_Import_Template.xlsx');
 }
 

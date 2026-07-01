@@ -257,8 +257,19 @@ async function initCatalogManagerSchema(): Promise<void> {
     base_uom TEXT
   )`);
 
+  // Supplier directory — the SAP supplier master, owned by the catalog DB (seeded once
+  // from the expediting DB, then queried locally so runtime never depends on that DB).
+  await execSchema(`CREATE TABLE IF NOT EXISTS supplier_directory (
+    code TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    emails TEXT,
+    additional_email TEXT
+  )`);
+  await execSchema(`CREATE INDEX IF NOT EXISTS supplier_directory_name_idx ON supplier_directory (LOWER(name))`);
+
   await seedMasterData();
   await seedDemoData();
+  await seedSupplierDirectory();
 
   // Re-classify entries still tagged with the old Direct/Indirect spend types to the
   // new three-way classification (Materials & Assets / Consumables / Services) from their category.
@@ -267,35 +278,56 @@ async function initCatalogManagerSchema(): Promise<void> {
 }
 
 /**
- * Live typeahead over NESR's real SAP supplier master in the expediting database
- * (nesr_expediting_db.supplier_contacts — 8k+ vendors). Returns up to 20 matches.
- * Fail-safe: returns [] if that DB is unavailable.
+ * One-time copy of the SAP supplier master (nesr_expediting_db.supplier_contacts) into the
+ * catalog DB's supplier_directory. Only runs when the local table is empty; batched for speed.
+ * Fail-safe: if the expediting DB is unreachable the table stays empty and a later restart retries.
  */
-export async function searchExpeditingSuppliers(query: string): Promise<{ name: string; code: string }[]> {
-  const q = (query ?? '').trim();
-  if (q.length < 2) return [];
+async function seedSupplierDirectory(): Promise<void> {
+  const cnt = await sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM supplier_directory`);
+  if (Number(cnt[0]?.n ?? 0) > 0) return;
   try {
     const { default: expeditingPool } = await import('@/lib/db-expediting');
     const res = await expeditingPool.query(
-      `SELECT supplier_id, supplier_name FROM supplier_contacts
-        WHERE supplier_name ILIKE $1 ORDER BY supplier_name LIMIT 20`,
-      [`%${q}%`],
+      `SELECT supplier_id, supplier_name, supplier_emails, additional_supplier_email
+       FROM supplier_contacts WHERE supplier_id IS NOT NULL AND supplier_name IS NOT NULL`,
     );
-    const seen = new Set<string>();
-    const out: { name: string; code: string }[] = [];
-    for (const r of res.rows as { supplier_id: string | null; supplier_name: string | null }[]) {
-      const name = (r.supplier_name ?? '').trim();
-      const code = (r.supplier_id ?? '').trim();
-      if (!name) continue;
-      const key = name.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ name, code });
+    const rows = (res.rows as { supplier_id: string; supplier_name: string; supplier_emails: string | null; additional_supplier_email: string | null }[])
+      .map((r) => ({ code: String(r.supplier_id).trim(), name: String(r.supplier_name).trim(), emails: r.supplier_emails ?? null, add: r.additional_supplier_email ?? null }))
+      .filter((r) => r.code && r.name);
+    const BATCH = 500;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const slice = rows.slice(i, i + BATCH);
+      const values: string[] = [];
+      const params: (string | null)[] = [];
+      let p = 1;
+      for (const r of slice) {
+        values.push(`($${p++}, $${p++}, $${p++}, $${p++})`);
+        params.push(r.code, r.name, r.emails, r.add);
+      }
+      await catalogManagerPool.query(
+        `INSERT INTO supplier_directory (code, name, emails, additional_email) VALUES ${values.join(', ')} ON CONFLICT (code) DO NOTHING`,
+        params,
+      );
     }
-    return out;
   } catch {
-    return [];
+    // expediting DB not reachable — leave the directory empty for now.
   }
+}
+
+/**
+ * Typeahead over the SAP supplier directory, now stored in the catalog DB
+ * (supplier_directory, seeded once from the expediting DB). Returns up to 20 distinct-by-name matches.
+ */
+export async function searchSupplierDirectory(query: string): Promise<{ name: string; code: string }[]> {
+  await ensureCatalogManagerSchema();
+  const q = (query ?? '').trim();
+  if (q.length < 2) return [];
+  const rows = await sql<{ code: string; name: string }[]>(
+    `SELECT DISTINCT ON (LOWER(name)) code, name FROM supplier_directory
+      WHERE name ILIKE ? ORDER BY LOWER(name) LIMIT 20`,
+    [`%${q}%`],
+  );
+  return rows.map((r) => ({ name: String(r.name), code: String(r.code) }));
 }
 
 /* ---------------- seeding ---------------- */
@@ -1711,18 +1743,13 @@ export async function getSupplierProfile(supplierId: number): Promise<SupplierPr
   const countryMap = new Map<string, { code: string; name: string; flag: string | null }>();
   entries.forEach((e) => countryMap.set(e.country_code, { code: e.country_code, name: e.country_name, flag: e.country_flag }));
 
-  let contactEmails: string[] = [];
-  try {
-    const { default: expeditingPool } = await import('@/lib/db-expediting');
-    const r = await expeditingPool.query(
-      `SELECT supplier_emails, additional_supplier_email FROM supplier_contacts WHERE supplier_id = $1 LIMIT 1`,
-      [supplier.vendor_code],
-    );
-    const raw = `${r.rows[0]?.supplier_emails ?? ''},${r.rows[0]?.additional_supplier_email ?? ''}`;
-    contactEmails = [...new Set(raw.split(/[,;\s]+/).map((s) => s.trim()).filter((s) => s.includes('@')))];
-  } catch {
-    contactEmails = [];
-  }
+  // contact emails from the local supplier directory (seeded from the SAP master)
+  const dir = await sql<{ emails: string | null; additional_email: string | null }[]>(
+    `SELECT emails, additional_email FROM supplier_directory WHERE code = ? LIMIT 1`,
+    [supplier.vendor_code],
+  );
+  const rawEmails = `${dir[0]?.emails ?? ''},${dir[0]?.additional_email ?? ''}`;
+  const contactEmails = [...new Set(rawEmails.split(/[,;\s]+/).map((s) => s.trim()).filter((s) => s.includes('@')))];
 
   return {
     id: supplier.id,
