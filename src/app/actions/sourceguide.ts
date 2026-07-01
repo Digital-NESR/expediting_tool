@@ -1131,29 +1131,71 @@ export interface SgAuditEntry {
   countryName: string | null;
   tone: string | null;
   commodityId: number | null;
+  commodityName: string | null;
   performedBy: string | null;
   performedAt: string;
 }
 
-export async function getSourceGuideAuditLog(limit = 250): Promise<SgAuditEntry[]> {
+export async function getSourceGuideAuditLog(limit = 500): Promise<SgAuditEntry[]> {
   const user = await getSgUser();
   if (!user?.isAdmin) return [];
   try {
     const { rows } = await sourceGuidePool.query(
       `SELECT l.id, l.action, l.details, l.country_code, l.commodity_id, l.performed_by, l.performed_at,
-              c.name AS country_name, c.tone
+              c.name AS country_name, c.tone, cm.name AS commodity_name
        FROM sg_activity_log l
        LEFT JOIN sg_countries c ON c.code = l.country_code
+       LEFT JOIN sg_commodities cm ON cm.id = l.commodity_id
        ORDER BY l.performed_at DESC LIMIT $1`,
       [limit],
     );
     return rows.map(r => ({
       id: r.id, action: r.action, details: r.details,
       country: r.country_code, countryName: r.country_name, tone: r.tone,
-      commodityId: r.commodity_id, performedBy: r.performed_by, performedAt: isoOf(r.performed_at),
+      commodityId: r.commodity_id, commodityName: r.commodity_name,
+      performedBy: r.performed_by, performedAt: isoOf(r.performed_at),
     }));
   } catch (err) {
     console.error('[sg.getSourceGuideAuditLog]', err);
+    return [];
+  }
+}
+
+/* ─── admin: per-user activity ───────────────────────────────── */
+
+export interface SgUserActivity {
+  user: string;
+  total: number;
+  mappings: number;
+  champions: number;
+  access: number;
+  countries: number;
+  lastActive: string;
+}
+
+export async function getUserActivity(): Promise<SgUserActivity[]> {
+  const user = await getSgUser();
+  if (!user?.isAdmin) return [];
+  try {
+    const { rows } = await sourceGuidePool.query(`
+      SELECT performed_by,
+             COUNT(*)::int AS total,
+             COUNT(*) FILTER (WHERE action NOT LIKE 'Champion%' AND action NOT LIKE 'Access%')::int AS mappings,
+             COUNT(*) FILTER (WHERE action LIKE 'Champion%')::int AS champions,
+             COUNT(*) FILTER (WHERE action LIKE 'Access%')::int AS access,
+             COUNT(DISTINCT country_code)::int AS countries,
+             MAX(performed_at) AS last_active
+      FROM sg_activity_log
+      WHERE performed_by IS NOT NULL AND performed_by <> ''
+      GROUP BY performed_by
+      ORDER BY total DESC, last_active DESC`);
+    return rows.map(r => ({
+      user: r.performed_by, total: Number(r.total),
+      mappings: Number(r.mappings), champions: Number(r.champions), access: Number(r.access),
+      countries: Number(r.countries), lastActive: isoOf(r.last_active),
+    }));
+  } catch (err) {
+    console.error('[sg.getUserActivity]', err);
     return [];
   }
 }

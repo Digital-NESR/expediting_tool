@@ -7,11 +7,11 @@ import {
   revokeSourceGuideAccess, deleteSourceGuideAccessRequest,
   getChampionsByCountry, addChampion, updateChampion, removeChampion,
   getGuides, getSourceGuideAnalytics, getCoverageGapsSummary,
-  getSourceGuideInsights, getSourceGuideAuditLog,
+  getSourceGuideInsights, getSourceGuideAuditLog, getUserActivity,
 } from '@/app/actions/sourceguide';
 import type {
   SgAccessRequest, SgAnalytics, SgCountryChampions, SgCoverageGap,
-  SgInsights, SgAuditEntry,
+  SgInsights, SgAuditEntry, SgUserActivity,
 } from '@/app/actions/sourceguide';
 import type { SgGuide } from '@/types/sourceguide';
 
@@ -265,7 +265,7 @@ export function SourceGuideGuidesClient() {
 /* ============================================================
    Analytics: tabbed Overview / Coverage / Suppliers / Audit
    ============================================================ */
-type SgAnalyticsTab = 'overview' | 'coverage' | 'suppliers' | 'audit';
+type SgAnalyticsTab = 'overview' | 'coverage' | 'suppliers' | 'people' | 'audit';
 
 export function SourceGuideAnalyticsClient() {
   const [data, setData] = useState<SgAnalytics | null>(null);
@@ -273,6 +273,8 @@ export function SourceGuideAnalyticsClient() {
   const [insights, setInsights] = useState<SgInsights | null>(null);
   const [audit, setAudit] = useState<SgAuditEntry[] | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [people, setPeople] = useState<SgUserActivity[] | null>(null);
+  const [peopleLoading, setPeopleLoading] = useState(false);
   const [tab, setTab] = useState<SgAnalyticsTab>('overview');
 
   useEffect(() => {
@@ -286,7 +288,11 @@ export function SourceGuideAnalyticsClient() {
       setAuditLoading(true);
       getSourceGuideAuditLog().then(a => { setAudit(a); setAuditLoading(false); });
     }
-  }, [tab, audit, auditLoading]);
+    if (tab === 'people' && people === null && !peopleLoading) {
+      setPeopleLoading(true);
+      getUserActivity().then(p => { setPeople(p); setPeopleLoading(false); });
+    }
+  }, [tab, audit, auditLoading, people, peopleLoading]);
 
   if (!data || !insights) return <div className="py-16 text-center text-sm text-slate-400">Loading analytics…</div>;
 
@@ -294,6 +300,7 @@ export function SourceGuideAnalyticsClient() {
     { key: 'overview',  label: 'Overview' },
     { key: 'coverage',  label: 'Coverage' },
     { key: 'suppliers', label: 'Suppliers' },
+    { key: 'people',    label: 'People' },
     { key: 'audit',     label: 'Audit log' },
   ];
 
@@ -329,6 +336,7 @@ export function SourceGuideAnalyticsClient() {
       {tab === 'overview'  && <OverviewTab data={data} insights={insights} />}
       {tab === 'coverage'  && <CoverageTab gaps={gaps} insights={insights} />}
       {tab === 'suppliers' && <SuppliersTab data={data} insights={insights} />}
+      {tab === 'people'    && <PeopleTab rows={people} loading={peopleLoading} />}
       {tab === 'audit'     && <AuditTab entries={audit} loading={auditLoading} />}
     </div>
   );
@@ -583,7 +591,20 @@ function fullTime(iso: string): string {
   return isNaN(d.getTime()) ? iso : d.toLocaleString();
 }
 
+function ChangeRow({ e }: { e: SgAuditEntry }) {
+  const st = KIND_STYLE[auditKind(e.action)];
+  return (
+    <div className="flex items-start gap-2.5 py-1.5">
+      <span className="mt-[1px] shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: st.bg, color: st.col }}>{e.action}</span>
+      <span className="min-w-0 flex-1 truncate text-[12.5px] text-slate-600" title={e.details ?? ''}>{e.details || 'No detail'}</span>
+      <span className="shrink-0 text-[11.5px] font-medium text-slate-600">{e.performedBy || 'System'}</span>
+      <span className="w-16 shrink-0 text-right text-[11px] text-slate-400" title={fullTime(e.performedAt)}>{timeAgo(e.performedAt)}</span>
+    </div>
+  );
+}
+
 function AuditTab({ entries, loading }: { entries: SgAuditEntry[] | null; loading: boolean }) {
+  const [view, setView] = useState<'country' | 'timeline'>('country');
   const [q, setQ] = useState('');
   const [actor, setActor] = useState('all');
   const [kind, setKind] = useState<'all' | AuditKind>('all');
@@ -593,15 +614,36 @@ function AuditTab({ entries, loading }: { entries: SgAuditEntry[] | null; loadin
     () => Array.from(new Set(list.map(e => e.performedBy).filter((v): v is string => !!v))).sort(),
     [list],
   );
+
+  // Timeline: all activity, filterable
   const filtered = useMemo(() => list.filter(e => {
     if (kind !== 'all' && auditKind(e.action) !== kind) return false;
     if (actor !== 'all' && e.performedBy !== actor) return false;
     if (q.trim()) {
-      const hay = `${e.action} ${e.details ?? ''} ${e.countryName ?? ''} ${e.performedBy ?? ''}`.toLowerCase();
+      const hay = `${e.action} ${e.details ?? ''} ${e.countryName ?? ''} ${e.commodityName ?? ''} ${e.performedBy ?? ''}`.toLowerCase();
       if (!hay.includes(q.trim().toLowerCase())) return false;
     }
     return true;
   }), [list, kind, actor, q]);
+
+  // Mapping changes grouped by country, then by commodity
+  const grouped = useMemo(() => {
+    const m = new Map<string, { name: string; tone: string | null; coms: Map<string, SgAuditEntry[]>; countryLevel: SgAuditEntry[]; total: number }>();
+    for (const e of list) {
+      if (auditKind(e.action) !== 'mapping') continue;
+      const key = e.country ?? '__none__';
+      let g = m.get(key);
+      if (!g) { g = { name: e.countryName ?? 'No country', tone: e.tone, coms: new Map(), countryLevel: [], total: 0 }; m.set(key, g); }
+      g.total++;
+      if (e.commodityId != null) {
+        const ck = e.commodityName ?? `Commodity #${e.commodityId}`;
+        const arr = g.coms.get(ck); if (arr) arr.push(e); else g.coms.set(ck, [e]);
+      } else {
+        g.countryLevel.push(e);
+      }
+    }
+    return [...m.values()].sort((a, b) => b.total - a.total);
+  }, [list]);
 
   if (loading && entries === null) return <div className="py-16 text-center text-sm text-slate-400">Loading audit log…</div>;
 
@@ -614,64 +656,163 @@ function AuditTab({ entries, loading }: { entries: SgAuditEntry[] | null; loadin
 
   return (
     <div>
-      {/* Filters */}
+      {/* View toggle */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex overflow-hidden rounded-lg border border-slate-200">
-          {KIND_TABS.map(k => {
-            const on = kind === k.key;
+          {([['country', 'Mapping changes by country'], ['timeline', 'All activity']] as const).map(([k, label]) => {
+            const on = view === k;
             return (
-              <button key={k.key} onClick={() => setKind(k.key)}
+              <button key={k} onClick={() => setView(k)}
                 className="px-3 py-1.5 text-[12.5px] font-semibold transition-colors"
                 style={on ? { background: BRAND, color: '#fff' } : { background: '#fff', color: '#64748b' }}>
-                {k.label}
+                {label}
               </button>
             );
           })}
         </div>
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search action, supplier, country…"
-          className="min-w-[220px] flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] outline-none focus:border-[#6AAF8E]" />
-        <select value={actor} onChange={e => setActor(e.target.value)}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[13px] text-slate-600 outline-none focus:border-[#6AAF8E]">
-          <option value="all">All people</option>
-          {actors.map(a => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <span className="ml-auto text-[12px] text-slate-400">{filtered.length.toLocaleString()} of {list.length.toLocaleString()}</span>
       </div>
 
       {list.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
           No changes recorded yet. Mapping edits, champion changes and access decisions will appear here.
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">No entries match these filters.</div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          {filtered.map((e, i) => {
-            const k = auditKind(e.action);
-            const st = KIND_STYLE[k];
-            return (
-              <div key={e.id} className={`flex items-start gap-3 px-4 py-3 ${i > 0 ? 'border-t border-slate-50' : ''}`}>
-                <span className="mt-0.5 w-[68px] shrink-0 rounded-full px-2 py-0.5 text-center text-[10px] font-bold uppercase tracking-wide" style={{ background: st.bg, color: st.col }}>{st.label}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="text-[13.5px] font-semibold text-slate-900">{e.action}</span>
-                    {e.countryName && (
-                      <span className="inline-flex items-center gap-1 text-[12px] text-slate-500">
-                        <span className="h-2.5 w-3.5 rounded-sm" style={{ background: e.tone ?? '#999' }} />{e.countryName}
-                      </span>
-                    )}
-                  </div>
-                  {e.details && <div className="mt-0.5 truncate text-[12.5px] text-slate-500" title={e.details}>{e.details}</div>}
+      ) : view === 'country' ? (
+        grouped.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">No mapping changes recorded yet.</div>
+        ) : (
+          <div className="space-y-3">
+            {grouped.map(g => (
+              <div key={g.name} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 bg-slate-50 px-4 py-2.5">
+                  <span className="h-3.5 w-5 shrink-0 rounded-sm" style={{ background: g.tone ?? '#999' }} />
+                  <span className="text-[14px] font-bold text-slate-900">{g.name}</span>
+                  <span className="ml-auto font-mono text-[11.5px] text-slate-400">{g.total} change{g.total === 1 ? '' : 's'}</span>
                 </div>
-                <div className="shrink-0 text-right">
-                  <div className="text-[12.5px] font-medium text-slate-700">{e.performedBy || 'System'}</div>
-                  <div className="text-[11px] text-slate-400" title={fullTime(e.performedAt)}>{timeAgo(e.performedAt)}</div>
+                <div className="divide-y divide-slate-100 px-4">
+                  {[...g.coms.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([com, es]) => (
+                    <div key={com} className="py-2.5">
+                      <div className="mb-0.5 flex items-center gap-2">
+                        <span className="text-[13px] font-semibold text-slate-800">{com}</span>
+                        <span className="font-mono text-[10.5px] text-slate-400">{es.length}</span>
+                      </div>
+                      <div className="pl-0.5">{es.map(e => <ChangeRow key={e.id} e={e} />)}</div>
+                    </div>
+                  ))}
+                  {g.countryLevel.length > 0 && (
+                    <div className="py-2.5">
+                      <div className="mb-0.5 text-[13px] font-semibold text-slate-800">Country-level actions</div>
+                      <div className="pl-0.5">{g.countryLevel.map(e => <ChangeRow key={e.id} e={e} />)}</div>
+                    </div>
+                  )}
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )
+      ) : (
+        <>
+          {/* Timeline filters */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="flex overflow-hidden rounded-lg border border-slate-200">
+              {KIND_TABS.map(k => {
+                const on = kind === k.key;
+                return (
+                  <button key={k.key} onClick={() => setKind(k.key)}
+                    className="px-3 py-1.5 text-[12.5px] font-semibold transition-colors"
+                    style={on ? { background: BRAND, color: '#fff' } : { background: '#fff', color: '#64748b' }}>
+                    {k.label}
+                  </button>
+                );
+              })}
+            </div>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search action, supplier, commodity, country…"
+              className="min-w-[220px] flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] outline-none focus:border-[#6AAF8E]" />
+            <select value={actor} onChange={e => setActor(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[13px] text-slate-600 outline-none focus:border-[#6AAF8E]">
+              <option value="all">All people</option>
+              {actors.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <span className="ml-auto text-[12px] text-slate-400">{filtered.length.toLocaleString()} of {list.length.toLocaleString()}</span>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">No entries match these filters.</div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              {filtered.map((e, i) => {
+                const st = KIND_STYLE[auditKind(e.action)];
+                return (
+                  <div key={e.id} className={`flex items-start gap-3 px-4 py-3 ${i > 0 ? 'border-t border-slate-50' : ''}`}>
+                    <span className="mt-0.5 w-[68px] shrink-0 rounded-full px-2 py-0.5 text-center text-[10px] font-bold uppercase tracking-wide" style={{ background: st.bg, color: st.col }}>{st.label}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2">
+                        <span className="text-[13.5px] font-semibold text-slate-900">{e.action}</span>
+                        {e.countryName && (
+                          <span className="inline-flex items-center gap-1 text-[12px] text-slate-500">
+                            <span className="h-2.5 w-3.5 rounded-sm" style={{ background: e.tone ?? '#999' }} />{e.countryName}
+                          </span>
+                        )}
+                      </div>
+                      {e.details && <div className="mt-0.5 truncate text-[12.5px] text-slate-500" title={e.details}>{e.details}</div>}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-[12.5px] font-medium text-slate-700">{e.performedBy || 'System'}</div>
+                      <div className="text-[11px] text-slate-400" title={fullTime(e.performedAt)}>{timeAgo(e.performedAt)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
+    </div>
+  );
+}
+
+/* ─── People tab: per-user usage ──────────────────────────────── */
+
+function PeopleTab({ rows, loading }: { rows: SgUserActivity[] | null; loading: boolean }) {
+  if (loading && rows === null) return <div className="py-16 text-center text-sm text-slate-400">Loading user activity…</div>;
+  const list = rows ?? [];
+  const maxTotal = Math.max(1, ...list.map(r => r.total));
+  const totalChanges = list.reduce((s, r) => s + r.total, 0);
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+        <Kpi label="Active contributors" value={list.length.toLocaleString()} />
+        <Kpi label="Total recorded changes" value={totalChanges.toLocaleString()} />
+        <Kpi label="Mapping edits" value={list.reduce((s, r) => s + r.mappings, 0).toLocaleString()} tone="good" />
+      </div>
+
+      <Panel title="Activity by person" subtitle="Every recorded change per user (mapping edits, champion changes and access decisions). View-only users who never edit will not appear here.">
+        {list.length === 0 ? (
+          <div className="py-8 text-center text-[13px] text-slate-400">No user activity recorded yet.</div>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <div className="grid grid-cols-[1.7fr_1.4fr_0.8fr_0.9fr_0.7fr_0.8fr_1fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+              <span>Person</span><span>Changes</span><span className="text-right">Mappings</span><span className="text-right">Champions</span><span className="text-right">Access</span><span className="text-right">Countries</span><span className="text-right">Last active</span>
+            </div>
+            {list.map(r => (
+              <div key={r.user} className="grid grid-cols-[1.7fr_1.4fr_0.8fr_0.9fr_0.7fr_0.8fr_1fr] items-center gap-3 border-b border-slate-50 px-4 py-2.5 last:border-b-0">
+                <span className="truncate text-[13px] font-semibold text-slate-800" title={r.user}>{r.user}</span>
+                <span className="flex items-center gap-2">
+                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                    <span className="block h-full rounded-full" style={{ width: `${(r.total / maxTotal) * 100}%`, background: BRAND }} />
+                  </span>
+                  <span className="w-8 shrink-0 text-right font-mono text-[11px] text-slate-500">{r.total}</span>
+                </span>
+                <span className={`text-right font-mono text-[12px] ${r.mappings ? 'text-slate-600' : 'text-slate-300'}`}>{r.mappings}</span>
+                <span className={`text-right font-mono text-[12px] ${r.champions ? 'text-slate-600' : 'text-slate-300'}`}>{r.champions}</span>
+                <span className={`text-right font-mono text-[12px] ${r.access ? 'text-slate-600' : 'text-slate-300'}`}>{r.access}</span>
+                <span className={`text-right font-mono text-[12px] ${r.countries ? 'text-slate-600' : 'text-slate-300'}`}>{r.countries}</span>
+                <span className="text-right text-[11.5px] text-slate-500" title={fullTime(r.lastActive)}>{timeAgo(r.lastActive)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }
