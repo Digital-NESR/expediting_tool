@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import CatalogManagerShell from '../components/CatalogManagerShell';
 import { Icon, Chip, Avatar } from '../components/CatalogManagerUI';
+import SupplierMigrationPanel from './SupplierMigrationPanel';
 import {
   toggleCountryStatus, toggleCategoryStatus, addUom, setUserRole,
   addCountryApprover, removeCountryApprover, setApprovalThreshold, removeApprovalThreshold,
@@ -13,8 +14,8 @@ import type {
 } from '@/types/catalog-manager';
 import { fmtUsd, ALL_ROLES, spendTypeTone } from '@/lib/catalog-manager-utils';
 
-type Tab = 'Countries' | 'Spend categories' | 'Units of measure' | 'Currencies' | 'Suppliers' | 'Service activities' | 'Users & roles' | 'Country approvers' | 'Thresholds';
-const TABS: Tab[] = ['Countries', 'Spend categories', 'Units of measure', 'Currencies', 'Suppliers', 'Service activities', 'Users & roles', 'Country approvers', 'Thresholds'];
+type Tab = 'Countries' | 'Spend categories' | 'Units of measure' | 'Currencies' | 'Suppliers' | 'Supplier migration' | 'Service activities' | 'Users & roles' | 'Country approvers' | 'Thresholds';
+const TABS: Tab[] = ['Countries', 'Spend categories', 'Units of measure', 'Currencies', 'Suppliers', 'Supplier migration', 'Service activities', 'Users & roles', 'Country approvers', 'Thresholds'];
 
 interface AdminCategory { id: number; name: string; type: string; status: string; subs: string[] }
 
@@ -161,6 +162,8 @@ export default function AdminClient({
               </table>
             </div>
           )}
+
+          {tab === 'Supplier migration' && <SupplierMigrationPanel />}
 
           {tab === 'Service activities' && (
             <div>

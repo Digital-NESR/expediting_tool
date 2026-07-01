@@ -1213,6 +1213,23 @@ export interface CatalogImportResult {
   log: string[];
 }
 
+export interface SupplierMigrationRow {
+  rowIndex: number;
+  supplier: string;
+  supplier_code: string;
+  manager: string | null;
+  emails: string | null;
+  additional_email: string | null;
+}
+
+export interface SupplierMigrationResult {
+  inserted: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  log: string[];
+}
+
 function normalizeImportDate(raw: string | null): string | null {
   if (!raw) return null;
   const t = String(raw).trim();
@@ -1338,6 +1355,63 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
     await writeAudit('Import', `Catalog — ${input.filename}`, actor.name, `Bulk imported ${inserted} entries (${skipped} skipped, ${errors} errors)`);
   }
   return { inserted, skipped, errors, log };
+}
+
+export async function migrateSuppliersFromExcel(input: { rows: SupplierMigrationRow[]; filename: string }): Promise<SupplierMigrationResult> {
+  const actor = await getCatalogActor();
+  if (!actor.canAdmin) throw new Error('Only Catalog Repo admins can migrate suppliers.');
+
+  let inserted = 0, updated = 0, skipped = 0, errors = 0;
+  const log: string[] = [];
+
+  for (const r of input.rows) {
+    try {
+      const supplierName = r.supplier?.trim();
+      const supplierCode = r.supplier_code?.trim();
+      const manager = r.manager?.trim() || null;
+      const emails = r.emails?.trim() || null;
+      const additionalEmail = r.additional_email?.trim() || null;
+
+      if (!supplierName && !supplierCode) { skipped++; continue; }
+      if (!supplierName) { errors++; log.push(`Row ${r.rowIndex}: missing supplier name`); continue; }
+      if (!supplierCode) { errors++; log.push(`Row ${r.rowIndex}: missing supplier code`); continue; }
+
+      const existing = await sql<{ id: number }[]>(`SELECT id FROM supplier WHERE vendor_code = ? LIMIT 1`, [supplierCode]);
+      await exec(
+        `INSERT INTO supplier (vendor_code, name, accountable_manager)
+         VALUES (?, ?, ?)
+         ON CONFLICT (vendor_code) DO UPDATE SET
+           name = EXCLUDED.name,
+           accountable_manager = COALESCE(EXCLUDED.accountable_manager, supplier.accountable_manager)`,
+        [supplierCode, supplierName, manager],
+      );
+      await exec(
+        `INSERT INTO supplier_directory (code, name, emails, additional_email)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT (code) DO UPDATE SET
+           name = EXCLUDED.name,
+           emails = COALESCE(EXCLUDED.emails, supplier_directory.emails),
+           additional_email = COALESCE(EXCLUDED.additional_email, supplier_directory.additional_email)`,
+        [supplierCode, supplierName, emails, additionalEmail],
+      );
+
+      if (existing[0]) {
+        updated++;
+        log.push(`Row ${r.rowIndex}: updated ${supplierName} (${supplierCode})`);
+      } else {
+        inserted++;
+        log.push(`Row ${r.rowIndex}: added ${supplierName} (${supplierCode})`);
+      }
+    } catch (err) {
+      errors++;
+      log.push(`Row ${r.rowIndex}: ${err instanceof Error ? err.message : 'unexpected error'}`);
+    }
+  }
+
+  if (inserted > 0 || updated > 0) {
+    await writeAudit('Import', `Suppliers - ${input.filename}`, actor.name, `Migrated ${inserted} new and ${updated} existing suppliers (${errors} errors)`);
+  }
+  return { inserted, updated, skipped, errors, log };
 }
 
 /** Approve every pending entry in a supplier group in one action (Approvals "Approve all"). */
