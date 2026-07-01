@@ -61,7 +61,7 @@ export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] })
         <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: SG_BRAND }}>Explore</div>
         <h1 className="text-[30px] font-bold tracking-tight">Spend Taxonomy</h1>
         <p className="mt-2 max-w-[720px] text-[15px] leading-relaxed text-slate-500">
-          The organisation&apos;s full sourcing taxonomy. Break down by any level — Spend Type, Category, Sub-Category, Family, Commodity —
+          The organisation&apos;s full sourcing taxonomy. Break down by any level (Spend Type, Category, Sub-Category, Family, Commodity),
           click a node to drill in, then add another level. Numbers are commodity counts.
         </p>
       </div>
@@ -85,7 +85,7 @@ export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] })
       </div>
 
       <p className="mt-2 text-[11.5px] text-slate-400">
-        Base taxonomy only — no supplier, country or mapping data here. Bars are relative to the largest node in each column.
+        Base taxonomy only: no supplier, country or mapping data here. Bars are relative to the largest node in each column.
         {' '}Looking for suppliers for a commodity? <button onClick={() => router.push('/sourceguide/search')} className="font-semibold hover:underline" style={{ color: SG_BRAND }}>Search</button>.
       </p>
     </div>
