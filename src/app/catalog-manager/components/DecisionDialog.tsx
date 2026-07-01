@@ -1,10 +1,82 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Icon } from './CatalogManagerUI';
 import { decideCatalogEntry, bulkDecideEntries } from '@/app/actions/catalog-manager';
 import type { CatalogEntry } from '@/types/catalog-manager';
 import { fmtMoney, fmtUsd } from '@/lib/catalog-manager-utils';
+
+const CONFETTI_COLORS = ['#307c4c', '#6aaf8e', '#f59e0b', '#0ea5e9', '#334155', '#f43f5e'];
+const CONFETTI_PIECES = Array.from({ length: 34 }, (_, index) => ({
+  left: 10 + ((index * 23) % 82),
+  tx: -140 + ((index * 31) % 280),
+  ty: 180 + ((index * 17) % 140),
+  rotate: -220 + ((index * 37) % 440),
+  delay: (index % 9) * 28,
+  color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
+  shape: index % 3,
+}));
+
+function ConfettiBurst() {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[100] overflow-hidden" aria-hidden="true">
+      {CONFETTI_PIECES.map((piece, index) => (
+        <span
+          key={index}
+          className={`cm-confetti-piece ${piece.shape === 1 ? 'cm-confetti-circle' : piece.shape === 2 ? 'cm-confetti-streamer' : ''}`}
+          style={{
+            left: `${piece.left}%`,
+            backgroundColor: piece.color,
+            animationDelay: `${piece.delay}ms`,
+            '--cm-confetti-x': `${piece.tx}px`,
+            '--cm-confetti-y': `${piece.ty}px`,
+            '--cm-confetti-rotate': `${piece.rotate}deg`,
+          } as CSSProperties}
+        />
+      ))}
+      <style jsx>{`
+        .cm-confetti-piece {
+          position: absolute;
+          top: 12vh;
+          width: 9px;
+          height: 14px;
+          border-radius: 3px;
+          opacity: 0;
+          transform: translate3d(-50%, 0, 0) rotate(0deg);
+          animation: cm-confetti-fall 1050ms cubic-bezier(.16, .84, .32, 1) forwards;
+        }
+        .cm-confetti-circle {
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+        }
+        .cm-confetti-streamer {
+          width: 6px;
+          height: 20px;
+          border-radius: 999px;
+        }
+        @keyframes cm-confetti-fall {
+          0% {
+            opacity: 0;
+            transform: translate3d(-50%, 0, 0) scale(.85) rotate(0deg);
+          }
+          14% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+            transform: translate3d(calc(-50% + var(--cm-confetti-x)), var(--cm-confetti-y), 0) scale(1) rotate(var(--cm-confetti-rotate));
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .cm-confetti-piece {
+            animation-duration: 220ms;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 export default function DecisionDialog({
   open, decision, entry, bulk, onClose, onDone,
@@ -20,6 +92,7 @@ export default function DecisionDialog({
   const [comment, setComment] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   if (!open) return null;
   const approving = decision === 'approve';
@@ -35,7 +108,12 @@ export default function DecisionDialog({
       } else {
         await decideCatalogEntry(entry.id, approving ? 'approve' : mode, comment.trim());
       }
-      onDone();
+      if (approving) {
+        setShowConfetti(true);
+        window.setTimeout(onDone, 950);
+      } else {
+        onDone();
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Something went wrong.');
       setBusy(false);
@@ -44,6 +122,7 @@ export default function DecisionDialog({
 
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center p-4 pt-[8vh]">
+      {showConfetti && <ConfettiBurst />}
       <button aria-label="Close" className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
         <div className="flex items-center gap-3 border-b border-slate-100 px-5 pb-4 pt-5">
