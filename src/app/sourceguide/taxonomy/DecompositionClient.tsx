@@ -51,7 +51,7 @@ export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] })
   const jumpTo = (level: number) => setPath(prev => prev.slice(0, level));
 
   return (
-    <div className="mx-auto w-full max-w-[1760px] px-6 py-8 lg:px-10">
+    <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-[1760px] flex-col px-6 py-8 lg:px-10">
       <div className="mb-4">
         <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: SG_BRAND }}>Explore</div>
         <h1 className="text-[30px] font-bold tracking-tight">Spend Taxonomy</h1>
@@ -92,9 +92,9 @@ export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] })
         ))}
       </div>
 
-      <p className="mt-2 text-[11.5px] text-slate-400">
-        Base taxonomy only: no supplier, country or mapping data here. Click a node to drill to the next level; use the numbered path above to jump back.
-        {' '}Looking for suppliers for a commodity? <button onClick={() => router.push('/sourceguide/search')} className="font-semibold hover:underline" style={{ color: SG_BRAND }}>Search</button>.
+      <p className="mt-auto pt-8 text-[13px] text-slate-500">
+        Looking for a supplier for a specific commodity?{' '}
+        <button onClick={() => router.push('/sourceguide/search')} className="font-semibold hover:underline" style={{ color: SG_BRAND }}>Search the guide</button>.
       </p>
     </div>
   );
