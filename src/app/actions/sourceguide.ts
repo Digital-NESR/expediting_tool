@@ -450,27 +450,23 @@ export interface SgCatalogRow {
   countries: number;   // distinct countries mapped
 }
 
-/* ─── decomposition-tree fact table ──────────────────────────── */
-// One row per active mapping, as a compact tuple the client drills through:
-// [spendType, category, subCategory, family, country, tier, supplier, commodityId]
-export type SgDecompRow = [string, string, string, string, string, string, string, number];
+/* ─── taxonomy decomposition fact table ──────────────────────── */
+// One row per commodity (the base taxonomy — no supplier/country/mapping data):
+// [spendType, category, subCategory, family, commodity]
+export type SgTaxonomyRow = [string, string, string, string, string];
 
-export async function getDecompositionFacts(): Promise<SgDecompRow[]> {
+export async function getTaxonomyFacts(): Promise<SgTaxonomyRow[]> {
   try {
     const { rows } = await sourceGuidePool.query(`
-      SELECT c.spend_type, c.category,
-             COALESCE(NULLIF(TRIM(c.sub_category),''),'General') AS sub,
-             COALESCE(NULLIF(TRIM(c.family),''),'General') AS fam,
-             co.name AS country, m.tier, a.name AS supplier, m.commodity_id
-      FROM sg_mappings m
-      JOIN sg_commodities c ON c.id = m.commodity_id
-      JOIN supplier_avl a ON a.supplier_code = m.supplier_code
-      JOIN sg_countries co ON co.code = m.country_code
-      WHERE m.status = 'Active'
+      SELECT spend_type, category,
+             COALESCE(NULLIF(TRIM(sub_category),''),'General') AS sub,
+             COALESCE(NULLIF(TRIM(family),''),'General') AS fam,
+             name
+      FROM sg_commodities
     `);
-    return rows.map(r => [r.spend_type, r.category, r.sub, r.fam, r.country, r.tier, r.supplier, r.commodity_id] as SgDecompRow);
+    return rows.map(r => [r.spend_type, r.category, r.sub, r.fam, r.name] as SgTaxonomyRow);
   } catch (err) {
-    console.error('[sg.getDecompositionFacts]', err);
+    console.error('[sg.getTaxonomyFacts]', err);
     return [];
   }
 }
