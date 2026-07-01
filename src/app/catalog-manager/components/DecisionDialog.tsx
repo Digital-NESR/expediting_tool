@@ -1,80 +1,128 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from './CatalogManagerUI';
 import { decideCatalogEntry, bulkDecideEntries } from '@/app/actions/catalog-manager';
 import type { CatalogEntry } from '@/types/catalog-manager';
 import { fmtMoney, fmtUsd } from '@/lib/catalog-manager-utils';
 
 const CONFETTI_COLORS = ['#307c4c', '#6aaf8e', '#f59e0b', '#0ea5e9', '#334155', '#f43f5e'];
-const CONFETTI_PIECES = Array.from({ length: 34 }, (_, index) => ({
-  left: 10 + ((index * 23) % 82),
-  tx: -140 + ((index * 31) % 280),
-  ty: 180 + ((index * 17) % 140),
-  rotate: -220 + ((index * 37) % 440),
-  delay: (index % 9) * 28,
-  color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
-  shape: index % 3,
-}));
+interface ConfettiPiece {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  rotation: number;
+  spin: number;
+  color: string;
+  shape: number;
+  life: number;
+  ttl: number;
+}
 
 function ConfettiBurst() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvasElement = canvasRef.current;
+    if (!canvasElement) return undefined;
+    const context = canvasElement.getContext('2d');
+    if (!context) return undefined;
+    const canvas = canvasElement;
+    const ctx = context;
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const pieces: ConfettiPiece[] = [];
+    let width = 0;
+    let height = 0;
+    let raf = 0;
+
+    function resize() {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.floor(width * ratio);
+      canvas.height = Math.floor(height * ratio);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function emit(originX: number, originY: number, count: number, angle: number, spread: number, power: number) {
+      for (let i = 0; i < count; i++) {
+        const drift = (Math.random() - 0.5) * spread;
+        const speed = power * (0.7 + Math.random() * 0.65);
+        pieces.push({
+          x: originX,
+          y: originY,
+          vx: Math.cos(angle + drift) * speed,
+          vy: Math.sin(angle + drift) * speed,
+          size: 5 + Math.random() * 9,
+          rotation: Math.random() * Math.PI,
+          spin: (Math.random() - 0.5) * 0.34,
+          color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+          shape: Math.floor(Math.random() * 3),
+          life: 0,
+          ttl: 70 + Math.floor(Math.random() * 34),
+        });
+      }
+    }
+
+    function drawPiece(piece: ConfettiPiece, alpha: number) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(piece.x, piece.y);
+      ctx.rotate(piece.rotation);
+      ctx.fillStyle = piece.color;
+      if (piece.shape === 1) {
+        ctx.beginPath();
+        ctx.arc(0, 0, piece.size * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (piece.shape === 2) {
+        ctx.fillRect(-piece.size * 0.22, -piece.size, piece.size * 0.44, piece.size * 2.2);
+      } else {
+        ctx.fillRect(-piece.size * 0.65, -piece.size * 0.35, piece.size * 1.3, piece.size * 0.7);
+      }
+      ctx.restore();
+    }
+
+    function frame() {
+      ctx.clearRect(0, 0, width, height);
+      for (let i = pieces.length - 1; i >= 0; i--) {
+        const piece = pieces[i];
+        piece.life += 1;
+        piece.vy += 0.13;
+        piece.vx *= 0.992;
+        piece.x += piece.vx;
+        piece.y += piece.vy;
+        piece.rotation += piece.spin;
+        const alpha = Math.max(0, 1 - piece.life / piece.ttl);
+        drawPiece(piece, alpha);
+        if (piece.life >= piece.ttl || piece.y > height + 40) pieces.splice(i, 1);
+      }
+      if (pieces.length > 0) raf = window.requestAnimationFrame(frame);
+    }
+
+    resize();
+    if (reduceMotion) {
+      emit(width * 0.5, height * 0.18, 22, Math.PI / 2, 1.2, 5.4);
+    } else {
+      emit(width * 0.14, height * 0.24, 70, -0.72, 0.72, 11.5);
+      emit(width * 0.86, height * 0.24, 70, Math.PI + 0.72, 0.72, 11.5);
+      emit(width * 0.5, height * 0.16, 46, Math.PI / 2, 1.8, 7.8);
+    }
+    raf = window.requestAnimationFrame(frame);
+    window.addEventListener('resize', resize);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
   return (
-    <div className="pointer-events-none fixed inset-0 z-[100] overflow-hidden" aria-hidden="true">
-      {CONFETTI_PIECES.map((piece, index) => (
-        <span
-          key={index}
-          className={`cm-confetti-piece ${piece.shape === 1 ? 'cm-confetti-circle' : piece.shape === 2 ? 'cm-confetti-streamer' : ''}`}
-          style={{
-            left: `${piece.left}%`,
-            backgroundColor: piece.color,
-            animationDelay: `${piece.delay}ms`,
-            '--cm-confetti-x': `${piece.tx}px`,
-            '--cm-confetti-y': `${piece.ty}px`,
-            '--cm-confetti-rotate': `${piece.rotate}deg`,
-          } as CSSProperties}
-        />
-      ))}
-      <style jsx>{`
-        .cm-confetti-piece {
-          position: absolute;
-          top: 12vh;
-          width: 9px;
-          height: 14px;
-          border-radius: 3px;
-          opacity: 0;
-          transform: translate3d(-50%, 0, 0) rotate(0deg);
-          animation: cm-confetti-fall 1050ms cubic-bezier(.16, .84, .32, 1) forwards;
-        }
-        .cm-confetti-circle {
-          width: 10px;
-          height: 10px;
-          border-radius: 999px;
-        }
-        .cm-confetti-streamer {
-          width: 6px;
-          height: 20px;
-          border-radius: 999px;
-        }
-        @keyframes cm-confetti-fall {
-          0% {
-            opacity: 0;
-            transform: translate3d(-50%, 0, 0) scale(.85) rotate(0deg);
-          }
-          14% {
-            opacity: 1;
-          }
-          100% {
-            opacity: 0;
-            transform: translate3d(calc(-50% + var(--cm-confetti-x)), var(--cm-confetti-y), 0) scale(1) rotate(var(--cm-confetti-rotate));
-          }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .cm-confetti-piece {
-            animation-duration: 220ms;
-          }
-        }
-      `}</style>
-    </div>
+    <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-[100]" aria-hidden="true" />
   );
 }
 
@@ -110,7 +158,7 @@ export default function DecisionDialog({
       }
       if (approving) {
         setShowConfetti(true);
-        window.setTimeout(onDone, 950);
+        window.setTimeout(onDone, 1250);
       } else {
         onDone();
       }

@@ -925,45 +925,71 @@ export async function getCatalogEntry(id: number): Promise<CatalogEntry | null> 
 ============================================================================ */
 
 export async function getCatalogManagerDashboardData(country = 'ALL'): Promise<CatalogManagerDashboardData> {
-  const entries = await listCatalogEntries({ country });
-  const today = new Date();
+  await ensureCatalogManagerSchema();
+  const scoped = country !== 'ALL';
+  const scopeWhere = scoped ? `WHERE e.country_code = ?` : '';
+  const scopeParams: QueryParams = scoped ? [country] : [];
+  const activeScope = scoped ? `AND e.country_code = ?` : '';
 
-  const active = entries.filter((e) => e.status === 'Active');
-  const pending = entries.filter((e) => e.status === 'Pending Approval');
-  const expiring = entries
-    .filter((e) => isExpiringSoon(e.status, e.expiry_date, today))
-    .sort((a, b) => (daysOf(a, today) - daysOf(b, today)));
+  const [totals, byCategoryRows, expiringRows, countryRows, recent] = await Promise.all([
+    sql<{
+      active_count: number;
+      supplier_count: number;
+      category_count: number;
+      pending_count: number;
+      expiring_count: number;
+    }[]>(`
+      SELECT
+        COUNT(*) FILTER (WHERE e.status = 'Active')::int AS active_count,
+        COUNT(DISTINCT e.supplier_id) FILTER (WHERE e.status = 'Active')::int AS supplier_count,
+        COUNT(DISTINCT COALESCE(e.category_id, 0)) FILTER (WHERE e.status = 'Active')::int AS category_count,
+        COUNT(*) FILTER (WHERE e.status = 'Pending Approval')::int AS pending_count,
+        COUNT(*) FILTER (
+          WHERE e.status = 'Active'
+            AND rv.expiry_date IS NOT NULL
+            AND rv.expiry_date >= CURRENT_DATE
+            AND rv.expiry_date <= CURRENT_DATE + INTERVAL '30 days'
+        )::int AS expiring_count
+      FROM catalog_entry e
+      LEFT JOIN rate_version rv ON rv.entry_id = e.id AND rv.version_no = e.current_version_no
+      ${scopeWhere}
+    `, scopeParams),
+    sql<CategoryBar[]>(`
+      SELECT COALESCE(cat.name, 'Uncategorized') AS name, COUNT(*)::int AS count
+      FROM catalog_entry e
+      LEFT JOIN spend_category cat ON cat.id = e.category_id
+      WHERE e.status = 'Active' ${activeScope}
+      GROUP BY COALESCE(cat.name, 'Uncategorized')
+      ORDER BY count DESC
+      LIMIT 7
+    `, scopeParams),
+    sql<QueryResultRow[]>(`
+      ${ENTRY_SELECT}
+      WHERE e.status = 'Active'
+        AND rv.expiry_date IS NOT NULL
+        AND rv.expiry_date >= CURRENT_DATE
+        AND rv.expiry_date <= CURRENT_DATE + INTERVAL '30 days'
+        ${activeScope}
+      ORDER BY rv.expiry_date ASC
+      LIMIT 5
+    `, scopeParams),
+    scoped ? sql<{ name: string }[]>(`SELECT name FROM country WHERE code = ? LIMIT 1`, [country]) : Promise.resolve([]),
+    getAuditLog(8),
+  ]);
 
-  const byCatMap = new Map<string, number>();
-  active.forEach((e) => {
-    const name = e.category_name ?? 'Uncategorized';
-    byCatMap.set(name, (byCatMap.get(name) ?? 0) + 1);
-  });
-  const byCategory: CategoryBar[] = [...byCatMap.entries()]
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 7);
-
-  const recent = await getAuditLog(8);
+  const total = totals[0] ?? { active_count: 0, supplier_count: 0, category_count: 0, pending_count: 0, expiring_count: 0 };
 
   return {
-    scope: country === 'ALL' ? 'all operating countries' : (entries[0]?.country_name ?? country),
-    activeCount: active.length,
-    supplierCount: new Set(active.map((e) => e.supplier_id)).size,
-    categoryCount: byCatMap.size,
-    expiringCount: expiring.length,
-    pendingCount: pending.length,
-    byCategory,
-    expiringSoon: expiring.slice(0, 5),
+    scope: country === 'ALL' ? 'all operating countries' : (countryRows[0]?.name ?? country),
+    activeCount: Number(total.active_count ?? 0),
+    supplierCount: Number(total.supplier_count ?? 0),
+    categoryCount: Number(total.category_count ?? 0),
+    expiringCount: Number(total.expiring_count ?? 0),
+    pendingCount: Number(total.pending_count ?? 0),
+    byCategory: byCategoryRows.map((r) => ({ name: String(r.name), count: Number(r.count) })),
+    expiringSoon: expiringRows.map(mapEntry),
     recent,
   };
-}
-
-function daysOf(e: CatalogEntry, today: Date): number {
-  if (!e.expiry_date) return 99999;
-  const d = new Date(`${e.expiry_date}T00:00:00`);
-  const base = new Date(`${today.toISOString().slice(0, 10)}T00:00:00`);
-  return Math.round((d.getTime() - base.getTime()) / 86400000);
 }
 
 /* ============================================================================
