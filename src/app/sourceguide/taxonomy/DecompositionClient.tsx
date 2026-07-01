@@ -19,9 +19,9 @@ const MAX_NODES = 200;
 
 export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] }) {
   const router = useRouter();
-  const [levels, setLevels] = useState<{ key: DimKey; value: string | null }[]>([{ key: 'category', value: null }]);
+  const [levels, setLevels] = useState<{ key: DimKey; value: string | null }[]>([{ key: 'spendType', value: null }]);
 
-  const { cols, rootTotal } = useMemo(() => {
+  const { cols } = useMemo(() => {
     const out: { dim: typeof DIMS[number]; value: string | null; entries: { value: string; count: number }[]; max: number }[] = [];
     let subset = rows;
     for (let k = 0; k < levels.length; k++) {
@@ -38,7 +38,7 @@ export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] })
       const sel = levels[k].value;
       subset = sel != null ? subset.filter(r => String(r[dim.idx] ?? '') === sel) : [];
     }
-    return { cols: out, rootTotal: rows.length };
+    return { cols: out };
   }, [rows, levels]);
 
   const usedKeys = levels.map(l => l.key);
@@ -67,21 +67,16 @@ export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] })
       </div>
 
       <div className="flex gap-3 overflow-x-auto pb-3">
-        {/* Root */}
-        <div className="shrink-0 self-start rounded-xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">All</div>
-          <div className="w-[150px] px-3 py-2.5">
-            <div className="text-[12.5px] font-semibold text-slate-800">Everything</div>
-            <div className="mt-1.5 h-1.5 rounded-full" style={{ background: SG_BRAND }} />
-            <div className="mt-1 font-mono text-[11px] text-slate-500">{rootTotal.toLocaleString()} commodities</div>
-          </div>
-        </div>
-
         {cols.map((col, k) => (
           <Column key={k} col={col} onPick={(v) => pickNode(k, v)} onRemove={() => removeLevel(k)} />
         ))}
 
         {canAdd && <AddLevel dims={available} onAdd={addLevel} />}
+        {cols.length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-[13px] text-slate-400">
+            Pick a dimension to start.
+          </div>
+        )}
       </div>
 
       <p className="mt-2 text-[11.5px] text-slate-400">
