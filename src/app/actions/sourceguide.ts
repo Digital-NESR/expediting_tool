@@ -450,6 +450,31 @@ export interface SgCatalogRow {
   countries: number;   // distinct countries mapped
 }
 
+/* ─── decomposition-tree fact table ──────────────────────────── */
+// One row per active mapping, as a compact tuple the client drills through:
+// [spendType, category, subCategory, family, country, tier, supplier, commodityId]
+export type SgDecompRow = [string, string, string, string, string, string, string, number];
+
+export async function getDecompositionFacts(): Promise<SgDecompRow[]> {
+  try {
+    const { rows } = await sourceGuidePool.query(`
+      SELECT c.spend_type, c.category,
+             COALESCE(NULLIF(TRIM(c.sub_category),''),'General') AS sub,
+             COALESCE(NULLIF(TRIM(c.family),''),'General') AS fam,
+             co.name AS country, m.tier, a.name AS supplier, m.commodity_id
+      FROM sg_mappings m
+      JOIN sg_commodities c ON c.id = m.commodity_id
+      JOIN supplier_avl a ON a.supplier_code = m.supplier_code
+      JOIN sg_countries co ON co.code = m.country_code
+      WHERE m.status = 'Active'
+    `);
+    return rows.map(r => [r.spend_type, r.category, r.sub, r.fam, r.country, r.tier, r.supplier, r.commodity_id] as SgDecompRow);
+  } catch (err) {
+    console.error('[sg.getDecompositionFacts]', err);
+    return [];
+  }
+}
+
 export async function getCommodityCatalog(): Promise<SgCatalogRow[]> {
   try {
     const { rows } = await sourceGuidePool.query(`

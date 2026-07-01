@@ -110,6 +110,15 @@ export default function DashboardClient({
             )}
           </div>
 
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={() => router.push('/sourceguide/taxonomy')}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-[13px] font-semibold text-slate-700 transition-colors hover:border-[#6AAF8E] hover:text-slate-900"
+            >
+              <Grid3x3 className="h-4 w-4" style={{ color: SG_BRAND }} /> View full taxonomy <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
             <span className="mr-1 self-center text-[12.5px] text-slate-500">Popular:</span>
             {POPULAR.map(p => (
