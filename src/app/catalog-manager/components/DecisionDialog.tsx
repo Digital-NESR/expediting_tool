@@ -7,6 +7,11 @@ import type { CatalogEntry } from '@/types/catalog-manager';
 import { fmtMoney, fmtUsd } from '@/lib/catalog-manager-utils';
 
 const CONFETTI_COLORS = ['#307c4c', '#6aaf8e', '#f59e0b', '#0ea5e9', '#334155', '#f43f5e'];
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 interface ConfettiPiece {
   x: number;
   y: number;
@@ -37,11 +42,15 @@ function ConfettiBurst() {
     let width = 0;
     let height = 0;
     let raf = 0;
+    let particleScale = 1;
+    let gravity = 0.13;
 
     function resize() {
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
       width = window.innerWidth;
       height = window.innerHeight;
+      particleScale = clamp(Math.hypot(width, height) / 1450, 0.82, 1.75);
+      gravity = 0.11 * particleScale;
       canvas.width = Math.floor(width * ratio);
       canvas.height = Math.floor(height * ratio);
       canvas.style.width = `${width}px`;
@@ -58,13 +67,13 @@ function ConfettiBurst() {
           y: originY,
           vx: Math.cos(angle + drift) * speed,
           vy: Math.sin(angle + drift) * speed,
-          size: 5 + Math.random() * 9,
+          size: (6 + Math.random() * 11) * particleScale,
           rotation: Math.random() * Math.PI,
-          spin: (Math.random() - 0.5) * 0.34,
+          spin: (Math.random() - 0.5) * (0.24 + particleScale * 0.12),
           color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
           shape: Math.floor(Math.random() * 3),
           life: 0,
-          ttl: 70 + Math.floor(Math.random() * 34),
+          ttl: Math.round(82 + Math.random() * 40 + particleScale * 18),
         });
       }
     }
@@ -92,7 +101,7 @@ function ConfettiBurst() {
       for (let i = pieces.length - 1; i >= 0; i--) {
         const piece = pieces[i];
         piece.life += 1;
-        piece.vy += 0.13;
+        piece.vy += gravity;
         piece.vx *= 0.992;
         piece.x += piece.vx;
         piece.y += piece.vy;
@@ -105,12 +114,19 @@ function ConfettiBurst() {
     }
 
     resize();
+    const areaScale = clamp((width * height) / (1440 * 900), 0.58, 2.25);
+    const edgeInset = clamp(width * 0.045, 18, 92);
+    const launchY = height - clamp(height * 0.12, 64, 160);
+    const diagonalPower = clamp(Math.hypot(width, height) / 118, 10.5, 23);
+    const sideCount = Math.round(88 * areaScale);
+    const centerCount = Math.round(58 * areaScale);
+
     if (reduceMotion) {
-      emit(width * 0.5, height * 0.18, 22, Math.PI / 2, 1.2, 5.4);
+      emit(width * 0.5, launchY, Math.max(20, Math.round(28 * areaScale)), -Math.PI / 2, 1.1, diagonalPower * 0.52);
     } else {
-      emit(width * 0.14, height * 0.24, 70, -0.72, 0.72, 11.5);
-      emit(width * 0.86, height * 0.24, 70, Math.PI + 0.72, 0.72, 11.5);
-      emit(width * 0.5, height * 0.16, 46, Math.PI / 2, 1.8, 7.8);
+      emit(edgeInset, launchY, sideCount, -Math.PI * 0.36, 0.92, diagonalPower);
+      emit(width - edgeInset, launchY, sideCount, Math.PI + Math.PI * 0.36, 0.92, diagonalPower);
+      emit(width * 0.5, launchY + 18 * particleScale, centerCount, -Math.PI / 2, 1.36, diagonalPower * 0.78);
     }
     raf = window.requestAnimationFrame(frame);
     window.addEventListener('resize', resize);
