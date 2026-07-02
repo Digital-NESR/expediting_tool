@@ -20,6 +20,42 @@
   border-radius: 4px;
 }
 
+/* ── Catalog Manager motion system (entrance + overlay animations) ── */
+@keyframes cm-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cm-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes cm-scale-in {
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.cm-fade-up  { animation: cm-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.cm-fade-in  { animation: cm-fade-in 0.3s ease-out both; }
+.cm-scale-in { animation: cm-scale-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Staggered entrance for direct children (cards, rows, tiles) */
+.cm-stagger > * { animation: cm-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.cm-stagger > *:nth-child(1)  { animation-delay: 0.03s; }
+.cm-stagger > *:nth-child(2)  { animation-delay: 0.07s; }
+.cm-stagger > *:nth-child(3)  { animation-delay: 0.11s; }
+.cm-stagger > *:nth-child(4)  { animation-delay: 0.15s; }
+.cm-stagger > *:nth-child(5)  { animation-delay: 0.19s; }
+.cm-stagger > *:nth-child(6)  { animation-delay: 0.23s; }
+.cm-stagger > *:nth-child(7)  { animation-delay: 0.27s; }
+.cm-stagger > *:nth-child(8)  { animation-delay: 0.31s; }
+.cm-stagger > *:nth-child(n+9) { animation-delay: 0.35s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-fade-up, .cm-fade-in, .cm-scale-in, .cm-stagger > * { animation: none; }
+}
+
 /* ── PO View sub-row expand/collapse (grid-rows trick — height-agnostic) ── */
 .expand-grid {
   display: grid;

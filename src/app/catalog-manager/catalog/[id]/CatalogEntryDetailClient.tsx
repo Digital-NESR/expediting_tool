@@ -110,9 +110,9 @@ export default function CatalogEntryDetailClient({
         </Link>
       }
     >
-      <div className="mx-auto max-w-3xl space-y-5">
+      <div className="cm-stagger mx-auto max-w-3xl space-y-5">
         {/* header */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <div className="mb-2 flex flex-wrap items-center gap-2.5">
             <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[12px] text-slate-600">{entry.code}</span>
             <StatusPill status={entry.status} sm />
@@ -140,17 +140,18 @@ export default function CatalogEntryDetailClient({
         )}
 
         {/* price hero */}
-        <div className="flex items-center justify-between rounded-2xl border border-[#307c4c]/20 bg-[#307c4c]/10 p-5">
-          <div>
+        <div className="relative flex items-center justify-between overflow-hidden rounded-2xl border border-[#307c4c]/20 bg-gradient-to-br from-[#eaf4ef] via-[#eaf4ef] to-white p-5 shadow-sm">
+          <div className="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-[#6aaf8e]/20 blur-2xl" />
+          <div className="relative">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#1d4f31]">Unit price</div>
             <div className="flex items-baseline gap-2">
-              <span className="font-mono text-3xl font-bold tracking-tight text-slate-900">{fmtMoney(entry.unit_price, entry.currency_code)}</span>
+              <span className="font-mono text-4xl font-bold tracking-tight text-slate-900">{fmtMoney(entry.unit_price, entry.currency_code)}</span>
               <span className="text-sm font-semibold text-[#1d4f31]">{entry.currency_code}</span>
               <span className="text-[13px] text-slate-500">/ {entry.uom_name}</span>
             </div>
             <div className="mt-1 font-mono text-[11.5px] text-slate-500">≈ USD {fmtUsd(entry.usd_equivalent)}</div>
           </div>
-          <div className="text-right">
+          <div className="relative text-right">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#1d4f31]">Approval tier</div>
             <Chip tone={entry.tier_label.includes('Tier 2') ? 'amber' : 'green'}>
               <Icon name={entry.tier_label.includes('Tier 2') ? 'approve' : 'check'} className="h-3.5 w-3.5" />{entry.tier_label}
@@ -165,7 +166,7 @@ export default function CatalogEntryDetailClient({
         )}
 
         {/* commodity + classification */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <SectionTitle className="mb-2">Commodity</SectionTitle>
           <p className="text-[15px] font-semibold text-slate-900">{entry.commodity || entry.item_name}</p>
           {entry.description && <p className="mt-1 text-[13px] leading-relaxed text-slate-500">{entry.description}</p>}
@@ -199,7 +200,7 @@ export default function CatalogEntryDetailClient({
         </div>
 
         {/* documents */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <SectionTitle className="mb-2.5">Proof of agreement</SectionTitle>
           {entry.documents.length > 0 ? (
             <div className="space-y-2">
@@ -262,7 +263,7 @@ export default function CatalogEntryDetailClient({
 
         {/* approval decision */}
         {entry.approval_comment && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
             <SectionTitle className="mb-2.5">Approval decision</SectionTitle>
             <div className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <Avatar name={entry.approver_name} size={32} />
@@ -275,13 +276,13 @@ export default function CatalogEntryDetailClient({
         )}
 
         {/* version history */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <SectionTitle className="mb-3 inline-flex items-center gap-1.5"><Icon name="history" className="h-3.5 w-3.5" /> Version history</SectionTitle>
           <div className="relative space-y-4 pl-5">
-            <span className="absolute bottom-1.5 left-1.5 top-1.5 w-px bg-slate-200" />
+            <span className="absolute bottom-1.5 left-1.5 top-1.5 w-px bg-gradient-to-b from-[#307c4c]/40 to-slate-200" />
             {entry.history.map((h, i) => (
               <div key={h.version_no} className="relative">
-                <span className={`absolute -left-[14px] top-1 h-3 w-3 rounded-full border-2 ${i === 0 ? 'border-[#307c4c] bg-[#307c4c]' : 'border-slate-300 bg-white'}`} />
+                <span className={`absolute -left-[14px] top-1 h-3 w-3 rounded-full border-2 ${i === 0 ? 'border-[#307c4c] bg-[#307c4c] ring-4 ring-[#307c4c]/10' : 'border-slate-300 bg-white'}`} />
                 <div className="text-[13px] font-semibold text-slate-900">
                   v{h.version_no}{i === 0 ? ' · current' : ''} <span className="ml-1 font-mono font-medium text-[#1d4f31]">{fmtMoney(h.unit_price, h.currency_code)} {h.currency_code}</span>
                 </div>
@@ -299,14 +300,14 @@ export default function CatalogEntryDetailClient({
         <div className="flex flex-wrap justify-end gap-2.5">
           {canCreate && (entry.status === 'Draft' || entry.status === 'Rejected') && (
             <>
-              <Link href={`/catalog-manager/catalog/${entry.id}/edit`} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Icon name="edit" className="h-4 w-4" /> Edit</Link>
-              <button onClick={doSubmit} disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#2b6f44] disabled:opacity-50"><Icon name="arrowRight" className="h-4 w-4" /> {entry.status === 'Rejected' ? 'Revise & resubmit' : 'Submit for approval'}</button>
+              <Link href={`/catalog-manager/catalog/${entry.id}/edit`} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98]"><Icon name="edit" className="h-4 w-4" /> Edit</Link>
+              <button onClick={doSubmit} disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[#307c4c]/25 transition-all hover:bg-[#2b6f44] active:scale-[0.98] disabled:opacity-50"><Icon name="arrowRight" className="h-4 w-4" /> {entry.status === 'Rejected' ? 'Revise & resubmit' : 'Submit for approval'}</button>
             </>
           )}
           {entry.status === 'Pending Approval' && canApproveThis && (
             <>
-              <button onClick={() => setDialog('reject')} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"><Icon name="x" className="h-4 w-4" /> Reject / revise</button>
-              <button onClick={() => setDialog('approve')} className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#2b6f44]"><Icon name="check" className="h-4 w-4" /> Approve</button>
+              <button onClick={() => setDialog('reject')} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98]"><Icon name="x" className="h-4 w-4" /> Reject / revise</button>
+              <button onClick={() => setDialog('approve')} className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[#307c4c]/25 transition-all hover:bg-[#2b6f44] active:scale-[0.98]"><Icon name="check" className="h-4 w-4" /> Approve</button>
             </>
           )}
           {entry.status === 'Pending Approval' && canCreate && !canApproveThis && (
@@ -314,8 +315,8 @@ export default function CatalogEntryDetailClient({
           )}
           {entry.status === 'Active' && canCreate && (
             <>
-              <button onClick={doDeactivate} disabled={busy} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50">Deactivate</button>
-              <Link href={`/catalog-manager/catalog/${entry.id}/edit`} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Icon name="edit" className="h-4 w-4" /> Edit (new version)</Link>
+              <button onClick={doDeactivate} disabled={busy} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] disabled:opacity-50">Deactivate</button>
+              <Link href={`/catalog-manager/catalog/${entry.id}/edit`} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98]"><Icon name="edit" className="h-4 w-4" /> Edit (new version)</Link>
             </>
           )}
         </div>

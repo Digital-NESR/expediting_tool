@@ -200,7 +200,7 @@ export default function CatalogEntryFormClient({
 
         {serverError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{serverError}</div>}
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
               <Label required>Supplier name</Label>
@@ -309,11 +309,11 @@ export default function CatalogEntryFormClient({
             </div>
           )}
 
-          <div className="mt-5 flex justify-end gap-2.5 border-t border-slate-200 pt-4">
-            <button onClick={() => router.back()} disabled={submitting} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
-            <button onClick={() => submit('draft')} disabled={submitting} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Save as draft</button>
-            <button onClick={() => submit('submit')} disabled={submitting} className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#2b6f44] disabled:opacity-50">
-              <Icon name="arrowRight" className="h-4 w-4" /> {needsApproval ? 'Submit for approval' : 'Save & activate'}
+          <div className="mt-5 flex justify-end gap-2.5 border-t border-slate-100 pt-4">
+            <button onClick={() => router.back()} disabled={submitting} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50">Cancel</button>
+            <button onClick={() => submit('draft')} disabled={submitting} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98] disabled:opacity-50">Save as draft</button>
+            <button onClick={() => submit('submit')} disabled={submitting} className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[#307c4c]/25 transition-all hover:bg-[#2b6f44] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100">
+              <Icon name="arrowRight" className="h-4 w-4" /> {submitting ? 'Saving…' : needsApproval ? 'Submit for approval' : 'Save & activate'}
             </button>
           </div>
         </div>

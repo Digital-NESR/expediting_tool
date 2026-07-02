@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Icon } from './CatalogManagerUI';
+import { Icon, Spinner } from './CatalogManagerUI';
 import { decideCatalogEntry, bulkDecideEntries } from '@/app/actions/catalog-manager';
 import type { CatalogEntry } from '@/types/catalog-manager';
 import { fmtMoney, fmtUsd } from '@/lib/catalog-manager-utils';
@@ -187,10 +187,10 @@ export default function DecisionDialog({
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center p-4 pt-[8vh]">
       {showConfetti && <ConfettiBurst />}
-      <button aria-label="Close" className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <button aria-label="Close" className="cm-fade-in absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="cm-scale-in relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20">
         <div className="flex items-center gap-3 border-b border-slate-100 px-5 pb-4 pt-5">
-          <span className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${approving ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'bg-red-50 text-red-600'}`}>
+          <span className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ring-4 ${approving ? 'bg-[#307c4c]/10 text-[#307c4c] ring-[#307c4c]/5' : 'bg-red-50 text-red-600 ring-red-500/5'}`}>
             <Icon name={approving ? 'approve' : 'x'} className="h-5 w-5" />
           </span>
           <div className="min-w-0">
@@ -252,14 +252,16 @@ export default function DecisionDialog({
           </label>
         </div>
 
-        <div className="flex justify-end gap-2.5 px-5 pb-5">
-          <button onClick={onClose} disabled={busy} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
+        <div className="flex justify-end gap-2.5 border-t border-slate-100 bg-slate-50/60 px-5 py-4">
+          <button onClick={onClose} disabled={busy} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50">Cancel</button>
           <button
             onClick={confirm}
             disabled={busy}
-            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50 ${approving ? 'bg-[#307c4c] hover:bg-[#2b6f44]' : 'bg-red-600 hover:bg-red-700'}`}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 ${approving ? 'bg-[#307c4c] shadow-[#307c4c]/25 hover:bg-[#2b6f44]' : 'bg-red-600 shadow-red-600/20 hover:bg-red-700'}`}
           >
-            <Icon name={approving ? 'check' : mode === 'revise' ? 'revise' : 'x'} className="h-4 w-4" />
+            {busy
+              ? <Spinner className="h-4 w-4" />
+              : <Icon name={approving ? 'check' : mode === 'revise' ? 'revise' : 'x'} className="h-4 w-4" />}
             {isBulk ? `Approve all ${bulk!.entries.length}` : approving ? 'Approve & activate' : mode === 'revise' ? 'Send back for revision' : 'Reject entry'}
           </button>
         </div>

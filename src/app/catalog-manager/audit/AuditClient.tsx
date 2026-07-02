@@ -2,19 +2,20 @@
 
 import { useMemo, useState } from 'react';
 import CatalogManagerShell from '../components/CatalogManagerShell';
-import { Icon, EmptyState } from '../components/CatalogManagerUI';
+import { Icon, EmptyState, Avatar } from '../components/CatalogManagerUI';
 import type { AuditEvent } from '@/types/catalog-manager';
 
-const ACTION_COLOR: Record<string, string> = {
-  Create: 'text-[#307c4c]',
-  Edit: 'text-amber-600',
-  'Status change': 'text-[#1d4f31]',
-  Approve: 'text-[#307c4c]',
-  Reject: 'text-red-600',
-  Export: 'text-slate-500',
-  Login: 'text-slate-400',
-  'Master data': 'text-[#307c4c]',
+const ACTION_BADGE: Record<string, { dot: string; pill: string }> = {
+  Create: { dot: 'bg-[#307c4c]', pill: 'bg-[#307c4c]/10 text-[#1d4f31]' },
+  Edit: { dot: 'bg-amber-500', pill: 'bg-amber-50 text-amber-700' },
+  'Status change': { dot: 'bg-[#6aaf8e]', pill: 'bg-[#eaf4ef] text-[#1d4f31]' },
+  Approve: { dot: 'bg-[#307c4c]', pill: 'bg-[#307c4c]/10 text-[#1d4f31]' },
+  Reject: { dot: 'bg-red-500', pill: 'bg-red-50 text-red-700' },
+  Export: { dot: 'bg-slate-400', pill: 'bg-slate-100 text-slate-600' },
+  Login: { dot: 'bg-slate-300', pill: 'bg-slate-50 text-slate-400' },
+  'Master data': { dot: 'bg-cyan-500', pill: 'bg-cyan-50 text-cyan-700' },
 };
+const DEFAULT_BADGE = { dot: 'bg-slate-400', pill: 'bg-slate-100 text-slate-600' };
 
 export default function AuditClient({
   log, roleLabel, canApprove, canAdmin, pendingCount,
@@ -35,7 +36,7 @@ export default function AuditClient({
 
   return (
     <CatalogManagerShell title="Audit log" roleLabel={roleLabel} canApprove={canApprove} canAdmin={canAdmin} pendingCount={pendingCount} showScope={false}>
-      <div className="mx-auto max-w-5xl space-y-5">
+      <div className="cm-stagger mx-auto max-w-5xl space-y-5">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Audit log</h1>
           <p className="mt-1 text-sm text-slate-500">Immutable record of every system action · retained 5 years</p>
@@ -51,30 +52,40 @@ export default function AuditClient({
           </select>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
           <table className="w-full text-[13px]">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                <th className="px-3 py-2.5">Action</th>
-                <th className="px-3 py-2.5">Target</th>
-                <th className="px-3 py-2.5">User</th>
-                <th className="px-3 py-2.5">Detail</th>
-                <th className="px-3 py-2.5 text-right">When</th>
+              <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <th className="px-4 py-3">Action</th>
+                <th className="px-3 py-3">Target</th>
+                <th className="px-3 py-3">User</th>
+                <th className="px-3 py-3">Detail</th>
+                <th className="px-4 py-3 text-right">When</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((l) => (
-                <tr key={l.id} className="border-b border-slate-100">
-                  <td className="px-3 py-2.5"><span className={`text-[12.5px] font-semibold ${ACTION_COLOR[l.action] ?? 'text-slate-600'}`}>{l.action}</span></td>
-                  <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{l.target}</td>
-                  <td className="px-3 py-2.5 text-slate-700">{l.user_name}</td>
-                  <td className="max-w-[340px] px-3 py-2.5 text-slate-500"><span className="block truncate">{l.detail}</span></td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-[12px] text-slate-400">{l.occurred_at}</td>
-                </tr>
-              ))}
+              {rows.map((l) => {
+                const b = ACTION_BADGE[l.action] ?? DEFAULT_BADGE;
+                return (
+                  <tr key={l.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50/60">
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ring-1 ring-inset ring-black/[0.04] ${b.pill}`}>
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${b.dot}`} />
+                        {l.action}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-[12px] text-slate-500">{l.target}</td>
+                    <td className="px-3 py-2.5">
+                      <span className="inline-flex items-center gap-2 text-slate-700"><Avatar name={l.user_name} size={22} />{l.user_name}</span>
+                    </td>
+                    <td className="max-w-[340px] px-3 py-2.5 text-slate-500"><span className="block truncate" title={l.detail ?? undefined}>{l.detail}</span></td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono text-[12px] text-slate-400">{l.occurred_at}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          {rows.length === 0 && <EmptyState icon="audit" title="No matching events" />}
+          {rows.length === 0 && <EmptyState icon="audit" title="No matching events" sub="Try a different action type or search term." />}
         </div>
       </div>
     </CatalogManagerShell>

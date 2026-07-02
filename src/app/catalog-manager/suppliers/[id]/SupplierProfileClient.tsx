@@ -32,11 +32,11 @@ export default function SupplierProfileClient({
         </Link>
       }
     >
-      <div className="mx-auto max-w-4xl space-y-5">
+      <div className="cm-stagger mx-auto max-w-4xl space-y-5">
         {/* header */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3.5">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#307c4c]/10 text-[#1d4f31]"><Icon name="building" className="h-6 w-6" /></span>
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#eaf4ef] to-white text-[#1d4f31] ring-1 ring-inset ring-[#307c4c]/15 shadow-sm"><Icon name="building" className="h-6 w-6" /></span>
             <div className="min-w-0">
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">{profile.name}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-[12.5px] text-slate-500">
@@ -58,7 +58,7 @@ export default function SupplierProfileClient({
         </div>
 
         {/* contacts */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <h2 className="mb-2.5 text-[13.5px] font-bold text-slate-900">Contacts</h2>
           {profile.contactEmails.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -74,7 +74,7 @@ export default function SupplierProfileClient({
         </div>
 
         {/* rate card */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-5 py-3.5"><h2 className="text-[13.5px] font-bold text-slate-900">Rate card</h2></div>
           <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
@@ -91,7 +91,7 @@ export default function SupplierProfileClient({
               </thead>
               <tbody>
                 {profile.entries.map((e) => (
-                  <tr key={e.id} onClick={() => router.push(`/catalog-manager/catalog/${e.id}`)} className="cursor-pointer border-b border-slate-100 hover:bg-[#307c4c]/5">
+                  <tr key={e.id} onClick={() => router.push(`/catalog-manager/catalog/${e.id}`)} className="cursor-pointer border-b border-slate-100 transition-colors hover:bg-[#307c4c]/5">
                     <td className="px-4 py-3 font-mono text-[12px] text-slate-500">{e.code}</td>
                     <td className="max-w-[280px] px-4 py-3"><div className="truncate font-medium text-slate-800">{e.commodity || e.item_name}</div><div className="truncate text-[11px] text-slate-400">{e.category_name}</div></td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-500">{e.country_flag} {e.country_code}</td>

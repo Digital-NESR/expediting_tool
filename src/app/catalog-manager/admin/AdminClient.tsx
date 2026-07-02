@@ -21,8 +21,11 @@ interface AdminCategory { id: number; name: string; type: string; status: string
 
 function StatusToggle({ active, onClick }: { active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`inline-flex items-center gap-1.5 text-[12px] font-semibold ${active ? 'text-[#307c4c]' : 'text-slate-400'}`}>
-      <span className={`h-2 w-2 rounded-full ${active ? 'bg-[#307c4c]' : 'bg-slate-300'}`} />{active ? 'Active' : 'Inactive'}
+    <button onClick={onClick} className="group inline-flex items-center gap-2 text-[12px] font-semibold" aria-pressed={active}>
+      <span className={`relative inline-flex h-4.5 w-8 shrink-0 items-center rounded-full transition-colors duration-200 ${active ? 'bg-[#307c4c]' : 'bg-slate-300 group-hover:bg-slate-400'}`}>
+        <span className={`absolute h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${active ? 'translate-x-[15px]' : 'translate-x-[3px]'}`} />
+      </span>
+      <span className={active ? 'text-[#307c4c]' : 'text-slate-400'}>{active ? 'Active' : 'Inactive'}</span>
     </button>
   );
 }
@@ -76,11 +79,11 @@ export default function AdminClient({
 
         <div className="mb-5 flex flex-wrap gap-1 border-b border-slate-200">
           {TABS.map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`-mb-px border-b-2 px-3.5 py-2.5 text-[13.5px] font-semibold ${tab === t ? 'border-[#307c4c] text-[#1d4f31]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>{t}</button>
+            <button key={t} onClick={() => setTab(t)} className={`-mb-px rounded-t-lg border-b-2 px-3.5 py-2.5 text-[13.5px] font-semibold transition-colors ${tab === t ? 'border-[#307c4c] bg-[#307c4c]/[0.04] text-[#1d4f31]' : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}>{t}</button>
           ))}
         </div>
 
-        <div className={tab === 'Catalog migration' ? '' : 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'}>
+        <div className={tab === 'Catalog migration' ? '' : 'cm-fade-in rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm'}>
           {tab === 'Countries' && (
             <table className="w-full text-[13px]">
               <thead><tr className="border-b border-slate-200"><th className={thCls}>Country</th><th className={thCls}>Code</th><th className={thCls}>Default currency</th><th className={`${thCls} text-right`}>Status</th></tr></thead>

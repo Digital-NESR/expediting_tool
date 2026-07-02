@@ -187,10 +187,10 @@ export default function AddEntriesClient({
         </div>
 
         {/* mode toggle */}
-        <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1">
+        <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1 shadow-inner">
           {([['manual', 'Manual entry', 'edit'], ['grid', 'Grid entry', 'catalog'], ['bulk', 'Bulk import (Excel)', 'sheet']] as const).map(([v, label, icon]) => (
-            <button key={v} onClick={() => setTab(v)} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors ${tab === v ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-              <Icon name={icon} className="h-4 w-4" /> {label}
+            <button key={v} onClick={() => setTab(v)} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition-all duration-150 ${tab === v ? 'bg-white text-[#1d4f31] shadow-sm ring-1 ring-black/[0.04]' : 'text-slate-500 hover:text-slate-700'}`}>
+              <Icon name={icon} className={`h-4 w-4 ${tab === v ? 'text-[#307c4c]' : ''}`} /> {label}
             </button>
           ))}
         </div>
@@ -219,7 +219,7 @@ export default function AddEntriesClient({
                     autoComplete="off"
                   />
                   {supOpen && (
-                    <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                    <div className="cm-scale-in absolute left-0 right-0 top-full z-20 mt-1 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
                       {supSearching ? (
                         <div className="px-3 py-2.5 text-[12.5px] text-slate-400">Searching…</div>
                       ) : supResults.length === 0 ? (
@@ -329,15 +329,15 @@ export default function AddEntriesClient({
               );
             })}
 
-            <button onClick={addLine} className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-white py-3 text-[13px] font-semibold text-[#1d4f31] hover:border-[#307c4c]/40 hover:bg-[#307c4c]/5">
+            <button onClick={addLine} className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-white py-3 text-[13px] font-semibold text-[#1d4f31] transition-all hover:border-[#307c4c]/40 hover:bg-[#307c4c]/5 active:scale-[0.995]">
               <Icon name="plus" className="h-4 w-4" /> Add another line
             </button>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="sticky bottom-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-sm">
               <div className="text-[12.5px] text-slate-500">{lines.length} {lines.length === 1 ? 'line' : 'lines'} · <span className="font-mono font-semibold text-slate-900">≈ USD {fmtUsd(totalUsd)}</span> total <span className="text-slate-400">(lines ≥ ${APPROVAL_THRESHOLD_USD / 1000}k go to approval)</span></div>
               <div className="flex gap-2.5">
-                <button onClick={() => submit('draft')} disabled={submitting} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Save as drafts</button>
-                <button onClick={() => submit('submit')} disabled={submitting} className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#2b6f44] disabled:opacity-50">
+                <button onClick={() => submit('draft')} disabled={submitting} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98] disabled:opacity-50">Save as drafts</button>
+                <button onClick={() => submit('submit')} disabled={submitting} className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[#307c4c]/25 transition-all hover:bg-[#2b6f44] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100">
                   <Icon name="check" className="h-4 w-4" /> {submitting ? 'Saving…' : `Create ${lines.length} ${lines.length === 1 ? 'entry' : 'entries'}`}
                 </button>
               </div>

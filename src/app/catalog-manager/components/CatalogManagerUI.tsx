@@ -1,53 +1,108 @@
 'use client';
 
+import Link from 'next/link';
+import {
+  LayoutDashboard, List, BadgeCheck, Settings, ClipboardList, Search, Plus, Filter,
+  Download, Upload, Pin, X, ChevronRight, Clock, Pencil, Check, RotateCcw, FileText,
+  History, Building2, Tag, Layers, BarChart3, TrendingUp, DollarSign, AlertTriangle,
+  Globe, ArrowRight, User, Users, Table, Trash2, Link2, ExternalLink, LogOut, Home,
+  Loader2, Sparkles, Calendar, Info, type LucideIcon,
+} from 'lucide-react';
 import type { CatalogStatus } from '@/types/catalog-manager';
 import { getStatusBadge } from '@/lib/catalog-manager-utils';
 
-/* ---------------- icons (inline svg, ported from the design) ---------------- */
+/* ---------------- icons (lucide, behind the existing string-name API) ---------------- */
 
-const ICON_PATHS: Record<string, string> = {
-  dashboard: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z',
-  catalog: 'M4 5h16M4 12h16M4 19h16',
-  approve: 'M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-  admin: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z',
-  audit: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
-  search: 'M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z',
-  plus: 'M12 5v14M5 12h14',
-  filter: 'M4 5h16l-6.5 8v6l-3 1.5V13z',
-  download: 'M12 4v12m0 0l-4-4m4 4l4-4M4 20h16',
-  upload: 'M12 20V8m0 0l-4 4m4-4l4 4M4 4h16',
-  pin: 'M9 3h6l-1 7 3 3v2h-4v6l-1 1-1-1v-6H6v-2l3-3z',
-  close: 'M6 6l12 12M18 6L6 18',
-  chevRight: 'M9 6l6 6-6 6',
-  clock: 'M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-  edit: 'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z',
-  check: 'M20 6L9 17l-5-5',
-  x: 'M6 6l12 12M18 6L6 18',
-  revise: 'M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8M3 4v4h4',
-  file: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6',
-  history: 'M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8M3 4v4h4M12 7v5l3 2',
-  building: 'M3 21h18M5 21V5a2 2 0 012-2h6a2 2 0 012 2v16M15 21V9h2a2 2 0 012 2v10M8 7h2M8 11h2M8 15h2',
-  tag: 'M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0l-7.2-7.2A2 2 0 013 12V5a2 2 0 012-2h7a2 2 0 011.4.6l7.2 7.2a2 2 0 010 2.6zM7.5 7.5h.01',
-  layers: 'M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5',
-  chart: 'M3 3v18h18M8 17V9M13 17V5M18 17v-6',
-  trend: 'M3 17l6-6 4 4 8-8M21 7h-5M21 7v5',
-  money: 'M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
-  alert: 'M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z',
-  globe: 'M12 21a9 9 0 100-18 9 9 0 000 18zM3 12h18M12 3a14 14 0 000 18a14 14 0 000-18z',
-  arrowRight: 'M5 12h14M13 6l6 6-6 6',
-  user: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z',
-  users: 'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
-  sheet: 'M4 4h16v16H4zM4 9.5h16M4 15h16M9.5 4v16M15 4v16',
-  trash: 'M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m2 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6',
-  link: 'M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1',
-  external: 'M14 3h7v7M21 3l-9 9M19 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h5',
+const ICONS: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  catalog: List,
+  approve: BadgeCheck,
+  admin: Settings,
+  audit: ClipboardList,
+  search: Search,
+  plus: Plus,
+  filter: Filter,
+  download: Download,
+  upload: Upload,
+  pin: Pin,
+  close: X,
+  chevRight: ChevronRight,
+  clock: Clock,
+  edit: Pencil,
+  check: Check,
+  x: X,
+  revise: RotateCcw,
+  file: FileText,
+  history: History,
+  building: Building2,
+  tag: Tag,
+  layers: Layers,
+  chart: BarChart3,
+  trend: TrendingUp,
+  money: DollarSign,
+  alert: AlertTriangle,
+  globe: Globe,
+  arrowRight: ArrowRight,
+  user: User,
+  users: Users,
+  sheet: Table,
+  trash: Trash2,
+  link: Link2,
+  external: ExternalLink,
+  logout: LogOut,
+  home: Home,
+  spinner: Loader2,
+  sparkles: Sparkles,
+  calendar: Calendar,
+  info: Info,
 };
 
-export function Icon({ name, className = 'h-4 w-4', strokeWidth = 1.7 }: { name: keyof typeof ICON_PATHS | string; className?: string; strokeWidth?: number }) {
+export function Icon({ name, className = 'h-4 w-4', strokeWidth = 1.75 }: { name: keyof typeof ICONS | string; className?: string; strokeWidth?: number }) {
+  const Cmp = ICONS[name];
+  if (!Cmp) return null;
+  return <Cmp className={className} strokeWidth={strokeWidth} aria-hidden="true" />;
+}
+
+/** Animated spinner icon (for busy buttons and inline loading). */
+export function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
+  return <Loader2 className={`animate-spin ${className}`} strokeWidth={2} aria-hidden="true" />;
+}
+
+/* ---------------- buttons ---------------- */
+
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'dangerSoft';
+
+const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
+  primary:
+    'bg-[#307c4c] text-white shadow-sm shadow-[#307c4c]/25 hover:bg-[#2b6f44] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100',
+  secondary:
+    'border border-slate-200 bg-white text-slate-700 shadow-sm hover:border-[#6aaf8e] hover:text-slate-900 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100',
+  ghost:
+    'text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50',
+  danger:
+    'bg-red-600 text-white shadow-sm shadow-red-600/20 hover:bg-red-700 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100',
+  dangerSoft:
+    'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100',
+};
+
+export function buttonClasses(variant: ButtonVariant = 'primary', size: 'sm' | 'md' = 'md'): string {
+  const sizing = size === 'sm' ? 'gap-1.5 rounded-lg px-3 py-1.5 text-[13px]' : 'gap-2 rounded-lg px-3.5 py-2 text-sm';
+  return `inline-flex items-center justify-center font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#307c4c]/30 ${sizing} ${BUTTON_VARIANTS[variant]}`;
+}
+
+export function Button({
+  variant = 'primary', size = 'md', icon, busy, className = '', children, ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
+  size?: 'sm' | 'md';
+  icon?: string;
+  busy?: boolean;
+}) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={ICON_PATHS[name] ?? ''} />
-    </svg>
+    <button {...props} disabled={props.disabled || busy} className={`${buttonClasses(variant, size)} ${className}`}>
+      {busy ? <Spinner className={size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'} /> : icon ? <Icon name={icon} className={size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'} /> : null}
+      {children}
+    </button>
   );
 }
 
@@ -56,7 +111,7 @@ export function Icon({ name, className = 'h-4 w-4', strokeWidth = 1.7 }: { name:
 export function StatusPill({ status, sm }: { status: CatalogStatus; sm?: boolean }) {
   const b = getStatusBadge(status);
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full font-semibold ${b.pill} ${sm ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full font-semibold ring-1 ring-inset ring-black/[0.04] ${b.pill} ${sm ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'}`}>
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${b.dot}`} />
       {status}
     </span>
@@ -72,11 +127,15 @@ export function Chip({ children, tone = 'neutral' }: { children: React.ReactNode
   return <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${tones[tone]}`}>{children}</span>;
 }
 
+export function Kbd({ children }: { children: React.ReactNode }) {
+  return <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">{children}</kbd>;
+}
+
 export function Avatar({ name, size = 32 }: { name: string | null; size?: number }) {
   const ini = (name || '?').split(' ').filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   return (
     <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#307c4c] to-[#2b6f44] font-semibold text-white"
+      className="inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#307c4c] to-[#2b6f44] font-semibold text-white ring-2 ring-white"
       style={{ width: size, height: size, fontSize: size * 0.4 }}
     >
       {ini}
@@ -88,14 +147,123 @@ export function SectionTitle({ children, className = '' }: { children: React.Rea
   return <div className={`text-[11px] font-semibold uppercase tracking-wider text-slate-400 ${className}`}>{children}</div>;
 }
 
-export function EmptyState({ icon = 'search', title, sub }: { icon?: string; title: string; sub?: string }) {
+/* ---------------- cards ---------------- */
+
+export function Card({ className = '', children }: { className?: string; children: React.ReactNode }) {
+  return <section className={`rounded-2xl border border-slate-200/80 bg-white shadow-sm ${className}`}>{children}</section>;
+}
+
+export function CardHeader({
+  title, sub, action, className = '',
+}: { title: React.ReactNode; sub?: React.ReactNode; action?: React.ReactNode; className?: string }) {
   return (
-    <div className="px-5 py-14 text-center text-slate-400">
-      <div className="mx-auto mb-3.5 inline-flex h-13 w-13 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-3 text-[#307c4c]">
-        <Icon name={icon} className="h-6 w-6" />
+    <div className={`flex items-start justify-between gap-3 ${className}`}>
+      <div className="min-w-0">
+        <h2 className="text-[15px] font-bold tracking-tight text-slate-900">{title}</h2>
+        {sub && <p className="mt-0.5 text-[12px] text-slate-500">{sub}</p>}
       </div>
-      <div className="text-[15px] font-semibold text-slate-900">{title}</div>
-      {sub && <div className="mt-1 text-[13px]">{sub}</div>}
+      {action}
     </div>
   );
 }
+
+const STAT_TONES = {
+  green: { bar: 'from-[#6aaf8e] to-[#307c4c]', icon: 'bg-[#eaf4ef] text-[#1d4f31]', hover: 'hover:border-[#6aaf8e]' },
+  amber: { bar: 'from-amber-400 to-amber-600', icon: 'bg-amber-50 text-amber-700', hover: 'hover:border-amber-300' },
+  ink:   { bar: 'from-slate-500 to-slate-900', icon: 'bg-slate-100 text-slate-700', hover: 'hover:border-slate-300' },
+  cyan:  { bar: 'from-cyan-400 to-sky-700',    icon: 'bg-cyan-50 text-cyan-700',    hover: 'hover:border-cyan-300' },
+  red:   { bar: 'from-red-400 to-red-600',     icon: 'bg-red-50 text-red-600',      hover: 'hover:border-red-300' },
+} as const;
+
+export type StatTone = keyof typeof STAT_TONES;
+
+/** KPI stat card — optionally a link. Used on dashboard, analytics, suppliers. */
+export function StatCard({
+  label, value, sub, icon, tone = 'green', href, delta,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: string;
+  tone?: StatTone;
+  href?: string;
+  /** Optional trend annotation, e.g. { text: '+12 this month', dir: 'up' } */
+  delta?: { text: string; dir: 'up' | 'down' | 'flat' };
+}) {
+  const t = STAT_TONES[tone];
+  const body = (
+    <>
+      <span className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${t.bar}`} />
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase leading-tight tracking-wider text-slate-400">{label}</p>
+        <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-110 ${t.icon}`}>
+          <Icon name={icon} className="h-4 w-4" />
+        </span>
+      </div>
+      <p className="mt-4 text-3xl font-bold leading-none tracking-tight text-slate-900 tabular-nums">{value}</p>
+      <div className="mt-2 flex items-center gap-2">
+        {delta && (
+          <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${delta.dir === 'up' ? 'text-[#307c4c]' : delta.dir === 'down' ? 'text-red-600' : 'text-slate-400'}`}>
+            {delta.dir !== 'flat' && <Icon name="trend" className={`h-3 w-3 ${delta.dir === 'down' ? 'rotate-180 -scale-x-100' : ''}`} />}
+            {delta.text}
+          </span>
+        )}
+        {sub && <p className="min-w-0 truncate text-[12px] text-slate-500">{sub}</p>}
+      </div>
+    </>
+  );
+  const cls = `group relative block overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-200 ${t.hover} ${href ? 'hover:-translate-y-0.5 hover:shadow-md' : ''}`;
+  return href ? <Link href={href} className={cls}>{body}</Link> : <div className={cls}>{body}</div>;
+}
+
+/* ---------------- progress / skeletons / empty ---------------- */
+
+/** Horizontal meter bar with the brand gradient (0–100). */
+export function Meter({ pct, tone = 'green', className = 'h-2' }: { pct: number; tone?: 'green' | 'amber' | 'red' | 'slate'; className?: string }) {
+  const fills = {
+    green: 'from-[#6aaf8e] to-[#307c4c]',
+    amber: 'from-amber-300 to-amber-500',
+    red: 'from-red-400 to-red-600',
+    slate: 'from-slate-300 to-slate-500',
+  };
+  return (
+    <span className={`block overflow-hidden rounded-full bg-slate-100 ${className}`}>
+      <span
+        className={`block h-full rounded-full bg-gradient-to-r transition-[width] duration-500 ease-out ${fills[tone]}`}
+        style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+      />
+    </span>
+  );
+}
+
+export function Skeleton({ className = 'h-4 w-24' }: { className?: string }) {
+  return <span className={`skeleton-shimmer block ${className}`} aria-hidden="true" />;
+}
+
+export function EmptyState({ icon = 'search', title, sub, action }: { icon?: string; title: string; sub?: string; action?: React.ReactNode }) {
+  return (
+    <div className="cm-fade-in px-5 py-14 text-center text-slate-400">
+      <div className="relative mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-[#307c4c]/10 bg-gradient-to-b from-[#eaf4ef] to-white text-[#307c4c] shadow-sm">
+        <Icon name={icon} className="h-6 w-6" />
+      </div>
+      <div className="text-[15px] font-semibold text-slate-900">{title}</div>
+      {sub && <div className="mx-auto mt-1 max-w-sm text-[13px]">{sub}</div>}
+      {action && <div className="mt-4 flex justify-center">{action}</div>}
+    </div>
+  );
+}
+
+/* ---------------- tables ---------------- */
+
+/** Shared table shell classes so every page's table reads identically. */
+export const tableClasses = {
+  wrap: 'overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm',
+  scroller: 'overflow-x-auto',
+  table: 'w-full border-collapse text-left',
+  thead: 'bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-400',
+  th: 'whitespace-nowrap px-4 py-3 font-semibold first:pl-5 last:pr-5',
+  tbody: 'divide-y divide-slate-100 text-[13px] text-slate-700',
+  tr: 'transition-colors hover:bg-[#307c4c]/[0.035]',
+  trClickable: 'cursor-pointer transition-colors hover:bg-[#307c4c]/[0.035] focus-visible:bg-[#307c4c]/[0.05] focus-visible:outline-none',
+  td: 'px-4 py-3 first:pl-5 last:pr-5',
+} as const;

@@ -223,7 +223,7 @@ export default function BulkImportPanel() {
       </div>
 
       {phase === 'form' && (
-        <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="cm-fade-up space-y-5 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
           {!file ? (
             <div
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -232,7 +232,7 @@ export default function BulkImportPanel() {
               onClick={() => fileInputRef.current?.click()}
               className={`flex cursor-pointer select-none flex-col items-center justify-center gap-3 rounded-xl p-8 transition-all ${isDragging ? 'border-2 border-[#307c4c] bg-[#307c4c]/5' : 'border-2 border-dashed border-slate-200 bg-slate-50 hover:border-[#307c4c]/40 hover:bg-[#307c4c]/5'}`}
             >
-              <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${isDragging ? 'bg-[#307c4c]/20 text-[#307c4c]' : 'bg-slate-100 text-slate-400'}`}>
+              <div className={`flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-200 ${isDragging ? 'scale-110 bg-[#307c4c]/20 text-[#307c4c]' : 'bg-slate-100 text-slate-400'}`}>
                 <Icon name="sheet" className="h-5 w-5" />
               </div>
               <div className="text-center">
@@ -312,7 +312,7 @@ export default function BulkImportPanel() {
       )}
 
       {phase === 'running' && (
-        <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="cm-fade-up space-y-5 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-3">
             <svg className="h-5 w-5 shrink-0 animate-spin text-[#307c4c]" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
             <div><p className="text-sm font-semibold text-slate-800">Importing rows…</p><p className="text-xs text-slate-400">{progress}% complete</p></div>
@@ -326,7 +326,7 @@ export default function BulkImportPanel() {
       )}
 
       {phase === 'done' && result && (
-        <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="cm-fade-up space-y-5 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-3">
             <div className={`flex h-10 w-10 items-center justify-center rounded-full ${result.errors === 0 ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'bg-amber-50 text-amber-500'}`}><Icon name={result.errors === 0 ? 'check' : 'alert'} className="h-5 w-5" /></div>
             <div><p className="text-base font-bold text-slate-900">Import complete</p><p className="text-xs text-slate-400">{file?.name}</p></div>
@@ -340,8 +340,8 @@ export default function BulkImportPanel() {
             {log.map((line, i) => <div key={i} className={line.startsWith('✅') ? 'text-emerald-400' : line.startsWith('⚠️') ? 'text-amber-400' : line.startsWith('❌') ? 'text-red-400' : 'text-slate-400'}>{line}</div>)}
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={reset} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Icon name="upload" className="h-4 w-4" /> Import another file</button>
-            <Link href="/catalog-manager/catalog" className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2b6f44]">View catalog <Icon name="arrowRight" className="h-4 w-4" /></Link>
+            <button onClick={reset} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98]"><Icon name="upload" className="h-4 w-4" /> Import another file</button>
+            <Link href="/catalog-manager/catalog" className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[#307c4c]/25 transition-all hover:bg-[#2b6f44] active:scale-[0.98]">View catalog <Icon name="arrowRight" className="h-4 w-4" /></Link>
           </div>
         </div>
       )}

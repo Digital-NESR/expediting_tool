@@ -30,12 +30,12 @@ function FacetGroup({
         {shown.map((opt) => {
           const on = selected.includes(opt.value);
           return (
-            <button key={opt.value} onClick={() => onToggle(opt.value)} className="flex w-full items-center gap-2.5 rounded-md px-1.5 py-1.5 text-[13px] hover:bg-slate-50">
-              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${on ? 'border-[#307c4c] bg-[#307c4c] text-white' : 'border-slate-300 bg-white'}`}>
+            <button key={opt.value} onClick={() => onToggle(opt.value)} className={`group flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-[13px] transition-colors ${on ? 'bg-[#307c4c]/[0.06]' : 'hover:bg-slate-50'}`}>
+              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition-all ${on ? 'border-[#307c4c] bg-[#307c4c] text-white' : 'border-slate-300 bg-white group-hover:border-[#6aaf8e]'}`}>
                 {on && <Icon name="check" className="h-3 w-3" strokeWidth={3} />}
               </span>
-              <span className={`flex-1 truncate text-left ${on ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>{opt.label}</span>
-              <span className="text-[11px] tabular-nums text-slate-400">{counts[opt.value] ?? 0}</span>
+              <span className={`flex-1 truncate text-left transition-colors ${on ? 'font-semibold text-slate-900' : 'text-slate-500 group-hover:text-slate-700'}`}>{opt.label}</span>
+              <span className={`rounded-full px-1.5 text-[11px] tabular-nums ${on ? 'bg-[#307c4c]/10 font-semibold text-[#1d4f31]' : 'text-slate-400'}`}>{counts[opt.value] ?? 0}</span>
             </button>
           );
         })}
@@ -174,11 +174,11 @@ export default function CatalogListClient({
       fill
       headerAction={
         <div className="flex items-center gap-2">
-          <button onClick={() => exportCsv()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+          <button onClick={() => exportCsv()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm transition-all hover:border-[#6aaf8e] hover:text-slate-900 active:scale-[0.98]">
             <Icon name="download" className="h-4 w-4" /> <span className="hidden sm:inline">Export</span>
           </button>
           {canCreate && (
-            <Link href="/catalog-manager/catalog/add" className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#2b6f44]">
+            <Link href="/catalog-manager/catalog/add" className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-[#307c4c]/25 transition-all hover:bg-[#2b6f44] active:scale-[0.98]">
               <Icon name="plus" className="h-4 w-4" /> <span className="hidden sm:inline">Add entries</span>
             </Link>
           )}
@@ -187,7 +187,7 @@ export default function CatalogListClient({
     >
       <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-full lg:grid-cols-[252px_1fr]">
         {/* facet rail */}
-        <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:h-full lg:overflow-y-auto">
+        <aside className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm lg:h-full lg:overflow-y-auto">
           <div className="mb-4 flex items-center justify-between">
             <span className="inline-flex items-center gap-2 text-sm font-bold text-slate-900"><Icon name="filter" className="h-4 w-4 text-[#307c4c]" /> Filters</span>
             {activeFilterCount > 0 && <button onClick={clearAll} className="text-[12px] font-semibold text-[#1d4f31] hover:underline">Clear ({activeFilterCount})</button>}
@@ -208,7 +208,7 @@ export default function CatalogListClient({
         </aside>
 
         {/* main */}
-        <div className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-sm lg:h-full">
+        <div className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white shadow-sm lg:h-full">
           <div className="shrink-0 border-b border-slate-200 p-4">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
@@ -245,7 +245,7 @@ export default function CatalogListClient({
           </div>
 
           {selected.size > 0 && (
-            <div className="flex flex-wrap items-center gap-2 border-b border-[#307c4c]/20 bg-[#307c4c]/5 px-4 py-2.5">
+            <div className="cm-fade-in flex flex-wrap items-center gap-2 border-b border-[#307c4c]/20 bg-gradient-to-r from-[#eaf4ef] to-[#f7fbf9] px-4 py-2.5">
               <span className="text-[13px] font-semibold text-[#1d4f31]">{selected.size} selected</span>
               <button onClick={() => setSelected(new Set())} className="text-[12px] font-medium text-slate-500 hover:text-slate-700">Clear</button>
               <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -278,12 +278,20 @@ export default function CatalogListClient({
           )}
 
           {rows.length === 0 ? (
-            <EmptyState title="No matching entries" sub="Try adjusting filters or search terms." />
+            <EmptyState
+              title="No matching entries"
+              sub="Try adjusting filters or search terms."
+              action={activeFilterCount > 0 || q ? (
+                <button onClick={clearAll} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98]">
+                  <Icon name="close" className="h-4 w-4" /> Clear all filters
+                </button>
+              ) : undefined}
+            />
           ) : (
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div className="cm-fade-in min-h-0 flex-1 overflow-auto">
               <table className="w-full text-[13px]">
                 <thead className="sticky top-0 z-10">
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <tr className="border-b border-slate-200 bg-slate-50/95 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 backdrop-blur-sm">
                     <th className="w-9 px-3 py-3"><input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-4 w-4 rounded border-slate-300 text-[#307c4c]" aria-label="Select all" /></th>
                     <th className="px-4 py-3">ID</th>
                     <th className="px-4 py-3">Supplier</th>
@@ -300,7 +308,7 @@ export default function CatalogListClient({
                   {rows.map((e) => {
                     const exp = isExpiringSoon(e.status, e.expiry_date);
                     return (
-                      <tr key={e.id} onClick={() => router.push(`/catalog-manager/catalog/${e.id}`)} className={`cursor-pointer border-b border-slate-100 hover:bg-[#307c4c]/5 ${selected.has(e.id) ? 'bg-[#307c4c]/5' : ''}`}>
+                      <tr key={e.id} onClick={() => router.push(`/catalog-manager/catalog/${e.id}`)} className={`cursor-pointer border-b border-slate-100 transition-colors hover:bg-[#307c4c]/5 ${selected.has(e.id) ? 'bg-[#307c4c]/5' : ''}`}>
                         <td className="w-9 px-3 py-3" onClick={(ev) => ev.stopPropagation()}>
                           <input type="checkbox" checked={selected.has(e.id)} onChange={() => toggleRow(e.id)} className="h-4 w-4 rounded border-slate-300 text-[#307c4c]" aria-label={`Select ${e.code}`} />
                         </td>
