@@ -64,8 +64,9 @@ export default function SearchClient({
     return () => clearTimeout(t);
   }, [query, filters]);
 
-  // usage logging: record a committed search (query only, deduped) — not filter tweaks
-  const loggedSearch = useRef('');
+  // usage logging: record a committed search (query only, deduped) — not filter tweaks.
+  // Seed with the URL-hydrated initial query so opening a shared ?q= link does not log a phantom search.
+  const loggedSearch = useRef(initialQuery.trim());
   useEffect(() => {
     const term = query.trim();
     if (term.length < 2 || term === loggedSearch.current) return;

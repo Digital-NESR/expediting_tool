@@ -286,11 +286,11 @@ export function SourceGuideAnalyticsClient() {
   useEffect(() => {
     if (tab === 'audit' && audit === null && !auditLoading) {
       setAuditLoading(true);
-      getSourceGuideAuditLog().then(a => { setAudit(a); setAuditLoading(false); });
+      getSourceGuideAuditLog().then(setAudit).catch(() => setAudit([])).finally(() => setAuditLoading(false));
     }
     if (tab === 'people' && people === null && !peopleLoading) {
       setPeopleLoading(true);
-      getUserActivity().then(p => { setPeople(p); setPeopleLoading(false); });
+      getUserActivity().then(setPeople).catch(() => setPeople([])).finally(() => setPeopleLoading(false));
     }
   }, [tab, audit, auditLoading, people, peopleLoading]);
 
@@ -406,7 +406,7 @@ function OverviewTab({ data, insights }: { data: SgAnalytics; insights: SgInsigh
         <Kpi label="Catalogue coverage" value={`${coverage}%`} sub={`${insights.coverageOverall.coveredAnywhere.toLocaleString()} of ${insights.coverageOverall.catalogue.toLocaleString()} mapped`} tone={coverage >= 60 ? 'good' : coverage >= 30 ? 'warn' : 'bad'} />
         <Kpi label="Preferred share" value={`${prefShare}%`} sub={`${insights.tier.preferred.toLocaleString()} preferred · ${insights.tier.backup.toLocaleString()} backup`} tone="good" />
         <Kpi label="Single-source pairs" value={insights.singleSourcePairs.toLocaleString()} sub="country + commodity with 1 supplier" tone={insights.singleSourcePairs > 0 ? 'warn' : 'good'} />
-        <Kpi label="Countries missing champion" value={noChampion.toLocaleString()} sub={`${insights.champions.withEmail} have an active editor`} tone={noChampion > 0 ? 'warn' : 'good'} />
+        <Kpi label="Countries missing champion" value={noChampion.toLocaleString()} sub={`${insights.champions.withChampion} of ${insights.champions.countriesTotal} have a champion`} tone={noChampion > 0 ? 'warn' : 'good'} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -513,7 +513,7 @@ function CoverageTab({ gaps, insights }: { gaps: SgCoverageGap[]; insights: SgIn
 function SuppliersTab({ data, insights }: { data: SgAnalytics; insights: SgInsights }) {
   const maxSup = Math.max(1, ...data.topSuppliers.map(s => s.mappings));
   const maxMulti = Math.max(1, ...insights.topMultiCountry.map(s => s.mappings));
-  const utilisation = pct(insights.avl.mapped, insights.avl.total);
+  const utilisation = Math.min(100, pct(insights.avl.mapped, insights.avl.total));
 
   return (
     <div className="space-y-5">
@@ -626,9 +626,9 @@ function AuditTab({ entries, loading }: { entries: SgAuditEntry[] | null; loadin
     return true;
   }), [list, kind, actor, q]);
 
-  // Mapping changes grouped by country, then by commodity
+  // Mapping changes grouped by country, then by commodity (keyed on commodityId so same-named commodities stay separate)
   const grouped = useMemo(() => {
-    const m = new Map<string, { name: string; tone: string | null; coms: Map<string, SgAuditEntry[]>; countryLevel: SgAuditEntry[]; total: number }>();
+    const m = new Map<string, { name: string; tone: string | null; coms: Map<number, { label: string; entries: SgAuditEntry[] }>; countryLevel: SgAuditEntry[]; total: number }>();
     for (const e of list) {
       if (auditKind(e.action) !== 'mapping') continue;
       const key = e.country ?? '__none__';
@@ -636,8 +636,9 @@ function AuditTab({ entries, loading }: { entries: SgAuditEntry[] | null; loadin
       if (!g) { g = { name: e.countryName ?? 'No country', tone: e.tone, coms: new Map(), countryLevel: [], total: 0 }; m.set(key, g); }
       g.total++;
       if (e.commodityId != null) {
-        const ck = e.commodityName ?? `Commodity #${e.commodityId}`;
-        const arr = g.coms.get(ck); if (arr) arr.push(e); else g.coms.set(ck, [e]);
+        const com = g.coms.get(e.commodityId);
+        if (com) com.entries.push(e);
+        else g.coms.set(e.commodityId, { label: e.commodityName ?? `Commodity #${e.commodityId}`, entries: [e] });
       } else {
         g.countryLevel.push(e);
       }
@@ -689,13 +690,13 @@ function AuditTab({ entries, loading }: { entries: SgAuditEntry[] | null; loadin
                   <span className="ml-auto font-mono text-[11.5px] text-slate-400">{g.total} change{g.total === 1 ? '' : 's'}</span>
                 </div>
                 <div className="divide-y divide-slate-100 px-4">
-                  {[...g.coms.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([com, es]) => (
-                    <div key={com} className="py-2.5">
+                  {[...g.coms.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label)).map(([comId, com]) => (
+                    <div key={comId} className="py-2.5">
                       <div className="mb-0.5 flex items-center gap-2">
-                        <span className="text-[13px] font-semibold text-slate-800">{com}</span>
-                        <span className="font-mono text-[10.5px] text-slate-400">{es.length}</span>
+                        <span className="text-[13px] font-semibold text-slate-800">{com.label}</span>
+                        <span className="font-mono text-[10.5px] text-slate-400">{com.entries.length}</span>
                       </div>
-                      <div className="pl-0.5">{es.map(e => <ChangeRow key={e.id} e={e} />)}</div>
+                      <div className="pl-0.5">{com.entries.map(e => <ChangeRow key={e.id} e={e} />)}</div>
                     </div>
                   ))}
                   {g.countryLevel.length > 0 && (
@@ -797,7 +798,7 @@ function PeopleTab({ rows, loading }: { rows: SgUserActivity[] | null; loading: 
           <div className="overflow-x-auto">
             <div className="min-w-[720px] overflow-hidden rounded-lg border border-slate-200">
               <div className="grid grid-cols-[1.7fr_1.3fr_0.7fr_0.8fr_0.7fr_0.8fr_1fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                <span>Person</span><span>Activity</span><span className="text-right">Views</span><span className="text-right">Searches</span><span className="text-right">Edits</span><span className="text-right">Countries</span><span className="text-right">Last active</span>
+                <span>Person</span><span>Activity</span><span className="text-right">Views</span><span className="text-right">Searches</span><span className="text-right">Edits</span><span className="text-right" title="Distinct countries this person edited in">Countries edited</span><span className="text-right">Last active</span>
               </div>
               {list.map(r => (
                 <div key={r.user} className="grid grid-cols-[1.7fr_1.3fr_0.7fr_0.8fr_0.7fr_0.8fr_1fr] items-center gap-3 border-b border-slate-50 px-4 py-2.5 last:border-b-0">

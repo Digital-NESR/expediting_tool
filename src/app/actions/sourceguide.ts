@@ -747,22 +747,22 @@ async function canEdit(user: SgUser, country: string): Promise<boolean> {
 
 async function logActivity(
   country: string | null, commodityId: number | null,
-  action: string, details: string, by: string,
+  action: string, details: string, by: string, byEmail: string | null = null,
 ): Promise<void> {
   await sourceGuidePool.query(
-    `INSERT INTO sg_activity_log (country_code, commodity_id, action, details, performed_by)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [country, commodityId, action, details, by],
+    `INSERT INTO sg_activity_log (country_code, commodity_id, action, details, performed_by, performed_by_email)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [country, commodityId, action, details, by, byEmail],
   );
 }
 
 /** Best-effort audit log: never let a logging failure break the underlying mutation. */
 async function logSafe(
   country: string | null, commodityId: number | null,
-  action: string, details: string, by: string | null,
+  action: string, details: string, by: string | null, byEmail: string | null = null,
 ): Promise<void> {
   try {
-    await logActivity(country, commodityId, action, details, by ?? 'System');
+    await logActivity(country, commodityId, action, details, by ?? 'System', byEmail);
   } catch (err) {
     console.error('[sg.logSafe]', err);
   }
@@ -825,7 +825,7 @@ export async function addMapping(input: {
 
     const com = await sourceGuidePool.query(`SELECT name FROM sg_commodities WHERE id=$1`, [input.commodityId]);
     await logActivity(input.country, input.commodityId, 'Add',
-      `${input.tier} · ${supplierName} → ${com.rows[0]?.name ?? ''}`, user.name);
+      `${input.tier} · ${supplierName} → ${com.rows[0]?.name ?? ''}`, user.name, user.email);
     return { success: true };
   } catch (err) {
     console.error('[sg.addMapping]', err);
@@ -851,7 +851,7 @@ export async function removeMapping(mapId: number): Promise<{ success: boolean; 
 
     await sourceGuidePool.query(`UPDATE sg_mappings SET status='Inactive' WHERE id=$1`, [mapId]);
     await logActivity(row.country_code, row.commodity_id, 'Deactivate',
-      `${row.tier} · ${row.supplier_name} ✕ ${row.com_name}`, user.name);
+      `${row.tier} · ${row.supplier_name} ✕ ${row.com_name}`, user.name, user.email);
     return { success: true };
   } catch (err) {
     console.error('[sg.removeMapping]', err);
@@ -877,7 +877,7 @@ export async function changeTier(mapId: number, tier: Tier): Promise<{ success: 
 
     await sourceGuidePool.query(`UPDATE sg_mappings SET tier=$2 WHERE id=$1`, [mapId, tier]);
     await logActivity(row.country_code, row.commodity_id, 'Edit tier',
-      `${row.supplier_name}: ${row.tier} → ${tier} (${row.com_name})`, user.name);
+      `${row.supplier_name}: ${row.tier} → ${tier} (${row.com_name})`, user.name, user.email);
     return { success: true };
   } catch (err) {
     console.error('[sg.changeTier]', err);
@@ -1085,7 +1085,7 @@ export async function getSourceGuideInsights(): Promise<SgInsights> {
     const [tierRes, avlRes, covRes, pairRes, champRes, catRes, multiRes, actRes, multiCountRes] = await Promise.all([
       sourceGuidePool.query(`SELECT tier, COUNT(*)::int AS n FROM sg_mappings WHERE status='Active' GROUP BY tier`),
       sourceGuidePool.query(`SELECT (SELECT COUNT(*)::int FROM supplier_avl) AS total,
-        (SELECT COUNT(DISTINCT supplier_code)::int FROM sg_mappings WHERE status='Active') AS mapped`),
+        (SELECT COUNT(DISTINCT m.supplier_code)::int FROM sg_mappings m JOIN supplier_avl a ON a.supplier_code = m.supplier_code WHERE m.status='Active') AS mapped`),
       sourceGuidePool.query(`SELECT (SELECT COUNT(*)::int FROM sg_commodities) AS catalogue,
         (SELECT COUNT(DISTINCT commodity_id)::int FROM sg_mappings WHERE status='Active') AS covered`),
       sourceGuidePool.query(`
@@ -1206,9 +1206,12 @@ export async function getUserActivity(): Promise<SgUserActivity[]> {
   const user = await getSgUser();
   if (!user?.isAdmin) return [];
   try {
+    // Key both sides by a stable identity: the actor email where known, else the display name (lowercased).
+    // This keeps one human as one row across a display-name change or case/whitespace drift.
     const [actRes, useRes] = await Promise.all([
       sourceGuidePool.query(`
-        SELECT performed_by AS name,
+        SELECT LOWER(COALESCE(NULLIF(performed_by_email, ''), performed_by)) AS key,
+               MAX(performed_by) AS name,
                COUNT(*)::int AS edits,
                COUNT(*) FILTER (WHERE action NOT LIKE 'Champion%' AND action NOT LIKE 'Access%')::int AS mappings,
                COUNT(*) FILTER (WHERE action LIKE 'Champion%')::int AS champions,
@@ -1216,32 +1219,36 @@ export async function getUserActivity(): Promise<SgUserActivity[]> {
                COUNT(DISTINCT country_code)::int AS countries,
                MAX(performed_at) AS last_active
         FROM sg_activity_log
-        WHERE performed_by IS NOT NULL AND performed_by <> ''
-        GROUP BY performed_by`),
+        WHERE COALESCE(NULLIF(performed_by_email, ''), performed_by) IS NOT NULL
+          AND COALESCE(NULLIF(performed_by_email, ''), performed_by) <> ''
+        GROUP BY LOWER(COALESCE(NULLIF(performed_by_email, ''), performed_by))`),
       sourceGuidePool.query(`
-        SELECT COALESCE(user_name, user_email) AS name,
+        SELECT LOWER(COALESCE(NULLIF(user_email, ''), user_name)) AS key,
+               MAX(COALESCE(user_name, user_email)) AS name,
                COUNT(*) FILTER (WHERE event_type='view')::int AS views,
                COUNT(*) FILTER (WHERE event_type='search')::int AS searches,
                MAX(created_at) AS last_active
         FROM sg_usage_log
-        WHERE COALESCE(user_name, user_email) IS NOT NULL
-        GROUP BY COALESCE(user_name, user_email)`),
+        WHERE COALESCE(NULLIF(user_email, ''), user_name) IS NOT NULL
+        GROUP BY LOWER(COALESCE(NULLIF(user_email, ''), user_name))`),
     ]);
 
     const map = new Map<string, SgUserActivity>();
-    const ensure = (name: string): SgUserActivity => {
-      let r = map.get(name);
-      if (!r) { r = { user: name, views: 0, searches: 0, edits: 0, mappings: 0, champions: 0, access: 0, countries: 0, lastActive: '' }; map.set(name, r); }
+    const ensure = (key: string, name: string): SgUserActivity => {
+      let r = map.get(key);
+      if (!r) { r = { user: name || key, views: 0, searches: 0, edits: 0, mappings: 0, champions: 0, access: 0, countries: 0, lastActive: '' }; map.set(key, r); }
+      // prefer a human name over an email/key for display
+      else if (name && (!r.user || r.user.includes('@')) && !name.includes('@')) r.user = name;
       return r;
     };
     for (const a of actRes.rows) {
-      const r = ensure(a.name);
+      const r = ensure(a.key, a.name);
       r.edits = Number(a.edits); r.mappings = Number(a.mappings);
       r.champions = Number(a.champions); r.access = Number(a.access); r.countries = Number(a.countries);
       const la = isoOf(a.last_active); if (la > r.lastActive) r.lastActive = la;
     }
     for (const u of useRes.rows) {
-      const r = ensure(u.name);
+      const r = ensure(u.key, u.name);
       r.views = Number(u.views); r.searches = Number(u.searches);
       const la = isoOf(u.last_active); if (la > r.lastActive) r.lastActive = la;
     }
@@ -1290,7 +1297,7 @@ export async function addChampion(countryCode: string, name: string, email: stri
     }
     await sourceGuidePool.query(
       `INSERT INTO sg_champions (country_code, name, email) VALUES ($1, $2, $3)`, [countryCode, n, e]);
-    await logSafe(countryCode, null, 'Champion added', `${n}${e ? ` (${e})` : ''}`, user.name);
+    await logSafe(countryCode, null, 'Champion added', `${n}${e ? ` (${e})` : ''}`, user.name, user.email);
     return { success: true };
   } catch (err) {
     console.error('[sg.addChampion]', err);
@@ -1316,7 +1323,7 @@ export async function updateChampion(id: number, name: string, email: string | n
     }
     await sourceGuidePool.query(`UPDATE sg_champions SET name=$2, email=$3 WHERE id=$1`, [id, n, e]);
     await logSafe(prev.country_code, null, 'Champion updated',
-      `${prev.name}${prev.email ? ` (${prev.email})` : ''} to ${n}${e ? ` (${e})` : ''}`, user.name);
+      `${prev.name}${prev.email ? ` (${prev.email})` : ''} to ${n}${e ? ` (${e})` : ''}`, user.name, user.email);
     return { success: true };
   } catch (err) {
     console.error('[sg.updateChampion]', err);
@@ -1332,7 +1339,7 @@ export async function removeChampion(id: number): Promise<{ success: boolean; er
     await sourceGuidePool.query(`DELETE FROM sg_champions WHERE id=$1`, [id]);
     const prev = row.rows[0];
     if (prev) await logSafe(prev.country_code, null, 'Champion removed',
-      `${prev.name}${prev.email ? ` (${prev.email})` : ''}`, user.name);
+      `${prev.name}${prev.email ? ` (${prev.email})` : ''}`, user.name, user.email);
     return { success: true };
   } catch (err) {
     console.error('[sg.removeChampion]', err);
@@ -1427,13 +1434,14 @@ export async function getSourceGuidePendingCount(): Promise<number> {
 
 /** Approve a user for all-country (read-only) access. */
 export async function approveSourceGuideAccessRequest(userEmail: string): Promise<{ success: boolean; error?: string }> {
+  const user = await getSgUser();
+  if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   try {
-    const reviewer = (await getSgUser())?.name ?? null;
     await sourceGuidePool.query(
       `UPDATE access_requests SET status='Approved', approved_countries='{}', reviewed_at=NOW(), reviewed_by=$2 WHERE user_email=$1`,
-      [userEmail, reviewer],
+      [userEmail, user.name],
     );
-    await logSafe(null, null, 'Access approved', userEmail, reviewer);
+    await logSafe(null, null, 'Access approved', userEmail, user.name, user.email);
     return { success: true };
   } catch (err) {
     console.error('[sg.approveSourceGuideAccessRequest]', err);
@@ -1442,13 +1450,14 @@ export async function approveSourceGuideAccessRequest(userEmail: string): Promis
 }
 
 async function denyAccess(userEmail: string, action: 'Access denied' | 'Access revoked'): Promise<{ success: boolean; error?: string }> {
+  const user = await getSgUser();
+  if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   try {
-    const reviewer = (await getSgUser())?.name ?? null;
     await sourceGuidePool.query(
       `UPDATE access_requests SET status='Denied', approved_countries='{}', reviewed_at=NOW(), reviewed_by=$2 WHERE user_email=$1`,
-      [userEmail, reviewer],
+      [userEmail, user.name],
     );
-    await logSafe(null, null, action, userEmail, reviewer);
+    await logSafe(null, null, action, userEmail, user.name, user.email);
     return { success: true };
   } catch (err) {
     console.error(`[sg.${action}]`, err);
@@ -1465,13 +1474,15 @@ export async function revokeSourceGuideAccess(userEmail: string): Promise<{ succ
 }
 
 export async function editSourceGuideAccess(userEmail: string, countries: string[]): Promise<{ success: boolean; error?: string }> {
+  const user = await getSgUser();
+  if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   if (!countries.length) return { success: false, error: 'Please select at least one country.' };
   try {
     await sourceGuidePool.query(
       `UPDATE access_requests SET approved_countries=$2, reviewed_at=NOW() WHERE user_email=$1`,
       [userEmail, countries],
     );
-    await logSafe(null, null, 'Access updated', `${userEmail}: ${countries.join(', ')}`, (await getSgUser())?.name ?? null);
+    await logSafe(null, null, 'Access updated', `${userEmail}: ${countries.join(', ')}`, user.name, user.email);
     return { success: true };
   } catch (err) {
     console.error('[sg.editSourceGuideAccess]', err);
@@ -1480,9 +1491,11 @@ export async function editSourceGuideAccess(userEmail: string, countries: string
 }
 
 export async function deleteSourceGuideAccessRequest(userEmail: string): Promise<{ success: boolean; error?: string }> {
+  const user = await getSgUser();
+  if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   try {
     await sourceGuidePool.query(`DELETE FROM access_requests WHERE user_email=$1`, [userEmail]);
-    await logSafe(null, null, 'Access request deleted', userEmail, (await getSgUser())?.name ?? null);
+    await logSafe(null, null, 'Access request deleted', userEmail, user.name, user.email);
     return { success: true };
   } catch (err) {
     console.error('[sg.deleteSourceGuideAccessRequest]', err);
