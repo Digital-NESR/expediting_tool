@@ -1,6 +1,10 @@
 import type { ProcureGuardAccessView, ProcureGuardPermissionProfile, ProcureGuardPermissionRole, ProcureGuardPriority, ProcureGuardRequestType, ProcureGuardStatus } from '@/types/procureGuard';
 
 export const PROCUREMENT_GREEN = '#006B0C';
+
+// Advance payments at or below this USD value are fully approved by the country finance
+// controller alone — the request goes straight to Approved with no further sign-off.
+export const ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD = 50000;
 export const PERMISSION_ROLE_OPTIONS: ProcureGuardPermissionRole[] = [
   'Requester',
   'Analyst',
@@ -196,6 +200,10 @@ function getRequiredPermissionForApproval(
   }
 
   const spendUsd = toUsd(amount, currency || 'USD');
+  // Low-value advances: the country finance controller approves straight to Approved.
+  if ((currentStatus === 'Submitted' || currentStatus === 'Under Review') && nextStatus === 'Approved') {
+    return spendUsd <= ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD ? 'canReviewAdvanceCountryController' : null;
+  }
   if (currentStatus === 'Submitted' && nextStatus === 'Approved by Country Controller') return 'canReviewAdvanceCountryController';
   if (currentStatus === 'Under Review' && nextStatus === 'Approved by Country Controller') return 'canReviewAdvanceCountryController'; // legacy Under Review records
   if (currentStatus === 'Approved by Country Controller' && nextStatus === 'Approved by Supply Chain Director') return 'canReviewAdvanceSupplyChainDirector';
@@ -426,6 +434,17 @@ export function getWorkflowSteps(
     ];
   }
 
+  const spendUsd = toUsd(amount, currency || 'USD');
+
+  // At or below the threshold, the country finance controller's approval is final.
+  if (spendUsd <= ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD) {
+    return [
+      { status: 'Submitted', label: 'Country Finance Review', owner: 'Country Finance Controller', description: 'New request submitted; awaiting country finance controller approval.' },
+      { status: 'Under Review', label: 'Country Finance Review', owner: 'Country Finance Controller', description: 'Country finance controller reviews the advance request.' },
+      { status: 'Approved', label: 'Approved', owner: 'Workflow Complete', description: 'Fully approved by the country finance controller (advances of 50,000 USD or less).' },
+    ];
+  }
+
   const steps: ProcureGuardWorkflowStep[] = [
     { status: 'Submitted', label: 'Country Finance Review', owner: 'Country Finance Controller', description: 'New request submitted; awaiting country finance controller approval.' },
     { status: 'Under Review', label: 'Country Finance Review', owner: 'Country Finance Controller', description: 'Country finance controller reviews the advance request.' },
@@ -434,7 +453,7 @@ export function getWorkflowSteps(
     { status: 'Approved by Treasury Director', label: 'Corporate Controller Review', owner: 'Corporate Controller', description: 'Corporate controller reviews and checks the CFO threshold.' },
   ];
 
-  if (toUsd(amount, currency || 'USD') >= 500000) {
+  if (spendUsd >= 500000) {
     steps.push({
       status: 'Approved by Corporate Controller',
       label: 'CFO Review',
@@ -473,9 +492,13 @@ export function getNextApprovalStatus(
   }
 
   const spendUsd = toUsd(amount, currency || 'USD');
+  // At or below the threshold, the country finance controller's approval is final.
+  const firstStep: ProcureGuardStatus = spendUsd <= ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD
+    ? 'Approved'
+    : 'Approved by Country Controller';
   const transitions: Partial<Record<ProcureGuardStatus, ProcureGuardStatus>> = {
-    Submitted: 'Approved by Country Controller',
-    'Under Review': 'Approved by Country Controller', // legacy Under Review records
+    Submitted: firstStep,
+    'Under Review': firstStep, // legacy Under Review records
     'Approved by Country Controller': 'Approved by Supply Chain Director',
     'Approved by Supply Chain Director': 'Approved by Treasury Director',
     'Approved by Treasury Director': spendUsd < 500000 ? 'Approved' : 'Approved by Corporate Controller',

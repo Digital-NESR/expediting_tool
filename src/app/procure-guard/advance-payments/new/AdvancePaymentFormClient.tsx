@@ -87,7 +87,15 @@ function AttachmentPicker({
         type="file"
         multiple
         className="sr-only"
-        onChange={e => onFilesSelected(Array.from(e.target.files || []))}
+        onChange={e => {
+          const picked = Array.from(e.target.files || []);
+          const merged = [...files];
+          for (const f of picked) {
+            if (!merged.some(m => m.name === f.name && m.size === f.size)) merged.push(f);
+          }
+          onFilesSelected(merged);
+          e.target.value = ''; // allow re-selecting the same file and adding more later
+        }}
       />
       <div className="flex flex-col gap-3">
         <label
@@ -105,7 +113,17 @@ function AttachmentPicker({
           {files.map(file => (
             <div key={`${file.name}-${file.size}`} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm">
               <span className="min-w-0 truncate font-semibold text-slate-900">{file.name}</span>
-              <span className="shrink-0 text-slate-400">{fmtBytes(file.size)}</span>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-slate-400">{fmtBytes(file.size)}</span>
+                <button
+                  type="button"
+                  onClick={() => onFilesSelected(files.filter(f => !(f.name === file.name && f.size === file.size)))}
+                  className="rounded p-0.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                  aria-label={`Remove ${file.name}`}
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
             </div>
           ))}
         </div>

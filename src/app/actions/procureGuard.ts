@@ -1013,7 +1013,8 @@ function buildProcureGuardNotificationEmail(input: {
   previousStatus?: ProcureGuardStatus | null;
   comment?: string | null;
 }) {
-  const typeLabel = input.requestType === 'adhoc' ? 'ADHOC PO' : 'Advance payment';
+  const typeLabel = input.requestType === 'adhoc' ? 'Adhoc PO' : 'Advance Payment';
+  const article = /^[aeiou]/i.test(typeLabel) ? 'An' : 'A';
   const actionLabel = input.event === 'request.submitted' ? 'New request submitted' : 'Request moved forward';
   const subject = `ProcureGuard: ${input.request.reference_number} needs ${input.ownerLabel} review`;
   const comment = input.comment || input.request.requester_comments || '';
@@ -1028,7 +1029,7 @@ function buildProcureGuardNotificationEmail(input: {
         <div style="font-size:12px;color:#6b7280;margin-top:4px;">${escapeHtml(actionLabel)}</div>
       </div>
       <h2 style="margin:0 0 8px 0;color:#111827;">${escapeHtml(input.request.reference_number)} needs your review</h2>
-      <p style="margin:0 0 20px 0;color:#4b5563;">A ${escapeHtml(typeLabel)} request is waiting for ${escapeHtml(input.ownerLabel)} action.</p>
+      <p style="margin:0 0 20px 0;color:#4b5563;">${article} ${escapeHtml(typeLabel)} request is waiting for ${escapeHtml(input.ownerLabel)} action.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:22px;">
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;width:170px;">Vendor</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.vendor_name)}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Amount</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(formatWebhookAmount(input.request.amount, input.request.currency))}</td></tr>
@@ -1064,7 +1065,7 @@ function buildProcureGuardRequesterStageEmail(input: {
   previousStatus?: ProcureGuardStatus | null;
   comment?: string | null;
 }) {
-  const typeLabel = input.requestType === 'adhoc' ? 'ADHOC PO' : 'Advance payment';
+  const typeLabel = input.requestType === 'adhoc' ? 'Adhoc PO' : 'Advance Payment';
   const isRejected = input.request.status === 'Rejected';
   const isCancelled = input.request.status === 'Cancelled';
   const isTerminalStop = isRejected || isCancelled;
@@ -1741,7 +1742,7 @@ async function sendProcureGuardDelegationEmail(
     : '';
   const openBlock = granted
     ? (params.openItems.length
-        ? `<div style="background:#f9fafb;border-left:4px solid ${accent};padding:12px 14px;margin-bottom:22px;"><div style="font-weight:600;margin-bottom:6px;">Currently open for your action</div><ul style="margin:0;padding-left:18px;color:#374151;">${params.openItems.map(i => `<li>${escapeHtml(i.reference)} — ${escapeHtml(i.requestType === 'adhoc' ? 'Adhoc PO' : 'Advance payment')} (${escapeHtml(i.status)})</li>`).join('')}</ul></div>`
+        ? `<div style="background:#f9fafb;border-left:4px solid ${accent};padding:12px 14px;margin-bottom:22px;"><div style="font-weight:600;margin-bottom:6px;">Currently open for your action</div><ul style="margin:0;padding-left:18px;color:#374151;">${params.openItems.map(i => `<li>${escapeHtml(i.reference)} — ${escapeHtml(i.requestType === 'adhoc' ? 'Adhoc PO' : 'Advance Payment')} (${escapeHtml(i.status)})</li>`).join('')}</ul></div>`
         : `<p style="margin:0 0 22px 0;color:#4b5563;">There are no items awaiting action right now.</p>`)
     : '';
   const bodyHtml = `
