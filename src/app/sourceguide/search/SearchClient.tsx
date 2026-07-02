@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Search, X, Check, Layers, ChevronRight, Download } from 'lucide-react';
 import { SG_BRAND } from '../constants';
 import { CountryFlag, SupAvatar } from '../ui';
-import { searchCommodities, searchSuppliers } from '@/app/actions/sourceguide';
+import { searchCommodities, searchSuppliers, recordSearch } from '@/app/actions/sourceguide';
 import { downloadXlsx } from '../exportXlsx';
 import type {
   SgCountry, SgCategory, SgFacets, SgCommodityResult, SgSupplier, SgSearchFilters, Tier,
@@ -63,6 +63,15 @@ export default function SearchClient({
     }, 150);
     return () => clearTimeout(t);
   }, [query, filters]);
+
+  // usage logging: record a committed search (query only, deduped) — not filter tweaks
+  const loggedSearch = useRef('');
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2 || term === loggedSearch.current) return;
+    const t = setTimeout(() => { loggedSearch.current = term; void recordSearch(term); }, 800);
+    return () => clearTimeout(t);
+  }, [query]);
 
   function exportResults() {
     const rows = results.map(com => ({
