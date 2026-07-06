@@ -20,6 +20,10 @@ import {
   isExpiringSoon,
   sirionUrlFor,
   INCOTERM_CODES,
+  FIELD_MAX,
+  LEAD_TIME_MAX_DAYS,
+  UNIT_PRICE_MAX,
+  sanitizeImportText,
 } from '@/lib/catalog-manager-utils';
 import type {
   AppUserRow,
@@ -1306,7 +1310,28 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
       if (!r.effective_date?.trim()) missing.push('effective date');
       if (missing.length) { errors++; log.push(`❌ Row ${r.rowIndex}: missing ${missing.join(', ')}`); continue; }
 
+      // Clean text (trim + strip control chars) and enforce length caps — mirrors the template.
+      const supplier = sanitizeImportText(r.supplier);
+      const supplierCode = sanitizeImportText(r.supplier_code);
+      const commodity = sanitizeImportText(r.commodity);
+      const description = sanitizeImportText(r.description);
+      const manager = sanitizeImportText(r.manager);
+      const sirion = sanitizeImportText(r.sirion_contract_id);
+      const notes = sanitizeImportText(r.notes);
+      if (!supplier || !supplierCode || !commodity) { errors++; log.push(`❌ Row ${r.rowIndex}: supplier, supplier code and commodity cannot be blank`); continue; }
+      const tooLong =
+        supplier.length > FIELD_MAX.supplier ? `supplier (max ${FIELD_MAX.supplier})`
+        : supplierCode.length > FIELD_MAX.supplier_code ? `supplier code (max ${FIELD_MAX.supplier_code})`
+        : commodity.length > FIELD_MAX.commodity ? `commodity (max ${FIELD_MAX.commodity})`
+        : description && description.length > FIELD_MAX.description ? `description (max ${FIELD_MAX.description})`
+        : manager && manager.length > FIELD_MAX.manager ? `supplier manager (max ${FIELD_MAX.manager})`
+        : sirion && sirion.length > FIELD_MAX.sirion_contract_id ? `Sirion contract ID (max ${FIELD_MAX.sirion_contract_id})`
+        : notes && notes.length > FIELD_MAX.notes ? `notes (max ${FIELD_MAX.notes})`
+        : null;
+      if (tooLong) { errors++; log.push(`❌ Row ${r.rowIndex}: ${tooLong} is too long`); continue; }
+
       if (r.unit_price == null || r.unit_price <= 0) { errors++; log.push(`❌ Row ${r.rowIndex}: unit price must be greater than 0`); continue; }
+      if (r.unit_price > UNIT_PRICE_MAX) { errors++; log.push(`❌ Row ${r.rowIndex}: unit price looks wrong (over ${UNIT_PRICE_MAX.toLocaleString()})`); continue; }
 
       const ccy = r.currency.trim().toUpperCase();
       if (!ccySet.has(ccy)) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown currency "${r.currency}"`); continue; }
@@ -1340,15 +1365,15 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
         incoterms = ic;
       }
 
-      // Lead time optional; whole number of days ≥ 0.
+      // Lead time optional; whole number of days between 0 and the sanity cap.
       let leadTime: number | null = null;
       if (r.lead_time_days != null) {
-        if (!Number.isFinite(r.lead_time_days) || r.lead_time_days < 0) { errors++; log.push(`❌ Row ${r.rowIndex}: lead time must be a whole number of days (0 or more)`); continue; }
+        if (!Number.isFinite(r.lead_time_days) || r.lead_time_days < 0 || r.lead_time_days > LEAD_TIME_MAX_DAYS) { errors++; log.push(`❌ Row ${r.rowIndex}: lead time must be a whole number of days between 0 and ${LEAD_TIME_MAX_DAYS}`); continue; }
         leadTime = Math.round(r.lead_time_days);
       }
 
       // Description is optional — fall back to the (required) commodity as the item name.
-      const itemName = (r.description?.trim() || r.commodity!.trim());
+      const itemName = description ?? commodity;
 
       const eff = normalizeImportDate(r.effective_date);
       if (!eff) { errors++; log.push(`❌ Row ${r.rowIndex}: invalid effective date "${r.effective_date}"`); continue; }
@@ -1361,17 +1386,17 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
       const dup = await sql<{ code: string }[]>(
         `SELECT e.code FROM catalog_entry e JOIN supplier s ON s.id = e.supplier_id
          WHERE s.vendor_code = ? AND e.country_code = ? AND LOWER(e.item_name) = LOWER(?) AND e.status = 'Active' LIMIT 1`,
-        [r.supplier_code.trim(), countryCode, itemName],
+        [supplierCode, countryCode, itemName],
       );
       if (dup[0]) { skipped++; log.push(`⚠️ Row ${r.rowIndex}: looks like a duplicate of active ${dup[0].code} — skipped`); continue; }
 
-      const supplierId = await upsertSupplier(r.supplier.trim(), r.supplier_code.trim(), r.manager?.trim() || null);
+      const supplierId = await upsertSupplier(supplier, supplierCode, manager);
       const usd = toUsd(r.unit_price, ccy);
       const tier = approvalTier(usd, effectiveThresholdUsd(thresholdRules, countryCode, categoryId));
       const status: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
       const approver = status === 'Pending Approval' ? (countryCode === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
       const code = `CAT-${++codeSeq}`;
-      const sirionUrl = sirionUrlFor(r.sirion_contract_id);
+      const sirionUrl = sirionUrlFor(sirion);
 
       const ins = await exec(
         `INSERT INTO catalog_entry
@@ -1380,9 +1405,9 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
            current_version_no, manager, approver_name, created_by, modified_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`,
         [
-          code, countryCode, supplierId, categoryId, subId, uom.id, spendType, r.commodity!.trim(),
-          itemName, r.description?.trim() || null, r.sirion_contract_id?.trim() || null, sirionUrl, r.notes?.trim() || null,
-          incoterms, leadTime, status, tier.label, r.manager?.trim() || null, approver, actor.name, actor.name,
+          code, countryCode, supplierId, categoryId, subId, uom.id, spendType, commodity,
+          itemName, description, sirion, sirionUrl, notes,
+          incoterms, leadTime, status, tier.label, manager, approver, actor.name, actor.name,
         ],
       );
       await exec(

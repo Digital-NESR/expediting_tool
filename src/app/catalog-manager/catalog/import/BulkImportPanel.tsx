@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { Icon } from '../../components/CatalogManagerUI';
 import { bulkImportCatalogEntries, buildCommodityReference, type CatalogImportRow } from '@/app/actions/catalog-manager';
-import { SEED_UOMS, SEED_CURRENCIES, SEED_COUNTRIES, INCOTERMS } from '@/lib/catalog-manager-utils';
+import { SEED_UOMS, SEED_CURRENCIES, SEED_COUNTRIES, INCOTERMS, FIELD_MAX, LEAD_TIME_MAX_DAYS, UNIT_PRICE_MAX } from '@/lib/catalog-manager-utils';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
 
 type Phase = 'form' | 'running' | 'done';
@@ -106,33 +106,51 @@ const tplHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TPL_
 const tplThin = { style: 'thin', color: { argb: TPL_BORDER } } as ExcelJS.Border;
 const tplBox = { top: tplThin, left: tplThin, bottom: tplThin, right: tplThin };
 
-/** Build the Excel data-validation rule for a template column (dropdowns + typed cells). */
-function validationFor(kind: DVKind, required: boolean, listRange: Record<string, string>): ExcelJS.DataValidation | null {
+/** Build the Excel data-validation rule for a template column (dropdowns + typed cells + prompts). */
+function validationFor(kind: DVKind, required: boolean, listRange: Record<string, string>, maxLen: number): ExcelJS.DataValidation | null {
   const allowBlank = !required;
+  const req = required ? ' (required)' : '';
   switch (kind) {
     case 'country': case 'category': case 'subcategory': case 'uom': case 'currency': case 'incoterms':
       return {
         type: 'list', allowBlank, formulae: [listRange[kind]],
         showErrorMessage: true, errorStyle: 'error', errorTitle: 'Pick from the list',
-        error: 'Choose one of the allowed values from the dropdown.',
+        error: 'Choose one of the allowed values from the dropdown — free-typed values are rejected.',
+        showInputMessage: true, promptTitle: `Dropdown${req}`, prompt: 'Click the arrow and pick a value.',
+      };
+    case 'text': case 'code':
+      return {
+        type: 'textLength',
+        operator: required ? 'between' : 'lessThanOrEqual',
+        allowBlank,
+        formulae: required ? [1, maxLen] : [maxLen],
+        showErrorMessage: true, errorStyle: 'error',
+        errorTitle: required ? 'Required text' : 'Too long',
+        error: required ? `Enter between 1 and ${maxLen} characters.` : `Keep this to ${maxLen} characters or fewer.`,
+        showInputMessage: true,
+        promptTitle: `Text${req}`,
+        prompt: kind === 'code' ? `Up to ${maxLen} characters — leading zeros are kept.` : `Up to ${maxLen} characters.`,
       };
     case 'price':
       return {
-        type: 'decimal', operator: 'greaterThan', allowBlank: false, formulae: [0],
+        type: 'decimal', operator: 'between', allowBlank: false, formulae: [0.0001, UNIT_PRICE_MAX],
         showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid unit price',
-        error: 'Enter a number greater than 0 — no currency symbols or thousands separators.',
+        error: `Enter a number greater than 0 and at most ${UNIT_PRICE_MAX.toLocaleString()} — no currency symbols or thousands separators.`,
+        showInputMessage: true, promptTitle: 'Unit price (required)', prompt: 'Plain number, e.g. 128000 — no symbols or commas.',
       };
     case 'date':
       return {
-        type: 'date', operator: 'greaterThan', allowBlank, formulae: [new Date(2000, 0, 1)],
+        type: 'date', operator: 'between', allowBlank, formulae: [new Date(2000, 0, 1), new Date(2100, 11, 31)],
         showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid date',
-        error: 'Enter a valid date (format YYYY-MM-DD).',
+        error: 'Enter a real date between 2000 and 2100 (format YYYY-MM-DD).',
+        showInputMessage: true, promptTitle: `Date${req}`, prompt: 'Format YYYY-MM-DD.',
       };
     case 'whole':
       return {
-        type: 'whole', operator: 'greaterThanOrEqual', allowBlank: true, formulae: [0],
+        type: 'whole', operator: 'between', allowBlank: true, formulae: [0, LEAD_TIME_MAX_DAYS],
         showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid lead time',
-        error: 'Enter a whole number of days (0 or more).',
+        error: `Enter a whole number of days between 0 and ${LEAD_TIME_MAX_DAYS}.`,
+        showInputMessage: true, promptTitle: 'Lead time', prompt: 'Whole number of days, e.g. 45.',
       };
     default:
       return null; // free text — no validation
@@ -221,18 +239,35 @@ async function downloadTemplate() {
     headCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
     headCell.alignment = { vertical: 'middle', horizontal: 'left' };
     headCell.border = tplBox;
+    headCell.protection = { locked: true }; // headers can't be renamed/reordered (importer reads by position)
 
-    const dv = validationFor(c.dv, c.required, listRange);
+    const maxLen = (FIELD_MAX as Record<string, number>)[c.field] ?? 255;
+    const dv = validationFor(c.dv, c.required, listRange, maxLen);
     for (let r = 2; r <= TPL_DATA_ROWS + 1; r++) {
       const cell = cat.getCell(r, i + 1);
       if (c.dv === 'code') cell.numFmt = '@';
       else if (c.dv === 'price') cell.numFmt = '#,##0.00';
       else if (c.dv === 'date') cell.numFmt = 'yyyy-mm-dd';
       else if (c.dv === 'whole') cell.numFmt = '0';
+      cell.protection = { locked: false }; // data cells stay editable under sheet protection
       if (dv) cell.dataValidation = dv;
     }
   });
   cat.getRow(1).height = 22;
+  // Protect the sheet: headers stay locked (structure preserved), data cells are editable,
+  // and users can still filter/sort/insert rows. This is the key failsafe against the
+  // positional importer breaking when someone renames or moves a column.
+  await cat.protect('', {
+    selectLockedCells: true,
+    selectUnlockedCells: true,
+    formatCells: true,
+    formatColumns: true,
+    formatRows: true,
+    insertRows: true,
+    sort: true,
+    autoFilter: true,
+    deleteRows: true,
+  });
 
   /* ── 3) Field guide (the required/format reference table) ── */
   const guide = wb.addWorksheet('Field guide');
@@ -267,6 +302,11 @@ async function downloadTemplate() {
     head.font = { bold: true, color: { argb: TPL_GREEN_DARK } };
     col.values.forEach((v, ri) => { lists.getCell(`${L[ci]}${ri + 2}`).value = v; });
   });
+
+  // Reference sheets are read-only so the dropdown sources + guidance can't be edited away.
+  await guide.protect('', { selectLockedCells: true, selectUnlockedCells: true });
+  await info.protect('', { selectLockedCells: true, selectUnlockedCells: true });
+  await lists.protect('', { selectLockedCells: true, selectUnlockedCells: true });
 
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

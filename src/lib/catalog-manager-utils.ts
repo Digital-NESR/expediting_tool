@@ -62,6 +62,46 @@ export const INCOTERMS: { code: string; label: string }[] = [
 ];
 export const INCOTERM_CODES: string[] = INCOTERMS.map((i) => i.code);
 
+/* ---------------- import failsafes (shared by the template + the importer) ---------------- */
+
+/** Max character lengths for free-text import fields — enforced in the template and the importer. */
+export const FIELD_MAX = {
+  supplier: 100,
+  supplier_code: 40,
+  commodity: 120,
+  description: 250,
+  manager: 80,
+  sirion_contract_id: 40,
+  notes: 1000,
+} as const;
+
+/** Sanity bounds for numeric import fields. */
+export const LEAD_TIME_MAX_DAYS = 3650; // ~10 years
+export const UNIT_PRICE_MAX = 1_000_000_000; // 1bn — catches stray digits/typos
+export const DATE_MIN = '2000-01-01';
+export const DATE_MAX = '2100-12-31';
+
+/**
+ * True if a string would be interpreted as a formula when opened in Excel/Sheets
+ * (CSV/formula-injection guard). Values like "=cmd", "+1", "-2", "@x" are risky.
+ */
+export function looksLikeFormula(value: string): boolean {
+  return /^[=+\-@\t\r]/.test(value);
+}
+
+/** Trim a text value, drop control characters, collapse whitespace. Returns null if empty. */
+export function sanitizeImportText(value: string | null | undefined): string | null {
+  const cleaned = (value ?? "").split("").filter((ch) => ch.charCodeAt(0) >= 32).join("");
+  const t = cleaned.replace(/ +/g, " ").trim();
+  return t === "" ? null : t;
+}
+
+/** Neutralise a value for CSV/Excel export so it can never execute as a formula. */
+export function csvSafe(value: unknown): string {
+  const str = value == null ? "" : String(value);
+  return looksLikeFormula(str) ? "'" + str : str;
+}
+
 export const ALL_STATUSES: CatalogStatus[] = ['Active', 'Pending Approval', 'Draft', 'Expired', 'Rejected'];
 export const ALL_ROLES: CatalogRole[] = ['Viewer', 'Contributor', 'Approver', 'Admin'];
 

@@ -7,7 +7,7 @@ import CatalogManagerShell, { type ScopeCountry } from '../components/CatalogMan
 import { Icon, StatusPill, EmptyState } from '../components/CatalogManagerUI';
 import { logExport, bulkDeactivateEntries, bulkSubmitEntries } from '@/app/actions/catalog-manager';
 import type { CatalogEntry, CatalogStatus, SpendType } from '@/types/catalog-manager';
-import { fmtMoney, fmtDateNice, isExpiringSoon, ALL_STATUSES, SPEND_TYPE_OPTIONS } from '@/lib/catalog-manager-utils';
+import { fmtMoney, fmtDateNice, isExpiringSoon, ALL_STATUSES, SPEND_TYPE_OPTIONS, csvSafe } from '@/lib/catalog-manager-utils';
 
 type SortKey = 'recent' | 'priceHi' | 'priceLo' | 'expiry' | 'supplier';
 
@@ -146,7 +146,7 @@ export default function CatalogListClient({
   function exportCsv(which: CatalogEntry[] = rows) {
     const cols: (keyof CatalogEntry)[] = ['code', 'supplier_name', 'supplier_code', 'manager', 'spend_type', 'category_name', 'subcategory_name', 'commodity', 'unspsc_code', 'item_name', 'uom_name', 'unit_price', 'currency_code', 'country_name', 'effective_date', 'expiry_date', 'status', 'sirion_contract_id'];
     const head = ['Catalog ID', 'Supplier', 'Vendor Code', 'Manager', 'Spend Type', 'Category', 'Sub-category', 'Commodity', 'UNSPSC', 'Description', 'UOM', 'Unit Price', 'Currency', 'Country', 'Effective', 'Expiry', 'Status', 'Sirion Contract ID'];
-    const csv = [head.join(','), ...which.map((r) => cols.map((c) => `"${String(r[c] ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const csv = [head.join(','), ...which.map((r) => cols.map((c) => `"${csvSafe(r[c] ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
