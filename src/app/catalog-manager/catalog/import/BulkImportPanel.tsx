@@ -5,7 +5,7 @@ import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { Icon } from '../../components/CatalogManagerUI';
-import { bulkImportCatalogEntries, type CatalogImportRow } from '@/app/actions/catalog-manager';
+import { bulkImportCatalogEntries, buildCommodityReference, type CatalogImportRow } from '@/app/actions/catalog-manager';
 import { SEED_UOMS, SEED_CURRENCIES, SEED_COUNTRIES, INCOTERMS } from '@/lib/catalog-manager-utils';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
 
@@ -303,8 +303,28 @@ export default function BulkImportPanel() {
   const [progress, setProgress] = useState(0);
   const [log, setLog] = useState<string[]>([]);
   const [result, setResult] = useState<{ inserted: number; skipped: number; errors: number } | null>(null);
+  const [refBusy, setRefBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
+
+  async function downloadReference() {
+    setRefBusy(true);
+    try {
+      const { base64, filename } = await buildCommodityReference();
+      const bytes = Uint8Array.from(atob(base64), (ch) => ch.charCodeAt(0));
+      const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // silently ignore — the button re-enables so the user can retry
+    } finally {
+      setRefBusy(false);
+    }
+  }
 
   const handleFile = useCallback(async (f: File) => {
     if (!f.name.match(/\.(xlsx|xls|csv)$/i)) { setParseError('Only .xlsx, .xls, or .csv files are accepted.'); return; }
@@ -345,11 +365,16 @@ export default function BulkImportPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <p className="text-sm text-slate-500">Upload a supplier rate card (.xlsx / .csv). Rows are validated, then created — rates over the threshold go to Pending Approval, the rest activate.</p>
-        <button onClick={() => { void downloadTemplate(); }} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-[#307c4c]/40 hover:text-[#307c4c] active:scale-[0.98]">
-          <Icon name="download" className="h-3.5 w-3.5" /> Download template
-        </button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button onClick={() => { void downloadReference(); }} disabled={refBusy} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-[#307c4c]/40 hover:text-[#307c4c] active:scale-[0.98] disabled:opacity-60" title="Commodities, taxonomy & exact SAP supplier names">
+            <Icon name={refBusy ? 'spinner' : 'sheet'} className={`h-3.5 w-3.5 ${refBusy ? 'animate-spin' : ''}`} /> {refBusy ? 'Preparing…' : 'Commodity & supplier reference'}
+          </button>
+          <button onClick={() => { void downloadTemplate(); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-[#307c4c]/40 hover:text-[#307c4c] active:scale-[0.98]">
+            <Icon name="download" className="h-3.5 w-3.5" /> Download template
+          </button>
+        </div>
       </div>
 
       {phase === 'form' && (
