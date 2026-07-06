@@ -46,6 +46,22 @@ export const SEED_UOMS = [
 
 export const PROOF_TYPES = ['Signed Rate Agreement', 'Supplier Quotation', 'Master Service Agreement'];
 
+/** Incoterms 2020 — code + label. Used in the entry forms, bulk-import template dropdown, and detail view. */
+export const INCOTERMS: { code: string; label: string }[] = [
+  { code: 'EXW', label: 'EXW — Ex Works' },
+  { code: 'FCA', label: 'FCA — Free Carrier' },
+  { code: 'FAS', label: 'FAS — Free Alongside Ship' },
+  { code: 'FOB', label: 'FOB — Free On Board' },
+  { code: 'CFR', label: 'CFR — Cost and Freight' },
+  { code: 'CIF', label: 'CIF — Cost, Insurance and Freight' },
+  { code: 'CPT', label: 'CPT — Carriage Paid To' },
+  { code: 'CIP', label: 'CIP — Carriage and Insurance Paid To' },
+  { code: 'DAP', label: 'DAP — Delivered At Place' },
+  { code: 'DPU', label: 'DPU — Delivered At Place Unloaded' },
+  { code: 'DDP', label: 'DDP — Delivered Duty Paid' },
+];
+export const INCOTERM_CODES: string[] = INCOTERMS.map((i) => i.code);
+
 export const ALL_STATUSES: CatalogStatus[] = ['Active', 'Pending Approval', 'Draft', 'Expired', 'Rejected'];
 export const ALL_ROLES: CatalogRole[] = ['Viewer', 'Contributor', 'Approver', 'Admin'];
 

@@ -17,6 +17,7 @@ import {
   toUsd,
   isExpiringSoon,
   sirionUrlFor,
+  INCOTERM_CODES,
 } from '@/lib/catalog-manager-utils';
 import type {
   AppUserRow,
@@ -232,6 +233,10 @@ async function initCatalogManagerSchema(): Promise<void> {
   // partial unique: one row per (user, country, category) — NULL category treated as "all".
   await execSchema(`CREATE UNIQUE INDEX IF NOT EXISTS country_approver_uniq
     ON country_approver (user_id, country_code, COALESCE(spend_category_id, 0))`);
+
+  // Logistics fields (added later): Incoterms 2020 code + supplier lead time in days.
+  await execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms TEXT`);
+  await execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS lead_time_days INTEGER`);
 
   // Real uploaded proof-of-agreement files are stored inline as a data URL (local-first).
   await execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS data_url TEXT`);
@@ -792,7 +797,7 @@ const ENTRY_SELECT = `
     rv.unit_price, rv.currency_code,
     rv.effective_date::text AS effective_date, rv.expiry_date::text AS expiry_date,
     e.status, e.tier_label, e.current_version_no AS version_no,
-    e.sirion_contract_id, e.sirion_url, e.notes,
+    e.sirion_contract_id, e.sirion_url, e.notes, e.incoterms, e.lead_time_days,
     e.approver_name, e.approval_comment,
     e.created_by, e.created_at::text AS created_at,
     e.modified_by, e.modified_at::text AS modified_at
@@ -841,6 +846,8 @@ function mapEntry(row: QueryResultRow): CatalogEntry {
     sirion_contract_id: row.sirion_contract_id ?? null,
     sirion_url: row.sirion_url ?? null,
     notes: row.notes ?? null,
+    incoterms: row.incoterms ?? null,
+    lead_time_days: row.lead_time_days != null ? Number(row.lead_time_days) : null,
     approver_name: row.approver_name ?? null,
     approval_comment: row.approval_comment ?? null,
     created_by: row.created_by ?? null,
@@ -1018,6 +1025,8 @@ export interface CatalogEntryInput {
   notes: string | null;
   sirion_contract_id: string | null;
   sirion_url: string | null;
+  incoterms: string | null;
+  lead_time_days: number | null;
 }
 
 async function nextEntryCode(): Promise<string> {
@@ -1069,12 +1078,13 @@ export async function createCatalogEntry(input: CatalogEntryInput, mode: 'draft'
   const ins = await exec(
     `INSERT INTO catalog_entry
       (code, country_code, supplier_id, category_id, subcategory_id, uom_id, spend_type, family, commodity,
-       unspsc_code, item_name, description, sirion_contract_id, sirion_url, notes, status, tier_label,
-       current_version_no, manager, approver_name, created_by, modified_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`,
+       unspsc_code, item_name, description, sirion_contract_id, sirion_url, notes, incoterms, lead_time_days,
+       status, tier_label, current_version_no, manager, approver_name, created_by, modified_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`,
     [
       code, input.country_code, supplierId, categoryId, subId, uomId, spendType, input.family, input.commodity,
       input.unspsc_code, input.item_name, input.description, input.sirion_contract_id, input.sirion_url, input.notes,
+      input.incoterms, input.lead_time_days,
       status, tier.label, input.manager, approver, actor.name, actor.name,
     ],
   );
@@ -1140,14 +1150,14 @@ export async function updateCatalogEntry(input: CatalogEntryInput, mode: 'draft'
     `UPDATE catalog_entry SET
       country_code = ?, supplier_id = ?, category_id = ?, subcategory_id = ?, uom_id = ?, spend_type = ?,
       family = ?, commodity = ?, unspsc_code = ?, item_name = ?, description = ?,
-      sirion_contract_id = ?, sirion_url = ?, notes = ?, manager = ?,
+      sirion_contract_id = ?, sirion_url = ?, notes = ?, incoterms = ?, lead_time_days = ?, manager = ?,
       status = ?, tier_label = ?, current_version_no = ?, approver_name = ?,
       modified_by = ?, modified_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
     [
       input.country_code, supplierId, categoryId, subId, uomId, spendType,
       input.family, input.commodity, input.unspsc_code, input.item_name, input.description,
-      input.sirion_contract_id, input.sirion_url, input.notes, input.manager,
+      input.sirion_contract_id, input.sirion_url, input.notes, input.incoterms, input.lead_time_days, input.manager,
       status, tier.label, nextVersion, approver, actor.name, input.id,
     ],
   );
@@ -1222,7 +1232,7 @@ export interface CatalogImportRow {
   category: string;
   subcategory: string | null;
   commodity: string | null;
-  description: string;
+  description: string | null;
   uom: string;
   unit_price: number | null;
   currency: string;
@@ -1230,6 +1240,8 @@ export interface CatalogImportRow {
   expiry_date: string | null;
   sirion_contract_id: string | null;
   notes: string | null;
+  incoterms: string | null;
+  lead_time_days: number | null;
 }
 
 export interface CatalogImportResult {
@@ -1269,6 +1281,7 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
   const catRows = await sql<{ id: number; name: string; type: string }[]>(`SELECT id, name, type FROM spend_category`);
   const catByName = new Map(catRows.map((c) => [c.name.toLowerCase(), c]));
   const subRows = await sql<{ id: number; category_id: number; name: string }[]>(`SELECT id, category_id, name FROM spend_subcategory`);
+  const incotermSet = new Set(INCOTERM_CODES);
 
   const maxRows = await sql<{ n: number }[]>(
     `SELECT COALESCE(MAX(CAST(SUBSTRING(code FROM 5) AS INTEGER)), 1039) AS n FROM catalog_entry WHERE code ~ '^CAT-[0-9]+$'`,
@@ -1285,8 +1298,7 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
       if (!r.supplier?.trim()) missing.push('supplier');
       if (!r.supplier_code?.trim()) missing.push('supplier code');
       if (!r.country?.trim()) missing.push('country');
-      if (!r.category?.trim()) missing.push('category');
-      if (!r.description?.trim()) missing.push('description');
+      if (!r.commodity?.trim()) missing.push('commodity');
       if (!r.uom?.trim()) missing.push('UOM');
       if (!r.currency?.trim()) missing.push('currency');
       if (!r.effective_date?.trim()) missing.push('effective date');
@@ -1300,17 +1312,41 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
       const countryCode = countryByCode.get(r.country.trim().toUpperCase()) ?? countryByName.get(r.country.trim().toLowerCase());
       if (!countryCode) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown country "${r.country}"`); continue; }
 
-      const cat = catByName.get(r.category.trim().toLowerCase());
-      if (!cat) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown spend category "${r.category}"`); continue; }
+      // Spend category is optional; validate only when provided.
+      let cat: { id: number; name: string; type: string } | undefined;
+      if (r.category?.trim()) {
+        cat = catByName.get(r.category.trim().toLowerCase());
+        if (!cat) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown spend category "${r.category}"`); continue; }
+      }
+      const categoryId = cat?.id ?? null;
+      const spendType = cat?.type ?? null;
 
       const uom = uomByName.get(r.uom.trim().toLowerCase());
       if (!uom) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown UOM "${r.uom}"`); continue; }
 
       let subId: number | null = null;
-      if (r.subcategory?.trim()) {
-        const s = subRows.find((x) => x.category_id === cat.id && x.name.toLowerCase() === r.subcategory!.trim().toLowerCase());
+      if (cat && r.subcategory?.trim()) {
+        const s = subRows.find((x) => x.category_id === cat!.id && x.name.toLowerCase() === r.subcategory!.trim().toLowerCase());
         subId = s?.id ?? null;
       }
+
+      // Incoterms optional; validate against the Incoterms 2020 list when provided.
+      let incoterms: string | null = null;
+      if (r.incoterms?.trim()) {
+        const ic = r.incoterms.trim().toUpperCase();
+        if (!incotermSet.has(ic)) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown Incoterm "${r.incoterms}"`); continue; }
+        incoterms = ic;
+      }
+
+      // Lead time optional; whole number of days ≥ 0.
+      let leadTime: number | null = null;
+      if (r.lead_time_days != null) {
+        if (!Number.isFinite(r.lead_time_days) || r.lead_time_days < 0) { errors++; log.push(`❌ Row ${r.rowIndex}: lead time must be a whole number of days (0 or more)`); continue; }
+        leadTime = Math.round(r.lead_time_days);
+      }
+
+      // Description is optional — fall back to the (required) commodity as the item name.
+      const itemName = (r.description?.trim() || r.commodity!.trim());
 
       const eff = normalizeImportDate(r.effective_date);
       if (!eff) { errors++; log.push(`❌ Row ${r.rowIndex}: invalid effective date "${r.effective_date}"`); continue; }
@@ -1323,13 +1359,13 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
       const dup = await sql<{ code: string }[]>(
         `SELECT e.code FROM catalog_entry e JOIN supplier s ON s.id = e.supplier_id
          WHERE s.vendor_code = ? AND e.country_code = ? AND LOWER(e.item_name) = LOWER(?) AND e.status = 'Active' LIMIT 1`,
-        [r.supplier_code.trim(), countryCode, r.description.trim()],
+        [r.supplier_code.trim(), countryCode, itemName],
       );
       if (dup[0]) { skipped++; log.push(`⚠️ Row ${r.rowIndex}: looks like a duplicate of active ${dup[0].code} — skipped`); continue; }
 
       const supplierId = await upsertSupplier(r.supplier.trim(), r.supplier_code.trim(), r.manager?.trim() || null);
       const usd = toUsd(r.unit_price, ccy);
-      const tier = approvalTier(usd, effectiveThresholdUsd(thresholdRules, countryCode, cat.id));
+      const tier = approvalTier(usd, effectiveThresholdUsd(thresholdRules, countryCode, categoryId));
       const status: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
       const approver = status === 'Pending Approval' ? (countryCode === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
       const code = `CAT-${++codeSeq}`;
@@ -1338,13 +1374,13 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
       const ins = await exec(
         `INSERT INTO catalog_entry
           (code, country_code, supplier_id, category_id, subcategory_id, uom_id, spend_type, commodity,
-           item_name, description, sirion_contract_id, sirion_url, notes, status, tier_label,
+           item_name, description, sirion_contract_id, sirion_url, notes, incoterms, lead_time_days, status, tier_label,
            current_version_no, manager, approver_name, created_by, modified_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`,
         [
-          code, countryCode, supplierId, cat.id, subId, uom.id, cat.type, r.commodity?.trim() || null,
-          r.description.trim(), r.description.trim(), r.sirion_contract_id?.trim() || null, sirionUrl, r.notes?.trim() || null,
-          status, tier.label, r.manager?.trim() || null, approver, actor.name, actor.name,
+          code, countryCode, supplierId, categoryId, subId, uom.id, spendType, r.commodity!.trim(),
+          itemName, r.description?.trim() || null, r.sirion_contract_id?.trim() || null, sirionUrl, r.notes?.trim() || null,
+          incoterms, leadTime, status, tier.label, r.manager?.trim() || null, approver, actor.name, actor.name,
         ],
       );
       await exec(

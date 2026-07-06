@@ -7,7 +7,7 @@ import { Icon } from '../components/CatalogManagerUI';
 import { createCatalogEntry, updateCatalogEntry } from '@/app/actions/catalog-manager';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
 import type { CatalogEntry, SpendType } from '@/types/catalog-manager';
-import { APPROVAL_THRESHOLD_USD, fmtUsd, toUsd, sirionUrlFor, SPEND_TYPE_OPTIONS } from '@/lib/catalog-manager-utils';
+import { APPROVAL_THRESHOLD_USD, fmtUsd, toUsd, sirionUrlFor, SPEND_TYPE_OPTIONS, INCOTERMS } from '@/lib/catalog-manager-utils';
 
 interface FormState {
   supplier_name: string;
@@ -30,6 +30,8 @@ interface FormState {
   notes: string;
   sirion_contract_id: string;
   sirion_url: string;
+  incoterms: string;
+  lead_time: string;
 }
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -87,12 +89,15 @@ export default function CatalogEntryFormClient({
           notes: initial.notes ?? '',
           sirion_contract_id: initial.sirion_contract_id ?? '',
           sirion_url: initial.sirion_url ?? '',
+          incoterms: initial.incoterms ?? '',
+          lead_time: initial.lead_time_days != null ? String(initial.lead_time_days) : '',
         }
       : {
           supplier_name: '', supplier_code: '', manager: '', country_code: defaultCountry,
           category_name: '', subcategory_name: '', spend_type: '', family: '', commodity: '', unspsc_code: '',
           item_name: '', description: '', uom_name: '', unit_price: '', currency_code: defaultCcyOf(defaultCountry),
           effective_date: todayStr(), expiry_date: '', notes: '', sirion_contract_id: '', sirion_url: '',
+          incoterms: '', lead_time: '',
         },
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -135,6 +140,7 @@ export default function CatalogEntryFormClient({
     if (f.unit_price && Number(f.unit_price) <= 0) e.unit_price = 'Must be greater than 0';
     if (f.expiry_date && f.expiry_date < f.effective_date) e.expiry_date = 'Expiry must be after effective date';
     if (f.sirion_url && !/^https?:\/\//i.test(f.sirion_url.trim())) e.sirion_url = 'Enter a full URL (https://…)';
+    if (f.lead_time.trim() && (!/^\d+$/.test(f.lead_time.trim()) || Number(f.lead_time) < 0)) e.lead_time = 'Whole number of days';
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -165,6 +171,8 @@ export default function CatalogEntryFormClient({
       notes: f.notes || null,
       sirion_contract_id: f.sirion_contract_id || null,
       sirion_url: f.sirion_url || null,
+      incoterms: f.incoterms || null,
+      lead_time_days: f.lead_time.trim() ? Number(f.lead_time) : null,
     };
     try {
       if (isEdit) {
@@ -293,6 +301,18 @@ export default function CatalogEntryFormClient({
             <label className="flex flex-col gap-1.5">
               <Label>Contract link</Label>
               <input className={inputCls(!!errors.sirion_url)} value={f.sirion_url} onChange={(e) => set('sirion_url', e.target.value)} placeholder="https://nesr.sirion.ai/contracts/…" />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <Label>Incoterms</Label>
+              <select className={inputCls()} value={f.incoterms} onChange={(e) => set('incoterms', e.target.value)}>
+                <option value="">Not specified</option>
+                {INCOTERMS.map((i) => <option key={i.code} value={i.code}>{i.label}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <Label>Lead time <span className="font-normal text-slate-400">· days</span></Label>
+              <input type="number" inputMode="numeric" min={0} className={`${inputCls(!!errors.lead_time)} font-mono`} value={f.lead_time} onChange={(e) => set('lead_time', e.target.value)} placeholder="e.g. 45" />
             </label>
 
             <label className="flex flex-col gap-1.5 sm:col-span-2">

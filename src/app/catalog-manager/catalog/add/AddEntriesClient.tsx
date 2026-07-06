@@ -9,7 +9,7 @@ import GridEntryPanel from './GridEntryPanel';
 import { createCatalogEntriesBatch, searchSupplierDirectory, type CatalogEntryLine } from '@/app/actions/catalog-manager';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
 import type { SpendType } from '@/types/catalog-manager';
-import { APPROVAL_THRESHOLD_USD, fmtUsd, toUsd, SPEND_TYPE_OPTIONS } from '@/lib/catalog-manager-utils';
+import { APPROVAL_THRESHOLD_USD, fmtUsd, toUsd, SPEND_TYPE_OPTIONS, INCOTERMS } from '@/lib/catalog-manager-utils';
 
 interface LineState {
   key: number;
@@ -24,6 +24,8 @@ interface LineState {
   currency: string;
   effective: string;
   expiry: string;
+  incoterms: string;
+  lead_time: string;
 }
 
 const CCY_BY_COUNTRY: Record<string, string> = { SA: 'SAR', AE: 'AED', KW: 'KWD', OM: 'OMR', QA: 'QAR', IQ: 'USD', DZ: 'DZD', EG: 'EGP' };
@@ -32,7 +34,7 @@ const inputCls = 'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2
 
 let keySeq = 1;
 function blankLine(currency: string): LineState {
-  return { key: keySeq++, category: '', subcategory: '', commodity: '', family: '', unspsc: '', item: '', uom: '', price: '', currency, effective: todayStr(), expiry: '' };
+  return { key: keySeq++, category: '', subcategory: '', commodity: '', family: '', unspsc: '', item: '', uom: '', price: '', currency, effective: todayStr(), expiry: '', incoterms: '', lead_time: '' };
 }
 
 export default function AddEntriesClient({
@@ -132,6 +134,7 @@ export default function AddEntriesClient({
       if (!l.price || Number(l.price) <= 0) return `Line ${n}: unit price must be greater than 0.`;
       if (!l.effective) return `Line ${n}: choose an effective date.`;
       if (l.expiry && l.expiry < l.effective) return `Line ${n}: expiry must be after the effective date.`;
+      if (l.lead_time.trim() && !/^\d+$/.test(l.lead_time.trim())) return `Line ${n}: lead time must be a whole number of days.`;
     }
     return null;
   }
@@ -160,6 +163,8 @@ export default function AddEntriesClient({
         notes: null,
         sirion_contract_id: null,
         sirion_url: null,
+        incoterms: l.incoterms || null,
+        lead_time_days: l.lead_time.trim() ? Number(l.lead_time) : null,
       };
     });
     try {
@@ -323,6 +328,17 @@ export default function AddEntriesClient({
                     <label className="flex flex-col gap-1.5">
                       <span className="text-[12.5px] font-semibold text-slate-600">Expiry date</span>
                       <input type="date" className={inputCls} value={l.expiry} onChange={(e) => setLine(l.key, { expiry: e.target.value })} />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-[12.5px] font-semibold text-slate-600">Incoterms</span>
+                      <select className={inputCls} value={l.incoterms} onChange={(e) => setLine(l.key, { incoterms: e.target.value })}>
+                        <option value="">Not specified</option>
+                        {INCOTERMS.map((ic) => <option key={ic.code} value={ic.code}>{ic.label}</option>)}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-[12.5px] font-semibold text-slate-600">Lead time <span className="font-normal text-slate-400">· days</span></span>
+                      <input type="number" inputMode="numeric" min={0} className={`${inputCls} font-mono`} value={l.lead_time} onChange={(e) => setLine(l.key, { lead_time: e.target.value })} placeholder="e.g. 45" />
                     </label>
                   </div>
                 </div>

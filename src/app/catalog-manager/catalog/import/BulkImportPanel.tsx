@@ -3,9 +3,10 @@
 import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { Icon } from '../../components/CatalogManagerUI';
 import { bulkImportCatalogEntries, type CatalogImportRow } from '@/app/actions/catalog-manager';
-import { SEED_UOMS, SEED_CURRENCIES } from '@/lib/catalog-manager-utils';
+import { SEED_UOMS, SEED_CURRENCIES, SEED_COUNTRIES, INCOTERMS } from '@/lib/catalog-manager-utils';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
 
 type Phase = 'form' | 'running' | 'done';
@@ -16,23 +17,28 @@ interface ParsedFile {
   preview: string[][];
 }
 
-// Column order the importer expects (A → O).
-const COLUMNS: { label: string; field: string; required: boolean; keywords: string[] }[] = [
-  { label: 'Supplier', field: 'supplier', required: true, keywords: ['supplier'] },
-  { label: 'Supplier Code', field: 'supplier_code', required: true, keywords: ['code', 'vendor'] },
-  { label: 'Country', field: 'country', required: true, keywords: ['country'] },
-  { label: 'Spend Category', field: 'category', required: true, keywords: ['category', 'spend'] },
-  { label: 'Sub-Category', field: 'subcategory', required: false, keywords: ['sub'] },
-  { label: 'Commodity', field: 'commodity', required: false, keywords: ['commodity'] },
-  { label: 'Description', field: 'description', required: true, keywords: ['description', 'desc', 'service', 'item'] },
-  { label: 'UOM', field: 'uom', required: true, keywords: ['uom', 'unit of measure', 'unit'] },
-  { label: 'Unit Price', field: 'unit_price', required: true, keywords: ['price', 'rate', 'value'] },
-  { label: 'Currency', field: 'currency', required: true, keywords: ['currency', 'ccy'] },
-  { label: 'Effective Date', field: 'effective_date', required: true, keywords: ['effective', 'start'] },
-  { label: 'Expiry Date', field: 'expiry_date', required: false, keywords: ['expiry', 'expiration', 'end'] },
-  { label: 'Supplier Manager', field: 'manager', required: false, keywords: ['manager', 'owner'] },
-  { label: 'Sirion Contract ID', field: 'sirion_contract_id', required: false, keywords: ['sirion', 'contract'] },
-  { label: 'Notes', field: 'notes', required: false, keywords: ['notes', 'comment', 'remark'] },
+// Data-validation kind for each template column (drives the dropdowns / typed cells).
+type DVKind = 'text' | 'code' | 'country' | 'category' | 'subcategory' | 'uom' | 'currency' | 'incoterms' | 'price' | 'date' | 'whole';
+
+// Column order the importer expects (A → Q). `hint` powers the "Field guide" sheet.
+const COLUMNS: { label: string; field: string; required: boolean; keywords: string[]; dv: DVKind; hint: string }[] = [
+  { label: 'Supplier', field: 'supplier', required: true, keywords: ['supplier'], dv: 'text', hint: 'Supplier / vendor name (free text).' },
+  { label: 'Supplier Code', field: 'supplier_code', required: true, keywords: ['code', 'vendor'], dv: 'code', hint: 'SAP vendor code — leading zeros are preserved (cell is text).' },
+  { label: 'Country', field: 'country', required: true, keywords: ['country'], dv: 'country', hint: 'Pick from the dropdown (2-letter code, e.g. SA).' },
+  { label: 'Spend Category', field: 'category', required: false, keywords: ['category', 'spend'], dv: 'category', hint: 'Optional — pick from the dropdown of active categories.' },
+  { label: 'Sub-Category', field: 'subcategory', required: false, keywords: ['sub'], dv: 'subcategory', hint: 'Optional — pick from the dropdown.' },
+  { label: 'Commodity', field: 'commodity', required: true, keywords: ['commodity'], dv: 'text', hint: 'What is being priced (free text).' },
+  { label: 'Description', field: 'description', required: false, keywords: ['description', 'desc', 'service', 'item'], dv: 'text', hint: 'Optional — longer description; defaults to the commodity if blank.' },
+  { label: 'UOM', field: 'uom', required: true, keywords: ['uom', 'unit of measure', 'unit'], dv: 'uom', hint: 'Pick from the dropdown of active units of measure.' },
+  { label: 'Unit Price', field: 'unit_price', required: true, keywords: ['price', 'rate', 'value'], dv: 'price', hint: 'Number greater than 0 — no currency symbols or thousands separators.' },
+  { label: 'Currency', field: 'currency', required: true, keywords: ['currency', 'ccy'], dv: 'currency', hint: 'Pick from the dropdown of valid currency codes.' },
+  { label: 'Effective Date', field: 'effective_date', required: true, keywords: ['effective', 'start'], dv: 'date', hint: 'Date the rate starts (YYYY-MM-DD).' },
+  { label: 'Expiry Date', field: 'expiry_date', required: false, keywords: ['expiry', 'expiration', 'end'], dv: 'date', hint: 'Optional — date the rate lapses (YYYY-MM-DD).' },
+  { label: 'Supplier Manager', field: 'manager', required: false, keywords: ['manager', 'owner'], dv: 'text', hint: 'Optional — accountable owner for the supplier.' },
+  { label: 'Sirion Contract ID', field: 'sirion_contract_id', required: false, keywords: ['sirion', 'contract'], dv: 'text', hint: 'Optional — e.g. SIR-CN-000000.' },
+  { label: 'Notes', field: 'notes', required: false, keywords: ['notes', 'comment', 'remark'], dv: 'text', hint: 'Optional — free text.' },
+  { label: 'Incoterms', field: 'incoterms', required: false, keywords: ['incoterm'], dv: 'incoterms', hint: 'Optional — pick from the dropdown (Incoterms 2020).' },
+  { label: 'Lead Time', field: 'lead_time', required: false, keywords: ['lead', 'lead time'], dv: 'whole', hint: 'Optional — supplier lead time as a whole number of days.' },
 ];
 
 function parseNum(val: unknown): number | null {
@@ -77,6 +83,8 @@ function parseFile(file: File): Promise<ParsedFile> {
             manager: orNull(cell(row, 12)),
             sirion_contract_id: orNull(cell(row, 13)),
             notes: orNull(cell(row, 14)),
+            incoterms: orNull(cell(row, 15)),
+            lead_time_days: parseNum(row[16]),
           }));
         resolve({ rows, headers, preview });
       } catch (err) {
@@ -88,64 +96,186 @@ function parseFile(file: File): Promise<ParsedFile> {
   });
 }
 
-function downloadTemplate() {
-  const wb = XLSX.utils.book_new();
+const TPL_GREEN = 'FF307C4C';
+const TPL_GREEN_DARK = 'FF1D4F31';
+const TPL_PALE = 'FFEAF4EF';
+const TPL_BORDER = 'FFD9E2DC';
+const TPL_DATA_ROWS = 400;
 
-  // ── Instructions sheet ──
-  const instructions: string[][] = [
-    ['NESR Catalog Repo — Bulk Import Template'],
-    [],
-    ['HOW TO FILL'],
-    ['1. Enter one catalog rate per row on the "Catalog" sheet, starting at row 2 (row 1 is the header).'],
-    ['2. Required columns are marked with * on the Catalog sheet: Supplier, Supplier Code, Country, Spend Category, Description, UOM, Unit Price, Currency, Effective Date.'],
-    ['3. Country: use the 2-letter code (e.g. SA) or full name — see the "Currencies" and "Spend Categories" tabs for valid values.'],
-    ['4. Spend Category and Sub-Category must match the "Spend Categories" tab exactly.'],
-    ['5. UOM must be one of the values on the "UOMs" tab. Currency must be a code on the "Currencies" tab.'],
-    ['6. Dates: DD/MM/YYYY or YYYY-MM-DD. Unit Price: plain numbers only, e.g. 128000.'],
-    ['7. Description is free text — describe the service or item being priced.'],
-    [],
-    ['HOW NOT TO FILL'],
-    ['1. Do NOT rename, remove, or reorder the header columns — rows are read by column position.'],
-    ['2. Do NOT merge cells, add total rows, or leave blank rows between entries.'],
-    ['3. Do NOT add currency symbols or thousands separators to Unit Price (enter 128000, not "SAR 128,000").'],
-    ['4. Do NOT invent categories, UOMs, or currencies — unknown values are rejected row by row.'],
-    ['5. A row matching an existing active rate (same vendor code + country + description) is skipped as a duplicate.'],
-    [],
-    ['Rates at or above the approval threshold (USD equivalent) are routed to Pending Approval; the rest activate immediately.'],
+const tplHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TPL_GREEN } } as ExcelJS.Fill;
+const tplThin = { style: 'thin', color: { argb: TPL_BORDER } } as ExcelJS.Border;
+const tplBox = { top: tplThin, left: tplThin, bottom: tplThin, right: tplThin };
+
+/** Build the Excel data-validation rule for a template column (dropdowns + typed cells). */
+function validationFor(kind: DVKind, required: boolean, listRange: Record<string, string>): ExcelJS.DataValidation | null {
+  const allowBlank = !required;
+  switch (kind) {
+    case 'country': case 'category': case 'subcategory': case 'uom': case 'currency': case 'incoterms':
+      return {
+        type: 'list', allowBlank, formulae: [listRange[kind]],
+        showErrorMessage: true, errorStyle: 'error', errorTitle: 'Pick from the list',
+        error: 'Choose one of the allowed values from the dropdown.',
+      };
+    case 'price':
+      return {
+        type: 'decimal', operator: 'greaterThan', allowBlank: false, formulae: [0],
+        showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid unit price',
+        error: 'Enter a number greater than 0 — no currency symbols or thousands separators.',
+      };
+    case 'date':
+      return {
+        type: 'date', operator: 'greaterThan', allowBlank, formulae: [new Date(2000, 0, 1)],
+        showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid date',
+        error: 'Enter a valid date (format YYYY-MM-DD).',
+      };
+    case 'whole':
+      return {
+        type: 'whole', operator: 'greaterThanOrEqual', allowBlank: true, formulae: [0],
+        showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid lead time',
+        error: 'Enter a whole number of days (0 or more).',
+      };
+    default:
+      return null; // free text — no validation
+  }
+}
+
+async function downloadTemplate() {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'NESR Catalog Repo';
+  wb.created = new Date();
+
+  // Validation source data (kept on a hidden "Lists" sheet, referenced by range).
+  const subcats = Array.from(new Set(SPEND_TAXONOMY.flatMap((c) => c.subs.map((s) => s.name)))).sort();
+  const listCols: { header: string; values: string[] }[] = [
+    { header: 'Countries', values: SEED_COUNTRIES.map((c) => c.code) },
+    { header: 'Categories', values: SPEND_TAXONOMY.map((c) => c.name) },
+    { header: 'Sub-categories', values: subcats },
+    { header: 'UOMs', values: [...SEED_UOMS] },
+    { header: 'Currencies', values: SEED_CURRENCIES.map((c) => c.code) },
+    { header: 'Incoterms', values: INCOTERMS.map((i) => `${i.code}`) },
   ];
-  const wsInfo = XLSX.utils.aoa_to_sheet(instructions);
-  wsInfo['!cols'] = [{ wch: 130 }];
-  XLSX.utils.book_append_sheet(wb, wsInfo, 'Instructions');
+  const L = ['A', 'B', 'C', 'D', 'E', 'F'];
+  // Prefer an INLINE dropdown list — the most reliably-rendered form across Excel,
+  // Google Sheets and LibreOffice. Fall back to a reference into the hidden "Lists"
+  // sheet only when the inline form would break: Excel caps an inline list formula at
+  // 255 characters, and a value containing a comma/quote can't be inlined.
+  const listFormula = (colIdx: number): string => {
+    const values = listCols[colIdx].values;
+    const inline = `"${values.join(',')}"`;
+    const inlineSafe = inline.length <= 255 && !values.some((v) => v.includes(',') || v.includes('"'));
+    return inlineSafe ? inline : `Lists!$${L[colIdx]}$2:$${L[colIdx]}$${1 + values.length}`;
+  };
+  const listRange: Record<string, string> = {
+    country: listFormula(0),
+    category: listFormula(1),
+    subcategory: listFormula(2),
+    uom: listFormula(3),
+    currency: listFormula(4),
+    incoterms: listFormula(5),
+  };
 
-  // ── Catalog (data entry) sheet ──
-  const header = COLUMNS.map((c) => `${c.label}${c.required ? ' *' : ''}`);
-  const example = [
-    'Gulf Cementing Co.', 'V-100482', 'SA', 'Field Technical Equipment & Services', 'Drilling Product & Services',
-    'Primary Cementing', 'Primary cementing — 9-5/8" casing string', 'Per Well', '128000', 'SAR',
-    '2026-07-01', '2027-06-30', 'Omar Haddad', 'SIR-CN-231004', 'Annual rate card',
+  /* ── 1) Instructions ── */
+  const info = wb.addWorksheet('Instructions');
+  info.getColumn(1).width = 118;
+  const infoLines: { t: string; head?: boolean; title?: boolean }[] = [
+    { t: 'NESR Catalog Repo — Bulk Import Template', title: true },
+    { t: '' },
+    { t: 'HOW TO FILL', head: true },
+    { t: '1. Enter one catalog rate per row on the "Catalog" sheet, starting at row 2 (row 1 is the header).' },
+    { t: '2. Required columns are marked with * in the header: Supplier, Supplier Code, Country, Commodity, UOM, Unit Price, Currency, Effective Date.' },
+    { t: '3. Country, Spend Category, Sub-Category, UOM, Currency and Incoterms are DROPDOWNS — click the cell and pick a value.' },
+    { t: '4. Unit Price accepts numbers greater than 0 only. Lead Time is a whole number of days.' },
+    { t: '5. Effective / Expiry Date must be real dates (YYYY-MM-DD).' },
+    { t: '6. Supplier Code is stored as text so leading zeros (e.g. 0001103058) are preserved.' },
+    { t: '7. See the "Field guide" tab for every column, whether it is required, and its allowed values.' },
+    { t: '' },
+    { t: 'HOW NOT TO FILL', head: true },
+    { t: '1. Do NOT rename, remove, or reorder the header columns — rows are read by column position.' },
+    { t: '2. Do NOT merge cells, add total rows, or leave blank rows between entries.' },
+    { t: '3. Do NOT add currency symbols or thousands separators to Unit Price (enter 128000, not "SAR 128,000").' },
+    { t: '4. Do NOT type your own categories, UOMs, currencies, or Incoterms — use the dropdowns; unknown values are rejected.' },
+    { t: '5. A row matching an existing active rate (same vendor code + country + description) is skipped as a duplicate.' },
+    { t: '' },
+    { t: 'Rates at or above the approval threshold (USD equivalent) are routed to Pending Approval; the rest activate immediately.' },
   ];
-  const wsCat = XLSX.utils.aoa_to_sheet([header, example]);
-  wsCat['!cols'] = COLUMNS.map(() => ({ wch: 20 }));
-  XLSX.utils.book_append_sheet(wb, wsCat, 'Catalog');
+  infoLines.forEach((line) => {
+    const row = info.addRow([line.t]);
+    const cell = row.getCell(1);
+    if (line.title) cell.font = { bold: true, size: 14, color: { argb: TPL_GREEN_DARK } };
+    else if (line.head) cell.font = { bold: true, size: 11, color: { argb: TPL_GREEN } };
+    else cell.font = { size: 10, color: { argb: 'FF334155' } };
+    cell.alignment = { wrapText: true, vertical: 'middle' };
+  });
 
-  // ── Reference: UOMs ──
-  const wsUom = XLSX.utils.aoa_to_sheet([['Valid units of measure'], ...SEED_UOMS.map((u) => [u])]);
-  wsUom['!cols'] = [{ wch: 24 }];
-  XLSX.utils.book_append_sheet(wb, wsUom, 'UOMs');
+  /* ── 2) Catalog (data entry, validated) ── */
+  const cat = wb.addWorksheet('Catalog', { views: [{ state: 'frozen', ySplit: 1 }] });
+  COLUMNS.forEach((c, i) => {
+    const col = cat.getColumn(i + 1);
+    col.width = c.field === 'description' || c.field === 'notes' ? 32
+      : c.field === 'supplier' || c.field === 'commodity' ? 26
+      : c.field === 'sirion_contract_id' ? 20 : 16;
 
-  // ── Reference: Currencies ──
-  const wsCcy = XLSX.utils.aoa_to_sheet([['Currency code', 'Decimals'], ...SEED_CURRENCIES.map((c) => [c.code, String(c.decimals)])]);
-  wsCcy['!cols'] = [{ wch: 16 }, { wch: 10 }];
-  XLSX.utils.book_append_sheet(wb, wsCcy, 'Currencies');
+    const headCell = cat.getCell(1, i + 1);
+    headCell.value = `${c.label}${c.required ? ' *' : ''}`;
+    headCell.fill = tplHeaderFill;
+    headCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    headCell.alignment = { vertical: 'middle', horizontal: 'left' };
+    headCell.border = tplBox;
 
-  // ── Reference: Spend Category mapping ──
-  const catRows: string[][] = [['Spend Type', 'Spend Category', 'Sub-Category']];
-  for (const c of SPEND_TAXONOMY) for (const s of c.subs) catRows.push([c.type, c.name, s.name]);
-  const wsMap = XLSX.utils.aoa_to_sheet(catRows);
-  wsMap['!cols'] = [{ wch: 20 }, { wch: 42 }, { wch: 34 }];
-  XLSX.utils.book_append_sheet(wb, wsMap, 'Spend Categories');
+    const dv = validationFor(c.dv, c.required, listRange);
+    for (let r = 2; r <= TPL_DATA_ROWS + 1; r++) {
+      const cell = cat.getCell(r, i + 1);
+      if (c.dv === 'code') cell.numFmt = '@';
+      else if (c.dv === 'price') cell.numFmt = '#,##0.00';
+      else if (c.dv === 'date') cell.numFmt = 'yyyy-mm-dd';
+      else if (c.dv === 'whole') cell.numFmt = '0';
+      if (dv) cell.dataValidation = dv;
+    }
+  });
+  cat.getRow(1).height = 22;
 
-  XLSX.writeFile(wb, 'NESR_Catalog_Import_Template.xlsx');
+  /* ── 3) Field guide (the required/format reference table) ── */
+  const guide = wb.addWorksheet('Field guide');
+  guide.columns = [
+    { header: 'Field', width: 22 },
+    { header: 'Required', width: 12 },
+    { header: 'Format / allowed values', width: 62 },
+  ];
+  const gHead = guide.getRow(1);
+  gHead.height = 20;
+  gHead.eachCell((cell) => {
+    cell.fill = tplHeaderFill;
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    cell.alignment = { vertical: 'middle' };
+    cell.border = tplBox;
+  });
+  COLUMNS.forEach((c, i) => {
+    const row = guide.addRow([c.label, c.required ? 'Required' : 'Optional', c.hint]);
+    if (i % 2 === 1) row.eachCell((cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TPL_PALE } } as ExcelJS.Fill; });
+    row.getCell(1).font = { bold: true, color: { argb: 'FF0F172A' } };
+    row.getCell(2).font = { bold: true, color: { argb: c.required ? TPL_GREEN_DARK : 'FF94A3B8' } };
+    row.getCell(3).font = { color: { argb: 'FF475569' } };
+    row.eachCell((cell) => { cell.alignment = { vertical: 'middle', wrapText: true }; cell.border = tplBox; });
+  });
+
+  /* ── 4) Lists (hidden validation source) ── */
+  const lists = wb.addWorksheet('Lists', { state: 'hidden' });
+  listCols.forEach((col, ci) => {
+    lists.getColumn(ci + 1).width = 22;
+    const head = lists.getCell(`${L[ci]}1`);
+    head.value = col.header;
+    head.font = { bold: true, color: { argb: TPL_GREEN_DARK } };
+    col.values.forEach((v, ri) => { lists.getCell(`${L[ci]}${ri + 2}`).value = v; });
+  });
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'NESR_Catalog_Import_Template.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function formatBytes(b: number): string {
@@ -217,7 +347,7 @@ export default function BulkImportPanel() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm text-slate-500">Upload a supplier rate card (.xlsx / .csv). Rows are validated, then created — rates over the threshold go to Pending Approval, the rest activate.</p>
-        <button onClick={downloadTemplate} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm hover:border-[#307c4c]/40 hover:text-[#307c4c]">
+        <button onClick={() => { void downloadTemplate(); }} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-[#307c4c]/40 hover:text-[#307c4c] active:scale-[0.98]">
           <Icon name="download" className="h-3.5 w-3.5" /> Download template
         </button>
       </div>
@@ -350,13 +480,14 @@ export default function BulkImportPanel() {
         <div className="border-b border-slate-100 px-5 py-3.5"><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Expected columns (in order)</p></div>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm">
-            <thead><tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500"><th className="px-4 py-2.5">Col</th><th className="px-4 py-2.5">Header</th><th className="px-4 py-2.5">Required</th></tr></thead>
+            <thead><tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500"><th className="px-4 py-2.5">Col</th><th className="px-4 py-2.5">Header</th><th className="px-4 py-2.5">Required</th><th className="px-4 py-2.5">Type / allowed values</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {COLUMNS.map((c, i) => (
                 <tr key={c.label} className={i % 2 ? 'bg-slate-50/50' : 'bg-white'}>
                   <td className="px-4 py-2 font-mono text-[12px] font-semibold text-slate-700">{String.fromCharCode(65 + i)}</td>
-                  <td className="px-4 py-2 text-slate-700">{c.label}</td>
-                  <td className="px-4 py-2">{c.required ? <span className="text-[#307c4c]">Required</span> : <span className="text-slate-400">Optional</span>}</td>
+                  <td className="px-4 py-2 font-medium text-slate-700">{c.label}</td>
+                  <td className="px-4 py-2">{c.required ? <span className="font-semibold text-[#307c4c]">Required</span> : <span className="text-slate-400">Optional</span>}</td>
+                  <td className="px-4 py-2 text-[12px] text-slate-500">{c.hint}</td>
                 </tr>
               ))}
             </tbody>
@@ -365,8 +496,9 @@ export default function BulkImportPanel() {
         <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4">
           <ul className="space-y-1.5 text-xs text-slate-600">
             {[
-              'Row 1 is the header row; data starts on row 2.',
-              'Country accepts a code (SA) or full name (Saudi Arabia). Category, UOM, and currency must already exist in master data.',
+              'Download the template above — Country, Spend Category, Sub-Category, UOM, Currency and Incoterms are locked dropdowns, and Unit Price / dates / Lead Time only accept valid values.',
+              'Row 1 is the header row; data starts on row 2. Columns are read by position, so keep the order.',
+              'Commodity is required; Spend Category and Description are optional (Description defaults to the Commodity when blank).',
               'Dates accept DD/MM/YYYY or YYYY-MM-DD. Currency symbols in Unit Price are stripped automatically.',
               'A row matching an existing active rate (same vendor code + country + description) is skipped as a duplicate.',
             ].map((r, i) => (
