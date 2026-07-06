@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { getCountryStakeholders, saveNotificationContacts } from '@/app/actions/tite';
 import type { Shipment, NotificationContact, CountryStakeholder } from '@/types/tite';
+import EmployeeSearchInput from '@/components/EmployeeSearchInput';
+import type { Employee } from '@/components/EmployeeSearchInput';
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 
@@ -297,30 +299,17 @@ export default function NotificationRecipientsCard({
 
           {additionalEdits.map((c, i) => (
             <div key={i} className="rounded-lg border border-slate-200 p-3 mb-2 flex flex-col gap-2">
-              <div className="grid grid-cols-[1fr_1.5fr_6rem_2rem] gap-2 items-center">
-                <input
-                  className={INP}
-                  placeholder="Name"
-                  value={c.name}
-                  onChange={e => setAdditionalEdits(prev => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
-                />
-                <input
-                  type="email"
-                  className={INP}
-                  placeholder="email@company.com"
-                  value={c.email}
-                  onChange={e => setAdditionalEdits(prev => prev.map((x, j) => j === i ? { ...x, email: e.target.value } : x))}
-                />
-                <input
-                  className={INP}
-                  placeholder="Role"
-                  value={c.role}
-                  onChange={e => setAdditionalEdits(prev => prev.map((x, j) => j === i ? { ...x, role: e.target.value } : x))}
-                />
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800">{c.name || '—'}</p>
+                  <p className="text-xs text-slate-400 truncate">
+                    {c.role && <>{c.role} · </>}{c.email}
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setAdditionalEdits(prev => prev.filter((_, j) => j !== i))}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -348,16 +337,23 @@ export default function NotificationRecipientsCard({
             </div>
           ))}
 
-          <button
-            type="button"
-            onClick={() => setAdditionalEdits(prev => [...prev, { name: '', email: '', role: '', ...ALL_NOTIFY_TRUE }])}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#006B0C] hover:underline mt-1"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Add recipient
-          </button>
+          <EmployeeSearchInput
+            placeholder="Search NESR employees to add…"
+            onSelect={(emp: Employee) => {
+              if (additionalEdits.some(c => c.email.toLowerCase() === emp.mail.toLowerCase())) return;
+              setAdditionalEdits(prev => [...prev, {
+                name: emp.display_name, email: emp.mail, role: emp.job_title ?? '',
+                ...ALL_NOTIFY_TRUE,
+              }]);
+            }}
+            excludeEmails={[
+              ...stakeholders.map(s => s.email),
+              ...(notificationContacts.find(c => c.role === 'Creator')
+                ? [notificationContacts.find(c => c.role === 'Creator')!.email]
+                : []),
+              ...additionalEdits.map(c => c.email),
+            ]}
+          />
         </div>
 
         {error && (

@@ -8,6 +8,8 @@ import { createShipment, uploadShipmentDocument, getCountryStakeholders } from '
 import { DOCUMENT_STAGES } from '@/lib/tite-stage-config';
 import type { PendingUpload } from '@/lib/tite-stage-config';
 import type { CountryStakeholder } from '@/types/tite';
+import EmployeeSearchInput from '@/components/EmployeeSearchInput';
+import type { Employee } from '@/components/EmployeeSearchInput';
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
@@ -583,48 +585,28 @@ export default function NewShipmentClient({
               )}
             </div>
 
-            {/* Additional recipients — editable */}
+            {/* Additional recipients — via employee search */}
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
                 Additional Recipients
               </p>
-              <p className="text-xs text-slate-400 mb-3">Add anyone else who should be notified.</p>
+              <p className="text-xs text-slate-400 mb-3">Search and add NESR employees who should be notified.</p>
 
               {additionalContacts.length > 0 && (
-                <div className="flex flex-col gap-3 mb-2">
+                <div className="flex flex-col gap-3 mb-3">
                   {additionalContacts.map((c, i) => (
                     <div key={i} className="rounded-lg border border-slate-200 p-3 flex flex-col gap-2">
-                      <div className="grid grid-cols-[1fr_1.5fr_7rem_2.25rem] gap-2 items-start">
-                        <input
-                          className={INP}
-                          placeholder="Full name"
-                          value={c.name}
-                          onChange={e => updateAdditional(i, 'name', e.target.value)}
-                        />
-                        <div>
-                          <input
-                            type="email"
-                            className={errors[`additional_email_${i}`] ? INP_ERR : INP}
-                            placeholder="email@company.com"
-                            value={c.email}
-                            onChange={e => updateAdditional(i, 'email', e.target.value)}
-                          />
-                          {errors[`additional_email_${i}`] && (
-                            <p className="text-xs text-red-600 mt-1" data-field-error="true">
-                              {errors[`additional_email_${i}`]}
-                            </p>
-                          )}
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-800">{c.name || '—'}</p>
+                          <p className="text-xs text-slate-400 truncate">
+                            {c.role && <>{c.role} · </>}{c.email}
+                          </p>
                         </div>
-                        <input
-                          className={INP}
-                          placeholder="Role/Title"
-                          value={c.role}
-                          onChange={e => updateAdditional(i, 'role', e.target.value)}
-                        />
                         <button
                           type="button"
                           onClick={() => removeAdditional(i)}
-                          className="w-9 h-[42px] flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors"
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors shrink-0"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -652,20 +634,22 @@ export default function NewShipmentClient({
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={() => setAdditionalContacts(prev => [...prev, {
-                  name: '', email: '', role: '',
-                  notify_60_days: true, notify_30_days: true, notify_14_days: true, notify_7_days: true,
-                  notify_2_days: true, notify_1_day: true, notify_0_day: true, notify_overdue: true,
-                }])}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-[#006B0C] hover:underline w-fit"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                Add recipient
-              </button>
+              <EmployeeSearchInput
+                placeholder="Search NESR employees to add…"
+                onSelect={(emp: Employee) => {
+                  if (additionalContacts.some(c => c.email.toLowerCase() === emp.mail.toLowerCase())) return;
+                  setAdditionalContacts(prev => [...prev, {
+                    name: emp.display_name, email: emp.mail, role: emp.job_title ?? '',
+                    notify_60_days: true, notify_30_days: true, notify_14_days: true, notify_7_days: true,
+                    notify_2_days: true, notify_1_day: true, notify_0_day: true, notify_overdue: true,
+                  }]);
+                }}
+                excludeEmails={[
+                  creatorEmail,
+                  ...stakeholders.map(s => s.email),
+                  ...additionalContacts.map(c => c.email),
+                ]}
+              />
             </div>
           </Section>
 

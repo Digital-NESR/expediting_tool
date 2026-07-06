@@ -8,6 +8,8 @@ import Sidebar from '@/components/Sidebar';
 import { useExpediteStore } from '@/store/useExpediteStore';
 import type { PurchaseOrder } from '@/types/po';
 import { addAdditionalSupplierEmail, getSupplierContacts } from '@/app/actions/supplier-actions';
+import EmployeeSearchInput from '@/components/EmployeeSearchInput';
+import type { Employee } from '@/components/EmployeeSearchInput';
 
 /* ─── Helpers ─────────────────────────────────────────────── */
 function formatCurrency(val: number | string | undefined | null) {
@@ -90,11 +92,22 @@ function RemovableEmailPill({ email, onRemove }: { email: string; onRemove: () =
   );
 }
 
-/** CC pill — slate gray, removable */
-function CcEmailPill({ email, onRemove }: { email: string; onRemove: () => void }) {
+/** CC recipient shape — tracks display name for employee-sourced entries */
+type CcRecipient = { email: string; displayName?: string };
+
+/** CC pill — employee-sourced: solid green with name; plain: slate with email */
+function CcEmailPill({ recipient, onRemove }: { recipient: CcRecipient; onRemove: () => void }) {
+  const isEmployee = !!recipient.displayName;
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium rounded-md max-w-full">
-      <span className="truncate">{email}</span>
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md max-w-full ${
+        isEmployee
+          ? 'bg-[#307c4c] text-white'
+          : 'bg-slate-100 border border-slate-200 text-slate-700'
+      }`}
+      title={recipient.email}
+    >
+      <span className="truncate">{isEmployee ? recipient.displayName : recipient.email}</span>
       <button
         type="button"
         onMouseDown={(e) => {
@@ -102,9 +115,13 @@ function CcEmailPill({ email, onRemove }: { email: string; onRemove: () => void 
           e.preventDefault();
           onRemove();
         }}
-        className="shrink-0 text-slate-400 hover:text-red-500 transition-colors ml-0.5"
+        className={`shrink-0 transition-colors ml-0.5 ${
+          isEmployee
+            ? 'text-white/70 hover:text-green-200'
+            : 'text-slate-400 hover:text-red-500'
+        }`}
         style={{ pointerEvents: 'auto', cursor: 'pointer' }}
-        aria-label={`Remove ${email}`}
+        aria-label={`Remove ${recipient.email}`}
       >
         <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -177,11 +194,9 @@ function SupplierEmailCard({
 }) {
   // Single tagged array: source='default' for supplier_emails, source='additional' for everything else
   const [toEmails, setToEmails] = useState<ToEmail[]>([]);
-  const [ccEmails, setCcEmails] = useState<string[]>([]);
+  const [ccEmails, setCcEmails] = useState<CcRecipient[]>([]);
   const [toInput, setToInput] = useState('');
-  const [ccInput, setCcInput] = useState('');
   const [toError, setToError] = useState('');
-  const [ccError, setCcError] = useState('');
   const [isLoadingContacts, setIsLoadingContacts] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -206,7 +221,7 @@ function SupplierEmailCard({
   /* Sync To + CC into Zustand — locked email is always included in cc */
   useEffect(() => {
     if (isLoadingContacts) return;
-    const allCc = lockedCcEmail ? [lockedCcEmail, ...ccEmails] : ccEmails;
+    const allCc = lockedCcEmail ? [lockedCcEmail, ...ccEmails.map(c => c.email)] : ccEmails.map(c => c.email);
     setSupplierEmails(supplierId, {
       to: toEmails.map((t) => t.email),
       cc: allCc,
@@ -223,7 +238,7 @@ function SupplierEmailCard({
           .filter((e) => e.toLowerCase() !== (lockedCcEmail ?? '').toLowerCase())
       ),
     ];
-    setCcEmails(uniqueBuyerEmails);
+    setCcEmails(uniqueBuyerEmails.map(email => ({ email })));
   }, [items, lockedCcEmail]);
 
   /* Add To email — optimistic UI, persists to DB via server action */
@@ -248,14 +263,11 @@ function SupplierEmailCard({
     });
   }
 
-  /* Add CC email — local state only */
-  function handleAddCc() {
-    const email = ccInput.trim();
-    if (!isValidEmail(email)) { setCcError('Enter a valid email.'); return; }
-    if (ccEmails.includes(email)) { setCcError('Already in list.'); return; }
-    setCcError('');
-    setCcEmails((prev) => [...prev, email]);
-    setCcInput('');
+  /* Add CC via employee search */
+  function handleAddCcEmployee(emp: Employee) {
+    if (ccEmails.some(c => c.email.toLowerCase() === emp.mail.toLowerCase())) return;
+    if (emp.mail.toLowerCase() === (lockedCcEmail ?? '').toLowerCase()) return;
+    setCcEmails(prev => [...prev, { email: emp.mail, displayName: emp.display_name }]);
   }
 
   const hasToRecipients = toEmails.length > 0;
@@ -353,39 +365,30 @@ function SupplierEmailCard({
             ) : (
               <>
                 {lockedCcEmail && <LockedCcPill email={lockedCcEmail} />}
-                {ccEmails.map((email) => (
+                {ccEmails.map((r) => (
                   <CcEmailPill
-                    key={email}
-                    email={email}
-                    onRemove={() => setCcEmails((prev) => prev.filter((e) => e !== email))}
+                    key={r.email}
+                    recipient={r}
+                    onRemove={() => setCcEmails((prev) => prev.filter((e) => e.email !== r.email))}
                   />
                 ))}
               </>
             )}
           </div>
 
-          {/* Add CC input */}
-          <div className="flex gap-1.5 mt-1">
-            <input
-              type="email"
-              placeholder="cc@email.com"
-              value={ccInput}
-              onChange={(e) => { setCcInput(e.target.value); setCcError(''); }}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddCc()}
-              className="flex-1 min-w-0 text-xs bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#307c4c] focus:border-[#307c4c] transition-colors"
-            />
-            <button
-              onClick={handleAddCc}
-              className="shrink-0 px-2.5 py-1.5 text-xs font-semibold bg-slate-700 hover:bg-slate-900 text-white rounded-md transition-all"
-            >
-              Add
-            </button>
-          </div>
-          {ccError && <p className="mt-1 text-[10px] text-red-500">{ccError}</p>}
+          {/* Add CC via employee search */}
+          <EmployeeSearchInput
+            placeholder="Search NESR employees to CC…"
+            onSelect={handleAddCcEmployee}
+            excludeEmails={[
+              ...(lockedCcEmail ? [lockedCcEmail] : []),
+              ...ccEmails.map(c => c.email),
+            ]}
+          />
           {cardError?.cc && ccEmails.length === 0 && !lockedCcEmail && (
             <p className="mt-1 text-[10px] text-red-500 font-medium">CC email required before proceeding.</p>
           )}
-          <p className="mt-2 text-[10px] text-slate-400 leading-snug">
+          <p className="mt-1.5 text-[10px] text-slate-400 leading-snug">
             CC changes are local to this session only.
           </p>
         </section>
