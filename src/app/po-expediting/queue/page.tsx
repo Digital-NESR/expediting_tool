@@ -132,13 +132,13 @@ function CcEmailPill({ recipient, onRemove }: { recipient: CcRecipient; onRemove
 }
 
 /** Locked CC pill — green filled, no remove button, lock icon */
-function LockedCcPill({ email }: { email: string }) {
+function LockedCcPill({ label, email }: { label: string; email: string }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#307c4c] text-white text-xs font-medium rounded-md max-w-full">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#307c4c] text-white text-xs font-medium rounded-md max-w-full" title={email}>
       <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="shrink-0 opacity-80">
         <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
       </svg>
-      <span className="truncate">{email}</span>
+      <span className="truncate">{label}</span>
     </span>
   );
 }
@@ -205,6 +205,7 @@ function SupplierEmailCard({
   /* Logged-in user's email — always CC'd and non-removable */
   const { data: session } = useSession();
   const lockedCcEmail = session?.user?.email ?? null;
+  const lockedCcName = session?.user?.name ?? lockedCcEmail ?? '';
 
   /* Load both email fields from supplier_contacts, tag each entry with its source */
   useEffect(() => {
@@ -364,7 +365,7 @@ function SupplierEmailCard({
               <p className="text-xs text-slate-400 italic">No CC recipients.</p>
             ) : (
               <>
-                {lockedCcEmail && <LockedCcPill email={lockedCcEmail} />}
+                {lockedCcEmail && <LockedCcPill label={lockedCcName} email={lockedCcEmail} />}
                 {ccEmails.map((r) => (
                   <CcEmailPill
                     key={r.email}

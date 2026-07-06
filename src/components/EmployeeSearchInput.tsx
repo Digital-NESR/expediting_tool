@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { searchEmployees } from '@/app/actions/employees';
 import type { Employee } from '@/app/actions/employees';
 
@@ -41,14 +42,44 @@ export default function EmployeeSearchInput({
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [manualWarning, setManualWarning] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  const [mounted, setMounted] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const excludeSet = useRef(new Set(excludeEmails.map(e => e.toLowerCase())));
   useEffect(() => {
     excludeSet.current = new Set(excludeEmails.map(e => e.toLowerCase()));
   }, [excludeEmails]);
+
+  // Track mount for portal
+  useEffect(() => { setMounted(true); }, []);
+
+  // Update dropdown position
+  const updatePosition = useCallback(() => {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open, updatePosition]);
 
   const doSearch = useCallback(async (q: string) => {
     if (q.trim().length < 2) {
@@ -99,10 +130,14 @@ export default function EmployeeSearchInput({
     }
   }
 
-  // Close on outside click
+  // Close on outside click — check both container and portal dropdown
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     }
@@ -115,15 +150,80 @@ export default function EmployeeSearchInput({
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, []);
 
+  const dropdown = open && mounted && (
+    <div
+      ref={dropdownRef}
+      style={{
+        position: 'fixed',
+        top: dropdownPos.top,
+        left: dropdownPos.left,
+        width: Math.max(dropdownPos.width, 320),
+        maxWidth: 480,
+        zIndex: 9999,
+        background: 'white',
+        border: '1px solid #e5e7eb',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        maxHeight: '280px',
+        overflowY: 'auto' as const,
+      }}
+    >
+      {results.length === 0 && !loading ? (
+        <div className="px-3 py-4 text-center">
+          <p className="text-xs text-slate-400">No NESR employees found for &lsquo;{query}&rsquo;</p>
+        </div>
+      ) : (
+        results.map((emp, idx) => (
+          <button
+            key={emp.id}
+            type="button"
+            onClick={() => handleSelect(emp)}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 cursor-pointer transition-colors ${
+              idx < results.length - 1 ? 'border-b border-slate-100' : ''
+            }`}
+          >
+            {/* Avatar */}
+            <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
+              <span className="text-[11px] font-bold text-white leading-none">
+                {getInitials(emp.display_name)}
+              </span>
+            </div>
+
+            {/* Details */}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-slate-800 truncate">
+                {highlightMatch(emp.display_name, query)}
+              </p>
+              {(emp.job_title || emp.department) && (
+                <p className="text-[11px] text-slate-400 truncate">
+                  {emp.job_title && highlightMatch(emp.job_title, query)}
+                  {emp.job_title && emp.department && ' · '}
+                  {emp.department && highlightMatch(emp.department, query)}
+                </p>
+              )}
+              <p className="text-[11px] text-slate-400 truncate">
+                {highlightMatch(emp.mail, query)}
+              </p>
+            </div>
+          </button>
+        ))
+      )}
+    </div>
+  );
+
   return (
     <div ref={containerRef} className="relative">
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           value={query}
           onChange={e => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => { if (results.length > 0 && query.length >= 2) setOpen(true); }}
+          onFocus={() => {
+            updatePosition();
+            if (results.length > 0 && query.length >= 2) setOpen(true);
+          }}
           placeholder={placeholder}
           className="w-full text-xs bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#307c4c] focus:border-[#307c4c] transition-colors pr-7"
         />
@@ -145,50 +245,7 @@ export default function EmployeeSearchInput({
 
       <p className="mt-1 text-[11px] text-gray-400">Search NESR employees by name or department</p>
 
-      {open && (
-        <div className="absolute z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-[0_4px_12px_rgba(0,0,0,0.1)] max-h-[280px] overflow-y-auto min-w-[320px] max-w-[480px] w-full">
-          {results.length === 0 && !loading ? (
-            <div className="px-3 py-4 text-center">
-              <p className="text-xs text-slate-400">No NESR employees found for &lsquo;{query}&rsquo;</p>
-            </div>
-          ) : (
-            results.map((emp, idx) => (
-              <button
-                key={emp.id}
-                type="button"
-                onClick={() => handleSelect(emp)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 cursor-pointer transition-colors ${
-                  idx < results.length - 1 ? 'border-b border-slate-100' : ''
-                }`}
-              >
-                {/* Avatar */}
-                <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
-                  <span className="text-[11px] font-bold text-white leading-none">
-                    {getInitials(emp.display_name)}
-                  </span>
-                </div>
-
-                {/* Details */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-slate-800 truncate">
-                    {highlightMatch(emp.display_name, query)}
-                  </p>
-                  {(emp.job_title || emp.department) && (
-                    <p className="text-[11px] text-slate-400 truncate">
-                      {emp.job_title && highlightMatch(emp.job_title, query)}
-                      {emp.job_title && emp.department && ' · '}
-                      {emp.department && highlightMatch(emp.department, query)}
-                    </p>
-                  )}
-                  <p className="text-[11px] text-slate-400 truncate">
-                    {highlightMatch(emp.mail, query)}
-                  </p>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-      )}
+      {mounted ? createPortal(dropdown, document.body) : null}
     </div>
   );
 }
