@@ -145,6 +145,8 @@ export default function AdvancePaymentFormClient(_props: {
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [banner, setBanner] = useState('');
+  const segmentListId = useId();
+  const spendCategoryListId = useId();
 
   const [requisitionNumber, setRequisitionNumber] = useState(editRequest?.requisition_number ?? '');
   const [country, setCountry] = useState(editRequest?.country ?? '');
@@ -356,10 +358,10 @@ export default function AdvancePaymentFormClient(_props: {
               </select>
             </Field>
             <Field label="Segment" required error={errors.segment}>
-              <select className={errors.segment ? ERR : INP} value={segment} onChange={e => setSegment(e.target.value)}>
-                <option value="">Find Segment</option>
-                {SEGMENT_OPTIONS.map(item => <option key={item}>{item}</option>)}
-              </select>
+              <input className={errors.segment ? ERR : INP} value={segment} onChange={e => setSegment(e.target.value)} list={segmentListId} placeholder="Find or enter segment" />
+              <datalist id={segmentListId}>
+                {SEGMENT_OPTIONS.map(item => <option key={item} value={item} />)}
+              </datalist>
             </Field>
             <div className="lg:col-span-2">
               <Field label="SAP Vendor ID" required error={errors.sapVendorId}>
@@ -372,10 +374,10 @@ export default function AdvancePaymentFormClient(_props: {
               </Field>
             </div>
             <Field label="Spend Category" required error={errors.spendCategory}>
-              <select className={errors.spendCategory ? ERR : INP} value={spendCategory} onChange={e => setSpendCategory(e.target.value)}>
-                <option value="">Find Category</option>
-                {SPEND_CATEGORY_OPTIONS.map(item => <option key={item}>{item}</option>)}
-              </select>
+              <input className={errors.spendCategory ? ERR : INP} value={spendCategory} onChange={e => setSpendCategory(e.target.value)} list={spendCategoryListId} placeholder="Find or enter category" />
+              <datalist id={spendCategoryListId}>
+                {SPEND_CATEGORY_OPTIONS.map(item => <option key={item} value={item} />)}
+              </datalist>
             </Field>
             <Field label="Amount" required error={errors.amountValue}>
               <div className="flex gap-2">

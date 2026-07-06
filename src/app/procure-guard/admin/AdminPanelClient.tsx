@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import ProcureGuardSidebar from '../components/ProcureGuardSidebar';
 import ProcureGuardLogo from '../components/ProcureGuardLogo';
-import { useMemo, useState, useTransition } from 'react';
+import { useId, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   adminGrantProcureGuardDelegation,
@@ -98,6 +98,8 @@ function AdhocForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; o
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState('');
+  const segmentListId = useId();
+  const spendCategoryListId = useId();
   const [form, setForm] = useState({
     requisitionNumber: '',
     vendorName: '',
@@ -183,14 +185,16 @@ function AdhocForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor']; o
           </select>
         </Field>
         <Field label="Segment">
-          <select className={inputClass} value={form.segment} onChange={e => update('segment', e.target.value)}>
-            {SEGMENT_OPTIONS.map(item => <option key={item}>{item}</option>)}
-          </select>
+          <input className={inputClass} value={form.segment} onChange={e => update('segment', e.target.value)} list={segmentListId} placeholder="Find or enter segment" />
+          <datalist id={segmentListId}>
+            {SEGMENT_OPTIONS.map(item => <option key={item} value={item} />)}
+          </datalist>
         </Field>
         <Field label="Spend Category">
-          <select className={inputClass} value={form.spendCategory} onChange={e => update('spendCategory', e.target.value)}>
-            {SPEND_CATEGORY_OPTIONS.map(item => <option key={item}>{item}</option>)}
-          </select>
+          <input className={inputClass} value={form.spendCategory} onChange={e => update('spendCategory', e.target.value)} list={spendCategoryListId} placeholder="Find or enter category" />
+          <datalist id={spendCategoryListId}>
+            {SPEND_CATEGORY_OPTIONS.map(item => <option key={item} value={item} />)}
+          </datalist>
         </Field>
         <Field label="Status">
           <select className={inputClass} value={form.status} onChange={e => update('status', e.target.value as ProcureGuardStatus)}>
@@ -224,6 +228,8 @@ function AdvanceForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor'];
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState('');
+  const segmentListId = useId();
+  const spendCategoryListId = useId();
   const [form, setForm] = useState({
     requisitionNumber: '',
     vendorName: '',
@@ -312,14 +318,16 @@ function AdvanceForm({ actor, onDone }: { actor: ProcureGuardAdminData['actor'];
           </select>
         </Field>
         <Field label="Segment">
-          <select className={inputClass} value={form.segment} onChange={e => update('segment', e.target.value)}>
-            {SEGMENT_OPTIONS.map(item => <option key={item}>{item}</option>)}
-          </select>
+          <input className={inputClass} value={form.segment} onChange={e => update('segment', e.target.value)} list={segmentListId} placeholder="Find or enter segment" />
+          <datalist id={segmentListId}>
+            {SEGMENT_OPTIONS.map(item => <option key={item} value={item} />)}
+          </datalist>
         </Field>
         <Field label="Spend Category">
-          <select className={inputClass} value={form.spendCategory} onChange={e => update('spendCategory', e.target.value)}>
-            {SPEND_CATEGORY_OPTIONS.map(item => <option key={item}>{item}</option>)}
-          </select>
+          <input className={inputClass} value={form.spendCategory} onChange={e => update('spendCategory', e.target.value)} list={spendCategoryListId} placeholder="Find or enter category" />
+          <datalist id={spendCategoryListId}>
+            {SPEND_CATEGORY_OPTIONS.map(item => <option key={item} value={item} />)}
+          </datalist>
         </Field>
         <Field label="Status">
           <select className={inputClass} value={form.status} onChange={e => update('status', e.target.value as ProcureGuardStatus)}>
