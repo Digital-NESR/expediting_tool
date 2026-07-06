@@ -13,13 +13,11 @@ import {
   revokeProcureGuardDelegation,
   testProcureGuardN8nWebhook,
   updateProcureGuardNotificationRecipientGroup,
-  updateProcureGuardPermission,
 } from '@/app/actions/procureGuard';
 import {
   ADHOC_STATUS_OPTIONS,
   ADVANCE_STATUS_OPTIONS,
   COUNTRY_OPTIONS,
-  PERMISSION_ROLE_OPTIONS,
   PRIORITY_OPTIONS,
   SEGMENT_OPTIONS,
   SPEND_CATEGORY_OPTIONS,
@@ -39,14 +37,12 @@ import type {
   ProcureGuardAdminData,
   ProcureGuardDelegation,
   ProcureGuardNotificationContact,
-  ProcureGuardPermissionProfile,
-  ProcureGuardPermissionRole,
   ProcureGuardPermissionRow,
   ProcureGuardPriority,
   ProcureGuardStatus,
 } from '@/types/procureGuard';
 
-type TabKey = 'adhoc' | 'advance' | 'activity' | 'permissions' | 'recipients' | 'delegations';
+type TabKey = 'adhoc' | 'advance' | 'activity' | 'recipients' | 'delegations';
 type RecipientPersonGroup = {
   key: string;
   displayName: string;
@@ -472,138 +468,6 @@ function AdvanceTable({ rows, onDone }: { rows: AdvancePaymentRequest[]; onDone:
 }
 
 
-const CAPABILITY_LABELS: Array<[keyof Omit<ProcureGuardPermissionProfile, 'role' | 'label' | 'description' | 'accessView'>, string]> = [
-  ['canViewAll', 'View all requests'],
-  ['canCreateRequests', 'Create requests'],
-  ['canManageData', 'Add/edit admin data'],
-  ['canManagePermissions', 'Change permissions'],
-  ['canDeleteRecords', 'Delete records'],
-  ['canReject', 'Reject active requests'],
-  ['canReviewAdhocScm', 'Adhoc: SCM review'],
-  ['canReviewAdhocDirector', 'Adhoc: Supply Chain Director approval'],
-  ['canReviewAdvanceCountryController', 'Advance: Country Controller approval'],
-  ['canReviewAdvanceSupplyChainDirector', 'Advance: Supply Chain Director approval'],
-  ['canReviewAdvanceTreasuryDirector', 'Advance: Treasury Director approval'],
-  ['canReviewAdvanceCorporateController', 'Advance: Corporate Controller approval'],
-  ['canReviewAdvanceCfo', 'Advance: CFO approval'],
-];
-
-function RoleCapabilities({ role }: { role: ProcureGuardPermissionRole }) {
-  const profile = getPermissionProfile(role);
-  const enabled = CAPABILITY_LABELS.filter(([key]) => Boolean(profile[key]));
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <p className="text-xs font-bold text-slate-900">{profile.label}</p>
-      <p className="mt-1 text-xs text-slate-500">{profile.description}</p>
-      <p className="mt-2 inline-flex rounded-md border border-slate-200 bg-white px-2 py-1 text-[0.6875rem] font-bold uppercase tracking-wide text-slate-600">
-        {profile.accessView} view
-      </p>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {enabled.length === 0 ? (
-          <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[0.6875rem] font-semibold text-slate-500">No elevated permissions</span>
-        ) : enabled.map(([, label]) => (
-          <span key={label} className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-2 py-1 text-[0.6875rem] font-semibold text-[#307c4c]">
-            {label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PermissionEditor({ row, onDone }: { row?: ProcureGuardPermissionRow; onDone: (message: string) => void }) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [email, setEmail] = useState(row?.email ?? '');
-  const [name, setName] = useState(row?.name ?? '');
-  const [role, setRole] = useState<ProcureGuardPermissionRole>(row?.role ?? 'Requester');
-  const [country, setCountry] = useState(row?.country ?? '');
-  const [segment, setSegment] = useState(row?.segment ?? '');
-  const [error, setError] = useState('');
-
-  function save() {
-    setError('');
-    startTransition(async () => {
-      const result = await updateProcureGuardPermission({ email, name, role, country, segment });
-      if (!result.success) {
-        setError(result.error ?? 'Permission update failed.');
-        return;
-      }
-      onDone(`Permission saved for ${email}.`);
-      router.refresh();
-    });
-  }
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(180px,1fr)_minmax(140px,0.8fr)_minmax(140px,0.8fr)_auto] lg:items-end">
-        <Field label="Email">
-          <input className={inputClass} value={email} onChange={e => setEmail(e.target.value)} placeholder="manager@nesr.local" />
-        </Field>
-        <Field label="Name">
-          <input className={inputClass} value={name} onChange={e => setName(e.target.value)} placeholder="Manager name" />
-        </Field>
-        <Field label="Permission Level">
-          <select className={inputClass} value={role} onChange={e => setRole(e.target.value as ProcureGuardPermissionRole)}>
-            {PERMISSION_ROLE_OPTIONS.map(item => <option key={item}>{item}</option>)}
-          </select>
-        </Field>
-        <Field label="Country Scope">
-          <select className={inputClass} value={country} onChange={e => setCountry(e.target.value)}>
-            <option value="">All countries</option>
-            {COUNTRY_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}
-          </select>
-        </Field>
-        <Field label="Segment Scope">
-          <select className={inputClass} value={segment} onChange={e => setSegment(e.target.value)}>
-            <option value="">All segments</option>
-            {SEGMENT_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}
-          </select>
-        </Field>
-        <button type="button" disabled={isPending || !email.trim()} onClick={save} className="rounded-lg bg-[#307c4c] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#307c4c]/80 disabled:opacity-60">
-          {isPending ? 'Saving' : 'Save'}
-        </button>
-      </div>
-      {error && <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
-      <div className="mt-4">
-        <RoleCapabilities role={role} />
-      </div>
-    </div>
-  );
-}
-
-function PermissionsPanel({ rows, actor, isFullAdmin, onDone }: { rows: ProcureGuardPermissionRow[]; actor: ProcureGuardAdminData['actor']; isFullAdmin: boolean; onDone: (message: string) => void }) {
-  const visibleRows = isFullAdmin
-    ? rows
-    : rows.filter(row => row.email.toLowerCase() === actor.email.toLowerCase());
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-bold text-slate-900">Current Permission Level</p>
-        <p className="mt-1 text-xs text-slate-500">
-          Your signed-in user is <span className="font-semibold text-slate-700">{actor.email}</span>.
-          {isFullAdmin
-            ? ' Change rows below to manage ProcureGuard approval access.'
-            : ' Your role controls which ProcureGuard pages and actions are available.'}
-        </p>
-        <div className="mt-4">
-          <RoleCapabilities role={actor.role} />
-        </div>
-      </div>
-
-      {isFullAdmin && <PermissionEditor onDone={onDone} />}
-
-      <div className="space-y-3">
-        {visibleRows.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">No permission records yet.</div>
-        ) : visibleRows.map(row => (
-          <PermissionEditor key={`${row.email}-${row.id}`} row={row} onDone={onDone} />
-        ))}
-      </div>
-    </div>
-  );
-}
 function groupRecipientRows(rows: ProcureGuardNotificationContact[]): RecipientPersonGroup[] {
   const groups = new Map<string, ProcureGuardNotificationContact[]>();
 
@@ -949,7 +813,7 @@ function DelegationsPanel({
           </div>
         </form>
         {approvers.length === 0 && (
-          <p className="mt-3 text-xs text-slate-400">No approvers found. Assign an approval role under Access Roles first.</p>
+          <p className="mt-3 text-xs text-slate-400">No approvers found. Assign approval access from the Access Approvals page first.</p>
         )}
       </section>
 
@@ -1002,17 +866,16 @@ function DelegationsPanel({
 }
 
 export default function AdminPanelClient({ data, embedded = false }: { data: ProcureGuardAdminData | null; embedded?: boolean }) {
-  const [tab, setTab] = useState<TabKey>('permissions');
+  const [tab, setTab] = useState<TabKey>('recipients');
   const [notice, setNotice] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const counts = useMemo(() => {
-    if (!data) return { adhoc: 0, advance: 0, activity: 0, permissions: 0, recipients: 0, delegations: 0 };
+    if (!data) return { adhoc: 0, advance: 0, activity: 0, recipients: 0, delegations: 0 };
     return {
       adhoc: data.adhoc.length,
       advance: data.advance.length,
       activity: data.activity.length,
-      permissions: data.permissions.length,
       recipients: data.notification_recipients.length,
       delegations: data.delegations.length,
     };
@@ -1026,16 +889,15 @@ export default function AdminPanelClient({ data, embedded = false }: { data: Pro
   if (!data) return <EmptyOrForbidden />;
 
   const isFullAdmin = data.actor.permissions.accessView === 'admin';
-  const tabItems = (isFullAdmin ? [
-    { key: 'permissions', label: 'Access Roles', count: counts.permissions, description: 'Manage approved SSO users and recipient-derived approval roles.' },
+  if (!isFullAdmin) return <EmptyOrForbidden />;
+
+  const tabItems = [
     { key: 'recipients', label: 'Email Recipients', count: counts.recipients, description: 'Update who receives approval notifications for each role and country.' },
     { key: 'delegations', label: 'Delegations', count: counts.delegations, description: 'Set up and revoke approval delegations on behalf of approvers.' },
     { key: 'adhoc', label: 'Adhoc POs', count: counts.adhoc, description: 'Review and remove adhoc test records.' },
     { key: 'advance', label: 'Advance Payments', count: counts.advance, description: 'Review and remove advance test records.' },
     { key: 'activity', label: 'Activity Log', count: counts.activity, description: 'See meaningful approval activity.' },
-  ] : [
-    { key: 'permissions', label: 'Change User Roles', count: counts.permissions, description: 'Review your ProcureGuard permission level.' },
-  ]) as ReadonlyArray<{ key: TabKey; label: string; count: number; description: string }>;
+  ] as ReadonlyArray<{ key: TabKey; label: string; count: number; description: string }>;
 
   return (
     <div className={`${embedded ? '' : 'min-h-[100dvh]'} bg-white text-slate-900`}>
@@ -1047,7 +909,7 @@ export default function AdminPanelClient({ data, embedded = false }: { data: Pro
           </button>
           <ProcureGuardLogo size="md" />
           <div>
-            <p className="text-sm font-bold leading-tight">{isFullAdmin ? 'ProcureGuard Admin' : 'ProcureGuard Access'}</p>
+            <p className="text-sm font-bold leading-tight">ProcureGuard Admin</p>
             <p className="text-xs text-slate-500">{data.actor.email}</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -1062,7 +924,7 @@ export default function AdminPanelClient({ data, embedded = false }: { data: Pro
       </header>}
 
       <main className={`${embedded ? '' : 'mx-auto max-w-[1320px] px-4 py-5'}`}>
-        {isFullAdmin && <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-semibold uppercase text-slate-400">Adhoc</p>
             <p className="mt-2 text-2xl font-bold">{data.stats.adhoc_total}</p>
@@ -1079,7 +941,7 @@ export default function AdminPanelClient({ data, embedded = false }: { data: Pro
             <p className="text-xs font-semibold uppercase text-slate-400">Total USD Eq.</p>
             <p className="mt-2 text-2xl font-bold">{usdFmt(data.stats.total_requested_amount)}</p>
           </div>
-        </section>}
+        </section>
 
         {notice && (
           <div className="mt-4 rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-4 py-3 text-sm font-semibold text-[#307c4c]">
@@ -1087,24 +949,22 @@ export default function AdminPanelClient({ data, embedded = false }: { data: Pro
           </div>
         )}
 
-        {isFullAdmin && <section className="mt-5 grid grid-cols-1 gap-4">
+        <section className="mt-5 grid grid-cols-1 gap-4">
           <AdhocForm actor={data.actor} onDone={setNotice} />
           <AdvanceForm actor={data.actor} onDone={setNotice} />
-        </section>}
+        </section>
 
         <section className="mt-6">
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-sm font-black uppercase tracking-wide text-[#307c4c]">Admin Controls</p>
-              <h2 className="text-xl font-black text-slate-950">{isFullAdmin ? 'Data, roles, and notification routing' : 'Your ProcureGuard access'}</h2>
+              <h2 className="text-xl font-black text-slate-950">Data and notification routing</h2>
             </div>
             <p className="max-w-xl text-sm text-slate-500">
-              {isFullAdmin
-                ? 'Use the tiles below to manage SSO access and update who gets emailed for each approval step.'
-                : 'This panel shows the ProcureGuard permission assigned to your SSO account.'}
+              Use the tiles below to manage ProcureGuard records, approval notifications, and delegations.
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {tabItems.map(item => (
               <button
                 key={item.key}
@@ -1131,12 +991,11 @@ export default function AdminPanelClient({ data, embedded = false }: { data: Pro
           </div>
 
           <div className="mt-5">
-            {isFullAdmin && tab === 'adhoc' && <AdhocTable rows={data.adhoc} onDone={setNotice} />}
-            {isFullAdmin && tab === 'advance' && <AdvanceTable rows={data.advance} onDone={setNotice} />}
-            {isFullAdmin && tab === 'activity' && <ActivityTable rows={data.activity} onDone={setNotice} />}
-            {tab === 'permissions' && <PermissionsPanel rows={data.permissions} actor={data.actor} isFullAdmin={isFullAdmin} onDone={setNotice} />}
-            {isFullAdmin && tab === 'recipients' && <NotificationRecipientsPanel rows={data.notification_recipients} onDone={setNotice} />}
-            {isFullAdmin && tab === 'delegations' && <DelegationsPanel delegations={data.delegations} approvers={approvers} onDone={setNotice} />}
+            {tab === 'adhoc' && <AdhocTable rows={data.adhoc} onDone={setNotice} />}
+            {tab === 'advance' && <AdvanceTable rows={data.advance} onDone={setNotice} />}
+            {tab === 'activity' && <ActivityTable rows={data.activity} onDone={setNotice} />}
+            {tab === 'recipients' && <NotificationRecipientsPanel rows={data.notification_recipients} onDone={setNotice} />}
+            {tab === 'delegations' && <DelegationsPanel delegations={data.delegations} approvers={approvers} onDone={setNotice} />}
           </div>
         </section>
       </main>

@@ -18,6 +18,12 @@ export const PERMISSION_ROLE_OPTIONS: ProcureGuardPermissionRole[] = [
   'Admin',
 ];
 
+export const COUNTRY_SCOPED_PERMISSION_ROLES: ProcureGuardPermissionRole[] = ['SCM Manager', 'Country Controller'];
+
+export function roleRequiresProcureGuardCountryScope(role: ProcureGuardPermissionRole | string | null | undefined): boolean {
+  return COUNTRY_SCOPED_PERMISSION_ROLES.includes((role ?? '') as ProcureGuardPermissionRole);
+}
+
 const BASE_PERMISSION_PROFILE: Omit<ProcureGuardPermissionProfile, 'role' | 'label' | 'description' | 'accessView'> = {
   canViewAll: false,
   canCreateRequests: true,
@@ -332,24 +338,26 @@ export const CURRENCY_TO_USD: Record<string, number> = {
 };
 
 export const COUNTRY_OPTIONS = [
-  'Saudi Arabia (KSA)',
-  'United Arab Emirates (UAE)',
-  'Qatar',
-  'Kuwait',
-  'Oman',
-  'Bahrain',
-  'Egypt',
   'Algeria',
-  'Iraq',
-  'Libya',
+  'Bahrain',
   'Chad',
-  'India',
-  'Indonesia + Malaysia',
+  'Egypt',
   'EOS',
   'HQ Dubai',
+  'India',
+  'Indonesia',
+  'Iraq',
   'Jordan',
-  'Yemen',
+  'Kuwait',
+  'Libya',
+  'Malaysia',
+  'Oman',
+  'Qatar',
+  'Saudi Arabia (KSA)',
+  'United Arab Emirates (UAE)',
   'Congo',
+  'Yemen',
+  'Other',
 ];
 
 export function normalizeProcureGuardCountry(value: string | null | undefined): string | null {
@@ -361,9 +369,32 @@ export function normalizeProcureGuardCountry(value: string | null | undefined): 
     'saudi arabia': 'Saudi Arabia (KSA)',
     uae: 'United Arab Emirates (UAE)',
     'united arab emirates': 'United Arab Emirates (UAE)',
+    dubai: 'HQ Dubai',
+    hq: 'HQ Dubai',
   };
   const aliased = aliases[raw.toLowerCase()] ?? raw;
   return COUNTRY_OPTIONS.includes(aliased) ? aliased : 'Other';
+}
+
+export function getProcureGuardCountryScopeCountries(value: string | null | undefined): string[] {
+  const raw = (value ?? '').trim();
+  if (!raw) return [];
+
+  const direct = normalizeProcureGuardCountry(raw);
+  if (direct && direct !== 'Other') return [direct];
+
+  const countries = raw
+    .split(/\s*(?:,|;|\||\+|\band\b)\s*/i)
+    .map(part => normalizeProcureGuardCountry(part))
+    .filter((country): country is string => Boolean(country));
+
+  return [...new Set(countries)];
+}
+
+export function normalizeProcureGuardCountryScope(value: string | null | undefined): string | null {
+  const countries = getProcureGuardCountryScopeCountries(value);
+  if (countries.length === 0) return null;
+  return countries.join(', ');
 }
 
 export function usdFmt(value: number | string | null | undefined, currency = 'USD'): string {
@@ -635,5 +666,3 @@ export function safeNum(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
-
-

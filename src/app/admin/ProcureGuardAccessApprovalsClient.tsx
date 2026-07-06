@@ -10,7 +10,7 @@ import {
   revokeProcureGuardAccess,
   type ProcureGuardAccessRequestRow,
 } from '@/app/actions/procureGuard';
-import { COUNTRY_OPTIONS, PERMISSION_ROLE_OPTIONS, SEGMENT_OPTIONS } from '@/lib/procureGuard-utils';
+import { COUNTRY_OPTIONS, PERMISSION_ROLE_OPTIONS, SEGMENT_OPTIONS, roleRequiresProcureGuardCountryScope } from '@/lib/procureGuard-utils';
 import type { ProcureGuardPermissionRole } from '@/types/procureGuard';
 
 function formatDate(raw: string | null): string {
@@ -34,11 +34,19 @@ function StatusBadge({ status }: { status: ProcureGuardAccessRequestRow['status'
   );
 }
 
-function ScopePills({ country, segment }: { country: string | null; segment: string | null }) {
-  if (!country && !segment) return <span className="text-xs text-slate-400">All countries and segments</span>;
+function countryScopeParts(country: string | null): string[] {
+  return (country ?? '').split(',').map(item => item.trim()).filter(Boolean);
+}
+
+function ScopePills({ role, country, segment }: { role: ProcureGuardPermissionRole; country: string | null; segment: string | null }) {
+  const countries = countryScopeParts(country);
+  if (roleRequiresProcureGuardCountryScope(role) && countries.length === 0) {
+    return <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Country scope required</span>;
+  }
+  if (countries.length === 0 && !segment) return <span className="text-xs text-slate-400">All countries and segments</span>;
   return (
     <div className="flex flex-wrap gap-1">
-      {country && <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{country}</span>}
+      {countries.map(item => <span key={item} className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{item}</span>)}
       {segment && <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{segment}</span>}
     </div>
   );
@@ -60,6 +68,9 @@ function RoleSelector({
   const [role, setRole] = useState<ProcureGuardPermissionRole>(row.approved_role ?? row.requested_role ?? 'Requester');
   const [country, setCountry] = useState(row.country ?? '');
   const [segment, setSegment] = useState(row.segment ?? '');
+  const [error, setError] = useState('');
+  const countryRequired = roleRequiresProcureGuardCountryScope(role);
+  const selectedCountries = countryScopeParts(country);
 
   return (
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -73,10 +84,25 @@ function RoleSelector({
         </label>
         <label>
           <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">Country Scope</span>
-          <select value={country} onChange={e => setCountry(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#307c4c]">
-            <option value="">All countries</option>
-            {COUNTRY_OPTIONS.map(item => <option key={item}>{item}</option>)}
-          </select>
+          {countryRequired ? (
+            <select
+              multiple
+              value={selectedCountries}
+              onChange={e => {
+                const values = Array.from(e.currentTarget.selectedOptions, option => option.value);
+                setCountry(values.join(', '));
+                setError('');
+              }}
+              className="h-28 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#307c4c]"
+            >
+              {COUNTRY_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}
+            </select>
+          ) : (
+            <select value={country} onChange={e => setCountry(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#307c4c]">
+              <option value="">All countries</option>
+              {COUNTRY_OPTIONS.map(item => <option key={item}>{item}</option>)}
+            </select>
+          )}
         </label>
         <label>
           <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">Segment Scope</span>
@@ -90,7 +116,13 @@ function RoleSelector({
         <button
           type="button"
           disabled={loading}
-          onClick={() => onConfirm(role, country, segment)}
+          onClick={() => {
+            if (countryRequired && selectedCountries.length === 0) {
+              setError('Choose at least one country for this role.');
+              return;
+            }
+            onConfirm(role, country, segment);
+          }}
           className="rounded-lg bg-[#307c4c] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#307c4c]/90 disabled:opacity-60"
         >
           {loading ? 'Saving...' : 'Confirm'}
@@ -99,6 +131,7 @@ function RoleSelector({
           Cancel
         </button>
       </div>
+      {error && <p className="mt-2 text-xs font-semibold text-amber-700">{error}</p>}
     </div>
   );
 }
@@ -117,6 +150,7 @@ export default function ProcureGuardAccessApprovalsClient({
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
   const [expandMode, setExpandMode] = useState<'approve' | 'edit' | null>(null);
   const [processingEmail, setProcessingEmail] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
   const [isPending, startTransition] = useTransition();
 
   const refreshData = useCallback(async () => {
@@ -155,9 +189,15 @@ export default function ProcureGuardAccessApprovalsClient({
   }
 
   function handleApprove(row: ProcureGuardAccessRequestRow, role: ProcureGuardPermissionRole, country: string, segment: string) {
+    setActionError('');
     setProcessingEmail(row.user_email);
     startTransition(async () => {
-      await approveProcureGuardAccess({ userEmail: row.user_email, approvedRole: role, reviewedBy: userEmail, country, segment, notes: null });
+      const result = await approveProcureGuardAccess({ userEmail: row.user_email, approvedRole: role, reviewedBy: userEmail, country, segment, notes: null });
+      if (!result.success) {
+        setActionError(result.error ?? 'Failed to approve ProcureGuard access.');
+        setProcessingEmail(null);
+        return;
+      }
       await refreshData();
       setExpandedEmail(null);
       setExpandMode(null);
@@ -166,9 +206,15 @@ export default function ProcureGuardAccessApprovalsClient({
   }
 
   function handleEdit(row: ProcureGuardAccessRequestRow, role: ProcureGuardPermissionRole, country: string, segment: string) {
+    setActionError('');
     setProcessingEmail(row.user_email);
     startTransition(async () => {
-      await editProcureGuardAccess({ userEmail: row.user_email, approvedRole: role, reviewedBy: userEmail, country, segment });
+      const result = await editProcureGuardAccess({ userEmail: row.user_email, approvedRole: role, reviewedBy: userEmail, country, segment });
+      if (!result.success) {
+        setActionError(result.error ?? 'Failed to edit ProcureGuard access.');
+        setProcessingEmail(null);
+        return;
+      }
       await refreshData();
       setExpandedEmail(null);
       setExpandMode(null);
@@ -238,7 +284,7 @@ export default function ProcureGuardAccessApprovalsClient({
                       <p className="font-semibold text-slate-800">{row.approved_role ?? row.requested_role}</p>
                       {row.status === 'Pending' && <p className="text-xs text-slate-500">requested</p>}
                     </td>
-                    <td className="px-4 py-3"><ScopePills country={row.country} segment={row.segment} /></td>
+                    <td className="px-4 py-3"><ScopePills role={row.approved_role ?? row.requested_role} country={row.country} segment={row.segment} /></td>
                     <td className="px-4 py-3 text-slate-500">
                       <p>{formatDate(row.requested_at)}</p>
                       {row.reviewed_at && <p className="mt-1 text-xs">Reviewed {formatDate(row.reviewed_at)}</p>}
@@ -317,6 +363,7 @@ export default function ProcureGuardAccessApprovalsClient({
           {isRefreshing ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
+      {actionError && <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{actionError}</p>}
 
       <section>
         <div className="mb-3 flex items-center justify-between">

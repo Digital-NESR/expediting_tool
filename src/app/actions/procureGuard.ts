@@ -7,7 +7,7 @@ import { cache } from 'react';
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
 import procureGuardPool from '@/lib/db-procureguard';
-import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, formatProcureGuardStatusLabel, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, normalizeProcureGuardCountry, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, toUsd } from '@/lib/procureGuard-utils';
+import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, formatProcureGuardStatusLabel, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getProcureGuardCountryScopeCountries, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, normalizeProcureGuardCountry, normalizeProcureGuardCountryScope, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, roleRequiresProcureGuardCountryScope, toUsd } from '@/lib/procureGuard-utils';
 import type { ProcureGuardAvailableActions } from '@/lib/procureGuard-utils';
 import type {
   ActionResult,
@@ -85,6 +85,14 @@ function fileBaseName(name: string): string {
 function detectMime(file: File): string {
   const fileExt = (file.name.split('.').pop() ?? '').toLowerCase();
   return FILE_MIME_MAP[fileExt] || file.type || 'application/octet-stream';
+}
+
+function normalisePermissionCountryForRole(role: ProcureGuardPermissionRole, country: string | null | undefined): string | null {
+  const normalizedCountry = normalizeProcureGuardCountryScope(country);
+  if (roleRequiresProcureGuardCountryScope(role) && !normalizedCountry) {
+    throw new Error(`${role} access must be limited to at least one country. Choose a country scope before saving.`);
+  }
+  return normalizedCountry;
 }
 
 type QueryParam = string | number | boolean | null | Date | Buffer | number[] | string[] | undefined;
@@ -316,7 +324,7 @@ function normalisePaymentCountries<T extends { country?: string | null }>(rows: 
 }
 
 function normalisePermissionCountry<T extends { country?: string | null }>(row: T): T {
-  return { ...row, country: normalizeProcureGuardCountry(row.country) };
+  return { ...row, country: normalizeProcureGuardCountryScope(row.country) };
 }
 
 function requireCountryOption(value: string | null | undefined, label = 'Country'): string {
@@ -468,7 +476,7 @@ const getActor = cache(async (): Promise<ProcureGuardActor> => {
   const role = (permissionRow?.role ?? fallbackRole) as ProcureGuardPermissionRole;
   const basePermissions = getPermissionProfile(role);
   const baseName = permissionRow?.name ?? user?.name ?? email;
-  const baseCountry = normalizeProcureGuardCountry(permissionRow?.country);
+  const baseCountry = normalizeProcureGuardCountryScope(permissionRow?.country);
   const baseSegment = permissionRow?.segment ?? null;
 
   const reviewGrants: ProcureGuardReviewGrant[] = [];
@@ -489,7 +497,7 @@ const getActor = cache(async (): Promise<ProcureGuardActor> => {
       fromEmail: delegatorEmail,
       fromName: (row.delegator_name as string) || delegatorRow?.name || delegatorEmail,
       role: delegatorRole,
-      country: normalizeProcureGuardCountry(delegatorRow?.country),
+      country: normalizeProcureGuardCountryScope(delegatorRow?.country),
       segment: delegatorRow?.segment ?? null,
       isAdmin: delegatorRole === 'Admin',
     });
@@ -541,13 +549,19 @@ function scopedWhere(actor: ProcureGuardActor): { where: string; params: string[
   const clauses = [ownClause];
   const params: string[] = [email, email];
   for (const grant of grants) {
-    if (grant.isAdmin || (!grant.country && !grant.segment)) {
+    if (grant.isAdmin || (!roleRequiresProcureGuardCountryScope(grant.role) && !grant.country && !grant.segment)) {
       // A full-scope grant (admin or unscoped reviewer) can see everything.
       return { where: '', params: [] };
     }
+    if (roleRequiresProcureGuardCountryScope(grant.role) && !grant.country) continue;
     const parts: string[] = [];
-    if (grant.country) { parts.push('country = ?'); params.push(grant.country); }
+    const scopedCountries = getProcureGuardCountryScopeCountries(grant.country);
+    if (scopedCountries.length > 0) {
+      parts.push(`country IN (${scopedCountries.map(() => '?').join(', ')})`);
+      params.push(...scopedCountries);
+    }
     if (grant.segment) { parts.push('segment = ?'); params.push(grant.segment); }
+    if (parts.length === 0) continue;
     clauses.push(`(${parts.join(' AND ')})`);
   }
   return { where: `WHERE (${clauses.join(' OR ')})`, params };
@@ -571,7 +585,10 @@ function actorCanAccessRequestScope(
   // True if any review grant (own or delegated) covers this request's scope.
   return actorReviewGrants(actor).some(grant => {
     if (grant.isAdmin) return true;
-    const countryOk = !grant.country || normalizeProcureGuardCountry(grant.country) === normalizeProcureGuardCountry(request.country);
+    if (roleRequiresProcureGuardCountryScope(grant.role) && !grant.country) return false;
+    const scopedCountries = getProcureGuardCountryScopeCountries(grant.country);
+    const requestCountry = normalizeProcureGuardCountry(request.country);
+    const countryOk = scopedCountries.length === 0 || (requestCountry ? scopedCountries.includes(requestCountry) : false);
     const segmentOk = !grant.segment || normaliseScopeValue(grant.segment) === normaliseScopeValue(request.segment);
     return countryOk && segmentOk;
   });
@@ -585,8 +602,10 @@ function getScopeRestrictionMessage(
   const actorSegment = actor.segment?.trim();
   const requestCountry = request.country?.trim() || 'an unassigned country';
   const requestSegment = request.segment?.trim() || 'an unassigned segment';
+  const actorCountries = getProcureGuardCountryScopeCountries(actorCountry);
+  const normalizedRequestCountry = normalizeProcureGuardCountry(request.country);
 
-  if (actorCountry && normalizeProcureGuardCountry(actorCountry) !== normalizeProcureGuardCountry(request.country)) {
+  if (actorCountries.length > 0 && (!normalizedRequestCountry || !actorCountries.includes(normalizedRequestCountry))) {
     return `${actor.role} access is limited to ${actorCountry}. This request is for ${requestCountry}.`;
   }
   if (actorSegment && normaliseScopeValue(actorSegment) !== normaliseScopeValue(request.segment)) {
@@ -1931,7 +1950,7 @@ export async function adminGrantProcureGuardDelegation(input: {
       fromEmail: delegatorEmail,
       fromName: delegatorName,
       role: delegatorRole,
-      country: normalizeProcureGuardCountry(delegatorRow?.country),
+      country: normalizeProcureGuardCountryScope(delegatorRow?.country),
       segment: delegatorRow?.segment ?? null,
       isAdmin: delegatorRole === 'Admin',
     });
@@ -3517,6 +3536,45 @@ const PROCURE_GUARD_REVIEW_ROLE_RANK: Record<ProcureGuardPermissionRole, number>
   Admin: 8,
 };
 
+function normalisePersonName(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// Source: "ProcureGuard - Sub (1).csv". This maps CSV approver names to their country-level roles.
+const PROCURE_GUARD_CSV_ROLE_COUNTRIES: Record<string, Partial<Record<ProcureGuardPermissionRole, string[]>>> = {
+  [normalisePersonName('Hichem Bezghoud')]: { 'SCM Manager': ['Algeria'] },
+  [normalisePersonName('Wael Sharabash')]: { 'SCM Manager': ['Bahrain', 'Saudi Arabia (KSA)'] },
+  [normalisePersonName('Belemel Riadinguem')]: { 'SCM Manager': ['Chad'] },
+  [normalisePersonName('Mourad Ibrahim')]: { 'SCM Manager': ['Egypt'] },
+  [normalisePersonName('Joby Jose')]: { 'SCM Manager': ['EOS'] },
+  [normalisePersonName('Swegesh Chinnan Paul')]: { 'SCM Manager': ['India'] },
+  [normalisePersonName('Novita Trihandayani')]: { 'SCM Manager': ['Indonesia', 'Malaysia'] },
+  [normalisePersonName('Mazen Sarem')]: { 'SCM Manager': ['Iraq'] },
+  [normalisePersonName('Talal Aladwani')]: { 'SCM Manager': ['Jordan', 'Kuwait'] },
+  [normalisePersonName('Mohamed Hbarat')]: { 'SCM Manager': ['Libya'] },
+  [normalisePersonName('Suhail Jafar Al Moosa')]: { 'SCM Manager': ['Oman', 'Yemen'] },
+  [normalisePersonName('Abdallah Boulifa')]: { 'SCM Manager': ['Qatar'] },
+  [normalisePersonName('Zied Fehri')]: { 'SCM Manager': ['United Arab Emirates (UAE)'] },
+  [normalisePersonName('Ahmed Mouhoub')]: { 'Country Controller': ['Algeria'] },
+  [normalisePersonName('Mohamed Merghani')]: { 'Country Controller': ['Bahrain', 'Saudi Arabia (KSA)'] },
+  [normalisePersonName('Muhammad Khan')]: { 'Country Controller': ['EOS'] },
+  [normalisePersonName('Mahmoud El-Nady')]: { 'Country Controller': ['Egypt'] },
+  [normalisePersonName('Ahmed Malik')]: { 'Country Controller': ['HQ Dubai'] },
+  [normalisePersonName('Ali Bohra')]: { 'Country Controller': ['India'] },
+  [normalisePersonName('Ni Kusmiati')]: { 'Country Controller': ['Indonesia', 'Malaysia'] },
+  [normalisePersonName('Ramakrishnan Sunderraman')]: { 'Country Controller': ['Iraq'] },
+  [normalisePersonName('Shodhan Shetty')]: { 'Country Controller': ['Jordan', 'Kuwait'] },
+  [normalisePersonName('Abdurahim Drebi')]: { 'Country Controller': ['Libya'] },
+  [normalisePersonName('Adila Harib Al Ismaili')]: { 'Country Controller': ['Oman', 'Yemen'] },
+  [normalisePersonName('Mounir Mohamed Al-Sherif')]: { 'Country Controller': ['Qatar'] },
+  [normalisePersonName('Rami Dabous')]: { 'Country Controller': ['United Arab Emirates (UAE)'] },
+};
+
+function csvRoleCountriesForRecipient(name: string, role: ProcureGuardPermissionRole): string[] {
+  const countries = PROCURE_GUARD_CSV_ROLE_COUNTRIES[normalisePersonName(name)]?.[role] ?? [];
+  return countries.map(country => normalizeProcureGuardCountry(country)).filter((country): country is string => Boolean(country));
+}
+
 function procureGuardRoleFromRecipient(row: {
   request_type?: ProcureGuardRequestType | 'both' | null;
   notification_role?: string | null;
@@ -3582,12 +3640,19 @@ async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
     const currentRank = current ? PROCURE_GUARD_REVIEW_ROLE_RANK[current.role] : -1;
     const nextRole = PROCURE_GUARD_REVIEW_ROLE_RANK[role] > currentRank ? role : current?.role ?? role;
     const countries = current?.countries ?? new Set<string>();
+    const displayName = String(row.display_name ?? '').trim();
+    const csvCountries = roleRequiresProcureGuardCountryScope(role) ? csvRoleCountriesForRecipient(displayName, role) : [];
     const country = normalizeProcureGuardCountry(row.country ? String(row.country) : null);
-    if (country) countries.add(country);
+    if (csvCountries.length > 0) {
+      countries.clear();
+      for (const csvCountry of csvCountries) countries.add(csvCountry);
+    } else if (country) {
+      countries.add(country);
+    }
 
     byEmail.set(email, {
       email,
-      name: String(row.display_name ?? '').trim() || current?.name || email,
+      name: displayName || current?.name || email,
       role: nextRole,
       countries,
     });
@@ -3599,7 +3664,19 @@ async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
   for (const recipient of byEmail.values()) {
     if (existingRoleByEmail.get(recipient.email) === 'Admin') continue;
 
-    const country = recipient.countries.size === 1 ? [...recipient.countries][0] : null;
+    const csvCountries = roleRequiresProcureGuardCountryScope(recipient.role)
+      ? csvRoleCountriesForRecipient(recipient.name, recipient.role)
+      : [];
+    const country = roleRequiresProcureGuardCountryScope(recipient.role)
+      ? csvCountries.length > 0
+        ? csvCountries.join(', ')
+        : recipient.countries.size > 0
+          ? [...recipient.countries].join(', ')
+          : null
+      : null;
+    const syncNotes = roleRequiresProcureGuardCountryScope(recipient.role) && !country
+      ? 'Synced from notification recipients; country scope needs review'
+      : 'Synced from notification recipients';
     await exec(
       `INSERT INTO procure_guard_permissions (email, name, role, country, segment)
        VALUES (?, ?, ?, ?, NULL)
@@ -3614,8 +3691,8 @@ async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
 
     await exec(
       `INSERT INTO procure_guard_access_requests
-         (user_email, display_name, status, requested_role, approved_role, country, segment, requested_at, reviewed_at, reviewed_by, notes)
-       VALUES (?, ?, 'Approved', ?, ?, ?, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'ProcureGuard recipient sync', 'Synced from notification recipients')
+       (user_email, display_name, status, requested_role, approved_role, country, segment, requested_at, reviewed_at, reviewed_by, notes)
+       VALUES (?, ?, 'Approved', ?, ?, ?, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'ProcureGuard recipient sync', ?)
        ON CONFLICT (user_email) DO UPDATE SET
          display_name = EXCLUDED.display_name,
          status = 'Approved',
@@ -3626,7 +3703,7 @@ async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
          reviewed_at = CURRENT_TIMESTAMP,
          reviewed_by = EXCLUDED.reviewed_by,
          notes = EXCLUDED.notes`,
-      [recipient.email, recipient.name, recipient.role, recipient.role, blankToNull(country)],
+      [recipient.email, recipient.name, recipient.role, recipient.role, blankToNull(country), syncNotes],
     );
   }
 }
@@ -3640,7 +3717,7 @@ function serialiseProcureGuardAccessRequest(row: QueryResultRow): ProcureGuardAc
     status: row.status as ProcureGuardAccessRequestStatus,
     requested_role: normaliseProcureGuardRole(row.requested_role),
     approved_role: row.approved_role ? normaliseProcureGuardRole(row.approved_role) : null,
-    country: normalizeProcureGuardCountry(row.country ? String(row.country) : null),
+    country: normalizeProcureGuardCountryScope(row.country ? String(row.country) : null),
     segment: row.segment ? String(row.segment) : null,
     requested_at: row.requested_at instanceof Date ? row.requested_at.toISOString() : String(row.requested_at),
     reviewed_at: row.reviewed_at instanceof Date ? row.reviewed_at.toISOString() : (row.reviewed_at ?? null),
@@ -3716,7 +3793,7 @@ export async function getProcureGuardAccessRequests(): Promise<ProcureGuardAcces
         status: 'Approved',
         requested_role: role,
         approved_role: role,
-        country: normalizeProcureGuardCountry(row.country ? String(row.country) : null),
+        country: normalizeProcureGuardCountryScope(row.country ? String(row.country) : null),
         segment: row.segment ? String(row.segment) : null,
         requested_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
         reviewed_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
@@ -3760,7 +3837,7 @@ export async function approveProcureGuardAccess(input: {
     await ensureProcureGuardPermissionRoleValues();
     const email = requireText(input.userEmail, 'Email').toLowerCase();
     const role = normaliseProcureGuardRole(input.approvedRole);
-    const country = normalizeProcureGuardCountry(input.country);
+    const country = normalisePermissionCountryForRole(role, input.country);
 
     await exec(
       `INSERT INTO procure_guard_access_requests
@@ -3885,7 +3962,7 @@ export async function updateProcureGuardPermission(input: UpdateProcureGuardPerm
     await ensureProcureGuardPermissionRoleValues();
     const email = requireText(input.email, 'Email').toLowerCase();
     const role = input.role;
-    const country = normalizeProcureGuardCountry(input.country);
+    const country = normalisePermissionCountryForRole(role, input.country);
     const canManageAll = canUseProcureGuardAdmin(getProcureGuardAccessView(actor.role));
     const canManageOwnConfiguredAdmin = actor.email.toLowerCase() === email && adminEmails().includes(email);
 
@@ -3923,16 +4000,6 @@ export async function updateProcureGuardPermission(input: UpdateProcureGuardPerm
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update permission.' };
   }
 }
-
-
-
-
-
-
-
-
-
-
 
 
 

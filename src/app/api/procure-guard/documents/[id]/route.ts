@@ -1,7 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { getProcureGuardUser } from '@/lib/auth';
 import procureGuardPool from '@/lib/db-procureguard';
-import { getPermissionProfile, normalizeProcureGuardCountry } from '@/lib/procureGuard-utils';
+import { getPermissionProfile, getProcureGuardCountryScopeCountries, normalizeProcureGuardCountry, roleRequiresProcureGuardCountryScope } from '@/lib/procureGuard-utils';
 import type { ProcureGuardPermissionRole } from '@/types/procureGuard';
 
 const MIME_MAP: Record<string, string> = {
@@ -91,7 +91,11 @@ export async function GET(
       ? doc.requester_notification_emails.map((email: string) => email.trim().toLowerCase()).filter(Boolean)
       : [];
     const requesterSideAccess = String(doc.requested_by_email ?? '').toLowerCase() === userEmail || requesterEmails.includes(userEmail);
-    const countryOk = !permission?.country || normalizeProcureGuardCountry(permission.country) === normalizeProcureGuardCountry(doc.country);
+    const scopedCountries = getProcureGuardCountryScopeCountries(permission?.country);
+    const docCountry = normalizeProcureGuardCountry(doc.country);
+    const countryOk = scopedCountries.length === 0
+      ? !roleRequiresProcureGuardCountryScope(role)
+      : Boolean(docCountry && scopedCountries.includes(docCountry));
     const segmentOk = !permission?.segment || normaliseScopeValue(permission.segment) === normaliseScopeValue(doc.segment);
 
     if (!requesterSideAccess && !(profile.canViewAll && countryOk && segmentOk)) {
