@@ -3,7 +3,7 @@
 import titePool from '@/lib/db-tite';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import type { Shipment, ShipmentStats, ShipmentStatus, ShipmentDocument, ActivityLogRow, NotificationContact, CountryStakeholder } from '@/types/tite';
+import type { Shipment, ShipmentStats, ShipmentStatus, ShipmentDocument, ActivityLogRow, NotificationContact, CountryStakeholder, CountryStakeholderFull } from '@/types/tite';
 import {
   dbInsertDocument,
   dbGetDocuments,
@@ -854,6 +854,101 @@ export async function getCountryStakeholders(
   } catch (err) {
     console.error('[TI-TE] getCountryStakeholders error:', err);
     return [];
+  }
+}
+
+/* ─── Admin: getAllStakeholders ─────────────────────────────── */
+
+export async function getAllStakeholders(): Promise<CountryStakeholderFull[]> {
+  try {
+    const { rows } = await titePool.query<CountryStakeholderFull>(
+      `SELECT id, country, role, name, email, active
+       FROM country_stakeholders
+       ORDER BY country, role, id`,
+    );
+    return rows;
+  } catch (err) {
+    console.error('[TI-TE] getAllStakeholders error:', err);
+    return [];
+  }
+}
+
+/* ─── Admin: addStakeholder ────────────────────────────────── */
+
+export async function addStakeholder(params: {
+  country: string;
+  role: string;
+  name: string;
+  email: string;
+  addedBy: string;
+}): Promise<{ success: boolean; stakeholder?: CountryStakeholderFull; error?: string }> {
+  try {
+    const { rows } = await titePool.query<CountryStakeholderFull>(
+      `INSERT INTO country_stakeholders (country, role, name, email, active)
+       VALUES ($1, $2, $3, $4, true)
+       RETURNING id, country, role, name, email, active`,
+      [params.country, params.role, params.name, params.email],
+    );
+    return { success: true, stakeholder: rows[0] };
+  } catch (err) {
+    console.error('[TI-TE] addStakeholder error:', err);
+    return { success: false, error: 'Failed to add notifier.' };
+  }
+}
+
+/* ─── Admin: updateStakeholder ─────────────────────────────── */
+
+export async function updateStakeholder(params: {
+  id: number;
+  country: string;
+  role: string;
+  name: string;
+  email: string;
+  active: boolean;
+}): Promise<{ success: boolean; stakeholder?: CountryStakeholderFull; error?: string }> {
+  try {
+    const { rows } = await titePool.query<CountryStakeholderFull>(
+      `UPDATE country_stakeholders SET
+         country = $1, role = $2, name = $3, email = $4, active = $5
+       WHERE id = $6
+       RETURNING id, country, role, name, email, active`,
+      [params.country, params.role, params.name, params.email, params.active, params.id],
+    );
+    if (rows.length === 0) return { success: false, error: 'Notifier not found.' };
+    return { success: true, stakeholder: rows[0] };
+  } catch (err) {
+    console.error('[TI-TE] updateStakeholder error:', err);
+    return { success: false, error: 'Failed to update notifier.' };
+  }
+}
+
+/* ─── Admin: deleteStakeholder ─────────────────────────────── */
+
+export async function deleteStakeholder(id: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    await titePool.query(`DELETE FROM country_stakeholders WHERE id = $1`, [id]);
+    return { success: true };
+  } catch (err) {
+    console.error('[TI-TE] deleteStakeholder error:', err);
+    return { success: false, error: 'Failed to delete notifier.' };
+  }
+}
+
+/* ─── Admin: toggleStakeholderActive ───────────────────────── */
+
+export async function toggleStakeholderActive(
+  id: number,
+  active: boolean,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await titePool.query(
+      `UPDATE country_stakeholders SET active = $1 WHERE id = $2`,
+      [active, id],
+    );
+    return { success: true };
+  } catch (err) {
+    console.error('[TI-TE] toggleStakeholderActive error:', err);
+    return { success: false, error: 'Failed to toggle status.' };
   }
 }
 

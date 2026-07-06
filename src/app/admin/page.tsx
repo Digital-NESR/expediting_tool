@@ -20,6 +20,7 @@ const ADMIN_TOOLS = new Set([
   'po-expediting',
   'access-approvals',
   'tite-migration',
+  'tite-default-notifiers',
   'tite-analytics',
   'tite-access-approvals',
   'procureguard-admin',

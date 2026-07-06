@@ -92,3 +92,8 @@ export interface CountryStakeholder {
   name: string;
   email: string;
 }
+
+export interface CountryStakeholderFull extends CountryStakeholder {
+  country: string;
+  active: boolean;
+}

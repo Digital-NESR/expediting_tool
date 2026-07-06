@@ -18,6 +18,7 @@ import {
 import AccessApprovalsClient from './AccessApprovalsClient';
 import TiteMigrationClient from './TiteMigrationClient';
 import TiteAccessApprovalsClient from './TiteAccessApprovalsClient';
+import TiteDefaultNotifiersClient from './TiteDefaultNotifiersClient';
 import TiteAnalyticsClient from './TiteAnalyticsClient';
 import ProcureGuardAccessApprovalsClient from './ProcureGuardAccessApprovalsClient';
 import ProcureGuardAdminPanelClient from '../procure-guard/admin/AdminPanelClient';
@@ -1322,9 +1323,10 @@ export default function AdminClient({
     const titles: Record<string, string> = {
       'po-expediting':          'Analytics — PO Expediting | Admin | SC Agents',
       'access-approvals':       'Access Approvals | Admin | SC Agents',
-      'tite-migration':         'Migration — TI-TE | Admin | SC Agents',
-      'tite-analytics':         'Analytics — TI-TE | Admin | SC Agents',
-      'tite-access-approvals':  'TI-TE Access Approvals | Admin | SC Agents',
+      'tite-migration':           'Migration — TI-TE | Admin | SC Agents',
+      'tite-default-notifiers':  'Default Notifiers — TI-TE | Admin | SC Agents',
+      'tite-analytics':          'Analytics — TI-TE | Admin | SC Agents',
+      'tite-access-approvals':   'TI-TE Access Approvals | Admin | SC Agents',
       'procureguard-admin':     'ProcureGuard Admin | Admin | SC Agents',
       'procureguard-analytics': 'ProcureGuard Analytics | Admin | SC Agents',
       'procureguard-usage':     'ProcureGuard Usage Analytics | Admin | SC Agents',
@@ -1480,6 +1482,21 @@ export default function AdminClient({
             }}
           >
             Migration
+          </button>
+
+          {/* TI-TE Default Notifiers */}
+          <button
+            onClick={() => setSelectedTool('tite-default-notifiers')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'tite-default-notifiers' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'tite-default-notifiers' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'tite-default-notifiers' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Default Notifiers
           </button>
 
           {/* TI-TE Analytics */}
@@ -1721,6 +1738,9 @@ export default function AdminClient({
           )}
           {selectedTool === 'tite-migration' && (
             <TiteMigrationClient userEmail={userEmail} />
+          )}
+          {selectedTool === 'tite-default-notifiers' && (
+            <TiteDefaultNotifiersClient userEmail={userEmail} />
           )}
           {selectedTool === 'tite-access-approvals' && (
             <TiteAccessApprovalsClient
