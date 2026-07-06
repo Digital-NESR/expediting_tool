@@ -18,7 +18,7 @@ interface ParsedFile {
 }
 
 // Data-validation kind for each template column (drives the dropdowns / typed cells).
-type DVKind = 'text' | 'code' | 'country' | 'category' | 'subcategory' | 'uom' | 'currency' | 'incoterms' | 'price' | 'date' | 'whole';
+type DVKind = 'text' | 'code' | 'country' | 'category' | 'subcategory' | 'uom' | 'currency' | 'incoterms' | 'price' | 'date' | 'whole' | 'suggest';
 
 // Column order the importer expects (A → Q). `hint` powers the "Field guide" sheet.
 const COLUMNS: { label: string; field: string; required: boolean; keywords: string[]; dv: DVKind; hint: string }[] = [
@@ -26,8 +26,8 @@ const COLUMNS: { label: string; field: string; required: boolean; keywords: stri
   { label: 'Supplier Code', field: 'supplier_code', required: true, keywords: ['code', 'vendor'], dv: 'code', hint: 'SAP vendor code — leading zeros are preserved (cell is text).' },
   { label: 'Country', field: 'country', required: true, keywords: ['country'], dv: 'country', hint: 'Pick from the dropdown (2-letter code, e.g. SA).' },
   { label: 'Spend Category', field: 'category', required: false, keywords: ['category', 'spend'], dv: 'category', hint: 'Optional — pick from the dropdown of active categories.' },
-  { label: 'Sub-Category', field: 'subcategory', required: false, keywords: ['sub'], dv: 'subcategory', hint: 'Optional — pick from the dropdown.' },
-  { label: 'Commodity', field: 'commodity', required: true, keywords: ['commodity'], dv: 'text', hint: 'What is being priced (free text).' },
+  { label: 'Sub-Category', field: 'subcategory', required: false, keywords: ['sub'], dv: 'subcategory', hint: 'Optional — cascades from Spend Category: choose the category first, then this dropdown shows only its sub-categories.' },
+  { label: 'Commodity', field: 'commodity', required: true, keywords: ['commodity'], dv: 'suggest', hint: 'What is being priced. Cascades from Sub-Category as SUGGESTIONS — pick one or type your own.' },
   { label: 'Description', field: 'description', required: false, keywords: ['description', 'desc', 'service', 'item'], dv: 'text', hint: 'Optional — longer description; defaults to the commodity if blank.' },
   { label: 'UOM', field: 'uom', required: true, keywords: ['uom', 'unit of measure', 'unit'], dv: 'uom', hint: 'Pick from the dropdown of active units of measure.' },
   { label: 'Unit Price', field: 'unit_price', required: true, keywords: ['price', 'rate', 'value'], dv: 'price', hint: 'Number greater than 0 — no currency symbols or thousands separators.' },
@@ -102,6 +102,17 @@ const TPL_PALE = 'FFEAF4EF';
 const TPL_BORDER = 'FFD9E2DC';
 const TPL_DATA_ROWS = 400;
 
+/** 1-based column index → Excel column letter(s) (1→A, 27→AA). */
+function colLetter(n: number): string {
+  let s = '';
+  while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+/** Sanitise a taxonomy label into a valid Excel defined-name token (letters/digits/underscore). */
+function nameToken(prefix: string, label: string): string {
+  return prefix + label.replace(/[^A-Za-z0-9]/g, '_');
+}
+
 const tplHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TPL_GREEN } } as ExcelJS.Fill;
 const tplThin = { style: 'thin', color: { argb: TPL_BORDER } } as ExcelJS.Border;
 const tplBox = { top: tplThin, left: tplThin, bottom: tplThin, right: tplThin };
@@ -117,6 +128,14 @@ function validationFor(kind: DVKind, required: boolean, listRange: Record<string
         showErrorMessage: true, errorStyle: 'error', errorTitle: 'Pick from the list',
         error: 'Choose one of the allowed values from the dropdown — free-typed values are rejected.',
         showInputMessage: true, promptTitle: `Dropdown${req}`, prompt: 'Click the arrow and pick a value.',
+      };
+    case 'suggest':
+      // Dropdown of suggestions that does NOT reject other values (showErrorMessage: false → free text allowed).
+      return {
+        type: 'list', allowBlank, formulae: [listRange.commodity],
+        showErrorMessage: false,
+        showInputMessage: true, promptTitle: `Commodity${req}`,
+        prompt: 'Pick a suggestion for the chosen Sub-Category, or type your own.',
       };
     case 'text': case 'code':
       return {
@@ -192,6 +211,39 @@ async function downloadTemplate() {
     incoterms: listFormula(5),
   };
 
+  // ── Cascading Sub-category: dependent on the Category cell in the same row. ──
+  // Each category owns a defined name (cat_<sanitised>) covering its sub-category list on the
+  // Lists sheet; the Sub-category dropdown resolves that name via INDIRECT of the Category cell.
+  const categoryColLetter = colLetter(COLUMNS.findIndex((c) => c.field === 'category') + 1);
+  const catSpecials = [...new Set(SPEND_TAXONOMY.map((c) => c.name).join('').split('').filter((ch) => !/[A-Za-z0-9]/.test(ch)))];
+  let subExpr = `${categoryColLetter}2`; // relative — Excel adjusts per row across the merged range
+  for (const ch of catSpecials) {
+    const q = ch === '"' ? '""' : ch;
+    subExpr = `SUBSTITUTE(${subExpr},"${q}","_")`;
+  }
+  listRange.subcategory = `INDIRECT("cat_"&${subExpr})`;
+
+  // ── Commodity SUGGESTIONS: cascade from the Sub-category cell, but free text is still allowed. ──
+  // Sub-category names can repeat across categories (e.g. "DHT"), so commodities are merged by
+  // sub-category name into one suggestion list; each owns a defined name (sub_<sanitised>).
+  const subToCommodities = new Map<string, Set<string>>();
+  const orderedSubNames: string[] = [];
+  for (const c of SPEND_TAXONOMY) {
+    for (const s of c.subs) {
+      if (!subToCommodities.has(s.name)) { subToCommodities.set(s.name, new Set()); orderedSubNames.push(s.name); }
+      const set = subToCommodities.get(s.name)!;
+      for (const com of s.commodities) if (com.n) set.add(com.n);
+    }
+  }
+  const subcatColLetter = colLetter(COLUMNS.findIndex((c) => c.field === 'subcategory') + 1);
+  const subNameSpecials = [...new Set(orderedSubNames.join('').split('').filter((ch) => !/[A-Za-z0-9]/.test(ch)))];
+  let comExpr = `${subcatColLetter}2`;
+  for (const ch of subNameSpecials) {
+    const q = ch === '"' ? '""' : ch;
+    comExpr = `SUBSTITUTE(${comExpr},"${q}","_")`;
+  }
+  listRange.commodity = `INDIRECT("sub_"&${comExpr})`;
+
   /* ── 1) Instructions ── */
   const info = wb.addWorksheet('Instructions');
   info.getColumn(1).width = 118;
@@ -202,6 +254,8 @@ async function downloadTemplate() {
     { t: '1. Enter one catalog rate per row on the "Catalog" sheet, starting at row 2 (row 1 is the header).' },
     { t: '2. Required columns are marked with * in the header: Supplier, Supplier Code, Country, Commodity, UOM, Unit Price, Currency, Effective Date.' },
     { t: '3. Country, Spend Category, Sub-Category, UOM, Currency and Incoterms are DROPDOWNS — click the cell and pick a value.' },
+    { t: '   Sub-Category cascades from Spend Category: pick the category first, then the Sub-Category dropdown shows only that category\'s sub-categories.' },
+    { t: '   Commodity offers SUGGESTIONS based on the chosen Sub-Category — pick one from the dropdown, or type your own value if it isn\'t listed.' },
     { t: '4. Unit Price accepts numbers greater than 0 only. Lead Time is a whole number of days.' },
     { t: '5. Effective / Expiry Date must be real dates (YYYY-MM-DD).' },
     { t: '6. Supplier Code is stored as text so leading zeros (e.g. 0001103058) are preserved.' },
@@ -301,6 +355,37 @@ async function downloadTemplate() {
     head.value = col.header;
     head.font = { bold: true, color: { argb: TPL_GREEN_DARK } };
     col.values.forEach((v, ri) => { lists.getCell(`${L[ci]}${ri + 2}`).value = v; });
+  });
+
+  // One column per category holding its sub-categories, plus a defined name per category,
+  // so the Sub-category dropdown can cascade from the chosen Category via INDIRECT.
+  const CASCADE_START = listCols.length + 1; // first free column after the flat lists
+  SPEND_TAXONOMY.forEach((cat, i) => {
+    const letter = colLetter(CASCADE_START + i);
+    lists.getColumn(CASCADE_START + i).width = 26;
+    const head = lists.getCell(`${letter}1`);
+    head.value = cat.name;
+    head.font = { bold: true, color: { argb: TPL_GREEN_DARK } };
+    cat.subs.forEach((s, ri) => { lists.getCell(`${letter}${ri + 2}`).value = s.name; });
+    if (cat.subs.length) {
+      wb.definedNames.add(`Lists!$${letter}$2:$${letter}$${1 + cat.subs.length}`, nameToken('cat_', cat.name));
+    }
+  });
+
+  // One column per sub-category holding its commodities (merged across categories), plus a
+  // defined name per sub-category, so the Commodity dropdown can suggest via INDIRECT.
+  const SUB_CASCADE_START = CASCADE_START + SPEND_TAXONOMY.length;
+  orderedSubNames.forEach((subName, i) => {
+    const letter = colLetter(SUB_CASCADE_START + i);
+    lists.getColumn(SUB_CASCADE_START + i).width = 30;
+    const head = lists.getCell(`${letter}1`);
+    head.value = subName;
+    head.font = { bold: true, color: { argb: TPL_GREEN_DARK } };
+    const commodities = [...(subToCommodities.get(subName) ?? new Set<string>())].sort((a, b) => a.localeCompare(b));
+    commodities.forEach((com, ri) => { lists.getCell(`${letter}${ri + 2}`).value = com; });
+    if (commodities.length) {
+      wb.definedNames.add(`Lists!$${letter}$2:$${letter}$${1 + commodities.length}`, nameToken('sub_', subName));
+    }
   });
 
   // Reference sheets are read-only so the dropdown sources + guidance can't be edited away.
