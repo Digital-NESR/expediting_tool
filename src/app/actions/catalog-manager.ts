@@ -1405,6 +1405,7 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
       if (!r.uom?.trim()) missing.push('UOM');
       if (!r.currency?.trim()) missing.push('currency');
       if (!r.effective_date?.trim()) missing.push('effective date');
+      if (!r.expiry_date?.trim()) missing.push('expiry date');
       if (missing.length) { errors++; log.push(`❌ Row ${r.rowIndex}: missing ${missing.join(', ')}`); continue; }
 
       // Clean text (trim + strip control chars) and enforce length caps — mirrors the template.
