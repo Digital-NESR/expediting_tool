@@ -172,6 +172,7 @@ export interface CatalogEntry {
   sirion_url: string | null;
   notes: string | null;
   incoterms: string | null;
+  incoterms_location: string | null;
   lead_time_days: number | null;
   approver_name: string | null;
   approval_comment: string | null;

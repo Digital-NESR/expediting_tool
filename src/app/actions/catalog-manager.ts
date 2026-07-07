@@ -243,6 +243,7 @@ async function initCatalogManagerSchema(): Promise<void> {
 
   // Logistics fields (added later): Incoterms 2020 code + supplier lead time in days.
   await execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms TEXT`);
+  await execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms_location TEXT`);
   await execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS lead_time_days INTEGER`);
 
   // Real uploaded proof-of-agreement files are stored inline as a data URL (local-first).
@@ -381,17 +382,19 @@ export async function searchSupplierDirectory(query: string): Promise<{ name: st
 /* ---------------- seeding ---------------- */
 
 async function seedMasterData(): Promise<void> {
+  // Upsert so the ProcureGuard-aligned country/currency lists land on already-seeded DBs too
+  // (names/rates/flags refresh from the constants; country.status is left untouched for admins).
   for (const c of SEED_CURRENCIES) {
     await exec(
       `INSERT INTO currency (code, decimals, usd_rate) VALUES (?, ?, ?)
-       ON CONFLICT (code) DO NOTHING`,
+       ON CONFLICT (code) DO UPDATE SET decimals = EXCLUDED.decimals, usd_rate = EXCLUDED.usd_rate`,
       [c.code, c.decimals, c.usd_rate],
     );
   }
   for (const c of SEED_COUNTRIES) {
     await exec(
       `INSERT INTO country (code, name, default_currency, flag, status) VALUES (?, ?, ?, ?, 'Active')
-       ON CONFLICT (code) DO NOTHING`,
+       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, default_currency = EXCLUDED.default_currency, flag = EXCLUDED.flag`,
       [c.code, c.name, c.ccy, c.flag],
     );
   }
@@ -840,7 +843,7 @@ const ENTRY_SELECT = `
     rv.unit_price, rv.currency_code,
     rv.effective_date::text AS effective_date, rv.expiry_date::text AS expiry_date,
     e.status, e.tier_label, e.current_version_no AS version_no,
-    e.sirion_contract_id, e.sirion_url, e.notes, e.incoterms, e.lead_time_days,
+    e.sirion_contract_id, e.sirion_url, e.notes, e.incoterms, e.incoterms_location, e.lead_time_days,
     e.approver_name, e.approval_comment,
     e.created_by, e.created_at::text AS created_at,
     e.modified_by, e.modified_at::text AS modified_at
@@ -890,6 +893,7 @@ function mapEntry(row: QueryResultRow): CatalogEntry {
     sirion_url: row.sirion_url ?? null,
     notes: row.notes ?? null,
     incoterms: row.incoterms ?? null,
+    incoterms_location: row.incoterms_location ?? null,
     lead_time_days: row.lead_time_days != null ? Number(row.lead_time_days) : null,
     approver_name: row.approver_name ?? null,
     approval_comment: row.approval_comment ?? null,
@@ -961,6 +965,15 @@ export async function listPirEntries(): Promise<PirEntry[]> {
     material_supplier: str(r.material_supplier),
     material_supplier_org: str(r.material_supplier_org),
   }));
+}
+
+/** All SAP supplier names (from the seeded directory) — feeds the import template's supplier dropdown. */
+export async function getSupplierDirectoryNames(): Promise<string[]> {
+  await ensureCatalogManagerSchema();
+  const rows = await sql<{ name: string }[]>(
+    `SELECT DISTINCT name FROM supplier_directory WHERE name IS NOT NULL AND name <> '' ORDER BY name`,
+  );
+  return rows.map((r) => r.name);
 }
 
 export async function getPendingApprovalCount(country = 'ALL'): Promise<number> {
@@ -1114,6 +1127,7 @@ export interface CatalogEntryInput {
   sirion_contract_id: string | null;
   sirion_url: string | null;
   incoterms: string | null;
+  incoterms_location: string | null;
   lead_time_days: number | null;
 }
 
@@ -1166,13 +1180,13 @@ export async function createCatalogEntry(input: CatalogEntryInput, mode: 'draft'
   const ins = await exec(
     `INSERT INTO catalog_entry
       (code, country_code, supplier_id, category_id, subcategory_id, uom_id, spend_type, family, commodity,
-       unspsc_code, item_name, description, sirion_contract_id, sirion_url, notes, incoterms, lead_time_days,
+       unspsc_code, item_name, description, sirion_contract_id, sirion_url, notes, incoterms, incoterms_location, lead_time_days,
        status, tier_label, current_version_no, manager, approver_name, created_by, modified_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`,
     [
       code, input.country_code, supplierId, categoryId, subId, uomId, spendType, input.family, input.commodity,
       input.unspsc_code, input.item_name, input.description, input.sirion_contract_id, input.sirion_url, input.notes,
-      input.incoterms, input.lead_time_days,
+      input.incoterms, input.incoterms_location, input.lead_time_days,
       status, tier.label, input.manager, approver, actor.name, actor.name,
     ],
   );
@@ -1238,14 +1252,14 @@ export async function updateCatalogEntry(input: CatalogEntryInput, mode: 'draft'
     `UPDATE catalog_entry SET
       country_code = ?, supplier_id = ?, category_id = ?, subcategory_id = ?, uom_id = ?, spend_type = ?,
       family = ?, commodity = ?, unspsc_code = ?, item_name = ?, description = ?,
-      sirion_contract_id = ?, sirion_url = ?, notes = ?, incoterms = ?, lead_time_days = ?, manager = ?,
+      sirion_contract_id = ?, sirion_url = ?, notes = ?, incoterms = ?, incoterms_location = ?, lead_time_days = ?, manager = ?,
       status = ?, tier_label = ?, current_version_no = ?, approver_name = ?,
       modified_by = ?, modified_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
     [
       input.country_code, supplierId, categoryId, subId, uomId, spendType,
       input.family, input.commodity, input.unspsc_code, input.item_name, input.description,
-      input.sirion_contract_id, input.sirion_url, input.notes, input.incoterms, input.lead_time_days, input.manager,
+      input.sirion_contract_id, input.sirion_url, input.notes, input.incoterms, input.incoterms_location, input.lead_time_days, input.manager,
       status, tier.label, nextVersion, approver, actor.name, input.id,
     ],
   );
@@ -1329,6 +1343,7 @@ export interface CatalogImportRow {
   sirion_contract_id: string | null;
   notes: string | null;
   incoterms: string | null;
+  incoterms_location: string | null;
   lead_time_days: number | null;
 }
 
@@ -1343,10 +1358,11 @@ function normalizeImportDate(raw: string | null): string | null {
   if (!raw) return null;
   const t = String(raw).trim();
   if (!t || t.startsWith('=')) return null;
-  const parts = t.split('/');
-  if (parts.length === 3) {
-    const [d, m, y] = parts;
-    const dt = new Date(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
+  const parts = t.split(/[/-]/);
+  if (parts.length === 3 && parts.every((p) => p.trim() !== '')) {
+    // YYYY-MM-DD when the first part is a 4-digit year; otherwise DD-MM-YYYY / DD/MM/YYYY.
+    const [d, m, y] = parts[0].length === 4 ? [parts[2], parts[1], parts[0]] : parts;
+    const dt = new Date(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
     if (!Number.isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
   }
   const dt = new Date(t);
@@ -1446,6 +1462,8 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
         if (!incotermSet.has(ic)) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown Incoterm "${r.incoterms}"`); continue; }
         incoterms = ic;
       }
+      const incotermsLocation = sanitizeImportText(r.incoterms_location);
+      if (incotermsLocation && incotermsLocation.length > FIELD_MAX.incoterms_location) { errors++; log.push(`❌ Row ${r.rowIndex}: incoterms location is too long (max ${FIELD_MAX.incoterms_location})`); continue; }
 
       // Lead time optional; whole number of days between 0 and the sanity cap.
       let leadTime: number | null = null;
@@ -1483,13 +1501,13 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
       const ins = await exec(
         `INSERT INTO catalog_entry
           (code, country_code, supplier_id, category_id, subcategory_id, uom_id, spend_type, commodity,
-           item_name, description, sirion_contract_id, sirion_url, notes, incoterms, lead_time_days, status, tier_label,
+           item_name, description, sirion_contract_id, sirion_url, notes, incoterms, incoterms_location, lead_time_days, status, tier_label,
            current_version_no, manager, approver_name, created_by, modified_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`,
         [
           code, countryCode, supplierId, categoryId, subId, uom.id, spendType, commodity,
           itemName, description, sirion, sirionUrl, notes,
-          incoterms, leadTime, status, tier.label, manager, approver, actor.name, actor.name,
+          incoterms, incotermsLocation, leadTime, status, tier.label, manager, approver, actor.name, actor.name,
         ],
       );
       await exec(

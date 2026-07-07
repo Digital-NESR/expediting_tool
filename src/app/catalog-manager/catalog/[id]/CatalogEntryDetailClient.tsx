@@ -190,6 +190,7 @@ export default function CatalogEntryDetailClient({
             <KV label="Effective date">{fmtDateNice(entry.effective_date)}</KV>
             <KV label="Expiry date" amber={exp}>{entry.expiry_date ? fmtDateNice(entry.expiry_date) : 'No expiry'}</KV>
             <KV label="Incoterms">{entry.incoterms ? <span className="font-mono">{entry.incoterms}</span> : <span className="text-slate-400">—</span>}</KV>
+            <KV label="Incoterms location">{entry.incoterms_location ?? <span className="text-slate-400">—</span>}</KV>
             <KV label="Lead time">{entry.lead_time_days != null ? `${entry.lead_time_days} day${entry.lead_time_days === 1 ? '' : 's'}` : <span className="text-slate-400">—</span>}</KV>
           </div>
 

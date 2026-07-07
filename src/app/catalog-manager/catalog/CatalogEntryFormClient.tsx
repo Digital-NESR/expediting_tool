@@ -31,6 +31,7 @@ interface FormState {
   sirion_contract_id: string;
   sirion_url: string;
   incoterms: string;
+  incoterms_location: string;
   lead_time: string;
 }
 
@@ -90,6 +91,7 @@ export default function CatalogEntryFormClient({
           sirion_contract_id: initial.sirion_contract_id ?? '',
           sirion_url: initial.sirion_url ?? '',
           incoterms: initial.incoterms ?? '',
+          incoterms_location: initial.incoterms_location ?? '',
           lead_time: initial.lead_time_days != null ? String(initial.lead_time_days) : '',
         }
       : {
@@ -97,7 +99,7 @@ export default function CatalogEntryFormClient({
           category_name: '', subcategory_name: '', spend_type: '', family: '', commodity: '', unspsc_code: '',
           item_name: '', description: '', uom_name: '', unit_price: '', currency_code: defaultCcyOf(defaultCountry),
           effective_date: todayStr(), expiry_date: '', notes: '', sirion_contract_id: '', sirion_url: '',
-          incoterms: '', lead_time: '',
+          incoterms: '', incoterms_location: '', lead_time: '',
         },
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -172,6 +174,7 @@ export default function CatalogEntryFormClient({
       sirion_contract_id: f.sirion_contract_id || null,
       sirion_url: f.sirion_url || null,
       incoterms: f.incoterms || null,
+      incoterms_location: f.incoterms_location.trim() || null,
       lead_time_days: f.lead_time.trim() ? Number(f.lead_time) : null,
     };
     try {
@@ -309,6 +312,10 @@ export default function CatalogEntryFormClient({
                 <option value="">Not specified</option>
                 {INCOTERMS.map((i) => <option key={i.code} value={i.code}>{i.label}</option>)}
               </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <Label>Incoterms location</Label>
+              <input className={inputCls()} value={f.incoterms_location} onChange={(e) => set('incoterms_location', e.target.value)} placeholder="e.g. Jebel Ali Port, Dubai" />
             </label>
             <label className="flex flex-col gap-1.5">
               <Label>Lead time <span className="font-normal text-slate-400">· days</span></Label>

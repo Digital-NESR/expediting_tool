@@ -21,6 +21,7 @@ interface GridRow {
   effective: string;
   expiry: string;
   incoterms: string;
+  incoterms_location: string;
   lead_time: string;
 }
 
@@ -41,7 +42,7 @@ export default function GridEntryPanel({
 }) {
   const baseCountry = defaultCountry !== 'ALL' ? defaultCountry : countries[0]?.code ?? 'SA';
   const baseCcy = CCY_BY_COUNTRY[baseCountry] ?? currencies[0]?.code ?? 'USD';
-  const blank = (): GridRow => ({ key: keySeq++, supplier: '', code: '', country: baseCountry, category: '', subcategory: '', description: '', uom: '', price: '', currency: baseCcy, effective: todayStr(), expiry: '', incoterms: '', lead_time: '' });
+  const blank = (): GridRow => ({ key: keySeq++, supplier: '', code: '', country: baseCountry, category: '', subcategory: '', description: '', uom: '', price: '', currency: baseCcy, effective: todayStr(), expiry: '', incoterms: '', incoterms_location: '', lead_time: '' });
 
   const [rows, setRows] = useState<GridRow[]>(() => [blank(), blank(), blank(), blank()]);
   const [phase, setPhase] = useState<'form' | 'running' | 'done'>('form');
@@ -94,6 +95,7 @@ export default function GridEntryPanel({
       sirion_contract_id: null,
       notes: null,
       incoterms: r.incoterms || null,
+      incoterms_location: r.incoterms_location.trim() || null,
       lead_time_days: r.lead_time.trim() ? Number(r.lead_time) : null,
     }));
     try {
@@ -141,7 +143,7 @@ export default function GridEntryPanel({
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full min-w-[1360px] border-collapse text-left">
+        <table className="w-full min-w-[1520px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
               <th className="w-8 px-2 py-2.5 text-center">#</th>
@@ -157,6 +159,7 @@ export default function GridEntryPanel({
               <th className="px-2 py-2.5">Effective *</th>
               <th className="px-2 py-2.5">Expiry</th>
               <th className="px-2 py-2.5">Incoterms</th>
+              <th className="px-2 py-2.5">Incoterms location</th>
               <th className="px-2 py-2.5">Lead time</th>
               <th className="w-16 px-2 py-2.5"></th>
             </tr>
@@ -207,6 +210,7 @@ export default function GridEntryPanel({
                       {INCOTERMS.map((ic) => <option key={ic.code} value={ic.code}>{ic.code}</option>)}
                     </select>
                   </td>
+                  <td className="px-1.5 py-1.5 min-w-[150px]"><input className={cellCls} value={r.incoterms_location} onChange={(e) => setCell(r.key, { incoterms_location: e.target.value })} placeholder="location" /></td>
                   <td className="px-1.5 py-1.5 min-w-[90px]"><input type="number" inputMode="numeric" min={0} className={`${cellCls} font-mono`} value={r.lead_time} onChange={(e) => setCell(r.key, { lead_time: e.target.value })} placeholder="days" /></td>
                   <td className="px-1.5 py-1.5">
                     <div className="flex items-center gap-1">

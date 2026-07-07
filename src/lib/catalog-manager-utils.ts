@@ -12,15 +12,29 @@ export interface SeedCountry {
   ccy: string;
   flag: string;
 }
+// Countries mirror ProcureGuard's COUNTRY_OPTIONS (names) — the catalog stays code-based,
+// so each keeps a 2-letter code; the original 8 codes are preserved so existing entries stay valid.
 export const SEED_COUNTRIES: SeedCountry[] = [
-  { code: 'SA', name: 'Saudi Arabia', ccy: 'SAR', flag: '🇸🇦' },
-  { code: 'AE', name: 'United Arab Emirates', ccy: 'AED', flag: '🇦🇪' },
+  { code: 'DZ', name: 'Algeria', ccy: 'USD', flag: '🇩🇿' },
+  { code: 'BH', name: 'Bahrain', ccy: 'BHD', flag: '🇧🇭' },
+  { code: 'TD', name: 'Chad', ccy: 'USD', flag: '🇹🇩' },
+  { code: 'EG', name: 'Egypt', ccy: 'USD', flag: '🇪🇬' },
+  { code: 'EO', name: 'EOS', ccy: 'USD', flag: '🌐' },
+  { code: 'HQ', name: 'HQ Dubai', ccy: 'AED', flag: '🇦🇪' },
+  { code: 'IN', name: 'India', ccy: 'USD', flag: '🇮🇳' },
+  { code: 'ID', name: 'Indonesia', ccy: 'USD', flag: '🇮🇩' },
+  { code: 'IQ', name: 'Iraq', ccy: 'USD', flag: '🇮🇶' },
+  { code: 'JO', name: 'Jordan', ccy: 'USD', flag: '🇯🇴' },
   { code: 'KW', name: 'Kuwait', ccy: 'KWD', flag: '🇰🇼' },
+  { code: 'LY', name: 'Libya', ccy: 'USD', flag: '🇱🇾' },
+  { code: 'MY', name: 'Malaysia', ccy: 'USD', flag: '🇲🇾' },
   { code: 'OM', name: 'Oman', ccy: 'OMR', flag: '🇴🇲' },
   { code: 'QA', name: 'Qatar', ccy: 'QAR', flag: '🇶🇦' },
-  { code: 'IQ', name: 'Iraq', ccy: 'USD', flag: '🇮🇶' },
-  { code: 'DZ', name: 'Algeria', ccy: 'DZD', flag: '🇩🇿' },
-  { code: 'EG', name: 'Egypt', ccy: 'EGP', flag: '🇪🇬' },
+  { code: 'SA', name: 'Saudi Arabia (KSA)', ccy: 'SAR', flag: '🇸🇦' },
+  { code: 'AE', name: 'United Arab Emirates (UAE)', ccy: 'AED', flag: '🇦🇪' },
+  { code: 'CG', name: 'Congo', ccy: 'USD', flag: '🇨🇬' },
+  { code: 'YE', name: 'Yemen', ccy: 'USD', flag: '🇾🇪' },
+  { code: 'OT', name: 'Other', ccy: 'USD', flag: '🏳️' },
 ];
 
 export interface SeedCurrency {
@@ -28,15 +42,17 @@ export interface SeedCurrency {
   decimals: number;
   usd_rate: number; // 1 unit of ccy = usd_rate USD
 }
+// Currencies mirror ProcureGuard's CURRENCY_OPTIONS + CURRENCY_TO_USD rates.
 export const SEED_CURRENCIES: SeedCurrency[] = [
-  { code: 'SAR', decimals: 2, usd_rate: 0.27 },
-  { code: 'AED', decimals: 2, usd_rate: 0.27 },
+  { code: 'USD', decimals: 2, usd_rate: 1.0 },
+  { code: 'AED', decimals: 2, usd_rate: 1 / 3.6725 },
+  { code: 'SAR', decimals: 2, usd_rate: 1 / 3.75 },
+  { code: 'QAR', decimals: 2, usd_rate: 1 / 3.64 },
   { code: 'KWD', decimals: 3, usd_rate: 3.25 },
   { code: 'OMR', decimals: 3, usd_rate: 2.6 },
-  { code: 'QAR', decimals: 2, usd_rate: 0.27 },
-  { code: 'USD', decimals: 2, usd_rate: 1.0 },
-  { code: 'DZD', decimals: 2, usd_rate: 0.0074 },
-  { code: 'EGP', decimals: 2, usd_rate: 0.021 },
+  { code: 'BHD', decimals: 3, usd_rate: 2.65 },
+  { code: 'EUR', decimals: 2, usd_rate: 1.08 },
+  { code: 'GBP', decimals: 2, usd_rate: 1.27 },
 ];
 
 export const SEED_UOMS = [
@@ -72,6 +88,7 @@ export const FIELD_MAX = {
   description: 250,
   manager: 80,
   sirion_contract_id: 40,
+  incoterms_location: 70,
   notes: 1000,
 } as const;
 

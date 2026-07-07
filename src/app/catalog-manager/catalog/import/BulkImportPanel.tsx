@@ -5,7 +5,7 @@ import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { Icon } from '../../components/CatalogManagerUI';
-import { bulkImportCatalogEntries, buildCommodityReference, type CatalogImportRow } from '@/app/actions/catalog-manager';
+import { bulkImportCatalogEntries, buildCommodityReference, getSupplierDirectoryNames, type CatalogImportRow } from '@/app/actions/catalog-manager';
 import { SEED_UOMS, SEED_CURRENCIES, SEED_COUNTRIES, INCOTERMS, FIELD_MAX, LEAD_TIME_MAX_DAYS, UNIT_PRICE_MAX } from '@/lib/catalog-manager-utils';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
 
@@ -18,11 +18,11 @@ interface ParsedFile {
 }
 
 // Data-validation kind for each template column (drives the dropdowns / typed cells).
-type DVKind = 'text' | 'code' | 'country' | 'category' | 'subcategory' | 'uom' | 'currency' | 'incoterms' | 'price' | 'date' | 'whole' | 'suggest';
+type DVKind = 'text' | 'code' | 'country' | 'category' | 'subcategory' | 'uom' | 'currency' | 'incoterms' | 'price' | 'date' | 'whole' | 'suggest' | 'supplier';
 
 // Column order the importer expects (A → Q). `hint` powers the "Field guide" sheet.
 const COLUMNS: { label: string; field: string; required: boolean; keywords: string[]; dv: DVKind; hint: string }[] = [
-  { label: 'Supplier', field: 'supplier', required: true, keywords: ['supplier'], dv: 'text', hint: 'Supplier / vendor name (free text).' },
+  { label: 'Supplier', field: 'supplier', required: true, keywords: ['supplier'], dv: 'supplier', hint: 'Pick the SAP supplier name from the dropdown, or type a new supplier if it is not listed.' },
   { label: 'Supplier Code', field: 'supplier_code', required: true, keywords: ['code', 'vendor'], dv: 'code', hint: 'SAP vendor code — leading zeros are preserved (cell is text).' },
   { label: 'Country', field: 'country', required: true, keywords: ['country'], dv: 'country', hint: 'Pick from the dropdown (2-letter code, e.g. SA).' },
   { label: 'Spend Category', field: 'category', required: false, keywords: ['category', 'spend'], dv: 'category', hint: 'Optional — pick from the dropdown of active categories.' },
@@ -32,12 +32,13 @@ const COLUMNS: { label: string; field: string; required: boolean; keywords: stri
   { label: 'UOM', field: 'uom', required: true, keywords: ['uom', 'unit of measure', 'unit'], dv: 'uom', hint: 'Pick from the dropdown of active units of measure.' },
   { label: 'Unit Price', field: 'unit_price', required: true, keywords: ['price', 'rate', 'value'], dv: 'price', hint: 'Number greater than 0 — no currency symbols or thousands separators.' },
   { label: 'Currency', field: 'currency', required: true, keywords: ['currency', 'ccy'], dv: 'currency', hint: 'Pick from the dropdown of valid currency codes.' },
-  { label: 'Effective Date', field: 'effective_date', required: true, keywords: ['effective', 'start'], dv: 'date', hint: 'Date the rate starts (YYYY-MM-DD).' },
-  { label: 'Expiry Date', field: 'expiry_date', required: false, keywords: ['expiry', 'expiration', 'end'], dv: 'date', hint: 'Optional — date the rate lapses (YYYY-MM-DD).' },
+  { label: 'Effective Date', field: 'effective_date', required: true, keywords: ['effective', 'start'], dv: 'date', hint: 'Date the rate starts (DD-MM-YYYY).' },
+  { label: 'Expiry Date', field: 'expiry_date', required: false, keywords: ['expiry', 'expiration', 'end'], dv: 'date', hint: 'Optional — date the rate lapses (DD-MM-YYYY).' },
   { label: 'Supplier Manager', field: 'manager', required: false, keywords: ['manager', 'owner'], dv: 'text', hint: 'Optional — accountable owner for the supplier.' },
   { label: 'Sirion Contract ID', field: 'sirion_contract_id', required: false, keywords: ['sirion', 'contract'], dv: 'text', hint: 'Optional — e.g. SIR-CN-000000.' },
   { label: 'Notes', field: 'notes', required: false, keywords: ['notes', 'comment', 'remark'], dv: 'text', hint: 'Optional — free text.' },
   { label: 'Incoterms', field: 'incoterms', required: false, keywords: ['incoterm'], dv: 'incoterms', hint: 'Optional — pick from the dropdown (Incoterms 2020).' },
+  { label: 'Incoterms Location', field: 'incoterms_location', required: false, keywords: ['incoterms location', 'location'], dv: 'text', hint: 'Optional — named place for the Incoterm, e.g. Jebel Ali Port, Dubai.' },
   { label: 'Lead Time', field: 'lead_time', required: false, keywords: ['lead', 'lead time'], dv: 'whole', hint: 'Optional — supplier lead time as a whole number of days.' },
 ];
 
@@ -84,7 +85,8 @@ function parseFile(file: File): Promise<ParsedFile> {
             sirion_contract_id: orNull(cell(row, 13)),
             notes: orNull(cell(row, 14)),
             incoterms: orNull(cell(row, 15)),
-            lead_time_days: parseNum(row[16]),
+            incoterms_location: orNull(cell(row, 16)),
+            lead_time_days: parseNum(row[17]),
           }));
         resolve({ rows, headers, preview });
       } catch (err) {
@@ -137,6 +139,14 @@ function validationFor(kind: DVKind, required: boolean, listRange: Record<string
         showInputMessage: true, promptTitle: `Commodity${req}`,
         prompt: 'Pick a suggestion for the chosen Sub-Category, or type your own.',
       };
+    case 'supplier':
+      // Suggestion dropdown of SAP supplier names; free text still allowed for brand-new suppliers.
+      return {
+        type: 'list', allowBlank, formulae: [listRange.supplier],
+        showErrorMessage: false,
+        showInputMessage: true, promptTitle: `Supplier${req}`,
+        prompt: 'Pick the SAP supplier name from the list, or type a new supplier if it is not listed.',
+      };
     case 'text': case 'code':
       return {
         type: 'textLength',
@@ -161,8 +171,8 @@ function validationFor(kind: DVKind, required: boolean, listRange: Record<string
       return {
         type: 'date', operator: 'between', allowBlank, formulae: [new Date(2000, 0, 1), new Date(2100, 11, 31)],
         showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid date',
-        error: 'Enter a real date between 2000 and 2100 (format YYYY-MM-DD).',
-        showInputMessage: true, promptTitle: `Date${req}`, prompt: 'Format YYYY-MM-DD.',
+        error: 'Enter a real date between 2000 and 2100 (format DD-MM-YYYY).',
+        showInputMessage: true, promptTitle: `Date${req}`, prompt: 'Format DD-MM-YYYY.',
       };
     case 'whole':
       return {
@@ -181,10 +191,13 @@ async function downloadTemplate() {
   wb.creator = 'NESR Catalog Repo';
   wb.created = new Date();
 
+  // SAP supplier names for the Supplier dropdown (fail-safe to empty → free text if DB unreachable).
+  const supplierNames = await getSupplierDirectoryNames().catch(() => [] as string[]);
+
   // Validation source data (kept on a hidden "Lists" sheet, referenced by range).
   const subcats = Array.from(new Set(SPEND_TAXONOMY.flatMap((c) => c.subs.map((s) => s.name)))).sort();
   const listCols: { header: string; values: string[] }[] = [
-    { header: 'Countries', values: SEED_COUNTRIES.map((c) => c.code) },
+    { header: 'Countries', values: SEED_COUNTRIES.map((c) => c.name) },
     { header: 'Categories', values: SPEND_TAXONOMY.map((c) => c.name) },
     { header: 'Sub-categories', values: subcats },
     { header: 'UOMs', values: [...SEED_UOMS] },
@@ -210,6 +223,13 @@ async function downloadTemplate() {
     currency: listFormula(4),
     incoterms: listFormula(5),
   };
+
+  // Supplier suggestion list lives in its own hidden column after the flat lists + cascade columns.
+  const supplierColIndex = listCols.length + SPEND_TAXONOMY.length + subcats.length + 1;
+  const supplierColLetter = colLetter(supplierColIndex);
+  listRange.supplier = supplierNames.length
+    ? `Lists!$${supplierColLetter}$2:$${supplierColLetter}$${1 + supplierNames.length}`
+    : '""';
 
   // ── Cascading Sub-category: dependent on the Category cell in the same row. ──
   // Each category owns a defined name (cat_<sanitised>) covering its sub-category list on the
@@ -257,7 +277,7 @@ async function downloadTemplate() {
     { t: '   Sub-Category cascades from Spend Category: pick the category first, then the Sub-Category dropdown shows only that category\'s sub-categories.' },
     { t: '   Commodity offers SUGGESTIONS based on the chosen Sub-Category — pick one from the dropdown, or type your own value if it isn\'t listed.' },
     { t: '4. Unit Price accepts numbers greater than 0 only. Lead Time is a whole number of days.' },
-    { t: '5. Effective / Expiry Date must be real dates (YYYY-MM-DD).' },
+    { t: '5. Effective / Expiry Date must be real dates (DD-MM-YYYY).' },
     { t: '6. Supplier Code is stored as text so leading zeros (e.g. 0001103058) are preserved.' },
     { t: '7. See the "Field guide" tab for every column, whether it is required, and its allowed values.' },
     { t: '' },
@@ -301,7 +321,7 @@ async function downloadTemplate() {
       const cell = cat.getCell(r, i + 1);
       if (c.dv === 'code') cell.numFmt = '@';
       else if (c.dv === 'price') cell.numFmt = '#,##0.00';
-      else if (c.dv === 'date') cell.numFmt = 'yyyy-mm-dd';
+      else if (c.dv === 'date') cell.numFmt = 'dd-mm-yyyy';
       else if (c.dv === 'whole') cell.numFmt = '0';
       cell.protection = { locked: false }; // data cells stay editable under sheet protection
       if (dv) cell.dataValidation = dv;
@@ -387,6 +407,16 @@ async function downloadTemplate() {
       wb.definedNames.add(`Lists!$${letter}$2:$${letter}$${1 + commodities.length}`, nameToken('sub_', subName));
     }
   });
+
+  // SAP supplier names for the Supplier suggestion dropdown (own column at supplierColIndex).
+  if (supplierNames.length) {
+    const supLetter = colLetter(supplierColIndex);
+    lists.getColumn(supplierColIndex).width = 44;
+    const supHead = lists.getCell(`${supLetter}1`);
+    supHead.value = 'SAP Suppliers';
+    supHead.font = { bold: true, color: { argb: TPL_GREEN_DARK } };
+    supplierNames.forEach((n, ri) => { lists.getCell(`${supLetter}${ri + 2}`).value = n; });
+  }
 
   // Reference sheets are read-only so the dropdown sources + guidance can't be edited away.
   await guide.protect('', { selectLockedCells: true, selectUnlockedCells: true });

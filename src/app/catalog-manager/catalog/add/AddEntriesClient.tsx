@@ -25,6 +25,7 @@ interface LineState {
   effective: string;
   expiry: string;
   incoterms: string;
+  incoterms_location: string;
   lead_time: string;
 }
 
@@ -34,7 +35,7 @@ const inputCls = 'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2
 
 let keySeq = 1;
 function blankLine(currency: string): LineState {
-  return { key: keySeq++, category: '', subcategory: '', commodity: '', family: '', unspsc: '', item: '', uom: '', price: '', currency, effective: todayStr(), expiry: '', incoterms: '', lead_time: '' };
+  return { key: keySeq++, category: '', subcategory: '', commodity: '', family: '', unspsc: '', item: '', uom: '', price: '', currency, effective: todayStr(), expiry: '', incoterms: '', incoterms_location: '', lead_time: '' };
 }
 
 export default function AddEntriesClient({
@@ -164,6 +165,7 @@ export default function AddEntriesClient({
         sirion_contract_id: null,
         sirion_url: null,
         incoterms: l.incoterms || null,
+        incoterms_location: l.incoterms_location.trim() || null,
         lead_time_days: l.lead_time.trim() ? Number(l.lead_time) : null,
       };
     });
@@ -335,6 +337,10 @@ export default function AddEntriesClient({
                         <option value="">Not specified</option>
                         {INCOTERMS.map((ic) => <option key={ic.code} value={ic.code}>{ic.label}</option>)}
                       </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-[12.5px] font-semibold text-slate-600">Incoterms location</span>
+                      <input className={inputCls} value={l.incoterms_location} onChange={(e) => setLine(l.key, { incoterms_location: e.target.value })} placeholder="e.g. Jebel Ali Port" />
                     </label>
                     <label className="flex flex-col gap-1.5">
                       <span className="text-[12.5px] font-semibold text-slate-600">Lead time <span className="font-normal text-slate-400">· days</span></span>
