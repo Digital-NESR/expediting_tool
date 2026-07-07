@@ -3,7 +3,6 @@
 import type { QueryResultRow } from 'pg';
 import ExcelJS from 'exceljs';
 import catalogManagerPool from '@/lib/db-catalog-manager';
-import sourceGuidePool from '@/lib/db-sourceguide';
 import { getProcureGuardUser } from '@/lib/auth';
 import { getDelegatorsForApp } from '@/app/actions/delegation';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
@@ -1540,47 +1539,25 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
 export interface CommodityReferenceFile {
   base64: string;
   filename: string;
-  counts: { commodities: number; taxonomy: number; suppliers: number };
+  counts: { taxonomy: number };
 }
 
 export async function buildCommodityReference(): Promise<CommodityReferenceFile> {
   await getCatalogActor(); // ensure an authenticated catalog user
   await ensureCatalogManagerSchema();
 
-  // 1) SAP supplier names — exactly as stored in the SAP-sourced directory.
-  const suppliers = await sql<{ code: string; name: string }[]>(
-    `SELECT code, name FROM supplier_directory ORDER BY LOWER(name)`,
-  );
-
-  // 2) Every commodity currently in SourceGuide (fail-safe if that DB is unreachable).
-  let sgCommodities: {
-    spend_type: string | null; category: string | null; sub_category: string | null;
-    family: string | null; code: string | null; name: string; description: string | null;
-  }[] = [];
-  try {
-    const res = await sourceGuidePool.query(
-      `SELECT spend_type, category, sub_category, family, code, name, description
-         FROM sg_commodities
-        ORDER BY category, sub_category NULLS FIRST, family NULLS FIRST, name`,
-    );
-    sgCommodities = res.rows as typeof sgCommodities;
-  } catch {
-    sgCommodities = [];
-  }
-
-  // 3) The full catalog spend taxonomy (Category → Sub-category → Commodity).
-  const taxonomyRows: { spend_type: string; category: string; sub: string; family: string; commodity: string; unspsc: string; description: string }[] = [];
+  // The full catalog spend taxonomy (Category → Sub-category → Commodity), no UNSPSC codes.
+  const taxonomyRows: { spend_type: string; category: string; sub: string; family: string; commodity: string; description: string }[] = [];
   for (const c of SPEND_TAXONOMY) {
     for (const s of c.subs) {
       for (const com of s.commodities) {
-        taxonomyRows.push({ spend_type: c.type, category: c.name, sub: s.name, family: com.f, commodity: com.n, unspsc: com.code, description: com.desc });
+        taxonomyRows.push({ spend_type: c.type, category: c.name, sub: s.name, family: com.f, commodity: com.n, description: com.desc });
       }
     }
   }
 
-  /* ---- workbook ---- */
+  /* ---- workbook (single Spend taxonomy sheet) ---- */
   const GREEN = 'FF307C4C';
-  const GREEN_DARK = 'FF1D4F31';
   const PALE = 'FFEAF4EF';
   const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } } as ExcelJS.Fill;
 
@@ -1588,101 +1565,36 @@ export async function buildCommodityReference(): Promise<CommodityReferenceFile>
   wb.creator = 'NESR Catalog Repo';
   wb.created = new Date();
 
-  const addSheet = (
-    name: string,
-    columns: { header: string; key: string; width: number }[],
-    rows: Record<string, unknown>[],
-  ) => {
-    const ws = wb.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] });
-    ws.columns = columns.map((c) => ({ header: c.header, key: c.key, width: c.width }));
-    const head = ws.getRow(1);
-    head.height = 20;
-    head.eachCell((cell) => {
-      cell.fill = headerFill;
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-      cell.alignment = { vertical: 'middle' };
-    });
-    rows.forEach((r, i) => {
-      const row = ws.addRow(r);
-      if (i % 2 === 1) row.eachCell((cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALE } } as ExcelJS.Fill; });
-      row.alignment = { vertical: 'top', wrapText: true };
-    });
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
-    return ws;
-  };
-
-  /* 1) How to use */
-  const how = wb.addWorksheet('How to use');
-  how.getColumn(1).width = 112;
-  const howLines: { t: string; title?: boolean; head?: boolean }[] = [
-    { t: 'NESR Catalog Repo — Commodity, Taxonomy & Supplier Reference', title: true },
-    { t: '' },
-    { t: 'Use this workbook alongside the bulk-import template to fill it in accurately.', head: true },
-    { t: '• "Commodities (SourceGuide)" — every commodity currently in the SourceGuide catalog, with its category path and UNSPSC code.' },
-    { t: '• "Spend taxonomy" — the full Category → Sub-category → Commodity tree the import template validates against.' },
-    { t: '• "Suppliers (SAP)" — supplier names spelled EXACTLY as they appear in SAP. Copy the name from here into the template.' },
-    { t: '' },
-    { t: 'Tip: use Excel\'s filter arrows (row 1) or Ctrl+F to search any sheet.', head: true },
-    { t: 'The Supplier column in the import template must match the SAP spelling on the "Suppliers (SAP)" sheet, or a new supplier record will be created.' },
+  const columns = [
+    { header: 'Spend type', key: 'spend_type', width: 20 },
+    { header: 'Category', key: 'category', width: 34 },
+    { header: 'Sub-category', key: 'sub', width: 30 },
+    { header: 'Family', key: 'family', width: 26 },
+    { header: 'Commodity', key: 'commodity', width: 44 },
+    { header: 'Description', key: 'description', width: 52 },
   ];
-  howLines.forEach((line) => {
-    const row = how.addRow([line.t]);
-    const cell = row.getCell(1);
-    if (line.title) cell.font = { bold: true, size: 14, color: { argb: GREEN_DARK } };
-    else if (line.head) cell.font = { bold: true, size: 11, color: { argb: GREEN } };
-    else cell.font = { size: 10, color: { argb: 'FF334155' } };
-    cell.alignment = { wrapText: true, vertical: 'middle' };
+  const ws = wb.addWorksheet('Spend taxonomy', { views: [{ state: 'frozen', ySplit: 1 }] });
+  ws.columns = columns.map((c) => ({ header: c.header, key: c.key, width: c.width }));
+  const head = ws.getRow(1);
+  head.height = 20;
+  head.eachCell((cell) => {
+    cell.fill = headerFill;
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    cell.alignment = { vertical: 'middle' };
   });
-
-  /* 2) Commodities (SourceGuide) */
-  addSheet(
-    'Commodities (SourceGuide)',
-    [
-      { header: 'Commodity', key: 'name', width: 44 },
-      { header: 'UNSPSC', key: 'code', width: 14 },
-      { header: 'Spend type', key: 'spend_type', width: 20 },
-      { header: 'Category', key: 'category', width: 34 },
-      { header: 'Sub-category', key: 'sub_category', width: 30 },
-      { header: 'Family', key: 'family', width: 26 },
-      { header: 'Description', key: 'description', width: 52 },
-    ],
-    sgCommodities.map((c) => ({
-      name: c.name, code: c.code ?? '', spend_type: c.spend_type ?? '',
-      category: c.category ?? '', sub_category: c.sub_category ?? '', family: c.family ?? '', description: c.description ?? '',
-    })),
-  );
-
-  /* 3) Spend taxonomy */
-  addSheet(
-    'Spend taxonomy',
-    [
-      { header: 'Spend type', key: 'spend_type', width: 20 },
-      { header: 'Category', key: 'category', width: 34 },
-      { header: 'Sub-category', key: 'sub', width: 30 },
-      { header: 'Family', key: 'family', width: 26 },
-      { header: 'Commodity', key: 'commodity', width: 44 },
-      { header: 'UNSPSC', key: 'unspsc', width: 14 },
-      { header: 'Description', key: 'description', width: 52 },
-    ],
-    taxonomyRows,
-  );
-
-  /* 4) Suppliers (SAP) */
-  addSheet(
-    'Suppliers (SAP)',
-    [
-      { header: 'Supplier name (as in SAP)', key: 'name', width: 52 },
-      { header: 'Vendor code', key: 'code', width: 18 },
-    ],
-    suppliers.map((s) => ({ name: s.name, code: s.code })),
-  );
+  taxonomyRows.forEach((r, i) => {
+    const row = ws.addRow(r);
+    if (i % 2 === 1) row.eachCell((cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALE } } as ExcelJS.Fill; });
+    row.alignment = { vertical: 'top', wrapText: true };
+  });
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
 
   const buf = await wb.xlsx.writeBuffer();
   const base64 = Buffer.from(buf as ArrayBuffer).toString('base64');
   return {
     base64,
-    filename: 'NESR_Catalog_Commodity_Reference.xlsx',
-    counts: { commodities: sgCommodities.length, taxonomy: taxonomyRows.length, suppliers: suppliers.length },
+    filename: 'NESR_Catalog_Spend_Taxonomy.xlsx',
+    counts: { taxonomy: taxonomyRows.length },
   };
 }
 

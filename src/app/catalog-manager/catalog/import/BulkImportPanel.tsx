@@ -523,8 +523,8 @@ export default function BulkImportPanel() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <p className="text-sm text-slate-500">Upload a supplier rate card (.xlsx / .csv). Rows are validated, then created — rates over the threshold go to Pending Approval, the rest activate.</p>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <button onClick={() => { void downloadReference(); }} disabled={refBusy} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-[#307c4c]/40 hover:text-[#307c4c] active:scale-[0.98] disabled:opacity-60" title="Commodities, taxonomy & exact SAP supplier names">
-            <Icon name={refBusy ? 'spinner' : 'sheet'} className={`h-3.5 w-3.5 ${refBusy ? 'animate-spin' : ''}`} /> {refBusy ? 'Preparing…' : 'Commodity & supplier reference'}
+          <button onClick={() => { void downloadReference(); }} disabled={refBusy} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-[#307c4c]/40 hover:text-[#307c4c] active:scale-[0.98] disabled:opacity-60" title="Full spend taxonomy: Category → Sub-category → Commodity">
+            <Icon name={refBusy ? 'spinner' : 'sheet'} className={`h-3.5 w-3.5 ${refBusy ? 'animate-spin' : ''}`} /> {refBusy ? 'Preparing…' : 'Spend taxonomy reference'}
           </button>
           <button onClick={() => { void downloadTemplate(); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-[#307c4c]/40 hover:text-[#307c4c] active:scale-[0.98]">
             <Icon name="download" className="h-3.5 w-3.5" /> Download template
