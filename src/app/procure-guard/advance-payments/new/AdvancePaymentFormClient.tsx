@@ -7,6 +7,7 @@ import ProcureGuardNotificationContactsPanel from '../../components/ProcureGuard
 import ProcureGuardLogo from '../../components/ProcureGuardLogo';
 import ProcureGuardHomeButton from '../../components/ProcureGuardHomeButton';
 import ProcureGuardHero from '../../components/ProcureGuardHero';
+import EmployeeAutocomplete from '../../components/EmployeeAutocomplete';
 import { createAdvancePayment, getProcureGuardNotificationPreview, updateAdvancePaymentRequest, uploadProcureGuardDocument } from '@/app/actions/procureGuard';
 import {
   COUNTRY_OPTIONS,
@@ -417,6 +418,16 @@ export default function AdvancePaymentFormClient(_props: {
             </div>
             <div className="lg:col-span-2">
               <Field label="Additional Request Notifications" error={errors.requesterNotificationEmails}>
+                <EmployeeAutocomplete
+                  className="mb-2"
+                  placeholder="Search directory to add a colleague…"
+                  onSelect={emp => {
+                    const existing = parseNotificationEmails(requesterNotificationEmails);
+                    if (!existing.includes(emp.email.toLowerCase())) {
+                      setRequesterNotificationEmails([...existing, emp.email.toLowerCase()].join('\n'));
+                    }
+                  }}
+                />
                 <textarea
                   className={`${errors.requesterNotificationEmails ? ERR : INP} min-h-28 resize-none`}
                   value={requesterNotificationEmails}

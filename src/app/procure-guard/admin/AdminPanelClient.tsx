@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import ProcureGuardSidebar from '../components/ProcureGuardSidebar';
 import ProcureGuardLogo from '../components/ProcureGuardLogo';
+import EmployeeAutocomplete from '../components/EmployeeAutocomplete';
 import { useId, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -795,6 +796,14 @@ function DelegationsPanel({
         </p>
         {error && <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
         <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Field label="Find the delegate in the directory">
+              <EmployeeAutocomplete
+                placeholder="Search directory by name or email…"
+                onSelect={emp => { setDelegateEmail(emp.email); setDelegateName(emp.name); }}
+              />
+            </Field>
+          </div>
           <Field label="Approver (delegator)">
             <select className={inputClass} value={delegatorEmail} onChange={e => setDelegatorEmail(e.target.value)} required>
               <option value="">Select an approver…</option>

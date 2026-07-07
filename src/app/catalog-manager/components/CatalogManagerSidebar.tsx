@@ -39,7 +39,8 @@ export default function CatalogManagerSidebar({
 
   const nav: NavItem[] = ([
     { href: '/catalog-manager', label: 'Dashboard', icon: 'dashboard', section: 'Workspace' },
-    { href: '/catalog-manager/catalog', label: 'Catalog', icon: 'catalog', section: 'Workspace' },
+    { href: '/catalog-manager/catalog', label: 'Services catalog', icon: 'catalog', section: 'Workspace' },
+    { href: '/catalog-manager/pir', label: 'PIR / Inventory', icon: 'sheet', section: 'Workspace' },
     { href: '/catalog-manager/suppliers', label: 'Suppliers', icon: 'building', section: 'Workspace' },
     { href: '/catalog-manager/approvals', label: 'Approvals', icon: 'approve', section: 'Workspace', badge: canApprove ? pendingCount : 0 },
     { href: '/catalog-manager/analytics', label: 'Analytics', icon: 'chart', section: 'Workspace' },

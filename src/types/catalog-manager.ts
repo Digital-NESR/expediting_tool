@@ -183,6 +183,40 @@ export interface CatalogEntry {
   history: RateVersion[];
 }
 
+/* ---------- PIR / Inventory catalog (read-only mirror, loaded by n8n from Power BI) ---------- */
+export interface PirEntry {
+  info_record_number: string | null;
+  product_number: string | null;
+  material_description: string | null;
+  material_group: string | null;
+  suppliers_account_number: string | null;
+  supplier_name: string | null;
+  purchasing_organization: string | null;
+  purchase_org_description: string | null;
+  purchasing_group: string | null;
+  plant: string | null;
+  country: string | null;
+  order_unit: string | null;
+  base_unit_of_measure: string | null;
+  numerator_for_conversion: number | null;
+  unit_price: number | null;
+  currency_key: string | null;
+  standard_qty: number | null;
+  planned_delivery_time_days: number | null;
+  overdelivery_tolerance_limit: number | null;
+  shipping_instructions: string | null;
+  minimum_remaining_shelf_life: number | null;
+  incoterms: string | null;
+  incoterms_location_1: string | null;
+  valid_days: number | null;
+  valid_till_expiry_date: string | null;
+  expiring_in: string | null;
+  status: string | null;
+  deletion_flag: string | null;
+  material_supplier: string | null;
+  material_supplier_org: string | null;
+}
+
 /* ---------- audit ---------- */
 export interface AuditEvent {
   id: number;

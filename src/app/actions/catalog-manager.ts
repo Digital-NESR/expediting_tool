@@ -37,6 +37,7 @@ import type {
   CatalogRole,
   CatalogStatus,
   CategoryBar,
+  PirEntry,
   RateMover,
   SpendByCategory,
   SpendByCountry,
@@ -277,6 +278,42 @@ async function initCatalogManagerSchema(): Promise<void> {
     additional_email TEXT
   )`);
   await execSchema(`CREATE INDEX IF NOT EXISTS supplier_directory_name_idx ON supplier_directory (LOWER(name))`);
+
+  // PIR / Inventory catalog — a READ-ONLY mirror of SAP Purchasing Info Records, loaded by an
+  // external n8n job (Power BI → truncate + insert). The app never writes to this table.
+  await execSchema(`CREATE TABLE IF NOT EXISTS pir_catalog (
+    info_record_number TEXT,
+    product_number TEXT,
+    material_description TEXT,
+    material_group TEXT,
+    suppliers_account_number TEXT,
+    supplier_name TEXT,
+    purchasing_organization TEXT,
+    purchase_org_description TEXT,
+    purchasing_group TEXT,
+    plant TEXT,
+    country TEXT,
+    order_unit TEXT,
+    base_unit_of_measure TEXT,
+    numerator_for_conversion NUMERIC,
+    unit_price NUMERIC,
+    currency_key TEXT,
+    standard_qty NUMERIC,
+    planned_delivery_time_days NUMERIC,
+    overdelivery_tolerance_limit NUMERIC,
+    shipping_instructions TEXT,
+    minimum_remaining_shelf_life NUMERIC,
+    incoterms TEXT,
+    incoterms_location_1 TEXT,
+    valid_days NUMERIC,
+    valid_till_expiry_date TEXT,
+    expiring_in TEXT,
+    status TEXT,
+    deletion_flag TEXT,
+    material_supplier TEXT,
+    material_supplier_org TEXT,
+    synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
 
   await seedMasterData();
   await seedDemoData();
@@ -879,6 +916,51 @@ export async function listCatalogEntries(filters: CatalogListFilters = {}): Prom
   }
   const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} ${where} ORDER BY e.modified_at DESC`, params);
   return rows.map(mapEntry);
+}
+
+/**
+ * Read-only PIR / Inventory catalog rows (mirror loaded by n8n). The app never writes here.
+ * Numeric columns come back from pg as strings, so they're coerced to numbers for the client.
+ */
+export async function listPirEntries(): Promise<PirEntry[]> {
+  await ensureCatalogManagerSchema();
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT * FROM pir_catalog ORDER BY supplier_name NULLS LAST, product_number NULLS LAST, info_record_number NULLS LAST`,
+  );
+  const num = (v: unknown): number | null => (v == null || v === '' ? null : Number(v));
+  const str = (v: unknown): string | null => (v == null || v === '' ? null : String(v));
+  return rows.map((r) => ({
+    info_record_number: str(r.info_record_number),
+    product_number: str(r.product_number),
+    material_description: str(r.material_description),
+    material_group: str(r.material_group),
+    suppliers_account_number: str(r.suppliers_account_number),
+    supplier_name: str(r.supplier_name),
+    purchasing_organization: str(r.purchasing_organization),
+    purchase_org_description: str(r.purchase_org_description),
+    purchasing_group: str(r.purchasing_group),
+    plant: str(r.plant),
+    country: str(r.country),
+    order_unit: str(r.order_unit),
+    base_unit_of_measure: str(r.base_unit_of_measure),
+    numerator_for_conversion: num(r.numerator_for_conversion),
+    unit_price: num(r.unit_price),
+    currency_key: str(r.currency_key),
+    standard_qty: num(r.standard_qty),
+    planned_delivery_time_days: num(r.planned_delivery_time_days),
+    overdelivery_tolerance_limit: num(r.overdelivery_tolerance_limit),
+    shipping_instructions: str(r.shipping_instructions),
+    minimum_remaining_shelf_life: num(r.minimum_remaining_shelf_life),
+    incoterms: str(r.incoterms),
+    incoterms_location_1: str(r.incoterms_location_1),
+    valid_days: num(r.valid_days),
+    valid_till_expiry_date: str(r.valid_till_expiry_date),
+    expiring_in: str(r.expiring_in),
+    status: str(r.status),
+    deletion_flag: str(r.deletion_flag),
+    material_supplier: str(r.material_supplier),
+    material_supplier_org: str(r.material_supplier_org),
+  }));
 }
 
 export async function getPendingApprovalCount(country = 'ALL'): Promise<number> {

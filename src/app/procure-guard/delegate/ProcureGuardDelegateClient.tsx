@@ -7,6 +7,7 @@ import ProcureGuardLogo from '../components/ProcureGuardLogo';
 import ProcureGuardHomeButton from '../components/ProcureGuardHomeButton';
 import ProcureGuardHero from '../components/ProcureGuardHero';
 import { grantProcureGuardDelegation, revokeProcureGuardDelegation } from '@/app/actions/procureGuard';
+import EmployeeAutocomplete from '../components/EmployeeAutocomplete';
 import { fmtDate } from '@/lib/procureGuard-utils';
 import type { ProcureGuardDelegationData, ProcureGuardDelegation } from '@/types/procureGuard';
 
@@ -85,6 +86,14 @@ export default function ProcureGuardDelegateClient({ data }: { data: ProcureGuar
             <h2 className="text-sm font-bold text-slate-900">Delegate my approvals</h2>
             <p className="mt-0.5 text-xs text-slate-500">The delegate is identified by their NESR sign-in email and inherits your approval scope.</p>
             <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className={LBL}>Find a colleague</label>
+                <EmployeeAutocomplete
+                  placeholder="Search directory by name or email…"
+                  onSelect={emp => { setEmail(emp.email); setName(emp.name); }}
+                />
+                <p className="mt-1 text-xs text-slate-400">Pick from the employee directory to fill the fields below, or type them in manually.</p>
+              </div>
               <div>
                 <label className={LBL}><span className="mr-1 text-red-500">*</span>Delegate email</label>
                 <input type="email" required className={INP} value={email} onChange={e => setEmail(e.target.value)} placeholder="colleague@nesr.com" />
