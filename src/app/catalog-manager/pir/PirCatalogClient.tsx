@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import CatalogManagerShell from '../components/CatalogManagerShell';
 import { Icon, EmptyState, Card, StatCard, tableClasses } from '../components/CatalogManagerUI';
 import type { PirEntry } from '@/types/catalog-manager';
@@ -17,8 +18,6 @@ const FIELDS: { label: string; key: keyof PirEntry; group: string }[] = [
   { group: 'Material', label: 'Product Number', key: 'product_number' },
   { group: 'Material', label: 'Material Description', key: 'material_description' },
   { group: 'Material', label: 'Material Group', key: 'material_group' },
-  { group: 'Material', label: 'Material Supplier', key: 'material_supplier' },
-  { group: 'Material', label: 'Material Supplier (Org)', key: 'material_supplier_org' },
   { group: 'Supplier', label: 'Supplier Name', key: 'supplier_name' },
   { group: 'Supplier', label: 'Suppliers Account Number', key: 'suppliers_account_number' },
   { group: 'Purchasing', label: 'Purchasing Organization', key: 'purchasing_organization' },
@@ -237,7 +236,7 @@ export default function PirCatalogClient({
                       >
                         <td className={`${tableClasses.td} font-mono text-[12px] text-slate-500`}>{e.info_record_number ?? '—'}</td>
                         <td className={`${tableClasses.td} max-w-[280px]`}>
-                          <div className="truncate font-medium text-slate-800">{e.material_description || e.product_number || '—'}</div>
+                          <div className="truncate font-semibold text-slate-900">{e.material_description || e.product_number || '—'}</div>
                           <div className="truncate font-mono text-[11px] text-slate-400">{e.product_number}{e.material_group ? ` · ${e.material_group}` : ''}</div>
                         </td>
                         <td className={`${tableClasses.td} max-w-[200px]`}>
@@ -275,8 +274,9 @@ export default function PirCatalogClient({
         </Card>
       </div>
 
-      {/* read-only detail panel */}
-      {detail && (
+      {/* read-only detail panel — portaled to <body> so `fixed` anchors to the viewport,
+          not the transformed page container (otherwise it pins to the top of the page on scroll). */}
+      {detail && createPortal(
         <div className="fixed inset-0 z-[90] flex items-start justify-center p-4 pt-[8vh]">
           <button aria-label="Close" className="cm-fade-in absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={() => setDetail(null)} />
           <div className="cm-scale-in relative z-10 flex max-h-[84vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20">
@@ -315,7 +315,8 @@ export default function PirCatalogClient({
               Read-only — sourced from SAP via the PIR sync. To change a record, update it in SAP.
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </CatalogManagerShell>
   );
