@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
 import { submitSourceGuideAccessRequest } from '@/app/actions/sourceguide';
-import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3 } from 'lucide-react';
+import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3, GraduationCap } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | null;
@@ -830,6 +830,56 @@ function ProcureGuardCard({
   );
 }
 
+/* ─── Admin-preview tool card (env-gated, matches Catalog Repo) ─── */
+
+function AdminPreviewCard({
+  name,
+  subtitle,
+  description,
+  icon,
+  canOpen,
+  onClick,
+}: {
+  name: string;
+  subtitle?: string;
+  description: string;
+  icon: React.ReactNode;
+  canOpen: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!canOpen}
+      className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
+        canOpen
+          ? 'opacity-75 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10'
+          : 'opacity-50 cursor-default select-none'
+      }`}
+    >
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+        {icon}
+      </div>
+
+      <div className="flex-1">
+        <h3 className="text-[18px] font-semibold text-gray-500">{name}</h3>
+        {subtitle && <p className="mt-0.5 text-[13px] font-medium text-slate-400">{subtitle}</p>}
+        <p className="mt-2 text-sm leading-relaxed text-gray-500">{description}</p>
+      </div>
+
+      <div className="mt-auto flex items-center justify-between">
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
+          {canOpen ? 'Admin Preview' : 'Coming Soon'}
+        </span>
+        {canOpen && (
+          <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open preview →</span>
+        )}
+      </div>
+    </button>
+  );
+}
+
 function ComingSoonCard({
   name,
   description,
@@ -915,6 +965,14 @@ export default function HomePage() {
 
   function handleCatalogManagerClick() {
     if (canOpenCatalogManager) router.push('/catalog-manager');
+  }
+
+  function handleLaptopClick() {
+    if (isAdmin) router.push('/laptop-procurement');
+  }
+
+  function handleAiLearningClick() {
+    if (isAdmin) router.push('/ai-learning');
   }
 
   async function handleRefreshStatus() {
@@ -1103,11 +1161,24 @@ export default function HomePage() {
                   </div>
                 </button>
               )}
-              {show('laptop procurement asset request') && (
-                <ComingSoonCard
+              {show('laptop procurement asset request device approvals') && (
+                <AdminPreviewCard
                   name="Laptop Procurement"
-                  description="Asset request and approval management"
+                  subtitle="Device Requests & Approvals"
+                  description="Raise laptop and device requests and route IT → Category Manager → IT Director → SC Director approvals."
                   icon={<Laptop className="w-6 h-6 text-gray-400" />}
+                  canOpen={isAdmin}
+                  onClick={handleLaptopClick}
+                />
+              )}
+              {show('ai learning training courses quiz business technical foundations') && (
+                <AdminPreviewCard
+                  name="AI Learning"
+                  subtitle="Beginner Courses & Quizzes"
+                  description="Learn AI for business and for building — two beginner tracks with a short quiz after every part."
+                  icon={<GraduationCap className="w-6 h-6 text-gray-400" />}
+                  canOpen={isAdmin}
+                  onClick={handleAiLearningClick}
                 />
               )}
               {show('the bridge project tracking handoffs cross-functional') && (
@@ -1124,7 +1195,7 @@ export default function HomePage() {
                   icon={<FileCheck className="w-6 h-6 text-gray-400" />}
                 />
               )}
-              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('bridge') && !show('grn') && !show('supply chain analytics') && (
+              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('ai learning') && !show('bridge') && !show('grn') && !show('supply chain analytics') && (
                 <div className="col-span-3 py-12 text-center">
                   <p className="text-sm text-slate-400">No applications match &ldquo;{appSearch}&rdquo;</p>
                 </div>

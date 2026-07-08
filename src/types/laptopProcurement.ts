@@ -1,0 +1,312 @@
+export type LaptopRequestStatus =
+  | 'Submitted'
+  | 'IT Approval'
+  | 'CM Approval'
+  | 'IT Director Approval'
+  | 'Supply Chain Director Approval'
+  | 'Procure New'
+  | 'Approved'
+  | 'Assign from Inventory'
+  | 'Assign from Inventory & Closed'
+  | 'Repaired & Closed'
+  | 'Rejected'
+  | 'Rejected by CM'
+  | 'Rejected by ITD'
+  | 'Rejected by SCD'
+  | 'Cancelled';
+
+export type LaptopRequestPriority = 'Low' | 'Normal' | 'High' | 'Critical';
+
+export type LaptopPermissionRole =
+  | 'Requester'
+  | 'Analyst'
+  | 'Read Only'
+  | 'IT Manager'
+  | 'Country Manager'
+  | 'IT Director'
+  | 'Supply Chain Director'
+  | 'Admin';
+
+export type LaptopAccessView = 'requester' | 'analyst' | 'reviewer' | 'admin';
+
+export interface LaptopPermissionProfile {
+  role: LaptopPermissionRole;
+  label: string;
+  description: string;
+  accessView: LaptopAccessView;
+  canViewAll: boolean;
+  canCreateRequests: boolean;
+  canManageData: boolean;
+  canManagePermissions: boolean;
+  canDeleteRecords: boolean;
+  canReject: boolean;
+  canReviewItManager: boolean;
+  canReviewCountryManager: boolean;
+  canReviewItDirector: boolean;
+  canReviewScmDirector: boolean;
+}
+
+export interface LaptopPermissionRow {
+  id: number;
+  email: string;
+  name: string | null;
+  role: LaptopPermissionRole;
+  country: string | null;
+  segment: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateLaptopPermissionInput {
+  email: string;
+  name?: string;
+  role: LaptopPermissionRole;
+  country?: string;
+  segment?: string;
+}
+
+export interface LaptopDelegationGrant {
+  email: string;
+  name: string;
+  role: LaptopPermissionRole;
+  permissions: LaptopPermissionProfile;
+  country?: string | null;
+  segment?: string | null;
+}
+
+export interface LaptopActor {
+  email: string;
+  name: string;
+  department?: string | null;
+  jobTitle?: string | null;
+  isAdmin: boolean;
+  role: LaptopPermissionRole;
+  permissions: LaptopPermissionProfile;
+  country?: string | null;
+  segment?: string | null;
+  /** People whose approval authority this actor currently holds (active delegations). */
+  delegatedFrom?: LaptopDelegationGrant[];
+}
+
+export interface LaptopActivityRow {
+  id: number;
+  request_id: number;
+  reference_number: string;
+  action: string;
+  actor_name: string | null;
+  actor_email: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface LaptopDeviceCatalogRow {
+  id: number;
+  type_of_device: string;
+  model: string;
+  active: boolean;
+}
+
+export interface LaptopDeviceOption {
+  type_of_device: string;
+  model: string;
+}
+
+export interface LaptopRequest {
+  id: number;
+  reference_number: string;
+  employee_id: string | null;
+  status: LaptopRequestStatus;
+  priority: LaptopRequestPriority;
+  request_type: string | null;
+  indirect_request: boolean;
+  requested_date: string | null;
+  pending_with: string | null;
+
+  country: string | null;
+  requested_by_name: string | null;
+  requested_by_email: string;
+  on_behalf_of: string | null;
+  computer_for: string | null;
+  segment: string | null;
+  department: string | null;
+  position: string | null;
+  company_code: string | null;
+  company_name: string | null;
+  cost_center: string | null;
+
+  type_of_device: string | null;
+  requested_model: string | null;
+  special_requirements: string | null;
+
+  unit_id: string | null;
+  current_brand: string | null;
+  current_model: string | null;
+  serial_no: string | null;
+  age_years: string | null;
+
+  it_manager: string | null;
+  it_manager_2: string | null;
+  country_manager: string | null;
+  it_director: string | null;
+  sc_director: string | null;
+
+  itm_comments: string | null;
+  cm_comments: string | null;
+  itd_comments: string | null;
+  scd_comments: string | null;
+
+  it_team_approved_date: string | null;
+  cm_approved_date: string | null;
+  itd_approved_date: string | null;
+  scd_approved_date: string | null;
+
+  reviewed_by_name: string | null;
+  reviewed_by_email: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  review_comments: string | null;
+
+  legacy_status: string | null;
+  legacy_id: string | null;
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateLaptopRequestInput {
+  priority: LaptopRequestPriority;
+  request_type: string;
+  employee_id?: string;
+  country: string;
+  computer_for?: string;
+  segment: string;
+  department?: string;
+  position?: string;
+  company_code?: string;
+  company_name?: string;
+  cost_center?: string;
+  type_of_device: string;
+  requested_model: string;
+  special_requirements: string;
+  unit_id?: string;
+  current_brand?: string;
+  current_model?: string;
+  serial_no?: string;
+  age_years?: string;
+}
+
+export interface AdminCreateLaptopRequestInput extends CreateLaptopRequestInput {
+  status?: LaptopRequestStatus;
+  requested_by_name?: string;
+  requested_by_email?: string;
+}
+
+export interface LaptopDashboardStats {
+  total: number;
+  pending_review: number;
+  procure_new: number;
+  assigned_inventory: number;
+  repaired: number;
+  rejected: number;
+  laptops: number;
+  desktops: number;
+}
+
+export interface LaptopDashboardData {
+  stats: LaptopDashboardStats;
+  requests: LaptopRequest[];
+  activity: LaptopActivityRow[];
+  actor: LaptopActor;
+}
+
+export interface LaptopAdminData {
+  actor: LaptopActor;
+  requests: LaptopRequest[];
+  activity: LaptopActivityRow[];
+  permissions: LaptopPermissionRow[];
+  stats: LaptopDashboardStats;
+}
+
+export interface LaptopDocument {
+  id: number;
+  request_id: number;
+  document_name: string;
+  original_name: string | null;
+  document_type: string | null;
+  file_type: string | null;
+  file_size: number | null;
+  uploaded_by_name: string | null;
+  uploaded_by_email: string | null;
+  uploaded_at: string;
+}
+
+export interface LaptopRequestActions {
+  nextStatus: LaptopRequestStatus | null;
+  canApprove: boolean;
+  canReject: boolean;
+  canAssignInventory: boolean;
+  canMarkRepaired: boolean;
+  rejectStatus: LaptopRequestStatus | null;
+  ownerLabel: string;
+}
+
+export interface LaptopWorkQueueItem {
+  request: LaptopRequest;
+  actions: LaptopRequestActions;
+}
+
+export interface LaptopWorkQueueData {
+  actor: LaptopActor;
+  items: LaptopWorkQueueItem[];
+  stats: {
+    total: number;
+    approval: number;
+    it_review: number;
+  };
+}
+
+export interface LaptopRequestListData {
+  actor: LaptopActor;
+  requests: LaptopRequest[];
+}
+
+export interface LaptopRequestDetailData {
+  actor: LaptopActor;
+  request: LaptopRequest;
+  activity: LaptopActivityRow[];
+  documents: LaptopDocument[];
+  actions: LaptopRequestActions;
+}
+
+export interface LaptopAnalyticsMetric {
+  label: string;
+  count: number;
+}
+
+export interface LaptopMonthlyMetric {
+  month: string;
+  count: number;
+}
+
+export interface LaptopAnalyticsData {
+  actor: LaptopActor;
+  stats: LaptopDashboardStats & {
+    active_requester_count: number;
+    country_count: number;
+  };
+  status_breakdown: LaptopAnalyticsMetric[];
+  request_type_breakdown: LaptopAnalyticsMetric[];
+  device_breakdown: LaptopAnalyticsMetric[];
+  country_breakdown: LaptopAnalyticsMetric[];
+  segment_breakdown: LaptopAnalyticsMetric[];
+  top_models: LaptopAnalyticsMetric[];
+  monthly_trend: LaptopMonthlyMetric[];
+  generated_at: string;
+}
+
+export interface ActionResult<T = undefined> {
+  success: boolean;
+  data?: T;
+  reference_number?: string;
+  error?: string;
+}
