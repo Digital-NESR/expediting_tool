@@ -15,6 +15,8 @@ import {
   getAdminSupplierDetail,
   getAdminSessionDetail,
 } from '@/app/actions/adminAnalytics';
+import { getTeamAnalyticsData, getFilterOptions } from '@/app/actions/teamAnalytics';
+import type { TeamAnalyticsFilters, TeamAnalyticsData, FilterOptions } from '@/app/actions/teamAnalytics';
 import AccessApprovalsClient from './AccessApprovalsClient';
 import TiteMigrationClient from './TiteMigrationClient';
 import TiteAccessApprovalsClient from './TiteAccessApprovalsClient';
@@ -1288,6 +1290,49 @@ function AnalyticsSection({
   );
 }
 
+/* ─── Admin MultiSelect ──────────────────────────────────────── */
+
+function AdminMultiSelect({ label, options, selected, onChange, searchable = false }: { label: string; options: { value: string; label: string }[]; selected: string[]; onChange: (vals: string[]) => void; searchable?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
+  const filtered = searchable && search ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase())) : options;
+  function toggle(val: string) { onChange(selected.includes(val) ? selected.filter(v => v !== val) : [...selected, val]); }
+  return (
+    <div ref={ref} className="relative min-w-[160px]">
+      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">{label}</label>
+      <button type="button" onClick={() => setOpen(!open)} className="w-full flex items-center justify-between gap-2 text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-left text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors">
+        <span className="truncate">{selected.length ? `${selected.length} selected` : 'All'}</span>
+        <svg className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full min-w-[220px] bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+          {searchable && (
+            <div className="p-2 border-b border-slate-100">
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" className="w-full text-xs bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#307c4c] placeholder-slate-400" />
+            </div>
+          )}
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-slate-400">No options.</p>
+          ) : (
+            filtered.map(o => (
+              <label key={o.value} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer transition-colors">
+                <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} className="w-3.5 h-3.5 rounded accent-[#307c4c] cursor-pointer" />
+                <span className="text-sm text-slate-700 truncate">{o.label}</span>
+              </label>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Main AdminClient ────────────────────────────────────────── */
 
 export default function AdminClient({
@@ -1318,6 +1363,46 @@ export default function AdminClient({
   const [supplierModalName, setSupplierModalName] = useState<string | null>(null);
   const [sessionModal, setSessionModal]           = useState<RecentSession | null>(null);
 
+  // PO Expediting filter state
+  const [poFilterOpts, setPoFilterOpts] = useState<FilterOptions | null>(null);
+  const [poDateFrom, setPoDateFrom]     = useState('');
+  const [poDateTo, setPoDateTo]         = useState('');
+  const [poBuyers, setPoBuyers]         = useState<string[]>([]);
+  const [poCountries, setPoCountries]   = useState<string[]>([]);
+  const [poSegments, setPoSegments]     = useState<string[]>([]);
+  const [poSuppliers, setPoSuppliers]   = useState<string[]>([]);
+  const [poTeamData, setPoTeamData]     = useState<TeamAnalyticsData | null>(null);
+
+  // Reset PO filters on tab switch away
+  useEffect(() => {
+    if (selectedTool !== 'po-expediting') {
+      setPoDateFrom('');
+      setPoDateTo('');
+      setPoBuyers([]);
+      setPoCountries([]);
+      setPoSegments([]);
+      setPoSuppliers([]);
+    }
+  }, [selectedTool]);
+
+  // Load filter options when PO tab is first selected
+  useEffect(() => {
+    if (selectedTool === 'po-expediting' && !poFilterOpts) {
+      getFilterOptions().then(setPoFilterOpts);
+    }
+  }, [selectedTool, poFilterOpts]);
+
+  const poHasActiveFilters = !!poDateFrom || !!poDateTo || poBuyers.length > 0 || poCountries.length > 0 || poSegments.length > 0 || poSuppliers.length > 0;
+
+  function clearPoFilters() {
+    setPoDateFrom('');
+    setPoDateTo('');
+    setPoBuyers([]);
+    setPoCountries([]);
+    setPoSegments([]);
+    setPoSuppliers([]);
+  }
+
   // Dynamic document title per tab
   useEffect(() => {
     const titles: Record<string, string> = {
@@ -1339,16 +1424,56 @@ export default function AdminClient({
     document.title = titles[selectedTool] ?? 'Admin — SC Agents';
   }, [selectedTool]);
 
+  // Stable ref for current PO filter values
+  const poFiltersRef = useRef<TeamAnalyticsFilters>({});
+  poFiltersRef.current = {
+    dateFrom: poDateFrom || undefined,
+    dateTo: poDateTo || undefined,
+    buyerEmails: poBuyers.length ? poBuyers : undefined,
+    countries: poCountries.length ? poCountries : undefined,
+    segments: poSegments.length ? poSegments : undefined,
+    supplierNames: poSuppliers.length ? poSuppliers : undefined,
+  };
+
   const fetchAnalytics = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const data = await getExpeditingAnalytics();
-      setLiveAnalytics(data);
+      if (poHasActiveFilters || poTeamData !== null) {
+        // Use filtered fetch
+        const result = await getTeamAnalyticsData(poFiltersRef.current);
+        setPoTeamData(result);
+        // Also sync to liveAnalytics shape for AnalyticsSection compatibility
+        setLiveAnalytics({
+          totalLinesExpedited: result.totalLinesExpedited,
+          totalSuppliersContacted: result.totalSuppliersContacted,
+          totalEmailsSent: result.totalEmailsSent,
+          overallResponseRate: result.overallResponseRate,
+          buyerBreakdown: result.buyerBreakdown,
+          supplierBreakdown: result.supplierBreakdown,
+          recentSessions: result.recentSessions,
+          weeklyRateData: result.weeklyRateData,
+          supplierResponseTime: result.supplierResponseTime,
+        });
+      } else {
+        const data = await getExpeditingAnalytics();
+        setLiveAnalytics(data);
+      }
       setLastRefreshed(new Date());
     } finally {
       setIsRefreshing(false);
     }
-  }, []);
+  }, [poHasActiveFilters, poTeamData]);
+
+  // Debounce PO filter changes
+  const poFilterInitialDone = useRef(false);
+  const poDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (selectedTool !== 'po-expediting') return;
+    if (!poFilterInitialDone.current) { poFilterInitialDone.current = true; return; }
+    if (poDebounceRef.current) clearTimeout(poDebounceRef.current);
+    poDebounceRef.current = setTimeout(() => fetchAnalytics(), 500);
+    return () => { if (poDebounceRef.current) clearTimeout(poDebounceRef.current); };
+  }, [poDateFrom, poDateTo, poBuyers, poCountries, poSegments, poSuppliers, selectedTool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const navItemBase: React.CSSProperties = {
     display: 'flex',
@@ -1805,12 +1930,41 @@ export default function AdminClient({
                 </button>
               </div>
 
-              <AnalyticsSection
-                analytics={liveAnalytics}
-                onBuyerClick={setBuyerModal}
-                onSupplierClick={setSupplierModalName}
-                onSessionClick={setSessionModal}
-              />
+              {/* Filter bar */}
+              <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 mb-6">
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="min-w-[160px]">
+                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date From</label>
+                    <input type="date" value={poDateFrom} onChange={e => setPoDateFrom(e.target.value)} className="w-full text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors" />
+                  </div>
+                  <div className="min-w-[160px]">
+                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date To</label>
+                    <input type="date" value={poDateTo} onChange={e => setPoDateTo(e.target.value)} className="w-full text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors" />
+                  </div>
+                  {poFilterOpts && (
+                    <>
+                      <AdminMultiSelect label="Expeditor" options={poFilterOpts.buyers} selected={poBuyers} onChange={setPoBuyers} searchable />
+                      <AdminMultiSelect label="Country" options={poFilterOpts.countries.map(c => ({ value: c, label: c }))} selected={poCountries} onChange={setPoCountries} />
+                      <AdminMultiSelect label="P Group" options={poFilterOpts.segments.map(s => ({ value: s, label: s }))} selected={poSegments} onChange={setPoSegments} searchable />
+                      <AdminMultiSelect label="Supplier" options={poFilterOpts.suppliers.map(s => ({ value: s, label: s }))} selected={poSuppliers} onChange={setPoSuppliers} searchable />
+                    </>
+                  )}
+                  {poHasActiveFilters && (
+                    <button onClick={clearPoFilters} className="text-xs font-medium text-slate-500 hover:text-red-600 transition-colors pb-2">
+                      Clear All
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className={`transition-opacity ${isRefreshing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                <AnalyticsSection
+                  analytics={liveAnalytics}
+                  onBuyerClick={setBuyerModal}
+                  onSupplierClick={setSupplierModalName}
+                  onSessionClick={setSessionModal}
+                />
+              </div>
             </>
           )}
         </main>

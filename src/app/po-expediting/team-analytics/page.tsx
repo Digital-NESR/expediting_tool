@@ -641,43 +641,46 @@ export default function TeamAnalyticsPage() {
   const [sessionModal, setSessionModal] = useState<RecentSession | null>(null);
 
   // Document title
-  useEffect(() => { document.title = 'Team Analytics — PO Expediting | SC Agents'; }, []);
+  useEffect(() => { document.title = 'All Analytics — PO Expediting | SC Agents'; }, []);
 
-  const buildFilters = useCallback((): TeamAnalyticsFilters => ({
+  // Stable ref to always hold the latest filter values
+  const filtersRef = useRef<TeamAnalyticsFilters>({});
+  filtersRef.current = {
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     buyerEmails: buyerEmails.length ? buyerEmails : undefined,
     countries: countries.length ? countries : undefined,
     segments: segments.length ? segments : undefined,
     supplierNames: supplierNames.length ? supplierNames : undefined,
-  }), [dateFrom, dateTo, buyerEmails, countries, segments, supplierNames]);
+  };
 
   const fetchData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const result = await getTeamAnalyticsData(buildFilters());
+      const result = await getTeamAnalyticsData(filtersRef.current);
       setData(result);
       setLastRefreshed(new Date());
     } finally {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [buildFilters]);
+  }, []);
 
   // Load filter options once
   useEffect(() => { getFilterOptions().then(setFilterOpts); }, []);
 
   // Initial fetch
-  useEffect(() => { fetchData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Debounce filter changes
+  // Debounce filter changes — always calls fetchData which reads from filtersRef
+  const initialLoadDone = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (loading) return; // skip initial
+    if (!initialLoadDone.current) { initialLoadDone.current = true; return; }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchData(), 500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [dateFrom, dateTo, buyerEmails, countries, segments, supplierNames]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, buyerEmails, countries, segments, supplierNames, fetchData]);
 
   const hasActiveFilters = !!dateFrom || !!dateTo || buyerEmails.length > 0 || countries.length > 0 || segments.length > 0 || supplierNames.length > 0;
 
@@ -707,7 +710,7 @@ export default function TeamAnalyticsPage() {
             <button onClick={() => setSidebarOpen(true)} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
-            <h1 className="text-lg font-bold text-gray-900 tracking-tight">Team Analytics</h1>
+            <h1 className="text-lg font-bold text-gray-900 tracking-tight">All Analytics</h1>
           </div>
         </header>
 
@@ -718,7 +721,7 @@ export default function TeamAnalyticsPage() {
             {/* Page header + refresh */}
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
-                <h2 className="text-lg font-bold text-slate-900 tracking-tight">Team Analytics</h2>
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight">All Analytics</h2>
                 <p className="text-sm text-gray-500 mt-0.5">PO Expediting performance across all buyers.</p>
                 <p className="text-[12px] text-gray-400 mt-0.5">
                   Last updated: {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -782,7 +785,7 @@ export default function TeamAnalyticsPage() {
 
             {/* Analytics content */}
             {!loading && data && hasData && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className={`space-y-8 animate-in fade-in slide-in-from-top-2 duration-300 transition-opacity ${isRefreshing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
 
                 {/* KPI cards */}
                 <div>
