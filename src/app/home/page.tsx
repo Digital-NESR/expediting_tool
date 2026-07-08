@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
 import { submitSourceGuideAccessRequest } from '@/app/actions/sourceguide';
-import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3, GraduationCap } from 'lucide-react';
+import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3 } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | null;
@@ -971,10 +971,6 @@ export default function HomePage() {
     if (isAdmin) router.push('/laptop-procurement');
   }
 
-  function handleAiLearningClick() {
-    if (isAdmin) router.push('/ai-learning');
-  }
-
   async function handleRefreshStatus() {
     await update();
   }
@@ -1171,16 +1167,6 @@ export default function HomePage() {
                   onClick={handleLaptopClick}
                 />
               )}
-              {show('ai learning training courses quiz business technical foundations') && (
-                <AdminPreviewCard
-                  name="AI Learning"
-                  subtitle="Beginner Courses & Quizzes"
-                  description="Learn AI for business and for building — two beginner tracks with a short quiz after every part."
-                  icon={<GraduationCap className="w-6 h-6 text-gray-400" />}
-                  canOpen={isAdmin}
-                  onClick={handleAiLearningClick}
-                />
-              )}
               {show('the bridge project tracking handoffs cross-functional') && (
                 <ComingSoonCard
                   name="The Bridge"
@@ -1195,7 +1181,7 @@ export default function HomePage() {
                   icon={<FileCheck className="w-6 h-6 text-gray-400" />}
                 />
               )}
-              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('ai learning') && !show('bridge') && !show('grn') && !show('supply chain analytics') && (
+              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('bridge') && !show('grn') && !show('supply chain analytics') && (
                 <div className="col-span-3 py-12 text-center">
                   <p className="text-sm text-slate-400">No applications match &ldquo;{appSearch}&rdquo;</p>
                 </div>
