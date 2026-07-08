@@ -2067,12 +2067,13 @@ export async function bulkSubmitEntries(entryIds: number[]): Promise<{ count: nu
 export interface GlobalSearchResult {
   entries: { id: number; code: string; supplier_name: string; label: string; country_code: string; status: CatalogStatus }[];
   suppliers: { id: number; name: string; vendor_code: string }[];
+  pir: { info_record_number: string; product_number: string; material_description: string; supplier_name: string; country: string }[];
 }
 
 export async function globalCatalogSearch(query: string): Promise<GlobalSearchResult> {
   await ensureCatalogManagerSchema();
   const q = (query ?? '').trim();
-  if (q.length < 2) return { entries: [], suppliers: [] };
+  if (q.length < 2) return { entries: [], suppliers: [], pir: [] };
   const like = `%${q}%`;
   const entryRows = await sql<QueryResultRow[]>(
     `SELECT e.id, e.code, e.status, e.country_code, e.item_name, e.commodity, s.name AS supplier_name
@@ -2085,6 +2086,15 @@ export async function globalCatalogSearch(query: string): Promise<GlobalSearchRe
     `SELECT id, name, vendor_code FROM supplier WHERE name ILIKE ? OR vendor_code ILIKE ? ORDER BY name LIMIT 6`,
     [like, like],
   );
+  // PIR / Inventory (read-only SAP mirror) — searched alongside the services catalog.
+  const pirRows = await sql<QueryResultRow[]>(
+    `SELECT info_record_number, product_number, material_description, supplier_name, country
+     FROM pir_catalog
+     WHERE product_number ILIKE ? OR material_description ILIKE ? OR supplier_name ILIKE ?
+        OR info_record_number ILIKE ? OR material_group ILIKE ?
+     ORDER BY material_description NULLS LAST, product_number NULLS LAST LIMIT 8`,
+    [like, like, like, like, like],
+  );
   return {
     entries: entryRows.map((r) => ({
       id: Number(r.id),
@@ -2095,5 +2105,12 @@ export async function globalCatalogSearch(query: string): Promise<GlobalSearchRe
       status: r.status as CatalogStatus,
     })),
     suppliers: supplierRows.map((r) => ({ id: Number(r.id), name: String(r.name), vendor_code: String(r.vendor_code) })),
+    pir: pirRows.map((r) => ({
+      info_record_number: String(r.info_record_number ?? ''),
+      product_number: String(r.product_number ?? ''),
+      material_description: String(r.material_description ?? ''),
+      supplier_name: String(r.supplier_name ?? ''),
+      country: String(r.country ?? ''),
+    })),
   };
 }

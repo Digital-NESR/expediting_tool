@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Icon, Kbd, Spinner, StatusPill } from './CatalogManagerUI';
 import { globalCatalogSearch, type GlobalSearchResult } from '@/app/actions/catalog-manager';
 
-const EMPTY: GlobalSearchResult = { entries: [], suppliers: [] };
+const EMPTY: GlobalSearchResult = { entries: [], suppliers: [], pir: [] };
+
+/** Deep-link a PIR match to the PIR page with its filter pre-applied. */
+const pirHref = (p: GlobalSearchResult['pir'][number]) =>
+  `/catalog-manager/pir?q=${encodeURIComponent(p.product_number || p.info_record_number)}`;
 
 export default function CommandPalette() {
   const router = useRouter();
@@ -22,6 +26,7 @@ export default function CommandPalette() {
   const rows = useMemo(() => [
     ...res.entries.map((e) => ({ key: `e-${e.id}`, href: `/catalog-manager/catalog/${e.id}` })),
     ...res.suppliers.map((s) => ({ key: `s-${s.id}`, href: `/catalog-manager/suppliers/${s.id}` })),
+    ...res.pir.map((p, i) => ({ key: `p-${i}`, href: pirHref(p) })),
   ], [res]);
 
   useEffect(() => {
@@ -76,7 +81,7 @@ export default function CommandPalette() {
   }
 
   if (!open) return null;
-  const hasResults = res.entries.length > 0 || res.suppliers.length > 0;
+  const hasResults = res.entries.length > 0 || res.suppliers.length > 0 || res.pir.length > 0;
   const rowIndex = (key: string) => rows.findIndex((r) => r.key === key);
 
   return (
@@ -90,7 +95,7 @@ export default function CommandPalette() {
             value={q}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={onInputKey}
-            placeholder="Search catalog IDs, suppliers, commodities…"
+            placeholder="Search catalog, suppliers, PIR / inventory…"
             className="min-w-0 flex-1 bg-transparent py-3.5 text-sm outline-none placeholder:text-slate-400"
           />
           {loading && <Spinner className="h-4 w-4 text-slate-300" />}
@@ -162,6 +167,32 @@ export default function CommandPalette() {
                         <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#eaf4ef] text-[#307c4c]"><Icon name="building" className="h-3.5 w-3.5" /></span>
                         <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800">{s.name}</span>
                         <span className="font-mono text-[11px] text-slate-400">{s.vendor_code}</span>
+                        {hot && <Icon name="chevRight" className="h-3.5 w-3.5 shrink-0 text-[#307c4c]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {res.pir.length > 0 && (
+                <div className="px-2 pt-1">
+                  <p className="px-2 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">PIR / Inventory</p>
+                  {res.pir.map((p, i) => {
+                    const idx = rowIndex(`p-${i}`);
+                    const hot = idx === cursor;
+                    return (
+                      <button
+                        key={`${p.info_record_number}-${p.product_number}-${i}`}
+                        data-cursor={hot}
+                        onMouseEnter={() => setCursor(idx)}
+                        onClick={() => go(pirHref(p))}
+                        className={`flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors ${hot ? 'bg-[#307c4c]/10' : 'hover:bg-[#307c4c]/5'}`}
+                      >
+                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700"><Icon name="sheet" className="h-3.5 w-3.5" /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-medium text-slate-800">{p.material_description || p.product_number || '—'}</span>
+                          <span className="block truncate text-[11px] text-slate-400">{p.supplier_name}{p.country ? ` · ${p.country}` : ''}</span>
+                        </span>
+                        <span className="font-mono text-[11px] text-slate-400">{p.product_number}</span>
                         {hot && <Icon name="chevRight" className="h-3.5 w-3.5 shrink-0 text-[#307c4c]" />}
                       </button>
                     );

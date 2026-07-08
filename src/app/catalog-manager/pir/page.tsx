@@ -10,8 +10,13 @@ import PirCatalogClient from './PirCatalogClient';
 export const metadata: Metadata = { title: 'PIR / Inventory | NESR Catalog Repo' };
 export const dynamic = 'force-dynamic';
 
-export default async function PirCatalogPage() {
-  const [entries, actor, pendingCount] = await Promise.all([
+export default async function PirCatalogPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const [sp, entries, actor, pendingCount] = await Promise.all([
+    searchParams,
     listPirEntries(),
     getCatalogActor(),
     getPendingApprovalCount(),
@@ -23,6 +28,7 @@ export default async function PirCatalogPage() {
       canApprove={actor.canApprove}
       canAdmin={actor.canAdmin}
       pendingCount={pendingCount}
+      initialQuery={sp.q ?? ''}
     />
   );
 }

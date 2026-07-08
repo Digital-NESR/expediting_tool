@@ -57,15 +57,16 @@ function facetValues(entries: PirEntry[], key: keyof PirEntry): string[] {
 }
 
 export default function PirCatalogClient({
-  entries, roleLabel, canApprove, canAdmin, pendingCount,
+  entries, roleLabel, canApprove, canAdmin, pendingCount, initialQuery = '',
 }: {
   entries: PirEntry[];
   roleLabel: string;
   canApprove: boolean;
   canAdmin: boolean;
   pendingCount: number;
+  initialQuery?: string;
 }) {
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(initialQuery);
   const [country, setCountry] = useState('');
   const [porg, setPorg] = useState('');
   const [plant, setPlant] = useState('');
