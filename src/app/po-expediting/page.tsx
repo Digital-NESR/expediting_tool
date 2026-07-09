@@ -732,6 +732,287 @@ function PoSubTable({
   );
 }
 
+/* ─── DS Code Reference Data ─────────────────────────────── */
+const DS_CODES = [
+  { code: 'DS01', name: 'PO Copy Not Received', description: 'The Vendor did not receive the PO copy', category: 'issue' },
+  { code: 'DS02', name: 'PO Rejected', description: 'The PO has been rejected by the vendor', category: 'issue' },
+  { code: 'DS03', name: 'PO Pending Revision', description: 'PO requires amendment', category: 'issue' },
+  { code: 'DS04', name: 'PO Acknowledged - Delivery On Time', description: 'Delivery will be done as per the Delivery Date confirmed', category: 'ontime' },
+  { code: 'DS05', name: 'PO Acknowledged - Delivery Delay', description: 'Delivery is delayed and revised delivery date is provided', category: 'delayed' },
+  { code: 'DS06', name: 'Delivery On Hold - Pending Import Permit', description: 'Pending Import permit to be provided', category: 'hold' },
+  { code: 'DS07', name: 'PO Acknowledged - No response', description: 'No response from Supplier', category: 'hold' },
+  { code: 'DS08', name: 'Delivery On Hold - Pending LC', description: 'Pending confirmation Letter of Credit', category: 'hold' },
+  { code: 'DS09', name: 'Delivery On Hold - Pending Advance Payment', description: 'Pending advance payment to be confirmed', category: 'hold' },
+  { code: 'DS10', name: 'Delivery On-Hold - Payment Issues', description: 'Delivery on Hold due to Pending Payment', category: 'hold' },
+  { code: 'DS11', name: 'Delivery On Hold - Others', description: 'Delivery on Hold due to reasons provided by Supplier', category: 'hold' },
+  { code: 'DS12', name: 'Delivered & Invoiced', description: 'The PO has been delivered and Invoiced', category: 'complete' },
+  { code: 'DS13', name: 'Service Ongoing', description: 'The services related to the process is ongoing.', category: 'complete' },
+  { code: 'DS14', name: 'Service Completed', description: 'The service has been completed and awaiting goods receipt', category: 'complete' },
+  { code: 'DS15', name: 'Shipped - In Transit', description: 'The items are currently in transit, meaning they are being transported from one location to another, but they have not yet reached their final destination.', category: 'complete' },
+  { code: 'DS16', name: 'Ready for Collection', description: 'The items are prepared and available for pickup by the freight forwarder or carrier.', category: 'complete' },
+  { code: 'DS17', name: 'Collected by Freight Forwarder', description: 'The items have been picked up by the freight forwarder or carrier and are en route to the next destination.', category: 'complete' },
+  { code: 'DS18', name: 'Customs Clearance', description: 'The items have reached the customs checkpoint and the necessary customs procedures and documentation are being processed for clearance before the items can continue their journey.', category: 'complete' },
+  { code: 'DS19', name: 'Products Delivered to Base', description: 'The items have been successfully delivered to the designated base or destination.', category: 'complete' },
+] as const;
+
+const CATEGORY_LEGEND = [
+  { id: 'issue', label: 'Issues', dotClass: 'bg-red-500', pillBg: 'bg-red-50', pillText: 'text-red-700', pillBorder: 'border-red-200' },
+  { id: 'ontime', label: 'On Time', dotClass: 'bg-green-500', pillBg: 'bg-green-50', pillText: 'text-green-700', pillBorder: 'border-green-200' },
+  { id: 'delayed', label: 'Delayed', dotClass: 'bg-amber-500', pillBg: 'bg-amber-50', pillText: 'text-amber-700', pillBorder: 'border-amber-200' },
+  { id: 'hold', label: 'On Hold', dotClass: 'bg-orange-500', pillBg: 'bg-orange-50', pillText: 'text-orange-700', pillBorder: 'border-orange-200' },
+  { id: 'complete', label: 'Completed/In Progress', dotClass: 'bg-blue-500', pillBg: 'bg-blue-50', pillText: 'text-blue-700', pillBorder: 'border-blue-200' },
+] as const;
+
+function getDSCodePillStyle(category: string) {
+  switch (category) {
+    case 'issue': return 'bg-red-50 text-red-700 border border-red-200';
+    case 'ontime': return 'bg-green-50 text-green-700 border border-green-200';
+    case 'delayed': return 'bg-amber-50 text-amber-700 border border-amber-200';
+    case 'hold': return 'bg-orange-50 text-orange-700 border border-orange-200';
+    case 'complete': return 'bg-blue-50 text-blue-700 border border-blue-200';
+    default: return 'bg-slate-50 text-slate-700 border border-slate-200';
+  }
+}
+
+/* ─── DS Code Reference Modal ────────────────────────────── */
+function DSCodeReferenceModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const term = search.toLowerCase().trim();
+  const filteredCodes = DS_CODES.filter((ds) => {
+    if (activeCategory && ds.category !== activeCategory) return false;
+    if (!term) return true;
+    return (
+      ds.code.toLowerCase().includes(term) ||
+      ds.name.toLowerCase().includes(term) ||
+      ds.description.toLowerCase().includes(term)
+    );
+  });
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        className="fixed inset-0 z-50"
+        style={{
+          background: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          animation: 'dsModalFadeIn 150ms ease-out',
+        }}
+      />
+      {/* Modal panel */}
+      <div
+        className="fixed z-[51]"
+        style={{
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'white',
+          borderRadius: '16px',
+          padding: '32px',
+          maxWidth: '800px',
+          width: '90vw',
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          animation: 'dsModalSlideIn 200ms ease-out',
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: 700 }} className="text-gray-900">
+              Delivery Status (DS) Code Reference
+            </h2>
+            <p style={{ fontSize: '14px', marginTop: '4px' }} className="text-gray-500">
+              Reference guide for all delivery status codes used in the PO Expediting tool
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center shrink-0 hover:bg-gray-100 transition-colors"
+            style={{ width: '32px', height: '32px', borderRadius: '50%' }}
+          >
+            <svg className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Search input */}
+        <div className="relative mb-4">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search DS codes..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-9 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:ring-[#307c4c] focus:border-[#307c4c] outline-none transition-colors"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Color legend */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {CATEGORY_LEGEND.map((cat) => {
+            const isActive = activeCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(isActive ? null : cat.id)}
+                className={[
+                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150',
+                  isActive
+                    ? `${cat.pillBg} ${cat.pillText} ${cat.pillBorder} ring-1 ring-current/20`
+                    : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50',
+                ].join(' ')}
+              >
+                <span className={`w-2 h-2 rounded-full ${cat.dotClass}`} />
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse" style={{ fontSize: '14px' }}>
+            <thead>
+              <tr>
+                <th
+                  className="text-left text-gray-500 font-semibold uppercase tracking-wider"
+                  style={{
+                    background: '#f8fafc',
+                    fontSize: '11px',
+                    letterSpacing: '0.05em',
+                    padding: '10px 16px',
+                    position: 'sticky',
+                    top: 0,
+                    borderBottom: '2px solid #e5e7eb',
+                    width: '100px',
+                  }}
+                >
+                  DS Code
+                </th>
+                <th
+                  className="text-left text-gray-500 font-semibold uppercase tracking-wider"
+                  style={{
+                    background: '#f8fafc',
+                    fontSize: '11px',
+                    letterSpacing: '0.05em',
+                    padding: '10px 16px',
+                    position: 'sticky',
+                    top: 0,
+                    borderBottom: '2px solid #e5e7eb',
+                    width: '220px',
+                  }}
+                >
+                  DS Name
+                </th>
+                <th
+                  className="text-left text-gray-500 font-semibold uppercase tracking-wider"
+                  style={{
+                    background: '#f8fafc',
+                    fontSize: '11px',
+                    letterSpacing: '0.05em',
+                    padding: '10px 16px',
+                    position: 'sticky',
+                    top: 0,
+                    borderBottom: '2px solid #e5e7eb',
+                  }}
+                >
+                  Description
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCodes.map((ds) => (
+                <tr
+                  key={ds.code}
+                  className="hover:bg-gray-50 transition-colors"
+                  style={{ borderBottom: '1px solid #f1f5f9' }}
+                >
+                  <td style={{ padding: '12px 16px', width: '100px' }}>
+                    <span
+                      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${getDSCodePillStyle(ds.category)}`}
+                    >
+                      {ds.code}
+                    </span>
+                  </td>
+                  <td
+                    className="text-gray-800"
+                    style={{ padding: '12px 16px', width: '220px', fontWeight: 500 }}
+                  >
+                    {ds.name}
+                  </td>
+                  <td
+                    className="text-gray-500"
+                    style={{ padding: '12px 16px', fontSize: '13px', lineHeight: 1.5 }}
+                  >
+                    {ds.description}
+                  </td>
+                </tr>
+              ))}
+              {filteredCodes.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="text-center py-12 text-gray-400">
+                    No DS codes match &apos;{search}&apos;
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Animations */}
+      <style jsx>{`
+        @keyframes dsModalFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes dsModalSlideIn {
+          from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)); }
+          to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+      `}</style>
+    </>
+  );
+}
+
 /* ─── Main Dashboard ──────────────────────────────────────── */
 export default function Dashboard() {
   const [rows, setRows] = useState<PurchaseOrder[]>([]);
@@ -741,6 +1022,7 @@ export default function Dashboard() {
   // Drawer selection
   const [selectedLineItem, setSelectedLineItem] = useState<PurchaseOrder | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [dsCodeModalOpen, setDsCodeModalOpen] = useState(false);
 
   // Expedite cart — Zustand store
   const { selectedItems, toggleSelection, isSelected, clearSelection, selectMultipleLines, deselectMultipleLines } = useExpediteStore();
@@ -1059,11 +1341,29 @@ export default function Dashboard() {
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 scroll-smooth">
 
           {/* Page title */}
-          <div className="mb-6">
-            <h1 className="text-lg font-bold text-gray-900 tracking-tight">Open Purchase Orders</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Live view of all open POs sourced from SAP — grouped by PO, sortable by delivery date or value.
-            </p>
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <h1 className="text-lg font-bold text-gray-900 tracking-tight">Open Purchase Orders</h1>
+              <p className="text-sm text-slate-500 mt-0.5">
+                Live view of all open POs sourced from SAP — grouped by PO, sortable by delivery date or value.
+              </p>
+            </div>
+            <button
+              onClick={() => setDsCodeModalOpen(true)}
+              className="shrink-0 inline-flex items-center gap-1.5 text-gray-600 hover:bg-gray-50 transition-colors"
+              style={{
+                background: 'transparent',
+                border: '1px solid #e5e7eb',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '13px',
+              }}
+            >
+              <svg className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              DS Codes ?
+            </button>
           </div>
 
           {/* ── KPI Cards ── */}
@@ -1322,6 +1622,9 @@ export default function Dashboard() {
           </p>
         </div>
       </main>
+
+      {/* ── DS Code Reference Modal ── */}
+      <DSCodeReferenceModal open={dsCodeModalOpen} onClose={() => setDsCodeModalOpen(false)} />
 
       {/* ── Floating Expedite Action Bar ──────────────────────────── */}
       {selectedItems.length > 0 && (
