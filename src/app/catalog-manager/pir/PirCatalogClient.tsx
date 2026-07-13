@@ -1,14 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import CatalogManagerShell from '../components/CatalogManagerShell';
-import { Icon, EmptyState, Card, StatCard, tableClasses } from '../components/CatalogManagerUI';
+import { Icon, EmptyState, Card, StatCard, Spinner, tableClasses } from '../components/CatalogManagerUI';
+import { exportPirEntries, type PirSort } from '@/app/actions/catalog-manager';
 import type { PirEntry } from '@/types/catalog-manager';
 import { csvSafe } from '@/lib/catalog-manager-utils';
 
-type SortKey = 'supplier' | 'priceHi' | 'priceLo' | 'record';
-const PAGE_SIZE = 50;
+interface PirFilters { q: string; country: string; porg: string; plant: string; mgroup: string; sort: PirSort; page: number }
 
 // Field config drives the detail panel (grouped) and the CSV export (in this order).
 const FIELDS: { label: string; key: keyof PirEntry; group: string }[] = [
@@ -51,77 +52,78 @@ function money(v: number | null, ccy: string | null): string {
   if (v == null) return '—';
   return `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${ccy ? ` ${ccy}` : ''}`;
 }
-/** Distinct, sorted non-empty values of a column — pure so it's stable across renders. */
-function facetValues(entries: PirEntry[], key: keyof PirEntry): string[] {
-  return Array.from(new Set(entries.map((e) => e[key]).filter((v): v is string => !!v))).sort((a, b) => a.localeCompare(b));
-}
 
 export default function PirCatalogClient({
-  entries, roleLabel, canApprove, canAdmin, pendingCount, initialQuery = '',
+  rows, total, page, pageSize, stats, facets, filters, roleLabel, canApprove, canAdmin, pendingCount,
 }: {
-  entries: PirEntry[];
+  rows: PirEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+  stats: { total: number; suppliers: number; plants: number; countries: number };
+  facets: { countries: string[]; porgs: string[]; plants: string[]; mgroups: string[] };
+  filters: PirFilters;
   roleLabel: string;
   canApprove: boolean;
   canAdmin: boolean;
   pendingCount: number;
-  initialQuery?: string;
 }) {
-  const [q, setQ] = useState(initialQuery);
-  const [country, setCountry] = useState('');
-  const [porg, setPorg] = useState('');
-  const [plant, setPlant] = useState('');
-  const [mgroup, setMgroup] = useState('');
-  const [sort, setSort] = useState<SortKey>('supplier');
-  const [page, setPage] = useState(0);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const [q, setQ] = useState(filters.q);
   const [detail, setDetail] = useState<PirEntry | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const countries = useMemo(() => facetValues(entries, 'country'), [entries]);
-  const porgs = useMemo(() => facetValues(entries, 'purchasing_organization'), [entries]);
-  const plants = useMemo(() => facetValues(entries, 'plant'), [entries]);
-  const mgroups = useMemo(() => facetValues(entries, 'material_group'), [entries]);
+  // Keep the box in sync if the server-provided query changes (e.g. Clear all, back/forward).
+  useEffect(() => { setQ(filters.q); }, [filters.q]);
 
-  const rows = useMemo(() => {
-    const filtered = entries.filter((e) => {
-      if (country && e.country !== country) return false;
-      if (porg && e.purchasing_organization !== porg) return false;
-      if (plant && e.plant !== plant) return false;
-      if (mgroup && e.material_group !== mgroup) return false;
-      if (q.trim()) {
-        const hay = `${e.info_record_number ?? ''} ${e.product_number ?? ''} ${e.material_description ?? ''} ${e.supplier_name ?? ''} ${e.suppliers_account_number ?? ''} ${e.material_supplier ?? ''} ${e.plant ?? ''} ${e.purchasing_organization ?? ''}`.toLowerCase();
-        if (!hay.includes(q.trim().toLowerCase())) return false;
-      }
-      return true;
-    });
-    return [...filtered].sort((a, b) => {
-      if (sort === 'priceHi') return (b.unit_price ?? 0) - (a.unit_price ?? 0);
-      if (sort === 'priceLo') return (a.unit_price ?? 0) - (b.unit_price ?? 0);
-      if (sort === 'record') return (a.info_record_number ?? '').localeCompare(b.info_record_number ?? '');
-      return (a.supplier_name ?? '').localeCompare(b.supplier_name ?? '');
-    });
-  }, [entries, country, porg, plant, mgroup, q, sort]);
+  /** Merge a patch into the URL query and navigate; filter changes reset to page 1. */
+  function pushParams(patch: Record<string, string | number | undefined>, resetPage = true) {
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    if (resetPage) params.delete('page');
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined || v === '' || v === 0) params.delete(k);
+      else params.set(k, String(v));
+    }
+    const qs = params.toString();
+    startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
+  }
 
-  const activeFilters = [country, porg, plant, mgroup].filter(Boolean).length + (q.trim() ? 1 : 0);
-  const maxPage = Math.max(0, Math.ceil(rows.length / PAGE_SIZE) - 1);
-  const cur = Math.min(page, maxPage);
-  const pageRows = rows.slice(cur * PAGE_SIZE, cur * PAGE_SIZE + PAGE_SIZE);
-  const suppliers = useMemo(() => new Set(entries.map((e) => e.supplier_name).filter(Boolean)).size, [entries]);
+  function onSearch(v: string) {
+    setQ(v);
+    if (debounce.current) clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => pushParams({ q: v.trim() || undefined }), 350);
+  }
 
   function clearAll() {
-    setQ(''); setCountry(''); setPorg(''); setPlant(''); setMgroup(''); setPage(0);
+    setQ('');
+    startTransition(() => router.push(pathname, { scroll: false }));
   }
 
-  function exportCsv() {
-    const head = FIELDS.map((f) => f.label).join(',');
-    const body = rows.map((e) => FIELDS.map((f) => `"${csvSafe(e[f.key] ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([`${head}\n${body}`], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `NESR_PIR_Catalog_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const all = await exportPirEntries(filters);
+      const head = FIELDS.map((f) => f.label).join(',');
+      const body = all.map((e) => FIELDS.map((f) => `"${csvSafe(e[f.key] ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([`${head}\n${body}`], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `NESR_PIR_Catalog_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
   }
 
+  const activeFilters = [filters.country, filters.porg, filters.plant, filters.mgroup].filter(Boolean).length + (filters.q ? 1 : 0);
+  const maxPage = Math.max(1, Math.ceil(total / pageSize));
+  const cur = Math.min(page, maxPage);
   const selectCls = 'rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[13px] text-slate-700 outline-none focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20';
 
   return (
@@ -133,8 +135,8 @@ export default function PirCatalogClient({
       pendingCount={pendingCount}
       showScope={false}
       headerAction={
-        <button onClick={exportCsv} disabled={rows.length === 0} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm transition-all hover:border-[#6aaf8e] hover:text-slate-900 active:scale-[0.98] disabled:opacity-50">
-          <Icon name="download" className="h-4 w-4" /> <span className="hidden sm:inline">Export</span>
+        <button onClick={exportCsv} disabled={total === 0 || exporting} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm transition-all hover:border-[#6aaf8e] hover:text-slate-900 active:scale-[0.98] disabled:opacity-50">
+          {exporting ? <Spinner className="h-4 w-4" /> : <Icon name="download" className="h-4 w-4" />} <span className="hidden sm:inline">{exporting ? 'Exporting…' : 'Export'}</span>
         </button>
       }
     >
@@ -152,10 +154,10 @@ export default function PirCatalogClient({
         </div>
 
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="Info records" value={entries.length.toLocaleString()} sub="Purchasing info records" icon="sheet" />
-          <StatCard label="Suppliers" value={suppliers.toLocaleString()} sub="Distinct suppliers" icon="building" tone="cyan" />
-          <StatCard label="Plants" value={plants.length.toLocaleString()} sub="Distinct plants" icon="globe" tone="ink" />
-          <StatCard label="Countries" value={countries.length.toLocaleString()} sub="Operating countries" icon="globe" tone="amber" />
+          <StatCard label="Info records" value={stats.total.toLocaleString()} sub="Purchasing info records" icon="sheet" />
+          <StatCard label="Suppliers" value={stats.suppliers.toLocaleString()} sub="Distinct suppliers" icon="building" tone="cyan" />
+          <StatCard label="Plants" value={stats.plants.toLocaleString()} sub="Distinct plants" icon="globe" tone="ink" />
+          <StatCard label="Countries" value={stats.countries.toLocaleString()} sub="Operating countries" icon="globe" tone="amber" />
         </section>
 
         <Card className="flex min-h-0 flex-col">
@@ -165,29 +167,29 @@ export default function PirCatalogClient({
                 <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   value={q}
-                  onChange={(e) => { setQ(e.target.value); setPage(0); }}
+                  onChange={(e) => onSearch(e.target.value)}
                   placeholder="Search info record, material, supplier, plant…"
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-9 text-sm outline-none focus:border-[#307c4c] focus:bg-white focus:ring-2 focus:ring-[#307c4c]/20"
                 />
-                {q && <button onClick={() => setQ('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"><Icon name="close" className="h-4 w-4" /></button>}
+                {q && <button onClick={() => onSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"><Icon name="close" className="h-4 w-4" /></button>}
               </div>
-              <select value={country} onChange={(e) => { setCountry(e.target.value); setPage(0); }} className={selectCls}>
+              <select value={filters.country} onChange={(e) => pushParams({ country: e.target.value })} className={selectCls}>
                 <option value="">All countries</option>
-                {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+                {facets.countries.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-              <select value={porg} onChange={(e) => { setPorg(e.target.value); setPage(0); }} className={selectCls}>
+              <select value={filters.porg} onChange={(e) => pushParams({ porg: e.target.value })} className={selectCls}>
                 <option value="">All purchasing orgs</option>
-                {porgs.map((c) => <option key={c} value={c}>{c}</option>)}
+                {facets.porgs.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-              <select value={plant} onChange={(e) => { setPlant(e.target.value); setPage(0); }} className={selectCls}>
+              <select value={filters.plant} onChange={(e) => pushParams({ plant: e.target.value })} className={selectCls}>
                 <option value="">All plants</option>
-                {plants.map((c) => <option key={c} value={c}>{c}</option>)}
+                {facets.plants.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-              <select value={mgroup} onChange={(e) => { setMgroup(e.target.value); setPage(0); }} className={selectCls}>
+              <select value={filters.mgroup} onChange={(e) => pushParams({ mgroup: e.target.value })} className={selectCls}>
                 <option value="">All material groups</option>
-                {mgroups.map((c) => <option key={c} value={c}>{c}</option>)}
+                {facets.mgroups.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-              <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className={selectCls}>
+              <select value={filters.sort} onChange={(e) => pushParams({ sort: e.target.value })} className={selectCls}>
                 <option value="supplier">Supplier A→Z</option>
                 <option value="priceHi">Price: high → low</option>
                 <option value="priceLo">Price: low → high</option>
@@ -195,14 +197,17 @@ export default function PirCatalogClient({
               </select>
               {activeFilters > 0 && <button onClick={clearAll} className="text-[12.5px] font-semibold text-[#1d4f31] hover:underline">Clear ({activeFilters})</button>}
             </div>
-            <p className="mt-2.5 text-[12.5px] text-slate-500"><span className="font-semibold tabular-nums text-slate-900">{rows.length.toLocaleString()}</span> {rows.length === 1 ? 'record' : 'records'}{rows.length !== entries.length ? ` of ${entries.length.toLocaleString()}` : ''}</p>
+            <p className="mt-2.5 flex items-center gap-2 text-[12.5px] text-slate-500">
+              <span><span className="font-semibold tabular-nums text-slate-900">{total.toLocaleString()}</span> {total === 1 ? 'record' : 'records'}{total !== stats.total ? ` of ${stats.total.toLocaleString()}` : ''}</span>
+              {isPending && <Spinner className="h-3.5 w-3.5 text-slate-300" />}
+            </p>
           </div>
 
-          {rows.length === 0 ? (
+          {total === 0 ? (
             <EmptyState
               icon="sheet"
-              title={entries.length === 0 ? 'No PIR data yet' : 'No matching records'}
-              sub={entries.length === 0 ? 'The catalog fills once the n8n sync runs its first load.' : 'Try adjusting the search or filters.'}
+              title={stats.total === 0 ? 'No PIR data yet' : 'No matching records'}
+              sub={stats.total === 0 ? 'The catalog fills once the n8n sync runs its first load.' : 'Try adjusting the search or filters.'}
               action={activeFilters > 0 ? (
                 <button onClick={clearAll} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98]">
                   <Icon name="close" className="h-4 w-4" /> Clear filters
@@ -211,7 +216,7 @@ export default function PirCatalogClient({
             />
           ) : (
             <>
-              <div className={tableClasses.scroller}>
+              <div className={`${tableClasses.scroller} ${isPending ? 'opacity-60 transition-opacity' : ''}`}>
                 <table className={`${tableClasses.table} text-[13px]`}>
                   <thead className={tableClasses.thead}>
                     <tr>
@@ -227,7 +232,7 @@ export default function PirCatalogClient({
                     </tr>
                   </thead>
                   <tbody className={tableClasses.tbody}>
-                    {pageRows.map((e, i) => (
+                    {rows.map((e, i) => (
                       <tr
                         key={`${e.info_record_number}-${e.purchasing_organization}-${e.plant}-${i}`}
                         onClick={() => setDetail(e)}
@@ -256,15 +261,15 @@ export default function PirCatalogClient({
                 </table>
               </div>
 
-              {maxPage > 0 && (
+              {maxPage > 1 && (
                 <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-[12.5px] text-slate-500">
-                  <span>Showing {cur * PAGE_SIZE + 1}–{Math.min(cur * PAGE_SIZE + PAGE_SIZE, rows.length)} of {rows.length.toLocaleString()}</span>
+                  <span>Showing {(cur - 1) * pageSize + 1}–{Math.min(cur * pageSize, total)} of {total.toLocaleString()}</span>
                   <div className="flex items-center gap-1.5">
-                    <button onClick={() => setPage(Math.max(0, cur - 1))} disabled={cur === 0} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-600 transition-colors hover:border-[#6aaf8e] disabled:opacity-40">
+                    <button onClick={() => pushParams({ page: cur - 1 }, false)} disabled={cur <= 1 || isPending} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-600 transition-colors hover:border-[#6aaf8e] disabled:opacity-40">
                       <Icon name="chevRight" className="h-3.5 w-3.5 rotate-180" /> Prev
                     </button>
-                    <span className="px-1 tabular-nums">Page {cur + 1} / {maxPage + 1}</span>
-                    <button onClick={() => setPage(Math.min(maxPage, cur + 1))} disabled={cur >= maxPage} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-600 transition-colors hover:border-[#6aaf8e] disabled:opacity-40">
+                    <span className="px-1 tabular-nums">Page {cur} / {maxPage}</span>
+                    <button onClick={() => pushParams({ page: cur + 1 }, false)} disabled={cur >= maxPage || isPending} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-600 transition-colors hover:border-[#6aaf8e] disabled:opacity-40">
                       Next <Icon name="chevRight" className="h-3.5 w-3.5" />
                     </button>
                   </div>

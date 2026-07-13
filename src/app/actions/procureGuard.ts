@@ -24,6 +24,7 @@ import type {
   ProcureGuardAdminData,
   ProcureGuardAnalyticsData,
   ProcureGuardAnalyticsMetric,
+  ProcureGuardAnalyticsRequest,
   ProcureGuardActivityRow,
   ProcureGuardAdminAnalyticsData,
   ProcureGuardDashboardData,
@@ -2277,8 +2278,26 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
       .sort((a, b) => b.amount_usd - a.amount_usd)
       .slice(0, 8);
 
+    const analyticsRequests: ProcureGuardAnalyticsRequest[] = all.map(row => {
+      const requestType: ProcureGuardRequestType = 'contract_reference' in row ? 'advance' : 'adhoc';
+      return {
+        id: row.id,
+        request_type: requestType,
+        reference_number: row.reference_number,
+        vendor_name: row.vendor_name?.trim() || 'Unspecified',
+        status: row.status,
+        requested_by_email: row.requested_by_email,
+        requested_by_name: row.requested_by_name ?? null,
+        amount: Number(row.amount || 0),
+        amount_usd: toUsd(row.amount, row.currency),
+        currency: row.currency,
+        created_at: row.created_at,
+      };
+    });
+
     return {
       actor,
+      requests: analyticsRequests,
       stats: buildStats(adhoc, advance),
       top_vendors: [...vendorTotals.values()]
         .sort((a, b) => b.count - a.count || b.amount - a.amount)

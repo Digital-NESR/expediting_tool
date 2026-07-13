@@ -443,8 +443,25 @@ export interface ProcureGuardHighValueRequest {
   created_at: string;
 }
 
+// Trimmed per-request record so the analytics UI can slice by adhoc/advance and filter by
+// supplier entirely client-side, without a server round-trip per tab or search.
+export interface ProcureGuardAnalyticsRequest {
+  id: number;
+  request_type: ProcureGuardRequestType;
+  reference_number: string;
+  vendor_name: string;
+  status: ProcureGuardStatus;
+  requested_by_email: string;
+  requested_by_name: string | null;
+  amount: number;
+  amount_usd: number;
+  currency: string;
+  created_at: string;
+}
+
 export interface ProcureGuardAnalyticsData {
   actor: ProcureGuardActor;
+  requests: ProcureGuardAnalyticsRequest[];
   stats: ProcureGuardDashboardStats & {
     average_request_amount: number;
     active_vendor_count: number;

@@ -1,6 +1,7 @@
 'use server';
 
 import type { QueryResultRow } from 'pg';
+import { unstable_cache } from 'next/cache';
 import ExcelJS from 'exceljs';
 import catalogManagerPool from '@/lib/db-catalog-manager';
 import { getProcureGuardUser } from '@/lib/auth';
@@ -314,6 +315,35 @@ async function initCatalogManagerSchema(): Promise<void> {
     material_supplier_org TEXT,
     synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
+
+  // Perf indexes for the read-heavy PIR mirror. TRUNCATE (used by the n8n loader) keeps indexes,
+  // so these survive the nightly reload. btree covers the list sort + exact-match filters; the
+  // trigram GIN indexes make the dashboard's ILIKE '%…%' search fast (a plain btree can't).
+  // Trigram needs pg_trgm — best-effort: if the DB role can't create it, we fall back to btree-only
+  // (search still works, just scans) instead of failing the whole schema init.
+  await execSchema(`CREATE INDEX IF NOT EXISTS pir_supplier_idx ON pir_catalog (supplier_name)`);
+  await execSchema(`CREATE INDEX IF NOT EXISTS pir_product_idx ON pir_catalog (product_number)`);
+  await execSchema(`CREATE INDEX IF NOT EXISTS pir_country_idx ON pir_catalog (country)`);
+  await execSchema(`CREATE INDEX IF NOT EXISTS pir_synced_idx ON pir_catalog (synced_at)`);
+
+  // Durable material-name store. pir_catalog is TRUNCATEd + reloaded nightly by n8n, and some
+  // mornings the SUPPLYCHAIN lookup returns blank descriptions (Power BI not fully refreshed at
+  // load time) — which used to wipe good names. This table accumulates every non-blank name we
+  // have ever seen (keyed by product number) and is NEVER truncated, so reads can fall back to the
+  // last-known-good name when a reload brings a material in without one.
+  await execSchema(`CREATE TABLE IF NOT EXISTS pir_name_cache (
+    product_number TEXT PRIMARY KEY,
+    material_description TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
+  try {
+    await exec(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+    await exec(`CREATE INDEX IF NOT EXISTS pir_desc_trgm ON pir_catalog USING gin (material_description gin_trgm_ops)`);
+    await exec(`CREATE INDEX IF NOT EXISTS pir_supplier_trgm ON pir_catalog USING gin (supplier_name gin_trgm_ops)`);
+    await exec(`CREATE INDEX IF NOT EXISTS pir_product_trgm ON pir_catalog USING gin (product_number gin_trgm_ops)`);
+  } catch {
+    // pg_trgm not available to this role — search degrades to a scan, everything else is fine.
+  }
 
   await seedMasterData();
   await seedDemoData();
@@ -925,45 +955,197 @@ export async function listCatalogEntries(filters: CatalogListFilters = {}): Prom
  * Read-only PIR / Inventory catalog rows (mirror loaded by n8n). The app never writes here.
  * Numeric columns come back from pg as strings, so they're coerced to numbers for the client.
  */
-export async function listPirEntries(): Promise<PirEntry[]> {
+const pirNum = (v: unknown): number | null => (v == null || v === '' ? null : Number(v));
+const pirStr = (v: unknown): string | null => (v == null || v === '' ? null : String(v));
+
+// Merge every non-blank material name from the current pir_catalog load into the durable
+// pir_name_cache. Guarded so the (GROUP BY over the whole table) merge only runs once per nightly
+// load: we track the latest synced_at we've folded in, and skip re-checking for 30s to keep the
+// per-request cost to nothing on the hot path.
+let pirNamesMergedSyncedAt: string | null = null;
+let pirNamesCheckedAt = 0;
+let pirNamesRefreshing: Promise<void> | null = null;
+
+async function ensurePirNamesFresh(): Promise<void> {
+  if (pirNamesRefreshing) return pirNamesRefreshing;
+  if (pirNamesMergedSyncedAt && Date.now() - pirNamesCheckedAt < 30_000) return;
+  pirNamesRefreshing = (async () => {
+    const rows = await sql<{ latest: string | null }[]>(`SELECT MAX(synced_at)::text AS latest FROM pir_catalog`);
+    pirNamesCheckedAt = Date.now();
+    const latest = rows[0]?.latest ?? null;
+    if (!latest || latest === pirNamesMergedSyncedAt) return; // nothing new since last merge
+    await exec(`
+      INSERT INTO pir_name_cache (product_number, material_description)
+      SELECT product_number, MAX(material_description)
+      FROM pir_catalog
+      WHERE product_number IS NOT NULL AND product_number <> ''
+        AND material_description IS NOT NULL AND material_description <> ''
+      GROUP BY product_number
+      ON CONFLICT (product_number) DO UPDATE
+        SET material_description = EXCLUDED.material_description, updated_at = now()
+    `);
+    pirNamesMergedSyncedAt = latest;
+  })().finally(() => { pirNamesRefreshing = null; });
+  return pirNamesRefreshing;
+}
+
+function mapPirRow(r: QueryResultRow): PirEntry {
+  return {
+    info_record_number: pirStr(r.info_record_number),
+    product_number: pirStr(r.product_number),
+    // Fall back to the last-known-good name when this load brought the material in without one.
+    material_description: pirStr(r.material_description) ?? pirStr(r.cached_material_description),
+    material_group: pirStr(r.material_group),
+    suppliers_account_number: pirStr(r.suppliers_account_number),
+    supplier_name: pirStr(r.supplier_name),
+    purchasing_organization: pirStr(r.purchasing_organization),
+    purchase_org_description: pirStr(r.purchase_org_description),
+    purchasing_group: pirStr(r.purchasing_group),
+    plant: pirStr(r.plant),
+    country: pirStr(r.country),
+    order_unit: pirStr(r.order_unit),
+    base_unit_of_measure: pirStr(r.base_unit_of_measure),
+    numerator_for_conversion: pirNum(r.numerator_for_conversion),
+    unit_price: pirNum(r.unit_price),
+    currency_key: pirStr(r.currency_key),
+    standard_qty: pirNum(r.standard_qty),
+    planned_delivery_time_days: pirNum(r.planned_delivery_time_days),
+    overdelivery_tolerance_limit: pirNum(r.overdelivery_tolerance_limit),
+    shipping_instructions: pirStr(r.shipping_instructions),
+    minimum_remaining_shelf_life: pirNum(r.minimum_remaining_shelf_life),
+    incoterms: pirStr(r.incoterms),
+    incoterms_location_1: pirStr(r.incoterms_location_1),
+    valid_days: pirNum(r.valid_days),
+    valid_till_expiry_date: pirStr(r.valid_till_expiry_date),
+    expiring_in: pirStr(r.expiring_in),
+    status: pirStr(r.status),
+    deletion_flag: pirStr(r.deletion_flag),
+    material_supplier: pirStr(r.material_supplier),
+    material_supplier_org: pirStr(r.material_supplier_org),
+  };
+}
+
+export type PirSort = 'supplier' | 'priceHi' | 'priceLo' | 'record';
+export interface PirQuery {
+  q?: string;
+  country?: string;
+  porg?: string;
+  plant?: string;
+  mgroup?: string;
+  sort?: PirSort;
+  page?: number;
+  pageSize?: number;
+}
+export interface PirListResult {
+  rows: PirEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+export interface PirMeta {
+  stats: { total: number; suppliers: number; plants: number; countries: number };
+  facets: { countries: string[]; porgs: string[]; plants: string[]; mgroups: string[] };
+}
+
+// pir_catalog is aliased `p` and LEFT JOINed to pir_name_cache `nc` in every read, so sort/filter
+// columns are qualified to avoid ambiguity, and the effective name is COALESCE(loaded, cached).
+const PIR_DESC_EXPR = `COALESCE(NULLIF(p.material_description, ''), nc.material_description)`;
+const PIR_FROM = `FROM pir_catalog p LEFT JOIN pir_name_cache nc ON nc.product_number = p.product_number`;
+const PIR_SORT_SQL: Record<PirSort, string> = {
+  supplier: 'p.supplier_name ASC NULLS LAST, p.product_number ASC NULLS LAST',
+  priceHi: 'p.unit_price DESC NULLS LAST',
+  priceLo: 'p.unit_price ASC NULLS LAST',
+  record: 'p.info_record_number ASC NULLS LAST',
+};
+
+/** Build the shared WHERE clause + params for the PIR search/filter set. */
+function pirWhere(query: PirQuery): { where: string; params: QueryParams } {
+  const clauses: string[] = [];
+  const params: QueryParams = [];
+  const q = (query.q ?? '').trim();
+  if (q) {
+    const like = `%${q}%`;
+    clauses.push(`(p.info_record_number ILIKE ? OR p.product_number ILIKE ? OR ${PIR_DESC_EXPR} ILIKE ?
+      OR p.supplier_name ILIKE ? OR p.suppliers_account_number ILIKE ? OR p.material_supplier ILIKE ?
+      OR p.plant ILIKE ? OR p.purchasing_organization ILIKE ?)`);
+    for (let i = 0; i < 8; i++) params.push(like);
+  }
+  if (query.country) { clauses.push('p.country = ?'); params.push(query.country); }
+  if (query.porg) { clauses.push('p.purchasing_organization = ?'); params.push(query.porg); }
+  if (query.plant) { clauses.push('p.plant = ?'); params.push(query.plant); }
+  if (query.mgroup) { clauses.push('p.material_group = ?'); params.push(query.mgroup); }
+  return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
+}
+
+/** One page of PIR rows matching the search/filters, plus the total match count. */
+export async function listPirEntries(query: PirQuery = {}): Promise<PirListResult> {
   await ensureCatalogManagerSchema();
+  await ensurePirNamesFresh();
+  const page = Math.max(1, Math.floor(query.page ?? 1));
+  const pageSize = Math.min(200, Math.max(10, Math.floor(query.pageSize ?? 50)));
+  const sort = PIR_SORT_SQL[query.sort ?? 'supplier'] ?? PIR_SORT_SQL.supplier;
+  const { where, params } = pirWhere(query);
+
+  const [countRows, rows] = await Promise.all([
+    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n ${PIR_FROM} ${where}`, params),
+    sql<QueryResultRow[]>(
+      `SELECT p.*, nc.material_description AS cached_material_description
+       ${PIR_FROM} ${where} ORDER BY ${sort} LIMIT ? OFFSET ?`,
+      [...params, pageSize, (page - 1) * pageSize],
+    ),
+  ]);
+  return { rows: rows.map(mapPirRow), total: Number(countRows[0]?.n ?? 0), page, pageSize };
+}
+
+/** All rows matching the filters (no paging) — for CSV export. Bounded to keep the payload sane. */
+export async function exportPirEntries(query: PirQuery = {}): Promise<PirEntry[]> {
+  await ensureCatalogManagerSchema();
+  await ensurePirNamesFresh();
+  const sort = PIR_SORT_SQL[query.sort ?? 'supplier'] ?? PIR_SORT_SQL.supplier;
+  const { where, params } = pirWhere(query);
   const rows = await sql<QueryResultRow[]>(
-    `SELECT * FROM pir_catalog ORDER BY supplier_name NULLS LAST, product_number NULLS LAST, info_record_number NULLS LAST`,
+    `SELECT p.*, nc.material_description AS cached_material_description
+     ${PIR_FROM} ${where} ORDER BY ${sort} LIMIT 50000`,
+    params,
   );
-  const num = (v: unknown): number | null => (v == null || v === '' ? null : Number(v));
-  const str = (v: unknown): string | null => (v == null || v === '' ? null : String(v));
-  return rows.map((r) => ({
-    info_record_number: str(r.info_record_number),
-    product_number: str(r.product_number),
-    material_description: str(r.material_description),
-    material_group: str(r.material_group),
-    suppliers_account_number: str(r.suppliers_account_number),
-    supplier_name: str(r.supplier_name),
-    purchasing_organization: str(r.purchasing_organization),
-    purchase_org_description: str(r.purchase_org_description),
-    purchasing_group: str(r.purchasing_group),
-    plant: str(r.plant),
-    country: str(r.country),
-    order_unit: str(r.order_unit),
-    base_unit_of_measure: str(r.base_unit_of_measure),
-    numerator_for_conversion: num(r.numerator_for_conversion),
-    unit_price: num(r.unit_price),
-    currency_key: str(r.currency_key),
-    standard_qty: num(r.standard_qty),
-    planned_delivery_time_days: num(r.planned_delivery_time_days),
-    overdelivery_tolerance_limit: num(r.overdelivery_tolerance_limit),
-    shipping_instructions: str(r.shipping_instructions),
-    minimum_remaining_shelf_life: num(r.minimum_remaining_shelf_life),
-    incoterms: str(r.incoterms),
-    incoterms_location_1: str(r.incoterms_location_1),
-    valid_days: num(r.valid_days),
-    valid_till_expiry_date: str(r.valid_till_expiry_date),
-    expiring_in: str(r.expiring_in),
-    status: str(r.status),
-    deletion_flag: str(r.deletion_flag),
-    material_supplier: str(r.material_supplier),
-    material_supplier_org: str(r.material_supplier_org),
-  }));
+  return rows.map(mapPirRow);
+}
+
+/** Stat-card totals + facet dropdown values. Cached — the mirror only changes on the nightly sync. */
+const loadPirMeta = unstable_cache(
+  async (): Promise<PirMeta> => {
+    const facetList = async (col: string) => {
+      const rows = await sql<{ v: string }[]>(
+        `SELECT DISTINCT ${col} AS v FROM pir_catalog WHERE ${col} IS NOT NULL AND ${col} <> '' ORDER BY ${col}`,
+      );
+      return rows.map((r) => String(r.v));
+    };
+    const [statRows, countries, porgs, plants, mgroups] = await Promise.all([
+      sql<{ total: number; suppliers: number; plants: number; countries: number }[]>(
+        `SELECT COUNT(*)::int AS total,
+                COUNT(DISTINCT supplier_name)::int AS suppliers,
+                COUNT(DISTINCT plant)::int AS plants,
+                COUNT(DISTINCT country)::int AS countries
+         FROM pir_catalog`,
+      ),
+      facetList('country'),
+      facetList('purchasing_organization'),
+      facetList('plant'),
+      facetList('material_group'),
+    ]);
+    const s = statRows[0] ?? { total: 0, suppliers: 0, plants: 0, countries: 0 };
+    return {
+      stats: { total: Number(s.total), suppliers: Number(s.suppliers), plants: Number(s.plants), countries: Number(s.countries) },
+      facets: { countries, porgs, plants, mgroups },
+    };
+  },
+  ['catalog-manager:pir-meta'],
+  { revalidate: 3600, tags: ['pir-catalog'] },
+);
+
+export async function getPirMeta(): Promise<PirMeta> {
+  await ensureCatalogManagerSchema();
+  return loadPirMeta();
 }
 
 /** All SAP supplier names (from the seeded directory) — feeds the import template's supplier dropdown. */
@@ -2086,13 +2268,15 @@ export async function globalCatalogSearch(query: string): Promise<GlobalSearchRe
     `SELECT id, name, vendor_code FROM supplier WHERE name ILIKE ? OR vendor_code ILIKE ? ORDER BY name LIMIT 6`,
     [like, like],
   );
-  // PIR / Inventory (read-only SAP mirror) — searched alongside the services catalog.
+  // PIR / Inventory (read-only SAP mirror) — searched alongside the services catalog, using the
+  // durable name cache so a material whose latest load came in blank still matches + shows its name.
   const pirRows = await sql<QueryResultRow[]>(
-    `SELECT info_record_number, product_number, material_description, supplier_name, country
-     FROM pir_catalog
-     WHERE product_number ILIKE ? OR material_description ILIKE ? OR supplier_name ILIKE ?
-        OR info_record_number ILIKE ? OR material_group ILIKE ?
-     ORDER BY material_description NULLS LAST, product_number NULLS LAST LIMIT 8`,
+    `SELECT p.info_record_number, p.product_number,
+            ${PIR_DESC_EXPR} AS material_description, p.supplier_name, p.country
+     ${PIR_FROM}
+     WHERE p.product_number ILIKE ? OR ${PIR_DESC_EXPR} ILIKE ? OR p.supplier_name ILIKE ?
+        OR p.info_record_number ILIKE ? OR p.material_group ILIKE ?
+     ORDER BY material_description NULLS LAST, p.product_number NULLS LAST LIMIT 8`,
     [like, like, like, like, like],
   );
   return {

@@ -117,7 +117,7 @@ export default function CatalogManagerDashboardClient({
       <div className="cm-stagger space-y-6">
         {/* ── Hero: full-height, search-first landing (scroll down for insights) ── */}
         {/* NOTE: no overflow-hidden here — the live search dropdown must be free to overlay below. */}
-        <section className="relative flex min-h-[calc(100dvh-7rem)] flex-col rounded-3xl border border-[#cfe4d8] bg-[linear-gradient(180deg,#eaf4ef_0%,#ffffff_72%)] shadow-sm">
+        <section className="relative flex min-h-[calc(100svh-6.5rem)] flex-col rounded-3xl border border-[#cfe4d8] bg-[linear-gradient(180deg,#eaf4ef_0%,#ffffff_72%)] shadow-sm">
           {/* decorations clipped to the rounded card, kept separate from the content layer */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
             <div
@@ -126,21 +126,21 @@ export default function CatalogManagerDashboardClient({
             />
             <div className="absolute -right-24 -top-32 h-72 w-72 rounded-full bg-[#6aaf8e]/20 blur-3xl" />
           </div>
-          <div className="relative grid w-full flex-1 items-center gap-8 px-5 py-8 sm:px-7 lg:grid-cols-[minmax(0,1fr)_410px] lg:px-8 lg:py-10">
+          <div className="relative grid w-full flex-1 items-center gap-8 px-5 py-6 sm:px-7 lg:grid-cols-[minmax(0,1fr)_410px] lg:px-8 lg:py-8">
             <div className="min-w-0">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#307c4c]/15 bg-white px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-[#1d4f31] shadow-sm">
                 <Icon name="catalog" className="h-3.5 w-3.5" />
                 NESR Catalog Repo
               </div>
-              <h1 className="max-w-[760px] text-[36px] font-bold leading-[1.08] tracking-tight text-slate-950 sm:text-[44px]">
+              <h1 className="max-w-[760px] text-[30px] font-bold leading-[1.08] tracking-tight text-slate-950 sm:text-[38px]">
                 Find approved supplier rates across countries{' '}
                 <span className="bg-gradient-to-r from-[#307c4c] to-[#6aaf8e] bg-clip-text text-transparent">in seconds.</span>
               </h1>
-              <p className="mt-4 max-w-[650px] text-[15px] leading-relaxed text-slate-600">
-                Search active catalog entries, jump into country views, or load a spreadsheet-backed catalog migration for {data.scope}.
+              <p className="mt-3 max-w-[650px] text-[15px] leading-relaxed text-slate-600">
+                Search the services catalog &amp; PIR / inventory, jump into country views, or load a spreadsheet-backed catalog migration for {data.scope}.
               </p>
 
-              <div ref={searchBox} className="relative z-20 mt-7 max-w-[680px]">
+              <div ref={searchBox} className="relative z-20 mt-6 max-w-[680px]">
                 <form onSubmit={submitSearch} className="flex items-center gap-3 rounded-2xl bg-white/90 px-4 py-3 shadow-lg shadow-[#307c4c]/10 ring-1 ring-slate-200 backdrop-blur-sm transition-shadow duration-300 focus-within:shadow-xl focus-within:shadow-[#307c4c]/15 focus-within:ring-2 focus-within:ring-[#307c4c]/25">
                   <Icon name="search" className="h-5 w-5 shrink-0 text-slate-400" />
                   <input
