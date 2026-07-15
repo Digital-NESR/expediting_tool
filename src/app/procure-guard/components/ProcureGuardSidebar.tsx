@@ -8,15 +8,15 @@ import type { ProcureGuardAccessView } from '@/types/procureGuard';
 import ProcureGuardLogo from './ProcureGuardLogo';
 
 const NAV = [
-  { href: '/procure-guard', label: 'Dashboard', icon: 'grid', access: ['requester', 'reviewer', 'admin'] },
+  { href: '/procure-guard', label: 'Dashboard', icon: 'grid', access: ['requester', 'viewer', 'reviewer', 'admin'] },
   { href: '/procure-guard/my-work', label: 'My Work', icon: 'check', access: ['reviewer', 'admin'] },
-  { href: '/procure-guard/adhoc-payments', label: 'Adhoc POs', icon: 'bolt', access: ['requester', 'reviewer', 'admin'] },
+  { href: '/procure-guard/adhoc-payments', label: 'Adhoc POs', icon: 'bolt', access: ['requester', 'viewer', 'reviewer', 'admin'] },
   { href: '/procure-guard/adhoc-payments/new', label: 'New Adhoc PO', icon: 'plus', access: ['requester', 'reviewer', 'admin'] },
-  { href: '/procure-guard/advance-payments', label: 'Advance Requests', icon: 'wallet', access: ['requester', 'reviewer', 'admin'] },
+  { href: '/procure-guard/advance-payments', label: 'Advance Requests', icon: 'wallet', access: ['requester', 'viewer', 'reviewer', 'admin'] },
   { href: '/procure-guard/advance-payments/new', label: 'New Advance Request', icon: 'plus', access: ['requester', 'reviewer', 'admin'] },
-  { href: '/procure-guard/analytics', label: 'Analytics', icon: 'chart', access: ['analyst', 'reviewer', 'admin'] },
+  { href: '/procure-guard/analytics', label: 'Analytics', icon: 'chart', access: ['analyst', 'viewer', 'reviewer', 'admin'] },
   { href: '/procure-guard/delegate', label: 'Delegate', icon: 'delegate', access: ['reviewer', 'admin'] },
-  { href: '/procure-guard/help', label: 'Help & Training', icon: 'help', access: ['requester', 'reviewer', 'admin', 'analyst'] },
+  { href: '/procure-guard/help', label: 'Help & Training', icon: 'help', access: ['requester', 'viewer', 'reviewer', 'admin', 'analyst'] },
   { href: '/admin?tool=procureguard-admin', label: 'Admin Panel', icon: 'grid', access: ['admin'] },
   { href: '/admin?tool=procureguard-usage', label: 'Admin Analytics', icon: 'chart', access: ['admin'] },
 ];

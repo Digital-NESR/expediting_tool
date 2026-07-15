@@ -103,9 +103,11 @@ export default function AdhocPaymentsStatusClient({ data }: { data: ProcureGuard
         <ProcureGuardHomeButton />
         <ProcureGuardLogo size="sm" />
         <span className="font-semibold text-slate-900 text-sm">Adhoc PO Status</span>
-        <button onClick={() => router.push('/procure-guard/adhoc-payments/new')} className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: '#307c4c' }}>
-          New Request
-        </button>
+        {actor.permissions.canCreateRequests && (
+          <button onClick={() => router.push('/procure-guard/adhoc-payments/new')} className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: '#307c4c' }}>
+            New Request
+          </button>
+        )}
       </header>
 
       <main className="max-w-[1220px] mx-auto px-4 sm:px-6 py-4 space-y-4">

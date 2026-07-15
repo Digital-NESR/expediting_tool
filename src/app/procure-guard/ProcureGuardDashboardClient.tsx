@@ -191,14 +191,16 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => router.push('/procure-guard/adhoc-payments/new')} className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-[#1d4f31] shadow-sm transition hover:bg-white/90">
-                New Adhoc PO
-              </button>
-              <button onClick={() => router.push('/procure-guard/advance-payments/new')} className="rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white/20">
-                New Advance Request
-              </button>
-            </div>
+            {data.actor.permissions.canCreateRequests && (
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => router.push('/procure-guard/adhoc-payments/new')} className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-[#1d4f31] shadow-sm transition hover:bg-white/90">
+                  New Adhoc PO
+                </button>
+                <button onClick={() => router.push('/procure-guard/advance-payments/new')} className="rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white/20">
+                  New Advance Request
+                </button>
+              </div>
+            )}
           </div>
         </section>
 

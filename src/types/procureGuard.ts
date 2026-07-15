@@ -16,6 +16,7 @@ export type ProcureGuardPermissionRole =
   | 'Requester'
   | 'Analyst'
   | 'Read Only'
+  | 'Viewer'
   | 'SCM Manager'
   | 'Country Controller'
   | 'Supply Chain Director'
@@ -23,7 +24,7 @@ export type ProcureGuardPermissionRole =
   | 'Corporate Controller'
   | 'CFO'
   | 'Admin';
-export type ProcureGuardAccessView = 'requester' | 'analyst' | 'reviewer' | 'admin';
+export type ProcureGuardAccessView = 'requester' | 'analyst' | 'viewer' | 'reviewer' | 'admin';
 
 export interface ProcureGuardPermissionProfile {
   role: ProcureGuardPermissionRole;

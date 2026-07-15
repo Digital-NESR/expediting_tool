@@ -9,6 +9,7 @@ export const PERMISSION_ROLE_OPTIONS: ProcureGuardPermissionRole[] = [
   'Requester',
   'Analyst',
   'Read Only',
+  'Viewer',
   'SCM Manager',
   'Country Controller',
   'Supply Chain Director',
@@ -62,6 +63,15 @@ export const PERMISSION_PROFILES: Record<ProcureGuardPermissionRole, ProcureGuar
     label: 'Read Only',
     description: 'Legacy analyst access. Can view ProcureGuard payment analytics only.',
     accessView: 'analyst',
+    canCreateRequests: false,
+  },
+  Viewer: {
+    ...BASE_PERMISSION_PROFILE,
+    role: 'Viewer',
+    label: 'Viewer',
+    description: 'Can view all requests and analytics, but cannot create requests, approve, or access admin.',
+    accessView: 'viewer',
+    canViewAll: true,
     canCreateRequests: false,
   },
   'SCM Manager': {
@@ -180,11 +190,11 @@ export function canUseProcureGuardAdmin(accessView: ProcureGuardAccessView): boo
 }
 
 export function canUseProcureGuardAnalytics(accessView: ProcureGuardAccessView): boolean {
-  return accessView === 'analyst' || accessView === 'reviewer' || accessView === 'admin';
+  return accessView === 'analyst' || accessView === 'viewer' || accessView === 'reviewer' || accessView === 'admin';
 }
 
 export function canUseProcureGuardOperationalPages(accessView: ProcureGuardAccessView): boolean {
-  return accessView === 'requester' || accessView === 'reviewer' || accessView === 'admin';
+  return accessView === 'requester' || accessView === 'viewer' || accessView === 'reviewer' || accessView === 'admin';
 }
 
 export function canUseProcureGuardReviewerQueue(accessView: ProcureGuardAccessView): boolean {

@@ -3546,6 +3546,7 @@ const PROCURE_GUARD_REVIEW_ROLE_RANK: Record<ProcureGuardPermissionRole, number>
   Requester: 0,
   Analyst: 1,
   'Read Only': 1,
+  Viewer: 1,
   'SCM Manager': 2,
   'Country Controller': 3,
   'Supply Chain Director': 4,

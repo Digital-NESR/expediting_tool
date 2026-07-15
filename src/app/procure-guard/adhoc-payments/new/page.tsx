@@ -14,6 +14,9 @@ export default async function NewAdhocPaymentPage() {
   if (!actor || !canUseProcureGuardOperationalPages(actor.permissions.accessView)) {
     redirect('/procure-guard/analytics');
   }
+  if (!actor.permissions.canCreateRequests) {
+    redirect('/procure-guard/adhoc-payments');
+  }
 
   return (
     <AdhocPaymentFormClient

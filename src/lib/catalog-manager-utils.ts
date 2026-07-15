@@ -42,7 +42,9 @@ export interface SeedCurrency {
   decimals: number;
   usd_rate: number; // 1 unit of ccy = usd_rate USD
 }
-// Currencies mirror ProcureGuard's CURRENCY_OPTIONS + CURRENCY_TO_USD rates.
+// Currencies span the ProcureGuard set + every operating country's local currency + majors.
+// usd_rate = approximate value of 1 unit in USD (used only to estimate the approval tier;
+// editable later — exact FX isn't required for the threshold check).
 export const SEED_CURRENCIES: SeedCurrency[] = [
   { code: 'USD', decimals: 2, usd_rate: 1.0 },
   { code: 'AED', decimals: 2, usd_rate: 1 / 3.6725 },
@@ -51,6 +53,16 @@ export const SEED_CURRENCIES: SeedCurrency[] = [
   { code: 'KWD', decimals: 3, usd_rate: 3.25 },
   { code: 'OMR', decimals: 3, usd_rate: 2.6 },
   { code: 'BHD', decimals: 3, usd_rate: 2.65 },
+  { code: 'EGP', decimals: 2, usd_rate: 0.020 },
+  { code: 'DZD', decimals: 2, usd_rate: 0.0074 },
+  { code: 'IQD', decimals: 3, usd_rate: 0.00076 },
+  { code: 'JOD', decimals: 3, usd_rate: 1.41 },
+  { code: 'LYD', decimals: 3, usd_rate: 0.205 },
+  { code: 'YER', decimals: 2, usd_rate: 0.0040 },
+  { code: 'INR', decimals: 2, usd_rate: 0.012 },
+  { code: 'IDR', decimals: 0, usd_rate: 0.000062 },
+  { code: 'MYR', decimals: 2, usd_rate: 0.22 },
+  { code: 'XAF', decimals: 0, usd_rate: 0.0017 },
   { code: 'EUR', decimals: 2, usd_rate: 1.08 },
   { code: 'GBP', decimals: 2, usd_rate: 1.27 },
 ];

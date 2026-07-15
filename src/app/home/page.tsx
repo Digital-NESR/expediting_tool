@@ -760,8 +760,11 @@ function CatalogManagerCard({
 
 /* ─── Coming-Soon Card ───────────────────────────────────────── */
 
-function ProcureGuardAccessBadge({ accessType }: { accessType: 'requester' | 'approver' | 'admin' }) {
-  const label = accessType === 'admin' ? 'Admin Access' : accessType === 'approver' ? 'Approver Access' : 'Requester Access';
+function ProcureGuardAccessBadge({ accessType }: { accessType: 'requester' | 'approver' | 'viewer' | 'admin' }) {
+  const label = accessType === 'admin' ? 'Admin Access'
+    : accessType === 'approver' ? 'Approver Access'
+    : accessType === 'viewer' ? 'Viewer Access'
+    : 'Requester Access';
   return (
     <span
       className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-[11px] font-semibold"
@@ -781,7 +784,7 @@ function ProcureGuardCard({
   onClick,
 }: {
   canOpen: boolean;
-  accessType: 'requester' | 'approver' | 'admin';
+  accessType: 'requester' | 'approver' | 'viewer' | 'admin';
   onClick: () => void;
 }) {
   return (

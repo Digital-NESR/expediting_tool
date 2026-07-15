@@ -181,9 +181,10 @@ export const authOptions: NextAuthOptions = {
           // row) > Approver (any role with review authority) > Requester (default).
           const pgRole = (pgPermResult.rows[0]?.role ?? '').trim() as ProcureGuardPermissionRole;
           const pgProfile = getPermissionProfile(pgRole);
-          const procureGuardAccessType: 'requester' | 'approver' | 'admin' =
-            token.isAdmin || pgRole === 'Admin' ? 'admin'
-            : pgProfile.canViewAll ? 'approver'
+          const procureGuardAccessType: 'requester' | 'approver' | 'viewer' | 'admin' =
+            token.isAdmin || pgProfile.accessView === 'admin' ? 'admin'
+            : pgProfile.accessView === 'reviewer' ? 'approver'
+            : pgProfile.accessView === 'viewer' ? 'viewer'
             : 'requester';
 
           // SourceGuide access: admin (env) > champion (sg_champions) > user (access_requests)
@@ -245,7 +246,7 @@ export const authOptions: NextAuthOptions = {
         session.user.toolAccess = token.toolAccess as {
           po_expediting?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
           tite?:          { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
-          procure_guard?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[]; accessType?: 'requester' | 'approver' | 'admin' };
+          procure_guard?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[]; accessType?: 'requester' | 'approver' | 'viewer' | 'admin' };
           sourceguide?:   { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
         } | undefined;
         session.user.titeViewOnly = token.titeViewOnly as boolean | undefined;
