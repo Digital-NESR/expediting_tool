@@ -130,8 +130,15 @@ function WorkflowChain({
 
   // Notification recipients grouped by the approval stage they are contacted at, so each chain
   // step can show exactly who gets notified there (merges the old separate "contacted" panel).
+  // The first approver (e.g. Country Controller) is seeded against the legacy 'Under Review'
+  // status, but the chain now collapses that into the single first step keyed to 'Submitted'.
+  // Fold those contacts onto the first step so they don't surface as a stray "Under Review"
+  // group — except for genuine legacy records still sitting in 'Under Review', where that step
+  // is shown. Display only: this does not affect notification routing or delegation.
+  const foldUnderReview = status !== 'Under Review';
   const contactsByStatus = contacts.reduce<Record<string, ProcureGuardNotificationContact[]>>((acc, contact) => {
-    const key = contact.approval_status || 'Other notifications';
+    const resolvedStatus = foldUnderReview && contact.approval_status === 'Under Review' ? 'Submitted' : contact.approval_status;
+    const key = resolvedStatus || 'Other notifications';
     (acc[key] ??= []).push(contact);
     return acc;
   }, {});
