@@ -249,7 +249,7 @@ export default function ProcureGuardDashboardClient({ data }: { data: ProcureGua
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#307c4c]/40" />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900">{activityActionLabel(item.action)}</p>
-                    <p className="text-xs text-slate-500 mt-1">{item.reference_number} · {item.actor_name || item.actor_email || 'System'}</p>
+                    <p className="text-xs text-slate-500 mt-1">{item.reference_number} · {item.actor_name || item.actor_email || 'System'}{item.on_behalf_of_name ? ` (on behalf of ${item.on_behalf_of_name})` : ''}</p>
                     <p className="text-[0.6875rem] text-slate-400 mt-1">{timeAgo(item.created_at)}</p>
                   </div>
                 </div>

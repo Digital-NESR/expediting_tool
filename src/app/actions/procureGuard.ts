@@ -244,6 +244,10 @@ async function ensureProcureGuardPaymentRequestColumns(): Promise<void> {
       ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
       ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB`),
+    // Delegation attribution: when a delegate acts using someone else's authority, record who.
+    execSchema(`ALTER TABLE procure_guard_activity_log
+      ADD COLUMN IF NOT EXISTS on_behalf_of_name TEXT,
+      ADD COLUMN IF NOT EXISTS on_behalf_of_email TEXT`),
   ]);
   // Indexes after the columns exist (they depend on requester_notification_emails); both in parallel.
   await Promise.all([
@@ -1550,11 +1554,13 @@ async function writeActivity(input: {
   action: string;
   actor: ProcureGuardActor;
   notes?: string | null;
+  onBehalfOfName?: string | null;
+  onBehalfOfEmail?: string | null;
 }) {
   await exec(
     `INSERT INTO procure_guard_activity_log
-      (request_type, request_id, reference_number, action, actor_name, actor_email, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      (request_type, request_id, reference_number, action, actor_name, actor_email, notes, on_behalf_of_name, on_behalf_of_email)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.requestType,
       input.requestId,
@@ -1563,8 +1569,46 @@ async function writeActivity(input: {
       input.actor.name,
       input.actor.email,
       input.notes ?? null,
+      input.onBehalfOfName ?? null,
+      input.onBehalfOfEmail ?? null,
     ],
   );
+}
+
+// When a delegate acts on a request, work out whose authority they actually used for this
+// transition. Returns the delegator (source 'delegation') only when the actor's own role could
+// NOT have performed the move — i.e. the action was possible only because of a delegation. Returns
+// null for actions taken under the actor's own authority (no "on behalf of" needed).
+function resolveDelegationAttribution(
+  actor: ProcureGuardActor,
+  requestType: ProcureGuardRequestType,
+  currentStatus: ProcureGuardStatus,
+  targetStatus: ProcureGuardStatus,
+  request: { country?: string | null; segment?: string | null; amount?: number | string | null; currency?: string | null; spend_value_usd?: number | string | null },
+): { name: string; email: string } | null {
+  const requiredPermission = getRequiredPermissionForTransition(
+    requestType,
+    currentStatus,
+    targetStatus,
+    request.spend_value_usd ?? request.amount,
+    request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD',
+  );
+  if (!requiredPermission) return null;
+
+  const grantCoversScope = (grant: ProcureGuardReviewGrant): boolean => {
+    if (grant.isAdmin) return true;
+    const countryOk = !grant.country || normalizeProcureGuardCountry(grant.country) === normalizeProcureGuardCountry(request.country);
+    const segmentOk = !grant.segment || normaliseScopeValue(grant.segment) === normaliseScopeValue(request.segment);
+    return countryOk && segmentOk;
+  };
+  const grantHasPermission = (grant: ProcureGuardReviewGrant): boolean =>
+    Boolean(getPermissionProfile(grant.role)[requiredPermission]) && grantCoversScope(grant);
+
+  const grants = actorReviewGrants(actor);
+  // Own authority takes precedence — if the actor could do this themselves, it's not "on behalf of".
+  if (grants.some(grant => grant.source === 'self' && grantHasPermission(grant))) return null;
+  const delegated = grants.find(grant => grant.source === 'delegation' && grantHasPermission(grant));
+  return delegated ? { name: delegated.fromName, email: delegated.fromEmail } : null;
 }
 
 export async function getAdhocPayments(): Promise<AdhocPaymentRequest[] | null> {
@@ -3167,6 +3211,10 @@ async function updateStatusCommon(input: {
   const ownsRequest = String(row.requested_by_email).toLowerCase() === actor.email.toLowerCase();
   const userCancellingOwnRequest = ownsRequest && input.status === 'Cancelled';
 
+  // When the actor acts via a delegation (not their own authority), capture the delegator so the
+  // activity trail can show "<delegate> on behalf of <delegator>".
+  let onBehalfOf: { name: string; email: string } | null = null;
+
   if (userCancellingOwnRequest && actor.permissions.canCreateRequests) {
     if (row.status !== 'Submitted') {
       return { success: false, error: 'This request can only be cancelled before review starts.' };
@@ -3202,6 +3250,8 @@ async function updateStatusCommon(input: {
         error: getScopeRestrictionMessage(actor, row),
       };
     }
+
+    onBehalfOf = resolveDelegationAttribution(actor, input.requestType, row.status, input.status, row);
   }
 
   const comment = typeof input.notes === 'string' ? input.notes.trim() : '';
@@ -3244,6 +3294,8 @@ async function updateStatusCommon(input: {
     action: `Status updated to ${formatProcureGuardStatusLabel(input.status)}`,
     actor,
     notes: comment || null,
+    onBehalfOfName: onBehalfOf?.name ?? null,
+    onBehalfOfEmail: onBehalfOf?.email ?? null,
   });
 
   await notifyProcureGuardNextApprover({
@@ -3409,6 +3461,105 @@ export async function deleteProcureGuardDocument(documentId: number): Promise<Ac
   } catch (err) {
     console.error('[deleteProcureGuardDocument]', err);
     return { success: false, error: 'Delete failed. Please try again.' };
+  }
+}
+
+// ── Per-request viewers ───────────────────────────────────────────────────────
+// Grant/revoke view access to a single request at any time. Backed by the request's
+// requester_notification_emails list (the same list that already confers requester-side visibility
+// and status updates). Read-only Viewer-role users cannot manage viewers.
+
+async function loadRequestForViewerManagement(actor: ProcureGuardActor, requestType: ProcureGuardRequestType, requestId: number) {
+  const table = requestType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
+  await ensureProcureGuardPaymentRequestColumns();
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT id, reference_number, requested_by_email, requester_notification_emails, country, segment FROM ${table} WHERE id = ? LIMIT 1`,
+    [requestId],
+  );
+  if (!rows[0]) return { error: 'Request not found.' as const };
+  const request = serialise<Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'id' | 'reference_number' | 'requested_by_email' | 'requester_notification_emails' | 'country' | 'segment'>>(rows[0]);
+
+  const isViewerRole = actor.permissions.accessView === 'viewer';
+  const canManage = !isViewerRole && (
+    actor.permissions.canViewAll
+      ? actorCanAccessRequestScope(actor, request)
+      : actorCanAccessRequesterSideRequest(actor, request)
+  );
+  if (!canManage) return { error: 'You do not have access to manage viewers on this request.' as const };
+  return { table, request };
+}
+
+export async function addProcureGuardRequestViewer(input: {
+  requestType: ProcureGuardRequestType;
+  requestId: number;
+  email: string;
+  name?: string | null;
+}): Promise<ActionResult> {
+  try {
+    const actor = await getActor();
+    const loaded = await loadRequestForViewerManagement(actor, input.requestType, input.requestId);
+    if ('error' in loaded) return { success: false, error: loaded.error };
+    const { table, request } = loaded;
+
+    const email = requireText(input.email, 'Viewer email').toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { success: false, error: 'Enter a valid email address.' };
+    if (email === String(request.requested_by_email).toLowerCase()) return { success: false, error: 'The requester can already view this request.' };
+
+    const existing = requesterNotificationEmailsOf(request);
+    if (existing.includes(email)) return { success: false, error: 'That person can already view this request.' };
+    const updated = [...existing, email];
+
+    await exec(`UPDATE ${table} SET requester_notification_emails = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [updated, input.requestId]);
+    await writeActivity({
+      requestType: input.requestType,
+      requestId: input.requestId,
+      referenceNumber: request.reference_number,
+      action: 'Viewer added',
+      actor,
+      notes: input.name?.trim() ? `${input.name.trim()} <${email}>` : email,
+    });
+
+    revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
+    revalidatePath(`/procure-guard/${input.requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${input.requestId}`);
+    return { success: true };
+  } catch (err) {
+    console.error('[addProcureGuardRequestViewer]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to add viewer.' };
+  }
+}
+
+export async function removeProcureGuardRequestViewer(input: {
+  requestType: ProcureGuardRequestType;
+  requestId: number;
+  email: string;
+}): Promise<ActionResult> {
+  try {
+    const actor = await getActor();
+    const loaded = await loadRequestForViewerManagement(actor, input.requestType, input.requestId);
+    if ('error' in loaded) return { success: false, error: loaded.error };
+    const { table, request } = loaded;
+
+    const email = (input.email || '').trim().toLowerCase();
+    const existing = requesterNotificationEmailsOf(request);
+    if (!existing.includes(email)) return { success: false, error: 'That viewer is not on this request.' };
+    const updated = existing.filter(e => e !== email);
+
+    await exec(`UPDATE ${table} SET requester_notification_emails = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [updated, input.requestId]);
+    await writeActivity({
+      requestType: input.requestType,
+      requestId: input.requestId,
+      referenceNumber: request.reference_number,
+      action: 'Viewer removed',
+      actor,
+      notes: email,
+    });
+
+    revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
+    revalidatePath(`/procure-guard/${input.requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${input.requestId}`);
+    return { success: true };
+  } catch (err) {
+    console.error('[removeProcureGuardRequestViewer]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to remove viewer.' };
   }
 }
 

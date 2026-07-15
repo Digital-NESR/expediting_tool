@@ -23,6 +23,7 @@ import type {
 import ProcureGuardSidebar from './ProcureGuardSidebar';
 import ProcureGuardLogo from './ProcureGuardLogo';
 import ProcureGuardHomeButton from './ProcureGuardHomeButton';
+import ProcureGuardViewersManager from './ProcureGuardViewersManager';
 import { updateAdhocPaymentStatus, updateAdvancePaymentStatus } from '@/app/actions/procureGuard';
 
 type DetailValue = string | number | null | undefined;
@@ -309,7 +310,10 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           {activity.map(item => (
             <div key={item.id} className="py-3">
               <p className="text-sm font-bold text-slate-900">{activityActionLabel(item.action)}</p>
-              <p className="mt-1 text-xs text-slate-500">{item.actor_name || item.actor_email || 'System'}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {item.actor_name || item.actor_email || 'System'}
+                {item.on_behalf_of_name && <span className="text-slate-400"> · on behalf of {item.on_behalf_of_name}</span>}
+              </p>
               {item.notes && <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-600">{item.notes}</p>}
               <p className="mt-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-slate-400">{fmtDateTime(item.created_at)}</p>
             </div>
@@ -577,7 +581,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
       if (pdfSections.activity) {
         addTable('Activity Log', activity.length
-          ? activity.map(item => [fmtDateTime(item.created_at), `${activityActionLabel(item.action)}${item.actor_name || item.actor_email ? ` by ${item.actor_name || item.actor_email}` : ''}${item.notes ? ` | ${item.notes}` : ''}`])
+          ? activity.map(item => [fmtDateTime(item.created_at), `${activityActionLabel(item.action)}${item.actor_name || item.actor_email ? ` by ${item.actor_name || item.actor_email}` : ''}${item.on_behalf_of_name ? ` on behalf of ${item.on_behalf_of_name}` : ''}${item.notes ? ` | ${item.notes}` : ''}`])
           : [['Activity', 'No activity has been recorded yet.']]);
       }
 
@@ -855,6 +859,13 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
                 )}
               </div>
             </Section>
+
+            <ProcureGuardViewersManager
+              requestType={requestType}
+              requestId={request.id}
+              viewers={request.requester_notification_emails ?? []}
+              canManage={actor.permissions.accessView !== 'viewer'}
+            />
           </div>
 
           <div className="space-y-4">

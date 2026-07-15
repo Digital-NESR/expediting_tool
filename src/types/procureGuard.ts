@@ -119,6 +119,9 @@ export interface ProcureGuardActivityRow {
   actor_name: string | null;
   actor_email: string | null;
   notes: string | null;
+  // Set when the actor acted using someone else's delegated authority.
+  on_behalf_of_name?: string | null;
+  on_behalf_of_email?: string | null;
   created_at: string;
 }
 
