@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/procure-guard/reminders",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}

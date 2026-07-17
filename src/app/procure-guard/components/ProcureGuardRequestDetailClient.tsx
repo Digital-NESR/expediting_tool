@@ -882,7 +882,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
               requestType={requestType}
               requestId={request.id}
               viewers={request.requester_notification_emails ?? []}
-              canManage={actor.permissions.accessView !== 'viewer'}
+              canManage={ownsRequest || actor.permissions.accessView !== 'viewer'}
             />
           </div>
 

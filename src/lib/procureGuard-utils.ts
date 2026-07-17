@@ -69,10 +69,10 @@ export const PERMISSION_PROFILES: Record<ProcureGuardPermissionRole, ProcureGuar
     ...BASE_PERMISSION_PROFILE,
     role: 'Viewer',
     label: 'Viewer',
-    description: 'Can view all requests and analytics, but cannot create requests, approve, or access admin.',
+    description: 'Can view all requests and analytics and create their own requests, but cannot approve or access admin.',
     accessView: 'viewer',
     canViewAll: true,
-    canCreateRequests: false,
+    canCreateRequests: true,
   },
   'SCM Manager': {
     ...BASE_PERMISSION_PROFILE,
