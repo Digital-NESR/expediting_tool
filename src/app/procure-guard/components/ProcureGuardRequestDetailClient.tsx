@@ -17,6 +17,7 @@ import {
 import type {
   AdhocPaymentRequest,
   AdvancePaymentRequest,
+  ProcureGuardDelegation,
   ProcureGuardNotificationContact,
   ProcureGuardRequestDetailData,
 } from '@/types/procureGuard';
@@ -113,13 +114,22 @@ function WorkflowChain({
   amount,
   currency,
   contacts,
+  delegations,
 }: {
   requestType: 'adhoc' | 'advance';
   status: AdhocPaymentRequest['status'];
   amount: number;
   currency: string;
   contacts: ProcureGuardNotificationContact[];
+  delegations: ProcureGuardDelegation[];
 }) {
+  // Active delegates for each approver email, so the chain can show who may act on their behalf.
+  const delegatesByDelegator = delegations.reduce<Record<string, ProcureGuardDelegation[]>>((acc, d) => {
+    const key = d.delegator_email.trim().toLowerCase();
+    (acc[key] ??= []).push(d);
+    return acc;
+  }, {});
+  const delegatesFor = (email: string | null | undefined) => delegatesByDelegator[(email ?? '').trim().toLowerCase()] ?? [];
   // 'Under Review' is no longer part of the active flow (the first approver acts in one step),
   // so it's hidden from the chain except for legacy records that are still sitting in it.
   const steps = getWorkflowSteps(requestType, amount, currency)
@@ -169,9 +179,17 @@ function WorkflowChain({
                   {stepContacts.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {stepContacts.map(contact => (
-                        <span key={`${contact.email}-${contact.id}`} title={contact.email} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[0.6875rem] font-semibold text-slate-700">
-                          {contact.display_name || contact.email}
-                          <span className="text-slate-400">· {contact.notification_role}</span>
+                        <span key={`${contact.email}-${contact.id}`} className="contents">
+                          <span title={contact.email} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[0.6875rem] font-semibold text-slate-700">
+                            {contact.display_name || contact.email}
+                            <span className="text-slate-400">· {contact.notification_role}</span>
+                          </span>
+                          {delegatesFor(contact.email).map(d => (
+                            <span key={`del-${contact.id}-${d.id}`} title={`${d.delegate_email} on behalf of ${contact.display_name || contact.email}`} className="inline-flex items-center gap-1 rounded-md border border-[#307c4c]/30 bg-[#307c4c]/5 px-2 py-1 text-[0.6875rem] font-semibold text-[#307c4c]">
+                              {d.delegate_name || d.delegate_email}
+                              <span className="font-normal text-[#307c4c]/70">· on behalf of {contact.display_name || contact.email}</span>
+                            </span>
+                          ))}
                         </span>
                       ))}
                     </div>
@@ -243,7 +261,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
   const [isPending, startTransition] = useTransition();
   const decisionRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
-  const { request, request_type: requestType, activity, documents, notification_contacts: notificationContacts, actions, actor } = data;
+  const { request, request_type: requestType, activity, documents, notification_contacts: notificationContacts, active_delegations: activeDelegations, actions, actor } = data;
   const isAdvance = isAdvanceRequest(request);
   const listHref = isAdvance ? '/procure-guard/advance-payments' : '/procure-guard/adhoc-payments';
   const requestLabel = isAdvance ? 'Advance Payment' : 'Adhoc PO';
@@ -870,7 +888,7 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
           <div className="space-y-4">
             {reviewDecisionSection}
-            <WorkflowChain requestType={requestType} status={request.status} amount={workflowAmount} currency={workflowCurrency} contacts={notificationContacts} />
+            <WorkflowChain requestType={requestType} status={request.status} amount={workflowAmount} currency={workflowCurrency} contacts={notificationContacts} delegations={activeDelegations} />
             {activitySection}
           </div>
         </div>

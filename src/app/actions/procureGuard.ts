@@ -2060,7 +2060,7 @@ export async function getProcureGuardRequestDetail(
       return null;
     }
 
-    const [activityRows, documentRows, notificationContacts] = await Promise.all([
+    const [activityRows, documentRows, notificationContacts, delegationRows] = await Promise.all([
       sql<QueryResultRow[]>(
         `SELECT * FROM procure_guard_activity_log
          WHERE request_type = ? AND request_id = ?
@@ -2081,6 +2081,16 @@ export async function getProcureGuardRequestDetail(
         amount: request.amount,
         currency: request.currency,
       }),
+      ensureProcureGuardDelegationTable().then(() =>
+        sql<QueryResultRow[]>(
+          `SELECT * FROM procure_guard_delegations
+           WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+           ORDER BY created_at DESC`,
+        ).catch(err => {
+          console.error('[getProcureGuardRequestDetail delegations]', err);
+          return [] as QueryResultRow[];
+        }),
+      ),
     ]);
 
     return {
@@ -2090,6 +2100,7 @@ export async function getProcureGuardRequestDetail(
       activity: serialise<ProcureGuardActivityRow[]>(activityRows),
       documents: serialise<ProcureGuardDocument[]>(documentRows),
       notification_contacts: notificationContacts,
+      active_delegations: serialise<ProcureGuardDelegation[]>(delegationRows),
       actions: getScopedProcureGuardAvailableActions(actor, requestType, request),
     };
   } catch (err) {

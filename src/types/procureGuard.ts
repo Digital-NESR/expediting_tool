@@ -395,6 +395,8 @@ export interface ProcureGuardRequestDetailData {
   activity: ProcureGuardActivityRow[];
   documents: ProcureGuardDocument[];
   notification_contacts: ProcureGuardNotificationContact[];
+  // Currently-active delegations, so the chain can show who may act on behalf of each approver.
+  active_delegations: ProcureGuardDelegation[];
   actions: ProcureGuardRequestActions;
 }
 
