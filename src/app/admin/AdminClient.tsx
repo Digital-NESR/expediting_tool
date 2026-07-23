@@ -27,6 +27,7 @@ import ProcureGuardAdminPanelClient from '../procure-guard/admin/AdminPanelClien
 import ProcureGuardAnalyticsClient from '../procure-guard/analytics/AnalyticsClient';
 import ProcureGuardAdminAnalyticsClient from '../procure-guard/admin-analytics/AdminAnalyticsClient';
 import { SourceGuideAccessApprovalsClient, SourceGuideGuidesClient, SourceGuideAnalyticsClient, SourceGuideChampionsClient } from './SourceGuideAdmin';
+import { CatalogAccessApprovalsClient, CatalogAdminPanelClient, CatalogSyncHealthClient } from './CatalogRepoAdmin';
 import type { Shipment } from '@/types/tite';
 import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
 import type {
@@ -55,6 +56,7 @@ interface AdminClientProps {
   procureGuardAnalyticsData: ProcureGuardAnalyticsData | null;
   procureGuardAdminAnalyticsData: ProcureGuardAdminAnalyticsData | null;
   sourceGuidePendingCount?: number;
+  catalogPendingCount?: number;
   initialTool?: string;
 }
 
@@ -1347,6 +1349,7 @@ export default function AdminClient({
   procureGuardAnalyticsData,
   procureGuardAdminAnalyticsData,
   sourceGuidePendingCount = 0,
+  catalogPendingCount = 0,
   initialTool = 'po-expediting',
 }: AdminClientProps) {
   const [selectedTool, setSelectedTool]       = useState<string>(initialTool);
@@ -1357,6 +1360,7 @@ export default function AdminClient({
   const [liveTitePendingCount, setLiveTitePendingCount] = useState(titePendingCount);
   const [liveProcureGuardPendingCount, setLiveProcureGuardPendingCount] = useState(procureGuardPendingCount);
   const [liveSourceGuidePendingCount, setLiveSourceGuidePendingCount] = useState(sourceGuidePendingCount);
+  const [liveCatalogPendingCount, setLiveCatalogPendingCount] = useState(catalogPendingCount);
 
   // Modal state
   const [buyerModal, setBuyerModal]             = useState<BuyerRow | null>(null);
@@ -1826,6 +1830,64 @@ export default function AdminClient({
 
           <div style={{ margin: '8px 0' }} />
 
+          {/* Catalog Repo group label */}
+          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+            Catalog Repo
+          </div>
+
+          <button
+            onClick={() => setSelectedTool('catalog-admin')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'catalog-admin' ? '3px solid #307c4c' : '3px solid transparent',
+              background: selectedTool === 'catalog-admin' ? '#eaf4ef' : 'transparent',
+              color: selectedTool === 'catalog-admin' ? '#1d4f31' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Admin Panel
+          </button>
+
+          <button
+            onClick={() => setSelectedTool('catalog-sync')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'catalog-sync' ? '3px solid #307c4c' : '3px solid transparent',
+              background: selectedTool === 'catalog-sync' ? '#eaf4ef' : 'transparent',
+              color: selectedTool === 'catalog-sync' ? '#1d4f31' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Sync Health
+          </button>
+
+          <button
+            onClick={() => setSelectedTool('catalog-access')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'catalog-access' ? '3px solid #307c4c' : '3px solid transparent',
+              background: selectedTool === 'catalog-access' ? '#eaf4ef' : 'transparent',
+              color: selectedTool === 'catalog-access' ? '#1d4f31' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            <span>Access Approvals</span>
+            {liveCatalogPendingCount > 0 && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999,
+                fontSize: 10, fontWeight: 700, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a',
+              }}>
+                {liveCatalogPendingCount}
+              </span>
+            )}
+          </button>
+
+          <div style={{ margin: '8px 0' }} />
+
           {/* Coming-soon tools */}
           <div
             style={{
@@ -1904,6 +1966,18 @@ export default function AdminClient({
             <SourceGuideAccessApprovalsClient
               userEmail={userEmail}
               onPendingCountChange={setLiveSourceGuidePendingCount}
+            />
+          )}
+          {selectedTool === 'catalog-admin' && (
+            <CatalogAdminPanelClient />
+          )}
+          {selectedTool === 'catalog-sync' && (
+            <CatalogSyncHealthClient />
+          )}
+          {selectedTool === 'catalog-access' && (
+            <CatalogAccessApprovalsClient
+              userEmail={userEmail}
+              onPendingCountChange={setLiveCatalogPendingCount}
             />
           )}
           {selectedTool === 'po-expediting' && (

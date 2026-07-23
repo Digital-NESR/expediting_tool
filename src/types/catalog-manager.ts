@@ -218,6 +218,44 @@ export interface PirEntry {
   material_supplier_org: string | null;
 }
 
+/* ---------- access requests (self-service role-upgrade queue, reviewed from the platform /admin console) ---------- */
+export type CatalogAccessRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
+export interface CatalogAccessRequestRow {
+  user_email: string;
+  display_name: string | null;
+  job_title: string | null;
+  country_code: string | null;
+  status: CatalogAccessRequestStatus;
+  requested_role: CatalogRole;
+  approved_role: CatalogRole | null;
+  reason: string | null;
+  requested_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+}
+
+/* ---------- platform /admin summaries ---------- */
+export interface CatalogAdminSummary {
+  countriesActive: number;
+  countriesTotal: number;
+  currencies: number;
+  suppliers: number;
+  categoriesActive: number;
+  uoms: number;
+  thresholdRules: number;
+  usersTotal: number;
+  usersByRole: Record<CatalogRole, number>;
+  countryApprovers: number;
+}
+export interface PirSyncHealth {
+  total: number;
+  lastSyncedAt: string | null;
+  hoursSinceSync: number | null;
+  withDescription: number;
+  descriptionCoveragePct: number;
+  isStale: boolean;
+}
+
 /* ---------- audit ---------- */
 export interface AuditEvent {
   id: number;

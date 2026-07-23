@@ -30,6 +30,9 @@ import type {
   ApprovalThresholdRule,
   AuditEvent,
   CatalogActor,
+  CatalogAccessRequestRow,
+  CatalogAccessRequestStatus,
+  CatalogAdminSummary,
   CatalogDelegationGrant,
   CatalogAnalyticsData,
   CatalogEntry,
@@ -38,6 +41,7 @@ import type {
   CatalogStatus,
   CategoryBar,
   PirEntry,
+  PirSyncHealth,
   RateMover,
   SpendByCategory,
   SpendByCountry,
@@ -240,6 +244,22 @@ async function initCatalogManagerSchema(): Promise<void> {
   // partial unique: one row per (user, country, category) — NULL category treated as "all".
   await execSchema(`CREATE UNIQUE INDEX IF NOT EXISTS country_approver_uniq
     ON country_approver (user_id, country_code, COALESCE(spend_category_id, 0))`);
+
+  // Self-service role-upgrade requests, reviewed from the platform /admin console (mirrors the
+  // procure_guard_access_requests pattern: one row per user, upserted on re-request).
+  await execSchema(`CREATE TABLE IF NOT EXISTS catalog_access_requests (
+    user_email TEXT PRIMARY KEY,
+    display_name TEXT,
+    job_title TEXT,
+    country_code VARCHAR(2),
+    status TEXT NOT NULL DEFAULT 'Pending',
+    requested_role TEXT NOT NULL,
+    approved_role TEXT,
+    reason TEXT,
+    requested_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at TIMESTAMPTZ,
+    reviewed_by TEXT
+  )`);
 
   // Logistics fields (added later): Incoterms 2020 code + supplier lead time in days.
   await execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms TEXT`);
@@ -1901,6 +1921,215 @@ export async function setUserRole(userId: number, role: CatalogRole): Promise<vo
   const u = await sql<{ full_name: string }[]>(`SELECT full_name FROM app_user WHERE id = ?`, [userId]);
   await exec(`UPDATE app_user SET role = ? WHERE id = ?`, [role, userId]);
   await writeAudit('Master data', 'Users & roles', actor.name, `Changed ${u[0]?.full_name ?? 'user'} role → ${role}`);
+}
+
+/* ============================================================================
+   ACCESS REQUESTS — self-service role-upgrade queue, reviewed from the
+   platform /admin console (mirrors the ProcureGuard/TI-TE/SourceGuide pattern).
+   New users always land as Viewer automatically (see getCatalogActor); this
+   queue is only for requesting an UPGRADE beyond that default.
+============================================================================ */
+
+function mapAccessRequest(row: QueryResultRow): CatalogAccessRequestRow {
+  return {
+    user_email: String(row.user_email),
+    display_name: row.display_name ?? null,
+    job_title: row.job_title ?? null,
+    country_code: row.country_code ?? null,
+    status: row.status as CatalogAccessRequestStatus,
+    requested_role: row.requested_role as CatalogRole,
+    approved_role: (row.approved_role as CatalogRole) ?? null,
+    reason: row.reason ?? null,
+    requested_at: row.requested_at ? String(row.requested_at) : '',
+    reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
+    reviewed_by: row.reviewed_by ?? null,
+  };
+}
+
+/** The current user's own access request, if any — lets the request-access page show status. */
+export async function getMyCatalogAccessRequest(): Promise<CatalogAccessRequestRow | null> {
+  await ensureCatalogManagerSchema();
+  const sessionUser = await getProcureGuardUser();
+  const email = (sessionUser?.email ?? '').toLowerCase();
+  if (!email) return null;
+  const rows = await sql<QueryResultRow[]>(`SELECT * FROM catalog_access_requests WHERE user_email = ?`, [email]);
+  return rows[0] ? mapAccessRequest(rows[0]) : null;
+}
+
+/**
+ * Submit (or re-submit) a request to upgrade beyond the default Viewer role.
+ * Self-service is capped at Contributor/Approver — Admin is granted manually
+ * by a platform admin via "Users & roles", never through this queue.
+ */
+export async function submitCatalogAccessRequest(input: {
+  requestedRole: 'Contributor' | 'Approver';
+  countryCode?: string | null;
+  reason?: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  await ensureCatalogManagerSchema();
+  const sessionUser = await getProcureGuardUser();
+  const email = (sessionUser?.email ?? '').toLowerCase();
+  if (!email) return { success: false, error: 'You must be signed in to request access.' };
+
+  await exec(
+    `INSERT INTO catalog_access_requests
+      (user_email, display_name, job_title, country_code, status, requested_role, approved_role, reason, requested_at, reviewed_at, reviewed_by)
+     VALUES (?, ?, ?, ?, 'Pending', ?, NULL, ?, CURRENT_TIMESTAMP, NULL, NULL)
+     ON CONFLICT (user_email) DO UPDATE SET
+       display_name = EXCLUDED.display_name,
+       job_title = EXCLUDED.job_title,
+       country_code = EXCLUDED.country_code,
+       status = 'Pending',
+       requested_role = EXCLUDED.requested_role,
+       approved_role = NULL,
+       reason = EXCLUDED.reason,
+       requested_at = CURRENT_TIMESTAMP,
+       reviewed_at = NULL,
+       reviewed_by = NULL`,
+    [email, sessionUser?.name ?? email, sessionUser?.jobTitle ?? null, input.countryCode || null, input.requestedRole, input.reason || null],
+  );
+  return { success: true };
+}
+
+/** All access requests for the platform admin queue, ordered Pending first, then most recent. */
+export async function getCatalogAccessRequests(): Promise<CatalogAccessRequestRow[]> {
+  await ensureCatalogManagerSchema();
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT * FROM catalog_access_requests
+     ORDER BY CASE status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END, requested_at DESC`,
+  );
+  return rows.map(mapAccessRequest);
+}
+
+export async function getCatalogAccessPendingCount(): Promise<number> {
+  await ensureCatalogManagerSchema();
+  const rows = await sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM catalog_access_requests WHERE status = 'Pending'`);
+  return Number(rows[0]?.n ?? 0);
+}
+
+/** Approve a request: marks it Approved and grants the role on app_user (creating the row if needed). */
+export async function approveCatalogAccessRequest(input: {
+  userEmail: string;
+  approvedRole: CatalogRole;
+  reviewedBy: string;
+  countryCode?: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  const actor = await getCatalogActor();
+  if (!actor.canAdmin) return { success: false, error: 'Admin only.' };
+  const email = input.userEmail.toLowerCase();
+
+  const existing = await sql<QueryResultRow[]>(`SELECT display_name, country_code FROM catalog_access_requests WHERE user_email = ?`, [email]);
+  const displayName = existing[0]?.display_name ?? email;
+  const countryCode = input.countryCode || existing[0]?.country_code || null;
+
+  await exec(
+    `UPDATE catalog_access_requests
+     SET status = 'Approved', approved_role = ?, country_code = COALESCE(?, country_code), reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
+     WHERE user_email = ?`,
+    [input.approvedRole, countryCode, input.reviewedBy, email],
+  );
+  await exec(
+    `INSERT INTO app_user (full_name, email, country_code, role)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, country_code = COALESCE(app_user.country_code, EXCLUDED.country_code)`,
+    [displayName, email, countryCode, input.approvedRole],
+  );
+  await writeAudit('Master data', 'Access requests', input.reviewedBy, `Approved ${email} → ${input.approvedRole}`);
+  return { success: true };
+}
+
+export async function rejectCatalogAccessRequest(userEmail: string, reviewedBy: string): Promise<{ success: boolean }> {
+  const actor = await getCatalogActor();
+  if (!actor.canAdmin) return { success: false };
+  const email = userEmail.toLowerCase();
+  await exec(
+    `UPDATE catalog_access_requests SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE user_email = ?`,
+    [reviewedBy, email],
+  );
+  await writeAudit('Master data', 'Access requests', reviewedBy, `Rejected access request from ${email}`);
+  return { success: true };
+}
+
+/** Revoke previously-approved access: resets the request status AND demotes app_user back to Viewer. */
+export async function revokeCatalogAccessRequest(userEmail: string, reviewedBy: string): Promise<{ success: boolean }> {
+  const actor = await getCatalogActor();
+  if (!actor.canAdmin) return { success: false };
+  const email = userEmail.toLowerCase();
+  await exec(
+    `UPDATE catalog_access_requests SET status = 'Revoked', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE user_email = ?`,
+    [reviewedBy, email],
+  );
+  await exec(`UPDATE app_user SET role = 'Viewer' WHERE LOWER(email) = ?`, [email]);
+  await writeAudit('Master data', 'Access requests', reviewedBy, `Revoked access for ${email} (reset to Viewer)`);
+  return { success: true };
+}
+
+export async function deleteCatalogAccessRequest(userEmail: string): Promise<{ success: boolean }> {
+  const actor = await getCatalogActor();
+  if (!actor.canAdmin) return { success: false };
+  await exec(`DELETE FROM catalog_access_requests WHERE user_email = ?`, [userEmail.toLowerCase()]);
+  return { success: true };
+}
+
+/* ============================================================================
+   PLATFORM /admin READ-ONLY SUMMARIES — Admin Panel + PIR Sync Health
+============================================================================ */
+
+/** Lightweight master-data snapshot for the platform admin console's Catalog Repo panel. */
+export async function getCatalogAdminSummary(): Promise<CatalogAdminSummary> {
+  await ensureCatalogManagerSchema();
+  const [countryRows, ccyRows, supplierRows, catRows, uomRows, thresholdRows, userRows, caRows] = await Promise.all([
+    sql<{ total: number; active: number }[]>(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'Active')::int AS active FROM country`),
+    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM currency`),
+    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM supplier`),
+    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM spend_category WHERE status = 'Active'`),
+    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM unit_of_measure`),
+    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM approval_threshold`),
+    sql<{ role: CatalogRole; n: number }[]>(`SELECT role, COUNT(*)::int AS n FROM app_user GROUP BY role`),
+    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM country_approver WHERE is_active = TRUE`),
+  ]);
+  const usersByRole: Record<CatalogRole, number> = { Viewer: 0, Contributor: 0, Approver: 0, Admin: 0 };
+  let usersTotal = 0;
+  for (const r of userRows) { usersByRole[r.role] = Number(r.n); usersTotal += Number(r.n); }
+  return {
+    countriesActive: Number(countryRows[0]?.active ?? 0),
+    countriesTotal: Number(countryRows[0]?.total ?? 0),
+    currencies: Number(ccyRows[0]?.n ?? 0),
+    suppliers: Number(supplierRows[0]?.n ?? 0),
+    categoriesActive: Number(catRows[0]?.n ?? 0),
+    uoms: Number(uomRows[0]?.n ?? 0),
+    thresholdRules: Number(thresholdRows[0]?.n ?? 0),
+    usersTotal,
+    usersByRole,
+    countryApprovers: Number(caRows[0]?.n ?? 0),
+  };
+}
+
+/**
+ * PIR sync pipeline health — surfaces the n8n nightly load's status without needing to open n8n.
+ * Uses the same effective-description expression as the PIR list page (raw column, falling back
+ * to the cached name) so "coverage" reflects what users actually see, not the raw column alone.
+ */
+export async function getPirSyncHealth(): Promise<PirSyncHealth> {
+  await ensureCatalogManagerSchema();
+  const rows = await sql<{ total: number; last_synced: string | null; with_desc: number }[]>(
+    `SELECT COUNT(*)::int AS total, MAX(p.synced_at)::text AS last_synced,
+            COUNT(*) FILTER (WHERE ${PIR_DESC_EXPR} IS NOT NULL AND ${PIR_DESC_EXPR} <> '')::int AS with_desc
+     ${PIR_FROM}`,
+  );
+  const r = rows[0] ?? { total: 0, last_synced: null, with_desc: 0 };
+  const total = Number(r.total);
+  const withDescription = Number(r.with_desc);
+  const lastSyncedAt = r.last_synced ?? null;
+  const hoursSinceSync = lastSyncedAt ? (Date.now() - new Date(lastSyncedAt).getTime()) / 3_600_000 : null;
+  return {
+    total,
+    lastSyncedAt,
+    hoursSinceSync: hoursSinceSync != null ? Math.round(hoursSinceSync * 10) / 10 : null,
+    withDescription,
+    descriptionCoveragePct: total > 0 ? Math.round((withDescription / total) * 1000) / 10 : 0,
+    isStale: hoursSinceSync == null || hoursSinceSync > 30,
+  };
 }
 
 export async function toggleCountryStatus(code: string): Promise<void> {

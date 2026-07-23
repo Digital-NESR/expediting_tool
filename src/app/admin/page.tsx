@@ -11,6 +11,7 @@ import {
   getProcureGuardPendingAccessCount,
 } from '@/app/actions/procureGuard';
 import { getSourceGuidePendingCount } from '@/app/actions/sourceguide';
+import { getCatalogAccessPendingCount } from '@/app/actions/catalog-manager';
 import AdminClient from './AdminClient';
 
 export const metadata = { title: 'Admin — SC Agents' };
@@ -31,6 +32,9 @@ const ADMIN_TOOLS = new Set([
   'sourceguide-champions',
   'sourceguide-analytics',
   'sourceguide-access',
+  'catalog-admin',
+  'catalog-sync',
+  'catalog-access',
 ]);
 
 export default async function AdminPage({
@@ -86,6 +90,7 @@ export default async function AdminPage({
     procureGuardAnalyticsData,
     procureGuardAdminAnalyticsData,
     sourceGuidePendingCount,
+    catalogPendingCount,
   ] = await Promise.all([
     getExpeditingAnalytics(),
     getPendingAccessCount(),
@@ -96,6 +101,7 @@ export default async function AdminPage({
     getProcureGuardAnalyticsData(),
     getProcureGuardAdminAnalyticsData(),
     getSourceGuidePendingCount(),
+    getCatalogAccessPendingCount(),
   ]);
 
   return (
@@ -111,6 +117,7 @@ export default async function AdminPage({
       procureGuardAnalyticsData={procureGuardAnalyticsData}
       procureGuardAdminAnalyticsData={procureGuardAdminAnalyticsData}
       sourceGuidePendingCount={sourceGuidePendingCount}
+      catalogPendingCount={catalogPendingCount}
       initialTool={initialTool}
     />
   );

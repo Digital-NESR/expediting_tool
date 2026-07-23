@@ -44,6 +44,7 @@ export default function CatalogManagerSidebar({
     { href: '/catalog-manager/suppliers', label: 'Suppliers', icon: 'building', section: 'Workspace' },
     { href: '/catalog-manager/approvals', label: 'Approvals', icon: 'approve', section: 'Workspace', badge: canApprove ? pendingCount : 0 },
     { href: '/catalog-manager/analytics', label: 'Analytics', icon: 'chart', section: 'Workspace' },
+    { href: '/catalog-manager/request-access', label: 'Request access', icon: 'user', section: 'Workspace', show: !canApprove },
     { href: '/catalog-manager/admin', label: 'Administration', icon: 'admin', section: 'System', show: canAdmin },
     { href: '/catalog-manager/audit', label: 'Audit log', icon: 'audit', section: 'System' },
   ] satisfies NavItem[]).filter((n) => n.show !== false);
