@@ -1090,19 +1090,20 @@ export default function HomePage() {
             {/* ── Tool cards ── */}
             <div className="flex-1 grid grid-cols-3 gap-6 content-start">
 
+              {/* ── Available ── */}
+
+              {show('catalog manager supplier service indirect item rates price catalog spend') && (
+                <CatalogManagerCard
+                  canOpen={canOpenCatalogManager}
+                  onClick={handleCatalogManagerClick}
+                />
+              )}
+
               {show('po expediting purchase orders monitor expedite supplier delivery') && (
                 <POExpeditingCard
                   status={poStatus}
                   isAdmin={isAdmin}
                   onClick={handlePOClick}
-                />
-              )}
-
-              {show('ti-te tite temporary import export customs shipments') && (
-                <TITECard
-                  status={titeStatus}
-                  isAdmin={isAdmin}
-                  onClick={handleTiteClick}
                 />
               )}
 
@@ -1114,6 +1115,26 @@ export default function HomePage() {
                 />
               )}
 
+              {show('rfx officer rfx rfq rfp bidding tendering quotation award negotiation') && (
+                <a
+                  href="https://rfxofficer.nesr.com"
+                  className="group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
+                >
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]">
+                    <Gavel className="w-6 h-6 text-[#307c4c]" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-[18px] font-semibold text-gray-900">RFx Officer</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                      AI-assisted RFQ lifecycle — create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
+                    </p>
+                  </div>
+                  <div className="mt-auto flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">Open →</span>
+                  </div>
+                </a>
+              )}
+
               {show('sourceguide sourcing intelligence suppliers commodity') && (
                 <SourceGuideCard
                   status={sourceGuideStatus}
@@ -1122,10 +1143,24 @@ export default function HomePage() {
                 />
               )}
 
-              {show('catalog manager supplier service indirect item rates price catalog spend') && (
-                <CatalogManagerCard
-                  canOpen={canOpenCatalogManager}
-                  onClick={handleCatalogManagerClick}
+              {show('ti-te tite temporary import export customs shipments') && (
+                <TITECard
+                  status={titeStatus}
+                  isAdmin={isAdmin}
+                  onClick={handleTiteClick}
+                />
+              )}
+
+              {/* ── Preview / Coming Soon ── */}
+
+              {show('laptop procurement asset request device approvals') && (
+                <AdminPreviewCard
+                  name="Laptop Procurement"
+                  subtitle="Device Requests & Approvals"
+                  description="Raise laptop and device requests and route IT → Category Manager → IT Director → SC Director approvals."
+                  icon={<Laptop className="w-6 h-6 text-gray-400" />}
+                  canOpen={isAdmin}
+                  onClick={handleLaptopClick}
                 />
               )}
 
@@ -1159,35 +1194,6 @@ export default function HomePage() {
                     )}
                   </div>
                 </button>
-              )}
-              {show('laptop procurement asset request device approvals') && (
-                <AdminPreviewCard
-                  name="Laptop Procurement"
-                  subtitle="Device Requests & Approvals"
-                  description="Raise laptop and device requests and route IT → Category Manager → IT Director → SC Director approvals."
-                  icon={<Laptop className="w-6 h-6 text-gray-400" />}
-                  canOpen={isAdmin}
-                  onClick={handleLaptopClick}
-                />
-              )}
-              {show('rfx officer rfx bidding tendering quotation') && (
-                <a
-                  href="https://rfxofficer.nesr.com"
-                  className="group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
-                >
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]">
-                    <Gavel className="w-6 h-6 text-[#307c4c]" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-[18px] font-semibold text-gray-900">RFx Officer</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                      Manage RFQs, RFPs, and tendering processes across the organisation.
-                    </p>
-                  </div>
-                  <div className="mt-auto flex items-center justify-between">
-                    <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">Open →</span>
-                  </div>
-                </a>
               )}
               {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('rfx officer') && !show('supply chain analytics') && !show('catalog') && (
                 <div className="col-span-3 py-12 text-center">
