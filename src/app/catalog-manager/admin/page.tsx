@@ -12,6 +12,9 @@ import {
   getApprovalThresholds,
   getServiceActivities,
   getPendingApprovalCount,
+  getCatalogAnalyticsData,
+  getPirMeta,
+  listCatalogEntries,
 } from '@/app/actions/catalog-manager';
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import AdminClient from './AdminClient';
@@ -23,7 +26,7 @@ export default async function AdminPage() {
   const actor = await getCatalogActor();
   if (!actor.canAdmin) redirect('/catalog-manager');
 
-  const [countries, currencies, uoms, suppliers, users, categories, approvers, thresholds, services, pendingCount] = await Promise.all([
+  const [countries, currencies, uoms, suppliers, users, categories, approvers, thresholds, services, pendingCount, analytics, pirMeta, allEntries] = await Promise.all([
     getCountries(),
     getCurrencies(),
     getUoms(),
@@ -34,7 +37,11 @@ export default async function AdminPage() {
     getApprovalThresholds(),
     getServiceActivities(),
     getPendingApprovalCount(),
+    getCatalogAnalyticsData('ALL'),
+    getPirMeta(),
+    listCatalogEntries({ country: 'ALL' }),
   ]);
+  const pendingPreview = allEntries.filter((e) => e.status === 'Pending Approval').slice(0, 5);
 
   return (
     <AdminClient
@@ -48,6 +55,9 @@ export default async function AdminPage() {
       thresholds={thresholds}
       services={services}
       pendingCount={pendingCount}
+      analytics={analytics}
+      pirStats={pirMeta.stats}
+      pendingPreview={pendingPreview}
       roleLabel={getPermissionProfile(actor.role).description}
     />
   );

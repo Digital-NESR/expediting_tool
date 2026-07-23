@@ -2,20 +2,21 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import CatalogManagerShell from '../components/CatalogManagerShell';
-import { Icon, Chip, Avatar } from '../components/CatalogManagerUI';
+import { Icon, Chip, Avatar, StatCard, Card, CardHeader, Meter, StatusPill, EmptyState } from '../components/CatalogManagerUI';
 import BulkImportPanel from '../catalog/import/BulkImportPanel';
 import {
   toggleCountryStatus, toggleCategoryStatus, addUom, setUserRole,
   addCountryApprover, removeCountryApprover, setApprovalThreshold, removeApprovalThreshold,
 } from '@/app/actions/catalog-manager';
 import type {
-  AppUserRow, ApprovalThresholdRule, CountryApproverRow, CountryRow, CurrencyRow, SupplierRow, UomRow, CatalogRole,
+  AppUserRow, ApprovalThresholdRule, CatalogAnalyticsData, CatalogEntry, CountryApproverRow, CountryRow, CurrencyRow, SupplierRow, UomRow, CatalogRole,
 } from '@/types/catalog-manager';
 import { fmtUsd, ALL_ROLES, spendTypeTone } from '@/lib/catalog-manager-utils';
 
-type Tab = 'Countries' | 'Spend categories' | 'Units of measure' | 'Currencies' | 'Suppliers' | 'Catalog migration' | 'Service activities' | 'Users & roles' | 'Country approvers' | 'Thresholds';
-const TABS: Tab[] = ['Countries', 'Spend categories', 'Units of measure', 'Currencies', 'Suppliers', 'Catalog migration', 'Service activities', 'Users & roles', 'Country approvers', 'Thresholds'];
+type Tab = 'Overview' | 'Countries' | 'Spend categories' | 'Units of measure' | 'Currencies' | 'Suppliers' | 'Catalog migration' | 'Service activities' | 'Users & roles' | 'Country approvers' | 'Thresholds';
+const TABS: Tab[] = ['Overview', 'Countries', 'Spend categories', 'Units of measure', 'Currencies', 'Suppliers', 'Catalog migration', 'Service activities', 'Users & roles', 'Country approvers', 'Thresholds'];
 
 interface AdminCategory { id: number; name: string; type: string; status: string; subs: string[] }
 
@@ -34,7 +35,8 @@ const thCls = 'px-3 py-2.5 text-left text-[11px] font-semibold uppercase trackin
 const tdCls = 'px-3 py-2.5';
 
 export default function AdminClient({
-  countries, currencies, uoms, suppliers, users, categories, approvers, thresholds, services, pendingCount, roleLabel,
+  countries, currencies, uoms, suppliers, users, categories, approvers, thresholds, services, pendingCount,
+  analytics, pirStats, pendingPreview, roleLabel,
 }: {
   countries: CountryRow[];
   currencies: CurrencyRow[];
@@ -46,10 +48,13 @@ export default function AdminClient({
   thresholds: ApprovalThresholdRule[];
   services: { no: string; text: string; uom: string }[];
   pendingCount: number;
+  analytics: CatalogAnalyticsData;
+  pirStats: { total: number; suppliers: number; plants: number; countries: number };
+  pendingPreview: CatalogEntry[];
   roleLabel: string;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('Countries');
+  const [tab, setTab] = useState<Tab>('Overview');
   const [, startTransition] = useTransition();
   const [newUom, setNewUom] = useState('');
   const [supQ, setSupQ] = useState('');
@@ -83,7 +88,82 @@ export default function AdminClient({
           ))}
         </div>
 
-        <div className={tab === 'Catalog migration' ? '' : 'cm-fade-in rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm'}>
+        <div className={tab === 'Catalog migration' || tab === 'Overview' ? '' : 'cm-fade-in rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm'}>
+          {tab === 'Overview' && (() => {
+            const maxCat = Math.max(1, ...analytics.byCategory.map((c) => c.activeCount));
+            const roleCounts = ALL_ROLES.map((r) => ({ role: r, count: users.filter((u) => u.role === r).length }));
+            return (
+              <div className="cm-fade-in cm-stagger space-y-5">
+                <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+                  <StatCard label="Active rates" value={analytics.activeCount.toLocaleString()} sub="Services catalog" icon="catalog" href="/catalog-manager/catalog?status=Active" />
+                  <StatCard label="Pending approval" value={analytics.pendingCount.toLocaleString()} sub={analytics.pendingCount ? 'Awaiting sign-off' : 'Queue clear'} icon="approve" tone="amber" href="/catalog-manager/approvals" />
+                  <StatCard label="Expiring ≤ 30 days" value={analytics.expiringCount.toLocaleString()} sub="Renew before lapse" icon="clock" tone="amber" href="/catalog-manager/catalog?expiring=1" />
+                  <StatCard label="Suppliers" value={analytics.supplierCount.toLocaleString()} sub="With active rates" icon="building" tone="cyan" href="/catalog-manager/suppliers" />
+                  <StatCard label="PIR / inventory records" value={pirStats.total.toLocaleString()} sub={`${pirStats.suppliers.toLocaleString()} suppliers`} icon="sheet" tone="ink" href="/catalog-manager/pir" />
+                  <StatCard label="Catalog users" value={String(users.length)} sub={`${approvers.length} country approvers`} icon="user" />
+                </section>
+
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                  <Card className="p-5">
+                    <CardHeader
+                      className="mb-3"
+                      title="Pending approvals"
+                      sub="Highest-priority entries awaiting sign-off."
+                      action={<Link href="/catalog-manager/approvals" className="inline-flex items-center gap-0.5 text-[12px] font-semibold text-[#1d4f31] hover:underline">View all <Icon name="chevRight" className="h-3 w-3" /></Link>}
+                    />
+                    {pendingPreview.length === 0 ? (
+                      <EmptyState icon="check" title="Queue is clear" sub="No entries are pending approval." />
+                    ) : (
+                      <div className="divide-y divide-slate-100">
+                        {pendingPreview.map((e) => (
+                          <Link key={e.id} href={`/catalog-manager/catalog/${e.id}`} className="-mx-1 flex items-center gap-3 rounded-lg px-1 py-2.5 transition-colors hover:bg-slate-50">
+                            <span className="w-16 shrink-0 font-mono text-[11px] text-slate-400">{e.code}</span>
+                            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800">{e.commodity || e.item_name}</span>
+                            <span className="hidden shrink-0 truncate text-[12px] text-slate-500 sm:block">{e.supplier_name}</span>
+                            <StatusPill status={e.status} sm />
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+
+                  <Card className="p-5">
+                    <CardHeader className="mb-3" title="By spend category" sub="Active rates grouped by taxonomy." />
+                    {analytics.byCategory.length === 0 ? (
+                      <EmptyState icon="layers" title="No active rates yet" />
+                    ) : (
+                      <div className="space-y-2.5">
+                        {analytics.byCategory.slice(0, 6).map((c) => (
+                          <div key={c.name} className="grid grid-cols-[minmax(90px,150px)_1fr_30px] items-center gap-3">
+                            <span className="truncate text-[12px] font-medium text-slate-600">{c.name}</span>
+                            <Meter pct={(c.activeCount / maxCat) * 100} className="h-2" />
+                            <span className="text-right text-[12px] font-semibold tabular-nums text-slate-900">{c.activeCount}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+
+                  <Card className="p-5">
+                    <CardHeader className="mb-3" title="Access & approvals" sub="Who can use and approve in the Catalog Repo." />
+                    <div className="grid grid-cols-2 gap-2">
+                      {roleCounts.map(({ role, count }) => (
+                        <button key={role} onClick={() => setTab('Users & roles')} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:border-[#307c4c]/30 hover:bg-[#307c4c]/5">
+                          <p className="truncate text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">{role}</p>
+                          <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">{count}</p>
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => setTab('Country approvers')} className="mt-2.5 flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:border-[#307c4c]/30 hover:bg-[#307c4c]/5">
+                      <span className="text-[12.5px] font-semibold text-slate-700">Country approvers configured</span>
+                      <span className="inline-flex items-center gap-1 text-[13px] font-bold tabular-nums text-slate-900">{approvers.length} <Icon name="chevRight" className="h-3.5 w-3.5 text-slate-400" /></span>
+                    </button>
+                  </Card>
+                </div>
+              </div>
+            );
+          })()}
+
           {tab === 'Countries' && (
             <table className="w-full text-[13px]">
               <thead><tr className="border-b border-slate-200"><th className={thCls}>Country</th><th className={thCls}>Code</th><th className={thCls}>Default currency</th><th className={`${thCls} text-right`}>Status</th></tr></thead>
