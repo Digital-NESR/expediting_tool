@@ -111,7 +111,7 @@ function AccessRequestModal({
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-base font-bold text-slate-900 leading-tight">
-                Request Access — PO Expediting
+                Request Access - PO Expediting
               </h2>
               <p className="text-sm text-slate-500 mt-1 leading-relaxed">
                 Select the countries you need access to. An admin will review your request.
@@ -278,7 +278,7 @@ function TiteAccessRequestModal({
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-base font-bold text-slate-900 leading-tight">
-                Request Access — TI-TE
+                Request Access - TI-TE
               </h2>
               <p className="text-sm text-slate-500 mt-1 leading-relaxed">
                 Select the countries you need access to. An admin will review your request.
@@ -650,7 +650,7 @@ function SourceGuideAccessRequestModal({
         <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#2A7E4F18' }}>
           <Building2 className="h-6 w-6" style={{ color: '#2A7E4F' }} />
         </div>
-        <h2 className="mt-4 text-base font-bold text-slate-900">Request Access — SourceGuide</h2>
+        <h2 className="mt-4 text-base font-bold text-slate-900">Request Access - SourceGuide</h2>
         <p className="mt-1 text-sm leading-relaxed text-slate-500">
           SourceGuide lets you search NESR&apos;s approved suppliers across every country guide. An admin will review your request and grant access.
         </p>
@@ -1126,7 +1126,7 @@ export default function HomePage() {
                   <div className="flex-1">
                     <h3 className="text-[18px] font-semibold text-gray-900">RFx Officer</h3>
                     <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                      AI-assisted RFQ lifecycle — create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
+                      AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
                     </p>
                   </div>
                   <div className="mt-auto flex items-center justify-between">
@@ -1182,7 +1182,7 @@ export default function HomePage() {
                     <h3 className="text-[18px] font-semibold text-gray-500">Supply Chain Analytics</h3>
                     <p className="mt-0.5 text-[13px] font-medium text-slate-400">Power BI Dashboards</p>
                     <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                      Repository of all Supply Chain Power BI dashboards — covering sourcing, procurement, logistics, inventory, and materials management.
+                      Repository of all Supply Chain Power BI dashboards covering sourcing, procurement, logistics, inventory, and materials management.
                     </p>
                   </div>
                   <div className="mt-auto flex items-center justify-between">
@@ -1279,7 +1279,7 @@ export default function HomePage() {
                   </p>
                   <ul className="flex flex-col gap-1.5">
                     {[
-                      "Trained on NESR's internal data — not generic AI",
+                      "Trained on NESR's internal data, not generic AI",
                       'Answers in seconds, not email chains',
                       'Always up to date with the latest policies and supplier data',
                     ].map(point => (

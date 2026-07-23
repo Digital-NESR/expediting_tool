@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
@@ -9,33 +9,63 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+const PIN_KEY = 'po-sidebar-pinned';
+
+function PinIcon({ filled }: { filled?: boolean }) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 17v5" />
+      <path d="M9 10.76V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v5.76a2 2 0 0 0 .59 1.41l1 1A2 2 0 0 1 17 14.59V16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .41-1.42l1-1A2 2 0 0 0 9 10.76z" />
+    </svg>
+  );
+}
+
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { selectedItems } = useExpediteStore();
-  
-  // Close on escape key
+
+  const [pinned, setPinned] = useState(false);
+  useEffect(() => {
+    const stored = window.localStorage.getItem(PIN_KEY);
+    if (stored !== null) setPinned(stored === '1');
+    if (!document.getElementById('po-sidebar-pin-style')) {
+      const el = document.createElement('style');
+      el.id = 'po-sidebar-pin-style';
+      el.textContent = '@media (min-width:1024px){body.po-sidebar-pinned{padding-left:280px}}';
+      document.head.appendChild(el);
+    }
+  }, []);
+  useEffect(() => {
+    window.localStorage.setItem(PIN_KEY, pinned ? '1' : '0');
+    document.body.classList.toggle('po-sidebar-pinned', pinned);
+    return () => { document.body.classList.remove('po-sidebar-pinned'); };
+  }, [pinned]);
+
+  const closeOnNav = () => { if (!pinned) onClose(); };
+
+  // Close on escape key (only when not pinned)
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !pinned) onClose();
     };
     if (isOpen) {
       window.addEventListener('keydown', handleEsc);
     }
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, pinned]);
 
-  // Lock body scroll when open
+  // Lock body scroll when open (only when not pinned)
   useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
+    if (isOpen && !pinned) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
     return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
+  }, [isOpen, pinned]);
 
   // Profile data parsing
   const rawName = session?.user?.name || 'Unknown User';
   const nameParts = rawName.split(' ');
-  const initials = nameParts.length > 1 
+  const initials = nameParts.length > 1
     ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
     : rawName.substring(0, 2).toUpperCase();
   const jobTitle = (session?.user as any)?.jobTitle || 'Admin';
@@ -43,9 +73,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const NavLink = ({ href, icon, label, exact = false, badge }: { href: string; icon: React.ReactNode; label: string; exact?: boolean; badge?: number }) => {
     const isActive = pathname === href;
     return (
-      <Link 
-        href={href} 
-        onClick={onClose}
+      <Link
+        href={href}
+        onClick={closeOnNav}
         className={[
           'w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all text-sm font-medium relative group',
           isActive
@@ -71,15 +101,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     <>
       {/* ── Backdrop ── */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300" 
+        <div
+          className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300 ${pinned ? 'lg:hidden' : ''}`}
           onClick={onClose}
         />
       )}
 
       {/* ── Drawer ── */}
-      <aside 
-        className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-white border-r border-slate-200 flex flex-col h-full shadow-[24px_0_40px_rgba(0,0,0,0.1)] transform transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-white border-r border-slate-200 flex flex-col h-full shadow-[24px_0_40px_rgba(0,0,0,0.1)] transform transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isOpen ? 'translate-x-0' : '-translate-x-full'} ${pinned ? 'lg:translate-x-0 lg:shadow-none' : ''}`}
       >
         {/* Header / Brand */}
         <div className="h-14 md:h-16 px-6 flex items-center justify-between border-b border-slate-100 shrink-0">
@@ -93,14 +123,24 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </span>
             <span className="text-lg font-bold text-slate-900 tracking-tight">NESR</span>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPinned(p => !p)}
+              title={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
+              aria-pressed={pinned}
+              className={`hidden lg:inline-flex p-1.5 rounded-lg transition-colors ${pinned ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+            >
+              <PinIcon filled={pinned} />
+            </button>
+            <button
+              onClick={onClose}
+              className={`p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors ${pinned ? 'lg:hidden' : ''}`}
+            >
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Navigation */}
@@ -162,7 +202,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <p className="text-xs text-gray-400 truncate">{jobTitle}</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => signOut({ callbackUrl: '/login' })}
             className="w-full py-2.5 px-3 bg-white border border-slate-200 text-slate-600 font-medium text-sm rounded-lg shadow-sm hover:bg-slate-50 hover:text-red-600 hover:border-red-200 transition-all active:scale-95 flex items-center justify-center gap-2"
           >
