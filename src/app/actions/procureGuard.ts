@@ -3047,6 +3047,12 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
     const reason = requireText(input.advance_purpose || input.justification, 'Reason / justification for exception');
     const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, existing.requested_by_email);
     const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
+    const contractValue = input.contract_value === undefined || input.contract_value === null || Number.isNaN(Number(input.contract_value))
+      ? null
+      : Number(input.contract_value);
+    const advancePercentage = input.advance_percentage === undefined || input.advance_percentage === null || Number.isNaN(Number(input.advance_percentage))
+      ? null
+      : Number(input.advance_percentage);
 
     await exec(
       `UPDATE procure_guard_advance_payments
@@ -3058,6 +3064,8 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
            currency = ?,
            country = ?,
            segment = ?,
+           contract_value = ?,
+           advance_percentage = ?,
            spend_category = ?,
            spend_value_usd = ?,
            current_payment_terms_days = ?,
@@ -3082,6 +3090,8 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
         input.currency || 'USD',
         country,
         segment,
+        contractValue,
+        advancePercentage,
         spendCategory,
         input.spend_value_usd ?? amount,
         paymentTermsDays,

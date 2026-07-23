@@ -565,7 +565,11 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
       if (pdfSections.details) {
         addTable('Request Details', [
           ['Spend Category', request.spend_category || (isAdvance ? null : request.expense_category)],
-          ['Spend Value USD', request.spend_value_usd === null ? usdFmt(request.amount, 'USD') : usdFmt(request.spend_value_usd)],
+          ...(isAdvance ? [
+            ['Total Amount', request.contract_value === null || request.contract_value === undefined ? null : usdFmt(request.contract_value, request.currency)] satisfies [string, DetailValue],
+            ['Advance Amount', usdFmt(request.amount, request.currency)] satisfies [string, DetailValue],
+          ] : []),
+          [isAdvance ? 'Advance Amount USD' : 'Spend Value USD', request.spend_value_usd === null ? usdFmt(request.amount, 'USD') : usdFmt(request.spend_value_usd)],
           ...(isAdvance
             ? [
                 ['Payment Terms Days', request.current_payment_terms_days],
@@ -823,7 +827,9 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
             <Section title="Accounting">
               <FieldGrid>
                 <Field label="Spend Category" value={request.spend_category || (isAdvance ? null : request.expense_category)} />
-                <Field label="Spend Value USD" value={request.spend_value_usd === null ? usdFmt(request.amount, 'USD') : usdFmt(request.spend_value_usd)} />
+                {isAdvance && <Field label="Total Amount" value={request.contract_value === null || request.contract_value === undefined ? null : usdFmt(request.contract_value, request.currency)} />}
+                {isAdvance && <Field label="Advance Amount" value={usdFmt(request.amount, request.currency)} />}
+                <Field label={isAdvance ? 'Advance Amount USD' : 'Spend Value USD'} value={request.spend_value_usd === null ? usdFmt(request.amount, 'USD') : usdFmt(request.spend_value_usd)} />
                 {isAdvance ? (
                   <>
                     <Field label="Payment Terms Days" value={request.current_payment_terms_days} />

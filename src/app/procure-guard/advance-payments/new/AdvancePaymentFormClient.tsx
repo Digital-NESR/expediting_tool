@@ -156,6 +156,7 @@ export default function AdvancePaymentFormClient(_props: {
   const [sapVendorName, setSapVendorName] = useState(editRequest?.vendor_name ?? '');
   const [spendCategory, setSpendCategory] = useState(editRequest?.spend_category ?? '');
   const [amountValue, setAmountValue] = useState(editRequest ? String(editRequest.amount ?? '') : '');
+  const [totalAmountValue, setTotalAmountValue] = useState(editRequest?.contract_value === null || editRequest?.contract_value === undefined ? '' : String(editRequest.contract_value));
   const [currency, setCurrency] = useState(editRequest?.currency ?? 'USD');
   const [paymentTermsDays, setPaymentTermsDays] = useState(editRequest?.current_payment_terms_days === null || editRequest?.current_payment_terms_days === undefined ? '' : String(editRequest.current_payment_terms_days));
   const [creditLimitUsd, setCreditLimitUsd] = useState(editRequest?.current_credit_limit_usd === null || editRequest?.current_credit_limit_usd === undefined ? '' : String(editRequest.current_credit_limit_usd));
@@ -209,7 +210,9 @@ export default function AdvancePaymentFormClient(_props: {
     if (!sapVendorId.trim()) e.sapVendorId = 'SAP vendor ID is required.';
     if (!sapVendorName.trim()) e.sapVendorName = 'SAP vendor name is required.';
     if (!spendCategory) e.spendCategory = 'Spend category is required.';
-    if (!amountValue || Number(amountValue) <= 0) e.amountValue = 'Amount must be greater than zero.';
+    if (!totalAmountValue || Number(totalAmountValue) <= 0) e.totalAmountValue = 'Total amount must be greater than zero.';
+    if (!amountValue || Number(amountValue) <= 0) e.amountValue = 'Advance amount must be greater than zero.';
+    else if (totalAmountValue && Number(amountValue) > Number(totalAmountValue)) e.amountValue = 'Advance amount cannot exceed the total amount.';
     if (paymentTermsDays === '' || Number(paymentTermsDays) < 0) e.paymentTermsDays = 'Current payment terms in days is required.';
     if (creditLimitUsd === '' || Number(creditLimitUsd) < 0) e.creditLimitUsd = 'Current credit limit in USD is required.';
     if (!reason.trim()) e.reason = 'Reason / justification is required.';
@@ -237,6 +240,7 @@ export default function AdvancePaymentFormClient(_props: {
     setSapVendorName(editRequest?.vendor_name ?? '');
     setSpendCategory(editRequest?.spend_category ?? '');
     setAmountValue(editRequest ? String(editRequest.amount ?? '') : '');
+    setTotalAmountValue(editRequest?.contract_value === null || editRequest?.contract_value === undefined ? '' : String(editRequest.contract_value));
     setCurrency(editRequest?.currency ?? 'USD');
     setPaymentTermsDays(editRequest?.current_payment_terms_days === null || editRequest?.current_payment_terms_days === undefined ? '' : String(editRequest.current_payment_terms_days));
     setCreditLimitUsd(editRequest?.current_credit_limit_usd === null || editRequest?.current_credit_limit_usd === undefined ? '' : String(editRequest.current_credit_limit_usd));
@@ -279,6 +283,7 @@ export default function AdvancePaymentFormClient(_props: {
     setErrors({});
 
     const amount = Number(amountValue);
+    const totalAmount = Number(totalAmountValue);
     const payload: CreateAdvancePaymentInput = {
       priority: 'Normal',
       requisition_number: requisitionNumber,
@@ -289,6 +294,8 @@ export default function AdvancePaymentFormClient(_props: {
       currency,
       country,
       segment,
+      contract_value: totalAmount,
+      advance_percentage: totalAmount > 0 ? Math.round((amount / totalAmount) * 100) : undefined,
       spend_category: spendCategory,
       spend_value_usd: toUsd(amount, currency),
       current_payment_terms_days: Number(paymentTermsDays),
@@ -380,7 +387,7 @@ export default function AdvancePaymentFormClient(_props: {
                 {SPEND_CATEGORY_OPTIONS.map(item => <option key={item} value={item} />)}
               </datalist>
             </Field>
-            <Field label="Amount" required error={errors.amountValue}>
+            <Field label="Total Amount" required error={errors.totalAmountValue}>
               <div className="flex gap-2">
                 <select
                   className="w-20 shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
@@ -389,11 +396,19 @@ export default function AdvancePaymentFormClient(_props: {
                 >
                   {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                <input type="number" min="0.01" step="0.01" className={`${errors.totalAmountValue ? ERR : INP} min-w-0 flex-1`} value={totalAmountValue} onChange={e => setTotalAmountValue(e.target.value)} />
+              </div>
+              <p className="mt-1.5 text-xs text-slate-400">The full value of the PO / contract / invoice.</p>
+            </Field>
+            <Field label="Advance Amount" required error={errors.amountValue}>
+              <div className="flex gap-2">
+                <span className="flex w-20 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-2.5 text-sm font-semibold text-slate-500">{currency}</span>
                 <input type="number" min="0.01" step="0.01" className={`${errors.amountValue ? ERR : INP} min-w-0 flex-1`} value={amountValue} onChange={e => setAmountValue(e.target.value)} />
               </div>
-              {currency !== 'USD' && Number(amountValue) > 0 && (
-                <p className="mt-1.5 text-xs text-slate-400">≈ {usdEquivalentFmt(amountValue, currency)} (used for approval thresholds)</p>
-              )}
+              <p className="mt-1.5 text-xs text-slate-400">
+                Only the portion being paid in advance — this is what drives the approval thresholds.
+                {currency !== 'USD' && Number(amountValue) > 0 && <> ≈ {usdEquivalentFmt(amountValue, currency)}</>}
+              </p>
             </Field>
             <Field label="Current Payment Terms in Days" required error={errors.paymentTermsDays}>
               <input type="number" min="0" step="1" className={errors.paymentTermsDays ? ERR : INP} value={paymentTermsDays} onChange={e => setPaymentTermsDays(e.target.value)} />
