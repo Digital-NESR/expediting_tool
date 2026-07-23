@@ -3,6 +3,7 @@
 import sourceGuidePool from '@/lib/db-sourceguide';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { matchScore, MATCH_THRESHOLD, norm } from '@/lib/sg-fuzzy';
 import type {
   SgCountry, SgCommodity, SgSupplier, SgMapping, SgCategory, SgStats,
   SgCommodityResult, SgSupplierProfile, SgCommodityDetail, SgGuide,
@@ -164,6 +165,59 @@ export async function getSpendTypes(): Promise<string[]> {
 
 /* ─── search ─────────────────────────────────────────────────── */
 
+/* ─── cached search indexes (fuzzy matching runs in the app layer) ── */
+
+interface CommodityIndexRow extends CommodityRow { keywords: string | null }
+const INDEX_TTL_MS = 60_000;
+
+let _comCache: { rows: CommodityIndexRow[]; at: number } | null = null;
+async function getCommodityIndex(): Promise<CommodityIndexRow[]> {
+  if (_comCache && Date.now() - _comCache.at < INDEX_TTL_MS) return _comCache.rows;
+  const { rows } = await sourceGuidePool.query(
+    `SELECT id, code, name, category, category_id, sub_category, family, spend_type, description,
+            COALESCE(keywords, '') AS keywords
+     FROM sg_commodities`,
+  );
+  _comCache = { rows: rows as CommodityIndexRow[], at: Date.now() };
+  return _comCache.rows;
+}
+
+interface SupplierIndexRow { code: string; name: string; countries: string[] }
+let _supCache: { rows: SupplierIndexRow[]; at: number } | null = null;
+async function getMappedSupplierIndex(): Promise<SupplierIndexRow[]> {
+  if (_supCache && Date.now() - _supCache.at < INDEX_TTL_MS) return _supCache.rows;
+  const { rows } = await sourceGuidePool.query(
+    `SELECT a.supplier_code, a.name,
+            COALESCE(ARRAY_AGG(DISTINCT m.country_code) FILTER (WHERE m.country_code IS NOT NULL), '{}') AS countries
+     FROM supplier_avl a
+     JOIN sg_mappings m ON m.supplier_code = a.supplier_code AND m.status='Active'
+     GROUP BY a.supplier_code, a.name`,
+  );
+  _supCache = { rows: rows.map(r => ({ code: r.supplier_code, name: r.name, countries: r.countries || [] })), at: Date.now() };
+  return _supCache.rows;
+}
+
+let _avlCache: { rows: { code: string; name: string }[]; at: number } | null = null;
+async function getAvlIndex(): Promise<{ code: string; name: string }[]> {
+  if (_avlCache && Date.now() - _avlCache.at < INDEX_TTL_MS) return _avlCache.rows;
+  const { rows } = await sourceGuidePool.query(`SELECT supplier_code, name FROM supplier_avl`);
+  _avlCache = { rows: rows.map(r => ({ code: r.supplier_code, name: r.name })), at: Date.now() };
+  return _avlCache.rows;
+}
+
+let _ctryCache: { rows: { code: string; name: string; tone: string | null }[]; at: number } | null = null;
+async function getCountriesLite(): Promise<{ code: string; name: string; tone: string | null }[]> {
+  if (_ctryCache && Date.now() - _ctryCache.at < INDEX_TTL_MS) return _ctryCache.rows;
+  const { rows } = await sourceGuidePool.query(`SELECT code, name, tone FROM sg_countries ORDER BY sort_order, name`);
+  _ctryCache = { rows, at: Date.now() };
+  return _ctryCache.rows;
+}
+
+/** Extra searchable text for a commodity (weighted below the name in the fuzzy scorer). */
+function commodityExtra(r: CommodityIndexRow): string {
+  return `${r.category} ${r.sub_category ?? ''} ${r.family ?? ''} ${r.code ?? ''} ${r.keywords ?? ''}`;
+}
+
 export async function searchCommodities(
   query: string,
   filters: SgSearchFilters = {},
@@ -171,42 +225,30 @@ export async function searchCommodities(
 ): Promise<SgCommodityResult[]> {
   try {
     const q = (query || '').trim();
-    const params: unknown[] = [];
-    const where: string[] = [];
+    const nq = norm(q);
+    const cats = filters.categories?.length ? new Set(filters.categories) : null;
+    const spends = filters.spendTypes?.length ? new Set(filters.spendTypes) : null;
 
-    if (q) {
-      params.push(`%${q}%`);
-      const likeIdx = params.length;
-      where.push(`(name ILIKE $${likeIdx} OR category ILIKE $${likeIdx} OR sub_category ILIKE $${likeIdx} OR family ILIKE $${likeIdx} OR code ILIKE $${likeIdx} OR description ILIKE $${likeIdx} OR keywords ILIKE $${likeIdx})`);
+    // Fuzzy-rank the (small, cached) commodity catalogue in the app layer.
+    const index = await getCommodityIndex();
+    const scored: { r: CommodityIndexRow; score: number }[] = [];
+    for (const r of index) {
+      if (cats && !cats.has(r.category_id)) continue;
+      if (spends && !spends.has(r.spend_type)) continue;
+      if (q) {
+        let s = matchScore(q, r.name, commodityExtra(r));
+        if (s < MATCH_THRESHOLD) {
+          // last-resort description substring match
+          if (nq.length >= 3 && r.description && norm(r.description).includes(nq)) s = MATCH_THRESHOLD;
+          else continue;
+        }
+        scored.push({ r, score: s });
+      } else {
+        scored.push({ r, score: 0 });
+      }
     }
-    if (filters.categories?.length) {
-      params.push(filters.categories);
-      where.push(`category_id = ANY($${params.length})`);
-    }
-    if (filters.spendTypes?.length) {
-      params.push(filters.spendTypes);
-      where.push(`spend_type = ANY($${params.length})`);
-    }
-
-    // score expression for relevance
-    let scoreExpr = '1';
-    if (q) {
-      params.push(`${q}%`);
-      const startIdx = params.length;
-      params.push(`%${q}%`);
-      const incIdx = params.length;
-      scoreExpr = `(CASE WHEN name ILIKE $${startIdx} THEN 120 ELSE 0 END
-                 + CASE WHEN name ILIKE $${incIdx} THEN 60 ELSE 0 END)`;
-    }
-
-    const sql = `
-      SELECT id, code, name, category, category_id, sub_category, family, spend_type, description,
-             ${scoreExpr} AS score
-      FROM sg_commodities
-      ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-      ORDER BY score DESC, name ASC
-    `;
-    const { rows } = await sourceGuidePool.query(sql, params);
+    scored.sort((a, b) => q ? (b.score - a.score || a.r.name.localeCompare(b.r.name)) : a.r.name.localeCompare(b.r.name));
+    const rows = scored.map(s => s.r);
     if (!rows.length) return [];
 
     const ids = rows.map(r => r.id);
@@ -276,30 +318,42 @@ export interface SgGlobalResults {
 export async function globalSearch(query: string): Promise<SgGlobalResults> {
   const q = (query || '').trim();
   if (!q) return { commodities: [], suppliers: [], categories: [], countries: [] };
-  const like = `%${q}%`;
-  const starts = `${q}%`;
   try {
-    const [com, sup, cat, ctry] = await Promise.all([
-      sourceGuidePool.query(
-        `SELECT id, name, category, sub_category FROM sg_commodities
-         WHERE name ILIKE $1 OR keywords ILIKE $1 OR code ILIKE $1 OR family ILIKE $1
-         ORDER BY (CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END), name LIMIT 7`, [like, starts]),
-      sourceGuidePool.query(
-        `SELECT DISTINCT a.supplier_code, a.name FROM supplier_avl a
-         JOIN sg_mappings m ON m.supplier_code = a.supplier_code AND m.status='Active'
-         WHERE a.name ILIKE $1 OR a.supplier_code ILIKE $1
-         ORDER BY a.name LIMIT 5`, [like]),
-      sourceGuidePool.query(
-        `SELECT DISTINCT category_id, category FROM sg_commodities WHERE category ILIKE $1 ORDER BY category LIMIT 4`, [like]),
-      sourceGuidePool.query(
-        `SELECT code, name, tone FROM sg_countries WHERE name ILIKE $1 ORDER BY sort_order, name LIMIT 4`, [like]),
+    const [index, suppliers, countries] = await Promise.all([
+      getCommodityIndex(), getMappedSupplierIndex(), getCountriesLite(),
     ]);
-    return {
-      commodities: com.rows.map(r => ({ id: r.id, name: r.name, category: r.category, subCategory: r.sub_category })),
-      suppliers: sup.rows.map(r => ({ code: r.supplier_code, name: r.name })),
-      categories: cat.rows.map(r => ({ id: r.category_id, name: r.category })),
-      countries: ctry.rows.map(r => ({ code: r.code, name: r.name, tone: r.tone })),
-    };
+
+    const commodities = index
+      .map(r => ({ r, score: matchScore(q, r.name, commodityExtra(r)) }))
+      .filter(x => x.score >= MATCH_THRESHOLD)
+      .sort((a, b) => b.score - a.score || a.r.name.localeCompare(b.r.name))
+      .slice(0, 7)
+      .map(x => ({ id: x.r.id, name: x.r.name, category: x.r.category, subCategory: x.r.sub_category }));
+
+    const sup = suppliers
+      .map(s => ({ s, score: Math.max(matchScore(q, s.name), s.code.includes(q) ? 1.5 : 0) }))
+      .filter(x => x.score >= MATCH_THRESHOLD)
+      .sort((a, b) => b.score - a.score || a.s.name.localeCompare(b.s.name))
+      .slice(0, 5)
+      .map(x => ({ code: x.s.code, name: x.s.name }));
+
+    const catMap = new Map<string, string>();
+    for (const r of index) if (!catMap.has(r.category_id)) catMap.set(r.category_id, r.category);
+    const cats = [...catMap.entries()]
+      .map(([id, name]) => ({ id, name, score: matchScore(q, name) }))
+      .filter(x => x.score >= MATCH_THRESHOLD)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+      .map(x => ({ id: x.id, name: x.name }));
+
+    const ctry = countries
+      .map(c => ({ c, score: matchScore(q, c.name) }))
+      .filter(x => x.score >= MATCH_THRESHOLD)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+      .map(x => ({ code: x.c.code, name: x.c.name, tone: x.c.tone }));
+
+    return { commodities, suppliers: sup, categories: cats, countries: ctry };
   } catch (err) {
     console.error('[sg.globalSearch]', err);
     return { commodities: [], suppliers: [], categories: [], countries: [] };
@@ -316,19 +370,14 @@ export async function searchSuppliers(query: string, limit = 6): Promise<SgSuppl
   try {
     const q = (query || '').trim();
     if (q.length < 2) return [];
-    // Only suppliers that are actually mapped somewhere (joined to the AVL by code)
-    const { rows } = await sourceGuidePool.query(
-      `SELECT a.supplier_code, a.name,
-              COALESCE(ARRAY_AGG(DISTINCT m.country_code) FILTER (WHERE m.country_code IS NOT NULL), '{}') AS countries
-       FROM supplier_avl a
-       JOIN sg_mappings m ON m.supplier_code = a.supplier_code AND m.status='Active'
-       WHERE a.name ILIKE $1 OR a.supplier_code ILIKE $1
-       GROUP BY a.supplier_code, a.name
-       ORDER BY a.name
-       LIMIT $2`,
-      [`%${q}%`, limit],
-    );
-    return rows.map(r => ({ code: r.supplier_code, name: r.name, countries: r.countries || [] }));
+    // Fuzzy-rank suppliers that are actually mapped somewhere (cached, joined to the AVL by code)
+    const suppliers = await getMappedSupplierIndex();
+    return suppliers
+      .map(s => ({ s, score: Math.max(matchScore(q, s.name), s.code.includes(q) ? 1.5 : 0) }))
+      .filter(x => x.score >= MATCH_THRESHOLD)
+      .sort((a, b) => b.score - a.score || a.s.name.localeCompare(b.s.name))
+      .slice(0, limit)
+      .map(x => ({ code: x.s.code, name: x.s.name, countries: x.s.countries }));
   } catch (err) {
     console.error('[sg.searchSuppliers]', err);
     return [];
@@ -716,21 +765,33 @@ export async function getCountryGuideRows(code: string): Promise<SgGuideRow[]> {
   }
 }
 
-/** Approved-vendor picker for the mapping workspace — sourced from supplier_avl. */
+/** Approved-vendor picker for the mapping workspace — fuzzy over the full AVL. */
 export async function supplierOptions(country: string, prefix: string, limit = 8): Promise<SgSupplier[]> {
   try {
     const p = (prefix || '').trim();
     if (!p) return [];
+    const avl = await getAvlIndex();
+    // fuzzy-rank the whole AVL by name (or exact code), keep a few extra to re-rank by in-country
+    const top = avl
+      .map(a => ({ a, score: Math.max(matchScore(p, a.name), a.code.includes(p) ? 1.5 : 0) }))
+      .filter(x => x.score >= MATCH_THRESHOLD)
+      .sort((x, y) => y.score - x.score || x.a.name.localeCompare(y.a.name))
+      .slice(0, limit * 4);
+    if (!top.length) return [];
+
+    // which of these candidates are already mapped in this country
+    const codes = top.map(x => x.a.code);
+    const inCountry = new Set<string>();
     const { rows } = await sourceGuidePool.query(
-      `SELECT a.supplier_code, a.name,
-              EXISTS (SELECT 1 FROM sg_mappings m WHERE m.supplier_code = a.supplier_code AND m.country_code = $1 AND m.status='Active') AS in_country
-       FROM supplier_avl a
-       WHERE a.name ILIKE $2
-       ORDER BY in_country DESC, a.name
-       LIMIT $3`,
-      [country, `%${p}%`, limit],
+      `SELECT DISTINCT supplier_code FROM sg_mappings WHERE country_code=$1 AND status='Active' AND supplier_code = ANY($2)`,
+      [country, codes],
     );
-    return rows.map(r => ({ code: r.supplier_code, name: r.name, countries: r.in_country ? [country] : [] }));
+    for (const r of rows) inCountry.add(r.supplier_code);
+
+    return top
+      .sort((x, y) => (inCountry.has(y.a.code) ? 1 : 0) - (inCountry.has(x.a.code) ? 1 : 0) || y.score - x.score)
+      .slice(0, limit)
+      .map(x => ({ code: x.a.code, name: x.a.name, countries: inCountry.has(x.a.code) ? [country] : [] }));
   } catch (err) {
     console.error('[sg.supplierOptions]', err);
     return [];
