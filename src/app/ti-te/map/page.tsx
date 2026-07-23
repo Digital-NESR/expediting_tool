@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { getAllShipments } from '@/app/actions/tite';
 import MapClient from './MapClient';
 
-export const metadata: Metadata = { title: 'Map View — TI-TE | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | Map View - TI-TE' };
 
 export default async function MapPage() {
   const session = await getServerSession(authOptions);

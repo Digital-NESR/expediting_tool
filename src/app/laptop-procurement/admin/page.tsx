@@ -4,7 +4,7 @@ import { getLaptopActor, getLaptopAdminData } from '@/app/actions/laptopProcurem
 import { canUseLaptopAdmin } from '@/lib/laptopProcurement-utils';
 import LaptopAdminClient from './LaptopAdminClient';
 
-export const metadata: Metadata = { title: 'Admin | Laptop Procurement' };
+export const metadata: Metadata = { title: 'NESR | Admin - Laptop Procurement' };
 
 export default async function LaptopAdminPage() {
   const actor = await getLaptopActor();

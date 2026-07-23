@@ -8,7 +8,7 @@ import {
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import CatalogAnalyticsClient from './CatalogAnalyticsClient';
 
-export const metadata: Metadata = { title: 'Analytics | NESR Catalog Repo' };
+export const metadata: Metadata = { title: 'NESR | Analytics - Catalog Manager' };
 export const dynamic = 'force-dynamic';
 
 export default async function CatalogAnalyticsPage({

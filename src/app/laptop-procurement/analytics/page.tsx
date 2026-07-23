@@ -4,7 +4,7 @@ import { getLaptopActor, getLaptopAnalyticsData } from '@/app/actions/laptopProc
 import { canUseLaptopAnalytics } from '@/lib/laptopProcurement-utils';
 import LaptopAnalyticsClient from './LaptopAnalyticsClient';
 
-export const metadata: Metadata = { title: 'Analytics | Laptop Procurement' };
+export const metadata: Metadata = { title: 'NESR | Analytics - Laptop Procurement' };
 
 export default async function LaptopAnalyticsPage() {
   const actor = await getLaptopActor();

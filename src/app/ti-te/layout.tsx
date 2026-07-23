@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { TiteAccessProvider } from './TiteAccessContext';
 import TiteAccessOverlay from './TiteAccessOverlay';
 
-export const metadata: Metadata = { title: 'TI-TE | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | TI-TE' };
 
 export default async function TiteLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);

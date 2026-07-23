@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-export const metadata: Metadata = { title: 'Laptop Procurement | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | Laptop Procurement' };
 export const dynamic = 'force-dynamic';
 
 export default async function LaptopProcurementLayout({ children }: { children: React.ReactNode }) {

@@ -14,7 +14,7 @@ import { getSourceGuidePendingCount } from '@/app/actions/sourceguide';
 import { getCatalogAccessPendingCount } from '@/app/actions/catalog-manager';
 import AdminClient from './AdminClient';
 
-export const metadata = { title: 'Admin — SC Agents' };
+export const metadata = { title: 'NESR | Admin' };
 // Per-tab titles are set client-side via useEffect in AdminClient
 
 const ADMIN_TOOLS = new Set([

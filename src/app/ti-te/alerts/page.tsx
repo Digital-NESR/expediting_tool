@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { getAllShipments } from '@/app/actions/tite';
 import AlertsClient from './AlertsClient';
 
-export const metadata: Metadata = { title: 'Alerts — TI-TE | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | Alerts - TI-TE' };
 
 export default async function AlertsPage() {
   const session = await getServerSession(authOptions);

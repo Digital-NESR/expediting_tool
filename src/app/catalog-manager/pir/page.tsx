@@ -9,7 +9,7 @@ import {
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import PirCatalogClient from './PirCatalogClient';
 
-export const metadata: Metadata = { title: 'PIR / Inventory | NESR Catalog Repo' };
+export const metadata: Metadata = { title: 'NESR | PIR / Inventory - Catalog Manager' };
 export const dynamic = 'force-dynamic';
 
 const SORTS: PirSort[] = ['supplier', 'priceHi', 'priceLo', 'record'];

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Supplier Portal — NESR Procurement' };
+export const metadata: Metadata = { title: 'NESR | Supplier Portal' };
 
 export default function SupplierLayout({ children }: { children: React.ReactNode }) {
   return (

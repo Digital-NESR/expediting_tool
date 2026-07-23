@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { getStats, getCategories, getCountries, getSearchFacets } from '@/app/actions/sourceguide';
 import DashboardClient from './DashboardClient';
 
-export const metadata: Metadata = { title: 'SourceGuide Dashboard | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | SourceGuide' };
 
 export default async function SourceGuideDashboardPage() {
   const [stats, categories, countries, facets] = await Promise.all([

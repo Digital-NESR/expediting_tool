@@ -11,7 +11,7 @@ import CatalogEntryDetailClient from './CatalogEntryDetailClient';
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const entry = await getCatalogEntry(Number(id));
-  return { title: `${entry?.code ?? 'Entry'} | NESR Catalog Repo` };
+  return { title: `NESR | ${entry?.code ?? 'Entry'} - Catalog Manager` };
 }
 
 export const dynamic = 'force-dynamic';

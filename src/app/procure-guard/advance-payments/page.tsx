@@ -4,7 +4,7 @@ import { getAdvancePaymentRequestsData, getProcureGuardActor } from '@/app/actio
 import { canUseProcureGuardOperationalPages } from '@/lib/procureGuard-utils';
 import AdvancePaymentsStatusClient from './AdvancePaymentsStatusClient';
 
-export const metadata: Metadata = { title: 'Advance Payment Status | ProcureGuard' };
+export const metadata: Metadata = { title: 'NESR | Advance Payments - ProcureGuard' };
 
 export default async function AdvancePaymentsStatusPage() {
   const actor = await getProcureGuardActor();

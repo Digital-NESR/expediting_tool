@@ -4,7 +4,7 @@ import { getLaptopActor, getLaptopRequestsData } from '@/app/actions/laptopProcu
 import { canUseLaptopOperationalPages } from '@/lib/laptopProcurement-utils';
 import LaptopRequestsClient from './LaptopRequestsClient';
 
-export const metadata: Metadata = { title: 'Requests | Laptop Procurement' };
+export const metadata: Metadata = { title: 'NESR | Requests - Laptop Procurement' };
 
 export default async function LaptopRequestsPage() {
   const actor = await getLaptopActor();

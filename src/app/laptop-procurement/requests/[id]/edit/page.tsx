@@ -7,7 +7,7 @@ import LaptopRequestFormClient from '../../new/LaptopRequestFormClient';
 
 type PageProps = { params: Promise<{ id: string }> };
 
-export const metadata: Metadata = { title: 'Edit Request | Laptop Procurement' };
+export const metadata: Metadata = { title: 'NESR | Edit Request - Laptop Procurement' };
 export const dynamic = 'force-dynamic';
 
 export default async function EditLaptopRequestPage({ params }: PageProps) {

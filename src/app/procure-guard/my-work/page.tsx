@@ -4,7 +4,7 @@ import { getProcureGuardActor, getProcureGuardWorkQueueData } from '@/app/action
 import { canUseProcureGuardReviewerQueue } from '@/lib/procureGuard-utils';
 import MyWorkClient from './MyWorkClient';
 
-export const metadata: Metadata = { title: 'My Work | ProcureGuard' };
+export const metadata: Metadata = { title: 'NESR | My Work - ProcureGuard' };
 
 export default async function MyWorkPage() {
   const actor = await getProcureGuardActor();

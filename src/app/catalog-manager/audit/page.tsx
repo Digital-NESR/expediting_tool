@@ -3,7 +3,7 @@ import { getAuditLog, getCatalogActor, getPendingApprovalCount } from '@/app/act
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import AuditClient from './AuditClient';
 
-export const metadata: Metadata = { title: 'Audit log | NESR Catalog Repo' };
+export const metadata: Metadata = { title: 'NESR | Audit Log - Catalog Manager' };
 export const dynamic = 'force-dynamic';
 
 export default async function AuditPage() {

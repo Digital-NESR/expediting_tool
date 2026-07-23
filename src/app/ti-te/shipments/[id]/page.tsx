@@ -9,7 +9,7 @@ import {
 import type { NotificationLogRow } from '@/app/actions/tite';
 import ShipmentDetailClient from './ShipmentDetailClient';
 
-export const metadata: Metadata = { title: 'Shipment Detail — TI-TE | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | Shipment Detail - TI-TE' };
 
 export default async function ShipmentDetailPage({
   params,

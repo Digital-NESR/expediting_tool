@@ -3,7 +3,7 @@ import { listCatalogEntries, getCatalogActor, getCountries } from '@/app/actions
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import ApprovalsClient from './ApprovalsClient';
 
-export const metadata: Metadata = { title: 'Approvals | NESR Catalog Repo' };
+export const metadata: Metadata = { title: 'NESR | Approvals - Catalog Manager' };
 export const dynamic = 'force-dynamic';
 
 export default async function ApprovalsPage({

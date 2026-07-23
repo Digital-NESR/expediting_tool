@@ -4,7 +4,7 @@ import { getProcureGuardActor, getProcureGuardAnalyticsData } from '@/app/action
 import { canUseProcureGuardAnalytics } from '@/lib/procureGuard-utils';
 import AnalyticsClient from './AnalyticsClient';
 
-export const metadata: Metadata = { title: 'Analytics | ProcureGuard' };
+export const metadata: Metadata = { title: 'NESR | Analytics - ProcureGuard' };
 export const dynamic = 'force-dynamic';
 
 export default async function AnalyticsPage() {

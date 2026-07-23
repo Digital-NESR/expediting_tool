@@ -4,7 +4,7 @@ import { getLaptopActor, getLaptopWorkQueueData } from '@/app/actions/laptopProc
 import { canUseLaptopReviewerQueue } from '@/lib/laptopProcurement-utils';
 import LaptopMyWorkClient from './LaptopMyWorkClient';
 
-export const metadata: Metadata = { title: 'My Work | Laptop Procurement' };
+export const metadata: Metadata = { title: 'NESR | My Work - Laptop Procurement' };
 
 export default async function LaptopMyWorkPage() {
   const actor = await getLaptopActor();

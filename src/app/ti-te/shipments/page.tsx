@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { getAllShipments } from '@/app/actions/tite';
 import ShipmentsClient from './ShipmentsClient';
 
-export const metadata: Metadata = { title: 'Shipments — TI-TE | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | Shipments - TI-TE' };
 
 export default async function ShipmentsPage() {
   const session = await getServerSession(authOptions);

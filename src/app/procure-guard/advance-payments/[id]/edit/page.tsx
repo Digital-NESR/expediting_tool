@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  return { title: `Edit Advance Payment ${id} | ProcureGuard` };
+  return { title: `NESR | Edit Advance Payment ${id} - ProcureGuard` };
 }
 
 export default async function EditAdvancePaymentPage({ params }: PageProps) {

@@ -5,7 +5,7 @@ import { getProcureGuardUser } from '@/lib/auth';
 import { canUseProcureGuardOperationalPages } from '@/lib/procureGuard-utils';
 import AdvancePaymentFormClient from './AdvancePaymentFormClient';
 
-export const metadata: Metadata = { title: 'New Advance Payment Request | ProcureGuard' };
+export const metadata: Metadata = { title: 'NESR | New Advance Payment - ProcureGuard' };
 
 export default async function NewAdvancePaymentPage() {
   const user = await getProcureGuardUser();

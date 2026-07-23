@@ -6,7 +6,7 @@ import { SourceGuideAccessProvider } from './SourceGuideAccessContext';
 import SourceGuideAccessOverlay from './SourceGuideAccessOverlay';
 import SourceGuideShell from './SourceGuideShell';
 
-export const metadata: Metadata = { title: 'SourceGuide | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | SourceGuide' };
 export const dynamic = 'force-dynamic';
 
 export default async function SourceGuideLayout({ children }: { children: React.ReactNode }) {

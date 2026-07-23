@@ -12,7 +12,7 @@ import {
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import AddEntriesClient from './AddEntriesClient';
 
-export const metadata: Metadata = { title: 'Add entries | NESR Catalog Repo' };
+export const metadata: Metadata = { title: 'NESR | Add Entries - Catalog Manager' };
 export const dynamic = 'force-dynamic';
 
 export default async function AddEntriesPage({

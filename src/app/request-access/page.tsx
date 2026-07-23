@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { getCountries, getCurrentAccessRequest } from '@/app/actions/access';
 import RequestAccessClient from './RequestAccessClient';
 
-export const metadata = { title: 'Request Access — SC Agents' };
+export const metadata = { title: 'NESR | Request Access' };
 
 export default async function RequestAccessPage() {
   const session = await getServerSession(authOptions);

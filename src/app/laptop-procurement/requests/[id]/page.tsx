@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  return { title: `Request ${id} | Laptop Procurement` };
+  return { title: `NESR | Request ${id} - Laptop Procurement` };
 }
 
 export default async function LaptopRequestDetailPage({ params }: PageProps) {

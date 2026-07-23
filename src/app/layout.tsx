@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'NESR SC Agents',
+  title: 'SC Agents | NESR Digital Supplychain',
   description: 'NESR Digital Supply Chain Agents Platform',
   icons: {
     icon: '/nesr-logo-circle.png',

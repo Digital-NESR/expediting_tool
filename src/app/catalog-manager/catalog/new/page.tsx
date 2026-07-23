@@ -11,7 +11,7 @@ import {
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import CatalogEntryFormClient from '../CatalogEntryFormClient';
 
-export const metadata: Metadata = { title: 'New entry | NESR Catalog Repo' };
+export const metadata: Metadata = { title: 'NESR | New Entry - Catalog Manager' };
 export const dynamic = 'force-dynamic';
 
 export default async function NewCatalogEntryPage({

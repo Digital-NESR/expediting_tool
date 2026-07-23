@@ -4,7 +4,7 @@ import { canAccessProcureGuardApp } from '@/app/actions/procureGuard';
 import { getProcureGuardUser } from '@/lib/auth';
 import ProcureGuardUsageTracker from './components/ProcureGuardUsageTracker';
 
-export const metadata: Metadata = { title: 'ProcureGuard | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | ProcureGuard' };
 export const dynamic = 'force-dynamic';
 
 export default async function ProcureGuardLayout({ children }: { children: React.ReactNode }) {

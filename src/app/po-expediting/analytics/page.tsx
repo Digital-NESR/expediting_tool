@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import AnalyticsClient from './AnalyticsClient';
 
-export const metadata = { title: 'My Analytics — PO Expediting | SC Agents' };
+export const metadata = { title: 'NESR | My Analytics - PO Expediting' };
 
 export default async function MyAnalyticsPage() {
   const session = await getServerSession(authOptions);

@@ -4,7 +4,7 @@ import { getProcureGuardDelegationData } from '@/app/actions/procureGuard';
 import { canUseProcureGuardReviewerQueue } from '@/lib/procureGuard-utils';
 import ProcureGuardDelegateClient from './ProcureGuardDelegateClient';
 
-export const metadata: Metadata = { title: 'Delegation | ProcureGuard' };
+export const metadata: Metadata = { title: 'NESR | Delegation - ProcureGuard' };
 export const dynamic = 'force-dynamic';
 
 export default async function ProcureGuardDelegatePage() {

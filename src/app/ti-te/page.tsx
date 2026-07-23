@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { getAllShipments, getShipmentStats, getRecentActivity } from '@/app/actions/tite';
 import TiteDashboardClient from './TiteDashboardClient';
 
-export const metadata: Metadata = { title: 'Dashboard — TI-TE | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | TI-TE' };
 
 export default async function TiteDashboardPage() {
   const session = await getServerSession(authOptions);

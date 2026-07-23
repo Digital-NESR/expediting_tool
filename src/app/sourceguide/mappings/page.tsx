@@ -6,7 +6,7 @@ import { getCountries } from '@/app/actions/sourceguide';
 import { VIEW_ONLY } from '../constants';
 import MappingsClient from './MappingsClient';
 
-export const metadata: Metadata = { title: 'Manage Mappings · SourceGuide | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | Manage Mappings - SourceGuide' };
 
 export default async function SourceGuideMappingsPage({
   searchParams,

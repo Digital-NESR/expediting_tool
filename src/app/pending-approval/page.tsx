@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { getCurrentAccessRequest } from '@/app/actions/access';
 import PendingApprovalClient from './PendingApprovalClient';
 
-export const metadata = { title: 'Pending Approval — SC Agents' };
+export const metadata = { title: 'NESR | Pending Approval' };
 
 export default async function PendingApprovalPage() {
   const session = await getServerSession(authOptions);

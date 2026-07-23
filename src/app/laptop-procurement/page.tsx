@@ -4,7 +4,7 @@ import { getLaptopActor, getLaptopDashboardData } from '@/app/actions/laptopProc
 import { canUseLaptopOperationalPages } from '@/lib/laptopProcurement-utils';
 import LaptopDashboardClient from './LaptopDashboardClient';
 
-export const metadata: Metadata = { title: 'Laptop Procurement Dashboard | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | Laptop Procurement' };
 
 export default async function LaptopProcurementDashboardPage() {
   const actor = await getLaptopActor();

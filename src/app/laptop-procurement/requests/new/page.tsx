@@ -5,7 +5,7 @@ import { getProcureGuardUser } from '@/lib/auth';
 import { canUseLaptopOperationalPages } from '@/lib/laptopProcurement-utils';
 import LaptopRequestFormClient from './LaptopRequestFormClient';
 
-export const metadata: Metadata = { title: 'New Request | Laptop Procurement' };
+export const metadata: Metadata = { title: 'NESR | New Request - Laptop Procurement' };
 
 export default async function NewLaptopRequestPage() {
   const user = await getProcureGuardUser();

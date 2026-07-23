@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getCommodityDetail, getCountries } from '@/app/actions/sourceguide';
 import CommodityDetailClient from './CommodityDetailClient';
 
-export const metadata: Metadata = { title: 'Commodity · SourceGuide | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | Commodity - SourceGuide' };
 
 export default async function CommodityDetailPage({
   params, searchParams,

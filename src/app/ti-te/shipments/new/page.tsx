@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { getAllTiteCountries } from '@/app/actions/tite';
 import NewShipmentClient from './NewShipmentClient';
 
-export const metadata: Metadata = { title: 'Add Shipment — TI-TE | SC Agents' };
+export const metadata: Metadata = { title: 'NESR | Add Shipment - TI-TE' };
 
 const TITE_FALLBACK_COUNTRIES = [
   'Saudi Arabia (KSA)',
