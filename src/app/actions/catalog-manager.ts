@@ -79,6 +79,31 @@ async function exec(statement: string, params: QueryParams = []): Promise<{ rowC
   return { rowCount: result.rowCount ?? 0, insertId: Number.isFinite(insertId) ? insertId : 0 };
 }
 
+/**
+ * Run many bind-param-free DDL/DML statements in ONE round trip instead of one per statement.
+ * Calling `pool.query(text)` with NO params argument uses Postgres's simple query protocol, which
+ * (unlike the parameterized/extended protocol `exec()` uses) allows multiple `;`-separated
+ * statements in a single call. This is what keeps a cold schema bootstrap fast — see
+ * initCatalogManagerSchema, whose ~35 idempotent (IF NOT EXISTS-style) statements used to run as
+ * 35 sequential awaited round trips. Falls back to the slow-but-bulletproof one-by-one path
+ * (preserving the original per-statement "already exists" tolerance) if the batch ever fails.
+ */
+async function execBatch(statements: string[]): Promise<void> {
+  if (statements.length === 0) return;
+  try {
+    await catalogManagerPool.query(statements.join(';\n'));
+  } catch {
+    for (const statement of statements) {
+      try {
+        await exec(statement);
+      } catch (err) {
+        const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
+        if (code !== '23505' && code !== '42P07' && code !== '42710' && code !== '42701') throw err;
+      }
+    }
+  }
+}
+
 /* ============================================================================
    SCHEMA — created in code (idempotent), ensured before every action.
    Mirrors the ERD: country / currency / unit_of_measure / spend_category /
@@ -101,22 +126,20 @@ function ensureCatalogManagerSchema(): Promise<void> {
 }
 
 async function initCatalogManagerSchema(): Promise<void> {
-  async function execSchema(statement: string) {
-    try {
-      await exec(statement);
-    } catch (err) {
-      const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
-      if (code !== '23505' && code !== '42P07' && code !== '42710' && code !== '42701') throw err;
-    }
+  // Collect every idempotent DDL/migration statement, then run them all in ONE round trip via
+  // execBatch (see its docblock) instead of one round trip per statement.
+  const pending: string[] = [];
+  function execSchema(statement: string) {
+    pending.push(statement);
   }
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS currency (
+  execSchema(`CREATE TABLE IF NOT EXISTS currency (
     code VARCHAR(3) PRIMARY KEY,
     decimals SMALLINT NOT NULL DEFAULT 2,
     usd_rate NUMERIC(14,6) NOT NULL DEFAULT 1
   )`);
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS country (
+  execSchema(`CREATE TABLE IF NOT EXISTS country (
     code VARCHAR(2) PRIMARY KEY,
     name TEXT NOT NULL,
     default_currency VARCHAR(3),
@@ -124,20 +147,20 @@ async function initCatalogManagerSchema(): Promise<void> {
     status TEXT NOT NULL DEFAULT 'Active'
   )`);
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS unit_of_measure (
+  execSchema(`CREATE TABLE IF NOT EXISTS unit_of_measure (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL DEFAULT 'Active'
   )`);
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS spend_category (
+  execSchema(`CREATE TABLE IF NOT EXISTS spend_category (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     type TEXT NOT NULL DEFAULT 'Services',
     status TEXT NOT NULL DEFAULT 'Active'
   )`);
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS spend_subcategory (
+  execSchema(`CREATE TABLE IF NOT EXISTS spend_subcategory (
     id SERIAL PRIMARY KEY,
     category_id INTEGER NOT NULL REFERENCES spend_category(id),
     name TEXT NOT NULL,
@@ -145,7 +168,7 @@ async function initCatalogManagerSchema(): Promise<void> {
     UNIQUE (category_id, name)
   )`);
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS app_user (
+  execSchema(`CREATE TABLE IF NOT EXISTS app_user (
     id SERIAL PRIMARY KEY,
     full_name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
@@ -153,14 +176,14 @@ async function initCatalogManagerSchema(): Promise<void> {
     role TEXT NOT NULL DEFAULT 'Viewer'
   )`);
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS supplier (
+  execSchema(`CREATE TABLE IF NOT EXISTS supplier (
     id SERIAL PRIMARY KEY,
     vendor_code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     accountable_manager TEXT
   )`);
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS catalog_entry (
+  execSchema(`CREATE TABLE IF NOT EXISTS catalog_entry (
     id SERIAL PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
     country_code VARCHAR(2) NOT NULL,
@@ -189,7 +212,7 @@ async function initCatalogManagerSchema(): Promise<void> {
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS rate_version (
+  execSchema(`CREATE TABLE IF NOT EXISTS rate_version (
     id SERIAL PRIMARY KEY,
     entry_id INTEGER NOT NULL REFERENCES catalog_entry(id) ON DELETE CASCADE,
     version_no INTEGER NOT NULL,
@@ -203,7 +226,7 @@ async function initCatalogManagerSchema(): Promise<void> {
     UNIQUE (entry_id, version_no)
   )`);
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS entry_document (
+  execSchema(`CREATE TABLE IF NOT EXISTS entry_document (
     id SERIAL PRIMARY KEY,
     entry_id INTEGER NOT NULL REFERENCES catalog_entry(id) ON DELETE CASCADE,
     file_name TEXT NOT NULL,
@@ -211,7 +234,7 @@ async function initCatalogManagerSchema(): Promise<void> {
     size_label TEXT
   )`);
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS approval_decision (
+  execSchema(`CREATE TABLE IF NOT EXISTS approval_decision (
     id SERIAL PRIMARY KEY,
     entry_id INTEGER NOT NULL REFERENCES catalog_entry(id) ON DELETE CASCADE,
     version_no INTEGER NOT NULL,
@@ -222,7 +245,7 @@ async function initCatalogManagerSchema(): Promise<void> {
     decided_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS audit_log (
+  execSchema(`CREATE TABLE IF NOT EXISTS audit_log (
     id SERIAL PRIMARY KEY,
     action TEXT NOT NULL,
     target TEXT,
@@ -232,7 +255,7 @@ async function initCatalogManagerSchema(): Promise<void> {
   )`);
 
   // NEW (per request): people who approve for certain countries, linked to app_user.
-  await execSchema(`CREATE TABLE IF NOT EXISTS country_approver (
+  execSchema(`CREATE TABLE IF NOT EXISTS country_approver (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
     country_code VARCHAR(2) NOT NULL,
@@ -242,12 +265,12 @@ async function initCatalogManagerSchema(): Promise<void> {
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
   // partial unique: one row per (user, country, category) — NULL category treated as "all".
-  await execSchema(`CREATE UNIQUE INDEX IF NOT EXISTS country_approver_uniq
+  execSchema(`CREATE UNIQUE INDEX IF NOT EXISTS country_approver_uniq
     ON country_approver (user_id, country_code, COALESCE(spend_category_id, 0))`);
 
   // Self-service role-upgrade requests, reviewed from the platform /admin console (mirrors the
   // procure_guard_access_requests pattern: one row per user, upserted on re-request).
-  await execSchema(`CREATE TABLE IF NOT EXISTS catalog_access_requests (
+  execSchema(`CREATE TABLE IF NOT EXISTS catalog_access_requests (
     user_email TEXT PRIMARY KEY,
     display_name TEXT,
     job_title TEXT,
@@ -262,17 +285,17 @@ async function initCatalogManagerSchema(): Promise<void> {
   )`);
 
   // Logistics fields (added later): Incoterms 2020 code + supplier lead time in days.
-  await execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms TEXT`);
-  await execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms_location TEXT`);
-  await execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS lead_time_days INTEGER`);
+  execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms TEXT`);
+  execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms_location TEXT`);
+  execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS lead_time_days INTEGER`);
 
   // Real uploaded proof-of-agreement files are stored inline as a data URL (local-first).
-  await execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS data_url TEXT`);
-  await execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS uploaded_by TEXT`);
-  await execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP`);
+  execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS data_url TEXT`);
+  execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS uploaded_by TEXT`);
+  execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP`);
 
   // Approval thresholds — a global default plus optional per-country / per-category overrides.
-  await execSchema(`CREATE TABLE IF NOT EXISTS approval_threshold (
+  execSchema(`CREATE TABLE IF NOT EXISTS approval_threshold (
     id SERIAL PRIMARY KEY,
     country_code VARCHAR(2),
     spend_category_id INTEGER REFERENCES spend_category(id),
@@ -280,11 +303,11 @@ async function initCatalogManagerSchema(): Promise<void> {
     updated_by TEXT,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
-  await execSchema(`CREATE UNIQUE INDEX IF NOT EXISTS approval_threshold_uniq
+  execSchema(`CREATE UNIQUE INDEX IF NOT EXISTS approval_threshold_uniq
     ON approval_threshold (COALESCE(country_code, ''), COALESCE(spend_category_id, 0))`);
 
   // SAP service-activity reference list (every service in the system).
-  await execSchema(`CREATE TABLE IF NOT EXISTS service_activity (
+  execSchema(`CREATE TABLE IF NOT EXISTS service_activity (
     activity_number TEXT PRIMARY KEY,
     short_text TEXT NOT NULL,
     base_uom TEXT
@@ -292,17 +315,17 @@ async function initCatalogManagerSchema(): Promise<void> {
 
   // Supplier directory — the SAP supplier master, owned by the catalog DB (seeded once
   // from the expediting DB, then queried locally so runtime never depends on that DB).
-  await execSchema(`CREATE TABLE IF NOT EXISTS supplier_directory (
+  execSchema(`CREATE TABLE IF NOT EXISTS supplier_directory (
     code TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     emails TEXT,
     additional_email TEXT
   )`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS supplier_directory_name_idx ON supplier_directory (LOWER(name))`);
+  execSchema(`CREATE INDEX IF NOT EXISTS supplier_directory_name_idx ON supplier_directory (LOWER(name))`);
 
   // PIR / Inventory catalog — a READ-ONLY mirror of SAP Purchasing Info Records, loaded by an
   // external n8n job (Power BI → truncate + insert). The app never writes to this table.
-  await execSchema(`CREATE TABLE IF NOT EXISTS pir_catalog (
+  execSchema(`CREATE TABLE IF NOT EXISTS pir_catalog (
     info_record_number TEXT,
     product_number TEXT,
     material_description TEXT,
@@ -341,21 +364,33 @@ async function initCatalogManagerSchema(): Promise<void> {
   // trigram GIN indexes make the dashboard's ILIKE '%…%' search fast (a plain btree can't).
   // Trigram needs pg_trgm — best-effort: if the DB role can't create it, we fall back to btree-only
   // (search still works, just scans) instead of failing the whole schema init.
-  await execSchema(`CREATE INDEX IF NOT EXISTS pir_supplier_idx ON pir_catalog (supplier_name)`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS pir_product_idx ON pir_catalog (product_number)`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS pir_country_idx ON pir_catalog (country)`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS pir_synced_idx ON pir_catalog (synced_at)`);
+  execSchema(`CREATE INDEX IF NOT EXISTS pir_supplier_idx ON pir_catalog (supplier_name)`);
+  execSchema(`CREATE INDEX IF NOT EXISTS pir_product_idx ON pir_catalog (product_number)`);
+  execSchema(`CREATE INDEX IF NOT EXISTS pir_country_idx ON pir_catalog (country)`);
+  execSchema(`CREATE INDEX IF NOT EXISTS pir_synced_idx ON pir_catalog (synced_at)`);
 
   // Durable material-name store. pir_catalog is TRUNCATEd + reloaded nightly by n8n, and some
   // mornings the SUPPLYCHAIN lookup returns blank descriptions (Power BI not fully refreshed at
   // load time) — which used to wipe good names. This table accumulates every non-blank name we
   // have ever seen (keyed by product number) and is NEVER truncated, so reads can fall back to the
   // last-known-good name when a reload brings a material in without one.
-  await execSchema(`CREATE TABLE IF NOT EXISTS pir_name_cache (
+  execSchema(`CREATE TABLE IF NOT EXISTS pir_name_cache (
     product_number TEXT PRIMARY KEY,
     material_description TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
+
+  // Re-classify entries still tagged with the old Direct/Indirect spend types to the
+  // new three-way classification (Materials & Assets / Consumables / Services) from their category.
+  // (Included in the same batch below — safe to run before seeding since it only touches rows
+  // already tagged with the legacy values, which seeding never inserts.)
+  execSchema(`UPDATE catalog_entry e SET spend_type = sc.type
+    FROM spend_category sc WHERE sc.id = e.category_id AND e.spend_type IN ('Direct', 'Indirect')`);
+
+  // Flush every collected statement in ONE round trip (see execBatch) before anything below reads
+  // or writes these tables — seeding depends on them existing.
+  await execBatch(pending);
+
   try {
     await exec(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
     await exec(`CREATE INDEX IF NOT EXISTS pir_desc_trgm ON pir_catalog USING gin (material_description gin_trgm_ops)`);
@@ -368,11 +403,6 @@ async function initCatalogManagerSchema(): Promise<void> {
   await seedMasterData();
   await seedDemoData();
   await seedSupplierDirectory();
-
-  // Re-classify entries still tagged with the old Direct/Indirect spend types to the
-  // new three-way classification (Materials & Assets / Consumables / Services) from their category.
-  await execSchema(`UPDATE catalog_entry e SET spend_type = sc.type
-    FROM spend_category sc WHERE sc.id = e.category_id AND e.spend_type IN ('Direct', 'Indirect')`);
 }
 
 /**
@@ -430,45 +460,70 @@ export async function searchSupplierDirectory(query: string): Promise<{ name: st
 
 /* ---------------- seeding ---------------- */
 
+/**
+ * Build a `(?, ?, ...), (?, ?, ...)` multi-row VALUES clause + flat params array from row tuples.
+ * `suffix` appends a fixed (non-bound) literal to every row, e.g. `, 'Active'` for a constant status column.
+ */
+function multiRowValues(rows: (string | number)[][], suffix = ''): { placeholders: string; params: QueryParams } {
+  const placeholders = rows.map((row) => `(${row.map(() => '?').join(', ')}${suffix})`).join(', ');
+  return { placeholders, params: rows.flat() };
+}
+
 async function seedMasterData(): Promise<void> {
   // Upsert so the ProcureGuard-aligned country/currency lists land on already-seeded DBs too
   // (names/rates/flags refresh from the constants; country.status is left untouched for admins).
-  for (const c of SEED_CURRENCIES) {
+  // Each of these used to be one round trip PER ROW (a loop of ~20-70 sequential awaits); now
+  // every list is a single multi-row upsert — one round trip regardless of list size.
+  if (SEED_CURRENCIES.length) {
+    const { placeholders, params } = multiRowValues(SEED_CURRENCIES.map((c) => [c.code, c.decimals, c.usd_rate]));
     await exec(
-      `INSERT INTO currency (code, decimals, usd_rate) VALUES (?, ?, ?)
+      `INSERT INTO currency (code, decimals, usd_rate) VALUES ${placeholders}
        ON CONFLICT (code) DO UPDATE SET decimals = EXCLUDED.decimals, usd_rate = EXCLUDED.usd_rate`,
-      [c.code, c.decimals, c.usd_rate],
+      params,
     );
   }
-  for (const c of SEED_COUNTRIES) {
+  if (SEED_COUNTRIES.length) {
+    const { placeholders, params } = multiRowValues(SEED_COUNTRIES.map((c) => [c.code, c.name, c.ccy, c.flag]), `, 'Active'`);
     await exec(
-      `INSERT INTO country (code, name, default_currency, flag, status) VALUES (?, ?, ?, ?, 'Active')
+      `INSERT INTO country (code, name, default_currency, flag, status) VALUES ${placeholders}
        ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, default_currency = EXCLUDED.default_currency, flag = EXCLUDED.flag`,
-      [c.code, c.name, c.ccy, c.flag],
+      params,
     );
   }
-  for (const u of SEED_UOMS) {
-    await exec(`INSERT INTO unit_of_measure (name, status) VALUES (?, 'Active') ON CONFLICT (name) DO NOTHING`, [u]);
-  }
-  for (const cat of SPEND_TAXONOMY) {
-    const res = await exec(
-      `INSERT INTO spend_category (name, type, status) VALUES (?, ?, 'Active')
-       ON CONFLICT (name) DO UPDATE SET type = EXCLUDED.type RETURNING id`,
-      [cat.name, cat.type],
+  if (SEED_UOMS.length) {
+    const { placeholders, params } = multiRowValues(SEED_UOMS.map((u) => [u]), `, 'Active'`);
+    await exec(
+      `INSERT INTO unit_of_measure (name, status) VALUES ${placeholders} ON CONFLICT (name) DO NOTHING`,
+      params,
     );
-    let categoryId = res.insertId;
-    if (!categoryId) {
-      const rows = await sql<{ id: number }[]>(`SELECT id FROM spend_category WHERE name = ?`, [cat.name]);
-      categoryId = rows[0]?.id ?? 0;
-    }
-    for (const sub of cat.subs) {
+  }
+
+  // Spend categories: one multi-row upsert with RETURNING to resolve every id at once, then one
+  // multi-row insert for ALL subcategories across ALL categories — was N + M sequential round
+  // trips (one per category, one per subcategory); now 2 total regardless of taxonomy size.
+  if (SPEND_TAXONOMY.length) {
+    const { placeholders, params } = multiRowValues(SPEND_TAXONOMY.map((cat) => [cat.name, cat.type]), `, 'Active'`);
+    const catRows = await sql<{ id: number; name: string }[]>(
+      `INSERT INTO spend_category (name, type, status) VALUES ${placeholders}
+       ON CONFLICT (name) DO UPDATE SET type = EXCLUDED.type RETURNING id, name`,
+      params,
+    );
+    const idByName = new Map(catRows.map((r) => [r.name, r.id]));
+
+    const subRows = SPEND_TAXONOMY.flatMap((cat) => {
+      const categoryId = idByName.get(cat.name);
+      return categoryId ? cat.subs.map((sub) => [categoryId, sub.name]) : [];
+    });
+    if (subRows.length) {
+      const sub = multiRowValues(subRows, `, 'Active'`);
       await exec(
-        `INSERT INTO spend_subcategory (category_id, name, status) VALUES (?, ?, 'Active')
+        `INSERT INTO spend_subcategory (category_id, name, status) VALUES ${sub.placeholders}
          ON CONFLICT (category_id, name) DO NOTHING`,
-        [categoryId, sub.name],
+        sub.params,
       );
     }
   }
+
   // global default approval threshold (country/category null), if not already set
   await exec(
     `INSERT INTO approval_threshold (country_code, spend_category_id, threshold_usd, updated_by)
@@ -477,15 +532,15 @@ async function seedMasterData(): Promise<void> {
     [APPROVAL_THRESHOLD_USD],
   );
 
-  // service-activity reference list (only seed when empty, to avoid 127 upserts each boot)
+  // service-activity reference list (only seed when empty, to avoid re-upserting 127 rows each boot)
   const svcCount = await sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM service_activity`);
-  if (Number(svcCount[0]?.n ?? 0) === 0) {
-    for (const s of SERVICE_ACTIVITIES) {
-      await exec(
-        `INSERT INTO service_activity (activity_number, short_text, base_uom) VALUES (?, ?, ?) ON CONFLICT (activity_number) DO NOTHING`,
-        [s.no, s.text, s.uom],
-      );
-    }
+  if (Number(svcCount[0]?.n ?? 0) === 0 && SERVICE_ACTIVITIES.length) {
+    const { placeholders, params } = multiRowValues(SERVICE_ACTIVITIES.map((s) => [s.no, s.text, s.uom]));
+    await exec(
+      `INSERT INTO service_activity (activity_number, short_text, base_uom) VALUES ${placeholders}
+       ON CONFLICT (activity_number) DO NOTHING`,
+      params,
+    );
   }
 }
 
@@ -2225,8 +2280,13 @@ export async function getDocumentDataUrl(docId: number): Promise<string | null> 
    ANALYTICS — spend by category/country, status mix, and rate-history movers
 ============================================================================ */
 
-export async function getCatalogAnalyticsData(country = 'ALL'): Promise<CatalogAnalyticsData> {
-  const entries = await listCatalogEntries({ country });
+/**
+ * `preloadedEntries` lets a caller that already fetched the full entry list (e.g. the platform
+ * admin overview, which also needs the raw entries for its pending-approvals preview) skip a
+ * second identical full-table query — pass the same array instead of re-fetching it here.
+ */
+export async function getCatalogAnalyticsData(country = 'ALL', preloadedEntries?: CatalogEntry[]): Promise<CatalogAnalyticsData> {
+  const entries = preloadedEntries ?? await listCatalogEntries({ country });
   const today = new Date();
   const active = entries.filter((e) => e.status === 'Active');
 

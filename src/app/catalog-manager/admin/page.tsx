@@ -26,7 +26,7 @@ export default async function AdminPage() {
   const actor = await getCatalogActor();
   if (!actor.canAdmin) redirect('/catalog-manager');
 
-  const [countries, currencies, uoms, suppliers, users, categories, approvers, thresholds, services, pendingCount, analytics, pirMeta, allEntries] = await Promise.all([
+  const [countries, currencies, uoms, suppliers, users, categories, approvers, thresholds, services, pendingCount, pirMeta, allEntries] = await Promise.all([
     getCountries(),
     getCurrencies(),
     getUoms(),
@@ -37,10 +37,12 @@ export default async function AdminPage() {
     getApprovalThresholds(),
     getServiceActivities(),
     getPendingApprovalCount(),
-    getCatalogAnalyticsData('ALL'),
     getPirMeta(),
     listCatalogEntries({ country: 'ALL' }),
   ]);
+  // Reuse the same full entry list for both the analytics rollup and the pending-approvals
+  // preview, instead of each fetching (and joining/scanning) the whole table independently.
+  const analytics = await getCatalogAnalyticsData('ALL', allEntries);
   const pendingPreview = allEntries.filter((e) => e.status === 'Pending Approval').slice(0, 5);
 
   return (
