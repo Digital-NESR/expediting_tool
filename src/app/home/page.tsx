@@ -1199,7 +1199,7 @@ export default function HomePage() {
 
             {/* ── SCAI Panel ── */}
             <aside className="w-80 shrink-0">
-              <div className="h-full flex flex-col gap-4 bg-[#f0f9f4] border border-[#b6ddc8] rounded-2xl p-6">
+              <div className="h-[540px] flex flex-col gap-4 bg-[#f0f9f4] border border-[#b6ddc8] rounded-2xl p-6 overflow-hidden">
 
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-[#307c4c]" />
@@ -1208,11 +1208,19 @@ export default function HomePage() {
                   </p>
                 </div>
 
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900 leading-tight">SCAI</h2>
-                  <p className="text-sm text-slate-500 mt-0.5">Supply Chain AI</p>
-                  <p className="text-xs text-slate-400 mt-1">3 specialized agents, one platform</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900 leading-tight">SCAI</h2>
+                    <p className="text-sm text-slate-500 mt-0.5">Supply Chain AI</p>
+                  </div>
+                  <a
+                    href="https://scai.nesr.com"
+                    className="bg-[#307c4c] hover:bg-[#276041] text-white text-xs font-semibold px-4 py-2 rounded-xl text-center transition-colors whitespace-nowrap"
+                  >
+                    Launch SCAI
+                  </a>
                 </div>
+                <p className="text-xs text-slate-400">3 specialized agents, one platform</p>
 
                 {/* Agent cards */}
                 <div className="flex flex-col gap-3">
@@ -1291,13 +1299,6 @@ export default function HomePage() {
                 <p className="text-[11px] text-slate-400 leading-relaxed">
                   Powered by NESR&apos;s internal data and policy documents.
                 </p>
-
-                <a
-                  href="https://scai.nesr.com"
-                  className="mt-auto w-full bg-[#307c4c] hover:bg-[#276041] text-white text-sm font-semibold py-3 rounded-xl text-center transition-colors"
-                >
-                  Launch SCAI
-                </a>
 
               </div>
             </aside>
