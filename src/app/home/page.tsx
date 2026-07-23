@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
 import { submitSourceGuideAccessRequest } from '@/app/actions/sourceguide';
-import { Laptop, GitMerge, FileCheck, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3 } from 'lucide-react';
+import { Laptop, Gavel, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3 } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | null;
@@ -1170,21 +1170,26 @@ export default function HomePage() {
                   onClick={handleLaptopClick}
                 />
               )}
-              {show('the bridge project tracking handoffs cross-functional') && (
-                <ComingSoonCard
-                  name="The Bridge"
-                  description="Cross-functional project tracking and handoffs"
-                  icon={<GitMerge className="w-6 h-6 text-gray-400" />}
-                />
+              {show('rfx officer rfx bidding tendering quotation') && (
+                <a
+                  href="https://rfxofficer.nesr.com"
+                  className="group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
+                >
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]">
+                    <Gavel className="w-6 h-6 text-[#307c4c]" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-[18px] font-semibold text-gray-900">RFx Officer</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                      Manage RFQs, RFPs, and tendering processes across the organisation.
+                    </p>
+                  </div>
+                  <div className="mt-auto flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">Open →</span>
+                  </div>
+                </a>
               )}
-              {show('grn reconciliation goods receipt invoice matching') && (
-                <ComingSoonCard
-                  name="GRN Reconciliation"
-                  description="Goods receipt and invoice matching"
-                  icon={<FileCheck className="w-6 h-6 text-gray-400" />}
-                />
-              )}
-              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('bridge') && !show('grn') && !show('supply chain analytics') && (
+              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('rfx officer') && !show('supply chain analytics') && !show('catalog') && (
                 <div className="col-span-3 py-12 text-center">
                   <p className="text-sm text-slate-400">No applications match &ldquo;{appSearch}&rdquo;</p>
                 </div>
