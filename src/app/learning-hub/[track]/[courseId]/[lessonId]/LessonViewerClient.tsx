@@ -11,6 +11,29 @@ import { markLessonComplete, markLessonIncomplete } from '@/app/actions/learning
 import { formatDuration } from '@/lib/learning-hub-utils';
 import type { LessonDetailData } from '@/types/learning-hub';
 
+// Renders `[label](url)` markdown-style links inline within otherwise-plain lesson text,
+// so lessons can reference external resources (videos, SharePoint pages) as real links.
+const MARKDOWN_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+
+function renderLessonParagraph(text: string, color: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  MARKDOWN_LINK.lastIndex = 0;
+  while ((match = MARKDOWN_LINK.exec(text))) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
+    nodes.push(
+      <a key={key++} href={match[2]} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color }}>
+        {match[1]}
+      </a>,
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+}
+
 export default function LessonViewerClient({ data, userEmail }: { data: LessonDetailData; userEmail: string }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [completed, setCompleted] = useState(data.completed);
@@ -65,7 +88,7 @@ export default function LessonViewerClient({ data, userEmail }: { data: LessonDe
 
           <div className="mt-6 space-y-4">
             {paragraphs.map((p, i) => (
-              <p key={i} className="text-[15px] leading-relaxed text-slate-700">{p}</p>
+              <p key={i} className="text-[15px] leading-relaxed text-slate-700">{renderLessonParagraph(p, color)}</p>
             ))}
           </div>
 

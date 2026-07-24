@@ -266,7 +266,9 @@ It is worth being honest that not every underperforming supplier relationship ca
               {
                 title: 'Getting Around the SAP GUI',
                 duration_minutes: 8,
-                body: `Placeholder lesson. This will cover logging into the SAP GUI, the layout of the main screen (menu bar, command field, standard toolbar), navigating between modules, and personalizing your user settings. Replace with NESR-specific screenshots and a walkthrough of our SAP landscape via the admin CMS.`,
+                body: `Placeholder lesson. This will cover logging into the SAP GUI, the layout of the main screen (menu bar, command field, standard toolbar), navigating between modules, and personalizing your user settings. Replace with NESR-specific screenshots and a walkthrough of our SAP landscape via the admin CMS.
+
+Additional resource: [NESR SAP Training Hub](https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/SitePages/Home.aspx).`,
               },
               {
                 title: 'Transaction Codes You’ll Use Every Day',
@@ -295,46 +297,184 @@ It is worth being honest that not every underperforming supplier relationship ca
     ],
   },
 
-  /* ───────────────────────────── NESR Supply Chain (placeholder) ───────────────────────────── */
+  /* ───────────────────────────── NESR Supply Chain (placeholder — menu mirrors the NESR
+     "Supply Chain Process Cycles & Systems" AS-IS -> TO BE diagram) ───────────────────────────── */
   {
     key: 'nesr_supply_chain',
     name: 'NESR Supply Chain',
-    description: 'NESR-specific supply chain policies, SOPs, and internal tools. Placeholder content — expand via the admin CMS.',
+    description: 'NESR’s end-to-end Source-to-Pay process cycle and the systems behind each step. Placeholder content — expand via the admin CMS.',
     icon: 'building-2',
     color: '#8a5a2b',
     courses: [
       {
-        title: 'NESR Supply Chain Playbook',
-        description: 'An orientation course to NESR’s supply chain policies and the internal tools that support them. Placeholder — replace with the current policy documents and tool owners.',
+        title: 'NESR Supply Chain: Source to Pay Process & Systems',
+        description: 'Walks the NESR Source-to-Pay cycle (Source → Contract → Catalog → Demand → Procure → Deliver → Pay) plus the Logistics and Inventory lanes, and the system behind each step per the AS-IS → TO BE roadmap. Placeholder — expand each step via the admin CMS.',
         status: 'draft',
         modules: [
           {
-            title: 'NESR Policies & SOPs',
+            title: 'Overview',
             lessons: [
               {
-                title: 'NESR Procurement Policy Overview',
-                duration_minutes: 8,
-                body: `Placeholder lesson. This will summarize NESR's procurement policy — authorization limits, competitive bidding requirements, and documentation standards. Replace with the current, approved policy text and a link to the full policy document.`,
-              },
-              {
-                title: 'Approval Thresholds and Delegation of Authority',
-                duration_minutes: 8,
-                body: `Placeholder lesson. This will explain NESR's approval thresholds by spend amount, who holds delegation of authority at each level, and how that maps to the approval chains used in ProcureGuard. Replace with the current Delegation of Authority (DOA) matrix.`,
+                title: 'Course Introduction',
+                duration_minutes: 6,
+                body: `Placeholder lesson. This course walks through NESR's Source-to-Pay process cycle exactly as mapped in the current AS-IS → TO BE roadmap: Source → Contract → Catalog feeding into the main Demand → Procure → Deliver → Pay flow, with Logistics and Inventory as cross-cutting lanes. Each module below covers one stage of that cycle and the system that supports it today — noting where a step is still a manual, email-driven process, where it runs in core SAP, where a dedicated system is in limited use, and where a system is in phased deployment. Replace this lesson with a real walkthrough of the roadmap and how it is expected to evolve.
+
+Recommended intro video: [Introduction to Supply Chain Management NESR](https://url.us.m.mimecastprotect.com/s/vmLQCKrj6MCA2RlKivhXc5SPEK?domain=1drv.ms).`,
               },
             ],
           },
           {
-            title: 'Our Internal Tools',
+            title: 'Source',
             lessons: [
               {
-                title: 'ProcureGuard: Payment Request Approvals',
-                duration_minutes: 8,
-                body: `Placeholder lesson. This will introduce ProcureGuard — adhoc PO and advance payment requests, and how they route through multi-stage approvals. Replace with a walkthrough of submitting and approving a real request, and a link to the full ProcureGuard help page.`,
+                title: 'RFP & Award — SAP Ariba Sourcing (P7)',
+                duration_minutes: 7,
+                body: `Placeholder lesson. This step is today a manual, email-driven process, moving toward SAP Ariba Sourcing (project P7) for RFP and award. Replace with a walkthrough of the current process and the target SAP Ariba Sourcing workflow.`,
               },
               {
-                title: 'TI-TE, SourceGuide & PO Expediting at a Glance',
-                duration_minutes: 8,
-                body: `Placeholder lesson. This will give a one-page overview of NESR's other supply chain tools: TI-TE for temporary import/export and customs compliance, SourceGuide for approved supplier lookup, and PO Expediting for tracking and expediting open purchase orders. Replace with tool-specific walkthroughs or link out to each tool's own help page.`,
+                title: 'Supplier Onboarding — SAP Ariba SLP',
+                duration_minutes: 7,
+                body: `Placeholder lesson. Supplier onboarding runs through SAP Ariba SLP (Supplier Lifecycle & Performance). Replace with a walkthrough of onboarding a new supplier end-to-end in SAP Ariba SLP.`,
+              },
+            ],
+          },
+          {
+            title: 'Contract',
+            lessons: [
+              {
+                title: 'Contract Approval Workflow',
+                duration_minutes: 6,
+                body: `Placeholder lesson. This will cover NESR's contract approval workflow — who reviews and signs off at each stage before a contract is executed. Replace with the current approval workflow and sign-off matrix.`,
+              },
+              {
+                title: 'Contracts Repository — Sirion (P1)',
+                duration_minutes: 7,
+                body: `Placeholder lesson. Today, populating the contracts repository is a manual, email-driven process feeding into Sirion (project P1), NESR's contract lifecycle management system. Replace with a walkthrough of finding and filing a contract in Sirion.`,
+              },
+            ],
+          },
+          {
+            title: 'Catalog',
+            lessons: [
+              {
+                title: 'Supplier Price & Lead-Time Records — Guided Buying (P4)',
+                duration_minutes: 7,
+                body: `Placeholder lesson. Supplier price and lead-time records are maintained in Guided Buying (project P4), currently in limited deployment. Replace with a walkthrough of looking up a catalog price/lead-time record and how coverage is expanding.`,
+              },
+            ],
+          },
+          {
+            title: 'Demand',
+            lessons: [
+              {
+                title: 'Planning & Demand Forecasting',
+                duration_minutes: 6,
+                body: `Placeholder lesson. This will cover how demand planning and forecasting feeds the rest of the cycle, including its link to Inventory (Stock Replenishment Planning). Replace with the current forecasting process and system of record.`,
+              },
+              {
+                title: 'Demand Creation (SAP)',
+                duration_minutes: 6,
+                body: `Placeholder lesson. Demand creation runs in core SAP. Replace with a screen-by-screen walkthrough of creating a demand line in SAP.`,
+              },
+              {
+                title: 'Demand PR Approval (SAP)',
+                duration_minutes: 6,
+                body: `Placeholder lesson. Purchase requisition approval for demand runs in core SAP. Replace with the current PR approval workflow and thresholds.`,
+              },
+            ],
+          },
+          {
+            title: 'Procure',
+            lessons: [
+              {
+                title: 'Supplier Assessment',
+                duration_minutes: 6,
+                body: `Placeholder lesson. Supplier assessment at the procure stage is today a manual, email-driven process. Replace with the current assessment checklist and criteria.`,
+              },
+              {
+                title: 'Supplier PO Approval (SAP)',
+                duration_minutes: 6,
+                body: `Placeholder lesson. Supplier purchase order approval runs in core SAP. Replace with the current PO approval workflow and thresholds.`,
+              },
+            ],
+          },
+          {
+            title: 'Deliver & Logistics',
+            lessons: [
+              {
+                title: 'Supplier Acknowledgement',
+                duration_minutes: 6,
+                body: `Placeholder lesson. This will cover how supplier order acknowledgement is captured before delivery and tracking begin. Replace with the current process.`,
+              },
+              {
+                title: 'Tracking & Update of Variations — shipwaves (P2)',
+                duration_minutes: 7,
+                body: `Placeholder lesson. Shipment tracking and updating delivery variations is today a manual, email-driven process feeding into shipwaves (project P2). Replace with a walkthrough of tracking a shipment in shipwaves.`,
+              },
+              {
+                title: 'Expediting & Readiness — n8n (P5)',
+                duration_minutes: 7,
+                body: `Placeholder lesson. Expediting and delivery-readiness follow-ups are today a manual, email-driven process, automated via an n8n workflow (project P5) that feeds back into procurement. Replace with a walkthrough of what the n8n automation does and when to step in manually.`,
+              },
+              {
+                title: 'Freight Forwarder Bid & Award — shipwaves',
+                duration_minutes: 6,
+                body: `Placeholder lesson. Freight forwarder bid and award is today a manual, email-driven process running through shipwaves. Replace with a walkthrough of running an FF bid in shipwaves.`,
+              },
+              {
+                title: 'Delivery Acknowledgment (SAP)',
+                duration_minutes: 6,
+                body: `Placeholder lesson. Delivery acknowledgement is recorded in core SAP. Replace with a walkthrough of confirming delivery in SAP.`,
+              },
+            ],
+          },
+          {
+            title: 'Inventory Management',
+            lessons: [
+              {
+                title: 'Stock Replenishment Planning',
+                duration_minutes: 6,
+                body: `Placeholder lesson. This will cover how stock replenishment planning connects demand forecasting to physical inventory. Replace with the current planning process and cadence.`,
+              },
+              {
+                title: 'Physical Counting',
+                duration_minutes: 6,
+                body: `Placeholder lesson. Physical counting is today a manual, email-driven process. Replace with the current cycle-count procedure and frequency.`,
+              },
+              {
+                title: 'Goods Issue',
+                duration_minutes: 6,
+                body: `Placeholder lesson. Goods issue is today a manual, email-driven process. Replace with the current goods-issue procedure.`,
+              },
+              {
+                title: 'Goods Receipt — Coda (P3)',
+                duration_minutes: 7,
+                body: `Placeholder lesson. Goods receipt is today a manual, email-driven process feeding into Coda (project P3). Replace with a walkthrough of recording a goods receipt in Coda.`,
+              },
+              {
+                title: 'Inventory Digital Twin — Translytics (P6)',
+                duration_minutes: 7,
+                body: `Placeholder lesson. NESR's inventory digital twin, Translytics (project P6), is in phased deployment. Replace with a walkthrough of what the digital twin shows and which sites currently have it live.`,
+              },
+            ],
+          },
+          {
+            title: 'Pay',
+            lessons: [
+              {
+                title: 'Payment Request / Invoice — SAP Ariba Commerce Automation',
+                duration_minutes: 7,
+                body: `Placeholder lesson. Payment request and invoicing are moving to SAP Ariba Commerce Automation, currently in phased deployment. Replace with a walkthrough of submitting and tracking an invoice through Commerce Automation.`,
+              },
+              {
+                title: 'Demand Supply Validation (3-Way Match, SAP)',
+                duration_minutes: 6,
+                body: `Placeholder lesson. Demand-supply validation (three-way match between PO, goods receipt, and invoice) runs in core SAP. Replace with a walkthrough of resolving a 3WM mismatch.`,
+              },
+              {
+                title: 'Pay (SAP)',
+                duration_minutes: 6,
+                body: `Placeholder lesson. Final payment execution runs in core SAP. Replace with the current payment run schedule and how it connects to ProcureGuard for adhoc and advance payments.`,
               },
             ],
           },
