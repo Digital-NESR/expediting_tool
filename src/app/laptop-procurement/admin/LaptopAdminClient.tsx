@@ -260,6 +260,13 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
           <>
             <section className={`${GLASS} p-5`}>
               <h2 className="mb-4 text-[15px] font-bold">Add / Update Permission</h2>
+              <div className="mb-4">
+                <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Find the user in the directory</label>
+                <EmployeeAutocomplete
+                  placeholder="Search directory by name or email…"
+                  onSelect={emp => { setEmail(emp.email); setName(emp.name); }}
+                />
+              </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <div><label className="mb-1 block text-xs font-semibold text-[#5f7266]">Email</label><input className={INP} value={email} onChange={e => setEmail(e.target.value)} placeholder="user@nesr.com" /></div>
                 <div><label className="mb-1 block text-xs font-semibold text-[#5f7266]">Name</label><input className={INP} value={name} onChange={e => setName(e.target.value)} /></div>
