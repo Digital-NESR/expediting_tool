@@ -224,7 +224,79 @@ export interface LaptopAdminData {
   requests: LaptopRequest[];
   activity: LaptopActivityRow[];
   permissions: LaptopPermissionRow[];
+  delegations: LaptopDelegationRow[];
   stats: LaptopDashboardStats;
+}
+
+export type LaptopAccessRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
+
+export interface LaptopAccessRequestRow {
+  user_email: string;
+  display_name: string | null;
+  job_title: string | null;
+  department: string | null;
+  status: LaptopAccessRequestStatus;
+  requested_role: LaptopPermissionRole;
+  approved_role: LaptopPermissionRole | null;
+  country: string | null;
+  segment: string | null;
+  requested_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  notes: string | null;
+}
+
+export interface LaptopDelegationRow {
+  id: number;
+  delegator_email: string;
+  delegator_name: string | null;
+  delegate_email: string;
+  delegate_name: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+  revoked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LaptopDelegationData {
+  actor: LaptopActor;
+  granted: LaptopDelegationRow[];
+  received: LaptopDelegationRow[];
+}
+
+export interface LaptopApproverMatrixRow {
+  id: number;
+  country: string;
+  item_type: string;
+  it_manager_name: string | null;
+  it_manager_email: string | null;
+  it_manager_2_name: string | null;
+  it_manager_2_email: string | null;
+  cm_name: string | null;
+  cm_email: string | null;
+  itd_name: string | null;
+  itd_email: string | null;
+  scd_name: string | null;
+  scd_email: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateLaptopApproverMatrixInput {
+  id: number;
+  it_manager_name?: string;
+  it_manager_email?: string;
+  it_manager_2_name?: string;
+  it_manager_2_email?: string;
+  cm_name?: string;
+  cm_email?: string;
+  itd_name?: string;
+  itd_email?: string;
+  scd_name?: string;
+  scd_email?: string;
+  is_active: boolean;
 }
 
 export interface LaptopDocument {

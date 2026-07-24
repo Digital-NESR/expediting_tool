@@ -1,9 +1,10 @@
 'use server';
 
 import type { QueryResultRow } from 'pg';
+import { request as httpRequest } from 'http';
+import { request as httpsRequest } from 'https';
 import { revalidatePath } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
-import { getDelegatorsForApp } from '@/app/actions/delegation';
 import laptopProcurementPool from '@/lib/db-laptop';
 import {
   canUseLaptopAdmin,
@@ -24,12 +25,17 @@ import type {
   ActionResult,
   AdminCreateLaptopRequestInput,
   CreateLaptopRequestInput,
+  LaptopAccessRequestRow,
+  LaptopAccessRequestStatus,
   LaptopActivityRow,
   LaptopActor,
   LaptopDelegationGrant,
+  LaptopDelegationData,
+  LaptopDelegationRow,
   LaptopAdminData,
   LaptopAnalyticsData,
   LaptopAnalyticsMetric,
+  LaptopApproverMatrixRow,
   LaptopDashboardData,
   LaptopDeviceOption,
   LaptopDocument,
@@ -41,6 +47,7 @@ import type {
   LaptopRequestListData,
   LaptopRequestStatus,
   LaptopWorkQueueData,
+  UpdateLaptopApproverMatrixInput,
   UpdateLaptopPermissionInput,
 } from '@/types/laptopProcurement';
 
@@ -151,32 +158,68 @@ async function getActor(): Promise<LaptopActor> {
   };
 }
 
+let laptopDelegationTableEnsured: Promise<void> | null = null;
+async function ensureLaptopDelegationTable(): Promise<void> {
+  if (laptopDelegationTableEnsured) return laptopDelegationTableEnsured;
+  laptopDelegationTableEnsured = (async () => {
+    await exec(`CREATE TABLE IF NOT EXISTS laptop_delegations (
+      id SERIAL PRIMARY KEY,
+      delegator_email TEXT NOT NULL,
+      delegator_name TEXT,
+      delegate_email TEXT NOT NULL,
+      delegate_name TEXT,
+      expires_at TIMESTAMPTZ,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      revoked_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await exec(`CREATE INDEX IF NOT EXISTS idx_laptop_delegations_delegate ON laptop_delegations (LOWER(delegate_email))`);
+    await exec(`CREATE INDEX IF NOT EXISTS idx_laptop_delegations_delegator ON laptop_delegations (LOWER(delegator_email))`);
+  })().catch((err) => {
+    laptopDelegationTableEnsured = null;
+    throw err;
+  });
+  return laptopDelegationTableEnsured;
+}
+
 /**
  * Resolve active delegations TO `email` for Laptop Procurement. Each delegator
  * is expanded into their own role/permissions/scope (from this DB's permission
  * table). Only delegators who are reviewers/approvers (canViewAll) are inherited.
- * Fail-safe: returns [] if delegation_db is unavailable.
+ * Fail-safe: returns [] if the delegations table is unavailable.
  */
 async function resolveLaptopDelegations(email: string): Promise<LaptopDelegationGrant[]> {
-  const delegators = await getDelegatorsForApp(email, 'laptop');
-  if (!delegators.length) return [];
+  try {
+    await ensureLaptopDelegationTable();
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_delegations
+       WHERE LOWER(delegate_email) = ? AND is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
+      [email.toLowerCase()],
+    );
+    if (!rows.length) return [];
 
-  const grants: LaptopDelegationGrant[] = [];
-  for (const d of delegators) {
-    const row = await getPermissionRowForEmail(d.email);
-    if (!row?.role) continue;
-    const grantPermissions = getPermissionProfile(row.role as LaptopPermissionRole);
-    if (!grantPermissions.canViewAll) continue; // only reviewers/approvers carry delegatable authority
-    grants.push({
-      email: d.email,
-      name: row.name ?? d.name ?? d.email,
-      role: grantPermissions.role,
-      permissions: grantPermissions,
-      country: row.country ?? null,
-      segment: row.segment ?? null,
-    });
+    const grants: LaptopDelegationGrant[] = [];
+    for (const row of rows) {
+      const delegatorEmail = String(row.delegator_email);
+      const permRow = await getPermissionRowForEmail(delegatorEmail);
+      if (!permRow?.role) continue;
+      const grantPermissions = getPermissionProfile(permRow.role as LaptopPermissionRole);
+      if (!grantPermissions.canViewAll) continue; // only reviewers/approvers carry delegatable authority
+      grants.push({
+        email: delegatorEmail,
+        name: permRow.name ?? (row.delegator_name as string | null) ?? delegatorEmail,
+        role: grantPermissions.role,
+        permissions: grantPermissions,
+        country: permRow.country ?? null,
+        segment: permRow.segment ?? null,
+      });
+    }
+    return grants;
+  } catch (err) {
+    console.error('[resolveLaptopDelegations]', err);
+    return [];
   }
-  return grants;
 }
 
 export async function getLaptopActor(): Promise<LaptopActor | null> {
@@ -345,6 +388,239 @@ async function requireAdminActor(): Promise<LaptopActor> {
     throw new Error('Admin access is required.');
   }
   return actor;
+}
+
+/* ── n8n webhooks (mirrors ProcureGuard's notifier) ───────────── */
+
+function stripEnvQuotes(value: string): string {
+  const trimmed = value.trim();
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function isTlsCertificateError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err ?? '');
+  const code = typeof err === 'object' && err && 'code' in err ? String((err as { code?: unknown }).code) : '';
+  return code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+    || code === 'SELF_SIGNED_CERT_IN_CHAIN'
+    || code === 'DEPTH_ZERO_SELF_SIGNED_CERT'
+    || message.toLowerCase().includes('unable to verify')
+    || message.toLowerCase().includes('self-signed certificate');
+}
+
+function laptopWebhookErrorMessage(err: unknown): string {
+  if (isTlsCertificateError(err)) {
+    return 'TLS certificate verification failed for n8n even though the webhook call is configured to bypass TLS verification.';
+  }
+  return err instanceof Error ? err.message : 'Laptop Procurement n8n webhook failed.';
+}
+
+function getLaptopAppBaseUrl(): string {
+  const configured = process.env.CLIENT_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:4001';
+  return stripEnvQuotes(configured).replace(/\/$/, '');
+}
+
+async function postLaptopWebhook(
+  webhookUrl: string,
+  headers: Record<string, string>,
+  payload: unknown,
+): Promise<{ ok: boolean; status: number; statusText: string }> {
+  const url = new URL(stripEnvQuotes(webhookUrl));
+  const body = JSON.stringify(payload);
+  const isHttps = url.protocol === 'https:';
+
+  return new Promise((resolve, reject) => {
+    const req = (isHttps ? httpsRequest : httpRequest)({
+      method: 'POST',
+      protocol: url.protocol,
+      hostname: url.hostname,
+      port: url.port ? Number(url.port) : undefined,
+      path: `${url.pathname}${url.search}`,
+      headers: {
+        ...headers,
+        'Content-Length': Buffer.byteLength(body),
+      },
+      rejectUnauthorized: isHttps ? false : undefined,
+    }, response => {
+      response.resume();
+      response.on('end', () => {
+        const status = response.statusCode ?? 0;
+        resolve({ ok: status >= 200 && status < 300, status, statusText: response.statusMessage ?? '' });
+      });
+    });
+
+    req.setTimeout(15000, () => {
+      req.destroy(new Error('Laptop Procurement n8n webhook timed out.'));
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+/** Notifies the delegate (and, on grant, includes context) when a delegation is created or revoked. */
+async function sendLaptopDelegationNotification(
+  kind: 'granted' | 'revoked',
+  params: {
+    delegatorEmail: string;
+    delegatorName: string;
+    delegateEmail: string;
+    delegateName: string | null;
+    expiresAt: string | null;
+  },
+): Promise<void> {
+  const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_DELEGATION_WEBHOOK_URL?.trim();
+  if (!webhookUrl) {
+    console.warn('[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_DELEGATION_WEBHOOK_URL not configured; skipping delegation notification.');
+    return;
+  }
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const secret = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_SECRET?.trim();
+    if (secret) headers['x-laptop-procurement-secret'] = secret;
+
+    const payload = {
+      event: kind === 'granted' ? 'laptop_procurement.delegation_granted' : 'laptop_procurement.delegation_revoked',
+      occurred_at: new Date().toISOString(),
+      delegator: { email: params.delegatorEmail, name: params.delegatorName },
+      delegate: { email: params.delegateEmail, name: params.delegateName },
+      expires_at: params.expiresAt,
+      app_url: `${getLaptopAppBaseUrl()}/laptop-procurement/my-work`,
+    };
+    const response = await postLaptopWebhook(webhookUrl, headers, payload);
+    if (!response.ok) {
+      console.error('[Laptop Procurement n8n] Delegation webhook failed', response.status, response.statusText);
+    } else {
+      console.log('[Laptop Procurement n8n] Delegation webhook sent', { kind, status: response.status });
+    }
+  } catch (err) {
+    console.error('[Laptop Procurement n8n] Delegation webhook failed', laptopWebhookErrorMessage(err), err);
+  }
+}
+
+type LaptopApprovalStage = 'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
+
+function getLaptopApprovalStage(status: LaptopRequestStatus): LaptopApprovalStage | null {
+  switch (status) {
+    case 'Submitted':
+    case 'IT Approval':
+      return 'IT Manager';
+    case 'CM Approval':
+      return 'Country Manager';
+    case 'IT Director Approval':
+      return 'IT Director';
+    case 'Supply Chain Director Approval':
+      return 'Supply Chain Director';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Notifies whoever is next in the approval chain (IT Manager → Country Manager →
+ * IT Director → Supply Chain Director) that a request needs their attention. The
+ * real recipients are resolved from laptop_approver_matrix, but for now every stage
+ * is routed to a fixed test roster — see LAPTOP_APPROVAL_EMAIL_TEST_MODE and the
+ * LAPTOP_APPROVAL_TEST_*_EMAIL vars below.
+ */
+async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
+  const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL?.trim();
+  if (!webhookUrl) {
+    console.warn('[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL not configured; skipping approval-chain notification.');
+    return;
+  }
+  const stage = getLaptopApprovalStage(request.status);
+  if (!stage) return;
+
+  try {
+    const matrixRows = await sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_approver_matrix WHERE country = ? AND is_active = TRUE LIMIT 1`,
+      [request.country],
+    );
+    const matrix = matrixRows[0];
+
+    const realRecipients: Array<{ name: string | null; email: string }> =
+      stage === 'IT Manager'
+        ? ([
+            { name: (matrix?.it_manager_name as string) ?? null, email: matrix?.it_manager_email as string },
+            { name: (matrix?.it_manager_2_name as string) ?? null, email: matrix?.it_manager_2_email as string },
+          ].filter(r => r.email) as Array<{ name: string | null; email: string }>)
+        : stage === 'Country Manager'
+          ? (matrix?.cm_email ? [{ name: (matrix.cm_name as string) ?? null, email: matrix.cm_email as string }] : [])
+          : stage === 'IT Director'
+            ? (matrix?.itd_email ? [{ name: (matrix.itd_name as string) ?? null, email: matrix.itd_email as string }] : [])
+            : (matrix?.scd_email ? [{ name: (matrix.scd_name as string) ?? null, email: matrix.scd_email as string }] : []);
+
+    // TESTING OVERRIDE: replace the real laptop_approver_matrix lookup above with a fixed
+    // per-stage test roster, so the full chain — including the IT Manager → IT Manager 2
+    // escalation — can be exercised safely before the real matrix is verified end-to-end.
+    // Set LAPTOP_APPROVAL_EMAIL_TEST_MODE=false to deliver to the real matrix recipients.
+    const testMode = process.env.LAPTOP_APPROVAL_EMAIL_TEST_MODE !== 'false';
+    const testStageCandidates: Record<LaptopApprovalStage, Array<{ name: string; email: string }>> = {
+      'IT Manager': [
+        { name: 'IT Manager (test)', email: process.env.LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL?.trim() || 'sbagalkot@nesr.com' },
+        { name: 'IT Manager 2 (test)', email: process.env.LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL?.trim() || 'sbagalkot@nesr.com' },
+      ],
+      'Country Manager': [
+        { name: 'Country Manager (test)', email: process.env.LAPTOP_APPROVAL_TEST_CM_EMAIL?.trim() || 'cmorales@nesr.com' },
+      ],
+      'IT Director': [
+        { name: 'IT Director (test)', email: process.env.LAPTOP_APPROVAL_TEST_ITD_EMAIL?.trim() || 'mfarhan@nesr.com' },
+      ],
+      'Supply Chain Director': [
+        { name: 'Supply Chain Director (test)', email: process.env.LAPTOP_APPROVAL_TEST_SCD_EMAIL?.trim() || 'sbagalkot@nesr.com' },
+      ],
+    };
+
+    // `intended_recipients` is the full candidate list for the stage (used by the n8n workflow
+    // to pick an escalation target); `recipients` is only the primary — who gets emailed right now.
+    const intendedRecipients = testMode ? testStageCandidates[stage] : realRecipients;
+    const routedRecipients = testMode ? [testStageCandidates[stage][0]] : realRecipients;
+
+    if (routedRecipients.length === 0) {
+      console.warn('[Laptop Procurement n8n] No approver configured for stage; skipping notification', { stage, country: request.country });
+      return;
+    }
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const secret = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_SECRET?.trim();
+    if (secret) headers['x-laptop-procurement-secret'] = secret;
+
+    const payload = {
+      event: 'laptop_procurement.approval_needed',
+      occurred_at: new Date().toISOString(),
+      test_mode: testMode,
+      stage,
+      request: {
+        id: request.id,
+        reference_number: request.reference_number,
+        status: request.status,
+        priority: request.priority,
+        request_type: request.request_type,
+        country: request.country,
+        segment: request.segment,
+        type_of_device: request.type_of_device,
+        requested_model: request.requested_model,
+        requested_by_name: request.requested_by_name,
+        requested_by_email: request.requested_by_email,
+        created_at: request.created_at,
+      },
+      intended_recipients: intendedRecipients,
+      recipients: routedRecipients,
+      detail_url: `${getLaptopAppBaseUrl()}/laptop-procurement/requests/${request.id}`,
+    };
+
+    const response = await postLaptopWebhook(webhookUrl, headers, payload);
+    if (!response.ok) {
+      console.error('[Laptop Procurement n8n] Approval webhook failed', response.status, response.statusText);
+    } else {
+      console.log('[Laptop Procurement n8n] Approval webhook sent', { stage, requestId: request.id, status: response.status });
+    }
+  } catch (err) {
+    console.error('[Laptop Procurement n8n] Approval webhook failed', laptopWebhookErrorMessage(err), err);
+  }
 }
 
 /* ── Validation / misc helpers ────────────────────────────────── */
@@ -595,17 +871,21 @@ export async function getLaptopWorkQueueData(): Promise<LaptopWorkQueueData | nu
 export async function getLaptopAdminData(): Promise<LaptopAdminData | null> {
   try {
     const actor = await requireAdminActor();
-    const [requestRows, activityRows, permissionRows] = await Promise.all([
+    await ensureLaptopDelegationTable();
+    const [requestRows, activityRows, permissionRows, delegationRows] = await Promise.all([
       sql<QueryResultRow[]>(`SELECT * FROM laptop_requests ORDER BY created_at DESC, id DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 100`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions ORDER BY role, email`),
+      sql<QueryResultRow[]>(`SELECT * FROM laptop_delegations ORDER BY is_active DESC, created_at DESC`),
     ]);
     const requests = serialise<LaptopRequest[]>(requestRows);
+    const delegations = serialise<LaptopDelegationRow[]>(delegationRows);
     return {
       actor,
       requests,
       activity: serialise<LaptopActivityRow[]>(activityRows),
       permissions: serialise<LaptopPermissionRow[]>(permissionRows),
+      delegations,
       stats: buildStats(requests),
     };
   } catch (err) {
@@ -727,10 +1007,20 @@ export async function createLaptopRequest(input: CreateLaptopRequestInput): Prom
     });
     await writeActivity({ requestId: id, referenceNumber: reference, action: 'Request submitted', actor });
     revalidateLaptopPaths();
+    await notifyNewLaptopRequest(id);
     return { success: true, data: { id }, reference_number: reference };
   } catch (err) {
     console.error('[createLaptopRequest]', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to create laptop request.' };
+  }
+}
+
+async function notifyNewLaptopRequest(id: number): Promise<void> {
+  try {
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    if (rows[0]) await notifyLaptopNextApprover(serialise<LaptopRequest>(rows[0]));
+  } catch (err) {
+    console.error('[notifyNewLaptopRequest]', err);
   }
 }
 
@@ -792,6 +1082,7 @@ export async function createAdminLaptopRequest(input: AdminCreateLaptopRequestIn
     });
     await writeActivity({ requestId: id, referenceNumber: reference, action: 'Request created by admin', actor });
     revalidateLaptopPaths();
+    await notifyNewLaptopRequest(id);
     return { success: true, data: { id }, reference_number: reference };
   } catch (err) {
     console.error('[createAdminLaptopRequest]', err);
@@ -921,6 +1212,7 @@ export async function updateLaptopRequestStatus(
 
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
+    await notifyLaptopNextApprover(serialise<LaptopRequest>({ ...row, status }));
     return { success: true };
   } catch (err) {
     console.error('[updateLaptopRequestStatus]', err);
@@ -1045,7 +1337,7 @@ export async function updateLaptopPermission(input: UpdateLaptopPermissionInput)
          segment = EXCLUDED.segment, updated_at = CURRENT_TIMESTAMP`,
       [email, blankToNull(input.name), role, blankToNull(input.country), blankToNull(input.segment)],
     );
-    revalidatePath('/laptop-procurement/admin');
+    revalidatePath('/admin');
     return { success: true };
   } catch (err) {
     console.error('[updateLaptopPermission]', err);
@@ -1058,10 +1350,451 @@ export async function deleteLaptopPermission(email: string): Promise<ActionResul
     const actor = await requireAdminActor();
     if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
     await exec(`DELETE FROM laptop_permissions WHERE email = ?`, [email.toLowerCase()]);
-    revalidatePath('/laptop-procurement/admin');
+    revalidatePath('/admin');
     return { success: true };
   } catch (err) {
     console.error('[deleteLaptopPermission]', err);
     return { success: false, error: 'Failed to delete permission.' };
+  }
+}
+
+/* ── Approver matrix admin ─────────────────────────────────────── */
+
+export async function getLaptopApproverMatrix(): Promise<LaptopApproverMatrixRow[] | null> {
+  try {
+    await requireAdminActor();
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix ORDER BY country`);
+    return serialise<LaptopApproverMatrixRow[]>(rows);
+  } catch (err) {
+    console.error('[getLaptopApproverMatrix]', err);
+    return null;
+  }
+}
+
+export async function updateLaptopApproverMatrix(input: UpdateLaptopApproverMatrixInput): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+
+    await exec(
+      `UPDATE laptop_approver_matrix SET
+         it_manager_name = ?, it_manager_email = ?,
+         it_manager_2_name = ?, it_manager_2_email = ?,
+         cm_name = ?, cm_email = ?,
+         itd_name = ?, itd_email = ?,
+         scd_name = ?, scd_email = ?,
+         is_active = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        blankToNull(input.it_manager_name), blankToNull(input.it_manager_email),
+        blankToNull(input.it_manager_2_name), blankToNull(input.it_manager_2_email),
+        blankToNull(input.cm_name), blankToNull(input.cm_email),
+        blankToNull(input.itd_name), blankToNull(input.itd_email),
+        blankToNull(input.scd_name), blankToNull(input.scd_email),
+        input.is_active, input.id,
+      ],
+    );
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err) {
+    console.error('[updateLaptopApproverMatrix]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update approver matrix.' };
+  }
+}
+
+/* ── Access requests (mirrors ProcureGuard's access-request queue) ───────── */
+
+let laptopAccessRequestTableEnsured: Promise<void> | null = null;
+async function ensureLaptopAccessRequestTable(): Promise<void> {
+  if (laptopAccessRequestTableEnsured) return laptopAccessRequestTableEnsured;
+  laptopAccessRequestTableEnsured = (async () => {
+    async function execSchema(statement: string) {
+      try {
+        await exec(statement);
+      } catch (err) {
+        const code = typeof err === 'object' && err && 'code' in err ? String((err as { code?: unknown }).code) : '';
+        if (code !== '23505' && code !== '42P07' && code !== '42710') throw err;
+      }
+    }
+    await execSchema(`
+      CREATE TABLE IF NOT EXISTS laptop_access_requests (
+        user_email TEXT PRIMARY KEY,
+        display_name TEXT,
+        job_title TEXT,
+        department TEXT,
+        status TEXT NOT NULL CHECK (status IN ('Pending', 'Approved', 'Rejected', 'Revoked')),
+        requested_role TEXT NOT NULL DEFAULT 'Requester',
+        approved_role TEXT,
+        country TEXT,
+        segment TEXT,
+        requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        reviewed_at TIMESTAMPTZ,
+        reviewed_by TEXT,
+        notes TEXT
+      )
+    `);
+    await execSchema(`CREATE INDEX IF NOT EXISTS idx_laptop_access_requests_status ON laptop_access_requests (status)`);
+  })().catch((err) => {
+    laptopAccessRequestTableEnsured = null;
+    throw err;
+  });
+  return laptopAccessRequestTableEnsured;
+}
+
+function serialiseLaptopAccessRequest(row: QueryResultRow): LaptopAccessRequestRow {
+  return {
+    user_email: String(row.user_email),
+    display_name: row.display_name ? String(row.display_name) : null,
+    job_title: row.job_title ? String(row.job_title) : null,
+    department: row.department ? String(row.department) : null,
+    status: row.status as LaptopAccessRequestStatus,
+    requested_role: row.requested_role as LaptopPermissionRole,
+    approved_role: row.approved_role ? (row.approved_role as LaptopPermissionRole) : null,
+    country: row.country ? String(row.country) : null,
+    segment: row.segment ? String(row.segment) : null,
+    requested_at: row.requested_at instanceof Date ? row.requested_at.toISOString() : String(row.requested_at),
+    reviewed_at: row.reviewed_at instanceof Date ? row.reviewed_at.toISOString() : (row.reviewed_at ? String(row.reviewed_at) : null),
+    reviewed_by: row.reviewed_by ? String(row.reviewed_by) : null,
+    notes: row.notes ? String(row.notes) : null,
+  };
+}
+
+export async function getLaptopAccessRequests(): Promise<LaptopAccessRequestRow[]> {
+  try {
+    await requireAdminActor();
+    await ensureLaptopAccessRequestTable();
+    const [requestRows, permissionRows] = await Promise.all([
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_access_requests
+         ORDER BY CASE status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END, requested_at DESC`,
+      ),
+      sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions ORDER BY updated_at DESC, email`),
+    ]);
+
+    const byEmail = new Map<string, LaptopAccessRequestRow>();
+    for (const row of requestRows) {
+      byEmail.set(String(row.user_email).toLowerCase(), serialiseLaptopAccessRequest(row));
+    }
+    for (const row of permissionRows) {
+      const email = String(row.email).toLowerCase();
+      if (byEmail.has(email)) continue;
+      const role = row.role as LaptopPermissionRole;
+      byEmail.set(email, {
+        user_email: email,
+        display_name: row.name ? String(row.name) : null,
+        job_title: null,
+        department: null,
+        status: 'Approved',
+        requested_role: role,
+        approved_role: role,
+        country: row.country ? String(row.country) : null,
+        segment: row.segment ? String(row.segment) : null,
+        requested_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+        reviewed_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+        reviewed_by: 'Laptop Procurement permissions',
+        notes: null,
+      });
+    }
+
+    return [...byEmail.values()].sort((a, b) => {
+      const rank = (status: LaptopAccessRequestStatus) => (status === 'Pending' ? 0 : status === 'Approved' ? 1 : 2);
+      return rank(a.status) - rank(b.status) || Date.parse(b.requested_at) - Date.parse(a.requested_at);
+    });
+  } catch (err) {
+    console.error('[getLaptopAccessRequests]', err);
+    return [];
+  }
+}
+
+export async function getLaptopPendingAccessCount(): Promise<number> {
+  try {
+    await ensureLaptopAccessRequestTable();
+    const rows = await sql<QueryResultRow[]>(`SELECT COUNT(*) AS cnt FROM laptop_access_requests WHERE status = 'Pending'`);
+    return Number(rows[0]?.cnt ?? 0);
+  } catch (err) {
+    console.error('[getLaptopPendingAccessCount]', err);
+    return 0;
+  }
+}
+
+export async function approveLaptopAccess(input: {
+  userEmail: string;
+  approvedRole: LaptopPermissionRole;
+  reviewedBy: string;
+  country?: string | null;
+  segment?: string | null;
+  notes?: string | null;
+}): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    await ensureLaptopAccessRequestTable();
+    const email = requireText(input.userEmail, 'Email').toLowerCase();
+    const role = requireText(input.approvedRole, 'Role') as LaptopPermissionRole;
+
+    await exec(
+      `INSERT INTO laptop_access_requests
+         (user_email, display_name, status, requested_role, approved_role, country, segment, requested_at, reviewed_at, reviewed_by, notes)
+       VALUES (?, ?, 'Approved', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
+       ON CONFLICT (user_email) DO UPDATE SET
+         status = 'Approved',
+         approved_role = EXCLUDED.approved_role,
+         country = EXCLUDED.country,
+         segment = EXCLUDED.segment,
+         reviewed_at = CURRENT_TIMESTAMP,
+         reviewed_by = EXCLUDED.reviewed_by,
+         notes = EXCLUDED.notes`,
+      [email, email, role, role, blankToNull(input.country), blankToNull(input.segment), input.reviewedBy, blankToNull(input.notes)],
+    );
+
+    await exec(
+      `INSERT INTO laptop_permissions (email, name, role, country, segment)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (email) DO UPDATE SET
+         role = EXCLUDED.role, country = EXCLUDED.country, segment = EXCLUDED.segment, updated_at = CURRENT_TIMESTAMP`,
+      [email, null, role, blankToNull(input.country), blankToNull(input.segment)],
+    );
+
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err) {
+    console.error('[approveLaptopAccess]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to approve Laptop Procurement access.' };
+  }
+}
+
+export async function editLaptopAccess(input: {
+  userEmail: string;
+  approvedRole: LaptopPermissionRole;
+  reviewedBy: string;
+  country?: string | null;
+  segment?: string | null;
+}): Promise<ActionResult> {
+  return approveLaptopAccess({ ...input, notes: 'Access edited by admin' });
+}
+
+export async function rejectLaptopAccess(userEmail: string, reviewedBy: string): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    await ensureLaptopAccessRequestTable();
+    const email = requireText(userEmail, 'Email').toLowerCase();
+    await exec(
+      `UPDATE laptop_access_requests
+       SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
+       WHERE user_email = ?`,
+      [reviewedBy, email],
+    );
+    if (!adminEmails().includes(email)) {
+      await exec(`DELETE FROM laptop_permissions WHERE email = ?`, [email]);
+    }
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err) {
+    console.error('[rejectLaptopAccess]', err);
+    return { success: false, error: 'Failed to reject Laptop Procurement access.' };
+  }
+}
+
+export async function revokeLaptopAccess(userEmail: string, reviewedBy: string): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    await ensureLaptopAccessRequestTable();
+    const email = requireText(userEmail, 'Email').toLowerCase();
+    await exec(
+      `INSERT INTO laptop_access_requests
+         (user_email, display_name, status, requested_role, requested_at, reviewed_at, reviewed_by)
+       VALUES (?, ?, 'Revoked', 'Requester', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+       ON CONFLICT (user_email) DO UPDATE SET
+         status = 'Revoked', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = EXCLUDED.reviewed_by`,
+      [email, email, reviewedBy],
+    );
+    if (!adminEmails().includes(email)) {
+      await exec(`DELETE FROM laptop_permissions WHERE email = ?`, [email]);
+    }
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err) {
+    console.error('[revokeLaptopAccess]', err);
+    return { success: false, error: 'Failed to revoke Laptop Procurement access.' };
+  }
+}
+
+export async function deleteLaptopAccessRequest(userEmail: string): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    await ensureLaptopAccessRequestTable();
+    const email = requireText(userEmail, 'Email').toLowerCase();
+    await exec(`DELETE FROM laptop_access_requests WHERE user_email = ?`, [email]);
+    if (!adminEmails().includes(email)) {
+      await exec(`DELETE FROM laptop_permissions WHERE email = ?`, [email]);
+    }
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err) {
+    console.error('[deleteLaptopAccessRequest]', err);
+    return { success: false, error: 'Failed to delete Laptop Procurement access record.' };
+  }
+}
+
+/* ── Delegation (own table in laptop_procurement_db) ──────────────────────── */
+
+const DELEGATION_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function getLaptopDelegationData(): Promise<LaptopDelegationData | null> {
+  try {
+    const actor = await getActor();
+    await ensureLaptopDelegationTable();
+    const [grantedRows, receivedRows] = await Promise.all([
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_delegations WHERE LOWER(delegator_email) = ? ORDER BY is_active DESC, created_at DESC`,
+        [actor.email.toLowerCase()],
+      ),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_delegations
+         WHERE LOWER(delegate_email) = ? AND is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+         ORDER BY created_at DESC`,
+        [actor.email.toLowerCase()],
+      ),
+    ]);
+    return {
+      actor,
+      granted: serialise<LaptopDelegationRow[]>(grantedRows),
+      received: serialise<LaptopDelegationRow[]>(receivedRows),
+    };
+  } catch (err) {
+    console.error('[getLaptopDelegationData]', err);
+    return null;
+  }
+}
+
+export async function grantLaptopDelegation(input: {
+  delegateEmail: string;
+  delegateName?: string;
+  endsAt?: string | null;
+}): Promise<ActionResult<{ id: number }>> {
+  try {
+    const actor = await getActor();
+    if (!actor.permissions.canViewAll) {
+      return { success: false, error: 'Only approvers can delegate their approval authority.' };
+    }
+    await ensureLaptopDelegationTable();
+    const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
+    if (!DELEGATION_EMAIL_RE.test(delegateEmail)) return { success: false, error: 'Enter a valid delegate email address.' };
+    if (delegateEmail === actor.email.toLowerCase()) return { success: false, error: 'You cannot delegate to yourself.' };
+    const expiresAt = input.endsAt && input.endsAt.trim() ? input.endsAt.trim() : null;
+
+    // Replace any existing active delegation to the same person so there is only one live grant.
+    await exec(
+      `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE LOWER(delegator_email) = ? AND LOWER(delegate_email) = ? AND is_active = TRUE`,
+      [actor.email.toLowerCase(), delegateEmail],
+    );
+    const result = await exec(
+      `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, expires_at)
+       VALUES (?, ?, ?, ?, ?) RETURNING id`,
+      [actor.email.toLowerCase(), actor.name, delegateEmail, blankToNull(input.delegateName), expiresAt],
+    );
+    revalidatePath('/laptop-procurement/delegate');
+    await sendLaptopDelegationNotification('granted', {
+      delegatorEmail: actor.email,
+      delegatorName: actor.name,
+      delegateEmail,
+      delegateName: input.delegateName?.trim() || null,
+      expiresAt,
+    });
+    return { success: true, data: { id: result.insertId } };
+  } catch (err) {
+    console.error('[grantLaptopDelegation]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
+  }
+}
+
+export async function revokeLaptopDelegation(id: number): Promise<ActionResult> {
+  try {
+    const actor = await getActor();
+    await ensureLaptopDelegationTable();
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_delegations WHERE id = ? LIMIT 1`, [id]);
+    const row = rows[0];
+    if (!row) return { success: false, error: 'Delegation not found.' };
+    const isOwner = String(row.delegator_email).toLowerCase() === actor.email.toLowerCase();
+    if (!isOwner && !actor.permissions.canManagePermissions) {
+      return { success: false, error: 'You can only revoke delegations you created.' };
+    }
+    if (row.is_active) {
+      await exec(
+        `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [id],
+      );
+      await sendLaptopDelegationNotification('revoked', {
+        delegatorEmail: String(row.delegator_email),
+        delegatorName: (row.delegator_name as string) || actor.name,
+        delegateEmail: String(row.delegate_email),
+        delegateName: (row.delegate_name as string | null) ?? null,
+        expiresAt: null,
+      });
+    }
+    revalidatePath('/laptop-procurement/delegate');
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err) {
+    console.error('[revokeLaptopDelegation]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to revoke delegation.' };
+  }
+}
+
+// Admin-managed delegation: an admin sets up a delegation on behalf of any approver
+// (delegator → delegate), rather than the delegator delegating their own authority
+// via /laptop-procurement/delegate.
+export async function adminGrantLaptopDelegation(input: {
+  delegatorEmail: string;
+  delegateEmail: string;
+  delegateName?: string;
+  endsAt?: string | null;
+}): Promise<ActionResult<{ id: number }>> {
+  try {
+    await requireAdminActor();
+    await ensureLaptopDelegationTable();
+    const delegatorEmail = requireText(input.delegatorEmail, 'Approver email').toLowerCase();
+    const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
+    if (!DELEGATION_EMAIL_RE.test(delegatorEmail)) return { success: false, error: 'Enter a valid approver email address.' };
+    if (!DELEGATION_EMAIL_RE.test(delegateEmail)) return { success: false, error: 'Enter a valid delegate email address.' };
+    if (delegatorEmail === delegateEmail) return { success: false, error: 'Approver and delegate must be different people.' };
+
+    const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
+    const delegatorRole = (delegatorRow?.role ?? (adminEmails().includes(delegatorEmail) ? 'Admin' : 'Requester')) as LaptopPermissionRole;
+    const delegatorProfile = getPermissionProfile(delegatorRole);
+    if (!delegatorProfile.canViewAll) {
+      return { success: false, error: 'The selected approver has no approval authority to delegate.' };
+    }
+    const delegatorName = delegatorRow?.name || delegatorEmail;
+    const expiresAt = input.endsAt && input.endsAt.trim() ? input.endsAt.trim() : null;
+
+    // Replace any existing active delegation for this same pair so there is only one live grant.
+    await exec(
+      `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE LOWER(delegator_email) = ? AND LOWER(delegate_email) = ? AND is_active = TRUE`,
+      [delegatorEmail, delegateEmail],
+    );
+    const result = await exec(
+      `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, expires_at)
+       VALUES (?, ?, ?, ?, ?) RETURNING id`,
+      [delegatorEmail, delegatorName, delegateEmail, blankToNull(input.delegateName), expiresAt],
+    );
+    revalidatePath('/admin');
+    revalidatePath('/laptop-procurement/delegate');
+    await sendLaptopDelegationNotification('granted', {
+      delegatorEmail,
+      delegatorName,
+      delegateEmail,
+      delegateName: input.delegateName?.trim() || null,
+      expiresAt,
+    });
+    return { success: true, data: { id: result.insertId } };
+  } catch (err) {
+    console.error('[adminGrantLaptopDelegation]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
   }
 }

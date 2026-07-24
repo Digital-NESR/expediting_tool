@@ -4,16 +4,24 @@ import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import LaptopShell, { CTA, GLASS } from '../components/LaptopShell';
-import { deleteLaptopPermission, deleteLaptopRecord, updateLaptopPermission } from '@/app/actions/laptopProcurement';
+import EmployeeAutocomplete from '@/app/procure-guard/components/EmployeeAutocomplete';
+import {
+  adminGrantLaptopDelegation,
+  deleteLaptopPermission,
+  deleteLaptopRecord,
+  revokeLaptopDelegation,
+  updateLaptopPermission,
+} from '@/app/actions/laptopProcurement';
 import {
   COUNTRY_OPTIONS,
   PERMISSION_PROFILES,
   PERMISSION_ROLE_OPTIONS,
   SEGMENT_OPTIONS,
   fmtDate,
+  getPermissionProfile,
   getStatusBadge,
 } from '@/lib/laptopProcurement-utils';
-import type { LaptopAdminData, LaptopPermissionRole } from '@/types/laptopProcurement';
+import type { LaptopAdminData, LaptopDelegationRow, LaptopPermissionRole } from '@/types/laptopProcurement';
 
 const INP = 'w-full rounded-xl border border-white/80 bg-white/70 px-3.5 py-2 text-sm text-[#182a1f] shadow-sm outline-none backdrop-blur-xl transition placeholder:text-[#8a978d] focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 
@@ -28,10 +36,152 @@ function DbError() {
   );
 }
 
-export default function LaptopAdminClient({ data }: { data: LaptopAdminData | null }) {
-  const [tab, setTab] = useState<'permissions' | 'requests' | 'activity'>('permissions');
+const REQUESTS_PAGE_SIZE = 10;
+
+function delegationIsLive(d: LaptopDelegationRow): boolean {
+  return d.is_active && (!d.expires_at || new Date(d.expires_at).getTime() > Date.now());
+}
+
+function DelegationsPanel({
+  delegations,
+  approvers,
+  onDone,
+}: {
+  delegations: LaptopDelegationRow[];
+  approvers: Array<{ email: string; name: string | null; role: LaptopPermissionRole }>;
+  onDone: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [delegatorEmail, setDelegatorEmail] = useState('');
+  const [delegateEmail, setDelegateEmail] = useState('');
+  const [delegateName, setDelegateName] = useState('');
+  const [endsAt, setEndsAt] = useState('');
+  const [error, setError] = useState('');
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    startTransition(async () => {
+      const result = await adminGrantLaptopDelegation({ delegatorEmail, delegateEmail, delegateName, endsAt: endsAt || null });
+      if (result.success) {
+        onDone(`Delegated ${delegatorEmail}'s approvals to ${delegateEmail}.`);
+        setDelegatorEmail(''); setDelegateEmail(''); setDelegateName(''); setEndsAt('');
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Failed to create delegation.');
+      }
+    });
+  }
+
+  function revoke(id: number, who: string) {
+    setError('');
+    startTransition(async () => {
+      const result = await revokeLaptopDelegation(id);
+      if (result.success) {
+        onDone(`Revoked delegation for ${who}.`);
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Failed to revoke delegation.');
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-5">
+      <section className={`${GLASS} p-5`}>
+        <h3 className="text-[15px] font-bold">Set up a delegation</h3>
+        <p className="mt-0.5 text-xs text-[#5f7266]">Hand an approver&apos;s authority to a delegate on their behalf. The delegate inherits the approver&apos;s scope until the end date or until you revoke it.</p>
+        {error && <div className="mt-3 rounded-xl border border-red-400/40 bg-red-100/40 px-4 py-3 text-sm font-semibold text-red-800 backdrop-blur">{error}</div>}
+        <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Find the delegate in the directory</label>
+            <EmployeeAutocomplete
+              placeholder="Search directory by name or email…"
+              onSelect={emp => { setDelegateEmail(emp.email); setDelegateName(emp.name); }}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Approver (delegator)</label>
+            <select className={INP} value={delegatorEmail} onChange={e => setDelegatorEmail(e.target.value)} required>
+              <option value="">Select an approver…</option>
+              {approvers.map(a => (
+                <option key={a.email} value={a.email}>{a.name ? `${a.name} (${a.email})` : a.email} — {a.role}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Delegate email</label>
+            <input type="email" required className={INP} value={delegateEmail} onChange={e => setDelegateEmail(e.target.value)} placeholder="colleague@nesr.com" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Delegate name (optional)</label>
+            <input className={INP} value={delegateName} onChange={e => setDelegateName(e.target.value)} placeholder="Full name" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[#5f7266]">End date (optional)</label>
+            <input type="date" className={INP} value={endsAt} onChange={e => setEndsAt(e.target.value)} />
+          </div>
+          <div className="flex items-end md:col-span-2">
+            <button type="submit" disabled={isPending} className={`${CTA} disabled:opacity-60`}>
+              {isPending ? 'Working…' : 'Create delegation'}
+            </button>
+          </div>
+        </form>
+        {approvers.length === 0 && (
+          <p className="mt-3 text-xs text-[#5f7266]/80">No approvers found. Assign approval access from the Permissions tab first.</p>
+        )}
+      </section>
+
+      <section className={`${GLASS} divide-y divide-[#182a1f]/[0.06] overflow-hidden`}>
+        <div className="p-5">
+          <h3 className="text-[15px] font-bold">All delegations</h3>
+          <p className="mt-0.5 text-xs text-[#5f7266]">Every delegation across approvers. Revoke any active one to remove the delegate&apos;s access immediately.</p>
+        </div>
+        {delegations.length === 0 ? (
+          <div className="p-8 text-center text-sm text-[#5f7266]">No delegations have been set up.</div>
+        ) : delegations.map(d => {
+          const live = delegationIsLive(d);
+          return (
+            <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-[#182a1f]">{d.delegator_name || d.delegator_email}</span>
+                  <span className="text-[#8a978d]">→</span>
+                  <span className="text-sm font-semibold text-[#182a1f]">{d.delegate_name || d.delegate_email}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${live ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'bg-slate-100 text-slate-500'}`}>
+                    {live ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <p className="mt-0.5 truncate text-xs text-[#5f7266]">{d.delegator_email} → {d.delegate_email}</p>
+                <p className="mt-0.5 text-[11px] text-[#5f7266]/80">
+                  Granted {fmtDate(d.created_at)}
+                  {d.expires_at ? ` · ends ${fmtDate(d.expires_at)}` : ''}
+                  {d.revoked_at ? ` · revoked ${fmtDate(d.revoked_at)}` : ''}
+                </p>
+              </div>
+              {live && (
+                <button
+                  onClick={() => revoke(d.id, d.delegate_name || d.delegate_email)}
+                  disabled={isPending}
+                  className="shrink-0 rounded-full border border-red-400/40 bg-red-100/40 px-3 py-1.5 text-xs font-bold text-red-800 backdrop-blur transition hover:bg-red-100/80 disabled:opacity-60"
+                >
+                  Revoke
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </section>
+    </div>
+  );
+}
+
+export default function LaptopAdminClient({ data, embedded = false }: { data: LaptopAdminData | null; embedded?: boolean }) {
+  const [tab, setTab] = useState<'permissions' | 'requests' | 'activity' | 'delegations'>('permissions');
   const [isPending, startTransition] = useTransition();
   const [banner, setBanner] = useState('');
+  const [requestsPage, setRequestsPage] = useState(0);
   const router = useRouter();
 
   const [email, setEmail] = useState('');
@@ -41,7 +191,12 @@ export default function LaptopAdminClient({ data }: { data: LaptopAdminData | nu
   const [segment, setSegment] = useState('');
 
   if (!data) return <DbError />;
-  const { actor, requests, activity, permissions, stats } = data;
+  const { actor, requests, activity, permissions, delegations, stats } = data;
+  const approvers = permissions.filter(p => getPermissionProfile(p.role).canViewAll);
+
+  const requestsPageCount = Math.max(1, Math.ceil(requests.length / REQUESTS_PAGE_SIZE));
+  const currentRequestsPage = Math.min(requestsPage, requestsPageCount - 1);
+  const pagedRequests = requests.slice(currentRequestsPage * REQUESTS_PAGE_SIZE, (currentRequestsPage + 1) * REQUESTS_PAGE_SIZE);
 
   function savePermission() {
     setBanner('');
@@ -78,15 +233,10 @@ export default function LaptopAdminClient({ data }: { data: LaptopAdminData | nu
     { id: 'permissions', label: `Permissions (${permissions.length})` },
     { id: 'requests', label: `Requests (${requests.length})` },
     { id: 'activity', label: `Activity (${activity.length})` },
+    { id: 'delegations', label: `Delegations (${delegations.length})` },
   ];
 
-  return (
-    <LaptopShell
-      title="Admin Panel"
-      subtitle="Permissions, records, and workflow activity"
-      pendingCount={stats.pending_review}
-      accessView={actor.permissions.accessView}
-    >
+  const content = (
       <div className="space-y-5">
         {banner && <div className="rounded-2xl border border-[#307c4c]/25 bg-[#307c4c]/10 px-4 py-3 text-sm font-semibold text-[#1f5c3a] backdrop-blur">{banner}</div>}
 
@@ -185,7 +335,7 @@ export default function LaptopAdminClient({ data }: { data: LaptopAdminData | nu
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#182a1f]/[0.06]">
-                  {requests.slice(0, 200).map(r => {
+                  {pagedRequests.map(r => {
                     const badge = getStatusBadge(r.status);
                     return (
                       <tr key={r.id} className="transition-colors hover:bg-white/45">
@@ -202,7 +352,31 @@ export default function LaptopAdminClient({ data }: { data: LaptopAdminData | nu
                 </tbody>
               </table>
             </div>
-            {requests.length > 200 && <p className="px-5 py-3 text-xs text-[#5f7266]/80">Showing first 200 of {requests.length} requests.</p>}
+            <div className="flex items-center justify-between border-t border-[#182a1f]/[0.06] px-5 py-3">
+              <p className="text-xs text-[#5f7266]/80">
+                Showing {requests.length === 0 ? 0 : currentRequestsPage * REQUESTS_PAGE_SIZE + 1}
+                –{Math.min((currentRequestsPage + 1) * REQUESTS_PAGE_SIZE, requests.length)} of {requests.length} requests
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setRequestsPage(p => Math.max(0, p - 1))}
+                  disabled={currentRequestsPage === 0}
+                  aria-label="Previous page"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ‹
+                </button>
+                <span className="text-xs font-semibold text-[#4c5f53]">Page {currentRequestsPage + 1} of {requestsPageCount}</span>
+                <button
+                  onClick={() => setRequestsPage(p => Math.min(requestsPageCount - 1, p + 1))}
+                  disabled={currentRequestsPage >= requestsPageCount - 1}
+                  aria-label="Next page"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
           </section>
         )}
 
@@ -219,7 +393,23 @@ export default function LaptopAdminClient({ data }: { data: LaptopAdminData | nu
             ))}
           </section>
         )}
+
+        {tab === 'delegations' && (
+          <DelegationsPanel delegations={delegations} approvers={approvers} onDone={setBanner} />
+        )}
       </div>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <LaptopShell
+      title="Admin Panel"
+      subtitle="Permissions, records, and workflow activity"
+      pendingCount={stats.pending_review}
+      accessView={actor.permissions.accessView}
+    >
+      {content}
     </LaptopShell>
   );
 }

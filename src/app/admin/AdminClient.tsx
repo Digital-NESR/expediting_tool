@@ -28,8 +28,13 @@ import ProcureGuardAnalyticsClient from '../procure-guard/analytics/AnalyticsCli
 import ProcureGuardAdminAnalyticsClient from '../procure-guard/admin-analytics/AdminAnalyticsClient';
 import { SourceGuideAccessApprovalsClient, SourceGuideGuidesClient, SourceGuideAnalyticsClient, SourceGuideChampionsClient } from './SourceGuideAdmin';
 import { CatalogAccessApprovalsClient, CatalogAdminPanelClient, CatalogSyncHealthClient } from './CatalogRepoAdmin';
+import LaptopAdminClient from '../laptop-procurement/admin/LaptopAdminClient';
+import LaptopAnalyticsClient from '../laptop-procurement/analytics/LaptopAnalyticsClient';
+import LaptopApproverMatrixClient from './LaptopApproverMatrixClient';
+import LaptopAccessApprovalsClient from './LaptopAccessApprovalsClient';
 import type { Shipment } from '@/types/tite';
 import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
+import type { LaptopAdminData, LaptopAnalyticsData } from '@/types/laptopProcurement';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
@@ -57,6 +62,9 @@ interface AdminClientProps {
   procureGuardAdminAnalyticsData: ProcureGuardAdminAnalyticsData | null;
   sourceGuidePendingCount?: number;
   catalogPendingCount?: number;
+  laptopAdminData: LaptopAdminData | null;
+  laptopAnalyticsData: LaptopAnalyticsData | null;
+  laptopPendingAccessCount?: number;
   initialTool?: string;
 }
 
@@ -1350,6 +1358,9 @@ export default function AdminClient({
   procureGuardAdminAnalyticsData,
   sourceGuidePendingCount = 0,
   catalogPendingCount = 0,
+  laptopAdminData,
+  laptopAnalyticsData,
+  laptopPendingAccessCount = 0,
   initialTool = 'po-expediting',
 }: AdminClientProps) {
   const [selectedTool, setSelectedTool]       = useState<string>(initialTool);
@@ -1361,6 +1372,7 @@ export default function AdminClient({
   const [liveProcureGuardPendingCount, setLiveProcureGuardPendingCount] = useState(procureGuardPendingCount);
   const [liveSourceGuidePendingCount, setLiveSourceGuidePendingCount] = useState(sourceGuidePendingCount);
   const [liveCatalogPendingCount, setLiveCatalogPendingCount] = useState(catalogPendingCount);
+  const [liveLaptopPendingAccessCount, setLiveLaptopPendingAccessCount] = useState(laptopPendingAccessCount);
 
   // Modal state
   const [buyerModal, setBuyerModal]             = useState<BuyerRow | null>(null);
@@ -1424,6 +1436,9 @@ export default function AdminClient({
       'sourceguide-champions':  'Champions — SourceGuide | Admin | SC Agents',
       'sourceguide-analytics':  'Analytics — SourceGuide | Admin | SC Agents',
       'sourceguide-access':     'SourceGuide Access Approvals | Admin | SC Agents',
+      'laptop-procurement-admin': 'Admin Panel — Laptop Procurement | Admin | SC Agents',
+      'laptop-procurement-analytics': 'Analytics — Laptop Procurement | Admin | SC Agents',
+      'laptop-procurement-access': 'Access Approval — Laptop Procurement | Admin | SC Agents',
     };
     document.title = titles[selectedTool] ?? 'Admin — SC Agents';
   }, [selectedTool]);
@@ -1888,6 +1903,64 @@ export default function AdminClient({
 
           <div style={{ margin: '8px 0' }} />
 
+          {/* Laptop Procurement group label */}
+          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+            Laptop Procurement
+          </div>
+
+          <button
+            onClick={() => setSelectedTool('laptop-procurement-admin')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'laptop-procurement-admin' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'laptop-procurement-admin' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'laptop-procurement-admin' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Admin Panel
+          </button>
+
+          <button
+            onClick={() => setSelectedTool('laptop-procurement-analytics')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'laptop-procurement-analytics' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'laptop-procurement-analytics' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'laptop-procurement-analytics' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Analytics
+          </button>
+
+          <button
+            onClick={() => setSelectedTool('laptop-procurement-access')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'laptop-procurement-access' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'laptop-procurement-access' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'laptop-procurement-access' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            <span>Access Approval</span>
+            {liveLaptopPendingAccessCount > 0 && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999,
+                fontSize: 10, fontWeight: 700, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a',
+              }}>
+                {liveLaptopPendingAccessCount}
+              </span>
+            )}
+          </button>
+
+          <div style={{ margin: '8px 0' }} />
+
           {/* Coming-soon tools */}
           <div
             style={{
@@ -1979,6 +2052,23 @@ export default function AdminClient({
               userEmail={userEmail}
               onPendingCountChange={setLiveCatalogPendingCount}
             />
+          )}
+          {selectedTool === 'laptop-procurement-admin' && (
+            <LaptopAdminClient data={laptopAdminData} embedded />
+          )}
+          {selectedTool === 'laptop-procurement-analytics' && (
+            <LaptopAnalyticsClient data={laptopAnalyticsData} embedded />
+          )}
+          {selectedTool === 'laptop-procurement-access' && (
+            <div className="space-y-8">
+              <LaptopAccessApprovalsClient
+                userEmail={userEmail}
+                onPendingCountChange={setLiveLaptopPendingAccessCount}
+              />
+              <div className="border-t border-slate-200 pt-8">
+                <LaptopApproverMatrixClient />
+              </div>
+            </div>
           )}
           {selectedTool === 'po-expediting' && (
             <>
