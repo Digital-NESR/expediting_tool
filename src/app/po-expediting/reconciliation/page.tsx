@@ -1,4 +1,5 @@
-import { authOptions, getServerSession } from '@/lib/auth';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import ReconciliationClient from './ReconciliationClient';
 
 export const metadata = { title: 'NESR | Reconciliation - PO Expediting' };

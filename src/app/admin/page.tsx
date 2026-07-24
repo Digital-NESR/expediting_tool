@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
-import { authOptions, getServerSession } from '@/lib/auth';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { getExpeditingAnalytics } from '@/app/actions/adminAnalytics';
 import { getPendingAccessCount } from '@/app/actions/adminAccess';
 import { getTitePendingCount, getAllShipments } from '@/app/actions/tite';
@@ -82,38 +83,22 @@ export default async function AdminPage({
   const params = searchParams ? await searchParams : {};
   const initialTool = params.tool && ADMIN_TOOLS.has(params.tool) ? params.tool : 'po-expediting';
 
-  /* ── Fetch analytics + pending counts + TI-TE shipments ──
-     Each tool's data lives in its own database, and a local dev credential may
-     only be granted access to a subset of them. Fetching with allSettled (plus
-     a safe per-tool fallback) means a permission gap in one tool's database
-     doesn't 500 the whole shared admin dashboard. ── */
-  const emptyExpeditingAnalytics = {
-    totalLinesExpedited: 0,
-    totalSuppliersContacted: 0,
-    totalEmailsSent: 0,
-    overallResponseRate: null,
-    buyerBreakdown: [],
-    supplierBreakdown: [],
-    recentSessions: [],
-    weeklyRateData: [],
-    supplierResponseTime: [],
-  };
-
+  /* ── Fetch analytics + pending counts + TI-TE shipments ── */
   const [
-    analyticsResult,
-    pendingCountResult,
-    titePendingCountResult,
-    titeShipmentsResult,
-    procureGuardPendingCountResult,
-    procureGuardAdminDataResult,
-    procureGuardAnalyticsDataResult,
-    procureGuardAdminAnalyticsDataResult,
-    sourceGuidePendingCountResult,
-    catalogPendingCountResult,
-    laptopAdminDataResult,
-    laptopAnalyticsDataResult,
-    laptopPendingAccessCountResult,
-  ] = await Promise.allSettled([
+    analytics,
+    pendingCount,
+    titePendingCount,
+    titeShipments,
+    procureGuardPendingCount,
+    procureGuardAdminData,
+    procureGuardAnalyticsData,
+    procureGuardAdminAnalyticsData,
+    sourceGuidePendingCount,
+    catalogPendingCount,
+    laptopAdminData,
+    laptopAnalyticsData,
+    laptopPendingAccessCount,
+  ] = await Promise.all([
     getExpeditingAnalytics(),
     getPendingAccessCount(),
     getTitePendingCount(),
@@ -128,26 +113,6 @@ export default async function AdminPage({
     getLaptopAnalyticsData(),
     getLaptopPendingAccessCount(),
   ]);
-
-  const settle = <T,>(result: PromiseSettledResult<T>, fallback: T): T => {
-    if (result.status === 'fulfilled') return result.value;
-    console.error('[AdminPage] tool data fetch failed:', result.reason);
-    return fallback;
-  };
-
-  const analytics = settle(analyticsResult, emptyExpeditingAnalytics);
-  const pendingCount = settle(pendingCountResult, 0);
-  const titePendingCount = settle(titePendingCountResult, 0);
-  const titeShipments = settle(titeShipmentsResult, null);
-  const procureGuardPendingCount = settle(procureGuardPendingCountResult, 0);
-  const procureGuardAdminData = settle(procureGuardAdminDataResult, null);
-  const procureGuardAnalyticsData = settle(procureGuardAnalyticsDataResult, null);
-  const procureGuardAdminAnalyticsData = settle(procureGuardAdminAnalyticsDataResult, null);
-  const sourceGuidePendingCount = settle(sourceGuidePendingCountResult, 0);
-  const catalogPendingCount = settle(catalogPendingCountResult, 0);
-  const laptopAdminData = settle(laptopAdminDataResult, null);
-  const laptopAnalyticsData = settle(laptopAnalyticsDataResult, null);
-  const laptopPendingAccessCount = settle(laptopPendingAccessCountResult, 0);
 
   return (
     <AdminClient

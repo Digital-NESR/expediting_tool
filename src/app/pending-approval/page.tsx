@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
-import { authOptions, getServerSession } from '@/lib/auth';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { getCurrentAccessRequest } from '@/app/actions/access';
 import PendingApprovalClient from './PendingApprovalClient';
 

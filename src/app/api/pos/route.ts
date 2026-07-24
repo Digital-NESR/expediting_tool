@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
-import { authOptions, getServerSession } from '@/lib/auth';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
-import { authOptions, getServerSession } from '@/lib/auth';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import AnalyticsClient from './AnalyticsClient';
 
 export const metadata = { title: 'NESR | My Analytics - PO Expediting' };

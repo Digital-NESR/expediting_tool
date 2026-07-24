@@ -2,7 +2,7 @@
 
 import https from 'https';
 import pool from '@/lib/db';
-import { getServerSession } from '@/lib/auth';
+import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
 /* ─── httpsPost (fire-and-forget, mirrors expediteDispatch) ──── */
