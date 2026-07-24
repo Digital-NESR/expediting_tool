@@ -123,39 +123,53 @@ async function seedLearningHubDefaultsIfEmpty(): Promise<void> {
   const existing = await sql<QueryResultRow[]>(`SELECT COUNT(*)::int AS count FROM learning_tracks`);
   if (Number(existing[0]?.count ?? 0) > 0) return;
 
-  for (let trackIdx = 0; trackIdx < SEED_TRACKS.length; trackIdx++) {
-    const track = SEED_TRACKS[trackIdx];
-    const trackResult = await exec(
-      `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-      [track.key, track.name, track.description, track.icon, track.color, trackIdx],
-    );
-    for (let courseIdx = 0; courseIdx < track.courses.length; courseIdx++) {
-      const course = track.courses[courseIdx];
-      const courseResult = await exec(
-        `INSERT INTO learning_courses (track_id, title, description, order_index, status) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-        [trackResult.insertId, course.title, course.description, courseIdx, course.status],
+  // Insert breadth-first (all tracks in parallel, then all courses in parallel, etc.) rather than one
+  // deep serial chain — a cold-start seed of ~50 sequential round trips risks exceeding the serverless
+  // function's execution timeout. Each level only depends on the parent id, so siblings are independent.
+  await Promise.all(
+    SEED_TRACKS.map(async (track, trackIdx) => {
+      const trackResult = await exec(
+        `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+        [track.key, track.name, track.description, track.icon, track.color, trackIdx],
       );
-      for (let moduleIdx = 0; moduleIdx < course.modules.length; moduleIdx++) {
-        const mod = course.modules[moduleIdx];
-        const moduleResult = await exec(
-          `INSERT INTO learning_modules (course_id, title, order_index) VALUES (?, ?, ?) RETURNING id`,
-          [courseResult.insertId, mod.title, moduleIdx],
-        );
-        for (let lessonIdx = 0; lessonIdx < mod.lessons.length; lessonIdx++) {
-          const lesson = mod.lessons[lessonIdx];
-          await exec(
-            `INSERT INTO learning_lessons (module_id, title, body, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-            [moduleResult.insertId, lesson.title, lesson.body, lesson.duration_minutes, lessonIdx],
+      await Promise.all(
+        track.courses.map(async (course, courseIdx) => {
+          const courseResult = await exec(
+            `INSERT INTO learning_courses (track_id, title, description, order_index, status) VALUES (?, ?, ?, ?, ?) RETURNING id`,
+            [trackResult.insertId, course.title, course.description, courseIdx, course.status],
           );
-        }
-      }
-    }
-  }
+          await Promise.all(
+            course.modules.map(async (mod, moduleIdx) => {
+              const moduleResult = await exec(
+                `INSERT INTO learning_modules (course_id, title, order_index) VALUES (?, ?, ?) RETURNING id`,
+                [courseResult.insertId, mod.title, moduleIdx],
+              );
+              await Promise.all(
+                mod.lessons.map((lesson, lessonIdx) =>
+                  exec(
+                    `INSERT INTO learning_lessons (module_id, title, body, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?) RETURNING id`,
+                    [moduleResult.insertId, lesson.title, lesson.body, lesson.duration_minutes, lessonIdx],
+                  ),
+                ),
+              );
+            }),
+          );
+        }),
+      );
+    }),
+  );
 }
 
 async function ensureLearningHubReady(): Promise<void> {
   if (!readyPromise) {
-    readyPromise = ensureLearningHubSchema().then(() => seedLearningHubDefaultsIfEmpty());
+    readyPromise = ensureLearningHubSchema()
+      .then(() => seedLearningHubDefaultsIfEmpty())
+      .catch((err) => {
+        // Don't let a failed cold-start attempt permanently wedge a warm serverless instance —
+        // clear the cache so the next request gets a fresh try instead of the same cached rejection.
+        readyPromise = null;
+        throw err;
+      });
   }
   await readyPromise;
 }
