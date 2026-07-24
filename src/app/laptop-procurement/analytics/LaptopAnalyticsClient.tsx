@@ -66,17 +66,11 @@ function ListCard({ title, data }: { title: string; data: LaptopAnalyticsMetric[
   );
 }
 
-export default function LaptopAnalyticsClient({ data }: { data: LaptopAnalyticsData | null }) {
+export default function LaptopAnalyticsClient({ data, embedded = false }: { data: LaptopAnalyticsData | null; embedded?: boolean }) {
   if (!data) return <DbError />;
   const { actor, stats } = data;
 
-  return (
-    <LaptopShell
-      title="Analytics"
-      subtitle={`${stats.total} requests · ${stats.country_count} countries · ${stats.active_requester_count} requesters`}
-      pendingCount={stats.pending_review}
-      accessView={actor.permissions.accessView}
-    >
+  const content = (
       <div className="space-y-5">
         <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
           <Kpi label="Total" value={stats.total} />
@@ -146,6 +140,18 @@ export default function LaptopAnalyticsClient({ data }: { data: LaptopAnalyticsD
 
         <p className="text-center text-xs text-[#5f7266]/70">Generated {new Date(data.generated_at).toLocaleString('en-GB')}</p>
       </div>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <LaptopShell
+      title="Analytics"
+      subtitle={`${stats.total} requests · ${stats.country_count} countries · ${stats.active_requester_count} requesters`}
+      pendingCount={stats.pending_review}
+      accessView={actor.permissions.accessView}
+    >
+      {content}
     </LaptopShell>
   );
 }

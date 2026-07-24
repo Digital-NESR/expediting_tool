@@ -157,7 +157,7 @@ export default function LaptopDashboardClient({ data }: { data: LaptopDashboardD
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5f7266]">Rejected</p>
             <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">{stats.rejected}</p>
             <p className="mt-1 text-sm text-[#5f7266]">Across all approval stages</p>
-            <button onClick={() => router.push('/laptop-procurement/analytics')} className="mt-4 text-sm font-bold text-[#28714a] transition hover:text-[#182a1f]">View analytics →</button>
+            <button onClick={() => router.push('/admin?tool=laptop-procurement-analytics')} className="mt-4 text-sm font-bold text-[#28714a] transition hover:text-[#182a1f]">View analytics →</button>
           </div>
           <div className={`${GLASS} p-5`}>
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5f7266]">Current User</p>

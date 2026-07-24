@@ -12,6 +12,7 @@ import {
 } from '@/app/actions/procureGuard';
 import { getSourceGuidePendingCount } from '@/app/actions/sourceguide';
 import { getCatalogAccessPendingCount } from '@/app/actions/catalog-manager';
+import { getLaptopAdminData, getLaptopAnalyticsData, getLaptopPendingAccessCount } from '@/app/actions/laptopProcurement';
 import AdminClient from './AdminClient';
 
 export const metadata = { title: 'NESR | Admin' };
@@ -35,6 +36,9 @@ const ADMIN_TOOLS = new Set([
   'catalog-admin',
   'catalog-sync',
   'catalog-access',
+  'laptop-procurement-admin',
+  'laptop-procurement-analytics',
+  'laptop-procurement-access',
 ]);
 
 export default async function AdminPage({
@@ -91,6 +95,9 @@ export default async function AdminPage({
     procureGuardAdminAnalyticsData,
     sourceGuidePendingCount,
     catalogPendingCount,
+    laptopAdminData,
+    laptopAnalyticsData,
+    laptopPendingAccessCount,
   ] = await Promise.all([
     getExpeditingAnalytics(),
     getPendingAccessCount(),
@@ -102,6 +109,9 @@ export default async function AdminPage({
     getProcureGuardAdminAnalyticsData(),
     getSourceGuidePendingCount(),
     getCatalogAccessPendingCount(),
+    getLaptopAdminData(),
+    getLaptopAnalyticsData(),
+    getLaptopPendingAccessCount(),
   ]);
 
   return (
@@ -118,6 +128,9 @@ export default async function AdminPage({
       procureGuardAdminAnalyticsData={procureGuardAdminAnalyticsData}
       sourceGuidePendingCount={sourceGuidePendingCount}
       catalogPendingCount={catalogPendingCount}
+      laptopAdminData={laptopAdminData}
+      laptopAnalyticsData={laptopAnalyticsData}
+      laptopPendingAccessCount={laptopPendingAccessCount}
       initialTool={initialTool}
     />
   );

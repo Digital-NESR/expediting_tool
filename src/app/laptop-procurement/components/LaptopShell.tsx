@@ -20,8 +20,9 @@ const NAV = [
   { href: '/laptop-procurement/my-work', label: 'My Work', icon: 'check', access: ['reviewer', 'admin'] },
   { href: '/laptop-procurement/requests', label: 'Requests', icon: 'laptop', access: ['requester', 'reviewer', 'admin'] },
   { href: '/laptop-procurement/requests/new', label: 'New Request', icon: 'plus', access: ['requester', 'reviewer', 'admin'] },
-  { href: '/laptop-procurement/analytics', label: 'Analytics', icon: 'chart', access: ['analyst', 'reviewer', 'admin'] },
-  { href: '/laptop-procurement/admin', label: 'Admin Panel', icon: 'grid', access: ['admin'] },
+  { href: '/admin?tool=laptop-procurement-analytics', label: 'Analytics', icon: 'chart', access: ['analyst', 'reviewer', 'admin'] },
+  { href: '/laptop-procurement/delegate', label: 'Delegate', icon: 'delegate', access: ['reviewer', 'admin'] },
+  { href: '/admin?tool=laptop-procurement-admin', label: 'Admin Panel', icon: 'grid', access: ['admin'] },
 ];
 
 function Icon({ name }: { name: string }) {
@@ -48,6 +49,11 @@ function Icon({ name }: { name: string }) {
   if (name === 'chart') return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 19V5m0 14h16M8 15V9m4 6V6m4 9v-4" />
+    </svg>
+  );
+  if (name === 'delegate') return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
     </svg>
   );
   return (

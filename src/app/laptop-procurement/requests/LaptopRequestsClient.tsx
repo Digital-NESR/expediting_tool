@@ -53,10 +53,13 @@ function DbError() {
   );
 }
 
+const REQUESTS_PAGE_SIZE = 10;
+
 export default function LaptopRequestsClient({ data }: { data: LaptopRequestListData | null }) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [requestType, setRequestType] = useState('All');
+  const [page, setPage] = useState(0);
   const router = useRouter();
 
   const actor = data?.actor ?? null;
@@ -78,6 +81,10 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
       return matchesSearch && matchesStatus && matchesType;
     });
   }, [requests, search, status, requestType]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / REQUESTS_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(currentPage * REQUESTS_PAGE_SIZE, (currentPage + 1) * REQUESTS_PAGE_SIZE);
 
   if (!actor) return <DbError />;
 
@@ -123,12 +130,12 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
               <p className="mt-0.5 text-sm text-[#5f7266]">Laptop / desktop procurement and purchase exception requests.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search ref, requester, model..." className={`${INPUT} w-full sm:w-72`} />
-              <select value={status} onChange={e => setStatus(e.target.value)} className={INPUT}>
+              <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="Search ref, requester, model..." className={`${INPUT} w-full sm:w-72`} />
+              <select value={status} onChange={e => { setStatus(e.target.value); setPage(0); }} className={INPUT}>
                 <option>All</option>
                 {STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
               </select>
-              <select value={requestType} onChange={e => setRequestType(e.target.value)} className={INPUT}>
+              <select value={requestType} onChange={e => { setRequestType(e.target.value); setPage(0); }} className={INPUT}>
                 <option>All</option>
                 {requestTypes.map(t => <option key={t}>{t}</option>)}
               </select>
@@ -150,7 +157,7 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
               <tbody className="divide-y divide-[#182a1f]/[0.06]">
                 {filtered.length === 0 ? (
                   <tr><td colSpan={6} className="px-5 py-10 text-center text-[#5f7266]">No requests found.</td></tr>
-                ) : filtered.map(r => (
+                ) : paged.map(r => (
                   <tr key={r.id} className="transition-colors hover:bg-white/45">
                     <td className="px-5 py-4 align-top">
                       <Link href={`/laptop-procurement/requests/${r.id}`} className="font-bold text-[#28714a] hover:underline">
@@ -184,6 +191,33 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
               </tbody>
             </table>
           </div>
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-between border-t border-[#182a1f]/[0.06] px-5 py-3">
+              <p className="text-xs text-[#5f7266]/80">
+                Showing {currentPage * REQUESTS_PAGE_SIZE + 1}
+                –{Math.min((currentPage + 1) * REQUESTS_PAGE_SIZE, filtered.length)} of {filtered.length} requests
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={currentPage === 0}
+                  aria-label="Previous page"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ‹
+                </button>
+                <span className="text-xs font-semibold text-[#4c5f53]">Page {currentPage + 1} of {pageCount}</span>
+                <button
+                  onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
+                  disabled={currentPage >= pageCount - 1}
+                  aria-label="Next page"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </LaptopShell>
