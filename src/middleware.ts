@@ -13,6 +13,12 @@ const PUBLIC_PATHS = [
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Local no-SSO mode: let every request through without an auth check.
+  // Set LOCAL_DEV_AUTH=false in the environment to restore the SSO gate below.
+  if (process.env.LOCAL_DEV_AUTH !== 'false') {
+    return NextResponse.next();
+  }
+
   // Allow public paths through without any auth check
   if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
     return NextResponse.next();

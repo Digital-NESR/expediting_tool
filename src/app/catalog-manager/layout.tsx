@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions, getServerSession } from '@/lib/auth';
 
 export const metadata: Metadata = { title: 'NESR | Catalog Manager' };
 export const dynamic = 'force-dynamic';

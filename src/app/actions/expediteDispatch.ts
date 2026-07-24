@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'crypto';
 import https from 'https';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from '@/lib/auth';
 import pool from '@/lib/db';
 import { authOptions } from '@/lib/auth';
 import type { PurchaseOrder } from '@/types/po';

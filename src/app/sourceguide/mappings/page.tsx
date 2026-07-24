@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions, getServerSession } from '@/lib/auth';
 import { getCountries } from '@/app/actions/sourceguide';
 import { VIEW_ONLY } from '../constants';
 import MappingsClient from './MappingsClient';
