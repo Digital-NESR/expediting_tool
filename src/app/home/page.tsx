@@ -842,6 +842,8 @@ function AdminPreviewCard({
   icon,
   canOpen,
   onClick,
+  badgeLabel,
+  openLabel,
 }: {
   name: string;
   subtitle?: string;
@@ -849,6 +851,10 @@ function AdminPreviewCard({
   icon: React.ReactNode;
   canOpen: boolean;
   onClick: () => void;
+  /** Override the default "Admin Preview"/"Coming Soon" badge copy. */
+  badgeLabel?: string;
+  /** Override the default "Open preview →" link copy. */
+  openLabel?: string;
 }) {
   return (
     <button
@@ -873,10 +879,10 @@ function AdminPreviewCard({
 
       <div className="mt-auto flex items-center justify-between">
         <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
-          {canOpen ? 'Admin Preview' : 'Coming Soon'}
+          {badgeLabel ?? (canOpen ? 'Admin Preview' : 'Coming Soon')}
         </span>
         {canOpen && (
-          <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open preview →</span>
+          <span className="text-sm font-semibold text-gray-500 group-hover:underline">{openLabel ?? 'Open preview →'}</span>
         )}
       </div>
     </button>
@@ -971,7 +977,10 @@ export default function HomePage() {
   }
 
   function handleLaptopClick() {
-    if (isAdmin) router.push('/laptop-procurement');
+    // Real access (admin, granted permission, or delegation) is enforced
+    // server-side in the laptop-procurement layout; unauthorized users are
+    // bounced straight back here.
+    router.push('/laptop-procurement');
   }
 
   function handleLearningHubClick() {
@@ -1191,7 +1200,9 @@ export default function HomePage() {
                   subtitle="Device Requests & Approvals"
                   description="Raise laptop and device requests and route IT → Category Manager → IT Director → SC Director approvals."
                   icon={<Laptop className="w-6 h-6 text-gray-400" />}
-                  canOpen={isAdmin}
+                  canOpen
+                  badgeLabel="Beta"
+                  openLabel="Open →"
                   onClick={handleLaptopClick}
                 />
               )}

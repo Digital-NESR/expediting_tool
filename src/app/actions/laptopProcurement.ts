@@ -237,7 +237,9 @@ export async function canAccessLaptopApp(): Promise<boolean> {
   if (!email) return false;
   if (adminEmails().includes(email)) return true;
   const permissionRow = await getPermissionRowForEmail(email);
-  return Boolean(permissionRow);
+  if (permissionRow) return true;
+  const delegations = await resolveLaptopDelegations(email);
+  return delegations.length > 0;
 }
 
 /* ── Scoping ──────────────────────────────────────────────────── */

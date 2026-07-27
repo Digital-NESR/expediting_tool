@@ -9,24 +9,42 @@ const BOX = 'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 t
  * Directory search box. Type a name or email; pick a colleague from the Azure AD
  * directory. On pick it calls onSelect and clears its own input, so it works both for
  * filling a single field (delegation) and for appending to a list (CC recipients).
+ *
+ * Pass `value`/`onChange` to run it in controlled mode instead — the input becomes the
+ * field itself (e.g. an actual "Email" input) rather than a separate search-then-clear box:
+ * typing updates `value` via `onChange` on every keystroke, and picking a result still
+ * calls `onSelect`, but the typed text is kept rather than cleared.
  */
 export default function EmployeeAutocomplete({
   onSelect,
   placeholder = 'Search directory by name or email…',
   className,
+  inputClassName,
+  value,
+  onChange,
 }: {
   onSelect: (employee: EmployeeDirectoryEntry) => void;
   placeholder?: string;
   className?: string;
+  inputClassName?: string;
+  value?: string;
+  onChange?: (value: string) => void;
 }) {
-  const [query, setQuery] = useState('');
+  const controlled = value !== undefined;
+  const [internalQuery, setInternalQuery] = useState('');
+  const query = controlled ? value : internalQuery;
   const [results, setResults] = useState<EmployeeDirectoryEntry[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
+  const suppressNextSearch = useRef(false);
 
   useEffect(() => {
+    if (suppressNextSearch.current) {
+      suppressNextSearch.current = false;
+      return;
+    }
     const q = query.trim();
     if (q.length < 2) {
       setResults([]);
@@ -54,9 +72,19 @@ export default function EmployeeAutocomplete({
     return () => document.removeEventListener('mousedown', onDocClick);
   }, []);
 
+  function setQuery(next: string) {
+    if (controlled) onChange?.(next);
+    else setInternalQuery(next);
+  }
+
   function pick(emp: EmployeeDirectoryEntry) {
     onSelect(emp);
-    setQuery('');
+    if (controlled) {
+      suppressNextSearch.current = true;
+      onChange?.(emp.email);
+    } else {
+      setInternalQuery('');
+    }
     setResults([]);
     setOpen(false);
   }
@@ -73,7 +101,7 @@ export default function EmployeeAutocomplete({
     <div ref={boxRef} className={`relative ${className ?? ''}`}>
       <input
         type="text"
-        className={BOX}
+        className={inputClassName ?? BOX}
         value={query}
         placeholder={placeholder}
         onChange={e => setQuery(e.target.value)}
