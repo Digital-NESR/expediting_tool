@@ -2,7 +2,7 @@
 
 import type { QueryResultRow } from 'pg';
 import learningHubPool from '@/lib/db-learning-hub';
-import { SEED_TRACKS } from '@/lib/learning-hub-seed-content';
+import { SEED_TRACKS, type SeedTrack } from '@/lib/learning-hub-seed-content';
 import type {
   LearningTrack,
   LearningCourse,
@@ -119,45 +119,81 @@ async function ensureLearningHubSchema(): Promise<void> {
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_progress_user ON learning_lesson_progress(user_email)`);
 }
 
+// Inserts a track's courses/modules/lessons breadth-first (siblings in parallel, not one deep serial
+// chain) — a cold-start seed of dozens of sequential round trips risks exceeding the serverless
+// function's execution timeout. Each level only depends on its parent's id, so siblings are independent.
+// Shared by the one-time empty-DB seed and the admin "reset track to defaults" action.
+async function insertTrackCourses(trackId: number, track: SeedTrack): Promise<void> {
+  await Promise.all(
+    track.courses.map(async (course, courseIdx) => {
+      const courseResult = await exec(
+        `INSERT INTO learning_courses (track_id, title, description, order_index, status) VALUES (?, ?, ?, ?, ?) RETURNING id`,
+        [trackId, course.title, course.description, courseIdx, course.status],
+      );
+      await Promise.all(
+        course.modules.map(async (mod, moduleIdx) => {
+          const moduleResult = await exec(
+            `INSERT INTO learning_modules (course_id, title, order_index) VALUES (?, ?, ?) RETURNING id`,
+            [courseResult.insertId, mod.title, moduleIdx],
+          );
+          await Promise.all(
+            mod.lessons.map((lesson, lessonIdx) =>
+              exec(
+                `INSERT INTO learning_lessons (module_id, title, body, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?) RETURNING id`,
+                [moduleResult.insertId, lesson.title, lesson.body, lesson.duration_minutes, lessonIdx],
+              ),
+            ),
+          );
+        }),
+      );
+    }),
+  );
+}
+
 async function seedLearningHubDefaultsIfEmpty(): Promise<void> {
   const existing = await sql<QueryResultRow[]>(`SELECT COUNT(*)::int AS count FROM learning_tracks`);
   if (Number(existing[0]?.count ?? 0) > 0) return;
 
-  // Insert breadth-first (all tracks in parallel, then all courses in parallel, etc.) rather than one
-  // deep serial chain — a cold-start seed of ~50 sequential round trips risks exceeding the serverless
-  // function's execution timeout. Each level only depends on the parent id, so siblings are independent.
   await Promise.all(
     SEED_TRACKS.map(async (track, trackIdx) => {
       const trackResult = await exec(
         `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
         [track.key, track.name, track.description, track.icon, track.color, trackIdx],
       );
-      await Promise.all(
-        track.courses.map(async (course, courseIdx) => {
-          const courseResult = await exec(
-            `INSERT INTO learning_courses (track_id, title, description, order_index, status) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-            [trackResult.insertId, course.title, course.description, courseIdx, course.status],
-          );
-          await Promise.all(
-            course.modules.map(async (mod, moduleIdx) => {
-              const moduleResult = await exec(
-                `INSERT INTO learning_modules (course_id, title, order_index) VALUES (?, ?, ?) RETURNING id`,
-                [courseResult.insertId, mod.title, moduleIdx],
-              );
-              await Promise.all(
-                mod.lessons.map((lesson, lessonIdx) =>
-                  exec(
-                    `INSERT INTO learning_lessons (module_id, title, body, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-                    [moduleResult.insertId, lesson.title, lesson.body, lesson.duration_minutes, lessonIdx],
-                  ),
-                ),
-              );
-            }),
-          );
-        }),
-      );
+      await insertTrackCourses(trackResult.insertId, track);
     }),
   );
+}
+
+// Admin-only escape hatch: the empty-DB seed above only ever runs once. If an earlier broken deploy
+// left partial or stale content behind, later edits to the seed content are otherwise silently ignored
+// forever. This resets one track's courses (and their modules/lessons/progress, via cascade) back to
+// whatever is currently defined in code for that track key.
+export async function resyncTrackFromSeed(trackKey: string): Promise<{ success: boolean; message: string }> {
+  await ensureLearningHubSchema();
+  const seedTrack = SEED_TRACKS.find((t) => t.key === trackKey);
+  if (!seedTrack) return { success: false, message: `No seed content defined for track "${trackKey}".` };
+
+  const existingTrack = await sql<QueryResultRow[]>(`SELECT id FROM learning_tracks WHERE key = ?`, [trackKey]);
+  let trackId: number;
+  if (existingTrack[0]) {
+    trackId = Number(existingTrack[0].id);
+    await exec(
+      `UPDATE learning_tracks SET name = ?, description = ?, icon = ?, color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [seedTrack.name, seedTrack.description, seedTrack.icon, seedTrack.color, trackId],
+    );
+    await exec(`DELETE FROM learning_courses WHERE track_id = ?`, [trackId]);
+  } else {
+    const trackIdx = SEED_TRACKS.indexOf(seedTrack);
+    const result = await exec(
+      `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+      [seedTrack.key, seedTrack.name, seedTrack.description, seedTrack.icon, seedTrack.color, trackIdx],
+    );
+    trackId = result.insertId;
+  }
+
+  await insertTrackCourses(trackId, seedTrack);
+  return { success: true, message: `Reset "${seedTrack.name}" to its default seed content.` };
 }
 
 async function ensureLearningHubReady(): Promise<void> {

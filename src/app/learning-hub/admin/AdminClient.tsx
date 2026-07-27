@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Plus, Pencil, Trash2, ChevronUp, ChevronDown, Check, X, Eye, EyeOff,
+  Plus, Pencil, Trash2, ChevronUp, ChevronDown, Check, X, Eye, EyeOff, RotateCcw,
 } from 'lucide-react';
 import LearningHubSidebar from '../components/LearningHubSidebar';
 import LearningHubLogo from '../components/LearningHubLogo';
@@ -13,6 +13,7 @@ import {
   createCourse, updateCourse, deleteCourse, moveCourse,
   createModule, updateModule, deleteModule, moveModule,
   createLesson, updateLesson, deleteLesson, moveLesson,
+  resyncTrackFromSeed,
 } from '@/app/actions/learning-hub';
 import type {
   LearningHubAdminData, AdminCourseWithModules, AdminModuleWithLessons, LearningLesson, CourseStatus,
@@ -344,6 +345,42 @@ function NewCourseForm({ trackId, onChanged }: { trackId: number; onChanged: () 
   );
 }
 
+/* ── Reset track to defaults ──────────────────────────────────────────── */
+
+function ResetTrackButton({ trackKey, trackName, onChanged }: { trackKey: string; trackName: string; onChanged: () => void }) {
+  const [isPending, startTransition] = useTransition();
+  const [message, setMessage] = useState<string | null>(null);
+
+  function reset() {
+    if (!confirm(
+      `Reset "${trackName}" to its built-in default content?\n\n` +
+      `This deletes every course, module, and lesson currently under this track (and everyone's ` +
+      `progress on them) and replaces it with what's defined in code. This cannot be undone.`,
+    )) return;
+    setMessage(null);
+    startTransition(async () => {
+      const result = await resyncTrackFromSeed(trackKey);
+      setMessage(result.message);
+      onChanged();
+    });
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={reset}
+        disabled={isPending}
+        title="Delete this track's content and reload the built-in defaults from code"
+        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
+      >
+        <RotateCcw className="h-3.5 w-3.5" />
+        {isPending ? 'Resetting…' : 'Reset to defaults'}
+      </button>
+      {message && <span className="text-xs text-slate-400">{message}</span>}
+    </div>
+  );
+}
+
 /* ── Page ──────────────────────────────────────────────────────────────── */
 
 export default function AdminClient({ data }: { data: LearningHubAdminData }) {
@@ -371,18 +408,23 @@ export default function AdminClient({ data }: { data: LearningHubAdminData }) {
       <main className="mx-auto max-w-[1000px] space-y-6 px-4 py-6 sm:px-6">
         <LearningHubHero title="Content Admin" subtitle="Create, edit, reorder, and publish courses, modules, and lessons for each track." />
 
-        <div className="flex flex-wrap gap-2">
-          {data.tracks.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setSelectedKey(t.key)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-                selectedTrack?.key === t.key ? 'bg-[#307c4c] text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {t.name} <span className="ml-1 opacity-70">({t.courses.length})</span>
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {data.tracks.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setSelectedKey(t.key)}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+                  selectedTrack?.key === t.key ? 'bg-[#307c4c] text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {t.name} <span className="ml-1 opacity-70">({t.courses.length})</span>
+              </button>
+            ))}
+          </div>
+          {selectedTrack && (
+            <ResetTrackButton trackKey={selectedTrack.key} trackName={selectedTrack.name} onChanged={onChanged} />
+          )}
         </div>
 
         {selectedTrack && (
