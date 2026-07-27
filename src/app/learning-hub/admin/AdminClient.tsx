@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Plus, Pencil, Trash2, ChevronUp, ChevronDown, Check, X, Eye, EyeOff, RotateCcw, ExternalLink,
+  Plus, Pencil, Trash2, ChevronUp, ChevronDown, Check, X, Eye, EyeOff, RotateCcw, ExternalLink, Video,
 } from 'lucide-react';
 import LearningHubSidebar from '../components/LearningHubSidebar';
 import LearningHubLogo from '../components/LearningHubLogo';
@@ -28,12 +28,13 @@ function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; 
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(lesson.title);
   const [body, setBody] = useState(lesson.body);
+  const [videoUrl, setVideoUrl] = useState(lesson.video_url ?? '');
   const [duration, setDuration] = useState(lesson.duration_minutes);
   const [isPending, startTransition] = useTransition();
 
   function save() {
     startTransition(async () => {
-      await updateLesson(lesson.id, { title, body, duration_minutes: duration });
+      await updateLesson(lesson.id, { title, body, video_url: videoUrl.trim() || null, duration_minutes: duration });
       setEditing(false);
       onChanged();
     });
@@ -57,6 +58,12 @@ function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; 
       <div className="space-y-2 border-t border-slate-100 bg-slate-50/60 p-4">
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Lesson title"
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+        <div>
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Video URL (optional)</label>
+          <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="SharePoint/Stream embed URL, or /learning-hub/… local file"
+            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+          <p className="mt-1 text-xs text-slate-400">Use the SharePoint/Stream &ldquo;Embed&rdquo; link (not the regular share link) so it plays inline.</p>
+        </div>
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} placeholder="Lesson body (paragraphs separated by a blank line)"
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
         <div className="flex items-center gap-2">
@@ -74,6 +81,7 @@ function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; 
 
   return (
     <div className="flex items-center gap-2 border-t border-slate-100 px-4 py-2.5">
+      {lesson.video_url && <Video className="h-3.5 w-3.5 shrink-0 text-[#307c4c]" />}
       <span className="flex-1 truncate text-sm text-slate-700">{lesson.title}</span>
       <span className="shrink-0 text-xs text-slate-400">{lesson.duration_minutes} min</span>
       <button onClick={() => move('up')} className={BTN} title="Move up"><ChevronUp className="h-4 w-4" /></button>
@@ -90,14 +98,15 @@ function NewLessonForm({ moduleId, onChanged }: { moduleId: number; onChanged: (
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
   const [duration, setDuration] = useState(10);
   const [isPending, startTransition] = useTransition();
 
   function submit() {
     if (!title.trim()) return;
     startTransition(async () => {
-      await createLesson(moduleId, title.trim(), body.trim() || 'TODO: add lesson content.', duration);
-      setTitle(''); setBody(''); setDuration(10); setOpen(false);
+      await createLesson(moduleId, title.trim(), body.trim() || 'TODO: add lesson content.', duration, videoUrl.trim() || null);
+      setTitle(''); setBody(''); setVideoUrl(''); setDuration(10); setOpen(false);
       onChanged();
     });
   }
@@ -112,6 +121,8 @@ function NewLessonForm({ moduleId, onChanged }: { moduleId: number; onChanged: (
   return (
     <div className="space-y-2 border-t border-slate-100 bg-slate-50/60 p-4">
       <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Lesson title" autoFocus
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+      <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="Video URL (optional — SharePoint/Stream embed link)"
         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
       <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="Lesson body (optional — can fill in later)"
         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />

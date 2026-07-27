@@ -34,6 +34,32 @@ function renderLessonParagraph(text: string, color: string): React.ReactNode[] {
   return nodes;
 }
 
+// Mirrors the house pattern from ProcureGuardHelpContent: a SharePoint/Stream embed URL
+// (https://...) renders in an <iframe> (SharePoint streams it, no load on this app); a local
+// file under /public/learning-hub/ renders in a native <video> tag.
+function LessonVideo({ videoUrl, title }: { videoUrl: string; title: string }) {
+  return (
+    <div className="aspect-video w-full overflow-hidden rounded-xl bg-black">
+      {videoUrl.startsWith('http') ? (
+        <iframe
+          key={videoUrl}
+          src={videoUrl}
+          frameBorder="0"
+          scrolling="no"
+          allowFullScreen
+          title={`Lesson video — ${title}`}
+          className="h-full w-full"
+        />
+      ) : (
+        <video key={videoUrl} controls preload="metadata" className="h-full w-full object-contain">
+          <source src={videoUrl} type="video/mp4" />
+          Your browser does not support embedded video. <a href={videoUrl}>Download the video</a> instead.
+        </video>
+      )}
+    </div>
+  );
+}
+
 export default function LessonViewerClient({ data, userEmail }: { data: LessonDetailData; userEmail: string }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [completed, setCompleted] = useState(data.completed);
@@ -85,6 +111,12 @@ export default function LessonViewerClient({ data, userEmail }: { data: LessonDe
             <span className="flex items-center gap-1 text-slate-400"><Clock className="h-3.5 w-3.5" />{formatDuration(lesson.duration_minutes)}</span>
           </div>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{lesson.title}</h1>
+
+          {lesson.video_url && (
+            <div className="mt-5">
+              <LessonVideo videoUrl={lesson.video_url} title={lesson.title} />
+            </div>
+          )}
 
           <div className="mt-6 space-y-4">
             {paragraphs.map((p, i) => (

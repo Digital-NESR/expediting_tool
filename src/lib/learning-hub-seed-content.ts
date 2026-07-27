@@ -8,6 +8,7 @@
 export interface SeedLesson {
   title: string;
   body: string;
+  videoUrl?: string;
   duration_minutes: number;
 }
 

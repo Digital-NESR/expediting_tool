@@ -106,11 +106,13 @@ async function ensureLearningHubSchema(): Promise<void> {
     module_id INT NOT NULL REFERENCES learning_modules(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     body TEXT NOT NULL,
+    video_url TEXT,
     duration_minutes INT NOT NULL DEFAULT 10,
     order_index INT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
+  await execSchema(`ALTER TABLE learning_lessons ADD COLUMN IF NOT EXISTS video_url TEXT`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_lessons_module ON learning_lessons(module_id)`);
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_lesson_progress (
@@ -143,8 +145,8 @@ async function insertTrackCourses(trackId: number, track: SeedTrack): Promise<vo
           await Promise.all(
             mod.lessons.map((lesson, lessonIdx) =>
               exec(
-                `INSERT INTO learning_lessons (module_id, title, body, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-                [moduleResult.insertId, lesson.title, lesson.body, lesson.duration_minutes, lessonIdx],
+                `INSERT INTO learning_lessons (module_id, title, body, video_url, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+                [moduleResult.insertId, lesson.title, lesson.body, lesson.videoUrl ?? null, lesson.duration_minutes, lessonIdx],
               ),
             ),
           );
@@ -597,25 +599,26 @@ export async function createLesson(
   title: string,
   body: string,
   durationMinutes: number,
+  videoUrl?: string | null,
 ): Promise<{ id: number }> {
   await ensureLearningHubReady();
   const maxRows = await sql<QueryResultRow[]>(`SELECT COALESCE(MAX(order_index), -1) + 1 AS next FROM learning_lessons WHERE module_id = ?`, [moduleId]);
   const nextOrder = Number(maxRows[0]?.next ?? 0);
   const result = await exec(
-    `INSERT INTO learning_lessons (module_id, title, body, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-    [moduleId, title, body, durationMinutes, nextOrder],
+    `INSERT INTO learning_lessons (module_id, title, body, video_url, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+    [moduleId, title, body, videoUrl || null, durationMinutes, nextOrder],
   );
   return { id: result.insertId };
 }
 
 export async function updateLesson(
   id: number,
-  fields: { title: string; body: string; duration_minutes: number },
+  fields: { title: string; body: string; video_url: string | null; duration_minutes: number },
 ): Promise<void> {
   await ensureLearningHubReady();
   await exec(
-    `UPDATE learning_lessons SET title = ?, body = ?, duration_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-    [fields.title, fields.body, fields.duration_minutes, id],
+    `UPDATE learning_lessons SET title = ?, body = ?, video_url = ?, duration_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [fields.title, fields.body, fields.video_url || null, fields.duration_minutes, id],
   );
 }
 

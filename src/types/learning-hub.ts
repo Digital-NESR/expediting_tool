@@ -39,6 +39,7 @@ export interface LearningLesson {
   module_id: number;
   title: string;
   body: string;
+  video_url: string | null;
   duration_minutes: number;
   order_index: number;
   created_at: string;
