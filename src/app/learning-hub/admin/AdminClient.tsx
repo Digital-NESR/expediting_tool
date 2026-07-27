@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Plus, Pencil, Trash2, ChevronUp, ChevronDown, Check, X, Eye, EyeOff, RotateCcw,
+  Plus, Pencil, Trash2, ChevronUp, ChevronDown, Check, X, Eye, EyeOff, RotateCcw, ExternalLink,
 } from 'lucide-react';
 import LearningHubSidebar from '../components/LearningHubSidebar';
 import LearningHubLogo from '../components/LearningHubLogo';
@@ -133,14 +133,22 @@ function NewLessonForm({ moduleId, onChanged }: { moduleId: number; onChanged: (
 function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons; courseId: number; onChanged: () => void }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(mod.title);
+  const [resourceLabel, setResourceLabel] = useState(mod.resource_label ?? '');
+  const [resourceUrl, setResourceUrl] = useState(mod.resource_url ?? '');
   const [isPending, startTransition] = useTransition();
 
   function save() {
     startTransition(async () => {
-      await updateModule(mod.id, title);
+      await updateModule(mod.id, { title, resource_label: resourceLabel.trim() || null, resource_url: resourceUrl.trim() || null });
       setEditing(false);
       onChanged();
     });
+  }
+  function cancel() {
+    setTitle(mod.title);
+    setResourceLabel(mod.resource_label ?? '');
+    setResourceUrl(mod.resource_url ?? '');
+    setEditing(false);
   }
   function remove() {
     if (!confirm(`Delete module "${mod.title}" and all its lessons?`)) return;
@@ -164,7 +172,7 @@ function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons
             <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus
               className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
             <button onClick={save} disabled={isPending} className={BTN} title="Save"><Check className="h-4 w-4 text-[#307c4c]" /></button>
-            <button onClick={() => { setTitle(mod.title); setEditing(false); }} className={BTN} title="Cancel"><X className="h-4 w-4" /></button>
+            <button onClick={cancel} className={BTN} title="Cancel"><X className="h-4 w-4" /></button>
           </>
         ) : (
           <>
@@ -176,6 +184,32 @@ function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons
           </>
         )}
       </div>
+      {editing && (
+        <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-2">
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Resource label (optional)</label>
+            <input value={resourceLabel} onChange={(e) => setResourceLabel(e.target.value)} placeholder="e.g. NESR SAP Training Hub"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Resource URL (optional)</label>
+            <input value={resourceUrl} onChange={(e) => setResourceUrl(e.target.value)} placeholder="https://…"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+          </div>
+          <p className="text-xs text-slate-400 sm:col-span-2">When both are set, this renders as a linked resource box at the top of the module on the course page.</p>
+        </div>
+      )}
+      {!editing && mod.resource_label && mod.resource_url && (
+        <a
+          href={mod.resource_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 border-t border-slate-100 bg-[#307c4c]/5 px-4 py-2 text-xs font-semibold text-[#307c4c] hover:bg-[#307c4c]/10"
+        >
+          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{mod.resource_label}</span>
+        </a>
+      )}
       <div>
         {mod.lessons.map((l) => <LessonAdmin key={l.id} lesson={l} moduleId={mod.id} onChanged={onChanged} />)}
         <NewLessonForm moduleId={mod.id} onChanged={onChanged} />

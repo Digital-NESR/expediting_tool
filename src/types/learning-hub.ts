@@ -28,6 +28,8 @@ export interface LearningModule {
   course_id: number;
   title: string;
   order_index: number;
+  resource_label: string | null;
+  resource_url: string | null;
   created_at: string;
   updated_at: string;
 }

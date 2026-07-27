@@ -92,9 +92,13 @@ async function ensureLearningHubSchema(): Promise<void> {
     course_id INT NOT NULL REFERENCES learning_courses(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     order_index INT NOT NULL DEFAULT 0,
+    resource_label TEXT,
+    resource_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
+  await execSchema(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS resource_label TEXT`);
+  await execSchema(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS resource_url TEXT`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_modules_course ON learning_modules(course_id)`);
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_lessons (
@@ -133,8 +137,8 @@ async function insertTrackCourses(trackId: number, track: SeedTrack): Promise<vo
       await Promise.all(
         course.modules.map(async (mod, moduleIdx) => {
           const moduleResult = await exec(
-            `INSERT INTO learning_modules (course_id, title, order_index) VALUES (?, ?, ?) RETURNING id`,
-            [courseResult.insertId, mod.title, moduleIdx],
+            `INSERT INTO learning_modules (course_id, title, order_index, resource_label, resource_url) VALUES (?, ?, ?, ?, ?) RETURNING id`,
+            [courseResult.insertId, mod.title, moduleIdx, mod.resourceLabel ?? null, mod.resourceUrl ?? null],
           );
           await Promise.all(
             mod.lessons.map((lesson, lessonIdx) =>
@@ -572,9 +576,15 @@ export async function createModule(courseId: number, title: string): Promise<{ i
   return { id: result.insertId };
 }
 
-export async function updateModule(id: number, title: string): Promise<void> {
+export async function updateModule(
+  id: number,
+  fields: { title: string; resource_label: string | null; resource_url: string | null },
+): Promise<void> {
   await ensureLearningHubReady();
-  await exec(`UPDATE learning_modules SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [title, id]);
+  await exec(
+    `UPDATE learning_modules SET title = ?, resource_label = ?, resource_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [fields.title, fields.resource_label || null, fields.resource_url || null, id],
+  );
 }
 
 export async function deleteModule(id: number): Promise<void> {

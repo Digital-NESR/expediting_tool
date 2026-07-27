@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Circle, Clock } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, ExternalLink } from 'lucide-react';
 import LearningHubSidebar from '../../components/LearningHubSidebar';
 import LearningHubLogo from '../../components/LearningHubLogo';
 import LearningHubHero from '../../components/LearningHubHero';
@@ -65,6 +65,24 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Module {modIdx + 1}</p>
                 <h2 className="text-sm font-bold text-slate-900">{mod.title}</h2>
               </div>
+              {mod.resource_label && mod.resource_url && (
+                <a
+                  href={mod.resource_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 border-b border-slate-100 px-5 py-3.5 transition-colors hover:bg-slate-50"
+                  style={{ background: `${color}0d` }}
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: `${color}18` }}>
+                    <ExternalLink className="h-4 w-4" style={{ color }} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>Module resource</p>
+                    <p className="truncate text-sm font-semibold text-slate-800">{mod.resource_label}</p>
+                  </div>
+                  <span className="shrink-0 text-xs font-semibold" style={{ color }}>Open →</span>
+                </a>
+              )}
               <div className="divide-y divide-slate-100">
                 {mod.lessons.map((lesson) => (
                   <Link

@@ -13,6 +13,8 @@ export interface SeedLesson {
 
 export interface SeedModule {
   title: string;
+  resourceLabel?: string;
+  resourceUrl?: string;
   lessons: SeedLesson[];
 }
 
@@ -262,13 +264,13 @@ It is worth being honest that not every underperforming supplier relationship ca
         modules: [
           {
             title: 'Navigating SAP',
+            resourceLabel: 'NESR SAP Training Hub',
+            resourceUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/SitePages/Home.aspx',
             lessons: [
               {
                 title: 'Getting Around the SAP GUI',
                 duration_minutes: 8,
-                body: `Placeholder lesson. This will cover logging into the SAP GUI, the layout of the main screen (menu bar, command field, standard toolbar), navigating between modules, and personalizing your user settings. Replace with NESR-specific screenshots and a walkthrough of our SAP landscape via the admin CMS.
-
-Additional resource: [NESR SAP Training Hub](https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/SitePages/Home.aspx).`,
+                body: `Placeholder lesson. This will cover logging into the SAP GUI, the layout of the main screen (menu bar, command field, standard toolbar), navigating between modules, and personalizing your user settings. Replace with NESR-specific screenshots and a walkthrough of our SAP landscape via the admin CMS.`,
               },
               {
                 title: 'Transaction Codes You’ll Use Every Day',
