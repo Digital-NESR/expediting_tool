@@ -86,6 +86,7 @@ export interface LessonOutline extends LearningLesson {
 
 export interface ModuleOutline extends LearningModule {
   lessons: LessonOutline[];
+  has_quiz: boolean;
 }
 
 export interface CourseDetailData {
@@ -130,10 +131,77 @@ export interface MyWorkData {
   notStarted: MyWorkCourse[];
 }
 
+/* ── Knowledge checks (one optional quiz per module) ─────────────────── */
+
+export interface QuizOption {
+  id: number;
+  option_text: string;
+  order_index: number;
+}
+
+export interface QuizOptionWithAnswer extends QuizOption {
+  is_correct: boolean;
+}
+
+export interface QuizQuestion {
+  id: number;
+  question_text: string;
+  order_index: number;
+  options: QuizOption[];
+}
+
+export interface QuizQuestionWithAnswer {
+  id: number;
+  question_text: string;
+  order_index: number;
+  options: QuizOptionWithAnswer[];
+}
+
+export interface ModuleQuiz {
+  id: number;
+  module_id: number;
+  title: string;
+  questions: QuizQuestion[];
+}
+
+export interface ModuleQuizWithAnswers {
+  id: number;
+  module_id: number;
+  title: string;
+  questions: QuizQuestionWithAnswer[];
+}
+
+export interface QuizAnswerInput {
+  questionId: number;
+  optionId: number | null;
+}
+
+export interface QuizQuestionResult {
+  questionId: number;
+  selectedOptionId: number | null;
+  correctOptionId: number;
+  correct: boolean;
+}
+
+export interface QuizAttemptResult {
+  total: number;
+  correctCount: number;
+  scorePct: number;
+  results: QuizQuestionResult[];
+}
+
+export interface ModuleQuizPageData {
+  track: LearningTrack;
+  course: LearningCourse;
+  module: LearningModule;
+  quiz: ModuleQuiz;
+}
+
 /* ── Admin CMS shapes ─────────────────────────────────────────────────── */
 
 export interface AdminModuleWithLessons extends LearningModule {
   lessons: LearningLesson[];
+  has_quiz: boolean;
 }
 
 export interface AdminCourseWithModules extends LearningCourse {

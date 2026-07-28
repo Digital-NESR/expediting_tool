@@ -22,11 +22,16 @@ import type {
   AdminTrackWithCourses,
   LearningHubAdminData,
   CourseStatus,
+  ModuleQuiz,
+  ModuleQuizWithAnswers,
+  ModuleQuizPageData,
+  QuizAnswerInput,
+  QuizAttemptResult,
 } from '@/types/learning-hub';
 
 /* ── Query helpers (house pattern: ? -> $n, sql() for SELECT, exec() for writes) ── */
 
-type QueryParams = (string | number | boolean | null | undefined | string[])[];
+type QueryParams = (string | number | boolean | null | undefined | string[] | number[])[];
 
 function toPostgresQuery(statement: string): string {
   let index = 0;
@@ -123,6 +128,36 @@ async function ensureLearningHubSchema(): Promise<void> {
     UNIQUE(user_email, lesson_id)
   )`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_progress_user ON learning_lesson_progress(user_email)`);
+
+  // Knowledge checks: one optional quiz per module, feedback-only (not a completion gate).
+  await execSchema(`CREATE TABLE IF NOT EXISTS learning_quizzes (
+    id SERIAL PRIMARY KEY,
+    module_id INT NOT NULL UNIQUE REFERENCES learning_modules(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT 'Knowledge check',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  await execSchema(`CREATE TABLE IF NOT EXISTS learning_quiz_questions (
+    id SERIAL PRIMARY KEY,
+    quiz_id INT NOT NULL REFERENCES learning_quizzes(id) ON DELETE CASCADE,
+    question_text TEXT NOT NULL,
+    order_index INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_quiz_questions_quiz ON learning_quiz_questions(quiz_id)`);
+
+  await execSchema(`CREATE TABLE IF NOT EXISTS learning_quiz_options (
+    id SERIAL PRIMARY KEY,
+    question_id INT NOT NULL REFERENCES learning_quiz_questions(id) ON DELETE CASCADE,
+    option_text TEXT NOT NULL,
+    is_correct BOOLEAN NOT NULL DEFAULT false,
+    order_index INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_quiz_options_question ON learning_quiz_options(question_id)`);
 }
 
 // Inserts a track's courses/modules/lessons breadth-first (siblings in parallel, not one deep serial
@@ -369,6 +404,12 @@ export async function getCourseDetail(
   );
   const completedIds = new Set(completedRows.map((r) => Number(r.lesson_id)));
 
+  const moduleIds = modules.map((m) => m.id);
+  const quizRows = moduleIds.length
+    ? await sql<QueryResultRow[]>(`SELECT module_id FROM learning_quizzes WHERE module_id = ANY(?)`, [moduleIds])
+    : [];
+  const quizModuleIds = new Set(quizRows.map((r) => Number(r.module_id)));
+
   const moduleOutlines: ModuleOutline[] = [];
   let lessonCount = 0;
   let completedCount = 0;
@@ -380,7 +421,7 @@ export async function getCourseDetail(
     const lessonsWithCompletion = lessons.map((l) => ({ ...l, completed: completedIds.has(l.id) }));
     lessonCount += lessons.length;
     completedCount += lessonsWithCompletion.filter((l) => l.completed).length;
-    moduleOutlines.push({ ...mod, lessons: lessonsWithCompletion });
+    moduleOutlines.push({ ...mod, lessons: lessonsWithCompletion, has_quiz: quizModuleIds.has(mod.id) });
   }
 
   return {
@@ -517,10 +558,13 @@ export async function getLearningHubAdminData(): Promise<LearningHubAdminData> {
   const courses = await sql<LearningCourse[]>(`SELECT * FROM learning_courses ORDER BY track_id ASC, order_index ASC, id ASC`);
   const modules = await sql<LearningModule[]>(`SELECT * FROM learning_modules ORDER BY course_id ASC, order_index ASC, id ASC`);
   const lessons = await sql<LearningLesson[]>(`SELECT * FROM learning_lessons ORDER BY module_id ASC, order_index ASC, id ASC`);
+  const quizRows = await sql<QueryResultRow[]>(`SELECT module_id FROM learning_quizzes`);
+  const quizModuleIds = new Set(quizRows.map((r) => Number(r.module_id)));
 
   const modulesWithLessons: AdminModuleWithLessons[] = modules.map((m) => ({
     ...m,
     lessons: lessons.filter((l) => l.module_id === m.id),
+    has_quiz: quizModuleIds.has(m.id),
   }));
   const coursesWithModules: AdminCourseWithModules[] = courses.map((c) => ({
     ...c,
@@ -661,4 +705,163 @@ export async function moveModule(courseId: number, id: number, direction: 'up' |
 export async function moveLesson(moduleId: number, id: number, direction: 'up' | 'down'): Promise<void> {
   await ensureLearningHubReady();
   await moveOrderIndex('learning_lessons', moduleId, id, direction);
+}
+
+/* ── Knowledge checks (one optional quiz per module) ─────────────────────
+   Feedback-only: no gating on progress. Learner-facing fetch withholds
+   is_correct until submitQuizAttempt() grades the attempt server-side, so
+   the answer key never ships to the client before the quiz is submitted. ── */
+
+async function loadModuleQuizRaw(
+  moduleId: number,
+): Promise<{ quiz: QueryResultRow; questions: QueryResultRow[]; optionsByQuestion: Map<number, QueryResultRow[]> } | null> {
+  const quizzes = await sql<QueryResultRow[]>(`SELECT * FROM learning_quizzes WHERE module_id = ?`, [moduleId]);
+  const quiz = quizzes[0];
+  if (!quiz) return null;
+
+  const questions = await sql<QueryResultRow[]>(
+    `SELECT * FROM learning_quiz_questions WHERE quiz_id = ? ORDER BY order_index ASC, id ASC`,
+    [quiz.id],
+  );
+  const questionIds = questions.map((q) => Number(q.id));
+  const options = questionIds.length
+    ? await sql<QueryResultRow[]>(
+        `SELECT * FROM learning_quiz_options WHERE question_id = ANY(?) ORDER BY order_index ASC, id ASC`,
+        [questionIds],
+      )
+    : [];
+
+  const optionsByQuestion = new Map<number, QueryResultRow[]>();
+  for (const o of options) {
+    const qid = Number(o.question_id);
+    if (!optionsByQuestion.has(qid)) optionsByQuestion.set(qid, []);
+    optionsByQuestion.get(qid)!.push(o);
+  }
+  return { quiz, questions, optionsByQuestion };
+}
+
+export async function getModuleQuizForLearner(moduleId: number): Promise<ModuleQuiz | null> {
+  await ensureLearningHubReady();
+  const raw = await loadModuleQuizRaw(moduleId);
+  if (!raw) return null;
+  return {
+    id: Number(raw.quiz.id),
+    module_id: moduleId,
+    title: String(raw.quiz.title),
+    questions: raw.questions.map((q) => ({
+      id: Number(q.id),
+      question_text: String(q.question_text),
+      order_index: Number(q.order_index),
+      options: (raw.optionsByQuestion.get(Number(q.id)) ?? []).map((o) => ({
+        id: Number(o.id),
+        option_text: String(o.option_text),
+        order_index: Number(o.order_index),
+      })),
+    })),
+  };
+}
+
+export async function getModuleQuizForAdmin(moduleId: number): Promise<ModuleQuizWithAnswers | null> {
+  await ensureLearningHubReady();
+  const raw = await loadModuleQuizRaw(moduleId);
+  if (!raw) return null;
+  return {
+    id: Number(raw.quiz.id),
+    module_id: moduleId,
+    title: String(raw.quiz.title),
+    questions: raw.questions.map((q) => ({
+      id: Number(q.id),
+      question_text: String(q.question_text),
+      order_index: Number(q.order_index),
+      options: (raw.optionsByQuestion.get(Number(q.id)) ?? []).map((o) => ({
+        id: Number(o.id),
+        option_text: String(o.option_text),
+        order_index: Number(o.order_index),
+        is_correct: Boolean(o.is_correct),
+      })),
+    })),
+  };
+}
+
+export async function getModuleQuizPageData(
+  trackKey: string,
+  courseId: number,
+  moduleId: number,
+): Promise<ModuleQuizPageData | null> {
+  await ensureLearningHubReady();
+  const tracks = await sql<LearningTrack[]>(`SELECT * FROM learning_tracks WHERE key = ?`, [trackKey]);
+  const track = tracks[0];
+  if (!track) return null;
+  const courses = await sql<LearningCourse[]>(`SELECT * FROM learning_courses WHERE id = ? AND track_id = ?`, [courseId, track.id]);
+  const course = courses[0];
+  if (!course) return null;
+  const modules = await sql<LearningModule[]>(`SELECT * FROM learning_modules WHERE id = ? AND course_id = ?`, [moduleId, course.id]);
+  const mod = modules[0];
+  if (!mod) return null;
+  const quiz = await getModuleQuizForLearner(moduleId);
+  if (!quiz) return null;
+  return { track, course, module: mod, quiz };
+}
+
+export async function saveModuleQuiz(
+  moduleId: number,
+  title: string,
+  questions: { question_text: string; options: { option_text: string; is_correct: boolean }[] }[],
+): Promise<void> {
+  await ensureLearningHubReady();
+  const existing = await sql<QueryResultRow[]>(`SELECT id FROM learning_quizzes WHERE module_id = ?`, [moduleId]);
+  let quizId: number;
+  if (existing[0]) {
+    quizId = Number(existing[0].id);
+    await exec(`UPDATE learning_quizzes SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [title, quizId]);
+    await exec(`DELETE FROM learning_quiz_questions WHERE quiz_id = ?`, [quizId]);
+  } else {
+    const result = await exec(`INSERT INTO learning_quizzes (module_id, title) VALUES (?, ?) RETURNING id`, [moduleId, title]);
+    quizId = result.insertId;
+  }
+
+  await Promise.all(
+    questions.map(async (q, qIdx) => {
+      const qResult = await exec(
+        `INSERT INTO learning_quiz_questions (quiz_id, question_text, order_index) VALUES (?, ?, ?) RETURNING id`,
+        [quizId, q.question_text, qIdx],
+      );
+      await Promise.all(
+        q.options.map((o, oIdx) =>
+          exec(
+            `INSERT INTO learning_quiz_options (question_id, option_text, is_correct, order_index) VALUES (?, ?, ?, ?) RETURNING id`,
+            [qResult.insertId, o.option_text, o.is_correct, oIdx],
+          ),
+        ),
+      );
+    }),
+  );
+}
+
+export async function deleteModuleQuiz(moduleId: number): Promise<void> {
+  await ensureLearningHubReady();
+  await exec(`DELETE FROM learning_quizzes WHERE module_id = ?`, [moduleId]);
+}
+
+export async function submitQuizAttempt(quizId: number, answers: QuizAnswerInput[]): Promise<QuizAttemptResult> {
+  await ensureLearningHubReady();
+  const correctRows = await sql<QueryResultRow[]>(
+    `SELECT o.question_id, o.id AS option_id
+     FROM learning_quiz_options o
+     JOIN learning_quiz_questions q ON q.id = o.question_id
+     WHERE q.quiz_id = ? AND o.is_correct = true`,
+    [quizId],
+  );
+  const correctByQuestion = new Map<number, number>();
+  for (const r of correctRows) correctByQuestion.set(Number(r.question_id), Number(r.option_id));
+
+  const results = Array.from(correctByQuestion.entries()).map(([questionId, correctOptionId]) => {
+    const submitted = answers.find((a) => a.questionId === questionId);
+    const selectedOptionId = submitted?.optionId ?? null;
+    return { questionId, selectedOptionId, correctOptionId, correct: selectedOptionId === correctOptionId };
+  });
+  const correctCount = results.filter((r) => r.correct).length;
+  const total = results.length;
+
+  return { total, correctCount, scorePct: total > 0 ? Math.round((correctCount / total) * 100) : 0, results };
 }

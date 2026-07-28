@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Circle, Clock, ExternalLink } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, ExternalLink, ClipboardCheck } from 'lucide-react';
 import LearningHubSidebar from '../../components/LearningHubSidebar';
 import LearningHubLogo from '../../components/LearningHubLogo';
 import LearningHubHero from '../../components/LearningHubHero';
@@ -105,6 +105,16 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
                   </Link>
                 ))}
               </div>
+              {mod.has_quiz && (
+                <Link
+                  href={`/learning-hub/${track.key}/${course.id}/quiz/${mod.id}`}
+                  className="flex items-center gap-3 border-t border-slate-100 px-5 py-3.5 transition-colors hover:bg-slate-50"
+                >
+                  <ClipboardCheck className="h-5 w-5 shrink-0" style={{ color }} />
+                  <span className="flex-1 text-sm font-semibold" style={{ color }}>Knowledge check</span>
+                  <span className="shrink-0 text-xs font-semibold" style={{ color }}>Take it →</span>
+                </Link>
+              )}
             </div>
           ))}
         </div>
