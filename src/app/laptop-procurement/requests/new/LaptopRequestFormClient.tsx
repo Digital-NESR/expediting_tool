@@ -18,9 +18,9 @@ import type {
   LaptopRequest,
 } from '@/types/laptopProcurement';
 
-const LBL = 'mb-2 block text-sm font-semibold text-[#182a1f]';
-const INP = 'w-full rounded-xl border border-white/80 bg-white/70 px-3.5 py-2.5 text-sm text-[#182a1f] shadow-sm outline-none backdrop-blur-xl transition placeholder:text-[#8a978d] focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
-const ERR = 'w-full rounded-xl border border-red-400/60 bg-red-50/70 px-3.5 py-2.5 text-sm text-[#182a1f] shadow-sm outline-none backdrop-blur-xl transition placeholder:text-[#8a978d] focus:border-red-500 focus:ring-2 focus:ring-red-200';
+const LBL = 'mb-2 block text-sm font-semibold text-slate-900';
+const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
+const ERR = 'w-full rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-2 focus:ring-red-200';
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 function Field({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
@@ -45,22 +45,22 @@ function fmtBytes(n: number): string {
 function AttachmentPicker({ files, onFilesSelected }: { files: File[]; onFilesSelected: (files: File[]) => void }) {
   const inputId = useId();
   return (
-    <div className="min-h-44 rounded-2xl border border-white/80 bg-white/50 p-4 backdrop-blur-xl">
+    <div className="min-h-44 rounded-2xl border border-slate-200 bg-white p-4">
       <input id={inputId} type="file" multiple className="sr-only" onChange={e => onFilesSelected(Array.from(e.target.files || []))} />
       <div className="flex flex-col gap-3">
-        <label htmlFor={inputId} className="inline-flex w-fit cursor-pointer items-center justify-center rounded-full border border-[#307c4c]/30 bg-white/80 px-4 py-2 text-xs font-bold text-[#28714a] shadow-sm backdrop-blur transition hover:border-[#307c4c]/60 hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#307c4c]/25">
+        <label htmlFor={inputId} className="inline-flex w-fit cursor-pointer items-center justify-center rounded-lg border border-[#307c4c]/30 bg-white px-4 py-2 text-xs font-bold text-[#307c4c] shadow-sm transition hover:border-[#307c4c]/60 hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#307c4c]/25">
           Choose files
         </label>
-        <p className="text-xs leading-relaxed text-[#5f7266]">Attach supporting documents (quotes, photos, approvals) up to 10 MB each.</p>
+        <p className="text-xs leading-relaxed text-slate-500">Attach supporting documents (quotes, photos, approvals) up to 10 MB each.</p>
       </div>
       {files.length === 0 ? (
-        <p className="mt-5 rounded-xl border border-dashed border-[#182a1f]/15 bg-white/40 px-3 py-3 text-sm text-[#5f7266]">There is nothing attached.</p>
+        <p className="mt-5 rounded-xl border border-dashed border-slate-200 bg-white px-3 py-3 text-sm text-slate-500">There is nothing attached.</p>
       ) : (
         <div className="mt-4 space-y-2">
           {files.map(file => (
-            <div key={`${file.name}-${file.size}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/80 bg-white/70 px-3 py-2 text-xs text-[#4c5f53] shadow-sm backdrop-blur">
-              <span className="min-w-0 truncate font-semibold text-[#182a1f]">{file.name}</span>
-              <span className="shrink-0 text-[#8a978d]">{fmtBytes(file.size)}</span>
+            <div key={`${file.name}-${file.size}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm">
+              <span className="min-w-0 truncate font-semibold text-slate-900">{file.name}</span>
+              <span className="shrink-0 text-slate-400">{fmtBytes(file.size)}</span>
             </div>
           ))}
         </div>
@@ -200,10 +200,10 @@ export default function LaptopRequestFormClient({
       accessView={accessView}
     >
       <form onSubmit={handleSubmit} className="space-y-5">
-        {banner && <div className="rounded-2xl border border-red-400/50 bg-red-100/60 px-4 py-3 text-sm font-semibold text-red-900 backdrop-blur">{banner}</div>}
+        {banner && <div className="rounded-2xl border border-red-300 bg-red-100 px-4 py-3 text-sm font-semibold text-red-900">{banner}</div>}
 
         <section className={`${GLASS} p-5 sm:p-6`}>
-          <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-[#5f7266]">Request</h2>
+          <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Request</h2>
           <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-4">
             <Field label="Type of Request" required error={errors.requestType}>
               <select className={errors.requestType ? ERR : INP} value={requestType} onChange={e => setRequestType(e.target.value)}>
@@ -244,7 +244,7 @@ export default function LaptopRequestFormClient({
         </section>
 
         <section className={`${GLASS} p-5 sm:p-6`}>
-          <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-[#5f7266]">Cost Allocation</h2>
+          <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Cost Allocation</h2>
           <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
             <Field label="Company Code">
               <input className={INP} value={companyCode} onChange={e => setCompanyCode(e.target.value)} />
@@ -259,7 +259,7 @@ export default function LaptopRequestFormClient({
         </section>
 
         <section className={`${GLASS} p-5 sm:p-6`}>
-          <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-[#5f7266]">Requested Device</h2>
+          <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Requested Device</h2>
           <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-2">
             <Field label="Type of Device" required error={errors.typeOfDevice}>
               <select
@@ -287,7 +287,7 @@ export default function LaptopRequestFormClient({
 
         {showCurrentDevice && (
           <section className={`${GLASS} p-5 sm:p-6`}>
-            <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-[#5f7266]">Existing Device (being replaced / upgraded)</h2>
+            <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Existing Device (being replaced / upgraded)</h2>
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
               <Field label="Unit ID"><input className={INP} value={unitId} onChange={e => setUnitId(e.target.value)} /></Field>
               <Field label="Brand"><input className={INP} value={currentBrand} onChange={e => setCurrentBrand(e.target.value)} /></Field>
@@ -299,7 +299,7 @@ export default function LaptopRequestFormClient({
         )}
 
         <section className={`${GLASS} p-5 sm:p-6`}>
-          <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-[#5f7266]">Attachments</h2>
+          <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Attachments</h2>
           <Field label="Supporting Documents" error={errors.attachments}>
             <AttachmentPicker files={selectedFiles} onFilesSelected={setSelectedFiles} />
           </Field>
@@ -309,7 +309,7 @@ export default function LaptopRequestFormClient({
           <button disabled={isPending} className={`${CTA} px-10 disabled:opacity-60`}>
             {isPending ? (isEditMode ? 'Saving...' : 'Submitting...') : (isEditMode ? 'Save Changes' : 'Submit')}
           </button>
-          <button type="button" onClick={() => router.push(detailHref)} className="rounded-full border border-red-400/50 bg-red-100/50 px-8 py-2.5 text-sm font-bold text-red-800 backdrop-blur transition hover:bg-red-100/90">
+          <button type="button" onClick={() => router.push(detailHref)} className="rounded-lg border border-red-300 bg-red-50 px-8 py-2.5 text-sm font-bold text-red-800 transition hover:bg-red-100">
             Cancel
           </button>
         </div>

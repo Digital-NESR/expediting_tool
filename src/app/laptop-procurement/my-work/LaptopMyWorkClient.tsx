@@ -6,16 +6,16 @@ import { fmtDate, getPriorityBadge, getStatusBadge } from '@/lib/laptopProcureme
 import type { LaptopWorkQueueData } from '@/types/laptopProcurement';
 
 const AVATAR_GRADIENTS = [
-  'from-[#6fbf92] to-[#307c4c]',
-  'from-[#e0b25e] to-[#bd8532]',
-  'from-[#7fb6dd] to-[#4a86b4]',
-  'from-[#ab9fe4] to-[#7a6cc8]',
+  'bg-[#307c4c]',
+  'bg-[#307c4c]',
+  'bg-[#307c4c]',
+  'bg-[#307c4c]',
 ];
 
 function Avatar({ name, index }: { name: string; index: number }) {
   const initials = name.split(' ').filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase() || '?';
   return (
-    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]} text-[12px] font-bold text-white shadow-sm`}>
+    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]} text-[12px] font-bold text-white shadow-sm`}>
       {initials}
     </span>
   );
@@ -24,7 +24,7 @@ function Avatar({ name, index }: { name: string; index: number }) {
 function StatusPill({ status }: { status: string }) {
   const badge = getStatusBadge(status);
   return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold backdrop-blur ${badge.className}`}>
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
       {badge.label}
     </span>
@@ -33,10 +33,10 @@ function StatusPill({ status }: { status: string }) {
 
 function DbError() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-[#edf4ee] p-6">
-      <div className="max-w-sm rounded-3xl border border-white/70 bg-white/70 p-10 text-center shadow-[0_14px_44px_rgba(24,58,38,0.14)] backdrop-blur-2xl">
-        <p className="mb-1 font-semibold text-[#182a1f]">No reviewer access</p>
-        <p className="text-sm text-[#5f7266]">Your role does not have an approval queue.</p>
+    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 p-6">
+      <div className="max-w-sm rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+        <p className="mb-1 font-semibold text-slate-900">No reviewer access</p>
+        <p className="text-sm text-slate-500">Your role does not have an approval queue.</p>
       </div>
     </div>
   );
@@ -56,15 +56,15 @@ export default function LaptopMyWorkClient({ data }: { data: LaptopWorkQueueData
       <div className="space-y-5">
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className={`${GLASS} p-5`}>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5f7266]">Awaiting You</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Awaiting You</p>
             <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">{stats.total}</p>
           </div>
           <div className={`${GLASS} p-5`}>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5f7266]">Approvals</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Approvals</p>
             <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">{stats.approval}</p>
           </div>
           <div className={`${GLASS} p-5`}>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5f7266]">IT Review</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">IT Review</p>
             <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">{stats.it_review}</p>
           </div>
         </section>
@@ -72,10 +72,10 @@ export default function LaptopMyWorkClient({ data }: { data: LaptopWorkQueueData
         <section className={`${GLASS} p-5`}>
           <div className="mb-4">
             <h2 className="text-lg font-bold">Approval Queue</h2>
-            <p className="mt-0.5 text-sm text-[#5f7266]">Requests waiting for your decision, highest priority first.</p>
+            <p className="mt-0.5 text-sm text-slate-500">Requests waiting for your decision, highest priority first.</p>
           </div>
           {items.length === 0 ? (
-            <div className="rounded-2xl border border-white/70 bg-white/40 p-10 text-center text-sm text-[#5f7266]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
               Nothing is waiting on you right now.
             </div>
           ) : (
@@ -84,19 +84,19 @@ export default function LaptopMyWorkClient({ data }: { data: LaptopWorkQueueData
                 <Link
                   key={request.id}
                   href={`/laptop-procurement/requests/${request.id}`}
-                  className={`${GLASS_SOFT} flex items-center gap-4 p-4 transition hover:-translate-y-px hover:bg-white/70 hover:shadow-[0_10px_28px_rgba(24,58,38,0.12)]`}
+                  className={`${GLASS_SOFT} flex items-center gap-4 p-4 transition hover:-translate-y-px hover:bg-white hover:shadow-md`}
                 >
                   <Avatar name={request.requested_by_name || request.requested_by_email} index={i} />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[12.5px] font-bold text-[#28714a]">{request.reference_number}</span>
+                      <span className="text-[12.5px] font-bold text-[#307c4c]">{request.reference_number}</span>
                       <StatusPill status={request.status} />
-                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold backdrop-blur ${getPriorityBadge(request.priority)}`}>{request.priority}</span>
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getPriorityBadge(request.priority)}`}>{request.priority}</span>
                     </div>
-                    <p className="mt-1 truncate text-sm text-[#4c5f53]">{request.request_type || 'Request'} · {request.type_of_device || 'Device'} · {request.requested_model || '—'}</p>
-                    <p className="mt-0.5 text-xs text-[#5f7266]/80">{request.requested_by_name || request.requested_by_email} · {request.country || '—'} · Created {fmtDate(request.created_at)}</p>
+                    <p className="mt-1 truncate text-sm text-slate-600">{request.request_type || 'Request'} · {request.type_of_device || 'Device'} · {request.requested_model || '—'}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{request.requested_by_name || request.requested_by_email} · {request.country || '—'} · Created {fmtDate(request.created_at)}</p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-gradient-to-br from-[#3a9a5f] to-[#24603f] px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_6px_16px_rgba(36,96,63,0.35)]">
+                  <span className="shrink-0 rounded-lg bg-[#307c4c] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm">
                     {actions.canApprove ? 'Review & Approve' : actions.canAssignInventory ? 'IT Action' : 'Review'}
                   </span>
                 </Link>

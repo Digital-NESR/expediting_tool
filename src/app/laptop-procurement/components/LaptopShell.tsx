@@ -1,7 +1,7 @@
 'use client';
 
-// Glass & Depth shell for all Laptop Procurement pages:
-// mint atmosphere, persistent frosted sidebar (drawer on mobile), glass header.
+// Flat ProcureGuard-style shell for all Laptop Procurement pages:
+// white sidebar with green header, flat white cards, solid green actions.
 
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
@@ -9,11 +9,11 @@ import { usePathname } from 'next/navigation';
 import type { LaptopAccessView } from '@/types/laptopProcurement';
 import LaptopProcurementLogo from './LaptopProcurementLogo';
 
-/* ── Shared design tokens ─────────────────────────────────────── */
-export const GLASS = 'rounded-[22px] border border-white/70 bg-white/60 shadow-[0_14px_44px_rgba(24,58,38,0.12)] backdrop-blur-2xl';
-export const GLASS_SOFT = 'rounded-2xl border border-white/70 bg-white/50 backdrop-blur-xl';
-export const CTA = 'rounded-full bg-gradient-to-br from-[#3a9a5f] to-[#24603f] px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_24px_rgba(36,96,63,0.42)] transition hover:-translate-y-px hover:shadow-[0_12px_28px_rgba(36,96,63,0.5)] active:translate-y-0';
-export const CTA_QUIET = 'rounded-full border border-white/80 bg-white/60 px-4 py-2.5 text-sm font-bold text-[#28714a] shadow-sm backdrop-blur-xl transition hover:bg-white/85';
+/* ── Shared design tokens (flat ProcureGuard look) ────────────── */
+export const GLASS = 'rounded-2xl border border-slate-200 bg-white shadow-sm';
+export const GLASS_SOFT = 'rounded-xl border border-slate-200 bg-white';
+export const CTA = 'rounded-lg bg-[#307c4c] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80';
+export const CTA_QUIET = 'rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50';
 
 const NAV = [
   { href: '/laptop-procurement', label: 'Dashboard', icon: 'grid', access: ['requester', 'reviewer', 'admin'] },
@@ -28,7 +28,7 @@ const NAV = [
 function Icon({ name }: { name: string }) {
   if (name === 'home') return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10" />
     </svg>
   );
   if (name === 'grid') return (
@@ -77,52 +77,71 @@ function SidebarBody({
 
   return (
     <>
-      <div className="flex items-center gap-3 px-2 pb-5 pt-1">
+      <div className="flex h-16 shrink-0 items-center gap-3 bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-5 text-white">
         <LaptopProcurementLogo size="lg" />
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-bold leading-tight tracking-tight text-[#182a1f]">Laptop Procurement</p>
-          <p className="text-[10px] font-medium text-[#5f7266]">NESR SC Tools</p>
+          <p className="truncate text-sm font-bold leading-tight tracking-tight">Laptop Procurement</p>
+          <p className="text-[0.6875rem] text-white/70">Device request control</p>
         </div>
+        {onNavigate && (
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={onNavigate}
+            className="ml-auto rounded-lg p-2 text-white/70 transition-colors hover:bg-white/15 hover:text-white lg:hidden"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      <nav className="grid gap-1">
+      <nav className="flex-1 overflow-y-auto p-3">
         <Link
           href="/home"
           onClick={onNavigate}
-          title="Home"
-          className="flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-[13px] font-medium text-[#4c5f53] transition hover:bg-white/70"
+          title="NESR Home"
+          aria-label="Back to NESR home"
+          className="mb-3 flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:border-[#307c4c]/30 hover:bg-[#307c4c]/5 hover:text-[#307c4c]"
         >
           <Icon name="home" />
-          <span className="truncate">Home</span>
+          <span className="truncate">Back to NESR Home</span>
         </Link>
-        <div className="mx-2 my-1.5 h-px bg-[#182a1f]/10" />
-        {visibleNav.map(item => {
-          const active = item.href === '/laptop-procurement'
-            ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(`${item.href}/`);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              title={item.label}
-              className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-[13px] transition ${
-                active
-                  ? 'bg-gradient-to-br from-[#3a9a5f] to-[#28714a] font-semibold text-white shadow-[0_8px_20px_rgba(40,113,74,0.38)]'
-                  : 'font-medium text-[#4c5f53] hover:bg-white/70'
-              }`}
-            >
-              <Icon name={item.icon} />
-              <span className="truncate">{item.label}</span>
-            </Link>
-          );
-        })}
+        <div className="space-y-1">
+          {visibleNav.map(item => {
+            const active = item.href === '/laptop-procurement'
+              ? pathname === item.href
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                title={item.label}
+                aria-label={item.label}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                  active
+                    ? 'bg-gradient-to-r from-[#307c4c] to-[#2b6f44] text-white shadow-sm shadow-[#307c4c]/30'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Icon name={item.icon} />
+                <span className="truncate">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
-      <div className="mt-auto rounded-2xl border border-white/80 bg-white/55 p-4 backdrop-blur-xl">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5f7266]">Review Queue</p>
-        <p className="mt-1.5 text-3xl font-bold tracking-tight text-[#182a1f] tabular-nums">{pendingCount ?? 0}</p>
-        <p className="mt-0.5 text-[11px] text-[#5f7266]">active approval items</p>
+      <div className="border-t border-slate-100 px-3 pb-3 pt-3">
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-4 py-2.5 text-white shadow-sm shadow-[#307c4c]/20">
+          <div className="min-w-0">
+            <p className="text-[0.625rem] font-semibold uppercase tracking-wider text-white/70">Review Queue</p>
+            <p className="text-[0.6875rem] text-white/70">active approval items</p>
+          </div>
+          <p className="text-2xl font-bold leading-none tabular-nums">{pendingCount ?? 0}</p>
+        </div>
       </div>
     </>
   );
@@ -147,17 +166,10 @@ export default function LaptopShell({
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
   return (
-    <div className="relative min-h-[100dvh] bg-[#edf4ee] font-sans text-[#182a1f]">
-      {/* Atmosphere */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -left-36 -top-44 h-[520px] w-[520px] rounded-full bg-[#60be86]/40 blur-3xl" />
-        <div className="absolute -right-32 top-32 h-[460px] w-[460px] rounded-full bg-[#307c4c]/20 blur-3xl" />
-        <div className="absolute -bottom-56 left-1/3 h-[420px] w-[420px] rounded-full bg-[#b0e0c0]/50 blur-3xl" />
-      </div>
-
-      <div className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-[1440px] gap-5 px-4 py-4 sm:px-5 sm:py-5">
+    <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
+      <div className="flex min-h-[100dvh]">
         {/* Persistent sidebar (desktop) */}
-        <aside className={`${GLASS} sticky top-5 hidden h-[calc(100dvh-40px)] w-[248px] shrink-0 flex-col rounded-[26px] p-4 lg:flex`}>
+        <aside className="sticky top-0 hidden h-[100dvh] w-[264px] shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
           <SidebarBody accessView={accessView} pendingCount={pendingCount} />
         </aside>
 
@@ -167,23 +179,23 @@ export default function LaptopShell({
             type="button"
             aria-label="Close menu"
             onClick={() => setOpen(false)}
-            className={`absolute inset-0 bg-[#182a1f]/30 backdrop-blur-sm transition-opacity ${open ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute inset-0 bg-slate-950/40 transition-opacity ${open ? 'opacity-100' : 'opacity-0'}`}
           />
           <aside
-            className={`absolute inset-y-3 left-3 flex w-[264px] flex-col rounded-[26px] border border-white/70 bg-white/85 p-4 shadow-[0_20px_60px_rgba(24,58,38,0.3)] backdrop-blur-2xl transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-[112%]'}`}
+            className={`absolute inset-y-0 left-0 flex w-[280px] flex-col border-r border-slate-200 bg-white shadow-2xl transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`}
           >
             <SidebarBody accessView={accessView} pendingCount={pendingCount} onNavigate={() => setOpen(false)} />
           </aside>
         </div>
 
         {/* Main column */}
-        <div className="flex min-w-0 flex-1 flex-col gap-5">
-          <header className={`${GLASS} flex items-center gap-3 px-4 py-3.5 sm:px-5`}>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-gray-100 bg-white/80 px-4 backdrop-blur-md md:h-16 md:px-8">
             <button
               type="button"
               aria-label="Open menu"
               onClick={() => setOpen(true)}
-              className="rounded-full p-2 text-[#4c5f53] transition hover:bg-white/70 lg:hidden"
+              className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 lg:hidden"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -191,16 +203,18 @@ export default function LaptopShell({
             </button>
             <span className="lg:hidden"><LaptopProcurementLogo size="sm" /></span>
             <div className="min-w-0">
-              <h1 className="truncate text-[17px] font-bold leading-tight tracking-tight sm:text-lg">{title}</h1>
-              {subtitle && <p className="truncate text-xs text-[#5f7266]">{subtitle}</p>}
+              <h1 className="truncate text-[17px] font-bold leading-tight tracking-tight text-slate-900 sm:text-lg">{title}</h1>
+              {subtitle && <p className="truncate text-xs text-slate-500">{subtitle}</p>}
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-2.5">
               {actions}
-              <span className="hidden text-xs font-medium text-[#5f7266] md:block">{today}</span>
+              <span className="hidden text-xs font-medium text-slate-500 md:block">{today}</span>
             </div>
           </header>
 
-          <main className="flex-1 pb-8">{children}</main>
+          <main className="flex-1 px-4 py-6 pb-16 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-[1220px]">{children}</div>
+          </main>
         </div>
       </div>
     </div>

@@ -26,8 +26,8 @@ function textValue(value: DetailValue) {
 function Field({ label, value }: { label: string; value: DetailValue }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#5f7266]">{label}</p>
-      <p className="mt-1 break-words text-sm font-semibold text-[#182a1f]">{textValue(value)}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-slate-900">{textValue(value)}</p>
     </div>
   );
 }
@@ -39,7 +39,7 @@ function FieldGrid({ children }: { children: ReactNode }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className={`${GLASS} p-5`}>
-      <h2 className="text-sm font-bold text-[#182a1f]">{title}</h2>
+      <h2 className="text-sm font-bold text-slate-900">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -48,7 +48,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function StatusPill({ status }: { status: string }) {
   const badge = getStatusBadge(status);
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold backdrop-blur ${badge.className}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
       {badge.label}
     </span>
@@ -56,7 +56,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function PriorityPill({ priority }: { priority: string }) {
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold backdrop-blur ${getPriorityBadge(priority)}`}>{priority}</span>;
+  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getPriorityBadge(priority)}`}>{priority}</span>;
 }
 
 function WorkflowChain({ status }: { status: LaptopRequestStatus }) {
@@ -70,7 +70,7 @@ function WorkflowChain({ status }: { status: LaptopRequestStatus }) {
   return (
     <Section title="Approval Chain">
       {(isRejected || altOutcome || status === 'Cancelled') && (
-        <div className={`mb-4 rounded-xl border px-3 py-2 text-xs font-semibold backdrop-blur ${isRejected || status === 'Cancelled' ? 'border-red-400/40 bg-red-100/50 text-red-900' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900'}`}>
+        <div className={`mb-4 rounded-xl border px-3 py-2 text-xs font-semibold ${isRejected || status === 'Cancelled' ? 'border-red-300 bg-red-50 text-red-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
           Outcome: {getStatusBadge(status).label}
         </div>
       )}
@@ -79,15 +79,15 @@ function WorkflowChain({ status }: { status: LaptopRequestStatus }) {
           const isCurrent = !terminalApproved && !isRejected && !altOutcome && status !== 'Cancelled' && index === currentIndex;
           const isComplete = terminalApproved ? true : index <= completedIndex;
           return (
-            <div key={step.status} className={`rounded-2xl border p-3 backdrop-blur ${isCurrent ? 'border-[#307c4c]/35 bg-gradient-to-br from-[#3a9a5f]/15 to-[#24603f]/5' : isComplete ? 'border-white/80 bg-white/55' : 'border-white/60 bg-white/30'}`}>
+            <div key={step.status} className={`rounded-2xl border p-3 ${isCurrent ? 'border-[#307c4c]/35 bg-[#307c4c]/10' : isComplete ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
               <div className="flex items-start gap-3">
-                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isCurrent ? 'bg-gradient-to-br from-[#3a9a5f] to-[#24603f] text-white shadow-[0_4px_12px_rgba(36,96,63,0.4)]' : isComplete ? 'bg-[#182a1f]/75 text-white' : 'bg-white/70 text-[#5f7266]'}`}>
+                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isCurrent ? 'bg-[#307c4c] text-white shadow-sm' : isComplete ? 'bg-slate-700 text-white' : 'bg-white text-slate-500'}`}>
                   {index + 1}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-[#182a1f]">{step.label}</p>
-                  <p className="mt-0.5 text-xs font-semibold text-[#5f7266]">{step.owner}</p>
-                  <p className="mt-1 text-xs text-[#5f7266]/90">{step.description}</p>
+                  <p className="text-sm font-bold text-slate-900">{step.label}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-slate-500">{step.owner}</p>
+                  <p className="mt-1 text-xs text-slate-500">{step.description}</p>
                 </div>
               </div>
             </div>
@@ -185,15 +185,15 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
       }
     >
       {isCancelDialogOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#182a1f]/35 px-4 backdrop-blur-sm">
-          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-white/70 bg-white/90 shadow-[0_24px_70px_rgba(24,58,38,0.35)] backdrop-blur-2xl">
-            <div className="border-b border-[#182a1f]/[0.08] px-5 py-4">
-              <h2 className="text-base font-bold text-[#182a1f]">Are you sure?</h2>
-              <p className="mt-1 text-sm text-[#5f7266]">Cancel {request.reference_number}? This stops the request before approvals begin.</p>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 px-4">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-base font-bold text-slate-900">Are you sure?</h2>
+              <p className="mt-1 text-sm text-slate-500">Cancel {request.reference_number}? This stops the request before approvals begin.</p>
             </div>
             <div className="flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => setIsCancelDialogOpen(false)} disabled={isPending} className="rounded-full border border-white/80 bg-white/70 px-4 py-2 text-xs font-bold text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:opacity-60">Keep Request</button>
-              <button type="button" onClick={() => submitStatus('Cancelled')} disabled={isPending} className="rounded-full bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-[0_8px_20px_rgba(220,38,38,0.4)] transition hover:bg-red-700 disabled:opacity-60">{isPending ? 'Cancelling...' : 'Yes, cancel request'}</button>
+              <button type="button" onClick={() => setIsCancelDialogOpen(false)} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Keep Request</button>
+              <button type="button" onClick={() => submitStatus('Cancelled')} disabled={isPending} className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-60">{isPending ? 'Cancelling...' : 'Yes, cancel request'}</button>
             </div>
           </div>
         </div>
@@ -203,16 +203,16 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
         <section className={`${GLASS} p-5 sm:p-6`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#28714a]">{request.request_type || 'Procurement Request'}</p>
-              <h1 className="mt-2 break-words text-2xl font-bold tracking-tight text-[#182a1f] sm:text-3xl">{request.reference_number}</h1>
-              <p className="mt-2 text-sm text-[#5f7266]">{request.type_of_device || 'Device'} · {request.requested_model || '—'} · requested by {requester}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#307c4c]">{request.request_type || 'Procurement Request'}</p>
+              <h1 className="mt-2 break-words text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{request.reference_number}</h1>
+              <p className="mt-2 text-sm text-slate-500">{request.type_of_device || 'Device'} · {request.requested_model || '—'} · requested by {requester}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {canEditRequest && (
-                <Link href={editHref} className="rounded-full border border-[#307c4c]/30 bg-white/70 px-3.5 py-2 text-xs font-bold text-[#28714a] shadow-sm backdrop-blur transition hover:bg-white">Edit request</Link>
+                <Link href={editHref} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] shadow-sm transition hover:bg-white">Edit request</Link>
               )}
               {hasDecisionActions && (
-                <button type="button" onClick={jumpToDecision} className="rounded-full bg-gradient-to-br from-[#3a9a5f] to-[#24603f] px-3.5 py-2 text-xs font-bold text-white shadow-[0_8px_20px_rgba(36,96,63,0.4)] transition hover:-translate-y-px">Go to decision</button>
+                <button type="button" onClick={jumpToDecision} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80">Go to decision</button>
               )}
               <StatusPill status={request.status} />
               <PriorityPill priority={request.priority} />
@@ -220,21 +220,21 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-2xl border border-white/80 bg-white/50 p-4 backdrop-blur">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#5f7266]">Country</p>
-              <p className="mt-2 text-sm font-bold text-[#182a1f]">{request.country || '—'}</p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Country</p>
+              <p className="mt-2 text-sm font-bold text-slate-900">{request.country || '—'}</p>
             </div>
-            <div className="rounded-2xl border border-[#307c4c]/25 bg-gradient-to-br from-[#3a9a5f]/15 to-[#24603f]/5 p-4 backdrop-blur">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#28714a]">Current Owner</p>
-              <p className="mt-2 text-sm font-bold text-[#1f4a30]">{actions.ownerLabel}</p>
+            <div className="rounded-2xl border border-[#307c4c]/25 bg-[#307c4c]/10 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#307c4c]">Current Owner</p>
+              <p className="mt-2 text-sm font-bold text-slate-900">{actions.ownerLabel}</p>
             </div>
-            <div className="rounded-2xl border border-white/80 bg-white/50 p-4 backdrop-blur">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#5f7266]">Created</p>
-              <p className="mt-2 text-sm font-bold text-[#182a1f]">{fmtDateTime(request.created_at)}</p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Created</p>
+              <p className="mt-2 text-sm font-bold text-slate-900">{fmtDateTime(request.created_at)}</p>
             </div>
-            <div className="rounded-2xl border border-white/80 bg-white/50 p-4 backdrop-blur">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#5f7266]">Updated</p>
-              <p className="mt-2 text-sm font-bold text-[#182a1f]">{fmtDateTime(request.updated_at)}</p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Updated</p>
+              <p className="mt-2 text-sm font-bold text-slate-900">{fmtDateTime(request.updated_at)}</p>
             </div>
           </div>
         </section>
@@ -266,8 +266,8 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
                 <Field label="Requested Model" value={request.requested_model} />
               </FieldGrid>
               <div className="mt-5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#5f7266]">Special Requirements / Justification</p>
-                <p className="mt-2 whitespace-pre-wrap break-words text-sm text-[#4c5f53]">{textValue(request.special_requirements)}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Special Requirements / Justification</p>
+                <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-600">{textValue(request.special_requirements)}</p>
               </div>
             </Section>
 
@@ -299,19 +299,19 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
 
             <Section title="Attachments">
               {documents.length === 0 ? (
-                <p className="text-sm text-[#5f7266]">No attachments uploaded.</p>
+                <p className="text-sm text-slate-500">No attachments uploaded.</p>
               ) : (
                 <div className="space-y-2">
                   {documents.map(doc => (
-                    <Link key={doc.id} href={`/api/laptop-procurement/documents/${doc.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white/50 px-3 py-2.5 text-sm backdrop-blur transition hover:bg-white/80">
+                    <Link key={doc.id} href={`/api/laptop-procurement/documents/${doc.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm transition hover:bg-white">
                       <span className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#3a9a5f] to-[#24603f] text-[9px] font-bold text-white shadow-sm">{fileBadgeLabel(doc.file_type)}</span>
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#307c4c] text-[9px] font-bold text-white shadow-sm">{fileBadgeLabel(doc.file_type)}</span>
                         <span className="min-w-0">
-                          <span className="block truncate font-semibold text-[#182a1f]">{doc.original_name || doc.document_name}</span>
-                          <span className="text-xs text-[#5f7266]">{fmtBytes(doc.file_size)} | Uploaded by {doc.uploaded_by_name || doc.uploaded_by_email || 'Unknown'}</span>
+                          <span className="block truncate font-semibold text-slate-900">{doc.original_name || doc.document_name}</span>
+                          <span className="text-xs text-slate-500">{fmtBytes(doc.file_size)} | Uploaded by {doc.uploaded_by_name || doc.uploaded_by_email || 'Unknown'}</span>
                         </span>
                       </span>
-                      <span className="text-xs font-bold text-[#28714a]">Download</span>
+                      <span className="text-xs font-bold text-[#307c4c]">Download</span>
                     </Link>
                   ))}
                 </div>
@@ -322,46 +322,46 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
           <div className="space-y-5">
             <Section title="Review & Decision">
               <div className="space-y-4">
-                {notice && <div className="rounded-xl border border-[#307c4c]/25 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#1f5c3a] backdrop-blur">{notice}</div>}
-                {error && <div className="rounded-xl border border-red-400/40 bg-red-100/50 px-3 py-2 text-sm font-semibold text-red-900 backdrop-blur">{error}</div>}
+                {notice && <div className="rounded-xl border border-[#307c4c]/25 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#307c4c]">{notice}</div>}
+                {error && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{error}</div>}
                 <Field label="Reviewed By" value={request.reviewed_by_name || request.reviewed_by_email} />
                 <Field label="Reviewed At" value={fmtDateTime(request.reviewed_at)} />
                 <Field label="Rejection Reason" value={request.rejection_reason} />
                 <Field label="Latest Review Comment" value={request.review_comments} />
 
                 {hasDecisionActions ? (
-                  <div ref={decisionRef} className={`rounded-2xl border p-4 backdrop-blur transition-all duration-300 ${highlightDecision ? 'border-[#307c4c] ring-4 ring-[#307c4c]/25' : 'border-white/80'} bg-white/50`}>
-                    <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#5f7266]">Decision Comment <span className="font-normal normal-case tracking-normal text-[#8a978d]">(required for rejection)</span></label>
+                  <div ref={decisionRef} className={`rounded-2xl border p-4 transition-all duration-300 ${highlightDecision ? 'border-[#307c4c] ring-4 ring-[#307c4c]/25' : 'border-slate-200'} bg-white`}>
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Decision Comment <span className="font-normal normal-case tracking-normal text-slate-400">(required for rejection)</span></label>
                     <textarea
-                      className="mt-2 min-h-28 w-full resize-none rounded-xl border border-white/80 bg-white/75 px-3 py-2 text-sm text-[#182a1f] shadow-sm outline-none backdrop-blur transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25"
+                      className="mt-2 min-h-28 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25"
                       value={reviewComment}
                       onChange={e => setReviewComment(e.target.value)}
                     />
                     <div className="mt-3 flex flex-wrap gap-2">
                       {actions.canApprove && actions.nextStatus && (
-                        <button disabled={isPending} onClick={() => submitStatus(actions.nextStatus!)} className="rounded-full bg-gradient-to-br from-[#3a9a5f] to-[#24603f] px-3.5 py-2 text-xs font-bold text-white shadow-[0_8px_20px_rgba(36,96,63,0.4)] transition hover:-translate-y-px disabled:opacity-60">
+                        <button disabled={isPending} onClick={() => submitStatus(actions.nextStatus!)} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
                           {approveLabel}
                         </button>
                       )}
                       {actions.canAssignInventory && (
                         <>
-                          <button disabled={isPending} onClick={() => submitStatus('Assign from Inventory')} className="rounded-full border border-[#307c4c]/30 bg-white/70 px-3.5 py-2 text-xs font-bold text-[#28714a] backdrop-blur transition hover:bg-white disabled:opacity-60">Assign from Inventory</button>
-                          <button disabled={isPending} onClick={() => submitStatus('Assign from Inventory & Closed')} className="rounded-full border border-[#307c4c]/30 bg-white/70 px-3.5 py-2 text-xs font-bold text-[#28714a] backdrop-blur transition hover:bg-white disabled:opacity-60">Assign &amp; Close</button>
+                          <button disabled={isPending} onClick={() => submitStatus('Assign from Inventory')} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign from Inventory</button>
+                          <button disabled={isPending} onClick={() => submitStatus('Assign from Inventory & Closed')} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign &amp; Close</button>
                         </>
                       )}
                       {actions.canMarkRepaired && (
-                        <button disabled={isPending} onClick={() => submitStatus('Repaired & Closed')} className="rounded-full border border-violet-500/30 bg-violet-500/10 px-3.5 py-2 text-xs font-bold text-violet-900 backdrop-blur transition hover:bg-violet-500/20 disabled:opacity-60">Repaired &amp; Closed</button>
+                        <button disabled={isPending} onClick={() => submitStatus('Repaired & Closed')} className="rounded-lg border border-violet-200 bg-violet-50 px-3.5 py-2 text-xs font-bold text-violet-900 transition hover:bg-violet-100 disabled:opacity-60">Repaired &amp; Closed</button>
                       )}
                       {actions.canReject && actions.rejectStatus && (
-                        <button disabled={isPending} onClick={() => submitStatus(actions.rejectStatus!)} className="rounded-full border border-red-400/40 bg-red-100/40 px-3.5 py-2 text-xs font-bold text-red-800 backdrop-blur transition hover:bg-red-100/90 disabled:opacity-60">Reject</button>
+                        <button disabled={isPending} onClick={() => submitStatus(actions.rejectStatus!)} className="rounded-lg border border-red-300 bg-red-50 px-3.5 py-2 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Reject</button>
                       )}
                       {canCancel && (
-                        <button disabled={isPending} onClick={() => setIsCancelDialogOpen(true)} className="rounded-full border border-white/80 bg-white/60 px-3.5 py-2 text-xs font-bold text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:opacity-60">Cancel Request</button>
+                        <button disabled={isPending} onClick={() => setIsCancelDialogOpen(true)} className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel Request</button>
                       )}
                     </div>
                   </div>
                 ) : (
-                  <p className="rounded-2xl border border-white/80 bg-white/45 px-3 py-3 text-sm text-[#5f7266] backdrop-blur">No actions are available to you at this stage.</p>
+                  <p className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-500">No actions are available to you at this stage.</p>
                 )}
               </div>
             </Section>
@@ -378,10 +378,10 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
                   { label: 'SC Director approved', value: request.scd_approved_date, owner: request.sc_director },
                 ].map(step => (
                   <div key={step.label} className="flex items-start gap-3">
-                    <div className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${step.value ? 'bg-gradient-to-br from-[#3a9a5f] to-[#24603f] shadow-[0_0_8px_rgba(48,124,76,0.5)]' : 'bg-[#182a1f]/15'}`} />
+                    <div className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${step.value ? 'bg-[#307c4c]' : 'bg-slate-200'}`} />
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[#182a1f]">{step.label}</p>
-                      <p className="text-xs text-[#5f7266]">{step.value ? fmtDateTime(step.value) : 'Pending'}{step.owner ? ` · ${step.owner}` : ''}</p>
+                      <p className="text-sm font-semibold text-slate-900">{step.label}</p>
+                      <p className="text-xs text-slate-500">{step.value ? fmtDateTime(step.value) : 'Pending'}{step.owner ? ` · ${step.owner}` : ''}</p>
                     </div>
                   </div>
                 ))}
@@ -390,15 +390,15 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
 
             <Section title="Activity">
               {activity.length === 0 ? (
-                <p className="py-4 text-sm text-[#5f7266]">No activity has been recorded yet.</p>
+                <p className="py-4 text-sm text-slate-500">No activity has been recorded yet.</p>
               ) : (
-                <div className="divide-y divide-[#182a1f]/[0.07]">
+                <div className="divide-y divide-slate-100">
                   {activity.map(item => (
                     <div key={item.id} className="py-3">
-                      <p className="text-sm font-bold text-[#182a1f]">{item.action}</p>
-                      <p className="mt-1 text-xs text-[#5f7266]">{item.actor_name || item.actor_email || 'System'}</p>
-                      {item.notes && <p className="mt-2 rounded-xl bg-white/50 p-2 text-xs text-[#4c5f53] backdrop-blur">{item.notes}</p>}
-                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-[#5f7266]/70">{fmtDateTime(item.created_at)}</p>
+                      <p className="text-sm font-bold text-slate-900">{item.action}</p>
+                      <p className="mt-1 text-xs text-slate-500">{item.actor_name || item.actor_email || 'System'}</p>
+                      {item.notes && <p className="mt-2 rounded-xl bg-white p-2 text-xs text-slate-600">{item.notes}</p>}
+                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fmtDateTime(item.created_at)}</p>
                     </div>
                   ))}
                 </div>
