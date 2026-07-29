@@ -53,7 +53,7 @@ export default function LaptopProcurementLogo({
   };
 
   return (
-    <div className={`${sizes[size]} flex shrink-0 items-center justify-center overflow-hidden border border-white/70 bg-white/85 p-1 shadow-[0_6px_16px_rgba(36,96,63,0.22)] backdrop-blur ${className}`}>
+    <div className={`${sizes[size]} flex shrink-0 items-center justify-center overflow-hidden border border-[#307c4c]/15 bg-white p-1 shadow-sm ${className}`}>
       <LaptopLogoMark className="h-full w-full" />
     </div>
   );

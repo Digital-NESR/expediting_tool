@@ -864,6 +864,7 @@ type ProcureGuardWebhookRequest = Pick<
   | 'id'
   | 'reference_number'
   | 'requisition_number'
+  | 'po_number'
   | 'status'
   | 'priority'
   | 'vendor_name'
@@ -945,6 +946,19 @@ function escapeHtml(value: unknown): string {
 function formatWebhookAmount(amount: number | string | null | undefined, currency: string | null | undefined): string {
   const value = Number(amount || 0);
   return `${currency || 'USD'} ${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+}
+
+// Email table rows for the requester-entered identifiers (the PR / PO number approvers recognise in
+// SAP), so recipients can tie the email to the source document. Renders nothing when both are blank.
+function procureGuardRefRowsHtml(request: Pick<ProcureGuardWebhookRequest, 'requisition_number' | 'po_number'>): string {
+  const row = (label: string, value: string) =>
+    `<tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;width:170px;">${label}</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(value)}</td></tr>`;
+  const rows: string[] = [];
+  const pr = request.requisition_number?.toString().trim();
+  const po = request.po_number?.toString().trim();
+  if (pr) rows.push(row('Requisition / PR No.', pr));
+  if (po) rows.push(row('PO No.', po));
+  return rows.join('');
 }
 
 function getNotificationPreviewStatuses(
@@ -1059,6 +1073,7 @@ function buildProcureGuardNotificationEmail(input: {
       <h2 style="margin:0 0 8px 0;color:#111827;">${escapeHtml(input.request.reference_number)} needs your review</h2>
       <p style="margin:0 0 20px 0;color:#4b5563;">${article} ${escapeHtml(typeLabel)} request is waiting for ${escapeHtml(input.ownerLabel)} action.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:22px;">
+        ${procureGuardRefRowsHtml(input.request)}
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;width:170px;">Vendor</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.vendor_name)}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Amount</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(formatWebhookAmount(input.request.amount, input.request.currency))}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Country</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.country || 'Unspecified')}</td></tr>
@@ -1135,6 +1150,7 @@ function buildProcureGuardRequesterStageEmail(input: {
       <h2 style="margin:0 0 8px 0;color:#111827;">${escapeHtml(heading)}</h2>
       <p style="margin:0 0 20px 0;color:#4b5563;">${escapeHtml(intro)}</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:22px;">
+        ${procureGuardRefRowsHtml(input.request)}
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;width:170px;">Vendor</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.vendor_name)}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Amount</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(formatWebhookAmount(input.request.amount, input.request.currency))}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Country</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.country || 'Unspecified')}</td></tr>
@@ -1232,6 +1248,7 @@ async function notifyProcureGuardNextApprover(input: {
       id: request.id,
       reference_number: request.reference_number,
       requisition_number: request.requisition_number,
+      po_number: request.po_number ?? null,
       status: request.status,
       previous_status: input.previousStatus ?? null,
       priority: request.priority,
@@ -1481,6 +1498,7 @@ function buildProcureGuardReminderEmail(input: {
       <h2 style="margin:0 0 8px 0;color:#111827;">${escapeHtml(input.request.reference_number)} is still waiting for your review</h2>
       <p style="margin:0 0 22px 0;color:#4b5563;">This ${escapeHtml(typeLabel)} request has been awaiting <strong>${escapeHtml(input.ownerLabel)}</strong> action for <strong>${escapeHtml(input.ageLabel)}</strong> (${Math.floor(input.ageDays)} days). Please review it or delegate your approval.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:22px;">
+        ${procureGuardRefRowsHtml(input.request)}
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;width:170px;">Vendor</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.vendor_name)}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Amount</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(formatWebhookAmount(input.request.amount, input.request.currency))}</td></tr>
         <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Country</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.country || 'Unspecified')}</td></tr>

@@ -23,14 +23,14 @@ import {
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopAdminData, LaptopDelegationRow, LaptopPermissionRole } from '@/types/laptopProcurement';
 
-const INP = 'w-full rounded-xl border border-white/80 bg-white/70 px-3.5 py-2 text-sm text-[#182a1f] shadow-sm outline-none backdrop-blur-xl transition placeholder:text-[#8a978d] focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
+const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 
 function DbError() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-[#edf4ee] p-6">
-      <div className="max-w-sm rounded-3xl border border-white/70 bg-white/70 p-10 text-center shadow-[0_14px_44px_rgba(24,58,38,0.14)] backdrop-blur-2xl">
-        <p className="mb-1 font-semibold text-[#182a1f]">Admin data unavailable</p>
-        <p className="text-sm text-[#5f7266]">Admin access is required, or the database is unreachable.</p>
+    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 p-6">
+      <div className="max-w-sm rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+        <p className="mb-1 font-semibold text-slate-900">Admin data unavailable</p>
+        <p className="text-sm text-slate-500">Admin access is required, or the database is unreachable.</p>
       </div>
     </div>
   );
@@ -96,18 +96,18 @@ function DelegationsPanel({
     <div className="space-y-5">
       <section className={`${GLASS} p-5`}>
         <h3 className="text-[15px] font-bold">Set up a delegation</h3>
-        <p className="mt-0.5 text-xs text-[#5f7266]">Hand an approver&apos;s authority to a delegate on their behalf. The delegate inherits the approver&apos;s scope until the end date or until you revoke it.</p>
-        {error && <div className="mt-3 rounded-xl border border-red-400/40 bg-red-100/40 px-4 py-3 text-sm font-semibold text-red-800 backdrop-blur">{error}</div>}
+        <p className="mt-0.5 text-xs text-slate-500">Hand an approver&apos;s authority to a delegate on their behalf. The delegate inherits the approver&apos;s scope until the end date or until you revoke it.</p>
+        {error && <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>}
         <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Find the delegate in the directory</label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Find the delegate in the directory</label>
             <EmployeeAutocomplete
               placeholder="Search directory by name or email…"
               onSelect={emp => { setDelegateEmail(emp.email); setDelegateName(emp.name); }}
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Approver (delegator)</label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Approver (delegator)</label>
             <select className={INP} value={delegatorEmail} onChange={e => setDelegatorEmail(e.target.value)} required>
               <option value="">Select an approver…</option>
               {approvers.map(a => (
@@ -116,15 +116,15 @@ function DelegationsPanel({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Delegate email</label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Delegate email</label>
             <input type="email" required className={INP} value={delegateEmail} onChange={e => setDelegateEmail(e.target.value)} placeholder="colleague@nesr.com" />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Delegate name (optional)</label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Delegate name (optional)</label>
             <input className={INP} value={delegateName} onChange={e => setDelegateName(e.target.value)} placeholder="Full name" />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-[#5f7266]">End date (optional)</label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">End date (optional)</label>
             <input type="date" className={INP} value={endsAt} onChange={e => setEndsAt(e.target.value)} />
           </div>
           <div className="flex items-end md:col-span-2">
@@ -134,32 +134,32 @@ function DelegationsPanel({
           </div>
         </form>
         {approvers.length === 0 && (
-          <p className="mt-3 text-xs text-[#5f7266]/80">No approvers found. Assign approval access from the Permissions tab first.</p>
+          <p className="mt-3 text-xs text-slate-500/80">No approvers found. Assign approval access from the Permissions tab first.</p>
         )}
       </section>
 
-      <section className={`${GLASS} divide-y divide-[#182a1f]/[0.06] overflow-hidden`}>
+      <section className={`${GLASS} divide-y divide-slate-100 overflow-hidden`}>
         <div className="p-5">
           <h3 className="text-[15px] font-bold">All delegations</h3>
-          <p className="mt-0.5 text-xs text-[#5f7266]">Every delegation across approvers. Revoke any active one to remove the delegate&apos;s access immediately.</p>
+          <p className="mt-0.5 text-xs text-slate-500">Every delegation across approvers. Revoke any active one to remove the delegate&apos;s access immediately.</p>
         </div>
         {delegations.length === 0 ? (
-          <div className="p-8 text-center text-sm text-[#5f7266]">No delegations have been set up.</div>
+          <div className="p-8 text-center text-sm text-slate-500">No delegations have been set up.</div>
         ) : pagedDelegations.map(d => {
           const live = delegationIsLive(d);
           return (
             <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold text-[#182a1f]">{d.delegator_name || d.delegator_email}</span>
-                  <span className="text-[#8a978d]">→</span>
-                  <span className="text-sm font-semibold text-[#182a1f]">{d.delegate_name || d.delegate_email}</span>
+                  <span className="text-sm font-semibold text-slate-900">{d.delegator_name || d.delegator_email}</span>
+                  <span className="text-slate-400">→</span>
+                  <span className="text-sm font-semibold text-slate-900">{d.delegate_name || d.delegate_email}</span>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${live ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'bg-slate-100 text-slate-500'}`}>
                     {live ? 'Active' : 'Inactive'}
                   </span>
                 </div>
-                <p className="mt-0.5 truncate text-xs text-[#5f7266]">{d.delegator_email} → {d.delegate_email}</p>
-                <p className="mt-0.5 text-[11px] text-[#5f7266]/80">
+                <p className="mt-0.5 truncate text-xs text-slate-500">{d.delegator_email} → {d.delegate_email}</p>
+                <p className="mt-0.5 text-[11px] text-slate-500/80">
                   Granted {fmtDate(d.created_at)}
                   {d.expires_at ? ` · ends ${fmtDate(d.expires_at)}` : ''}
                   {d.revoked_at ? ` · revoked ${fmtDate(d.revoked_at)}` : ''}
@@ -169,7 +169,7 @@ function DelegationsPanel({
                 <button
                   onClick={() => revoke(d.id, d.delegate_name || d.delegate_email)}
                   disabled={isPending}
-                  className="shrink-0 rounded-full border border-red-400/40 bg-red-100/40 px-3 py-1.5 text-xs font-bold text-red-800 backdrop-blur transition hover:bg-red-100/80 disabled:opacity-60"
+                  className="shrink-0 rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60"
                 >
                   Revoke
                 </button>
@@ -179,7 +179,7 @@ function DelegationsPanel({
         })}
         {delegations.length > 0 && (
           <div className="flex items-center justify-between px-5 py-3">
-            <p className="text-xs text-[#5f7266]/80">
+            <p className="text-xs text-slate-500/80">
               Showing {currentDelegationsPage * REQUESTS_PAGE_SIZE + 1}
               –{Math.min((currentDelegationsPage + 1) * REQUESTS_PAGE_SIZE, delegations.length)} of {delegations.length} delegations
             </p>
@@ -188,16 +188,16 @@ function DelegationsPanel({
                 onClick={() => setDelegationsPage(p => Math.max(0, p - 1))}
                 disabled={currentDelegationsPage === 0}
                 aria-label="Previous page"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 ‹
               </button>
-              <span className="text-xs font-semibold text-[#4c5f53]">Page {currentDelegationsPage + 1} of {delegationsPageCount}</span>
+              <span className="text-xs font-semibold text-slate-600">Page {currentDelegationsPage + 1} of {delegationsPageCount}</span>
               <button
                 onClick={() => setDelegationsPage(p => Math.min(delegationsPageCount - 1, p + 1))}
                 disabled={currentDelegationsPage >= delegationsPageCount - 1}
                 aria-label="Next page"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 ›
               </button>
@@ -275,17 +275,17 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
 
   const content = (
       <div className="space-y-5">
-        {banner && <div className="rounded-2xl border border-[#307c4c]/25 bg-[#307c4c]/10 px-4 py-3 text-sm font-semibold text-[#1f5c3a] backdrop-blur">{banner}</div>}
+        {banner && <div className="rounded-2xl border border-[#307c4c]/25 bg-[#307c4c]/10 px-4 py-3 text-sm font-semibold text-[#307c4c]">{banner}</div>}
 
-        <div className="inline-flex flex-wrap gap-1 rounded-full border border-white/80 bg-white/55 p-1 backdrop-blur-xl">
+        <div className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
           {tabs.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+              className={`rounded-md px-4 py-2 text-sm font-bold transition ${
                 tab === t.id
-                  ? 'bg-gradient-to-br from-[#3a9a5f] to-[#28714a] text-white shadow-[0_6px_16px_rgba(40,113,74,0.35)]'
-                  : 'text-[#4c5f53] hover:bg-white/70'
+                  ? 'bg-[#307c4c] text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-white'
               }`}
             >
               {t.label}
@@ -299,7 +299,7 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
               <h2 className="mb-4 text-[15px] font-bold">Add / Update Permission</h2>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Email</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">Email</label>
                   <EmployeeAutocomplete
                     value={email}
                     onChange={setEmail}
@@ -308,29 +308,29 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
                     inputClassName={INP}
                   />
                 </div>
-                <div><label className="mb-1 block text-xs font-semibold text-[#5f7266]">Name</label><input className={INP} value={name} onChange={e => setName(e.target.value)} /></div>
+                <div><label className="mb-1 block text-xs font-semibold text-slate-500">Name</label><input className={INP} value={name} onChange={e => setName(e.target.value)} /></div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Role</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">Role</label>
                   <select className={INP} value={role} onChange={e => setRole(e.target.value as LaptopPermissionRole)}>
                     {PERMISSION_ROLE_OPTIONS.map(r => <option key={r}>{r}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Country (scope)</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">Country (scope)</label>
                   <select className={INP} value={country} onChange={e => setCountry(e.target.value)}>
                     <option value="">All countries</option>
                     {COUNTRY_OPTIONS.map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-[#5f7266]">Segment (scope)</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">Segment (scope)</label>
                   <select className={INP} value={segment} onChange={e => setSegment(e.target.value)}>
                     <option value="">All segments</option>
                     {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
-              <p className="mt-3 text-xs text-[#5f7266]">{PERMISSION_PROFILES[role].description}</p>
+              <p className="mt-3 text-xs text-slate-500">{PERMISSION_PROFILES[role].description}</p>
               <button onClick={savePermission} disabled={isPending} className={`mt-4 ${CTA} disabled:opacity-60`}>
                 {isPending ? 'Saving...' : 'Save Permission'}
               </button>
@@ -339,8 +339,8 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
             <section className={`${GLASS} overflow-hidden`}>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="text-[11px] uppercase tracking-wider text-[#5f7266]">
-                    <tr className="border-b border-[#182a1f]/[0.08]">
+                  <thead className="text-[11px] uppercase tracking-wider text-slate-500">
+                    <tr className="border-b border-slate-100">
                       <th className="px-5 py-3 text-left font-semibold">Email</th>
                       <th className="px-5 py-3 text-left font-semibold">Name</th>
                       <th className="px-5 py-3 text-left font-semibold">Role</th>
@@ -348,15 +348,15 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
                       <th className="px-5 py-3 text-right font-semibold">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#182a1f]/[0.06]">
+                  <tbody className="divide-y divide-slate-100">
                     {pagedPermissions.map(p => (
-                      <tr key={p.id} className="transition-colors hover:bg-white/45">
-                        <td className="px-5 py-3 font-semibold text-[#182a1f]">{p.email}</td>
-                        <td className="px-5 py-3 text-[#4c5f53]">{p.name || '—'}</td>
-                        <td className="px-5 py-3"><span className="inline-flex rounded-full border border-[#307c4c]/30 bg-[#307c4c]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#1f5c3a] backdrop-blur">{p.role}</span></td>
-                        <td className="px-5 py-3 text-xs text-[#4c5f53]">{[p.country, p.segment].filter(Boolean).join(' · ') || 'All'}</td>
+                      <tr key={p.id} className="transition-colors hover:bg-white">
+                        <td className="px-5 py-3 font-semibold text-slate-900">{p.email}</td>
+                        <td className="px-5 py-3 text-slate-600">{p.name || '—'}</td>
+                        <td className="px-5 py-3"><span className="inline-flex rounded-full border border-[#307c4c]/30 bg-[#307c4c]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#307c4c]">{p.role}</span></td>
+                        <td className="px-5 py-3 text-xs text-slate-600">{[p.country, p.segment].filter(Boolean).join(' · ') || 'All'}</td>
                         <td className="px-5 py-3 text-right">
-                          <button onClick={() => removePermission(p.email)} disabled={isPending} className="rounded-full border border-red-400/40 bg-red-100/40 px-3 py-1 text-xs font-bold text-red-800 backdrop-blur transition hover:bg-red-100/80 disabled:opacity-60">Remove</button>
+                          <button onClick={() => removePermission(p.email)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Remove</button>
                         </td>
                       </tr>
                     ))}
@@ -364,8 +364,8 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
                 </table>
               </div>
               {permissions.length > 0 && (
-                <div className="flex items-center justify-between border-t border-[#182a1f]/[0.06] px-5 py-3">
-                  <p className="text-xs text-[#5f7266]/80">
+                <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+                  <p className="text-xs text-slate-500/80">
                     Showing {currentPermissionsPage * REQUESTS_PAGE_SIZE + 1}
                     –{Math.min((currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE, permissions.length)} of {permissions.length} permissions
                   </p>
@@ -374,16 +374,16 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
                       onClick={() => setPermissionsPage(p => Math.max(0, p - 1))}
                       disabled={currentPermissionsPage === 0}
                       aria-label="Previous page"
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       ‹
                     </button>
-                    <span className="text-xs font-semibold text-[#4c5f53]">Page {currentPermissionsPage + 1} of {permissionsPageCount}</span>
+                    <span className="text-xs font-semibold text-slate-600">Page {currentPermissionsPage + 1} of {permissionsPageCount}</span>
                     <button
                       onClick={() => setPermissionsPage(p => Math.min(permissionsPageCount - 1, p + 1))}
                       disabled={currentPermissionsPage >= permissionsPageCount - 1}
                       aria-label="Next page"
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       ›
                     </button>
@@ -398,8 +398,8 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
           <section className={`${GLASS} overflow-hidden`}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="text-[11px] uppercase tracking-wider text-[#5f7266]">
-                  <tr className="border-b border-[#182a1f]/[0.08]">
+                <thead className="text-[11px] uppercase tracking-wider text-slate-500">
+                  <tr className="border-b border-slate-100">
                     <th className="px-5 py-3 text-left font-semibold">Reference</th>
                     <th className="px-5 py-3 text-left font-semibold">Requester</th>
                     <th className="px-5 py-3 text-left font-semibold">Status</th>
@@ -407,17 +407,17 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
                     <th className="px-5 py-3 text-right font-semibold">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#182a1f]/[0.06]">
+                <tbody className="divide-y divide-slate-100">
                   {pagedRequests.map(r => {
                     const badge = getStatusBadge(r.status);
                     return (
-                      <tr key={r.id} className="transition-colors hover:bg-white/45">
-                        <td className="px-5 py-3"><Link href={`/laptop-procurement/requests/${r.id}`} className="font-bold text-[#28714a] hover:underline">{r.reference_number}</Link></td>
-                        <td className="px-5 py-3 text-[#4c5f53]">{r.requested_by_name || r.requested_by_email}</td>
-                        <td className="px-5 py-3"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold backdrop-blur ${badge.className}`}>{badge.label}</span></td>
-                        <td className="px-5 py-3 text-xs text-[#5f7266]">{fmtDate(r.created_at)}</td>
+                      <tr key={r.id} className="transition-colors hover:bg-white">
+                        <td className="px-5 py-3"><Link href={`/laptop-procurement/requests/${r.id}`} className="font-bold text-[#307c4c] hover:underline">{r.reference_number}</Link></td>
+                        <td className="px-5 py-3 text-slate-600">{r.requested_by_name || r.requested_by_email}</td>
+                        <td className="px-5 py-3"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}>{badge.label}</span></td>
+                        <td className="px-5 py-3 text-xs text-slate-500">{fmtDate(r.created_at)}</td>
                         <td className="px-5 py-3 text-right">
-                          <button onClick={() => removeRequest(r.id)} disabled={isPending} className="rounded-full border border-red-400/40 bg-red-100/40 px-3 py-1 text-xs font-bold text-red-800 backdrop-blur transition hover:bg-red-100/80 disabled:opacity-60">Delete</button>
+                          <button onClick={() => removeRequest(r.id)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Delete</button>
                         </td>
                       </tr>
                     );
@@ -425,8 +425,8 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between border-t border-[#182a1f]/[0.06] px-5 py-3">
-              <p className="text-xs text-[#5f7266]/80">
+            <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+              <p className="text-xs text-slate-500/80">
                 Showing {requests.length === 0 ? 0 : currentRequestsPage * REQUESTS_PAGE_SIZE + 1}
                 –{Math.min((currentRequestsPage + 1) * REQUESTS_PAGE_SIZE, requests.length)} of {requests.length} requests
               </p>
@@ -435,16 +435,16 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
                   onClick={() => setRequestsPage(p => Math.max(0, p - 1))}
                   disabled={currentRequestsPage === 0}
                   aria-label="Previous page"
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   ‹
                 </button>
-                <span className="text-xs font-semibold text-[#4c5f53]">Page {currentRequestsPage + 1} of {requestsPageCount}</span>
+                <span className="text-xs font-semibold text-slate-600">Page {currentRequestsPage + 1} of {requestsPageCount}</span>
                 <button
                   onClick={() => setRequestsPage(p => Math.min(requestsPageCount - 1, p + 1))}
                   disabled={currentRequestsPage >= requestsPageCount - 1}
                   aria-label="Next page"
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   ›
                 </button>
@@ -454,14 +454,14 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
         )}
 
         {tab === 'activity' && (
-          <section className={`${GLASS} divide-y divide-[#182a1f]/[0.06] overflow-hidden`}>
+          <section className={`${GLASS} divide-y divide-slate-100 overflow-hidden`}>
             {activity.length === 0 ? (
-              <div className="p-8 text-center text-sm text-[#5f7266]">No activity recorded.</div>
+              <div className="p-8 text-center text-sm text-slate-500">No activity recorded.</div>
             ) : activity.map(item => (
               <div key={item.id} className="px-5 py-4">
-                <p className="text-sm font-semibold text-[#182a1f]">{item.action}</p>
-                <p className="mt-1 text-xs text-[#5f7266]">{item.reference_number} · {item.actor_name || item.actor_email || 'System'} · {fmtDate(item.created_at)}</p>
-                {item.notes && <p className="mt-1 rounded-xl bg-white/50 p-2 text-xs text-[#4c5f53] backdrop-blur">{item.notes}</p>}
+                <p className="text-sm font-semibold text-slate-900">{item.action}</p>
+                <p className="mt-1 text-xs text-slate-500">{item.reference_number} · {item.actor_name || item.actor_email || 'System'} · {fmtDate(item.created_at)}</p>
+                {item.notes && <p className="mt-1 rounded-xl bg-white p-2 text-xs text-slate-600">{item.notes}</p>}
               </div>
             ))}
           </section>

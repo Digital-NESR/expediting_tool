@@ -386,35 +386,34 @@ export function timeAgo(value: string | null | undefined): string {
   return `${days}d ago`;
 }
 
-// Glass & Depth pill styles: translucent tinted fills with soft borders so
-// pills sit naturally on frosted panels.
+// Flat ProcureGuard pill styles: solid tinted fills with light borders.
 export function getStatusBadge(status: string): { label: string; className: string; dot: string } {
   const map: Record<string, { label: string; className: string; dot: string }> = {
-    Submitted: { label: 'Submitted', className: 'bg-sky-500/10 text-sky-900 border-sky-500/30', dot: 'bg-sky-500' },
-    'IT Approval': { label: 'IT Review', className: 'bg-amber-400/15 text-amber-900 border-amber-500/30', dot: 'bg-amber-500' },
-    'CM Approval': { label: 'Country Manager', className: 'bg-cyan-500/10 text-cyan-900 border-cyan-500/30', dot: 'bg-cyan-500' },
-    'IT Director Approval': { label: 'IT Director', className: 'bg-teal-500/10 text-teal-900 border-teal-500/30', dot: 'bg-teal-500' },
-    'Supply Chain Director Approval': { label: 'SC Director', className: 'bg-indigo-500/10 text-indigo-900 border-indigo-500/30', dot: 'bg-indigo-500' },
-    'Procure New': { label: 'Procure New', className: 'bg-emerald-500/10 text-emerald-900 border-emerald-500/30', dot: 'bg-emerald-500' },
-    Approved: { label: 'Approved', className: 'bg-emerald-500/10 text-emerald-900 border-emerald-500/30', dot: 'bg-emerald-500' },
-    'Assign from Inventory': { label: 'Assign from Inventory', className: 'bg-lime-500/15 text-lime-900 border-lime-600/30', dot: 'bg-lime-500' },
-    'Assign from Inventory & Closed': { label: 'Assigned & Closed', className: 'bg-green-500/10 text-green-900 border-green-600/30', dot: 'bg-green-500' },
-    'Repaired & Closed': { label: 'Repaired & Closed', className: 'bg-violet-500/10 text-violet-900 border-violet-500/30', dot: 'bg-violet-500' },
-    Rejected: { label: 'Rejected', className: 'bg-red-500/10 text-red-900 border-red-500/30', dot: 'bg-red-500' },
-    'Rejected by CM': { label: 'Rejected by CM', className: 'bg-red-500/10 text-red-900 border-red-500/30', dot: 'bg-red-500' },
-    'Rejected by ITD': { label: 'Rejected by ITD', className: 'bg-red-500/10 text-red-900 border-red-500/30', dot: 'bg-red-500' },
-    'Rejected by SCD': { label: 'Rejected by SCD', className: 'bg-red-500/10 text-red-900 border-red-500/30', dot: 'bg-red-500' },
-    Cancelled: { label: 'Cancelled', className: 'bg-slate-500/10 text-slate-700 border-slate-500/30', dot: 'bg-slate-400' },
+    Submitted: { label: 'Submitted', className: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+    'IT Approval': { label: 'IT Review', className: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
+    'CM Approval': { label: 'Country Manager', className: 'bg-cyan-50 text-cyan-800 border-cyan-200', dot: 'bg-cyan-500' },
+    'IT Director Approval': { label: 'IT Director', className: 'bg-teal-50 text-teal-800 border-teal-200', dot: 'bg-teal-500' },
+    'Supply Chain Director Approval': { label: 'SC Director', className: 'bg-indigo-50 text-indigo-800 border-indigo-200', dot: 'bg-indigo-500' },
+    'Procure New': { label: 'Procure New', className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+    Approved: { label: 'Approved', className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+    'Assign from Inventory': { label: 'Assign from Inventory', className: 'bg-lime-50 text-lime-800 border-lime-200', dot: 'bg-lime-500' },
+    'Assign from Inventory & Closed': { label: 'Assigned & Closed', className: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
+    'Repaired & Closed': { label: 'Repaired & Closed', className: 'bg-violet-50 text-violet-800 border-violet-200', dot: 'bg-violet-500' },
+    Rejected: { label: 'Rejected', className: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
+    'Rejected by CM': { label: 'Rejected by CM', className: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
+    'Rejected by ITD': { label: 'Rejected by ITD', className: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
+    'Rejected by SCD': { label: 'Rejected by SCD', className: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
+    Cancelled: { label: 'Cancelled', className: 'bg-slate-50 text-slate-600 border-slate-200', dot: 'bg-slate-400' },
   };
-  return map[status] ?? { label: status, className: 'bg-slate-500/10 text-slate-700 border-slate-500/30', dot: 'bg-slate-400' };
+  return map[status] ?? { label: status, className: 'bg-slate-50 text-slate-600 border-slate-200', dot: 'bg-slate-400' };
 }
 
 export function getPriorityBadge(priority: string): string {
   const map: Record<string, string> = {
-    Low: 'bg-white/50 text-slate-600 border-slate-400/30',
-    Normal: 'bg-blue-500/10 text-blue-900 border-blue-500/30',
-    High: 'bg-orange-500/10 text-orange-900 border-orange-500/30',
-    Critical: 'bg-red-500/10 text-red-900 border-red-500/30',
+    Low: 'bg-slate-50 text-slate-600 border-slate-200',
+    Normal: 'bg-blue-50 text-blue-700 border-blue-200',
+    High: 'bg-orange-50 text-orange-700 border-orange-200',
+    Critical: 'bg-red-50 text-red-700 border-red-200',
   };
   return map[priority] ?? map.Normal;
 }
