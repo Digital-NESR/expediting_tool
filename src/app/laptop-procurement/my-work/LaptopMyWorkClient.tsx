@@ -1,9 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import LaptopShell, { GLASS, GLASS_SOFT } from '../components/LaptopShell';
 import { fmtDate, getPriorityBadge, getStatusBadge } from '@/lib/laptopProcurement-utils';
 import type { LaptopWorkQueueData } from '@/types/laptopProcurement';
+
+const PAGE_SIZE = 10;
 
 const AVATAR_GRADIENTS = [
   'bg-[#307c4c]',
@@ -43,8 +46,13 @@ function DbError() {
 }
 
 export default function LaptopMyWorkClient({ data }: { data: LaptopWorkQueueData | null }) {
+  const [page, setPage] = useState(0);
   if (!data) return <DbError />;
   const { actor, items, stats } = data;
+
+  const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pagedItems = items.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
   return (
     <LaptopShell
@@ -80,7 +88,7 @@ export default function LaptopMyWorkClient({ data }: { data: LaptopWorkQueueData
             </div>
           ) : (
             <div className="grid gap-3">
-              {items.map(({ request, actions }, i) => (
+              {pagedItems.map(({ request, actions }, i) => (
                 <Link
                   key={request.id}
                   href={`/laptop-procurement/requests/${request.id}`}
@@ -101,6 +109,33 @@ export default function LaptopMyWorkClient({ data }: { data: LaptopWorkQueueData
                   </span>
                 </Link>
               ))}
+            </div>
+          )}
+          {items.length > 0 && (
+            <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+              <p className="text-xs text-slate-500/80">
+                Showing {currentPage * PAGE_SIZE + 1}
+                –{Math.min((currentPage + 1) * PAGE_SIZE, items.length)} of {items.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={currentPage === 0}
+                  aria-label="Previous page"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ‹
+                </button>
+                <span className="text-xs font-semibold text-slate-600">Page {currentPage + 1} of {pageCount}</span>
+                <button
+                  onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
+                  disabled={currentPage >= pageCount - 1}
+                  aria-label="Next page"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ›
+                </button>
+              </div>
             </div>
           )}
         </section>

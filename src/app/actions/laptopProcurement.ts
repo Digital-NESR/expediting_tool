@@ -865,7 +865,7 @@ export async function getLaptopWorkQueueData(): Promise<LaptopWorkQueueData | nu
     const requests = serialise<LaptopRequest[]>(rows);
     const items = requests
       .map(request => ({ request, actions: getScopedActions(actor, request) }))
-      .filter(item => item.actions.canApprove || item.actions.canReject || item.actions.canAssignInventory)
+      .filter(item => item.actions.canApprove || item.actions.canReject || item.actions.canAssignInventory || item.actions.canProcureNew)
       .sort((a, b) => {
         const rank: Record<string, number> = { Critical: 0, High: 1, Normal: 2, Low: 3 };
         return (rank[a.request.priority] ?? 2) - (rank[b.request.priority] ?? 2)
