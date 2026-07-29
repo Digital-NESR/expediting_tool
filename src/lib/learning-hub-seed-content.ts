@@ -320,9 +320,8 @@ It is worth being honest that not every underperforming supplier relationship ca
               {
                 title: 'Course Introduction',
                 duration_minutes: 6,
-                body: `Placeholder lesson. This course walks through NESR's Source-to-Pay process cycle exactly as mapped in the current AS-IS → TO BE roadmap: Source → Contract → Catalog feeding into the main Demand → Procure → Deliver → Pay flow, with Logistics and Inventory as cross-cutting lanes. Each module below covers one stage of that cycle and the system that supports it today — noting where a step is still a manual, email-driven process, where it runs in core SAP, where a dedicated system is in limited use, and where a system is in phased deployment. Replace this lesson with a real walkthrough of the roadmap and how it is expected to evolve.
-
-Recommended intro video: [Introduction to Supply Chain Management NESR](https://url.us.m.mimecastprotect.com/s/vmLQCKrj6MCA2RlKivhXc5SPEK?domain=1drv.ms).`,
+                videoUrl: 'https://url.us.m.mimecastprotect.com/s/vmLQCKrj6MCA2RlKivhXc5SPEK?domain=1drv.ms',
+                body: `Placeholder lesson. This course walks through NESR's Source-to-Pay process cycle exactly as mapped in the current AS-IS → TO BE roadmap: Source → Contract → Catalog feeding into the main Demand → Procure → Deliver → Pay flow, with Logistics and Inventory as cross-cutting lanes. Each module below covers one stage of that cycle and the system that supports it today — noting where a step is still a manual, email-driven process, where it runs in core SAP, where a dedicated system is in limited use, and where a system is in phased deployment. Replace this lesson with a real walkthrough of the roadmap and how it is expected to evolve.`,
               },
             ],
           },
