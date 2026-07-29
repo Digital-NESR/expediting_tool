@@ -51,7 +51,7 @@ export default function LaptopMyWorkClient({ data }: { data: LaptopWorkQueueData
       title="My Work"
       subtitle={`${stats.total} item${stats.total === 1 ? '' : 's'} waiting on you as ${actor.role}`}
       pendingCount={stats.total}
-      accessView={actor.permissions.accessView}
+      accessView={actor.effectiveAccessView}
     >
       <div className="space-y-5">
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">

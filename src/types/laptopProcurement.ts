@@ -86,6 +86,14 @@ export interface LaptopActor {
   segment?: string | null;
   /** People whose approval authority this actor currently holds (active delegations). */
   delegatedFrom?: LaptopDelegationGrant[];
+  /**
+   * The best access tier across the actor's own role and every active delegation —
+   * used to gate whole pages/nav (Admin Panel, Analytics, Reviewer Queue), so a
+   * delegate of an Admin/reviewer can actually reach those pages, not just act on
+   * individual requests. Data-scoped queries still use the actor's own role/scope
+   * plus `delegatedFrom` directly; this field is for page-level gating only.
+   */
+  effectiveAccessView: LaptopAccessView;
 }
 
 export interface LaptopActivityRow {
@@ -318,6 +326,7 @@ export interface LaptopRequestActions {
   canReject: boolean;
   canAssignInventory: boolean;
   canMarkRepaired: boolean;
+  canProcureNew: boolean;
   rejectStatus: LaptopRequestStatus | null;
   ownerLabel: string;
 }

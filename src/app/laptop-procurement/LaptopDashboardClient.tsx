@@ -131,7 +131,7 @@ export default function LaptopDashboardClient({ data }: { data: LaptopDashboardD
       title={`Good ${greeting}, ${firstName}`}
       subtitle={`${stats.pending_review} request${stats.pending_review === 1 ? ' is' : 's are'} waiting on a decision`}
       pendingCount={stats.pending_review}
-      accessView={actor.permissions.accessView}
+      accessView={actor.effectiveAccessView}
       actions={
         <button onClick={() => router.push('/laptop-procurement/requests/new')} className={CTA}>
           + New Request
@@ -157,7 +157,7 @@ export default function LaptopDashboardClient({ data }: { data: LaptopDashboardD
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5f7266]">Rejected</p>
             <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">{stats.rejected}</p>
             <p className="mt-1 text-sm text-[#5f7266]">Across all approval stages</p>
-            {canUseLaptopAnalytics(actor.permissions.accessView) && (
+            {canUseLaptopAnalytics(actor.effectiveAccessView) && (
               <button onClick={() => router.push('/admin?tool=laptop-procurement-analytics')} className="mt-4 text-sm font-bold text-[#28714a] transition hover:text-[#182a1f]">View analytics →</button>
             )}
           </div>

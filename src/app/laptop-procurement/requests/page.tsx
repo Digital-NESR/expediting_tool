@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'NESR | Requests - Laptop Procurement
 
 export default async function LaptopRequestsPage() {
   const actor = await getLaptopActor();
-  if (actor && !canUseLaptopOperationalPages(actor.permissions.accessView)) {
+  if (actor && !canUseLaptopOperationalPages(actor.effectiveAccessView)) {
     redirect('/laptop-procurement/analytics');
   }
   const data = await getLaptopRequestsData();

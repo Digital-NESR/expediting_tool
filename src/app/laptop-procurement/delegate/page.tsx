@@ -10,6 +10,6 @@ export const dynamic = 'force-dynamic';
 export default async function LaptopDelegatePage() {
   const data = await getLaptopDelegationData();
   if (!data) redirect('/laptop-procurement');
-  if (!canUseLaptopReviewerQueue(data.actor.permissions.accessView)) redirect('/laptop-procurement');
+  if (!canUseLaptopReviewerQueue(data.actor.effectiveAccessView)) redirect('/laptop-procurement');
   return <LaptopDelegateClient data={data} />;
 }

@@ -58,6 +58,11 @@ function DelegationsPanel({
   const [delegateName, setDelegateName] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [error, setError] = useState('');
+  const [delegationsPage, setDelegationsPage] = useState(0);
+
+  const delegationsPageCount = Math.max(1, Math.ceil(delegations.length / REQUESTS_PAGE_SIZE));
+  const currentDelegationsPage = Math.min(delegationsPage, delegationsPageCount - 1);
+  const pagedDelegations = delegations.slice(currentDelegationsPage * REQUESTS_PAGE_SIZE, (currentDelegationsPage + 1) * REQUESTS_PAGE_SIZE);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -140,7 +145,7 @@ function DelegationsPanel({
         </div>
         {delegations.length === 0 ? (
           <div className="p-8 text-center text-sm text-[#5f7266]">No delegations have been set up.</div>
-        ) : delegations.map(d => {
+        ) : pagedDelegations.map(d => {
           const live = delegationIsLive(d);
           return (
             <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4">
@@ -172,6 +177,33 @@ function DelegationsPanel({
             </div>
           );
         })}
+        {delegations.length > 0 && (
+          <div className="flex items-center justify-between px-5 py-3">
+            <p className="text-xs text-[#5f7266]/80">
+              Showing {currentDelegationsPage * REQUESTS_PAGE_SIZE + 1}
+              –{Math.min((currentDelegationsPage + 1) * REQUESTS_PAGE_SIZE, delegations.length)} of {delegations.length} delegations
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setDelegationsPage(p => Math.max(0, p - 1))}
+                disabled={currentDelegationsPage === 0}
+                aria-label="Previous page"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ‹
+              </button>
+              <span className="text-xs font-semibold text-[#4c5f53]">Page {currentDelegationsPage + 1} of {delegationsPageCount}</span>
+              <button
+                onClick={() => setDelegationsPage(p => Math.min(delegationsPageCount - 1, p + 1))}
+                disabled={currentDelegationsPage >= delegationsPageCount - 1}
+                aria-label="Next page"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -182,6 +214,7 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
   const [isPending, startTransition] = useTransition();
   const [banner, setBanner] = useState('');
   const [requestsPage, setRequestsPage] = useState(0);
+  const [permissionsPage, setPermissionsPage] = useState(0);
   const router = useRouter();
 
   const [email, setEmail] = useState('');
@@ -197,6 +230,10 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
   const requestsPageCount = Math.max(1, Math.ceil(requests.length / REQUESTS_PAGE_SIZE));
   const currentRequestsPage = Math.min(requestsPage, requestsPageCount - 1);
   const pagedRequests = requests.slice(currentRequestsPage * REQUESTS_PAGE_SIZE, (currentRequestsPage + 1) * REQUESTS_PAGE_SIZE);
+
+  const permissionsPageCount = Math.max(1, Math.ceil(permissions.length / REQUESTS_PAGE_SIZE));
+  const currentPermissionsPage = Math.min(permissionsPage, permissionsPageCount - 1);
+  const pagedPermissions = permissions.slice(currentPermissionsPage * REQUESTS_PAGE_SIZE, (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE);
 
   function savePermission() {
     setBanner('');
@@ -312,7 +349,7 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#182a1f]/[0.06]">
-                    {permissions.map(p => (
+                    {pagedPermissions.map(p => (
                       <tr key={p.id} className="transition-colors hover:bg-white/45">
                         <td className="px-5 py-3 font-semibold text-[#182a1f]">{p.email}</td>
                         <td className="px-5 py-3 text-[#4c5f53]">{p.name || '—'}</td>
@@ -326,6 +363,33 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
                   </tbody>
                 </table>
               </div>
+              {permissions.length > 0 && (
+                <div className="flex items-center justify-between border-t border-[#182a1f]/[0.06] px-5 py-3">
+                  <p className="text-xs text-[#5f7266]/80">
+                    Showing {currentPermissionsPage * REQUESTS_PAGE_SIZE + 1}
+                    –{Math.min((currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE, permissions.length)} of {permissions.length} permissions
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPermissionsPage(p => Math.max(0, p - 1))}
+                      disabled={currentPermissionsPage === 0}
+                      aria-label="Previous page"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      ‹
+                    </button>
+                    <span className="text-xs font-semibold text-[#4c5f53]">Page {currentPermissionsPage + 1} of {permissionsPageCount}</span>
+                    <button
+                      onClick={() => setPermissionsPage(p => Math.min(permissionsPageCount - 1, p + 1))}
+                      disabled={currentPermissionsPage >= permissionsPageCount - 1}
+                      aria-label="Next page"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#4c5f53] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      ›
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           </>
         )}
@@ -416,7 +480,7 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
       title="Admin Panel"
       subtitle="Permissions, records, and workflow activity"
       pendingCount={stats.pending_review}
-      accessView={actor.permissions.accessView}
+      accessView={actor.effectiveAccessView}
     >
       {content}
     </LaptopShell>

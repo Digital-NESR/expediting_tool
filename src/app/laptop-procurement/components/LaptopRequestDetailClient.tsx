@@ -59,33 +59,67 @@ function PriorityPill({ priority }: { priority: string }) {
   return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold backdrop-blur ${getPriorityBadge(priority)}`}>{priority}</span>;
 }
 
-function WorkflowChain({ status }: { status: LaptopRequestStatus }) {
+type StepState = 'complete' | 'current' | 'skipped' | 'upcoming';
+
+function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'] }) {
+  const status = request.status;
   const steps = WORKFLOW_STEPS;
   const terminalApproved = status === 'Procure New' || status === 'Approved';
-  const currentIndex = terminalApproved ? steps.length - 1 : getWorkflowStepIndex(status);
-  const completedIndex = terminalApproved ? steps.length - 1 : Math.max(0, currentIndex - 1);
   const isRejected = status.startsWith('Rejected');
+  const isCancelled = status === 'Cancelled';
   const altOutcome = status === 'Assign from Inventory' || status === 'Assign from Inventory & Closed' || status === 'Repaired & Closed';
+  // The chain stopped early — it will never reach the remaining steps.
+  const isStopped = isRejected || isCancelled || altOutcome;
+  const currentIndex = isStopped ? -1 : getWorkflowStepIndex(status);
+  // Ground truth per stage: each approval date is only stamped once that stage is actually
+  // signed off, regardless of how the chain later ends — so "complete" reflects what really
+  // happened, not just where the status string currently points.
+  const approvedDates: Array<string | null | undefined> = [
+    request.it_team_approved_date,
+    request.cm_approved_date,
+    request.itd_approved_date,
+    request.scd_approved_date,
+  ];
+
+  function stepState(index: number): StepState {
+    if (terminalApproved) return 'complete';
+    if (index < 4 && approvedDates[index]) return 'complete';
+    if (!isStopped && index === currentIndex) return 'current';
+    if (isStopped) return 'skipped';
+    return 'upcoming';
+  }
+
+  const STATE_STYLES: Record<StepState, { card: string; badge: string }> = {
+    complete: { card: 'border-white/80 bg-white/55', badge: 'bg-[#182a1f]/75 text-white' },
+    current: { card: 'border-[#307c4c]/35 bg-gradient-to-br from-[#3a9a5f]/15 to-[#24603f]/5', badge: 'bg-gradient-to-br from-[#3a9a5f] to-[#24603f] text-white shadow-[0_4px_12px_rgba(36,96,63,0.4)]' },
+    skipped: { card: 'border-white/50 bg-white/20 opacity-60', badge: 'bg-white/70 text-[#5f7266]' },
+    upcoming: { card: 'border-white/60 bg-white/30', badge: 'bg-white/70 text-[#5f7266]' },
+  };
 
   return (
     <Section title="Approval Chain">
-      {(isRejected || altOutcome || status === 'Cancelled') && (
-        <div className={`mb-4 rounded-xl border px-3 py-2 text-xs font-semibold backdrop-blur ${isRejected || status === 'Cancelled' ? 'border-red-400/40 bg-red-100/50 text-red-900' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900'}`}>
+      {isStopped && (
+        <div className={`mb-4 rounded-xl border px-3 py-2 text-xs font-semibold backdrop-blur ${isRejected || isCancelled ? 'border-red-400/40 bg-red-100/50 text-red-900' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900'}`}>
           Outcome: {getStatusBadge(status).label}
         </div>
       )}
       <div className="space-y-3">
         {steps.map((step, index) => {
-          const isCurrent = !terminalApproved && !isRejected && !altOutcome && status !== 'Cancelled' && index === currentIndex;
-          const isComplete = terminalApproved ? true : index <= completedIndex;
+          const state = stepState(index);
+          const { card, badge } = STATE_STYLES[state];
           return (
-            <div key={step.status} className={`rounded-2xl border p-3 backdrop-blur ${isCurrent ? 'border-[#307c4c]/35 bg-gradient-to-br from-[#3a9a5f]/15 to-[#24603f]/5' : isComplete ? 'border-white/80 bg-white/55' : 'border-white/60 bg-white/30'}`}>
+            <div key={step.status} className={`rounded-2xl border p-3 backdrop-blur ${card}`}>
               <div className="flex items-start gap-3">
-                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isCurrent ? 'bg-gradient-to-br from-[#3a9a5f] to-[#24603f] text-white shadow-[0_4px_12px_rgba(36,96,63,0.4)]' : isComplete ? 'bg-[#182a1f]/75 text-white' : 'bg-white/70 text-[#5f7266]'}`}>
+                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${badge}`}>
                   {index + 1}
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-[#182a1f]">{step.label}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-bold text-[#182a1f]">{step.label}</p>
+                    {state === 'skipped' && (
+                      <span className="rounded-full bg-slate-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">Skipped</span>
+                    )}
+                  </div>
                   <p className="mt-0.5 text-xs font-semibold text-[#5f7266]">{step.owner}</p>
                   <p className="mt-1 text-xs text-[#5f7266]/90">{step.description}</p>
                 </div>
@@ -132,7 +166,7 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
   const isItManagerStage = request.status === 'Submitted' || request.status === 'IT Approval';
   const canEditRequest = isItManagerStage && (ownsRequest || actor.permissions.canManageData);
   const canCancel = ownsRequest && isItManagerStage && actor.permissions.canCreateRequests;
-  const hasDecisionActions = actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canMarkRepaired || canCancel;
+  const hasDecisionActions = actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canMarkRepaired || actions.canProcureNew || canCancel;
   const editHref = `/laptop-procurement/requests/${request.id}/edit`;
 
   function jumpToDecision() {
@@ -169,7 +203,7 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
       : actions.nextStatus === 'Supply Chain Director Approval'
         ? 'Approve & Send to SC Director'
         : actions.nextStatus === 'Procure New'
-          ? 'Final Approval — Procure New'
+          ? 'Approve & Send an IT Ticket'
           : 'Approve';
 
   return (
@@ -177,7 +211,7 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
       title={request.reference_number}
       subtitle={`${request.type_of_device || 'Device'} · ${request.requested_model || '—'} · ${requester}`}
       pendingCount={pendingCount}
-      accessView={actor.permissions.accessView}
+      accessView={actor.effectiveAccessView}
       actions={
         <Link href="/laptop-procurement/requests" className={CTA_QUIET}>
           ← Back to list
@@ -352,6 +386,9 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
                       {actions.canMarkRepaired && (
                         <button disabled={isPending} onClick={() => submitStatus('Repaired & Closed')} className="rounded-full border border-violet-500/30 bg-violet-500/10 px-3.5 py-2 text-xs font-bold text-violet-900 backdrop-blur transition hover:bg-violet-500/20 disabled:opacity-60">Repaired &amp; Closed</button>
                       )}
+                      {actions.canProcureNew && (
+                        <button disabled={isPending} onClick={() => submitStatus('Procure New')} className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-900 backdrop-blur transition hover:bg-emerald-500/20 disabled:opacity-60">Procure New</button>
+                      )}
                       {actions.canReject && actions.rejectStatus && (
                         <button disabled={isPending} onClick={() => submitStatus(actions.rejectStatus!)} className="rounded-full border border-red-400/40 bg-red-100/40 px-3.5 py-2 text-xs font-bold text-red-800 backdrop-blur transition hover:bg-red-100/90 disabled:opacity-60">Reject</button>
                       )}
@@ -366,27 +403,7 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
               </div>
             </Section>
 
-            <WorkflowChain status={request.status} />
-
-            <Section title="Approval Timeline">
-              <div className="space-y-3">
-                {[
-                  { label: 'Requested', value: request.requested_date || request.created_at, owner: requester },
-                  { label: 'IT Team approved', value: request.it_team_approved_date, owner: request.it_manager },
-                  { label: 'Country Manager approved', value: request.cm_approved_date, owner: request.country_manager },
-                  { label: 'IT Director approved', value: request.itd_approved_date, owner: request.it_director },
-                  { label: 'SC Director approved', value: request.scd_approved_date, owner: request.sc_director },
-                ].map(step => (
-                  <div key={step.label} className="flex items-start gap-3">
-                    <div className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${step.value ? 'bg-gradient-to-br from-[#3a9a5f] to-[#24603f] shadow-[0_0_8px_rgba(48,124,76,0.5)]' : 'bg-[#182a1f]/15'}`} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[#182a1f]">{step.label}</p>
-                      <p className="text-xs text-[#5f7266]">{step.value ? fmtDateTime(step.value) : 'Pending'}{step.owner ? ` · ${step.owner}` : ''}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Section>
+            <WorkflowChain request={request} />
 
             <Section title="Activity">
               {activity.length === 0 ? (
