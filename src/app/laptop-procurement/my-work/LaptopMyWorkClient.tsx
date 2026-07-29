@@ -57,7 +57,6 @@ export default function LaptopMyWorkClient({ data }: { data: LaptopWorkQueueData
   return (
     <LaptopShell
       title="My Work"
-      subtitle={`${stats.total} item${stats.total === 1 ? '' : 's'} waiting on you as ${actor.role}`}
       pendingCount={stats.total}
       accessView={actor.effectiveAccessView}
     >
