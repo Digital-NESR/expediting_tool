@@ -123,6 +123,13 @@ export default function LaptopRequestFormClient({
     if (!typeOfDevice) e.typeOfDevice = 'Type of device is required.';
     if (!requestedModel) e.requestedModel = 'Requested model is required.';
     if (!specialRequirements.trim()) e.specialRequirements = 'Special requirements / justification is required.';
+    if (showCurrentDevice) {
+      if (!unitId.trim()) e.unitId = 'Unit ID is required.';
+      if (!currentBrand.trim()) e.currentBrand = 'Brand is required.';
+      if (!currentModel.trim()) e.currentModel = 'Model is required.';
+      if (!serialNo.trim()) e.serialNo = 'Serial No. is required.';
+      if (!ageYears.trim()) e.ageYears = 'Age (Years) is required.';
+    }
     if (selectedFiles.some(file => file.size > MAX_FILE_BYTES)) e.attachments = 'Each file must be 10 MB or smaller.';
     return e;
   }
@@ -289,11 +296,11 @@ export default function LaptopRequestFormClient({
           <section className={`${GLASS} p-5 sm:p-6`}>
             <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Existing Device (being replaced / upgraded)</h2>
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
-              <Field label="Unit ID"><input className={INP} value={unitId} onChange={e => setUnitId(e.target.value)} /></Field>
-              <Field label="Brand"><input className={INP} value={currentBrand} onChange={e => setCurrentBrand(e.target.value)} /></Field>
-              <Field label="Model"><input className={INP} value={currentModel} onChange={e => setCurrentModel(e.target.value)} /></Field>
-              <Field label="Serial No."><input className={INP} value={serialNo} onChange={e => setSerialNo(e.target.value)} /></Field>
-              <Field label="Age (Years)"><input className={INP} value={ageYears} onChange={e => setAgeYears(e.target.value)} /></Field>
+              <Field label="Unit ID" required error={errors.unitId}><input className={errors.unitId ? ERR : INP} value={unitId} onChange={e => setUnitId(e.target.value)} /></Field>
+              <Field label="Brand" required error={errors.currentBrand}><input className={errors.currentBrand ? ERR : INP} value={currentBrand} onChange={e => setCurrentBrand(e.target.value)} /></Field>
+              <Field label="Model" required error={errors.currentModel}><input className={errors.currentModel ? ERR : INP} value={currentModel} onChange={e => setCurrentModel(e.target.value)} /></Field>
+              <Field label="Serial No." required error={errors.serialNo}><input className={errors.serialNo ? ERR : INP} value={serialNo} onChange={e => setSerialNo(e.target.value)} /></Field>
+              <Field label="Age (Years)" required error={errors.ageYears}><input className={errors.ageYears ? ERR : INP} value={ageYears} onChange={e => setAgeYears(e.target.value)} /></Field>
             </div>
           </section>
         )}

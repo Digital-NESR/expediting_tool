@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'NESR | My Work - Laptop Procurement'
 
 export default async function LaptopMyWorkPage() {
   const actor = await getLaptopActor();
-  if (actor && !canUseLaptopReviewerQueue(actor.permissions.accessView)) {
+  if (actor && !canUseLaptopReviewerQueue(actor.effectiveAccessView)) {
     redirect('/laptop-procurement');
   }
   const data = await getLaptopWorkQueueData();

@@ -149,7 +149,7 @@ export default function LaptopAnalyticsClient({ data, embedded = false }: { data
       title="Analytics"
       subtitle={`${stats.total} requests · ${stats.country_count} countries · ${stats.active_requester_count} requesters`}
       pendingCount={stats.pending_review}
-      accessView={actor.permissions.accessView}
+      accessView={actor.effectiveAccessView}
     >
       {content}
     </LaptopShell>

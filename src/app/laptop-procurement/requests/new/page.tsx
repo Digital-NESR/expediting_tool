@@ -11,7 +11,7 @@ export default async function NewLaptopRequestPage() {
   const user = await getProcureGuardUser();
   const actor = await getLaptopActor();
 
-  if (!actor || !canUseLaptopOperationalPages(actor.permissions.accessView)) {
+  if (!actor || !canUseLaptopOperationalPages(actor.effectiveAccessView)) {
     redirect('/laptop-procurement/analytics');
   }
 
@@ -21,7 +21,7 @@ export default async function NewLaptopRequestPage() {
     <LaptopRequestFormClient
       requesterName={user?.name ?? user?.email ?? ''}
       requesterEmail={user?.email ?? ''}
-      accessView={actor.permissions.accessView}
+      accessView={actor.effectiveAccessView}
       devices={devices}
     />
   );

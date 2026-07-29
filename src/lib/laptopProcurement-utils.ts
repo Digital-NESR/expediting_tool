@@ -149,6 +149,23 @@ export function canUseLaptopReviewerQueue(accessView: LaptopAccessView): boolean
   return accessView === 'reviewer' || accessView === 'admin';
 }
 
+const ACCESS_VIEW_RANK: Record<LaptopAccessView, number> = {
+  requester: 0,
+  analyst: 1,
+  reviewer: 2,
+  admin: 3,
+};
+
+/**
+ * Highest-privilege access view across a set (e.g. an actor's own role plus every
+ * role they currently hold via delegation). Used so a delegate can actually reach
+ * the pages their delegated authority unlocks (Admin Panel, Analytics, Reviewer
+ * Queue), not just act on individual requests.
+ */
+export function bestAccessView(views: LaptopAccessView[]): LaptopAccessView {
+  return views.reduce((best, v) => (ACCESS_VIEW_RANK[v] > ACCESS_VIEW_RANK[best] ? v : best), 'requester' as LaptopAccessView);
+}
+
 /* ── Approval chain ───────────────────────────────────────────── */
 
 export const IT_MANAGER_STATUSES: LaptopRequestStatus[] = ['Submitted', 'IT Approval'];
@@ -300,7 +317,11 @@ export function getLaptopAvailableActions(
     nextStatus,
     canApprove: Boolean(nextStatus && ownsCurrentStep),
     canReject: Boolean(ownsCurrentStep && permissions.canReject && getRejectStatusForStage(currentStatus)),
-    canAssignInventory: isItManagerStage && permissions.canReviewItManager,
+    // Assign from Inventory / Procure New are available to whichever reviewer owns the
+    // current stage — not just the IT Manager — so any approver in the chain can resolve
+    // the request directly instead of always forwarding it further.
+    canAssignInventory: ownsCurrentStep,
+    canProcureNew: ownsCurrentStep,
     canMarkRepaired: isItManagerStage && permissions.canReviewItManager,
     rejectStatus: getRejectStatusForStage(currentStatus),
     ownerLabel: requiredPermission ? PERMISSION_OWNER_LABELS[requiredPermission] ?? 'Assigned approver' : 'No active owner',

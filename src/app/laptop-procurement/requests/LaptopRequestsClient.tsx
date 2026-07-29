@@ -100,7 +100,7 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
       title="Requests"
       subtitle={`${requests.length} laptop & desktop procurement requests`}
       pendingCount={pendingCount}
-      accessView={actor.permissions.accessView}
+      accessView={actor.effectiveAccessView}
       actions={
         <button onClick={() => router.push('/laptop-procurement/requests/new')} className={CTA}>
           + New Request

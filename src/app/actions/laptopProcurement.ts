@@ -7,11 +7,11 @@ import { revalidatePath } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
 import laptopProcurementPool from '@/lib/db-laptop';
 import {
+  bestAccessView,
   canUseLaptopAdmin,
   canUseLaptopAnalytics,
   canUseLaptopOperationalPages,
   canUseLaptopReviewerQueue,
-  getLaptopAccessView,
   getLaptopAvailableActions,
   getNextApprovalStatus,
   getPermissionProfile,
@@ -143,6 +143,11 @@ async function getActor(): Promise<LaptopActor> {
   const role = (permissionRow?.role ?? fallbackRole) as LaptopPermissionRole;
   const permissions = getPermissionProfile(role);
   const delegatedFrom = await resolveLaptopDelegations(email);
+  // Whole-page gates (Admin Panel, Analytics, Reviewer Queue) use the best access
+  // tier across the actor's own role and every role they hold via delegation, so a
+  // delegate can actually reach those pages — not just act on individual requests,
+  // which already account for delegation separately via `delegatedFrom`.
+  const effectiveAccessView = bestAccessView([permissions.accessView, ...delegatedFrom.map(d => d.permissions.accessView)]);
 
   return {
     email,
@@ -155,6 +160,7 @@ async function getActor(): Promise<LaptopActor> {
     country: permissionRow?.country ?? null,
     segment: permissionRow?.segment ?? null,
     delegatedFrom,
+    effectiveAccessView,
   };
 }
 
@@ -307,10 +313,6 @@ function scopeMatches(
   return countryOk && segmentOk;
 }
 
-function actorCanAccessRequestScope(actor: LaptopActor, request: { country?: string | null; segment?: string | null }): boolean {
-  return scopeMatches(actor.role, actor.country, actor.segment, request);
-}
-
 // Identities (self + delegators) the actor can act through, each with its own scope.
 function laptopActingIdentities(actor: LaptopActor): LaptopDelegationGrant[] {
   return [
@@ -322,7 +324,7 @@ function laptopActingIdentities(actor: LaptopActor): LaptopDelegationGrant[] {
 function getScopedActions(actor: LaptopActor, request: { status: LaptopRequestStatus; country?: string | null; segment?: string | null }) {
   const base = getLaptopAvailableActions(actor.permissions, request.status);
   // Merge action capability across every identity whose scope matches this request.
-  const merged = { ...base, canApprove: false, canReject: false, canAssignInventory: false, canMarkRepaired: false };
+  const merged = { ...base, canApprove: false, canReject: false, canAssignInventory: false, canMarkRepaired: false, canProcureNew: false };
   for (const id of laptopActingIdentities(actor)) {
     if (!scopeMatches(id.role, id.country, id.segment, request)) continue;
     const a = getLaptopAvailableActions(id.permissions, request.status);
@@ -330,6 +332,7 @@ function getScopedActions(actor: LaptopActor, request: { status: LaptopRequestSt
     merged.canReject ||= a.canReject;
     merged.canAssignInventory ||= a.canAssignInventory;
     merged.canMarkRepaired ||= a.canMarkRepaired;
+    merged.canProcureNew ||= a.canProcureNew;
   }
   return merged;
 }
@@ -367,26 +370,26 @@ function resolveLaptopActing(
 }
 
 function requireOperationalAccess(actor: LaptopActor): void {
-  if (!canUseLaptopOperationalPages(getLaptopAccessView(actor.role))) {
+  if (!canUseLaptopOperationalPages(actor.effectiveAccessView)) {
     throw new Error('Operational Laptop Procurement access is required.');
   }
 }
 
 function requireAnalyticsAccess(actor: LaptopActor): void {
-  if (!canUseLaptopAnalytics(getLaptopAccessView(actor.role))) {
+  if (!canUseLaptopAnalytics(actor.effectiveAccessView)) {
     throw new Error('Analytics access is required.');
   }
 }
 
 function requireReviewerQueueAccess(actor: LaptopActor): void {
-  if (!canUseLaptopReviewerQueue(getLaptopAccessView(actor.role))) {
+  if (!canUseLaptopReviewerQueue(actor.effectiveAccessView)) {
     throw new Error('Reviewer access is required.');
   }
 }
 
 async function requireAdminActor(): Promise<LaptopActor> {
   const actor = await getActor();
-  if (!canUseLaptopAdmin(getLaptopAccessView(actor.role))) {
+  if (!canUseLaptopAdmin(actor.effectiveAccessView)) {
     throw new Error('Admin access is required.');
   }
   return actor;
@@ -727,6 +730,15 @@ const STAGE_APPROVED_DATE_COLUMN: Partial<Record<LaptopRequestStatus, string>> =
   'Supply Chain Director Approval': 'scd_approved_date',
 };
 
+// Maps the stage being decided to the column that records who acted on it.
+const STAGE_APPROVER_NAME_COLUMN: Partial<Record<LaptopRequestStatus, string>> = {
+  Submitted: 'it_manager',
+  'IT Approval': 'it_manager',
+  'CM Approval': 'country_manager',
+  'IT Director Approval': 'it_director',
+  'Supply Chain Director Approval': 'sc_director',
+};
+
 function revalidateLaptopPaths(): void {
   revalidatePath('/laptop-procurement');
   revalidatePath('/laptop-procurement/requests');
@@ -806,12 +818,17 @@ export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestD
     if (!rows[0]) return null;
 
     const request = serialise<LaptopRequest>(rows[0]);
-    if (!actor.permissions.canViewAll && request.requested_by_email?.toLowerCase() !== actor.email.toLowerCase()) {
-      return null;
-    }
-    if (actor.permissions.canViewAll && !actorCanAccessRequestScope(actor, request)) {
-      return null;
-    }
+    // Visible if EITHER the actor's own identity or any identity they hold via
+    // delegation can see it — mirrors the list query (scopedWhere), which already
+    // accounts for delegation. Every delegation grant already has canViewAll=true
+    // (enforced in resolveLaptopDelegations), so only the actor's own identity ever
+    // needs the "it's my own request" fallback.
+    const canView = laptopActingIdentities(actor).some(id =>
+      id.permissions.canViewAll
+        ? scopeMatches(id.role, id.country, id.segment, request)
+        : id.email.toLowerCase() === request.requested_by_email?.toLowerCase(),
+    );
+    if (!canView) return null;
 
     const [activityRows, documentRows] = await Promise.all([
       sql<QueryResultRow[]>(`SELECT * FROM laptop_activity_log WHERE request_id = ? ORDER BY created_at DESC`, [id]),
@@ -1128,10 +1145,14 @@ export async function updateLaptopRequestStatus(
     } else {
       const isApproveMove = getNextApprovalStatus(currentStatus) === status;
       const isRejectMove = getRejectStatusForStage(currentStatus) === status;
-      const isItOutcomeMove = IT_MANAGER_STATUSES.includes(currentStatus)
-        && (status === 'Assign from Inventory' || status === 'Assign from Inventory & Closed' || status === 'Repaired & Closed');
+      // Assign from Inventory / Procure New are shortcut resolutions available to whichever
+      // reviewer owns the current stage, not just the IT Manager. Repair & Closed stays an
+      // IT-Manager-only outcome (only they assess the physical device).
+      const isReviewerOutcomeMove = isActiveApprovalStatus(currentStatus)
+        && (status === 'Assign from Inventory' || status === 'Assign from Inventory & Closed' || status === 'Procure New');
+      const isRepairMove = IT_MANAGER_STATUSES.includes(currentStatus) && status === 'Repaired & Closed';
 
-      if (!isApproveMove && !isRejectMove && !isItOutcomeMove) {
+      if (!isApproveMove && !isRejectMove && !isReviewerOutcomeMove && !isRepairMove) {
         return { success: false, error: `Cannot move ${row.reference_number} from ${currentStatus} to ${status}.` };
       }
 
@@ -1173,6 +1194,10 @@ export async function updateLaptopRequestStatus(
     const stageDateAssignment = stageDateColumn ? `, ${stageDateColumn} = CURRENT_TIMESTAMP` : '';
     // Build dynamic SET for the stage comment column when applicable.
     const stageCommentAssignment = stageColumn && comment ? `, ${stageColumn} = ?` : '';
+    // Record who actually acted on this stage (approve, reject, or an alternate outcome) —
+    // not just the timestamp, so "Assigned Approvers" shows a name instead of staying blank.
+    const stageApproverColumn = setsReviewer ? STAGE_APPROVER_NAME_COLUMN[currentStatus] : undefined;
+    const stageApproverAssignment = stageApproverColumn ? `, ${stageApproverColumn} = ?` : '';
 
     const params: QueryParam[] = [
       status,
@@ -1184,6 +1209,7 @@ export async function updateLaptopRequestStatus(
       comment ? comment : row.review_comments,
     ];
     if (stageCommentAssignment) params.push(comment);
+    if (stageApproverAssignment) params.push(actor.name);
     params.push(id);
 
     await exec(
@@ -1194,7 +1220,7 @@ export async function updateLaptopRequestStatus(
          reviewed_by_email = ?,
          reviewed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
          rejection_reason = ?,
-         review_comments = ?${stageDateAssignment}${stageCommentAssignment},
+         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment},
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       params,
@@ -1264,9 +1290,14 @@ export async function uploadLaptopDocument(formData: FormData): Promise<{ succes
       return { success: false, error: 'File is too large. Maximum size is 10 MB.' };
     }
 
-    const requestRows = await sql<QueryResultRow[]>(`SELECT id, reference_number, requested_by_email FROM laptop_requests WHERE id = ? LIMIT 1`, [requestId]);
+    const requestRows = await sql<QueryResultRow[]>(`SELECT id, reference_number, requested_by_email, country, segment FROM laptop_requests WHERE id = ? LIMIT 1`, [requestId]);
     if (!requestRows[0]) return { success: false, error: 'Request not found.' };
-    if (!actor.permissions.canViewAll && requestRows[0].requested_by_email?.toLowerCase() !== actor.email.toLowerCase()) {
+    const canView = laptopActingIdentities(actor).some(id =>
+      id.permissions.canViewAll
+        ? scopeMatches(id.role, id.country, id.segment, requestRows[0])
+        : id.email.toLowerCase() === requestRows[0].requested_by_email?.toLowerCase(),
+    );
+    if (!canView) {
       return { success: false, error: 'You can only upload files to your own requests.' };
     }
 

@@ -60,7 +60,7 @@ export default function LaptopDelegateClient({ data }: { data: LaptopDelegationD
     <LaptopShell
       title="Delegation"
       subtitle="Hand your approval authority to a colleague while you're away"
-      accessView={data.actor.permissions.accessView}
+      accessView={data.actor.effectiveAccessView}
     >
       <div className="space-y-5">
         {banner && <div className="rounded-2xl border border-[#307c4c]/25 bg-[#307c4c]/10 px-4 py-3 text-sm font-semibold text-[#307c4c]">{banner}</div>}
