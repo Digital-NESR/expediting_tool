@@ -99,16 +99,10 @@ export default function LaptopRequestFormClient({
   const [typeOfDevice, setTypeOfDevice] = useState(editRequest?.type_of_device ?? '');
   const [requestedModel, setRequestedModel] = useState(editRequest?.requested_model ?? '');
   const [specialRequirements, setSpecialRequirements] = useState(editRequest?.special_requirements ?? '');
-  const [unitId, setUnitId] = useState(editRequest?.unit_id ?? '');
-  const [currentBrand, setCurrentBrand] = useState(editRequest?.current_brand ?? '');
-  const [currentModel, setCurrentModel] = useState(editRequest?.current_model ?? '');
-  const [serialNo, setSerialNo] = useState(editRequest?.serial_no ?? '');
-  const [ageYears, setAgeYears] = useState(editRequest?.age_years ?? '');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const isEditMode = Boolean(editRequest);
   const detailHref = editRequest ? `/laptop-procurement/requests/${editRequest.id}` : '/laptop-procurement/requests';
-  const showCurrentDevice = requestType === 'Upgrade/Replacement' || requestType === 'Unit';
 
   const modelOptions = useMemo(
     () => [...new Set(devices.filter(d => !typeOfDevice || d.type_of_device === typeOfDevice).map(d => d.model))],
@@ -123,13 +117,6 @@ export default function LaptopRequestFormClient({
     if (!typeOfDevice) e.typeOfDevice = 'Type of device is required.';
     if (!requestedModel) e.requestedModel = 'Requested model is required.';
     if (!specialRequirements.trim()) e.specialRequirements = 'Special requirements / justification is required.';
-    if (showCurrentDevice) {
-      if (!unitId.trim()) e.unitId = 'Unit ID is required.';
-      if (!currentBrand.trim()) e.currentBrand = 'Brand is required.';
-      if (!currentModel.trim()) e.currentModel = 'Model is required.';
-      if (!serialNo.trim()) e.serialNo = 'Serial No. is required.';
-      if (!ageYears.trim()) e.ageYears = 'Age (Years) is required.';
-    }
     if (selectedFiles.some(file => file.size > MAX_FILE_BYTES)) e.attachments = 'Each file must be 10 MB or smaller.';
     return e;
   }
@@ -175,11 +162,6 @@ export default function LaptopRequestFormClient({
       type_of_device: typeOfDevice,
       requested_model: requestedModel,
       special_requirements: specialRequirements,
-      unit_id: showCurrentDevice ? unitId : '',
-      current_brand: showCurrentDevice ? currentBrand : '',
-      current_model: showCurrentDevice ? currentModel : '',
-      serial_no: showCurrentDevice ? serialNo : '',
-      age_years: showCurrentDevice ? ageYears : '',
     };
 
     startTransition(async () => {
@@ -291,19 +273,6 @@ export default function LaptopRequestFormClient({
             </Field>
           </div>
         </section>
-
-        {showCurrentDevice && (
-          <section className={`${GLASS} p-5 sm:p-6`}>
-            <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Existing Device (being replaced / upgraded)</h2>
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
-              <Field label="Unit ID" required error={errors.unitId}><input className={errors.unitId ? ERR : INP} value={unitId} onChange={e => setUnitId(e.target.value)} /></Field>
-              <Field label="Brand" required error={errors.currentBrand}><input className={errors.currentBrand ? ERR : INP} value={currentBrand} onChange={e => setCurrentBrand(e.target.value)} /></Field>
-              <Field label="Model" required error={errors.currentModel}><input className={errors.currentModel ? ERR : INP} value={currentModel} onChange={e => setCurrentModel(e.target.value)} /></Field>
-              <Field label="Serial No." required error={errors.serialNo}><input className={errors.serialNo ? ERR : INP} value={serialNo} onChange={e => setSerialNo(e.target.value)} /></Field>
-              <Field label="Age (Years)" required error={errors.ageYears}><input className={errors.ageYears ? ERR : INP} value={ageYears} onChange={e => setAgeYears(e.target.value)} /></Field>
-            </div>
-          </section>
-        )}
 
         <section className={`${GLASS} p-5 sm:p-6`}>
           <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Attachments</h2>

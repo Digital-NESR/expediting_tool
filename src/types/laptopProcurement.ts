@@ -151,6 +151,14 @@ export interface LaptopRequest {
   current_model: string | null;
   serial_no: string | null;
   age_years: string | null;
+  sap_number: string | null;
+
+  // The specific second-hand unit assigned when a request is fulfilled from
+  // inventory — distinct from current_brand/current_model/serial_no/age_years
+  // above, which describe the OLD device being replaced.
+  assigned_serial_no: string | null;
+  assigned_model: string | null;
+  assigned_age: string | null;
 
   it_manager: string | null;
   it_manager_2: string | null;
@@ -196,14 +204,28 @@ export interface CreateLaptopRequestInput {
   type_of_device: string;
   requested_model: string;
   special_requirements: string;
+}
+
+// Filled in by the IT Manager once the request reaches them — not collected
+// from the requester at submission time.
+export interface UpdateLaptopExistingDeviceInput {
   unit_id?: string;
   current_brand?: string;
   current_model?: string;
   serial_no?: string;
   age_years?: string;
+  sap_number?: string;
 }
 
-export interface AdminCreateLaptopRequestInput extends CreateLaptopRequestInput {
+// Captured when an IT Manager (or any reviewer) resolves a request by assigning
+// a specific second-hand unit from inventory.
+export interface AssignExistingLaptopInput {
+  serial_no: string;
+  model: string;
+  age: string;
+}
+
+export interface AdminCreateLaptopRequestInput extends CreateLaptopRequestInput, UpdateLaptopExistingDeviceInput {
   status?: LaptopRequestStatus;
   requested_by_name?: string;
   requested_by_email?: string;
@@ -260,6 +282,7 @@ export interface LaptopDelegationRow {
   delegator_name: string | null;
   delegate_email: string;
   delegate_name: string | null;
+  starts_at: string | null;
   expires_at: string | null;
   is_active: boolean;
   revoked_at: string | null;

@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  DEVICE_AGE_OPTIONS,
   WORKFLOW_STEPS,
   fmtDateTime,
   getPriorityBadge,
@@ -14,7 +15,9 @@ import {
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopRequestDetailData, LaptopRequestStatus } from '@/types/laptopProcurement';
 import LaptopShell, { CTA_QUIET, GLASS } from './LaptopShell';
-import { updateLaptopRequestStatus } from '@/app/actions/laptopProcurement';
+import { updateLaptopExistingDevice, updateLaptopRequestStatus } from '@/app/actions/laptopProcurement';
+
+const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 
 type DetailValue = string | number | null | undefined;
 
@@ -149,12 +152,124 @@ function fileBadgeLabel(mime: string | null) {
   return 'FILE';
 }
 
+/**
+ * Existing Device (the device being replaced/upgraded) is filled in by the IT
+ * Manager once the request reaches them — the requester never enters it. Only
+ * shown to viewers with IT Manager review authority (own role or delegated),
+ * and only editable while the request is actually at the IT Manager stage.
+ */
+function ExistingDeviceSection({
+  request,
+  canEdit,
+  isItManagerStage,
+  onSaved,
+}: {
+  request: LaptopRequestDetailData['request'];
+  canEdit: boolean;
+  isItManagerStage: boolean;
+  onSaved: () => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState('');
+  const [unitId, setUnitId] = useState(request.unit_id ?? '');
+  const [currentBrand, setCurrentBrand] = useState(request.current_brand ?? '');
+  const [currentModel, setCurrentModel] = useState(request.current_model ?? '');
+  const [serialNo, setSerialNo] = useState(request.serial_no ?? '');
+  const [ageYears, setAgeYears] = useState(request.age_years ?? '');
+  const [sapNumber, setSapNumber] = useState(request.sap_number ?? '');
+
+  const canShowEditToggle = canEdit && isItManagerStage;
+
+  function save() {
+    setError('');
+    startTransition(async () => {
+      const result = await updateLaptopExistingDevice(request.id, {
+        unit_id: unitId,
+        current_brand: currentBrand,
+        current_model: currentModel,
+        serial_no: serialNo,
+        age_years: ageYears,
+        sap_number: sapNumber,
+      });
+      if (result.success) {
+        setIsEditing(false);
+        onSaved();
+      } else {
+        setError(result.error ?? 'Failed to save Existing Device details.');
+      }
+    });
+  }
+
+  return (
+    <Section title="Existing Device">
+      {canShowEditToggle && !isEditing && (
+        <button type="button" onClick={() => setIsEditing(true)} className="mb-4 rounded-lg border border-[#307c4c]/30 bg-white px-3 py-1.5 text-xs font-bold text-[#307c4c] transition hover:bg-white">Edit</button>
+      )}
+      {error && <div className="mb-3 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{error}</div>}
+      {isEditing ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Unit ID</label>
+              <input className={INP} value={unitId} onChange={e => setUnitId(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Brand</label>
+              <input className={INP} value={currentBrand} onChange={e => setCurrentBrand(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Model</label>
+              <input className={INP} value={currentModel} onChange={e => setCurrentModel(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Serial No.</label>
+              <input className={INP} value={serialNo} onChange={e => setSerialNo(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Age</label>
+              <select className={INP} value={ageYears} onChange={e => setAgeYears(e.target.value)}>
+                <option value="">Select age</option>
+                {DEVICE_AGE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">SAP Number</label>
+              <input className={INP} value={sapNumber} onChange={e => setSapNumber(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" disabled={isPending} onClick={save} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
+              {isPending ? 'Saving...' : 'Save'}
+            </button>
+            <button type="button" disabled={isPending} onClick={() => setIsEditing(false)} className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <FieldGrid>
+          <Field label="Unit ID" value={request.unit_id} />
+          <Field label="Brand" value={request.current_brand} />
+          <Field label="Model" value={request.current_model} />
+          <Field label="Serial No." value={request.serial_no} />
+          <Field label="Age" value={request.age_years} />
+          <Field label="SAP Number" value={request.sap_number} />
+        </FieldGrid>
+      )}
+    </Section>
+  );
+}
+
 export default function LaptopRequestDetailClient({ data }: { data: LaptopRequestDetailData }) {
   const [reviewComment, setReviewComment] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [highlightDecision, setHighlightDecision] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [assignModalStatus, setAssignModalStatus] = useState<'Assign from Inventory' | 'Assign from Inventory & Closed' | null>(null);
+  const [assignSerialNo, setAssignSerialNo] = useState('');
+  const [assignModel, setAssignModel] = useState('');
+  const [assignAge, setAssignAge] = useState('');
+  const [assignError, setAssignError] = useState('');
   const [isPending, startTransition] = useTransition();
   const decisionRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -168,6 +283,10 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
   const canCancel = ownsRequest && isItManagerStage && actor.permissions.canCreateRequests;
   const hasDecisionActions = actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canMarkRepaired || actions.canProcureNew || canCancel;
   const editHref = `/laptop-procurement/requests/${request.id}/edit`;
+  // Existing Device (the device being replaced) is only ever filled in by the IT
+  // Manager — hide it from everyone else, including the requester.
+  const canSeeExistingDevice = actor.permissions.canReviewItManager
+    || (actor.delegatedFrom ?? []).some(d => d.permissions.canReviewItManager);
 
   function jumpToDecision() {
     decisionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -175,7 +294,7 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
     window.setTimeout(() => setHighlightDecision(false), 1800);
   }
 
-  function submitStatus(nextStatus: LaptopRequestStatus) {
+  function submitStatus(nextStatus: LaptopRequestStatus, assignedLaptop?: { serial_no: string; model: string; age: string }) {
     setNotice('');
     setError('');
     const comment = reviewComment.trim();
@@ -184,16 +303,29 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
       return;
     }
     startTransition(async () => {
-      const result = await updateLaptopRequestStatus(request.id, nextStatus, comment);
+      const result = await updateLaptopRequestStatus(request.id, nextStatus, comment, assignedLaptop);
       if (result.success) {
         setReviewComment('');
         setIsCancelDialogOpen(false);
+        setAssignModalStatus(null);
+        setAssignSerialNo('');
+        setAssignModel('');
+        setAssignAge('');
         setNotice(`Request updated to ${nextStatus}.`);
         router.refresh();
       } else {
         setError(result.error ?? 'Status update failed.');
       }
     });
+  }
+
+  function confirmAssign() {
+    setAssignError('');
+    if (!assignSerialNo.trim() || !assignModel.trim() || !assignAge.trim()) {
+      setAssignError('Serial number, model, and age are all required.');
+      return;
+    }
+    submitStatus(assignModalStatus!, { serial_no: assignSerialNo.trim(), model: assignModel.trim(), age: assignAge });
   }
 
   const approveLabel = actions.nextStatus === 'CM Approval'
@@ -228,6 +360,39 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
             <div className="flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => setIsCancelDialogOpen(false)} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Keep Request</button>
               <button type="button" onClick={() => submitStatus('Cancelled')} disabled={isPending} className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-60">{isPending ? 'Cancelling...' : 'Yes, cancel request'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {assignModalStatus && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 px-4">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-base font-bold text-slate-900">Assign existing laptop</h2>
+              <p className="mt-1 text-sm text-slate-500">Enter the second-hand unit being assigned to {request.reference_number}.</p>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              {assignError && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{assignError}</div>}
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Serial Number</label>
+                <input className={INP} value={assignSerialNo} onChange={e => setAssignSerialNo(e.target.value)} autoFocus />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Model</label>
+                <input className={INP} value={assignModel} onChange={e => setAssignModel(e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Age</label>
+                <select className={INP} value={assignAge} onChange={e => setAssignAge(e.target.value)}>
+                  <option value="">Select age</option>
+                  {DEVICE_AGE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => { setAssignModalStatus(null); setAssignError(''); }} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
+              <button type="button" onClick={confirmAssign} disabled={isPending} className="rounded-lg bg-[#307c4c] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">{isPending ? 'Assigning...' : 'Confirm assignment'}</button>
             </div>
           </div>
         </div>
@@ -305,15 +470,24 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
               </div>
             </Section>
 
-            <Section title="Existing Device">
-              <FieldGrid>
-                <Field label="Unit ID" value={request.unit_id} />
-                <Field label="Brand" value={request.current_brand} />
-                <Field label="Model" value={request.current_model} />
-                <Field label="Serial No." value={request.serial_no} />
-                <Field label="Age (Years)" value={request.age_years} />
-              </FieldGrid>
-            </Section>
+            {(request.assigned_serial_no || request.assigned_model || request.assigned_age) && (
+              <Section title="Assigned Unit (from inventory)">
+                <FieldGrid>
+                  <Field label="Serial Number" value={request.assigned_serial_no} />
+                  <Field label="Model" value={request.assigned_model} />
+                  <Field label="Age" value={request.assigned_age} />
+                </FieldGrid>
+              </Section>
+            )}
+
+            {canSeeExistingDevice && (
+              <ExistingDeviceSection
+                request={request}
+                canEdit={canSeeExistingDevice}
+                isItManagerStage={isItManagerStage}
+                onSaved={() => router.refresh()}
+              />
+            )}
 
             <Section title="Assigned Approvers & Stage Comments">
               <FieldGrid>
@@ -379,8 +553,8 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
                       )}
                       {actions.canAssignInventory && (
                         <>
-                          <button disabled={isPending} onClick={() => submitStatus('Assign from Inventory')} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign from Inventory</button>
-                          <button disabled={isPending} onClick={() => submitStatus('Assign from Inventory & Closed')} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign &amp; Close</button>
+                          <button disabled={isPending} onClick={() => setAssignModalStatus('Assign from Inventory')} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign existing laptop</button>
+                          <button disabled={isPending} onClick={() => setAssignModalStatus('Assign from Inventory & Closed')} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign &amp; Close</button>
                         </>
                       )}
                       {actions.canMarkRepaired && (
