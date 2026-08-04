@@ -174,6 +174,7 @@ export const APPROVAL_ACTIVE_STATUSES: LaptopRequestStatus[] = [
   'Submitted',
   'IT Approval',
   'CM Approval',
+  'Procure New Details',
   'IT Director Approval',
   'Supply Chain Director Approval',
 ];
@@ -195,6 +196,7 @@ export const STATUS_OPTIONS: LaptopRequestStatus[] = [
   'Submitted',
   'IT Approval',
   'CM Approval',
+  'Procure New Details',
   'IT Director Approval',
   'Supply Chain Director Approval',
   'Procure New',
@@ -268,7 +270,9 @@ export function getNextApprovalStatus(currentStatus: LaptopRequestStatus): Lapto
   const transitions: Partial<Record<LaptopRequestStatus, LaptopRequestStatus>> = {
     Submitted: 'CM Approval',
     'IT Approval': 'CM Approval',
-    'CM Approval': 'IT Director Approval',
+    // Country Manager's plain "Approve" closes the request outright — procuring a brand
+    // new device is a distinct fork (see canProcureNew) that routes to the IT Team instead.
+    'CM Approval': 'Approved',
     'IT Director Approval': 'Supply Chain Director Approval',
     'Supply Chain Director Approval': 'Procure New',
   };
@@ -298,6 +302,10 @@ export function getRequiredPermissionForStage(currentStatus: LaptopRequestStatus
       return 'canReviewItManager';
     case 'CM Approval':
       return 'canReviewCountryManager';
+    // Back with the IT Team to specify the new device before the request continues —
+    // same identity that owns the initial intake stage.
+    case 'Procure New Details':
+      return 'canReviewItManager';
     case 'IT Director Approval':
       return 'canReviewItDirector';
     case 'Supply Chain Director Approval':
@@ -315,16 +323,22 @@ export function getLaptopAvailableActions(
   const requiredPermission = getRequiredPermissionForStage(currentStatus);
   const ownsCurrentStep = Boolean(requiredPermission && permissions[requiredPermission]);
   const isItManagerStage = IT_MANAGER_STATUSES.includes(currentStatus);
+  const isCmStage = currentStatus === 'CM Approval';
+  const isProcureDetailsStage = currentStatus === 'Procure New Details';
   return {
     nextStatus,
     canApprove: Boolean(nextStatus && ownsCurrentStep),
     canReject: Boolean(ownsCurrentStep && permissions.canReject && getRejectStatusForStage(currentStatus)),
-    // Assign from Inventory / Procure New are available to whichever reviewer owns the
-    // current stage — not just the IT Manager — so any approver in the chain can resolve
-    // the request directly instead of always forwarding it further.
-    canAssignInventory: ownsCurrentStep,
-    canProcureNew: ownsCurrentStep,
+    // Assign from Inventory is available to whichever reviewer owns the current stage —
+    // not just the IT Manager — so any approver in the chain can resolve the request
+    // directly instead of always forwarding it further. Doesn't apply while the IT Team
+    // is specifically filling in new-device details.
+    canAssignInventory: ownsCurrentStep && !isProcureDetailsStage,
+    // Only the Country Manager can flag a request as needing a brand new device
+    // procured — everyone else just approves forward.
+    canProcureNew: isCmStage && ownsCurrentStep,
     canMarkRepaired: isItManagerStage && permissions.canReviewItManager,
+    canSubmitProcureDetails: isProcureDetailsStage && ownsCurrentStep,
     rejectStatus: getRejectStatusForStage(currentStatus),
     ownerLabel: requiredPermission ? PERMISSION_OWNER_LABELS[requiredPermission] ?? 'Assigned approver' : 'No active owner',
   };
@@ -338,9 +352,10 @@ export type LaptopWorkflowStep = {
 };
 
 export const WORKFLOW_STEPS: LaptopWorkflowStep[] = [
-  { status: 'Submitted', label: 'IT Review', owner: 'IT Manager', description: 'IT checks the device condition and inventory, then repairs, assigns from stock, or sends for procurement approval.' },
-  { status: 'CM Approval', label: 'Country Manager Approval', owner: 'Country Manager', description: 'Country Manager reviews and approves the request.' },
-  { status: 'IT Director Approval', label: 'IT Director Approval', owner: 'IT Director', description: 'IT Director reviews after the Country Manager.' },
+  { status: 'Submitted', label: 'IT Review', owner: 'IT Manager', description: 'IT checks the device condition and inventory, then repairs, assigns from stock, or sends for approval.' },
+  { status: 'CM Approval', label: 'Country Manager Approval', owner: 'Country Manager', description: 'Country Manager approves the request outright, or flags it for new-device procurement.' },
+  { status: 'Procure New Details', label: 'Device Details', owner: 'IT Manager', description: 'IT Team specifies the new device to be procured before the remaining approvals.' },
+  { status: 'IT Director Approval', label: 'IT Director Approval', owner: 'IT Director', description: 'IT Director reviews the procurement request.' },
   { status: 'Supply Chain Director Approval', label: 'Supply Chain Director Approval', owner: 'Supply Chain Director', description: 'Supply Chain Director gives the final procurement approval.' },
   { status: 'Procure New', label: 'Procure New', owner: 'Workflow Complete', description: 'Approved — a new device will be procured.' },
 ];
@@ -394,6 +409,7 @@ export function getStatusBadge(status: string): { label: string; className: stri
     Submitted: { label: 'Submitted', className: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
     'IT Approval': { label: 'IT Review', className: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
     'CM Approval': { label: 'Country Manager', className: 'bg-cyan-50 text-cyan-800 border-cyan-200', dot: 'bg-cyan-500' },
+    'Procure New Details': { label: 'New Device Details', className: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
     'IT Director Approval': { label: 'IT Director', className: 'bg-teal-50 text-teal-800 border-teal-200', dot: 'bg-teal-500' },
     'Supply Chain Director Approval': { label: 'SC Director', className: 'bg-indigo-50 text-indigo-800 border-indigo-200', dot: 'bg-indigo-500' },
     'Procure New': { label: 'Procure New', className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },

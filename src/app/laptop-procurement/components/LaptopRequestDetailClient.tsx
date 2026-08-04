@@ -6,6 +6,7 @@ import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DEVICE_AGE_OPTIONS,
+  DEVICE_TYPE_OPTIONS,
   WORKFLOW_STEPS,
   fmtDateTime,
   getPriorityBadge,
@@ -13,9 +14,10 @@ import {
   getWorkflowStepIndex,
   isActiveApprovalStatus,
 } from '@/lib/laptopProcurement-utils';
-import type { LaptopRequestDetailData, LaptopRequestStatus } from '@/types/laptopProcurement';
+import type { LaptopDeviceOption, LaptopRequestDetailData, LaptopRequestStatus } from '@/types/laptopProcurement';
+import type { LaptopWorkflowStep } from '@/lib/laptopProcurement-utils';
 import LaptopShell, { CTA_QUIET, GLASS } from './LaptopShell';
-import { updateLaptopExistingDevice, updateLaptopRequestStatus } from '@/app/actions/laptopProcurement';
+import { submitProcureNewDetails, updateLaptopExistingDevice, updateLaptopRequestStatus } from '@/app/actions/laptopProcurement';
 
 const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 
@@ -67,26 +69,34 @@ type StepState = 'complete' | 'current' | 'skipped' | 'upcoming';
 function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'] }) {
   const status = request.status;
   const steps = WORKFLOW_STEPS;
-  const terminalApproved = status === 'Procure New' || status === 'Approved';
+  // Only the full chain reaching 'Procure New' is "everything approved" — Country
+  // Manager's plain 'Approved' is a short-circuit that never touched IT Director / SC
+  // Director, so it's an alt-outcome below, not a false "all steps complete".
+  const terminalApproved = status === 'Procure New';
   const isRejected = status.startsWith('Rejected');
   const isCancelled = status === 'Cancelled';
-  const altOutcome = status === 'Assign from Inventory' || status === 'Assign from Inventory & Closed' || status === 'Repaired & Closed';
+  const altOutcome = status === 'Assign from Inventory' || status === 'Assign from Inventory & Closed' || status === 'Repaired & Closed' || status === 'Approved';
   // The chain stopped early — it will never reach the remaining steps.
   const isStopped = isRejected || isCancelled || altOutcome;
   const currentIndex = isStopped ? -1 : getWorkflowStepIndex(status);
   // Ground truth per stage: each approval date is only stamped once that stage is actually
   // signed off, regardless of how the chain later ends — so "complete" reflects what really
-  // happened, not just where the status string currently points.
-  const approvedDates: Array<string | null | undefined> = [
-    request.it_team_approved_date,
-    request.cm_approved_date,
-    request.itd_approved_date,
-    request.scd_approved_date,
-  ];
+  // happened, not just where the status string currently points. Keyed by status rather
+  // than raw array index since 'Procure New Details' has no approval-date column of its
+  // own (it's a data-entry waypoint, not a sign-off).
+  const approvedDateByStatus: Partial<Record<LaptopRequestStatus, string | null | undefined>> = {
+    Submitted: request.it_team_approved_date,
+    'CM Approval': request.cm_approved_date,
+    'IT Director Approval': request.itd_approved_date,
+    'Supply Chain Director Approval': request.scd_approved_date,
+  };
 
-  function stepState(index: number): StepState {
+  function stepState(step: LaptopWorkflowStep, index: number): StepState {
     if (terminalApproved) return 'complete';
-    if (index < 4 && approvedDates[index]) return 'complete';
+    if (approvedDateByStatus[step.status]) return 'complete';
+    // 'Procure New Details' has no date of its own — infer completion once the chain
+    // has moved past it (IT Director has since signed off).
+    if (step.status === 'Procure New Details' && request.itd_approved_date) return 'complete';
     if (!isStopped && index === currentIndex) return 'current';
     if (isStopped) return 'skipped';
     return 'upcoming';
@@ -108,7 +118,7 @@ function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'
       )}
       <div className="space-y-3">
         {steps.map((step, index) => {
-          const state = stepState(index);
+          const state = stepState(step, index);
           const { card, badge } = STATE_STYLES[state];
           return (
             <div key={step.status} className={`rounded-2xl border p-3 ${card}`}>
@@ -263,13 +273,86 @@ function ExistingDeviceSection({
   );
 }
 
-export default function LaptopRequestDetailClient({ data }: { data: LaptopRequestDetailData }) {
+/**
+ * Country Manager flagged this request as needing a brand new device — the IT Team
+ * lands here to specify exactly what to procure (the requester never picks a model
+ * upfront) before it continues to IT Director. Only shown while status is actually
+ * 'Procure New Details'; only the IT Manager identity that owns the stage can submit.
+ */
+function ProcureNewDetailsSection({
+  request,
+  devices,
+  canSubmit,
+  onSubmitted,
+}: {
+  request: LaptopRequestDetailData['request'];
+  devices: LaptopDeviceOption[];
+  canSubmit: boolean;
+  onSubmitted: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState('');
+  const [typeOfDevice, setTypeOfDevice] = useState(request.type_of_device ?? '');
+  const [model, setModel] = useState(request.requested_model ?? '');
+
+  const modelOptions = [...new Set(devices.filter(d => !typeOfDevice || d.type_of_device === typeOfDevice).map(d => d.model))];
+
+  function submit() {
+    setError('');
+    if (!typeOfDevice.trim() || !model.trim()) {
+      setError('Type of device and model are both required.');
+      return;
+    }
+    startTransition(async () => {
+      const result = await submitProcureNewDetails(request.id, { type_of_device: typeOfDevice, model });
+      if (result.success) {
+        onSubmitted();
+      } else {
+        setError(result.error ?? 'Failed to submit device details.');
+      }
+    });
+  }
+
+  return (
+    <Section title="New Device Details">
+      {error && <div className="mb-3 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{error}</div>}
+      {canSubmit ? (
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">Specify the new device to be procured — this continues to the IT Director once submitted.</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Type of Device</label>
+              <select className={INP} value={typeOfDevice} onChange={e => { setTypeOfDevice(e.target.value); setModel(''); }}>
+                <option value="">Select device type</option>
+                {DEVICE_TYPE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Model</label>
+              <select className={INP} value={model} onChange={e => setModel(e.target.value)} disabled={!typeOfDevice}>
+                <option value="">{typeOfDevice ? 'Select model' : 'Select a device type first'}</option>
+                {modelOptions.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+          </div>
+          <button type="button" disabled={isPending} onClick={submit} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
+            {isPending ? 'Sending...' : 'Send to IT Director'}
+          </button>
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500">Waiting on the IT Team to specify the new device.</p>
+      )}
+    </Section>
+  );
+}
+
+export default function LaptopRequestDetailClient({ data, devices }: { data: LaptopRequestDetailData; devices: LaptopDeviceOption[] }) {
   const [reviewComment, setReviewComment] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [highlightDecision, setHighlightDecision] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [assignModalStatus, setAssignModalStatus] = useState<'Assign from Inventory' | 'Assign from Inventory & Closed' | null>(null);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assignSerialNo, setAssignSerialNo] = useState('');
   const [assignModel, setAssignModel] = useState('');
   const [assignAge, setAssignAge] = useState('');
@@ -291,6 +374,7 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
   // Manager — hide it from everyone else, including the requester.
   const canSeeExistingDevice = actor.permissions.canReviewItManager
     || (actor.delegatedFrom ?? []).some(d => d.permissions.canReviewItManager);
+  const isProcureDetailsStage = request.status === 'Procure New Details';
 
   function jumpToDecision() {
     decisionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -311,7 +395,7 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
       if (result.success) {
         setReviewComment('');
         setIsCancelDialogOpen(false);
-        setAssignModalStatus(null);
+        setAssignModalOpen(false);
         setAssignSerialNo('');
         setAssignModel('');
         setAssignAge('');
@@ -329,7 +413,7 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
       setAssignError('Serial number, model, and age are all required.');
       return;
     }
-    submitStatus(assignModalStatus!, { serial_no: assignSerialNo.trim(), model: assignModel.trim(), age: assignAge });
+    submitStatus('Assign from Inventory', { serial_no: assignSerialNo.trim(), model: assignModel.trim(), age: assignAge });
   }
 
   const approveLabel = actions.nextStatus === 'CM Approval'
@@ -369,7 +453,7 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
         </div>
       )}
 
-      {assignModalStatus && (
+      {assignModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 px-4">
           <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-5 py-4">
@@ -395,7 +479,7 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
               </div>
             </div>
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => { setAssignModalStatus(null); setAssignError(''); }} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
+              <button type="button" onClick={() => { setAssignModalOpen(false); setAssignError(''); }} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
               <button type="button" onClick={confirmAssign} disabled={isPending} className="rounded-lg bg-[#307c4c] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">{isPending ? 'Assigning...' : 'Confirm assignment'}</button>
             </div>
           </div>
@@ -473,6 +557,15 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
                 <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-600">{textValue(request.special_requirements)}</p>
               </div>
             </Section>
+
+            {isProcureDetailsStage && (
+              <ProcureNewDetailsSection
+                request={request}
+                devices={devices}
+                canSubmit={actions.canSubmitProcureDetails}
+                onSubmitted={() => router.refresh()}
+              />
+            )}
 
             {(request.assigned_serial_no || request.assigned_model || request.assigned_age) && (
               <Section title="Assigned Unit (from inventory)">
@@ -556,16 +649,13 @@ export default function LaptopRequestDetailClient({ data }: { data: LaptopReques
                         </button>
                       )}
                       {actions.canAssignInventory && (
-                        <>
-                          <button disabled={isPending} onClick={() => setAssignModalStatus('Assign from Inventory')} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign existing laptop</button>
-                          <button disabled={isPending} onClick={() => setAssignModalStatus('Assign from Inventory & Closed')} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign &amp; Close</button>
-                        </>
+                        <button disabled={isPending} onClick={() => setAssignModalOpen(true)} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign existing laptop</button>
                       )}
                       {actions.canMarkRepaired && (
                         <button disabled={isPending} onClick={() => submitStatus('Repaired & Closed')} className="rounded-lg border border-violet-200 bg-violet-50 px-3.5 py-2 text-xs font-bold text-violet-900 transition hover:bg-violet-100 disabled:opacity-60">Repaired &amp; Closed</button>
                       )}
                       {actions.canProcureNew && (
-                        <button disabled={isPending} onClick={() => submitStatus('Procure New')} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-900 transition hover:bg-emerald-100 disabled:opacity-60">Procure New</button>
+                        <button disabled={isPending} onClick={() => submitStatus('Procure New Details')} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-900 transition hover:bg-emerald-100 disabled:opacity-60">Procure New</button>
                       )}
                       {actions.canReject && actions.rejectStatus && (
                         <button disabled={isPending} onClick={() => submitStatus(actions.rejectStatus!)} className="rounded-lg border border-red-300 bg-red-50 px-3.5 py-2 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Reject</button>

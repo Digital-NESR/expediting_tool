@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getLaptopRequestDetail } from '@/app/actions/laptopProcurement';
+import { getLaptopDeviceOptions, getLaptopRequestDetail } from '@/app/actions/laptopProcurement';
 import LaptopRequestDetailClient from '../../components/LaptopRequestDetailClient';
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -17,8 +17,8 @@ export default async function LaptopRequestDetailPage({ params }: PageProps) {
   const numericId = Number(id);
   if (!Number.isInteger(numericId) || numericId <= 0) notFound();
 
-  const data = await getLaptopRequestDetail(numericId);
+  const [data, devices] = await Promise.all([getLaptopRequestDetail(numericId), getLaptopDeviceOptions()]);
   if (!data) notFound();
 
-  return <LaptopRequestDetailClient data={data} />;
+  return <LaptopRequestDetailClient data={data} devices={devices} />;
 }

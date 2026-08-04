@@ -90,7 +90,7 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
 
   const pendingCount = requests.filter(r => {
     const actions = getLaptopAvailableActions(actor.permissions, r.status);
-    return actions.canApprove || actions.canReject || actions.canAssignInventory;
+    return actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canSubmitProcureDetails;
   }).length;
 
   const requestTypes = Array.from(new Set(requests.map(r => r.request_type).filter(Boolean))) as string[];

@@ -104,7 +104,7 @@ export default function LaptopMyWorkClient({ data }: { data: LaptopWorkQueueData
                     <p className="mt-0.5 text-xs text-slate-500">{request.requested_by_name || request.requested_by_email} · {request.country || '—'} · Created {fmtDate(request.created_at)}</p>
                   </div>
                   <span className="shrink-0 rounded-lg bg-[#307c4c] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm">
-                    {actions.canApprove ? 'Review & Approve' : actions.canAssignInventory ? 'IT Action' : 'Review'}
+                    {actions.canApprove ? 'Review & Approve' : actions.canSubmitProcureDetails ? 'Add Device Details' : actions.canAssignInventory ? 'IT Action' : 'Review'}
                   </span>
                 </Link>
               ))}

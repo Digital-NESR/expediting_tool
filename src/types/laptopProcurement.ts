@@ -2,6 +2,7 @@ export type LaptopRequestStatus =
   | 'Submitted'
   | 'IT Approval'
   | 'CM Approval'
+  | 'Procure New Details'
   | 'IT Director Approval'
   | 'Supply Chain Director Approval'
   | 'Procure New'
@@ -214,8 +215,18 @@ export interface CreateLaptopRequestInput {
   company_name?: string;
   cost_center?: string;
   type_of_device: string;
-  requested_model: string;
+  // Filled in later by the IT Team once a request is actually flagged for new-device
+  // procurement (see SubmitProcureNewDetailsInput) — the requester no longer picks a
+  // specific model upfront.
+  requested_model?: string;
   special_requirements: string;
+}
+
+// Filled in by the IT Team once Country Manager flags a request as needing a brand
+// new device procured, before it continues to IT Director / Supply Chain Director.
+export interface SubmitProcureNewDetailsInput {
+  type_of_device: string;
+  model: string;
 }
 
 // Filled in by the IT Manager once the request reaches them — not collected
@@ -362,7 +373,12 @@ export interface LaptopRequestActions {
   canReject: boolean;
   canAssignInventory: boolean;
   canMarkRepaired: boolean;
+  // Country Manager only — flags a request as needing a brand new device procured,
+  // routing it to the IT Team for device details instead of approving it outright.
   canProcureNew: boolean;
+  // IT Team only, while status is 'Procure New Details' — submit the new device's
+  // type/model and forward to IT Director.
+  canSubmitProcureDetails: boolean;
   rejectStatus: LaptopRequestStatus | null;
   ownerLabel: string;
 }

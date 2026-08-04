@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import { getLaptopActor, getLaptopDeviceOptions, getLaptopRequestDetail } from '@/app/actions/laptopProcurement';
+import { getLaptopActor, getLaptopRequestDetail } from '@/app/actions/laptopProcurement';
 import { getProcureGuardUser } from '@/lib/auth';
 import { canUseLaptopOperationalPages } from '@/lib/laptopProcurement-utils';
 import LaptopRequestFormClient from '../../new/LaptopRequestFormClient';
@@ -21,7 +21,7 @@ export default async function EditLaptopRequestPage({ params }: PageProps) {
     redirect('/laptop-procurement/analytics');
   }
 
-  const [data, devices] = await Promise.all([getLaptopRequestDetail(numericId), getLaptopDeviceOptions()]);
+  const data = await getLaptopRequestDetail(numericId);
   if (!data) notFound();
 
   return (
@@ -29,7 +29,6 @@ export default async function EditLaptopRequestPage({ params }: PageProps) {
       requesterName={user?.name ?? user?.email ?? ''}
       requesterEmail={user?.email ?? ''}
       accessView={actor.effectiveAccessView}
-      devices={devices}
       editRequest={data.request}
     />
   );
