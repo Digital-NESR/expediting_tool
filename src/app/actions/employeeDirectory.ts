@@ -4,12 +4,14 @@ import empDirectoryPool from '@/lib/db-emp-directory';
 import { COUNTRY_OPTIONS, SEGMENT_OPTIONS } from '@/lib/laptopProcurement-utils';
 
 // The directory's `country` values don't line up with COUNTRY_OPTIONS (extra
-// countries the form doesn't list, and ambiguous variants like "Dubai"/
-// "UAE-Dubai" that could mean either "United Arab Emirates (UAE)" or "HQ
-// Dubai"). Only alias unambiguous cases; anything else is left unmapped so a
-// bad guess is never silently written into the request.
+// countries the form doesn't list, and city-level UAE variants). Only alias
+// unambiguous cases; anything else is left unmapped so a bad guess is never
+// silently written into the request.
 const COUNTRY_ALIASES: Record<string, string> = {
   'united arab emirates': 'United Arab Emirates (UAE)',
+  'uae-abu dhabi': 'United Arab Emirates (UAE)',
+  'uae-dubai': 'HQ Dubai',
+  dubai: 'HQ Dubai',
   'iraq north': 'Iraq',
   'iraq south': 'Iraq',
 };

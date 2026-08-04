@@ -112,11 +112,23 @@ export interface LaptopDeviceCatalogRow {
   type_of_device: string;
   model: string;
   active: boolean;
+  created_at: string;
 }
 
 export interface LaptopDeviceOption {
   type_of_device: string;
   model: string;
+}
+
+export interface CreateLaptopDeviceInput {
+  type_of_device: string;
+  model: string;
+}
+
+export interface UpdateLaptopDeviceInput {
+  type_of_device?: string;
+  model?: string;
+  active?: boolean;
 }
 
 export interface LaptopRequest {
@@ -255,6 +267,7 @@ export interface LaptopAdminData {
   activity: LaptopActivityRow[];
   permissions: LaptopPermissionRow[];
   delegations: LaptopDelegationRow[];
+  deviceCatalog: LaptopDeviceCatalogRow[];
   stats: LaptopDashboardStats;
 }
 

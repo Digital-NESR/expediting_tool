@@ -6,14 +6,18 @@ import { useRouter } from 'next/navigation';
 import LaptopShell, { CTA, GLASS } from '../components/LaptopShell';
 import EmployeeAutocomplete from '@/app/procure-guard/components/EmployeeAutocomplete';
 import {
+  addLaptopDevice,
   adminGrantLaptopDelegation,
+  deleteLaptopDevice,
   deleteLaptopPermission,
   deleteLaptopRecord,
   revokeLaptopDelegation,
+  updateLaptopDevice,
   updateLaptopPermission,
 } from '@/app/actions/laptopProcurement';
 import {
   COUNTRY_OPTIONS,
+  DEVICE_TYPE_OPTIONS,
   PERMISSION_PROFILES,
   PERMISSION_ROLE_OPTIONS,
   SEGMENT_OPTIONS,
@@ -21,7 +25,7 @@ import {
   getPermissionProfile,
   getStatusBadge,
 } from '@/lib/laptopProcurement-utils';
-import type { LaptopAdminData, LaptopDelegationRow, LaptopPermissionRole } from '@/types/laptopProcurement';
+import type { LaptopAdminData, LaptopDelegationRow, LaptopDeviceCatalogRow, LaptopPermissionRole } from '@/types/laptopProcurement';
 
 const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 
@@ -223,8 +227,198 @@ function DelegationsPanel({
   );
 }
 
+function DevicesPanel({
+  devices,
+  onDone,
+}: {
+  devices: LaptopDeviceCatalogRow[];
+  onDone: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [typeOfDevice, setTypeOfDevice] = useState(DEVICE_TYPE_OPTIONS[0]);
+  const [model, setModel] = useState('');
+  const [error, setError] = useState('');
+  const [devicesPage, setDevicesPage] = useState(0);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editType, setEditType] = useState('');
+  const [editModel, setEditModel] = useState('');
+
+  const devicesPageCount = Math.max(1, Math.ceil(devices.length / REQUESTS_PAGE_SIZE));
+  const currentDevicesPage = Math.min(devicesPage, devicesPageCount - 1);
+  const pagedDevices = devices.slice(currentDevicesPage * REQUESTS_PAGE_SIZE, (currentDevicesPage + 1) * REQUESTS_PAGE_SIZE);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!model.trim()) { setError('Model is required.'); return; }
+    startTransition(async () => {
+      const result = await addLaptopDevice({ type_of_device: typeOfDevice, model: model.trim() });
+      if (result.success) {
+        onDone(`Added ${typeOfDevice} model "${model.trim()}" to the catalog.`);
+        setModel('');
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Failed to add device.');
+      }
+    });
+  }
+
+  function startEdit(d: LaptopDeviceCatalogRow) {
+    setError('');
+    setEditingId(d.id);
+    setEditType(d.type_of_device);
+    setEditModel(d.model);
+  }
+
+  function saveEdit(id: number) {
+    setError('');
+    if (!editModel.trim()) { setError('Model is required.'); return; }
+    startTransition(async () => {
+      const result = await updateLaptopDevice(id, { type_of_device: editType, model: editModel.trim() });
+      if (result.success) {
+        setEditingId(null);
+        onDone('Device updated.');
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Failed to update device.');
+      }
+    });
+  }
+
+  function toggleActive(d: LaptopDeviceCatalogRow) {
+    setError('');
+    startTransition(async () => {
+      const result = await updateLaptopDevice(d.id, { active: !d.active });
+      if (result.success) {
+        onDone(`${d.model} ${d.active ? 'deactivated' : 'reactivated'}.`);
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Failed to update device.');
+      }
+    });
+  }
+
+  function remove(d: LaptopDeviceCatalogRow) {
+    setError('');
+    startTransition(async () => {
+      const result = await deleteLaptopDevice(d.id);
+      if (result.success) {
+        onDone(`Removed ${d.model} from the catalog.`);
+        router.refresh();
+      } else {
+        setError(result.error ?? 'Failed to delete device.');
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-5">
+      <section className={`${GLASS} p-5`}>
+        <h3 className="text-[15px] font-bold">Add a device</h3>
+        <p className="mt-0.5 text-xs text-slate-500">Approved laptop / desktop models shown on the &quot;Requested Device&quot; step of the request form.</p>
+        {error && <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>}
+        <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Type of Device</label>
+            <select className={INP} value={typeOfDevice} onChange={e => setTypeOfDevice(e.target.value)}>
+              {DEVICE_TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Model</label>
+            <input className={INP} value={model} onChange={e => setModel(e.target.value)} placeholder="e.g. Dell Latitude 5000 series - Core i5" />
+          </div>
+          <div className="flex items-end md:col-span-3">
+            <button type="submit" disabled={isPending} className={`${CTA} disabled:opacity-60`}>
+              {isPending ? 'Adding…' : 'Add device'}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className={`${GLASS} divide-y divide-slate-100 overflow-hidden`}>
+        <div className="p-5">
+          <h3 className="text-[15px] font-bold">Approved devices</h3>
+          <p className="mt-0.5 text-xs text-slate-500">Deactivate or delete a model to remove it from the request form immediately.</p>
+        </div>
+        {devices.length === 0 ? (
+          <div className="p-8 text-center text-sm text-slate-500">No devices in the catalog yet.</div>
+        ) : pagedDevices.map(d => (
+          <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4">
+            {editingId === d.id ? (
+              <div className="flex flex-1 flex-wrap items-end gap-3">
+                <div>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Type of Device</label>
+                  <select className={INP} value={editType} onChange={e => setEditType(e.target.value)}>
+                    {DEVICE_TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="min-w-[14rem] flex-1">
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Model</label>
+                  <input className={INP} value={editModel} onChange={e => setEditModel(e.target.value)} />
+                </div>
+                <button type="button" disabled={isPending} onClick={() => saveEdit(d.id)} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
+                  {isPending ? 'Saving...' : 'Save'}
+                </button>
+                <button type="button" disabled={isPending} onClick={() => setEditingId(null)} className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
+              </div>
+            ) : (
+              <>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-900">{d.model}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${d.active ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'bg-slate-100 text-slate-500'}`}>
+                      {d.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-500">{d.type_of_device}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button type="button" onClick={() => toggleActive(d)} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">
+                    {d.active ? 'Deactivate' : 'Reactivate'}
+                  </button>
+                  <button type="button" onClick={() => startEdit(d)} disabled={isPending} className="rounded-lg border border-[#307c4c]/30 bg-white px-3 py-1.5 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Edit</button>
+                  <button type="button" onClick={() => remove(d)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Delete</button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+        {devices.length > 0 && (
+          <div className="flex items-center justify-between px-5 py-3">
+            <p className="text-xs text-slate-500/80">
+              Showing {currentDevicesPage * REQUESTS_PAGE_SIZE + 1}
+              –{Math.min((currentDevicesPage + 1) * REQUESTS_PAGE_SIZE, devices.length)} of {devices.length} devices
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setDevicesPage(p => Math.max(0, p - 1))}
+                disabled={currentDevicesPage === 0}
+                aria-label="Previous page"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ‹
+              </button>
+              <span className="text-xs font-semibold text-slate-600">Page {currentDevicesPage + 1} of {devicesPageCount}</span>
+              <button
+                onClick={() => setDevicesPage(p => Math.min(devicesPageCount - 1, p + 1))}
+                disabled={currentDevicesPage >= devicesPageCount - 1}
+                aria-label="Next page"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function LaptopAdminClient({ data, embedded = false }: { data: LaptopAdminData | null; embedded?: boolean }) {
-  const [tab, setTab] = useState<'permissions' | 'requests' | 'activity' | 'delegations'>('permissions');
+  const [tab, setTab] = useState<'permissions' | 'requests' | 'activity' | 'delegations' | 'devices'>('permissions');
   const [isPending, startTransition] = useTransition();
   const [banner, setBanner] = useState('');
   const [requestsPage, setRequestsPage] = useState(0);
@@ -238,7 +432,7 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
   const [segment, setSegment] = useState('');
 
   if (!data) return <DbError />;
-  const { actor, requests, activity, permissions, delegations, stats } = data;
+  const { actor, requests, activity, permissions, delegations, deviceCatalog, stats } = data;
   const approvers = permissions.filter(p => getPermissionProfile(p.role).canViewAll);
 
   const requestsPageCount = Math.max(1, Math.ceil(requests.length / REQUESTS_PAGE_SIZE));
@@ -285,6 +479,7 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
     { id: 'requests', label: `Requests (${requests.length})` },
     { id: 'activity', label: `Activity (${activity.length})` },
     { id: 'delegations', label: `Delegations (${delegations.length})` },
+    { id: 'devices', label: `Devices (${deviceCatalog.length})` },
   ];
 
   const content = (
@@ -483,6 +678,10 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
 
         {tab === 'delegations' && (
           <DelegationsPanel delegations={delegations} approvers={approvers} onDone={setBanner} />
+        )}
+
+        {tab === 'devices' && (
+          <DevicesPanel devices={deviceCatalog} onDone={setBanner} />
         )}
       </div>
   );

@@ -25,6 +25,7 @@ import type {
   ActionResult,
   AdminCreateLaptopRequestInput,
   AssignExistingLaptopInput,
+  CreateLaptopDeviceInput,
   CreateLaptopRequestInput,
   LaptopAccessRequestRow,
   LaptopAccessRequestStatus,
@@ -38,6 +39,7 @@ import type {
   LaptopAnalyticsMetric,
   LaptopApproverMatrixRow,
   LaptopDashboardData,
+  LaptopDeviceCatalogRow,
   LaptopDeviceOption,
   LaptopDocument,
   LaptopMonthlyMetric,
@@ -49,6 +51,7 @@ import type {
   LaptopRequestStatus,
   LaptopWorkQueueData,
   UpdateLaptopApproverMatrixInput,
+  UpdateLaptopDeviceInput,
   UpdateLaptopExistingDeviceInput,
   UpdateLaptopPermissionInput,
 } from '@/types/laptopProcurement';
@@ -748,6 +751,7 @@ const STAGE_APPROVER_NAME_COLUMN: Partial<Record<LaptopRequestStatus, string>> =
 function revalidateLaptopPaths(): void {
   revalidatePath('/laptop-procurement');
   revalidatePath('/laptop-procurement/requests');
+  revalidatePath('/laptop-procurement/requests/new');
   revalidatePath('/laptop-procurement/my-work');
   revalidatePath('/laptop-procurement/analytics');
   // The shared admin dashboard embeds the Laptop Procurement admin panel — without
@@ -767,6 +771,59 @@ export async function getLaptopDeviceOptions(): Promise<LaptopDeviceOption[]> {
   } catch (err) {
     console.error('[getLaptopDeviceOptions]', err);
     return [];
+  }
+}
+
+export async function addLaptopDevice(input: CreateLaptopDeviceInput): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManageData) return { success: false, error: 'Catalog management access is required.' };
+    const typeOfDevice = requireText(input.type_of_device, 'Type of device');
+    const model = requireText(input.model, 'Model');
+
+    await exec(
+      `INSERT INTO laptop_device_catalog (type_of_device, model, active) VALUES (?, ?, TRUE)`,
+      [typeOfDevice, model],
+    );
+    revalidateLaptopPaths();
+    return { success: true };
+  } catch (err) {
+    console.error('[addLaptopDevice]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to add device.' };
+  }
+}
+
+export async function updateLaptopDevice(id: number, input: UpdateLaptopDeviceInput): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManageData) return { success: false, error: 'Catalog management access is required.' };
+
+    const sets: string[] = [];
+    const params: QueryParams = [];
+    if (input.type_of_device !== undefined) { sets.push('type_of_device = ?'); params.push(requireText(input.type_of_device, 'Type of device')); }
+    if (input.model !== undefined) { sets.push('model = ?'); params.push(requireText(input.model, 'Model')); }
+    if (input.active !== undefined) { sets.push('active = ?'); params.push(input.active); }
+    if (sets.length === 0) return { success: true };
+
+    await exec(`UPDATE laptop_device_catalog SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
+    revalidateLaptopPaths();
+    return { success: true };
+  } catch (err) {
+    console.error('[updateLaptopDevice]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update device.' };
+  }
+}
+
+export async function deleteLaptopDevice(id: number): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManageData) return { success: false, error: 'Catalog management access is required.' };
+    await exec(`DELETE FROM laptop_device_catalog WHERE id = ?`, [id]);
+    revalidateLaptopPaths();
+    return { success: true };
+  } catch (err) {
+    console.error('[deleteLaptopDevice]', err);
+    return { success: false, error: 'Failed to delete device.' };
   }
 }
 
@@ -901,11 +958,12 @@ export async function getLaptopAdminData(): Promise<LaptopAdminData | null> {
   try {
     const actor = await requireAdminActor();
     await ensureLaptopDelegationTable();
-    const [requestRows, activityRows, permissionRows, delegationRows] = await Promise.all([
+    const [requestRows, activityRows, permissionRows, delegationRows, deviceRows] = await Promise.all([
       sql<QueryResultRow[]>(`SELECT * FROM laptop_requests ORDER BY created_at DESC, id DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 100`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions ORDER BY role, email`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_delegations ORDER BY is_active DESC, created_at DESC`),
+      sql<QueryResultRow[]>(`SELECT * FROM laptop_device_catalog ORDER BY type_of_device, model`),
     ]);
     const requests = serialise<LaptopRequest[]>(requestRows);
     const delegations = serialise<LaptopDelegationRow[]>(delegationRows);
@@ -915,6 +973,7 @@ export async function getLaptopAdminData(): Promise<LaptopAdminData | null> {
       activity: serialise<LaptopActivityRow[]>(activityRows),
       permissions: serialise<LaptopPermissionRow[]>(permissionRows),
       delegations,
+      deviceCatalog: serialise<LaptopDeviceCatalogRow[]>(deviceRows),
       stats: buildStats(requests),
     };
   } catch (err) {
