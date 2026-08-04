@@ -129,6 +129,7 @@ export default function LaptopRequestFormClient({
     if (isEditMode || !willBeSelfRequest || !directoryDefaults) return;
     if (directoryDefaults.employeeId && !employeeId.trim()) setEmployeeId(directoryDefaults.employeeId);
     if (directoryDefaults.country && !country.trim()) setCountry(directoryDefaults.country);
+    if (directoryDefaults.segment && !segment.trim()) setSegment(directoryDefaults.segment);
     if (directoryDefaults.department && !department.trim()) setDepartment(directoryDefaults.department);
     if (directoryDefaults.position && !position.trim()) setPosition(directoryDefaults.position);
     if (directoryDefaults.companyCode && !companyCode.trim()) setCompanyCode(directoryDefaults.companyCode);
