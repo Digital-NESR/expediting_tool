@@ -1,6 +1,56 @@
 'use server';
 
 import empDirectoryPool from '@/lib/db-emp-directory';
+import { COUNTRY_OPTIONS, SEGMENT_OPTIONS } from '@/lib/laptopProcurement-utils';
+
+// The directory's `country` values don't line up with COUNTRY_OPTIONS (extra
+// countries the form doesn't list, and ambiguous variants like "Dubai"/
+// "UAE-Dubai" that could mean either "United Arab Emirates (UAE)" or "HQ
+// Dubai"). Only alias unambiguous cases; anything else is left unmapped so a
+// bad guess is never silently written into the request.
+const COUNTRY_ALIASES: Record<string, string> = {
+  'united arab emirates': 'United Arab Emirates (UAE)',
+  'iraq north': 'Iraq',
+  'iraq south': 'Iraq',
+};
+
+function normalizeDirectoryCountry(rawCountry: string | null): string | null {
+  if (!rawCountry) return null;
+  const trimmed = rawCountry.trim();
+  if (!trimmed) return null;
+  const exact = COUNTRY_OPTIONS.find(o => o.toLowerCase() === trimmed.toLowerCase());
+  if (exact) return exact;
+  return COUNTRY_ALIASES[trimmed.toLowerCase()] ?? null;
+}
+
+// The directory's `service_line` values are close to SEGMENT_OPTIONS but not
+// identical (missing "Services" suffixes, different spellings, broader HR
+// categories). Only alias the unambiguous cases; anything else — including
+// service lines this form has no equivalent for at all (Manufacturing,
+// Nitrogen, Well Heads, etc.) — is left unmapped.
+const SEGMENT_ALIASES: Record<string, string> = {
+  'coiled tubing': 'Coiled Tubing Services',
+  'stimulation & pumping': 'Stimulation & Pumping Services',
+  cementing: 'Cementing Services',
+  slickline: 'Slick Line Services',
+  'well testing': 'Well Testing Services',
+  'wireline logging': 'Logging Services',
+  'thru-tubing': 'Thru Tubing Services',
+  'artificial lift services': 'Artificial Lift',
+  'operations support services': 'Ops Support',
+  'management services': 'Mgmt. (Country Overhead)',
+  fishing: 'Fishing & Remedial',
+  'fishing and milling': 'Fishing & Remedial',
+};
+
+function normalizeDirectorySegment(rawServiceLine: string | null): string | null {
+  if (!rawServiceLine) return null;
+  const trimmed = rawServiceLine.trim();
+  if (!trimmed) return null;
+  const exact = SEGMENT_OPTIONS.find(o => o.toLowerCase() === trimmed.toLowerCase());
+  if (exact) return exact;
+  return SEGMENT_ALIASES[trimmed.toLowerCase()] ?? null;
+}
 
 export interface EmployeeDirectoryEntry {
   name: string;
@@ -57,22 +107,62 @@ export async function searchEmployees(query: string): Promise<EmployeeDirectoryE
   }
 }
 
-// Looks up the requester's own HR employee ID for auto-filling self-service
-// request forms. Degrades to null if the directory DB is unreachable or the
-// person has no employee_id on file.
-export async function getEmployeeIdByEmail(email: string): Promise<string | null> {
+export interface EmployeeDirectoryDefaults {
+  employeeId: string | null;
+  country: string | null;
+  segment: string | null;
+  department: string | null;
+  position: string | null;
+  companyCode: string | null;
+  costCenter: string | null;
+}
+
+const EMPTY_DEFAULTS: EmployeeDirectoryDefaults = {
+  employeeId: null,
+  country: null,
+  segment: null,
+  department: null,
+  position: null,
+  companyCode: null,
+  costCenter: null,
+};
+
+function blank(value: unknown): string | null {
+  const s = (value as string | null | undefined) ?? null;
+  return s && s.trim() ? s.trim() : null;
+}
+
+// Looks up the requester's own HR record to auto-fill self-service request
+// forms, minimizing manual typing for fields the directory already knows.
+// Country and Segment are only filled when they map unambiguously onto
+// COUNTRY_OPTIONS / SEGMENT_OPTIONS — see normalizeDirectoryCountry and
+// normalizeDirectorySegment. Company name has no reliable source in this
+// table, so it isn't included; degrades to all-null if the directory DB is
+// unreachable or the person has no record on file.
+export async function getEmployeeDirectoryDefaults(email: string): Promise<EmployeeDirectoryDefaults> {
   const mail = (email || '').trim();
-  if (!mail) return null;
+  if (!mail) return EMPTY_DEFAULTS;
 
   try {
     const { rows } = await empDirectoryPool.query(
-      `SELECT employee_id FROM azure_ad_users_staging WHERE LOWER(mail) = LOWER($1) LIMIT 1`,
+      `SELECT employee_id, country, service_line, department, job_title, company_code, cost_center
+       FROM azure_ad_users_staging WHERE LOWER(mail) = LOWER($1) LIMIT 1`,
       [mail],
     );
-    const employeeId = rows[0]?.employee_id as string | null | undefined;
-    return employeeId && employeeId.trim() ? employeeId.trim() : null;
+    const row = rows[0];
+    if (!row) return EMPTY_DEFAULTS;
+
+    return {
+      employeeId: blank(row.employee_id),
+      country: normalizeDirectoryCountry(blank(row.country)),
+      segment: normalizeDirectorySegment(blank(row.service_line)),
+      department: blank(row.department),
+      position: blank(row.job_title),
+      companyCode: blank(row.company_code),
+      costCenter: blank(row.cost_center),
+    };
   } catch (err) {
-    console.error('[getEmployeeIdByEmail]', err);
-    return null;
+    console.error('[getEmployeeDirectoryDefaults]', err);
+    return EMPTY_DEFAULTS;
   }
 }

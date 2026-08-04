@@ -11,6 +11,7 @@ import {
   REQUEST_TYPE_OPTIONS,
   SEGMENT_OPTIONS,
 } from '@/lib/laptopProcurement-utils';
+import type { EmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import type {
   CreateLaptopRequestInput,
   LaptopAccessView,
@@ -73,14 +74,14 @@ export default function LaptopRequestFormClient({
   accessView,
   devices,
   editRequest,
-  defaultEmployeeId,
+  directoryDefaults,
 }: {
   requesterName: string;
   requesterEmail: string;
   accessView: LaptopAccessView;
   devices: LaptopDeviceOption[];
   editRequest?: LaptopRequest;
-  defaultEmployeeId?: string | null;
+  directoryDefaults?: EmployeeDirectoryDefaults | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -118,15 +119,21 @@ export default function LaptopRequestFormClient({
     [devices, typeOfDevice],
   );
 
-  // Self-service requests are for the requester's own device, so their HR employee
-  // ID can be pulled from the directory instead of typed in. New Employee requests
-  // are on behalf of someone else, so this never applies there.
+  // Self-service requests are for the requester's own record, so the directory
+  // can fill in what it already knows instead of the requester retyping it. New
+  // Employee requests are on behalf of someone else, so this never applies there.
+  // Never overwrites a field the requester has already typed into.
   function handleRequestTypeChange(value: string) {
     setRequestType(value);
     const willBeSelfRequest = value === 'Upgrade/Replacement' || value === 'Unit';
-    if (!isEditMode && willBeSelfRequest && defaultEmployeeId && !employeeId.trim()) {
-      setEmployeeId(defaultEmployeeId);
-    }
+    if (isEditMode || !willBeSelfRequest || !directoryDefaults) return;
+    if (directoryDefaults.employeeId && !employeeId.trim()) setEmployeeId(directoryDefaults.employeeId);
+    if (directoryDefaults.country && !country.trim()) setCountry(directoryDefaults.country);
+    if (directoryDefaults.segment && !segment.trim()) setSegment(directoryDefaults.segment);
+    if (directoryDefaults.department && !department.trim()) setDepartment(directoryDefaults.department);
+    if (directoryDefaults.position && !position.trim()) setPosition(directoryDefaults.position);
+    if (directoryDefaults.companyCode && !companyCode.trim()) setCompanyCode(directoryDefaults.companyCode);
+    if (directoryDefaults.costCenter && !costCenter.trim()) setCostCenter(directoryDefaults.costCenter);
   }
 
   function validate() {
