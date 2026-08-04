@@ -56,3 +56,23 @@ export async function searchEmployees(query: string): Promise<EmployeeDirectoryE
     return [];
   }
 }
+
+// Looks up the requester's own HR employee ID for auto-filling self-service
+// request forms. Degrades to null if the directory DB is unreachable or the
+// person has no employee_id on file.
+export async function getEmployeeIdByEmail(email: string): Promise<string | null> {
+  const mail = (email || '').trim();
+  if (!mail) return null;
+
+  try {
+    const { rows } = await empDirectoryPool.query(
+      `SELECT employee_id FROM azure_ad_users_staging WHERE LOWER(mail) = LOWER($1) LIMIT 1`,
+      [mail],
+    );
+    const employeeId = rows[0]?.employee_id as string | null | undefined;
+    return employeeId && employeeId.trim() ? employeeId.trim() : null;
+  } catch (err) {
+    console.error('[getEmployeeIdByEmail]', err);
+    return null;
+  }
+}

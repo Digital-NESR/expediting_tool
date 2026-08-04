@@ -215,6 +215,8 @@ export const REQUEST_TYPE_OPTIONS = ['New Employee', 'Upgrade/Replacement', 'Uni
 
 export const DEVICE_TYPE_OPTIONS = ['Laptop', 'Desktop'];
 
+export const DEVICE_AGE_OPTIONS = ['< 1 year', '1-3 years', '4-5 years', '5+ years'];
+
 export const COUNTRY_OPTIONS = [
   'Saudi Arabia',
   'United Arab Emirates (UAE)',
@@ -396,7 +398,7 @@ export function getStatusBadge(status: string): { label: string; className: stri
     'Supply Chain Director Approval': { label: 'SC Director', className: 'bg-indigo-50 text-indigo-800 border-indigo-200', dot: 'bg-indigo-500' },
     'Procure New': { label: 'Procure New', className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
     Approved: { label: 'Approved', className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-    'Assign from Inventory': { label: 'Assign from Inventory', className: 'bg-lime-50 text-lime-800 border-lime-200', dot: 'bg-lime-500' },
+    'Assign from Inventory': { label: 'Assign existing laptop', className: 'bg-lime-50 text-lime-800 border-lime-200', dot: 'bg-lime-500' },
     'Assign from Inventory & Closed': { label: 'Assigned & Closed', className: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
     'Repaired & Closed': { label: 'Repaired & Closed', className: 'bg-violet-50 text-violet-800 border-violet-200', dot: 'bg-violet-500' },
     Rejected: { label: 'Rejected', className: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },

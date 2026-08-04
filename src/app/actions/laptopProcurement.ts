@@ -24,6 +24,7 @@ import type { LaptopPermissionKey } from '@/lib/laptopProcurement-utils';
 import type {
   ActionResult,
   AdminCreateLaptopRequestInput,
+  AssignExistingLaptopInput,
   CreateLaptopRequestInput,
   LaptopAccessRequestRow,
   LaptopAccessRequestStatus,
@@ -48,6 +49,7 @@ import type {
   LaptopRequestStatus,
   LaptopWorkQueueData,
   UpdateLaptopApproverMatrixInput,
+  UpdateLaptopExistingDeviceInput,
   UpdateLaptopPermissionInput,
 } from '@/types/laptopProcurement';
 
@@ -174,12 +176,14 @@ async function ensureLaptopDelegationTable(): Promise<void> {
       delegator_name TEXT,
       delegate_email TEXT NOT NULL,
       delegate_name TEXT,
+      starts_at TIMESTAMPTZ,
       expires_at TIMESTAMPTZ,
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
       revoked_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`);
+    await exec(`ALTER TABLE laptop_delegations ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ`);
     await exec(`CREATE INDEX IF NOT EXISTS idx_laptop_delegations_delegate ON laptop_delegations (LOWER(delegate_email))`);
     await exec(`CREATE INDEX IF NOT EXISTS idx_laptop_delegations_delegator ON laptop_delegations (LOWER(delegator_email))`);
   })().catch((err) => {
@@ -200,7 +204,9 @@ async function resolveLaptopDelegations(email: string): Promise<LaptopDelegation
     await ensureLaptopDelegationTable();
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM laptop_delegations
-       WHERE LOWER(delegate_email) = ? AND is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
+       WHERE LOWER(delegate_email) = ? AND is_active = TRUE
+         AND (starts_at IS NULL OR starts_at <= CURRENT_TIMESTAMP)
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
       [email.toLowerCase()],
     );
     if (!rows.length) return [];
@@ -744,6 +750,10 @@ function revalidateLaptopPaths(): void {
   revalidatePath('/laptop-procurement/requests');
   revalidatePath('/laptop-procurement/my-work');
   revalidatePath('/laptop-procurement/analytics');
+  // The shared admin dashboard embeds the Laptop Procurement admin panel — without
+  // this, another admin's browser would keep showing a deleted/changed record
+  // until they happened to trigger a full reload some other way.
+  revalidatePath('/admin');
 }
 
 /* ── Device catalogue ─────────────────────────────────────────── */
@@ -965,7 +975,7 @@ function validateCreateInput(input: CreateLaptopRequestInput) {
   };
 }
 
-async function insertRequest(input: CreateLaptopRequestInput, opts: {
+async function insertRequest(input: CreateLaptopRequestInput & Partial<UpdateLaptopExistingDeviceInput>, opts: {
   reference: string;
   status: LaptopRequestStatus;
   requestedByName: string;
@@ -973,13 +983,16 @@ async function insertRequest(input: CreateLaptopRequestInput, opts: {
   validated: ReturnType<typeof validateCreateInput>;
 }): Promise<number> {
   const v = opts.validated;
+  // Existing Device fields are only ever set by an admin backfilling a request
+  // (AdminCreateLaptopRequestInput) — the normal requester flow never collects
+  // them; the IT Manager fills them in once the request reaches that stage.
   const result = await exec(
     `INSERT INTO laptop_requests
       (reference_number, employee_id, status, priority, request_type, indirect_request, pending_with, country,
        requested_by_name, requested_by_email, computer_for, segment, department, position,
        company_code, company_name, cost_center, type_of_device, requested_model, special_requirements,
-       unit_id, current_brand, current_model, serial_no, age_years)
-     VALUES (?, ?, ?, ?, ?, FALSE, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       unit_id, current_brand, current_model, serial_no, age_years, sap_number)
+     VALUES (?, ?, ?, ?, ?, FALSE, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     [
       opts.reference,
       blankToNull(input.employee_id),
@@ -1005,6 +1018,7 @@ async function insertRequest(input: CreateLaptopRequestInput, opts: {
       blankToNull(input.current_model),
       blankToNull(input.serial_no),
       blankToNull(input.age_years),
+      blankToNull(input.sap_number),
     ],
   );
   return result.insertId;
@@ -1065,16 +1079,13 @@ export async function updateLaptopRequest(id: number, input: CreateLaptopRequest
          employee_id = ?, priority = ?, request_type = ?, country = ?, computer_for = ?, segment = ?,
          department = ?, position = ?, company_code = ?, company_name = ?, cost_center = ?,
          type_of_device = ?, requested_model = ?, special_requirements = ?,
-         unit_id = ?, current_brand = ?, current_model = ?, serial_no = ?, age_years = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
         blankToNull(input.employee_id), input.priority || 'Normal', v.requestType, v.country,
         blankToNull(input.computer_for), v.segment, blankToNull(input.department), blankToNull(input.position),
         blankToNull(input.company_code), blankToNull(input.company_name), blankToNull(input.cost_center),
-        v.typeOfDevice, v.requestedModel, v.reason,
-        blankToNull(input.unit_id), blankToNull(input.current_brand), blankToNull(input.current_model),
-        blankToNull(input.serial_no), blankToNull(input.age_years), id,
+        v.typeOfDevice, v.requestedModel, v.reason, id,
       ],
     );
     await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Request updated', actor });
@@ -1084,6 +1095,50 @@ export async function updateLaptopRequest(id: number, input: CreateLaptopRequest
   } catch (err) {
     console.error('[updateLaptopRequest]', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update laptop request.' };
+  }
+}
+
+/**
+ * Existing Device details (the device being replaced/upgraded) are filled in by
+ * the IT Manager once the request reaches them — never collected from the
+ * requester. Restricted to whichever identity (own or delegated) owns the IT
+ * Manager stage, and only while the request is actually at that stage.
+ */
+export async function updateLaptopExistingDevice(id: number, input: UpdateLaptopExistingDeviceInput): Promise<ActionResult> {
+  try {
+    const actor = await getActor();
+    requireOperationalAccess(actor);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const row = rows[0];
+    if (!row) return { success: false, error: 'Request not found.' };
+
+    const currentStatus = row.status as LaptopRequestStatus;
+    if (!IT_MANAGER_STATUSES.includes(currentStatus) && !actor.permissions.canManageData) {
+      return { success: false, error: 'Existing Device details can only be edited while the request is with the IT Manager.' };
+    }
+    const canEdit = actor.permissions.canManageData || laptopActingIdentities(actor).some(identity =>
+      identity.permissions.canReviewItManager && scopeMatches(identity.role, identity.country, identity.segment, row),
+    );
+    if (!canEdit) {
+      return { success: false, error: 'IT Manager access is required to edit Existing Device details.' };
+    }
+
+    await exec(
+      `UPDATE laptop_requests SET
+         unit_id = ?, current_brand = ?, current_model = ?, serial_no = ?, age_years = ?, sap_number = ?,
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        blankToNull(input.unit_id), blankToNull(input.current_brand), blankToNull(input.current_model),
+        blankToNull(input.serial_no), blankToNull(input.age_years), blankToNull(input.sap_number), id,
+      ],
+    );
+    await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Existing Device details updated', actor });
+    revalidatePath(`/laptop-procurement/requests/${id}`);
+    return { success: true };
+  } catch (err) {
+    console.error('[updateLaptopExistingDevice]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update existing device details.' };
   }
 }
 
@@ -1123,6 +1178,7 @@ export async function updateLaptopRequestStatus(
   id: number,
   status: LaptopRequestStatus,
   notes?: string,
+  assignedLaptop?: AssignExistingLaptopInput,
 ): Promise<ActionResult> {
   try {
     const actor = await getActor();
@@ -1198,6 +1254,13 @@ export async function updateLaptopRequestStatus(
     // not just the timestamp, so "Assigned Approvers" shows a name instead of staying blank.
     const stageApproverColumn = setsReviewer ? STAGE_APPROVER_NAME_COLUMN[currentStatus] : undefined;
     const stageApproverAssignment = stageApproverColumn ? `, ${stageApproverColumn} = ?` : '';
+    // "Assign existing laptop" / "Assign & Close" hand over a specific second-hand unit —
+    // record which one, separate from the current_brand/current_model/serial_no/age_years
+    // columns above, which describe the OLD device being replaced.
+    const isAssignMove = status === 'Assign from Inventory' || status === 'Assign from Inventory & Closed';
+    const assignedLaptopAssignment = isAssignMove && assignedLaptop
+      ? `, assigned_serial_no = ?, assigned_model = ?, assigned_age = ?`
+      : '';
 
     const params: QueryParam[] = [
       status,
@@ -1210,6 +1273,13 @@ export async function updateLaptopRequestStatus(
     ];
     if (stageCommentAssignment) params.push(comment);
     if (stageApproverAssignment) params.push(actor.name);
+    if (assignedLaptopAssignment) {
+      params.push(
+        blankToNull(assignedLaptop!.serial_no),
+        blankToNull(assignedLaptop!.model),
+        blankToNull(assignedLaptop!.age),
+      );
+    }
     params.push(id);
 
     await exec(
@@ -1220,7 +1290,7 @@ export async function updateLaptopRequestStatus(
          reviewed_by_email = ?,
          reviewed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
          rejection_reason = ?,
-         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment},
+         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment},
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       params,
@@ -1687,7 +1757,9 @@ export async function getLaptopDelegationData(): Promise<LaptopDelegationData | 
       ),
       sql<QueryResultRow[]>(
         `SELECT * FROM laptop_delegations
-         WHERE LOWER(delegate_email) = ? AND is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+         WHERE LOWER(delegate_email) = ? AND is_active = TRUE
+           AND (starts_at IS NULL OR starts_at <= CURRENT_TIMESTAMP)
+           AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
          ORDER BY created_at DESC`,
         [actor.email.toLowerCase()],
       ),
@@ -1706,6 +1778,7 @@ export async function getLaptopDelegationData(): Promise<LaptopDelegationData | 
 export async function grantLaptopDelegation(input: {
   delegateEmail: string;
   delegateName?: string;
+  startsAt?: string | null;
   endsAt?: string | null;
 }): Promise<ActionResult<{ id: number }>> {
   try {
@@ -1717,7 +1790,11 @@ export async function grantLaptopDelegation(input: {
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
     if (!DELEGATION_EMAIL_RE.test(delegateEmail)) return { success: false, error: 'Enter a valid delegate email address.' };
     if (delegateEmail === actor.email.toLowerCase()) return { success: false, error: 'You cannot delegate to yourself.' };
+    const startsAt = input.startsAt && input.startsAt.trim() ? input.startsAt.trim() : null;
     const expiresAt = input.endsAt && input.endsAt.trim() ? input.endsAt.trim() : null;
+    if (startsAt && expiresAt && new Date(startsAt) >= new Date(expiresAt)) {
+      return { success: false, error: 'End date must be after the start date.' };
+    }
 
     // Replace any existing active delegation to the same person so there is only one live grant.
     await exec(
@@ -1726,9 +1803,9 @@ export async function grantLaptopDelegation(input: {
       [actor.email.toLowerCase(), delegateEmail],
     );
     const result = await exec(
-      `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, expires_at)
-       VALUES (?, ?, ?, ?, ?) RETURNING id`,
-      [actor.email.toLowerCase(), actor.name, delegateEmail, blankToNull(input.delegateName), expiresAt],
+      `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, starts_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+      [actor.email.toLowerCase(), actor.name, delegateEmail, blankToNull(input.delegateName), startsAt, expiresAt],
     );
     revalidatePath('/laptop-procurement/delegate');
     await sendLaptopDelegationNotification('granted', {
@@ -1785,6 +1862,7 @@ export async function adminGrantLaptopDelegation(input: {
   delegatorEmail: string;
   delegateEmail: string;
   delegateName?: string;
+  startsAt?: string | null;
   endsAt?: string | null;
 }): Promise<ActionResult<{ id: number }>> {
   try {
@@ -1803,7 +1881,11 @@ export async function adminGrantLaptopDelegation(input: {
       return { success: false, error: 'The selected approver has no approval authority to delegate.' };
     }
     const delegatorName = delegatorRow?.name || delegatorEmail;
+    const startsAt = input.startsAt && input.startsAt.trim() ? input.startsAt.trim() : null;
     const expiresAt = input.endsAt && input.endsAt.trim() ? input.endsAt.trim() : null;
+    if (startsAt && expiresAt && new Date(startsAt) >= new Date(expiresAt)) {
+      return { success: false, error: 'End date must be after the start date.' };
+    }
 
     // Replace any existing active delegation for this same pair so there is only one live grant.
     await exec(
@@ -1812,9 +1894,9 @@ export async function adminGrantLaptopDelegation(input: {
       [delegatorEmail, delegateEmail],
     );
     const result = await exec(
-      `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, expires_at)
-       VALUES (?, ?, ?, ?, ?) RETURNING id`,
-      [delegatorEmail, delegatorName, delegateEmail, blankToNull(input.delegateName), expiresAt],
+      `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, starts_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+      [delegatorEmail, delegatorName, delegateEmail, blankToNull(input.delegateName), startsAt, expiresAt],
     );
     revalidatePath('/admin');
     revalidatePath('/laptop-procurement/delegate');

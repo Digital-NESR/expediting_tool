@@ -12,7 +12,13 @@ const LBL = 'mb-1 block text-xs font-semibold text-slate-500';
 const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 
 function isLive(d: LaptopDelegationRow): boolean {
-  return d.is_active && (!d.expires_at || new Date(d.expires_at).getTime() > Date.now());
+  return d.is_active
+    && (!d.starts_at || new Date(d.starts_at).getTime() <= Date.now())
+    && (!d.expires_at || new Date(d.expires_at).getTime() > Date.now());
+}
+
+function isScheduled(d: LaptopDelegationRow): boolean {
+  return d.is_active && Boolean(d.starts_at) && new Date(d.starts_at!).getTime() > Date.now();
 }
 
 export default function LaptopDelegateClient({ data }: { data: LaptopDelegationData }) {
@@ -20,6 +26,7 @@ export default function LaptopDelegateClient({ data }: { data: LaptopDelegationD
   const [isPending, startTransition] = useTransition();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [banner, setBanner] = useState('');
   const [error, setError] = useState('');
@@ -31,10 +38,10 @@ export default function LaptopDelegateClient({ data }: { data: LaptopDelegationD
     setBanner('');
     setError('');
     startTransition(async () => {
-      const result = await grantLaptopDelegation({ delegateEmail: email, delegateName: name, endsAt: endsAt || null });
+      const result = await grantLaptopDelegation({ delegateEmail: email, delegateName: name, startsAt: startsAt || null, endsAt: endsAt || null });
       if (result.success) {
         setBanner(`Delegated your approvals to ${email}.`);
-        setEmail(''); setName(''); setEndsAt('');
+        setEmail(''); setName(''); setStartsAt(''); setEndsAt('');
         router.refresh();
       } else {
         setError(result.error ?? 'Failed to create delegation.');
@@ -88,6 +95,11 @@ export default function LaptopDelegateClient({ data }: { data: LaptopDelegationD
                 <input className={INP} value={name} onChange={e => setName(e.target.value)} placeholder="Full name" />
               </div>
               <div>
+                <label className={LBL}>Start date (optional)</label>
+                <input type="date" className={INP} value={startsAt} onChange={e => setStartsAt(e.target.value)} />
+                <p className="mt-1 text-xs text-slate-500/80">Leave blank to start immediately.</p>
+              </div>
+              <div>
                 <label className={LBL}>End date (optional)</label>
                 <input type="date" className={INP} value={endsAt} onChange={e => setEndsAt(e.target.value)} />
                 <p className="mt-1 text-xs text-slate-500/80">Leave blank to keep active until you revoke it.</p>
@@ -114,23 +126,25 @@ export default function LaptopDelegateClient({ data }: { data: LaptopDelegationD
             <div className="p-8 text-center text-sm text-slate-500">You haven&apos;t delegated to anyone.</div>
           ) : data.granted.map(d => {
             const live = isLive(d);
+            const scheduled = isScheduled(d);
             return (
               <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold text-slate-900">{d.delegate_name || d.delegate_email}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${live ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'bg-slate-100 text-slate-500'}`}>
-                      {live ? 'Active' : 'Inactive'}
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${live ? 'bg-[#307c4c]/10 text-[#307c4c]' : scheduled ? 'bg-amber-500/10 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {live ? 'Active' : scheduled ? 'Scheduled' : 'Inactive'}
                     </span>
                   </div>
                   <p className="mt-0.5 truncate text-xs text-slate-500">{d.delegate_email}</p>
                   <p className="mt-0.5 text-[11px] text-slate-500/80">
                     Granted {fmtDate(d.created_at)}
+                    {d.starts_at ? ` · starts ${fmtDate(d.starts_at)}` : ''}
                     {d.expires_at ? ` · ends ${fmtDate(d.expires_at)}` : ''}
                     {d.revoked_at ? ` · revoked ${fmtDate(d.revoked_at)}` : ''}
                   </p>
                 </div>
-                {live && (
+                {(live || scheduled) && (
                   <button
                     onClick={() => revoke(d.id, d.delegate_name || d.delegate_email)}
                     disabled={isPending}

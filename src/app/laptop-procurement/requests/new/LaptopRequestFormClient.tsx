@@ -73,12 +73,14 @@ export default function LaptopRequestFormClient({
   accessView,
   devices,
   editRequest,
+  defaultEmployeeId,
 }: {
   requesterName: string;
   requesterEmail: string;
   accessView: LaptopAccessView;
   devices: LaptopDeviceOption[];
   editRequest?: LaptopRequest;
+  defaultEmployeeId?: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -99,37 +101,48 @@ export default function LaptopRequestFormClient({
   const [typeOfDevice, setTypeOfDevice] = useState(editRequest?.type_of_device ?? '');
   const [requestedModel, setRequestedModel] = useState(editRequest?.requested_model ?? '');
   const [specialRequirements, setSpecialRequirements] = useState(editRequest?.special_requirements ?? '');
-  const [unitId, setUnitId] = useState(editRequest?.unit_id ?? '');
-  const [currentBrand, setCurrentBrand] = useState(editRequest?.current_brand ?? '');
-  const [currentModel, setCurrentModel] = useState(editRequest?.current_model ?? '');
-  const [serialNo, setSerialNo] = useState(editRequest?.serial_no ?? '');
-  const [ageYears, setAgeYears] = useState(editRequest?.age_years ?? '');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const isEditMode = Boolean(editRequest);
   const detailHref = editRequest ? `/laptop-procurement/requests/${editRequest.id}` : '/laptop-procurement/requests';
-  const showCurrentDevice = requestType === 'Upgrade/Replacement' || requestType === 'Unit';
+
+  // "Computer For" only applies to New Employee requests (HR names the new hire);
+  // Unit requests name the unit instead, via the same underlying field; self-service
+  // Upgrade/Replacement requests need neither since the requester is the recipient.
+  const isNewEmployee = requestType === 'New Employee';
+  const isUnit = requestType === 'Unit';
+  const isSelfRequest = requestType === 'Upgrade/Replacement' || isUnit;
 
   const modelOptions = useMemo(
     () => [...new Set(devices.filter(d => !typeOfDevice || d.type_of_device === typeOfDevice).map(d => d.model))],
     [devices, typeOfDevice],
   );
 
+  // Self-service requests are for the requester's own device, so their HR employee
+  // ID can be pulled from the directory instead of typed in. New Employee requests
+  // are on behalf of someone else, so this never applies there.
+  function handleRequestTypeChange(value: string) {
+    setRequestType(value);
+    const willBeSelfRequest = value === 'Upgrade/Replacement' || value === 'Unit';
+    if (!isEditMode && willBeSelfRequest && defaultEmployeeId && !employeeId.trim()) {
+      setEmployeeId(defaultEmployeeId);
+    }
+  }
+
   function validate() {
     const e: Record<string, string> = {};
     if (!requestType) e.requestType = 'Type of request is required.';
+    if (isSelfRequest && !employeeId.trim()) e.employeeId = 'Employee ID is required.';
+    if (isNewEmployee && !computerFor.trim()) e.computerFor = 'Computer For is required.';
+    if (isUnit && !computerFor.trim()) e.computerFor = 'Unit Name is required.';
     if (!country) e.country = 'Country is required.';
     if (!segment) e.segment = 'Segment is required.';
+    if (!department.trim()) e.department = 'Department is required.';
+    if (!position.trim()) e.position = 'Position is required.';
+    if (!companyName.trim()) e.companyName = 'Company Name is required.';
     if (!typeOfDevice) e.typeOfDevice = 'Type of device is required.';
     if (!requestedModel) e.requestedModel = 'Requested model is required.';
     if (!specialRequirements.trim()) e.specialRequirements = 'Special requirements / justification is required.';
-    if (showCurrentDevice) {
-      if (!unitId.trim()) e.unitId = 'Unit ID is required.';
-      if (!currentBrand.trim()) e.currentBrand = 'Brand is required.';
-      if (!currentModel.trim()) e.currentModel = 'Model is required.';
-      if (!serialNo.trim()) e.serialNo = 'Serial No. is required.';
-      if (!ageYears.trim()) e.ageYears = 'Age (Years) is required.';
-    }
     if (selectedFiles.some(file => file.size > MAX_FILE_BYTES)) e.attachments = 'Each file must be 10 MB or smaller.';
     return e;
   }
@@ -175,11 +188,6 @@ export default function LaptopRequestFormClient({
       type_of_device: typeOfDevice,
       requested_model: requestedModel,
       special_requirements: specialRequirements,
-      unit_id: showCurrentDevice ? unitId : '',
-      current_brand: showCurrentDevice ? currentBrand : '',
-      current_model: showCurrentDevice ? currentModel : '',
-      serial_no: showCurrentDevice ? serialNo : '',
-      age_years: showCurrentDevice ? ageYears : '',
     };
 
     startTransition(async () => {
@@ -213,7 +221,7 @@ export default function LaptopRequestFormClient({
           <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Request</h2>
           <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-4">
             <Field label="Type of Request" required error={errors.requestType}>
-              <select className={errors.requestType ? ERR : INP} value={requestType} onChange={e => setRequestType(e.target.value)}>
+              <select className={errors.requestType ? ERR : INP} value={requestType} onChange={e => handleRequestTypeChange(e.target.value)}>
                 <option value="">Select request type</option>
                 {REQUEST_TYPE_OPTIONS.map(item => <option key={item}>{item}</option>)}
               </select>
@@ -223,12 +231,19 @@ export default function LaptopRequestFormClient({
                 {PRIORITY_OPTIONS.map(item => <option key={item}>{item}</option>)}
               </select>
             </Field>
-            <Field label="Employee ID">
-              <input className={INP} value={employeeId} onChange={e => setEmployeeId(e.target.value)} />
+            <Field label="Employee ID" required={isSelfRequest} error={errors.employeeId}>
+              <input className={errors.employeeId ? ERR : INP} value={employeeId} onChange={e => setEmployeeId(e.target.value)} />
             </Field>
-            <Field label="Computer For">
-              <input className={INP} value={computerFor} onChange={e => setComputerFor(e.target.value)} placeholder="Person / team the device is for" />
-            </Field>
+            {!isNewEmployee && !isUnit ? null : (
+              <Field label={isUnit ? 'Unit Name' : 'Computer For'} required error={errors.computerFor}>
+                <input
+                  className={errors.computerFor ? ERR : INP}
+                  value={computerFor}
+                  onChange={e => setComputerFor(e.target.value)}
+                  placeholder={isUnit ? "Enter the unit's name" : "Enter the Employee's Name for the Laptop Request"}
+                />
+              </Field>
+            )}
             <Field label="Country" required error={errors.country}>
               <select className={errors.country ? ERR : INP} value={country} onChange={e => setCountry(e.target.value)}>
                 <option value="">Find Country</option>
@@ -241,11 +256,11 @@ export default function LaptopRequestFormClient({
                 {SEGMENT_OPTIONS.map(item => <option key={item}>{item}</option>)}
               </select>
             </Field>
-            <Field label="Department">
-              <input className={INP} value={department} onChange={e => setDepartment(e.target.value)} />
+            <Field label="Department" required error={errors.department}>
+              <input className={errors.department ? ERR : INP} value={department} onChange={e => setDepartment(e.target.value)} />
             </Field>
-            <Field label="Position">
-              <input className={INP} value={position} onChange={e => setPosition(e.target.value)} />
+            <Field label="Position" required error={errors.position}>
+              <input className={errors.position ? ERR : INP} value={position} onChange={e => setPosition(e.target.value)} />
             </Field>
           </div>
         </section>
@@ -256,8 +271,8 @@ export default function LaptopRequestFormClient({
             <Field label="Company Code">
               <input className={INP} value={companyCode} onChange={e => setCompanyCode(e.target.value)} />
             </Field>
-            <Field label="Company Name">
-              <input className={INP} value={companyName} onChange={e => setCompanyName(e.target.value)} />
+            <Field label="Company Name" required error={errors.companyName}>
+              <input className={errors.companyName ? ERR : INP} value={companyName} onChange={e => setCompanyName(e.target.value)} />
             </Field>
             <Field label="Cost Center">
               <input className={INP} value={costCenter} onChange={e => setCostCenter(e.target.value)} />
@@ -291,19 +306,6 @@ export default function LaptopRequestFormClient({
             </Field>
           </div>
         </section>
-
-        {showCurrentDevice && (
-          <section className={`${GLASS} p-5 sm:p-6`}>
-            <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Existing Device (being replaced / upgraded)</h2>
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
-              <Field label="Unit ID" required error={errors.unitId}><input className={errors.unitId ? ERR : INP} value={unitId} onChange={e => setUnitId(e.target.value)} /></Field>
-              <Field label="Brand" required error={errors.currentBrand}><input className={errors.currentBrand ? ERR : INP} value={currentBrand} onChange={e => setCurrentBrand(e.target.value)} /></Field>
-              <Field label="Model" required error={errors.currentModel}><input className={errors.currentModel ? ERR : INP} value={currentModel} onChange={e => setCurrentModel(e.target.value)} /></Field>
-              <Field label="Serial No." required error={errors.serialNo}><input className={errors.serialNo ? ERR : INP} value={serialNo} onChange={e => setSerialNo(e.target.value)} /></Field>
-              <Field label="Age (Years)" required error={errors.ageYears}><input className={errors.ageYears ? ERR : INP} value={ageYears} onChange={e => setAgeYears(e.target.value)} /></Field>
-            </div>
-          </section>
-        )}
 
         <section className={`${GLASS} p-5 sm:p-6`}>
           <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Attachments</h2>
