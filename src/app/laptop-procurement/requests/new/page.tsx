@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getLaptopActor, getLaptopDeviceOptions } from '@/app/actions/laptopProcurement';
+import { getEmployeeIdByEmail } from '@/app/actions/employeeDirectory';
 import { getProcureGuardUser } from '@/lib/auth';
 import { canUseLaptopOperationalPages } from '@/lib/laptopProcurement-utils';
 import LaptopRequestFormClient from './LaptopRequestFormClient';
@@ -15,12 +16,16 @@ export default async function NewLaptopRequestPage() {
     redirect('/laptop-procurement/analytics');
   }
 
-  const devices = await getLaptopDeviceOptions();
+  const [devices, defaultEmployeeId] = await Promise.all([
+    getLaptopDeviceOptions(),
+    getEmployeeIdByEmail(user?.email ?? ''),
+  ]);
 
   return (
     <LaptopRequestFormClient
       requesterName={user?.name ?? user?.email ?? ''}
       requesterEmail={user?.email ?? ''}
+      defaultEmployeeId={defaultEmployeeId}
       accessView={actor.effectiveAccessView}
       devices={devices}
     />

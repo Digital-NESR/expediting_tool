@@ -183,6 +183,10 @@ function ExistingDeviceSection({
 
   function save() {
     setError('');
+    if (!unitId.trim() || !currentBrand.trim() || !currentModel.trim() || !serialNo.trim() || !ageYears.trim() || !sapNumber.trim()) {
+      setError('All Existing Device fields are required.');
+      return;
+    }
     startTransition(async () => {
       const result = await updateLaptopExistingDevice(request.id, {
         unit_id: unitId,
@@ -211,30 +215,30 @@ function ExistingDeviceSection({
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Unit ID</label>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Unit ID</label>
               <input className={INP} value={unitId} onChange={e => setUnitId(e.target.value)} />
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Brand</label>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Brand</label>
               <input className={INP} value={currentBrand} onChange={e => setCurrentBrand(e.target.value)} />
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Model</label>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Model</label>
               <input className={INP} value={currentModel} onChange={e => setCurrentModel(e.target.value)} />
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Serial No.</label>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Serial No.</label>
               <input className={INP} value={serialNo} onChange={e => setSerialNo(e.target.value)} />
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Age</label>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Age</label>
               <select className={INP} value={ageYears} onChange={e => setAgeYears(e.target.value)}>
                 <option value="">Select age</option>
                 {DEVICE_AGE_OPTIONS.map(o => <option key={o}>{o}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">SAP Number</label>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>SAP Number</label>
               <input className={INP} value={sapNumber} onChange={e => setSapNumber(e.target.value)} />
             </div>
           </div>
