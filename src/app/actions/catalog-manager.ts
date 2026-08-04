@@ -156,7 +156,7 @@ async function initCatalogManagerSchema(): Promise<void> {
   execSchema(`CREATE TABLE IF NOT EXISTS spend_category (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
-    type TEXT NOT NULL DEFAULT 'Services',
+    type TEXT NOT NULL DEFAULT 'Indirect',
     status TEXT NOT NULL DEFAULT 'Active'
   )`);
 
@@ -379,13 +379,6 @@ async function initCatalogManagerSchema(): Promise<void> {
     material_description TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
-
-  // Re-classify entries still tagged with the old Direct/Indirect spend types to the
-  // new three-way classification (Materials & Assets / Consumables / Services) from their category.
-  // (Included in the same batch below — safe to run before seeding since it only touches rows
-  // already tagged with the legacy values, which seeding never inserts.)
-  execSchema(`UPDATE catalog_entry e SET spend_type = sc.type
-    FROM spend_category sc WHERE sc.id = e.category_id AND e.spend_type IN ('Direct', 'Indirect')`);
 
   // Flush every collected statement in ONE round trip (see execBatch) before anything below reads
   // or writes these tables — seeding depends on them existing.
@@ -719,7 +712,7 @@ async function seedDemoEntries(): Promise<void> {
     const supplierId = await upsertSupplier(d.supplier, d.vendor, d.manager);
     const cat = await sql<{ id: number; type: string }[]>(`SELECT id, type FROM spend_category WHERE name = ?`, [d.category]);
     const categoryId = cat[0]?.id ?? null;
-    const spendType = (cat[0]?.type as SpendType) ?? 'Services';
+    const spendType = (cat[0]?.type as SpendType) ?? 'Indirect';
     const sub = categoryId
       ? await sql<{ id: number }[]>(`SELECT id FROM spend_subcategory WHERE category_id = ? AND name = ?`, [categoryId, d.sub])
       : [];
@@ -1409,7 +1402,7 @@ async function loadThresholdRules(): Promise<ThresholdRule[]> {
 async function resolveRefs(input: CatalogEntryInput) {
   const cat = await sql<{ id: number; type: string }[]>(`SELECT id, type FROM spend_category WHERE name = ?`, [input.category_name]);
   const categoryId = cat[0]?.id ?? null;
-  const spendType = (input.spend_type ?? (cat[0]?.type as SpendType)) ?? 'Services';
+  const spendType = (input.spend_type ?? (cat[0]?.type as SpendType)) ?? 'Indirect';
   let subId: number | null = null;
   if (categoryId && input.subcategory_name) {
     const sub = await sql<{ id: number }[]>(`SELECT id FROM spend_subcategory WHERE category_id = ? AND name = ?`, [categoryId, input.subcategory_name]);
