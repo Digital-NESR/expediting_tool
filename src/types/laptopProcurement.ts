@@ -3,6 +3,7 @@ export type LaptopRequestStatus =
   | 'IT Approval'
   | 'CM Approval'
   | 'Procure New Details'
+  | 'CM Confirm Device'
   | 'IT Director Approval'
   | 'Supply Chain Director Approval'
   | 'Procure New'

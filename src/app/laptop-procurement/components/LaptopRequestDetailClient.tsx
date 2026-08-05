@@ -95,9 +95,9 @@ function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'
   function stepState(step: LaptopWorkflowStep, index: number): StepState {
     if (terminalApproved) return 'complete';
     if (approvedDateByStatus[step.status]) return 'complete';
-    // 'Procure New Details' has no date of its own — infer completion once the chain
-    // has moved past it (IT Director has since signed off).
-    if (step.status === 'Procure New Details' && request.itd_approved_date) return 'complete';
+    // 'Procure New Details' and 'CM Confirm Device' have no date of their own — infer
+    // completion once the chain has moved past them (IT Director has since signed off).
+    if ((step.status === 'Procure New Details' || step.status === 'CM Confirm Device') && request.itd_approved_date) return 'complete';
     if (!isStopped && index === currentIndex) return 'current';
     if (isStopped) return 'skipped';
     return 'upcoming';

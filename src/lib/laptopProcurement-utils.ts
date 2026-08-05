@@ -175,6 +175,7 @@ export const APPROVAL_ACTIVE_STATUSES: LaptopRequestStatus[] = [
   'IT Approval',
   'CM Approval',
   'Procure New Details',
+  'CM Confirm Device',
   'IT Director Approval',
   'Supply Chain Director Approval',
 ];
@@ -197,6 +198,7 @@ export const STATUS_OPTIONS: LaptopRequestStatus[] = [
   'IT Approval',
   'CM Approval',
   'Procure New Details',
+  'CM Confirm Device',
   'IT Director Approval',
   'Supply Chain Director Approval',
   'Procure New',
@@ -285,6 +287,10 @@ export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAss
     // request — but an assigned-inventory unit still needs IT Director / SC Director
     // sign-off, so that path continues the chain instead of stopping here.
     'CM Approval': hasAssignedUnit ? 'IT Director Approval' : 'Approved',
+    // The CM confirming the exact new device IT Manager picked — always continues to
+    // IT Director, regardless of hasAssignedUnit (that decision is long since resolved
+    // by the time a request reaches this checkpoint).
+    'CM Confirm Device': 'IT Director Approval',
     'IT Director Approval': 'Supply Chain Director Approval',
     // Final sign-off: a genuine new-device procurement lands on 'Procure New'; an
     // assigned-inventory unit lands on 'Assign from Inventory' instead, so dashboard
@@ -300,6 +306,7 @@ export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAss
 export function getRejectStatusForStage(currentStatus: LaptopRequestStatus): LaptopRequestStatus | null {
   switch (currentStatus) {
     case 'CM Approval':
+    case 'CM Confirm Device':
     case 'IT Director Approval':
     case 'Supply Chain Director Approval':
       return 'IT Approval';
@@ -319,6 +326,10 @@ export function getRequiredPermissionForStage(currentStatus: LaptopRequestStatus
     // same identity that owns the initial intake stage.
     case 'Procure New Details':
       return 'canReviewItManager';
+    // Same Country Manager identity confirming the device IT Manager picked, before
+    // it continues to IT Director.
+    case 'CM Confirm Device':
+      return 'canReviewCountryManager';
     case 'IT Director Approval':
       return 'canReviewItDirector';
     case 'Supply Chain Director Approval':
@@ -370,6 +381,7 @@ export const WORKFLOW_STEPS: LaptopWorkflowStep[] = [
   { status: 'Submitted', label: 'IT Review', owner: 'IT Manager', description: 'IT checks the device condition and inventory, then repairs, assigns from stock, or sends for approval.' },
   { status: 'CM Approval', label: 'Country Manager Approval', owner: 'Country Manager', description: 'Country Manager approves the request outright, or flags it for new-device procurement.' },
   { status: 'Procure New Details', label: 'Device Details', owner: 'IT Manager', description: 'IT Team specifies the new device to be procured before the remaining approvals.' },
+  { status: 'CM Confirm Device', label: 'Country Manager Confirmation', owner: 'Country Manager', description: 'Country Manager confirms the specific device before it goes to IT Director.' },
   { status: 'IT Director Approval', label: 'IT Director Approval', owner: 'IT Director', description: 'IT Director reviews the procurement request.' },
   { status: 'Supply Chain Director Approval', label: 'Supply Chain Director Approval', owner: 'Supply Chain Director', description: 'Supply Chain Director gives the final procurement approval.' },
   { status: 'Procure New', label: 'Procure New', owner: 'Workflow Complete', description: 'Approved — a new device will be procured.' },
@@ -425,6 +437,7 @@ export function getStatusBadge(status: string): { label: string; className: stri
     'IT Approval': { label: 'IT Review', className: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
     'CM Approval': { label: 'Country Manager', className: 'bg-cyan-50 text-cyan-800 border-cyan-200', dot: 'bg-cyan-500' },
     'Procure New Details': { label: 'New Device Details', className: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
+    'CM Confirm Device': { label: 'Country Manager (Confirm Device)', className: 'bg-cyan-50 text-cyan-800 border-cyan-200', dot: 'bg-cyan-500' },
     'IT Director Approval': { label: 'IT Director', className: 'bg-teal-50 text-teal-800 border-teal-200', dot: 'bg-teal-500' },
     'Supply Chain Director Approval': { label: 'SC Director', className: 'bg-indigo-50 text-indigo-800 border-indigo-200', dot: 'bg-indigo-500' },
     'Procure New': { label: 'Procure New', className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },

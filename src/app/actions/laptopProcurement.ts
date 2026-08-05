@@ -533,6 +533,7 @@ function getLaptopApprovalStage(status: LaptopRequestStatus): LaptopApprovalStag
     case 'Procure New Details':
       return 'IT Manager';
     case 'CM Approval':
+    case 'CM Confirm Device':
       return 'Country Manager';
     case 'IT Director Approval':
       return 'IT Director';
@@ -727,6 +728,8 @@ function getPendingWithLabel(status: LaptopRequestStatus): string {
       return 'Country Manager';
     case 'Procure New Details':
       return 'IT Team';
+    case 'CM Confirm Device':
+      return 'Country Manager';
     case 'IT Director Approval':
       return 'IT Director';
     case 'Supply Chain Director Approval':
@@ -1254,6 +1257,7 @@ const STAGE_COMMENT_COLUMN: Partial<Record<LaptopRequestStatus, string>> = {
 // a reject option appear here (see getRejectStatusForStage).
 const REJECTING_STAGE_LABEL: Partial<Record<LaptopRequestStatus, string>> = {
   'CM Approval': 'Country Manager',
+  'CM Confirm Device': 'Country Manager',
   'IT Director Approval': 'IT Director',
   'Supply Chain Director Approval': 'Supply Chain Director',
 };
@@ -1465,7 +1469,8 @@ export async function updateLaptopRequestStatus(
 /**
  * Country Manager flags a request as needing a brand new device instead of approving
  * it outright — it comes back here so the IT Team can specify exactly what to procure
- * (the requester never picks a model upfront). Submitting forwards to IT Director.
+ * (the requester never picks a model upfront). Submitting sends it back to the Country
+ * Manager to confirm the specific device before it continues to IT Director.
  */
 export async function submitProcureNewDetails(id: number, input: SubmitProcureNewDetailsInput): Promise<ActionResult> {
   try {
@@ -1487,7 +1492,7 @@ export async function submitProcureNewDetails(id: number, input: SubmitProcureNe
 
     const typeOfDevice = requireText(input.type_of_device, 'Type of device');
     const model = requireText(input.model, 'Model');
-    const nextStatus: LaptopRequestStatus = 'IT Director Approval';
+    const nextStatus: LaptopRequestStatus = 'CM Confirm Device';
 
     await exec(
       `UPDATE laptop_requests SET
@@ -1495,7 +1500,7 @@ export async function submitProcureNewDetails(id: number, input: SubmitProcureNe
        WHERE id = ?`,
       [typeOfDevice, model, nextStatus, getPendingWithLabel(nextStatus), id],
     );
-    await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Device details submitted, sent to IT Director', actor });
+    await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Device details submitted, sent to Country Manager for confirmation', actor });
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
     await notifyLaptopNextApprover(serialise<LaptopRequest>({ ...row, status: nextStatus, type_of_device: typeOfDevice, requested_model: model }));
