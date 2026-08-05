@@ -1,6 +1,7 @@
 'use server';
 
 import type { QueryResultRow } from 'pg';
+import { createHash } from 'crypto';
 import learningHubPool from '@/lib/db-learning-hub';
 import { SEED_TRACKS, type SeedTrack } from '@/lib/learning-hub-seed-content';
 import type {
@@ -76,9 +77,11 @@ async function ensureLearningHubSchema(): Promise<void> {
     icon TEXT,
     color TEXT,
     order_index INT NOT NULL DEFAULT 0,
+    seed_version TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
+  await execSchema(`ALTER TABLE learning_tracks ADD COLUMN IF NOT EXISTS seed_version TEXT`);
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_courses (
     id SERIAL PRIMARY KEY,
@@ -191,56 +194,75 @@ async function insertTrackCourses(trackId: number, track: SeedTrack): Promise<vo
   );
 }
 
-async function seedLearningHubDefaultsIfEmpty(): Promise<void> {
-  const existing = await sql<QueryResultRow[]>(`SELECT COUNT(*)::int AS count FROM learning_tracks`);
-  if (Number(existing[0]?.count ?? 0) > 0) return;
-
-  await Promise.all(
-    SEED_TRACKS.map(async (track, trackIdx) => {
-      const trackResult = await exec(
-        `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-        [track.key, track.name, track.description, track.icon, track.color, trackIdx],
-      );
-      await insertTrackCourses(trackResult.insertId, track);
-    }),
-  );
+// A stable fingerprint of a track's code-defined content. Stored per-track as seed_version so we can
+// tell whether SEED_TRACKS changed since the last sync, without diffing every field by hand.
+function hashSeedTrack(track: SeedTrack): string {
+  return createHash('sha256').update(JSON.stringify(track)).digest('hex');
 }
 
-// Admin-only escape hatch: the empty-DB seed above only ever runs once. If an earlier broken deploy
-// left partial or stale content behind, later edits to the seed content are otherwise silently ignored
-// forever. This resets one track's courses (and their modules/lessons/progress, via cascade) back to
-// whatever is currently defined in code for that track key.
+async function insertNewSeedTrack(track: SeedTrack, orderIndex: number, version: string): Promise<number> {
+  const result = await exec(
+    `INSERT INTO learning_tracks (key, name, description, icon, color, order_index, seed_version) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [track.key, track.name, track.description, track.icon, track.color, orderIndex, version],
+  );
+  await insertTrackCourses(result.insertId, track);
+  return result.insertId;
+}
+
+async function applySeedTrackToExisting(trackId: number, track: SeedTrack, version: string): Promise<void> {
+  await exec(
+    `UPDATE learning_tracks SET name = ?, description = ?, icon = ?, color = ?, seed_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [track.name, track.description, track.icon, track.color, version, trackId],
+  );
+  await exec(`DELETE FROM learning_courses WHERE track_id = ?`, [trackId]);
+  await insertTrackCourses(trackId, track);
+}
+
+// Runs on every cold start (cheap once synced — just one SELECT + hash comparison per track).
+// A track whose code content hasn't changed since the last sync (seed_version matches) is left
+// completely alone, so admin edits made through the CMS survive unrelated deploys. A track whose
+// code content DID change (this is how a content push like the SAP video rebuild reaches production)
+// gets its courses replaced with what's now in SEED_TRACKS automatically — no manual "reset" needed.
+async function syncSeedTracks(): Promise<void> {
+  const existingTracks = await sql<QueryResultRow[]>(`SELECT id, key, seed_version FROM learning_tracks`);
+  const existingByKey = new Map(existingTracks.map((t) => [String(t.key), t]));
+
+  for (let trackIdx = 0; trackIdx < SEED_TRACKS.length; trackIdx++) {
+    const track = SEED_TRACKS[trackIdx];
+    const version = hashSeedTrack(track);
+    const existing = existingByKey.get(track.key);
+
+    if (!existing) {
+      await insertNewSeedTrack(track, trackIdx, version);
+      continue;
+    }
+    if (String(existing.seed_version ?? '') === version) continue;
+    await applySeedTrackToExisting(Number(existing.id), track, version);
+  }
+}
+
+// Admin escape hatch: force one track back to its current code-defined content right now, even if
+// the auto-sync above already considers it up to date (e.g. to discard manual CMS edits deliberately).
 export async function resyncTrackFromSeed(trackKey: string): Promise<{ success: boolean; message: string }> {
   await ensureLearningHubSchema();
   const seedTrack = SEED_TRACKS.find((t) => t.key === trackKey);
   if (!seedTrack) return { success: false, message: `No seed content defined for track "${trackKey}".` };
+  const version = hashSeedTrack(seedTrack);
 
   const existingTrack = await sql<QueryResultRow[]>(`SELECT id FROM learning_tracks WHERE key = ?`, [trackKey]);
-  let trackId: number;
   if (existingTrack[0]) {
-    trackId = Number(existingTrack[0].id);
-    await exec(
-      `UPDATE learning_tracks SET name = ?, description = ?, icon = ?, color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [seedTrack.name, seedTrack.description, seedTrack.icon, seedTrack.color, trackId],
-    );
-    await exec(`DELETE FROM learning_courses WHERE track_id = ?`, [trackId]);
+    await applySeedTrackToExisting(Number(existingTrack[0].id), seedTrack, version);
   } else {
     const trackIdx = SEED_TRACKS.indexOf(seedTrack);
-    const result = await exec(
-      `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-      [seedTrack.key, seedTrack.name, seedTrack.description, seedTrack.icon, seedTrack.color, trackIdx],
-    );
-    trackId = result.insertId;
+    await insertNewSeedTrack(seedTrack, trackIdx, version);
   }
-
-  await insertTrackCourses(trackId, seedTrack);
   return { success: true, message: `Reset "${seedTrack.name}" to its default seed content.` };
 }
 
 async function ensureLearningHubReady(): Promise<void> {
   if (!readyPromise) {
     readyPromise = ensureLearningHubSchema()
-      .then(() => seedLearningHubDefaultsIfEmpty())
+      .then(() => syncSeedTracks())
       .catch((err) => {
         // Don't let a failed cold-start attempt permanently wedge a warm serverless instance —
         // clear the cache so the next request gets a fresh try instead of the same cached rejection.
