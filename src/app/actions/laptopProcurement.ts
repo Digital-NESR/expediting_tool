@@ -1347,8 +1347,9 @@ export async function updateLaptopRequestStatus(
       // never here.
       const isApproveMove = getNextApprovalStatus(currentStatus, hasAssignedUnit) === status;
       // Country Manager can flag a request as needing a brand new device procured instead
-      // of approving it outright — routes to the IT Team for device details.
-      const isCmProcureNewMove = currentStatus === 'CM Approval' && status === 'Procure New Details' && !hasAssignedUnit;
+      // of approving it outright — routes to the IT Team for device details. Also how a CM
+      // overrides an IT Manager's "Assign existing laptop" pick (see clearsAssignedUnit below).
+      const isCmProcureNewMove = currentStatus === 'CM Approval' && status === 'Procure New Details';
       // Repair & Closed stays an IT-Manager-only outcome (only they assess the physical device).
       const isRepairMove = IT_MANAGER_STATUSES.includes(currentStatus) && status === 'Repaired & Closed';
 
@@ -1395,6 +1396,14 @@ export async function updateLaptopRequestStatus(
     const assignedLaptopAssignment = assignedLaptop
       ? `, assigned_serial_no = ?, assigned_model = ?, assigned_age = ?`
       : '';
+    // A CM choosing "Procure New" on a request that already has an assigned unit is
+    // overriding the IT Manager's pick — clear it so hasAssignedUnit resets to false and
+    // the rest of the chain (IT Director, SC Director) treats this as a genuine new-device
+    // procurement rather than continuing the now-abandoned assign-from-inventory path.
+    const clearsAssignedUnit = currentStatus === 'CM Approval' && status === 'Procure New Details' && hasAssignedUnit;
+    const clearAssignedUnitAssignment = clearsAssignedUnit
+      ? `, assigned_serial_no = NULL, assigned_model = NULL, assigned_age = NULL`
+      : '';
 
     const params: QueryParam[] = [
       status,
@@ -1407,11 +1416,11 @@ export async function updateLaptopRequestStatus(
     ];
     if (stageCommentAssignment) params.push(comment);
     if (stageApproverAssignment) params.push(actor.name);
-    if (assignedLaptopAssignment) {
+    if (assignedLaptop) {
       params.push(
-        blankToNull(assignedLaptop!.serial_no),
-        blankToNull(assignedLaptop!.model),
-        blankToNull(assignedLaptop!.age),
+        blankToNull(assignedLaptop.serial_no),
+        blankToNull(assignedLaptop.model),
+        blankToNull(assignedLaptop.age),
       );
     }
     params.push(id);
@@ -1424,7 +1433,7 @@ export async function updateLaptopRequestStatus(
          reviewed_by_email = ?,
          reviewed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
          rejection_reason = ?,
-         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment},
+         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment}${clearAssignedUnitAssignment},
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       params,

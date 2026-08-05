@@ -348,9 +348,10 @@ export function getLaptopAvailableActions(
     // the normal chain (see getNextApprovalStatus) rather than ending immediately.
     canAssignInventory: isItManagerStage && ownsCurrentStep,
     // Only the Country Manager can flag a request as needing a brand new device
-    // procured — everyone else just approves forward. Not offered once the request
-    // is already on the assigned-inventory path — that decision is already made.
-    canProcureNew: isCmStage && ownsCurrentStep && !hasAssignedUnit,
+    // procured — everyone else just approves forward. Stays available even once the
+    // request is on the assigned-inventory path, so the CM can still override the IT
+    // Manager's pick and send it back for a genuine new-device procurement instead.
+    canProcureNew: isCmStage && ownsCurrentStep,
     canMarkRepaired: isItManagerStage && permissions.canReviewItManager,
     canSubmitProcureDetails: isProcureDetailsStage && ownsCurrentStep,
     rejectStatus: getRejectStatusForStage(currentStatus),
