@@ -250,48 +250,147 @@ It is worth being honest that not every underperforming supplier relationship ca
     ],
   },
 
-  /* ───────────────────────────── SAP (placeholder) ───────────────────────────── */
+  /* ───────────────────────────── SAP (real videos from the NESR SAP Training Hub) ── */
   {
     key: 'sap',
     name: 'SAP',
-    description: 'SAP navigation and Materials Management basics for supply chain users. Placeholder content — expand via the admin CMS.',
+    description: 'Real SAP training videos from the NESR SAP Training Hub, organized by topic.',
     icon: 'layout-grid',
     color: '#1e6bb8',
     courses: [
       {
-        title: 'SAP Essentials for Supply Chain',
-        description: 'A starter course covering SAP navigation and core Materials Management transactions. Placeholder — replace with NESR-specific SAP training material.',
-        status: 'draft',
+        title: 'SAP Training Videos',
+        description: 'Video walkthroughs pulled from the NESR SAP Training Hub, covering Master Data, Procurement & Logistics, and Inventory. Only topics with an available video are included — see the Training Hub itself for the full manual/topic list.',
+        status: 'published',
         modules: [
           {
-            title: 'Navigating SAP',
+            title: 'Master Data',
             resourceLabel: 'NESR SAP Training Hub',
             resourceUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/SitePages/Home.aspx',
             lessons: [
               {
-                title: 'Getting Around the SAP GUI',
+                title: 'How to Extract a Report — T-code MKVZ',
                 duration_minutes: 8,
-                body: `Placeholder lesson. This will cover logging into the SAP GUI, the layout of the main screen (menu bar, command field, standard toolbar), navigating between modules, and personalizing your user settings. Replace with NESR-specific screenshots and a walkthrough of our SAP landscape via the admin CMS.`,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=1e3cb4a5-bb3b-4f6f-b6a9-cbdb2bf61354&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of running t-code MKVZ to extract this report.`,
               },
               {
-                title: 'Transaction Codes You’ll Use Every Day',
+                title: 'How to Extract a Report — T-code ZBP',
                 duration_minutes: 8,
-                body: `Placeholder lesson. This will introduce transaction codes (t-codes) as shortcuts to specific SAP functions, how to enter them in the command field, and a starter list of the t-codes most relevant to supply chain users (e.g. material master display/change, purchase requisition and purchase order transactions, goods receipt). Replace with the specific t-code list and permissions relevant to NESR's SAP configuration.`,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=f4d90cd0-0536-4c4d-b8b0-35777170040b&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of running t-code ZBP to extract this report.`,
               },
             ],
           },
           {
-            title: 'Materials Management Basics',
+            title: 'Procurement & Logistics',
             lessons: [
               {
-                title: 'The Material Master Record',
-                duration_minutes: 9,
-                body: `Placeholder lesson. This will cover what a material master record is, the views that make it up (basic data, purchasing, MRP, accounting), and why a clean, non-duplicated material master matters for accurate demand planning and reporting. Replace with NESR's material master governance process and a real example record.`,
+                title: 'How to Create an Inventory PR',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=eda439cc-1293-4d7f-86af-fab23f318eca&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of creating an inventory purchase requisition.`,
               },
               {
-                title: 'Purchase Requisitions and Purchase Orders in SAP',
-                duration_minutes: 9,
-                body: `Placeholder lesson. This will walk through creating a purchase requisition, how it converts into a purchase order, the approval workflow, and how goods receipt and invoice verification close the loop. Replace with a screen-by-screen walkthrough matching NESR's actual SAP purchasing workflow.`,
+                title: 'How to Create a Consumables PR',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=a4bb5963-b666-4652-b58f-a1556f328dcc&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of creating a consumables purchase requisition.`,
+              },
+              {
+                title: 'How to Create a Services PR',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=31750d8c-9601-4320-a04f-80eca811389b&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of creating a services purchase requisition.`,
+              },
+              {
+                title: 'How to Create an Asset PR',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=559f018f-6419-438f-914e-afb654542aa0&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of creating an asset purchase requisition.`,
+              },
+              {
+                title: 'How to Create a Consumables PO',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=8ecc5a34-ed97-4b29-93fc-8eebb0486b35&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of creating a consumables purchase order.`,
+              },
+              {
+                title: 'How to Create an Inventory PO',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=2b9b2b86-9481-4e77-af6d-92fda616dcf6&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of creating an inventory purchase order.`,
+              },
+              {
+                title: 'How to Create a Services PO',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=d802f689-682b-4d1a-bb8f-7c70b5960bfe&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of creating a services purchase order.`,
+              },
+              {
+                title: 'How to Create an Asset PO',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=566167e0-4ceb-4756-b022-46ac55bede9a&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of creating an asset purchase order.`,
+              },
+              {
+                title: 'How to Create a Service Entry Sheet',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=d29f500c-8cbf-40ab-8c32-972a2ad4d3d4&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of creating a service entry sheet.`,
+              },
+              {
+                title: 'How to Change a Condition Vendor',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=9ee59951-a059-4af1-80aa-60a9a86d3666&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of changing a condition vendor.`,
+              },
+              {
+                title: 'How to Add Landed Cost for a Full Shipment',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=54a04a52-c4e3-4f44-af72-572aa08ed091&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of adding landed cost for a full shipment.`,
+              },
+              {
+                title: 'How to Run ME5A — PR Report',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=e1339373-3c58-4e54-984c-840b8d43c1a5&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of running t-code ME5A to pull the PR report.`,
+              },
+              {
+                title: 'How to Run ME2N — PO Itemized Report',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=53b0d97d-1528-488d-83b1-9d2b7805535a&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of running t-code ME2N to pull the itemized PO report.`,
+              },
+              {
+                title: 'How to Run ZCOND — PO Report (Header Level)',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=841e95e6-6fe4-4835-97bf-5de2f7c6510f&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of running t-code ZCOND to pull the PO report at header level.`,
+              },
+              {
+                title: 'Delegation Process Steps',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=bbb453d3-80c3-4201-88e9-f972a7115f8c&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of the delegation process steps.`,
+              },
+            ],
+          },
+          {
+            title: 'Inventory',
+            lessons: [
+              {
+                title: 'How to Post GI on Cost Center — Movement Z01',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=982a0aa6-7e43-43c5-ac2b-548fc83de55c&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of posting a goods issue on cost center, movement type Z01.`,
+              },
+              {
+                title: 'How to Post GI on PM Order — Movement Z61',
+                duration_minutes: 8,
+                videoUrl: 'https://nesrcorp.sharepoint.com/sites/SAPTrainingHub/_layouts/15/embed.aspx?UniqueId=e9ddf348-cb76-4aa4-a357-2afdb73efcf3&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Video walkthrough of posting a goods issue on a PM order, movement type Z61.`,
               },
             ],
           },
