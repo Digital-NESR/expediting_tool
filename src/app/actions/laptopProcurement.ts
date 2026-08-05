@@ -530,6 +530,7 @@ function getLaptopApprovalStage(status: LaptopRequestStatus): LaptopApprovalStag
   switch (status) {
     case 'Submitted':
     case 'IT Approval':
+    case 'Procure New Details':
       return 'IT Manager';
     case 'CM Approval':
       return 'Country Manager';
