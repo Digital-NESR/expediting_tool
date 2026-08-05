@@ -319,7 +319,7 @@ function ProcureNewDetailsSection({
       {error && <div className="mb-3 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{error}</div>}
       {canSubmit ? (
         <div className="space-y-4">
-          <p className="text-xs text-slate-500">Specify the new device to be procured — this continues to the IT Director once submitted.</p>
+          <p className="text-xs text-slate-500">Specify the new device to be procured — this goes back to the Country Manager to confirm once submitted.</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Type of Device</label>
@@ -337,7 +337,7 @@ function ProcureNewDetailsSection({
             </div>
           </div>
           <button type="button" disabled={isPending} onClick={submit} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
-            {isPending ? 'Sending...' : 'Send to IT Director'}
+            {isPending ? 'Sending...' : 'Send to Country Manager'}
           </button>
         </div>
       ) : (
