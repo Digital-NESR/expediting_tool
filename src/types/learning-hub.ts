@@ -40,7 +40,7 @@ export interface LearningLesson {
   title: string;
   body: string;
   video_url: string | null;
-  duration_minutes: number;
+  duration_minutes: number | null;
   order_index: number;
   created_at: string;
   updated_at: string;

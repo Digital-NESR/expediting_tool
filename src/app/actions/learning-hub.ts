@@ -115,12 +115,15 @@ async function ensureLearningHubSchema(): Promise<void> {
     title TEXT NOT NULL,
     body TEXT NOT NULL,
     video_url TEXT,
-    duration_minutes INT NOT NULL DEFAULT 10,
+    duration_minutes INT,
     order_index INT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
   await execSchema(`ALTER TABLE learning_lessons ADD COLUMN IF NOT EXISTS video_url TEXT`);
+  // No fabricated default: a lesson only shows a duration if someone actually set one.
+  await execSchema(`ALTER TABLE learning_lessons ALTER COLUMN duration_minutes DROP NOT NULL`);
+  await execSchema(`ALTER TABLE learning_lessons ALTER COLUMN duration_minutes DROP DEFAULT`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_lessons_module ON learning_lessons(module_id)`);
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_lesson_progress (
@@ -184,7 +187,7 @@ async function insertTrackCourses(trackId: number, track: SeedTrack): Promise<vo
             mod.lessons.map((lesson, lessonIdx) =>
               exec(
                 `INSERT INTO learning_lessons (module_id, title, body, video_url, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-                [moduleResult.insertId, lesson.title, lesson.body, lesson.videoUrl ?? null, lesson.duration_minutes, lessonIdx],
+                [moduleResult.insertId, lesson.title, lesson.body, lesson.videoUrl ?? null, lesson.duration_minutes ?? null, lessonIdx],
               ),
             ),
           );
@@ -664,7 +667,7 @@ export async function createLesson(
   moduleId: number,
   title: string,
   body: string,
-  durationMinutes: number,
+  durationMinutes: number | null,
   videoUrl?: string | null,
 ): Promise<{ id: number }> {
   await ensureLearningHubReady();
@@ -679,7 +682,7 @@ export async function createLesson(
 
 export async function updateLesson(
   id: number,
-  fields: { title: string; body: string; video_url: string | null; duration_minutes: number },
+  fields: { title: string; body: string; video_url: string | null; duration_minutes: number | null },
 ): Promise<void> {
   await ensureLearningHubReady();
   await exec(

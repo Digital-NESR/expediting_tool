@@ -107,8 +107,12 @@ export default function LessonViewerClient({ data, userEmail }: { data: LessonDe
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-wider" style={{ color }}>
             <span>{track.name}</span>
-            <span className="text-slate-300">·</span>
-            <span className="flex items-center gap-1 text-slate-400"><Clock className="h-3.5 w-3.5" />{formatDuration(lesson.duration_minutes)}</span>
+            {lesson.duration_minutes != null && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="flex items-center gap-1 text-slate-400"><Clock className="h-3.5 w-3.5" />{formatDuration(lesson.duration_minutes)}</span>
+              </>
+            )}
           </div>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{lesson.title}</h1>
 

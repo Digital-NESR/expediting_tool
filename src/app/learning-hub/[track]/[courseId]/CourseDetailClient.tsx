@@ -98,10 +98,12 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
                     <span className={`flex-1 text-sm ${lesson.completed ? 'text-slate-500 line-through decoration-slate-300' : 'font-medium text-slate-800'}`}>
                       {lesson.title}
                     </span>
-                    <span className="flex shrink-0 items-center gap-1 text-xs text-slate-400">
-                      <Clock className="h-3.5 w-3.5" />
-                      {formatDuration(lesson.duration_minutes)}
-                    </span>
+                    {lesson.duration_minutes != null && (
+                      <span className="flex shrink-0 items-center gap-1 text-xs text-slate-400">
+                        <Clock className="h-3.5 w-3.5" />
+                        {formatDuration(lesson.duration_minutes)}
+                      </span>
+                    )}
                   </Link>
                 ))}
               </div>

@@ -40,12 +40,13 @@ function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; 
   const [title, setTitle] = useState(lesson.title);
   const [body, setBody] = useState(lesson.body);
   const [videoUrl, setVideoUrl] = useState(lesson.video_url ?? '');
-  const [duration, setDuration] = useState(lesson.duration_minutes);
+  const [duration, setDuration] = useState(lesson.duration_minutes != null ? String(lesson.duration_minutes) : '');
   const [isPending, startTransition] = useTransition();
 
   function save() {
     startTransition(async () => {
-      await updateLesson(lesson.id, { title, body, video_url: videoUrl.trim() || null, duration_minutes: duration });
+      const durationValue = duration.trim() ? Number(duration) : null;
+      await updateLesson(lesson.id, { title, body, video_url: videoUrl.trim() || null, duration_minutes: durationValue });
       setEditing(false);
       onChanged();
     });
@@ -78,9 +79,9 @@ function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; 
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} placeholder="Lesson body (paragraphs separated by a blank line)"
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
         <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-slate-500">Duration (min)</label>
-          <input type="number" min={1} value={duration} onChange={(e) => setDuration(Number(e.target.value) || 1)}
-            className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+          <label className="text-xs font-medium text-slate-500">Duration (min, optional — leave blank if unknown)</label>
+          <input type="number" min={1} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="Unknown"
+            className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
           <div className="ml-auto flex gap-2">
             <button onClick={() => setEditing(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
             <button onClick={save} disabled={isPending} className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60">Save</button>
@@ -94,7 +95,7 @@ function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; 
     <div className="flex items-center gap-2 border-t border-slate-100 px-4 py-2.5">
       {lesson.video_url && <Video className="h-3.5 w-3.5 shrink-0 text-[#307c4c]" />}
       <span className="flex-1 truncate text-sm text-slate-700">{lesson.title}</span>
-      <span className="shrink-0 text-xs text-slate-400">{lesson.duration_minutes} min</span>
+      {lesson.duration_minutes != null && <span className="shrink-0 text-xs text-slate-400">{lesson.duration_minutes} min</span>}
       <button onClick={() => move('up')} className={BTN} title="Move up"><ChevronUp className="h-4 w-4" /></button>
       <button onClick={() => move('down')} className={BTN} title="Move down"><ChevronDown className="h-4 w-4" /></button>
       <button onClick={() => setEditing(true)} className={BTN} title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
@@ -110,14 +111,15 @@ function NewLessonForm({ moduleId, onChanged }: { moduleId: number; onChanged: (
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
-  const [duration, setDuration] = useState(10);
+  const [duration, setDuration] = useState('');
   const [isPending, startTransition] = useTransition();
 
   function submit() {
     if (!title.trim()) return;
     startTransition(async () => {
-      await createLesson(moduleId, title.trim(), body.trim() || 'TODO: add lesson content.', duration, videoUrl.trim() || null);
-      setTitle(''); setBody(''); setVideoUrl(''); setDuration(10); setOpen(false);
+      const durationValue = duration.trim() ? Number(duration) : null;
+      await createLesson(moduleId, title.trim(), body.trim() || 'TODO: add lesson content.', durationValue, videoUrl.trim() || null);
+      setTitle(''); setBody(''); setVideoUrl(''); setDuration(''); setOpen(false);
       onChanged();
     });
   }
@@ -138,9 +140,9 @@ function NewLessonForm({ moduleId, onChanged }: { moduleId: number; onChanged: (
       <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="Lesson body (optional — can fill in later)"
         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
       <div className="flex items-center gap-2">
-        <label className="text-xs font-medium text-slate-500">Duration (min)</label>
-        <input type="number" min={1} value={duration} onChange={(e) => setDuration(Number(e.target.value) || 1)}
-          className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+        <label className="text-xs font-medium text-slate-500">Duration (min, optional — leave blank if unknown)</label>
+        <input type="number" min={1} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="Unknown"
+          className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
         <div className="ml-auto flex gap-2">
           <button onClick={() => setOpen(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
           <button onClick={submit} disabled={isPending} className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60">Add</button>
