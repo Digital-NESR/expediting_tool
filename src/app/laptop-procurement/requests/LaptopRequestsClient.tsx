@@ -10,6 +10,7 @@ import {
   getLaptopAvailableActions,
   getPriorityBadge,
   getStatusBadge,
+  laptopHasAssignedUnit,
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopRequest, LaptopRequestListData } from '@/types/laptopProcurement';
 
@@ -89,7 +90,7 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
   if (!actor) return <DbError />;
 
   const pendingCount = requests.filter(r => {
-    const actions = getLaptopAvailableActions(actor.permissions, r.status);
+    const actions = getLaptopAvailableActions(actor.permissions, r.status, laptopHasAssignedUnit(r));
     return actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canSubmitProcureDetails;
   }).length;
 

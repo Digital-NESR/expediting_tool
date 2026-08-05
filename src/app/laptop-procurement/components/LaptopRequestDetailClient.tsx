@@ -17,7 +17,7 @@ import {
 import type { LaptopDeviceOption, LaptopRequestDetailData, LaptopRequestStatus } from '@/types/laptopProcurement';
 import type { LaptopWorkflowStep } from '@/lib/laptopProcurement-utils';
 import LaptopShell, { CTA_QUIET, GLASS } from './LaptopShell';
-import { submitProcureNewDetails, updateLaptopExistingDevice, updateLaptopRequestStatus } from '@/app/actions/laptopProcurement';
+import { rejectLaptopRequest, submitProcureNewDetails, updateLaptopExistingDevice, updateLaptopRequestStatus } from '@/app/actions/laptopProcurement';
 
 const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 
@@ -69,13 +69,14 @@ type StepState = 'complete' | 'current' | 'skipped' | 'upcoming';
 function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'] }) {
   const status = request.status;
   const steps = WORKFLOW_STEPS;
-  // Only the full chain reaching 'Procure New' is "everything approved" — Country
-  // Manager's plain 'Approved' is a short-circuit that never touched IT Director / SC
-  // Director, so it's an alt-outcome below, not a false "all steps complete".
-  const terminalApproved = status === 'Procure New';
+  // Both 'Procure New' and 'Assign from Inventory' are only reached after the full
+  // CM -> IT Director -> SC Director chain — Country Manager's plain 'Approved' is a
+  // short-circuit that never touched the rest of the chain, so it's an alt-outcome
+  // below, not a false "all steps complete".
+  const terminalApproved = status === 'Procure New' || status === 'Assign from Inventory';
   const isRejected = status.startsWith('Rejected');
   const isCancelled = status === 'Cancelled';
-  const altOutcome = status === 'Assign from Inventory' || status === 'Assign from Inventory & Closed' || status === 'Repaired & Closed' || status === 'Approved';
+  const altOutcome = status === 'Assign from Inventory & Closed' || status === 'Repaired & Closed' || status === 'Approved';
   // The chain stopped early — it will never reach the remaining steps.
   const isStopped = isRejected || isCancelled || altOutcome;
   const currentIndex = isStopped ? -1 : getWorkflowStepIndex(status);
@@ -357,6 +358,12 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   const [assignModel, setAssignModel] = useState('');
   const [assignAge, setAssignAge] = useState('');
   const [assignError, setAssignError] = useState('');
+  const [repairModalOpen, setRepairModalOpen] = useState(false);
+  const [repairNotes, setRepairNotes] = useState('');
+  const [repairError, setRepairError] = useState('');
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectError, setRejectError] = useState('');
   const [isPending, startTransition] = useTransition();
   const decisionRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -382,14 +389,10 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
     window.setTimeout(() => setHighlightDecision(false), 1800);
   }
 
-  function submitStatus(nextStatus: LaptopRequestStatus, assignedLaptop?: { serial_no: string; model: string; age: string }) {
+  function submitStatus(nextStatus: LaptopRequestStatus, assignedLaptop?: { serial_no: string; model: string; age: string }, commentOverride?: string) {
     setNotice('');
     setError('');
-    const comment = reviewComment.trim();
-    if (nextStatus.startsWith('Rejected') && !comment) {
-      setError('Add a comment before rejecting this request.');
-      return;
-    }
+    const comment = (commentOverride ?? reviewComment).trim();
     startTransition(async () => {
       const result = await updateLaptopRequestStatus(request.id, nextStatus, comment, assignedLaptop);
       if (result.success) {
@@ -399,6 +402,8 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
         setAssignSerialNo('');
         setAssignModel('');
         setAssignAge('');
+        setRepairModalOpen(false);
+        setRepairNotes('');
         setNotice(`Request updated to ${nextStatus}.`);
         router.refresh();
       } else {
@@ -413,7 +418,37 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
       setAssignError('Serial number, model, and age are all required.');
       return;
     }
-    submitStatus('Assign from Inventory', { serial_no: assignSerialNo.trim(), model: assignModel.trim(), age: assignAge });
+    // No longer a distinct terminal move — it's IT Manager's normal approve-forward,
+    // just with a specific unit attached; it still continues through the full chain.
+    submitStatus(actions.nextStatus!, { serial_no: assignSerialNo.trim(), model: assignModel.trim(), age: assignAge });
+  }
+
+  function confirmRepair() {
+    setRepairError('');
+    if (!repairNotes.trim()) {
+      setRepairError('Describe what was repaired or upgraded before closing this request.');
+      return;
+    }
+    submitStatus('Repaired & Closed', undefined, repairNotes.trim());
+  }
+
+  function confirmReject() {
+    setRejectError('');
+    if (!rejectReason.trim()) {
+      setRejectError('A reason is required before rejecting this request.');
+      return;
+    }
+    startTransition(async () => {
+      const result = await rejectLaptopRequest(request.id, rejectReason.trim());
+      if (result.success) {
+        setRejectModalOpen(false);
+        setRejectReason('');
+        setNotice('Request rejected and returned to the IT Manager.');
+        router.refresh();
+      } else {
+        setRejectError(result.error ?? 'Failed to reject request.');
+      }
+    });
   }
 
   const approveLabel = actions.nextStatus === 'CM Approval'
@@ -422,7 +457,7 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
       ? 'Approve & Send to IT Director'
       : actions.nextStatus === 'Supply Chain Director Approval'
         ? 'Approve & Send to SC Director'
-        : actions.nextStatus === 'Procure New'
+        : actions.nextStatus === 'Procure New' || actions.nextStatus === 'Assign from Inventory'
           ? 'Approve & Send an IT Ticket'
           : 'Approve';
 
@@ -481,6 +516,50 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => { setAssignModalOpen(false); setAssignError(''); }} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
               <button type="button" onClick={confirmAssign} disabled={isPending} className="rounded-lg bg-[#307c4c] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">{isPending ? 'Assigning...' : 'Confirm assignment'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {repairModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 px-4">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-base font-bold text-slate-900">Repaired &amp; Closed</h2>
+              <p className="mt-1 text-sm text-slate-500">Describe what was repaired or upgraded on {request.reference_number} before closing it.</p>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              {repairError && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{repairError}</div>}
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">What was repaired / upgraded?</label>
+                <textarea className={`${INP} min-h-28 resize-none`} value={repairNotes} onChange={e => setRepairNotes(e.target.value)} autoFocus />
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => { setRepairModalOpen(false); setRepairError(''); }} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
+              <button type="button" onClick={confirmRepair} disabled={isPending} className="rounded-lg bg-[#307c4c] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">{isPending ? 'Saving...' : 'Confirm & Close'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rejectModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 px-4">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-base font-bold text-slate-900">Reject request</h2>
+              <p className="mt-1 text-sm text-slate-500">{request.reference_number} will go back to the IT Manager to fix and resend.</p>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              {rejectError && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{rejectError}</div>}
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reason for rejection</label>
+                <textarea className={`${INP} min-h-28 resize-none`} value={rejectReason} onChange={e => setRejectReason(e.target.value)} autoFocus />
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => { setRejectModalOpen(false); setRejectError(''); }} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
+              <button type="button" onClick={confirmReject} disabled={isPending} className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-60">{isPending ? 'Rejecting...' : 'Reject & Return to IT Manager'}</button>
             </div>
           </div>
         </div>
@@ -652,13 +731,13 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                         <button disabled={isPending} onClick={() => setAssignModalOpen(true)} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign existing laptop</button>
                       )}
                       {actions.canMarkRepaired && (
-                        <button disabled={isPending} onClick={() => submitStatus('Repaired & Closed')} className="rounded-lg border border-violet-200 bg-violet-50 px-3.5 py-2 text-xs font-bold text-violet-900 transition hover:bg-violet-100 disabled:opacity-60">Repaired &amp; Closed</button>
+                        <button disabled={isPending} onClick={() => setRepairModalOpen(true)} className="rounded-lg border border-violet-200 bg-violet-50 px-3.5 py-2 text-xs font-bold text-violet-900 transition hover:bg-violet-100 disabled:opacity-60">Repaired &amp; Closed</button>
                       )}
                       {actions.canProcureNew && (
                         <button disabled={isPending} onClick={() => submitStatus('Procure New Details')} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-900 transition hover:bg-emerald-100 disabled:opacity-60">Procure New</button>
                       )}
-                      {actions.canReject && actions.rejectStatus && (
-                        <button disabled={isPending} onClick={() => submitStatus(actions.rejectStatus!)} className="rounded-lg border border-red-300 bg-red-50 px-3.5 py-2 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Reject</button>
+                      {actions.canReject && (
+                        <button disabled={isPending} onClick={() => setRejectModalOpen(true)} className="rounded-lg border border-red-300 bg-red-50 px-3.5 py-2 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Reject</button>
                       )}
                       {canCancel && (
                         <button disabled={isPending} onClick={() => setIsCancelDialogOpen(true)} className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel Request</button>

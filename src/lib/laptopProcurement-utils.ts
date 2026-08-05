@@ -266,30 +266,43 @@ export function isActiveApprovalStatus(status: LaptopRequestStatus): boolean {
   return APPROVAL_ACTIVE_STATUSES.includes(status);
 }
 
-export function getNextApprovalStatus(currentStatus: LaptopRequestStatus): LaptopRequestStatus | null {
+// True once IT Manager has assigned a specific second-hand unit (via "Assign existing
+// laptop") — used to tell that path apart from a genuine new-device procurement once
+// both are sitting at the same 'CM Approval' / 'Supply Chain Director Approval' statuses.
+export function laptopHasAssignedUnit(request: {
+  assigned_serial_no?: string | null;
+  assigned_model?: string | null;
+  assigned_age?: string | null;
+}): boolean {
+  return Boolean(request.assigned_serial_no || request.assigned_model || request.assigned_age);
+}
+
+export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAssignedUnit: boolean): LaptopRequestStatus | null {
   const transitions: Partial<Record<LaptopRequestStatus, LaptopRequestStatus>> = {
     Submitted: 'CM Approval',
     'IT Approval': 'CM Approval',
-    // Country Manager's plain "Approve" closes the request outright — procuring a brand
-    // new device is a distinct fork (see canProcureNew) that routes to the IT Team instead.
-    'CM Approval': 'Approved',
+    // Country Manager's plain "Approve" closes the request outright for a normal
+    // request — but an assigned-inventory unit still needs IT Director / SC Director
+    // sign-off, so that path continues the chain instead of stopping here.
+    'CM Approval': hasAssignedUnit ? 'IT Director Approval' : 'Approved',
     'IT Director Approval': 'Supply Chain Director Approval',
-    'Supply Chain Director Approval': 'Procure New',
+    // Final sign-off: a genuine new-device procurement lands on 'Procure New'; an
+    // assigned-inventory unit lands on 'Assign from Inventory' instead, so dashboard
+    // stats keep the two apart.
+    'Supply Chain Director Approval': hasAssignedUnit ? 'Assign from Inventory' : 'Procure New',
   };
   return transitions[currentStatus] ?? null;
 }
 
+// Every rejection bounces the request back to the IT Manager to fix and resend, rather
+// than ending it — only the IT Manager themselves has no reject option (nothing to
+// bounce it back further to).
 export function getRejectStatusForStage(currentStatus: LaptopRequestStatus): LaptopRequestStatus | null {
   switch (currentStatus) {
-    case 'Submitted':
-    case 'IT Approval':
-      return 'Rejected';
     case 'CM Approval':
-      return 'Rejected by CM';
     case 'IT Director Approval':
-      return 'Rejected by ITD';
     case 'Supply Chain Director Approval':
-      return 'Rejected by SCD';
+      return 'IT Approval';
     default:
       return null;
   }
@@ -318,8 +331,9 @@ export function getRequiredPermissionForStage(currentStatus: LaptopRequestStatus
 export function getLaptopAvailableActions(
   permissions: LaptopPermissionProfile,
   currentStatus: LaptopRequestStatus,
+  hasAssignedUnit: boolean = false,
 ): LaptopRequestActions {
-  const nextStatus = getNextApprovalStatus(currentStatus);
+  const nextStatus = getNextApprovalStatus(currentStatus, hasAssignedUnit);
   const requiredPermission = getRequiredPermissionForStage(currentStatus);
   const ownsCurrentStep = Boolean(requiredPermission && permissions[requiredPermission]);
   const isItManagerStage = IT_MANAGER_STATUSES.includes(currentStatus);
@@ -329,14 +343,14 @@ export function getLaptopAvailableActions(
     nextStatus,
     canApprove: Boolean(nextStatus && ownsCurrentStep),
     canReject: Boolean(ownsCurrentStep && permissions.canReject && getRejectStatusForStage(currentStatus)),
-    // Assign from Inventory is available to whichever reviewer owns the current stage —
-    // not just the IT Manager — so any approver in the chain can resolve the request
-    // directly instead of always forwarding it further. Doesn't apply while the IT Team
-    // is specifically filling in new-device details.
-    canAssignInventory: ownsCurrentStep && !isProcureDetailsStage,
+    // IT Manager is the only one who checks physical inventory, so only they can
+    // resolve a request by assigning a second-hand unit — it then continues through
+    // the normal chain (see getNextApprovalStatus) rather than ending immediately.
+    canAssignInventory: isItManagerStage && ownsCurrentStep,
     // Only the Country Manager can flag a request as needing a brand new device
-    // procured — everyone else just approves forward.
-    canProcureNew: isCmStage && ownsCurrentStep,
+    // procured — everyone else just approves forward. Not offered once the request
+    // is already on the assigned-inventory path — that decision is already made.
+    canProcureNew: isCmStage && ownsCurrentStep && !hasAssignedUnit,
     canMarkRepaired: isItManagerStage && permissions.canReviewItManager,
     canSubmitProcureDetails: isProcureDetailsStage && ownsCurrentStep,
     rejectStatus: getRejectStatusForStage(currentStatus),

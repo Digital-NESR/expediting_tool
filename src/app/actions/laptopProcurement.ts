@@ -15,10 +15,10 @@ import {
   getLaptopAvailableActions,
   getNextApprovalStatus,
   getPermissionProfile,
-  getRejectStatusForStage,
   getRequiredPermissionForStage,
   IT_MANAGER_STATUSES,
   isActiveApprovalStatus,
+  laptopHasAssignedUnit,
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopPermissionKey } from '@/lib/laptopProcurement-utils';
 import type {
@@ -331,13 +331,21 @@ function laptopActingIdentities(actor: LaptopActor): LaptopDelegationGrant[] {
   ];
 }
 
-function getScopedActions(actor: LaptopActor, request: { status: LaptopRequestStatus; country?: string | null; segment?: string | null }) {
-  const base = getLaptopAvailableActions(actor.permissions, request.status);
+function getScopedActions(actor: LaptopActor, request: {
+  status: LaptopRequestStatus;
+  country?: string | null;
+  segment?: string | null;
+  assigned_serial_no?: string | null;
+  assigned_model?: string | null;
+  assigned_age?: string | null;
+}) {
+  const hasAssignedUnit = laptopHasAssignedUnit(request);
+  const base = getLaptopAvailableActions(actor.permissions, request.status, hasAssignedUnit);
   // Merge action capability across every identity whose scope matches this request.
   const merged = { ...base, canApprove: false, canReject: false, canAssignInventory: false, canMarkRepaired: false, canProcureNew: false, canSubmitProcureDetails: false };
   for (const id of laptopActingIdentities(actor)) {
     if (!scopeMatches(id.role, id.country, id.segment, request)) continue;
-    const a = getLaptopAvailableActions(id.permissions, request.status);
+    const a = getLaptopAvailableActions(id.permissions, request.status, hasAssignedUnit);
     merged.canApprove ||= a.canApprove;
     merged.canReject ||= a.canReject;
     merged.canAssignInventory ||= a.canAssignInventory;
@@ -1241,6 +1249,72 @@ const STAGE_COMMENT_COLUMN: Partial<Record<LaptopRequestStatus, string>> = {
   'Supply Chain Director Approval': 'scd_comments',
 };
 
+// Human-readable name of whoever is rejecting, for the activity log — only stages with
+// a reject option appear here (see getRejectStatusForStage).
+const REJECTING_STAGE_LABEL: Partial<Record<LaptopRequestStatus, string>> = {
+  'CM Approval': 'Country Manager',
+  'IT Director Approval': 'IT Director',
+  'Supply Chain Director Approval': 'Supply Chain Director',
+};
+
+/**
+ * Every rejection bounces the request back to the IT Manager to fix and resend, rather
+ * than ending it outright — the IT Manager themselves has no reject option (see
+ * getRejectStatusForStage). Distinct from updateLaptopRequestStatus since the target
+ * status is always the same regardless of which stage rejected, and a reason is always
+ * required.
+ */
+export async function rejectLaptopRequest(id: number, reason: string): Promise<ActionResult> {
+  try {
+    const actor = await getActor();
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const row = rows[0];
+    if (!row) return { success: false, error: 'Request not found.' };
+
+    const currentStatus = row.status as LaptopRequestStatus;
+    const stageLabel = REJECTING_STAGE_LABEL[currentStatus];
+    const requiredPermission = getRequiredPermissionForStage(currentStatus);
+    if (!stageLabel || !requiredPermission) {
+      return { success: false, error: 'This request cannot be rejected at its current stage.' };
+    }
+
+    const acting = resolveLaptopActing(actor, requiredPermission, true, row);
+    if (!acting.allowed) {
+      if (acting.reason === 'reject') return { success: false, error: `${actor.role} cannot reject requests.` };
+      if (acting.reason === 'scope') return { success: false, error: `${actor.role} access is limited to your assigned country / segment.` };
+      return { success: false, error: `${actor.role} cannot reject this request.` };
+    }
+
+    const trimmedReason = requireText(reason, 'Rejection reason');
+    const nextStatus: LaptopRequestStatus = 'IT Approval';
+    const stageColumn = STAGE_COMMENT_COLUMN[currentStatus];
+
+    const sets = [
+      'status = ?', 'pending_with = ?', 'reviewed_by_name = ?', 'reviewed_by_email = ?',
+      'reviewed_at = CURRENT_TIMESTAMP', 'rejection_reason = ?', 'review_comments = ?', 'updated_at = CURRENT_TIMESTAMP',
+    ];
+    const params: QueryParams = [nextStatus, getPendingWithLabel(nextStatus), actor.name, actor.email, trimmedReason, trimmedReason];
+    if (stageColumn) { sets.push(`${stageColumn} = ?`); params.push(trimmedReason); }
+    params.push(id);
+
+    await exec(`UPDATE laptop_requests SET ${sets.join(', ')} WHERE id = ?`, params);
+    await writeActivity({
+      requestId: id,
+      referenceNumber: row.reference_number,
+      action: `Rejected by ${stageLabel} — returned to IT Manager`,
+      actor,
+      notes: trimmedReason,
+    });
+    revalidateLaptopPaths();
+    revalidatePath(`/laptop-procurement/requests/${id}`);
+    await notifyLaptopNextApprover(serialise<LaptopRequest>({ ...row, status: nextStatus }));
+    return { success: true };
+  } catch (err) {
+    console.error('[rejectLaptopRequest]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to reject request.' };
+  }
+}
+
 export async function updateLaptopRequestStatus(
   id: number,
   status: LaptopRequestStatus,
@@ -1260,24 +1334,25 @@ export async function updateLaptopRequestStatus(
     const userCancellingOwnRequest = ownsRequest && status === 'Cancelled';
     let requiredPermission: LaptopPermissionKey | null = null;
     let onBehalfOf: string | null = null;
+    const hasAssignedUnit = laptopHasAssignedUnit(row);
 
     if (userCancellingOwnRequest && actor.permissions.canCreateRequests) {
       if (!IT_MANAGER_STATUSES.includes(currentStatus)) {
         return { success: false, error: 'This request can only be cancelled before approvals begin.' };
       }
     } else {
-      const isApproveMove = getNextApprovalStatus(currentStatus) === status;
-      const isRejectMove = getRejectStatusForStage(currentStatus) === status;
+      // "Assign existing laptop" isn't a distinct transition anymore — it's the IT
+      // Manager's normal approve-forward move, just with a specific unit attached (see
+      // assignedLaptopAssignment below). Rejections are handled by rejectLaptopRequest,
+      // never here.
+      const isApproveMove = getNextApprovalStatus(currentStatus, hasAssignedUnit) === status;
       // Country Manager can flag a request as needing a brand new device procured instead
       // of approving it outright — routes to the IT Team for device details.
-      const isCmProcureNewMove = currentStatus === 'CM Approval' && status === 'Procure New Details';
-      // Assign existing laptop is a shortcut resolution available to whichever reviewer
-      // owns the current stage, not just the IT Manager. Repair & Closed stays an
-      // IT-Manager-only outcome (only they assess the physical device).
-      const isReviewerOutcomeMove = isActiveApprovalStatus(currentStatus) && status === 'Assign from Inventory';
+      const isCmProcureNewMove = currentStatus === 'CM Approval' && status === 'Procure New Details' && !hasAssignedUnit;
+      // Repair & Closed stays an IT-Manager-only outcome (only they assess the physical device).
       const isRepairMove = IT_MANAGER_STATUSES.includes(currentStatus) && status === 'Repaired & Closed';
 
-      if (!isApproveMove && !isRejectMove && !isCmProcureNewMove && !isReviewerOutcomeMove && !isRepairMove) {
+      if (!isApproveMove && !isCmProcureNewMove && !isRepairMove) {
         return { success: false, error: `Cannot move ${row.reference_number} from ${currentStatus} to ${status}.` };
       }
 
@@ -1289,11 +1364,8 @@ export async function updateLaptopRequestStatus(
         };
       }
 
-      const acting = resolveLaptopActing(actor, requiredPermission, isRejectMove, row);
+      const acting = resolveLaptopActing(actor, requiredPermission, false, row);
       if (!acting.allowed) {
-        if (acting.reason === 'reject') {
-          return { success: false, error: `${actor.role} cannot reject requests.` };
-        }
         if (acting.reason === 'scope') {
           return { success: false, error: `${actor.role} access is limited to your assigned country / segment.` };
         }
@@ -1305,17 +1377,11 @@ export async function updateLaptopRequestStatus(
       onBehalfOf = acting.onBehalfOf;
     }
 
-    const isRejection = status.startsWith('Rejected');
-    if (isRejection && !comment) {
-      return { success: false, error: 'Add a comment before rejecting this request.' };
-    }
-
     const stageColumn = STAGE_COMMENT_COLUMN[currentStatus];
     const setsReviewer = !userCancellingOwnRequest;
-    const rejectionReason = isRejection ? blankToNull(comment) : null;
 
-    // Stamp the stage approval timestamp when the current stage is signed off (not on rejection / cancellation).
-    const stageDateColumn = (!isRejection && !userCancellingOwnRequest) ? STAGE_APPROVED_DATE_COLUMN[currentStatus] : undefined;
+    // Stamp the stage approval timestamp when the current stage is signed off (not on cancellation).
+    const stageDateColumn = !userCancellingOwnRequest ? STAGE_APPROVED_DATE_COLUMN[currentStatus] : undefined;
     const stageDateAssignment = stageDateColumn ? `, ${stageDateColumn} = CURRENT_TIMESTAMP` : '';
     // Build dynamic SET for the stage comment column when applicable.
     const stageCommentAssignment = stageColumn && comment ? `, ${stageColumn} = ?` : '';
@@ -1326,8 +1392,7 @@ export async function updateLaptopRequestStatus(
     // "Assign existing laptop" hands over a specific second-hand unit — record which one,
     // separate from the current_brand/current_model/serial_no/age_years columns above,
     // which describe the OLD device being replaced.
-    const isAssignMove = status === 'Assign from Inventory';
-    const assignedLaptopAssignment = isAssignMove && assignedLaptop
+    const assignedLaptopAssignment = assignedLaptop
       ? `, assigned_serial_no = ?, assigned_model = ?, assigned_age = ?`
       : '';
 
@@ -1337,7 +1402,7 @@ export async function updateLaptopRequestStatus(
       setsReviewer ? actor.name : row.reviewed_by_name,
       setsReviewer ? actor.email : row.reviewed_by_email,
       setsReviewer,
-      rejectionReason,
+      null,
       comment ? comment : row.review_comments,
     ];
     if (stageCommentAssignment) params.push(comment);
