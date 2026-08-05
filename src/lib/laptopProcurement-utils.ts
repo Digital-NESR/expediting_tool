@@ -279,23 +279,31 @@ export function laptopHasAssignedUnit(request: {
   return Boolean(request.assigned_serial_no || request.assigned_model || request.assigned_age);
 }
 
-export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAssignedUnit: boolean): LaptopRequestStatus | null {
+// True once the Country Manager has ever flagged this request for a brand new device
+// (via "Procure New") — persists through the rest of the chain (see
+// procure_new_requested) so the final sign-off at Supply Chain Director can still tell
+// a genuine new-device procurement apart from a plain approval, even once both are
+// funneling through the same IT Director / SC Director steps.
+export function laptopIsProcureNewFlow(request: { procure_new_requested?: boolean | null }): boolean {
+  return Boolean(request.procure_new_requested);
+}
+
+export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAssignedUnit: boolean, isProcureNewFlow: boolean): LaptopRequestStatus | null {
   const transitions: Partial<Record<LaptopRequestStatus, LaptopRequestStatus>> = {
     Submitted: 'CM Approval',
     'IT Approval': 'CM Approval',
-    // Country Manager's plain "Approve" closes the request outright for a normal
-    // request — but an assigned-inventory unit still needs IT Director / SC Director
-    // sign-off, so that path continues the chain instead of stopping here.
-    'CM Approval': hasAssignedUnit ? 'IT Director Approval' : 'Approved',
+    // Country Manager's plain "Approve", an assigned-inventory continuation, and a
+    // confirmed new-device procurement all now continue through the same IT Director /
+    // SC Director sign-off — only the final terminal below tells them apart.
+    'CM Approval': 'IT Director Approval',
     // The CM confirming the exact new device IT Manager picked — always continues to
-    // IT Director, regardless of hasAssignedUnit (that decision is long since resolved
-    // by the time a request reaches this checkpoint).
+    // IT Director.
     'CM Confirm Device': 'IT Director Approval',
     'IT Director Approval': 'Supply Chain Director Approval',
-    // Final sign-off: a genuine new-device procurement lands on 'Procure New'; an
-    // assigned-inventory unit lands on 'Assign from Inventory' instead, so dashboard
-    // stats keep the two apart.
-    'Supply Chain Director Approval': hasAssignedUnit ? 'Assign from Inventory' : 'Procure New',
+    // Final sign-off: an assigned-inventory unit lands on 'Assign from Inventory'; a
+    // genuine new-device procurement lands on 'Procure New'; otherwise (a plain
+    // approval — nothing being procured or assigned) it lands on 'Approved'.
+    'Supply Chain Director Approval': hasAssignedUnit ? 'Assign from Inventory' : (isProcureNewFlow ? 'Procure New' : 'Approved'),
   };
   return transitions[currentStatus] ?? null;
 }
@@ -343,8 +351,9 @@ export function getLaptopAvailableActions(
   permissions: LaptopPermissionProfile,
   currentStatus: LaptopRequestStatus,
   hasAssignedUnit: boolean = false,
+  isProcureNewFlow: boolean = false,
 ): LaptopRequestActions {
-  const nextStatus = getNextApprovalStatus(currentStatus, hasAssignedUnit);
+  const nextStatus = getNextApprovalStatus(currentStatus, hasAssignedUnit, isProcureNewFlow);
   const requiredPermission = getRequiredPermissionForStage(currentStatus);
   const ownsCurrentStep = Boolean(requiredPermission && permissions[requiredPermission]);
   const isItManagerStage = IT_MANAGER_STATUSES.includes(currentStatus);

@@ -174,6 +174,12 @@ export interface LaptopRequest {
   assigned_model: string | null;
   assigned_age: string | null;
 
+  // True once the Country Manager has ever flagged this request for a brand new
+  // device (via "Procure New") — persists through the rest of the chain so the final
+  // sign-off lands on 'Procure New' rather than 'Approved', even after the request has
+  // moved past the 'Procure New Details' / 'CM Confirm Device' steps.
+  procure_new_requested: boolean;
+
   it_manager: string | null;
   it_manager_2: string | null;
   country_manager: string | null;

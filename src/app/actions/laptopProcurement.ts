@@ -19,6 +19,7 @@ import {
   IT_MANAGER_STATUSES,
   isActiveApprovalStatus,
   laptopHasAssignedUnit,
+  laptopIsProcureNewFlow,
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopPermissionKey } from '@/lib/laptopProcurement-utils';
 import type {
@@ -338,14 +339,16 @@ function getScopedActions(actor: LaptopActor, request: {
   assigned_serial_no?: string | null;
   assigned_model?: string | null;
   assigned_age?: string | null;
+  procure_new_requested?: boolean | null;
 }) {
   const hasAssignedUnit = laptopHasAssignedUnit(request);
-  const base = getLaptopAvailableActions(actor.permissions, request.status, hasAssignedUnit);
+  const isProcureNewFlow = laptopIsProcureNewFlow(request);
+  const base = getLaptopAvailableActions(actor.permissions, request.status, hasAssignedUnit, isProcureNewFlow);
   // Merge action capability across every identity whose scope matches this request.
   const merged = { ...base, canApprove: false, canReject: false, canAssignInventory: false, canMarkRepaired: false, canProcureNew: false, canSubmitProcureDetails: false };
   for (const id of laptopActingIdentities(actor)) {
     if (!scopeMatches(id.role, id.country, id.segment, request)) continue;
-    const a = getLaptopAvailableActions(id.permissions, request.status, hasAssignedUnit);
+    const a = getLaptopAvailableActions(id.permissions, request.status, hasAssignedUnit, isProcureNewFlow);
     merged.canApprove ||= a.canApprove;
     merged.canReject ||= a.canReject;
     merged.canAssignInventory ||= a.canAssignInventory;
@@ -1340,6 +1343,7 @@ export async function updateLaptopRequestStatus(
     let requiredPermission: LaptopPermissionKey | null = null;
     let onBehalfOf: string | null = null;
     const hasAssignedUnit = laptopHasAssignedUnit(row);
+    const isProcureNewFlow = laptopIsProcureNewFlow(row);
 
     if (userCancellingOwnRequest && actor.permissions.canCreateRequests) {
       if (!IT_MANAGER_STATUSES.includes(currentStatus)) {
@@ -1350,7 +1354,7 @@ export async function updateLaptopRequestStatus(
       // Manager's normal approve-forward move, just with a specific unit attached (see
       // assignedLaptopAssignment below). Rejections are handled by rejectLaptopRequest,
       // never here.
-      const isApproveMove = getNextApprovalStatus(currentStatus, hasAssignedUnit) === status;
+      const isApproveMove = getNextApprovalStatus(currentStatus, hasAssignedUnit, isProcureNewFlow) === status;
       // Country Manager can flag a request as needing a brand new device procured instead
       // of approving it outright — routes to the IT Team for device details. Also how a CM
       // overrides an IT Manager's "Assign existing laptop" pick (see clearsAssignedUnit below).
@@ -1409,6 +1413,12 @@ export async function updateLaptopRequestStatus(
     const clearAssignedUnitAssignment = clearsAssignedUnit
       ? `, assigned_serial_no = NULL, assigned_model = NULL, assigned_age = NULL`
       : '';
+    // Sticky flag: once the CM flags a request for a brand new device, it stays flagged
+    // through the rest of the chain (see laptopIsProcureNewFlow) — even after resends —
+    // so Supply Chain Director's final sign-off still lands on 'Procure New', not
+    // 'Approved'.
+    const flagsProcureNew = currentStatus === 'CM Approval' && status === 'Procure New Details';
+    const procureNewFlagAssignment = flagsProcureNew ? `, procure_new_requested = TRUE` : '';
 
     const params: QueryParam[] = [
       status,
@@ -1438,7 +1448,7 @@ export async function updateLaptopRequestStatus(
          reviewed_by_email = ?,
          reviewed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
          rejection_reason = ?,
-         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment}${clearAssignedUnitAssignment},
+         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment}${clearAssignedUnitAssignment}${procureNewFlagAssignment},
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       params,

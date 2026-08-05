@@ -69,14 +69,14 @@ type StepState = 'complete' | 'current' | 'skipped' | 'upcoming';
 function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'] }) {
   const status = request.status;
   const steps = WORKFLOW_STEPS;
-  // Both 'Procure New' and 'Assign from Inventory' are only reached after the full
-  // CM -> IT Director -> SC Director chain — Country Manager's plain 'Approved' is a
-  // short-circuit that never touched the rest of the chain, so it's an alt-outcome
-  // below, not a false "all steps complete".
-  const terminalApproved = status === 'Procure New' || status === 'Assign from Inventory';
+  // 'Procure New', 'Assign from Inventory', and 'Approved' are all now only reached
+  // after the full CM -> IT Director -> SC Director chain (a plain approval just skips
+  // the Procure New Details / CM Confirm Device waypoints along the way — see
+  // stepState below), so all three are genuine full-chain completions, not short-circuits.
+  const terminalApproved = status === 'Procure New' || status === 'Assign from Inventory' || status === 'Approved';
   const isRejected = status.startsWith('Rejected');
   const isCancelled = status === 'Cancelled';
-  const altOutcome = status === 'Assign from Inventory & Closed' || status === 'Repaired & Closed' || status === 'Approved';
+  const altOutcome = status === 'Assign from Inventory & Closed' || status === 'Repaired & Closed';
   // The chain stopped early — it will never reach the remaining steps.
   const isStopped = isRejected || isCancelled || altOutcome;
   const currentIndex = isStopped ? -1 : getWorkflowStepIndex(status);
@@ -93,15 +93,30 @@ function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'
   };
 
   function stepState(step: LaptopWorkflowStep, index: number): StepState {
+    const isProcureNewOnlyStep = step.status === 'Procure New Details' || step.status === 'CM Confirm Device';
+    // These two waypoints only ever apply to a request the Country Manager flagged for
+    // a brand new device — a plain approval or an assigned-inventory continuation skips
+    // them entirely, regardless of where the chain currently stands or ends up.
+    if (isProcureNewOnlyStep && !request.procure_new_requested) return 'skipped';
     if (terminalApproved) return 'complete';
     if (approvedDateByStatus[step.status]) return 'complete';
     // 'Procure New Details' and 'CM Confirm Device' have no date of their own — infer
     // completion once the chain has moved past them (IT Director has since signed off).
-    if ((step.status === 'Procure New Details' || step.status === 'CM Confirm Device') && request.itd_approved_date) return 'complete';
+    if (isProcureNewOnlyStep && request.itd_approved_date) return 'complete';
     if (!isStopped && index === currentIndex) return 'current';
     if (isStopped) return 'skipped';
     return 'upcoming';
   }
+
+  // The last workflow step is statically keyed to 'Procure New', but three different
+  // terminals now reach it (plain approval, assign-from-inventory, genuine procurement)
+  // — swap in copy that matches what actually happened instead of always claiming a
+  // new device will be procured.
+  const FINAL_OUTCOME_COPY: Partial<Record<LaptopRequestStatus, { label: string; description: string }>> = {
+    'Procure New': { label: 'Procure New', description: 'Approved — a new device will be procured.' },
+    'Assign from Inventory': { label: 'Assign from Inventory', description: 'Approved — an existing unit from inventory will be assigned.' },
+    Approved: { label: 'Approved', description: 'Approved — the current device stays as-is, nothing to procure or assign.' },
+  };
 
   const STATE_STYLES: Record<StepState, { card: string; badge: string }> = {
     complete: { card: 'border-slate-200 bg-slate-50', badge: 'bg-slate-700 text-white' },
@@ -121,6 +136,8 @@ function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'
         {steps.map((step, index) => {
           const state = stepState(step, index);
           const { card, badge } = STATE_STYLES[state];
+          const isFinalStep = index === steps.length - 1;
+          const finalCopy = isFinalStep && terminalApproved ? FINAL_OUTCOME_COPY[status] : undefined;
           return (
             <div key={step.status} className={`rounded-2xl border p-3 ${card}`}>
               <div className="flex items-start gap-3">
@@ -129,13 +146,13 @@ function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-bold text-slate-900">{step.label}</p>
+                    <p className="text-sm font-bold text-slate-900">{finalCopy?.label ?? step.label}</p>
                     {state === 'skipped' && (
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">Skipped</span>
                     )}
                   </div>
                   <p className="mt-0.5 text-xs font-semibold text-slate-500">{step.owner}</p>
-                  <p className="mt-1 text-xs text-slate-500">{step.description}</p>
+                  <p className="mt-1 text-xs text-slate-500">{finalCopy?.description ?? step.description}</p>
                 </div>
               </div>
             </div>
