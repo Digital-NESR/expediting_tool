@@ -546,6 +546,9 @@ const DEMO_USERS: { name: string; email: string; role: CatalogRole; country: str
   { name: 'Priya Menon', email: 'priya.menon@nesr.com', role: 'Viewer', country: 'KW' },
 ];
 
+// Bootstraps the initial admin/approver accounts (once, when app_user is empty). Fabricated
+// demo catalog entries used to be seeded here too — removed now that the catalog holds real
+// imported data; a fresh DB should start with zero catalog entries, not sample rows.
 async function seedDemoData(): Promise<void> {
   const users = await sql<{ id: number; email: string }[]>(`SELECT id, email FROM app_user`);
   if (users.length === 0) {
@@ -564,229 +567,6 @@ async function seedDemoData(): Promise<void> {
       await exec(`INSERT INTO country_approver (user_id, country_code, tier) VALUES (?, 'AE', 2) ON CONFLICT DO NOTHING`, [daniel[0].id]);
     }
   }
-
-  const existing = await sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM catalog_entry`);
-  if (Number(existing[0]?.n ?? 0) > 0) return;
-
-  await seedDemoEntries();
-}
-
-interface PriorVersion {
-  price: number;
-  effective: string;
-  reason: string;
-  modifiedAt: string;
-}
-interface DemoEntrySpec {
-  supplier: string;
-  vendor: string;
-  manager: string;
-  country: string;
-  ccy: string;
-  category: string;
-  sub: string;
-  commodity: string;
-  family: string;
-  unspsc: string;
-  item: string;
-  uom: string;
-  price: number;
-  effective: string;
-  expiry: string | null;
-  status: CatalogStatus;
-  sirion: string | null;
-  createdBy: string;
-  notes?: string | null;
-  withDoc?: boolean;
-  priors?: PriorVersion[];
-}
-
-// Reference "today" for the seed = 2026-06-18. A few entries expire within 30 days so the
-// dashboard "Expiring soon" tile and the catalog "Expiring ≤ 30 days" facet have content.
-const DEMO_ENTRIES: DemoEntrySpec[] = [
-  {
-    supplier: 'Arabian Drilling Solutions', vendor: 'V-100517', manager: 'Layla Al-Rashid', country: 'SA', ccy: 'SAR',
-    category: 'Field Technical Equipment & Services', sub: 'Drilling Product & Services', commodity: 'Directional Drilling', family: 'Drilling Services', unspsc: '20121401',
-    item: 'Directional drilling service — per well', uom: 'Per Well', price: 184500, effective: '2026-01-15', expiry: '2026-07-05', status: 'Active',
-    sirion: 'SIR-CN-204815', createdBy: 'Layla Al-Rashid', notes: 'Rate per MSA-SA-2026-014. Mobilization billed separately.', withDoc: true,
-    priors: [
-      { price: 168000, effective: '2025-01-10', reason: 'Initial agreed rate', modifiedAt: '2025-01-06' },
-      { price: 176000, effective: '2025-07-01', reason: 'Annual escalation +4.8%', modifiedAt: '2025-12-20' },
-    ],
-  },
-  {
-    supplier: 'Gulf Assurance Brokers', vendor: 'V-200118', manager: 'Mona Saleh', country: 'SA', ccy: 'SAR',
-    category: 'Professional Services', sub: 'Insurance', commodity: 'Property Insurance', family: 'Property Insurance', unspsc: '84131500',
-    item: 'Annual property & assets policy renewal', uom: 'Lump Sum', price: 412000, effective: '2026-06-20', expiry: '2027-06-19', status: 'Pending Approval',
-    sirion: 'SIR-CN-209473', createdBy: 'Layla Al-Rashid', notes: 'Annual policy renewal — awaiting category manager sign-off.', withDoc: true,
-  },
-  {
-    supplier: 'Gulf Cementing Co.', vendor: 'V-100482', manager: 'Omar Haddad', country: 'SA', ccy: 'SAR',
-    category: 'Field Technical Equipment & Services', sub: 'Drilling Product & Services', commodity: 'Primary Cementing', family: 'Cementing', unspsc: '20121501',
-    item: 'Primary cementing — 9-5/8" casing string', uom: 'Per Well', price: 128000, effective: '2026-02-01', expiry: '2027-01-31', status: 'Active',
-    sirion: 'SIR-CN-231004', createdBy: 'Layla Al-Rashid', withDoc: true,
-    priors: [{ price: 119000, effective: '2025-02-01', reason: 'Initial agreed rate', modifiedAt: '2025-01-28' }],
-  },
-  {
-    supplier: 'Skyline Travel Services', vendor: 'V-200517', manager: 'Sara Bishara', country: 'SA', ccy: 'SAR',
-    category: 'Travel & Entertainment', sub: 'Air Tickets', commodity: 'Corporate Air Travel', family: 'Travel', unspsc: '90121500',
-    item: 'Corporate travel management fee', uom: 'Month', price: 18000, effective: '2026-03-01', expiry: '2026-07-12', status: 'Active',
-    sirion: null, createdBy: 'Layla Al-Rashid', withDoc: true,
-  },
-  {
-    supplier: 'Falcon Wireline Group', vendor: 'V-100915', manager: 'Daniel Reyes', country: 'AE', ccy: 'AED',
-    category: 'Field Technical Equipment & Services', sub: 'Logging tools', commodity: 'Cased-Hole Logging', family: 'Wireline', unspsc: '20122000',
-    item: 'Cased-hole logging run', uom: 'Per Job', price: 54000, effective: '2026-04-15', expiry: '2027-04-14', status: 'Active',
-    sirion: 'SIR-CN-231245', createdBy: 'Fatima Noor', withDoc: true,
-  },
-  {
-    supplier: 'MENA IT Systems', vendor: 'V-200245', manager: 'Sara Bishara', country: 'AE', ccy: 'AED',
-    category: 'IT', sub: 'Software', commodity: 'SaaS Subscription', family: 'Software', unspsc: '43232300',
-    item: 'Field reporting SaaS — annual licence', uom: 'Lump Sum', price: 210000, effective: '2026-08-01', expiry: '2027-07-31', status: 'Pending Approval',
-    sirion: 'SIR-CN-231640', createdBy: 'Fatima Noor', withDoc: true,
-  },
-  {
-    supplier: 'Desert Logistics LLC', vendor: 'V-100631', manager: 'Rashid Al-Maktoum', country: 'KW', ccy: 'KWD',
-    category: 'Logistics', sub: 'Heavy Trucks and Parts', commodity: 'Heavy Equipment Haulage', family: 'Transport', unspsc: '78101800',
-    item: 'Lowbed transport — rig move', uom: 'Per Trip', price: 1450, effective: '2026-03-10', expiry: '2027-03-09', status: 'Active',
-    sirion: 'SIR-CN-231390', createdBy: 'Layla Al-Rashid', withDoc: true,
-  },
-  {
-    supplier: 'SafeGuard PPE Supplies', vendor: 'V-200922', manager: 'Mona Saleh', country: 'SA', ccy: 'SAR',
-    category: 'Safety', sub: 'Life Safety (PPE)', commodity: 'Personal Protective Equipment', family: 'PPE', unspsc: '46181500',
-    item: 'FR coverall set — per person', uom: 'Per Person', price: 640, effective: '2026-02-15', expiry: '2028-02-14', status: 'Active',
-    sirion: null, createdBy: 'Layla Al-Rashid', withDoc: true,
-  },
-  {
-    supplier: 'Najd Stimulation Services', vendor: 'V-100822', manager: 'Yousef Karim', country: 'SA', ccy: 'SAR',
-    category: 'Field Technical Equipment & Services', sub: 'Completion Tools', commodity: 'Frac Plug Assembly', family: 'Completions', unspsc: '20122100',
-    item: 'Composite frac plug — per stage', uom: 'Per Stage', price: 96500, effective: '2025-11-01', expiry: '2026-06-25', status: 'Active',
-    sirion: 'SIR-CN-231118', createdBy: 'Layla Al-Rashid', withDoc: true,
-  },
-  {
-    supplier: 'Peninsula HSE Services', vendor: 'V-101508', manager: 'Mona Saleh', country: 'AE', ccy: 'AED',
-    category: 'Safety', sub: 'Safety Equipment', commodity: 'Safety Standby', family: 'HSE', unspsc: '46180000',
-    item: 'HSE standby crew — day rate', uom: 'Day', price: 4200, effective: '2026-01-20', expiry: null, status: 'Draft',
-    sirion: null, createdBy: 'Fatima Noor', withDoc: false,
-  },
-  {
-    supplier: 'Oryx Filtration Systems', vendor: 'V-102156', manager: 'Yousef Karim', country: 'OM', ccy: 'OMR',
-    category: 'Maintenance & Repair Operations', sub: 'Filters', commodity: 'Filter Element Replacement', family: 'MRO', unspsc: '40161500',
-    item: 'Filtration element replacement programme', uom: 'Month', price: 3100, effective: '2025-05-01', expiry: '2026-05-30', status: 'Expired',
-    sirion: null, createdBy: 'Layla Al-Rashid', withDoc: true,
-  },
-  {
-    supplier: 'Tigris Well Testing', vendor: 'V-101733', manager: 'Daniel Reyes', country: 'QA', ccy: 'QAR',
-    category: 'Field Technical Equipment & Services', sub: 'Pressure Containment Equipment', commodity: 'Surface Well Test Package', family: 'Well Testing', unspsc: '20122200',
-    item: 'Surface well test package — day rate', uom: 'Day', price: 88000, effective: '2026-05-01', expiry: '2027-04-30', status: 'Rejected',
-    sirion: null, createdBy: 'Fatima Noor', notes: 'Resubmitted after benchmark review requested.', withDoc: true,
-  },
-  // Crescent Pressure Control — a single supplier with several pending Tier-2 lines,
-  // so the Approvals queue shows an "Approve all" group out of the box.
-  {
-    supplier: 'Crescent Pressure Control', vendor: 'V-102011', manager: 'Yousef Karim', country: 'SA', ccy: 'SAR',
-    category: 'Field Technical Equipment & Services', sub: 'Pressure Containment Equipment', commodity: 'BOP Rental & Service', family: 'Pressure Control', unspsc: '20122300',
-    item: 'Annular BOP rental & service — per job', uom: 'Per Job', price: 320000, effective: '2026-06-25', expiry: '2027-06-24', status: 'Pending Approval',
-    sirion: 'SIR-CN-240118', createdBy: 'Layla Al-Rashid', withDoc: true,
-  },
-  {
-    supplier: 'Crescent Pressure Control', vendor: 'V-102011', manager: 'Yousef Karim', country: 'SA', ccy: 'SAR',
-    category: 'Field Technical Equipment & Services', sub: 'Pressure Containment Equipment', commodity: 'Choke Manifold Package', family: 'Pressure Control', unspsc: '20122301',
-    item: 'Choke manifold package — per well', uom: 'Per Well', price: 245000, effective: '2026-06-25', expiry: '2027-06-24', status: 'Pending Approval',
-    sirion: 'SIR-CN-240119', createdBy: 'Layla Al-Rashid', withDoc: true,
-  },
-  {
-    supplier: 'Crescent Pressure Control', vendor: 'V-102011', manager: 'Yousef Karim', country: 'SA', ccy: 'SAR',
-    category: 'Field Technical Equipment & Services', sub: 'Pressure Containment Equipment', commodity: 'Wellhead Pressure Test', family: 'Pressure Control', unspsc: '20122302',
-    item: 'Wellhead pressure-test crew — day rate', uom: 'Day', price: 410000, effective: '2026-06-25', expiry: '2027-06-24', status: 'Pending Approval',
-    sirion: null, createdBy: 'Layla Al-Rashid', withDoc: false,
-  },
-];
-
-const APPROVER_BY_COUNTRY: Record<string, string> = { SA: 'Omar Haddad', KW: 'Omar Haddad', AE: 'Daniel Reyes' };
-const approverFor = (country: string) => APPROVER_BY_COUNTRY[country] ?? 'Omar Haddad';
-
-async function seedDemoEntries(): Promise<void> {
-  let seq = 1040;
-  for (const d of DEMO_ENTRIES) {
-    const supplierId = await upsertSupplier(d.supplier, d.vendor, d.manager);
-    const cat = await sql<{ id: number; type: string }[]>(`SELECT id, type FROM spend_category WHERE name = ?`, [d.category]);
-    const categoryId = cat[0]?.id ?? null;
-    const spendType = (cat[0]?.type as SpendType) ?? 'Indirect';
-    const sub = categoryId
-      ? await sql<{ id: number }[]>(`SELECT id FROM spend_subcategory WHERE category_id = ? AND name = ?`, [categoryId, d.sub])
-      : [];
-    const subId = sub[0]?.id ?? null;
-    const uom = await sql<{ id: number }[]>(`SELECT id FROM unit_of_measure WHERE name = ?`, [d.uom]);
-    const uomId = uom[0]?.id ?? null;
-    const usd = toUsd(d.price, d.ccy);
-    const tier = approvalTier(usd);
-    const code = `CAT-${seq++}`;
-    const sirionUrl = d.sirion ? `https://nesr.sirion.ai/contracts/${d.sirion.replace(/\D/g, '')}` : null;
-
-    const priors = d.priors ?? [];
-    const currentVersion = priors.length + 1;
-
-    // approver / decision per status
-    const isApproved = d.status === 'Active' && tier.needsApproval;
-    const isRejected = d.status === 'Rejected';
-    const isPending = d.status === 'Pending Approval';
-    const approverName = isApproved || isRejected || isPending ? approverFor(d.country) : null;
-    const approvalComment = isApproved ? 'Approved — within regional benchmark.' : isRejected ? 'Rejected — price above benchmark, please revise.' : null;
-
-    const ins = await exec(
-      `INSERT INTO catalog_entry
-        (code, country_code, supplier_id, category_id, subcategory_id, uom_id, spend_type, family, commodity,
-         unspsc_code, item_name, description, sirion_contract_id, sirion_url, notes, status, tier_label,
-         current_version_no, manager, approver_name, approval_comment, created_by, modified_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (code) DO NOTHING RETURNING id`,
-      [
-        code, d.country, supplierId, categoryId, subId, uomId, spendType, d.family, d.commodity,
-        d.unspsc, d.item, d.item, d.sirion, sirionUrl, d.notes ?? null, d.status, tier.label,
-        currentVersion, d.manager, approverName, approvalComment, d.createdBy, d.createdBy,
-      ],
-    );
-    if (!ins.insertId) continue; // entry already seeded by a concurrent run — skip its children
-
-    // prior versions (oldest first), then the current version
-    for (let v = 0; v < priors.length; v++) {
-      const p = priors[v];
-      await exec(
-        `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by, modified_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [ins.insertId, v + 1, p.price, d.ccy, p.effective, null, p.reason, d.createdBy, p.modifiedAt],
-      );
-    }
-    await exec(
-      `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ins.insertId, currentVersion, d.price, d.ccy, d.effective, d.expiry, priors.length ? 'Annual rate escalation' : 'Initial agreed rate', d.createdBy],
-    );
-
-    if (d.withDoc) {
-      await exec(
-        `INSERT INTO entry_document (entry_id, file_name, doc_type, size_label) VALUES (?, ?, ?, ?)`,
-        [ins.insertId, `${d.supplier} — Rate Card 2026 (signed).pdf`, 'Signed Rate Agreement', '2.1 MB'],
-      );
-    }
-
-    if (isApproved || isRejected) {
-      await exec(
-        `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES (?, ?, ?, ?, 2, ?)`,
-        [ins.insertId, currentVersion, approverName, isApproved ? 'Approved' : 'Rejected', approvalComment],
-      );
-    }
-
-    const auditAction = isApproved ? 'Approve' : isRejected ? 'Reject' : isPending ? 'Create' : 'Create';
-    const auditDetail = isApproved ? 'Approved — within regional benchmark.'
-      : isRejected ? 'Rejected — price above benchmark, please revise.'
-      : isPending ? 'New entry submitted for approval'
-      : d.status === 'Draft' ? 'Saved new draft entry' : 'New entry created & activated';
-    await writeAudit(auditAction, code, d.createdBy, auditDetail);
-  }
-
-  await writeAudit('Master data', 'Spend Categories', 'Khalid Mansour', `Loaded NESR spend taxonomy (${SPEND_TAXONOMY.length} categories)`);
 }
 
 async function upsertSupplier(name: string, vendor: string, manager: string | null): Promise<number> {
@@ -2192,6 +1972,33 @@ export async function toggleCategoryStatus(id: number): Promise<void> {
   if (!actor.canAdmin) throw new Error('Admin only.');
   await exec(`UPDATE spend_category SET status = CASE WHEN status = 'Active' THEN 'Inactive' ELSE 'Active' END WHERE id = ?`, [id]);
   await writeAudit('Master data', 'Spend categories', actor.name, `Toggled a spend category status`);
+}
+
+// The fixed set of vendor codes the fabricated demo catalog entries used to be seeded under
+// (see the now-removed DEMO_ENTRIES/seedDemoEntries). One-time cleanup for DBs that were
+// bootstrapped before real customer data existed — safe to re-run, becomes a no-op once clean.
+const DEMO_SUPPLIER_VENDOR_CODES = [
+  'V-100517', 'V-200118', 'V-100482', 'V-200517', 'V-100915', 'V-200245',
+  'V-100631', 'V-200922', 'V-100822', 'V-101508', 'V-102156', 'V-101733', 'V-102011',
+];
+
+export async function deleteDemoCatalogData(): Promise<{ deletedEntries: number; deletedSuppliers: number }> {
+  const actor = await getCatalogActor();
+  if (!actor.canAdmin) throw new Error('Admin only.');
+
+  const entryResult = await exec(
+    `DELETE FROM catalog_entry WHERE supplier_id IN (SELECT id FROM supplier WHERE vendor_code = ANY(?))`,
+    [DEMO_SUPPLIER_VENDOR_CODES],
+  );
+  // Only drop suppliers that are now unreferenced — never touch one a real import happens to reuse.
+  const supplierResult = await exec(
+    `DELETE FROM supplier WHERE vendor_code = ANY(?)
+     AND id NOT IN (SELECT DISTINCT supplier_id FROM catalog_entry WHERE supplier_id IS NOT NULL)`,
+    [DEMO_SUPPLIER_VENDOR_CODES],
+  );
+
+  await writeAudit('Master data', 'Catalog', actor.name, `Removed ${entryResult.rowCount} sample/demo catalog entries and ${supplierResult.rowCount} demo suppliers`);
+  return { deletedEntries: entryResult.rowCount, deletedSuppliers: supplierResult.rowCount };
 }
 
 export async function addUom(name: string): Promise<void> {
