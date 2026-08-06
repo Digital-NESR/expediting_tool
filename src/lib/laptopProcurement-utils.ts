@@ -323,6 +323,30 @@ export function getRejectStatusForStage(currentStatus: LaptopRequestStatus): Lap
   }
 }
 
+export type LaptopApprovalStage = 'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
+
+// Which human role currently owns a given status — used both to route the
+// approval-chain notification email and, via the read-only status-check API, to let
+// an external workflow (e.g. n8n) verify a request is still actually pending before
+// escalating, instead of trusting a stale snapshot from when it first fired.
+export function getLaptopApprovalStage(status: LaptopRequestStatus): LaptopApprovalStage | null {
+  switch (status) {
+    case 'Submitted':
+    case 'IT Approval':
+    case 'Procure New Details':
+      return 'IT Manager';
+    case 'CM Approval':
+    case 'CM Confirm Device':
+      return 'Country Manager';
+    case 'IT Director Approval':
+      return 'IT Director';
+    case 'Supply Chain Director Approval':
+      return 'Supply Chain Director';
+    default:
+      return null;
+  }
+}
+
 export function getRequiredPermissionForStage(currentStatus: LaptopRequestStatus): LaptopPermissionKey | null {
   switch (currentStatus) {
     case 'Submitted':

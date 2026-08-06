@@ -12,6 +12,7 @@ import {
   canUseLaptopAnalytics,
   canUseLaptopOperationalPages,
   canUseLaptopReviewerQueue,
+  getLaptopApprovalStage,
   getLaptopAvailableActions,
   getNextApprovalStatus,
   getPermissionProfile,
@@ -21,7 +22,7 @@ import {
   laptopHasAssignedUnit,
   laptopIsProcureNewFlow,
 } from '@/lib/laptopProcurement-utils';
-import type { LaptopPermissionKey } from '@/lib/laptopProcurement-utils';
+import type { LaptopApprovalStage, LaptopPermissionKey } from '@/lib/laptopProcurement-utils';
 import type {
   ActionResult,
   AdminCreateLaptopRequestInput,
@@ -524,26 +525,6 @@ async function sendLaptopDelegationNotification(
     }
   } catch (err) {
     console.error('[Laptop Procurement n8n] Delegation webhook failed', laptopWebhookErrorMessage(err), err);
-  }
-}
-
-type LaptopApprovalStage = 'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
-
-function getLaptopApprovalStage(status: LaptopRequestStatus): LaptopApprovalStage | null {
-  switch (status) {
-    case 'Submitted':
-    case 'IT Approval':
-    case 'Procure New Details':
-      return 'IT Manager';
-    case 'CM Approval':
-    case 'CM Confirm Device':
-      return 'Country Manager';
-    case 'IT Director Approval':
-      return 'IT Director';
-    case 'Supply Chain Director Approval':
-      return 'Supply Chain Director';
-    default:
-      return null;
   }
 }
 
