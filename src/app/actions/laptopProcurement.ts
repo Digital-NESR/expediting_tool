@@ -962,7 +962,7 @@ export async function getLaptopAdminData(): Promise<LaptopAdminData | null> {
       sql<QueryResultRow[]>(`SELECT * FROM laptop_requests ORDER BY created_at DESC, id DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 100`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions ORDER BY role, email`),
-      sql<QueryResultRow[]>(`SELECT * FROM laptop_delegations ORDER BY is_active DESC, created_at DESC`),
+      sql<QueryResultRow[]>(`SELECT * FROM laptop_delegations ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_device_catalog ORDER BY type_of_device, model`),
     ]);
     const requests = serialise<LaptopRequest[]>(requestRows);
@@ -1936,7 +1936,7 @@ export async function getLaptopDelegationData(): Promise<LaptopDelegationData | 
     await ensureLaptopDelegationTable();
     const [grantedRows, receivedRows] = await Promise.all([
       sql<QueryResultRow[]>(
-        `SELECT * FROM laptop_delegations WHERE LOWER(delegator_email) = ? ORDER BY is_active DESC, created_at DESC`,
+        `SELECT * FROM laptop_delegations WHERE LOWER(delegator_email) = ? ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`,
         [actor.email.toLowerCase()],
       ),
       sql<QueryResultRow[]>(
