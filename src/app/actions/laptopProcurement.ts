@@ -199,6 +199,19 @@ async function ensureLaptopDelegationTable(): Promise<void> {
   return laptopDelegationTableEnsured;
 }
 
+// A delegation whose expires_at has simply passed still carries is_active = TRUE
+// until someone explicitly revokes it — resolveLaptopDelegations already filters on
+// expires_at directly so access is never affected, but the admin/delegate lists sort
+// and label off this flag, so a merely-expired row reads as if it outranks ones
+// genuinely revoked more recently. Flip it here whenever those lists are read.
+async function expireStaleLaptopDelegations(): Promise<void> {
+  await exec(
+    `UPDATE laptop_delegations
+     SET is_active = FALSE, revoked_at = expires_at, updated_at = CURRENT_TIMESTAMP
+     WHERE is_active = TRUE AND expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP`,
+  );
+}
+
 /**
  * Resolve active delegations TO `email` for Laptop Procurement. Each delegator
  * is expanded into their own role/permissions/scope (from this DB's permission
@@ -958,6 +971,7 @@ export async function getLaptopAdminData(): Promise<LaptopAdminData | null> {
   try {
     const actor = await requireAdminActor();
     await ensureLaptopDelegationTable();
+    await expireStaleLaptopDelegations();
     const [requestRows, activityRows, permissionRows, delegationRows, deviceRows] = await Promise.all([
       sql<QueryResultRow[]>(`SELECT * FROM laptop_requests ORDER BY created_at DESC, id DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 100`),
@@ -1934,6 +1948,7 @@ export async function getLaptopDelegationData(): Promise<LaptopDelegationData | 
   try {
     const actor = await getActor();
     await ensureLaptopDelegationTable();
+    await expireStaleLaptopDelegations();
     const [grantedRows, receivedRows] = await Promise.all([
       sql<QueryResultRow[]>(
         `SELECT * FROM laptop_delegations WHERE LOWER(delegator_email) = ? ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`,
