@@ -12,15 +12,17 @@ import {
   canUseLaptopAnalytics,
   canUseLaptopOperationalPages,
   canUseLaptopReviewerQueue,
+  getLaptopApprovalStage,
   getLaptopAvailableActions,
   getNextApprovalStatus,
   getPermissionProfile,
-  getRejectStatusForStage,
   getRequiredPermissionForStage,
   IT_MANAGER_STATUSES,
   isActiveApprovalStatus,
+  laptopHasAssignedUnit,
+  laptopIsProcureNewFlow,
 } from '@/lib/laptopProcurement-utils';
-import type { LaptopPermissionKey } from '@/lib/laptopProcurement-utils';
+import type { LaptopApprovalStage, LaptopPermissionKey } from '@/lib/laptopProcurement-utils';
 import type {
   ActionResult,
   AdminCreateLaptopRequestInput,
@@ -50,6 +52,7 @@ import type {
   LaptopRequestListData,
   LaptopRequestStatus,
   LaptopWorkQueueData,
+  SubmitProcureNewDetailsInput,
   UpdateLaptopApproverMatrixInput,
   UpdateLaptopDeviceInput,
   UpdateLaptopExistingDeviceInput,
@@ -330,18 +333,29 @@ function laptopActingIdentities(actor: LaptopActor): LaptopDelegationGrant[] {
   ];
 }
 
-function getScopedActions(actor: LaptopActor, request: { status: LaptopRequestStatus; country?: string | null; segment?: string | null }) {
-  const base = getLaptopAvailableActions(actor.permissions, request.status);
+function getScopedActions(actor: LaptopActor, request: {
+  status: LaptopRequestStatus;
+  country?: string | null;
+  segment?: string | null;
+  assigned_serial_no?: string | null;
+  assigned_model?: string | null;
+  assigned_age?: string | null;
+  procure_new_requested?: boolean | null;
+}) {
+  const hasAssignedUnit = laptopHasAssignedUnit(request);
+  const isProcureNewFlow = laptopIsProcureNewFlow(request);
+  const base = getLaptopAvailableActions(actor.permissions, request.status, hasAssignedUnit, isProcureNewFlow);
   // Merge action capability across every identity whose scope matches this request.
-  const merged = { ...base, canApprove: false, canReject: false, canAssignInventory: false, canMarkRepaired: false, canProcureNew: false };
+  const merged = { ...base, canApprove: false, canReject: false, canAssignInventory: false, canMarkRepaired: false, canProcureNew: false, canSubmitProcureDetails: false };
   for (const id of laptopActingIdentities(actor)) {
     if (!scopeMatches(id.role, id.country, id.segment, request)) continue;
-    const a = getLaptopAvailableActions(id.permissions, request.status);
+    const a = getLaptopAvailableActions(id.permissions, request.status, hasAssignedUnit, isProcureNewFlow);
     merged.canApprove ||= a.canApprove;
     merged.canReject ||= a.canReject;
     merged.canAssignInventory ||= a.canAssignInventory;
     merged.canMarkRepaired ||= a.canMarkRepaired;
     merged.canProcureNew ||= a.canProcureNew;
+    merged.canSubmitProcureDetails ||= a.canSubmitProcureDetails;
   }
   return merged;
 }
@@ -511,24 +525,6 @@ async function sendLaptopDelegationNotification(
     }
   } catch (err) {
     console.error('[Laptop Procurement n8n] Delegation webhook failed', laptopWebhookErrorMessage(err), err);
-  }
-}
-
-type LaptopApprovalStage = 'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
-
-function getLaptopApprovalStage(status: LaptopRequestStatus): LaptopApprovalStage | null {
-  switch (status) {
-    case 'Submitted':
-    case 'IT Approval':
-      return 'IT Manager';
-    case 'CM Approval':
-      return 'Country Manager';
-    case 'IT Director Approval':
-      return 'IT Director';
-    case 'Supply Chain Director Approval':
-      return 'Supply Chain Director';
-    default:
-      return null;
   }
 }
 
@@ -713,6 +709,10 @@ function getPendingWithLabel(status: LaptopRequestStatus): string {
     case 'IT Approval':
       return 'IT Team';
     case 'CM Approval':
+      return 'Country Manager';
+    case 'Procure New Details':
+      return 'IT Team';
+    case 'CM Confirm Device':
       return 'Country Manager';
     case 'IT Director Approval':
       return 'IT Director';
@@ -932,7 +932,7 @@ export async function getLaptopWorkQueueData(): Promise<LaptopWorkQueueData | nu
     const requests = serialise<LaptopRequest[]>(rows);
     const items = requests
       .map(request => ({ request, actions: getScopedActions(actor, request) }))
-      .filter(item => item.actions.canApprove || item.actions.canReject || item.actions.canAssignInventory || item.actions.canProcureNew)
+      .filter(item => item.actions.canApprove || item.actions.canReject || item.actions.canAssignInventory || item.actions.canProcureNew || item.actions.canSubmitProcureDetails)
       .sort((a, b) => {
         const rank: Record<string, number> = { Critical: 0, High: 1, Normal: 2, Low: 3 };
         return (rank[a.request.priority] ?? 2) - (rank[b.request.priority] ?? 2)
@@ -1029,7 +1029,9 @@ function validateCreateInput(input: CreateLaptopRequestInput) {
     country: requireText(input.country, 'Country'),
     segment: requireText(input.segment, 'Segment'),
     typeOfDevice: requireText(input.type_of_device, 'Type of device'),
-    requestedModel: requireText(input.requested_model, 'Requested model'),
+    // No longer collected from the requester — the IT Team fills this in later, only if
+    // the request is actually flagged for new-device procurement (see submitProcureNewDetails).
+    requestedModel: blankToNull(input.requested_model),
     reason: requireText(input.special_requirements, 'Special requirements / justification'),
   };
 }
@@ -1144,7 +1146,9 @@ export async function updateLaptopRequest(id: number, input: CreateLaptopRequest
         blankToNull(input.employee_id), input.priority || 'Normal', v.requestType, v.country,
         blankToNull(input.computer_for), v.segment, blankToNull(input.department), blankToNull(input.position),
         blankToNull(input.company_code), blankToNull(input.company_name), blankToNull(input.cost_center),
-        v.typeOfDevice, v.requestedModel, v.reason, id,
+        // Requested model isn't collected on this form — preserve whatever the IT Team may
+        // have already filled in via submitProcureNewDetails rather than blanking it out.
+        v.typeOfDevice, v.requestedModel ?? row.requested_model, v.reason, id,
       ],
     );
     await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Request updated', actor });
@@ -1233,6 +1237,73 @@ const STAGE_COMMENT_COLUMN: Partial<Record<LaptopRequestStatus, string>> = {
   'Supply Chain Director Approval': 'scd_comments',
 };
 
+// Human-readable name of whoever is rejecting, for the activity log — only stages with
+// a reject option appear here (see getRejectStatusForStage).
+const REJECTING_STAGE_LABEL: Partial<Record<LaptopRequestStatus, string>> = {
+  'CM Approval': 'Country Manager',
+  'CM Confirm Device': 'Country Manager',
+  'IT Director Approval': 'IT Director',
+  'Supply Chain Director Approval': 'Supply Chain Director',
+};
+
+/**
+ * Every rejection bounces the request back to the IT Manager to fix and resend, rather
+ * than ending it outright — the IT Manager themselves has no reject option (see
+ * getRejectStatusForStage). Distinct from updateLaptopRequestStatus since the target
+ * status is always the same regardless of which stage rejected, and a reason is always
+ * required.
+ */
+export async function rejectLaptopRequest(id: number, reason: string): Promise<ActionResult> {
+  try {
+    const actor = await getActor();
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const row = rows[0];
+    if (!row) return { success: false, error: 'Request not found.' };
+
+    const currentStatus = row.status as LaptopRequestStatus;
+    const stageLabel = REJECTING_STAGE_LABEL[currentStatus];
+    const requiredPermission = getRequiredPermissionForStage(currentStatus);
+    if (!stageLabel || !requiredPermission) {
+      return { success: false, error: 'This request cannot be rejected at its current stage.' };
+    }
+
+    const acting = resolveLaptopActing(actor, requiredPermission, true, row);
+    if (!acting.allowed) {
+      if (acting.reason === 'reject') return { success: false, error: `${actor.role} cannot reject requests.` };
+      if (acting.reason === 'scope') return { success: false, error: `${actor.role} access is limited to your assigned country / segment.` };
+      return { success: false, error: `${actor.role} cannot reject this request.` };
+    }
+
+    const trimmedReason = requireText(reason, 'Rejection reason');
+    const nextStatus: LaptopRequestStatus = 'IT Approval';
+    const stageColumn = STAGE_COMMENT_COLUMN[currentStatus];
+
+    const sets = [
+      'status = ?', 'pending_with = ?', 'reviewed_by_name = ?', 'reviewed_by_email = ?',
+      'reviewed_at = CURRENT_TIMESTAMP', 'rejection_reason = ?', 'review_comments = ?', 'updated_at = CURRENT_TIMESTAMP',
+    ];
+    const params: QueryParams = [nextStatus, getPendingWithLabel(nextStatus), actor.name, actor.email, trimmedReason, trimmedReason];
+    if (stageColumn) { sets.push(`${stageColumn} = ?`); params.push(trimmedReason); }
+    params.push(id);
+
+    await exec(`UPDATE laptop_requests SET ${sets.join(', ')} WHERE id = ?`, params);
+    await writeActivity({
+      requestId: id,
+      referenceNumber: row.reference_number,
+      action: `Rejected by ${stageLabel} — returned to IT Manager`,
+      actor,
+      notes: trimmedReason,
+    });
+    revalidateLaptopPaths();
+    revalidatePath(`/laptop-procurement/requests/${id}`);
+    await notifyLaptopNextApprover(serialise<LaptopRequest>({ ...row, status: nextStatus }));
+    return { success: true };
+  } catch (err) {
+    console.error('[rejectLaptopRequest]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to reject request.' };
+  }
+}
+
 export async function updateLaptopRequestStatus(
   id: number,
   status: LaptopRequestStatus,
@@ -1252,22 +1323,27 @@ export async function updateLaptopRequestStatus(
     const userCancellingOwnRequest = ownsRequest && status === 'Cancelled';
     let requiredPermission: LaptopPermissionKey | null = null;
     let onBehalfOf: string | null = null;
+    const hasAssignedUnit = laptopHasAssignedUnit(row);
+    const isProcureNewFlow = laptopIsProcureNewFlow(row);
 
     if (userCancellingOwnRequest && actor.permissions.canCreateRequests) {
       if (!IT_MANAGER_STATUSES.includes(currentStatus)) {
         return { success: false, error: 'This request can only be cancelled before approvals begin.' };
       }
     } else {
-      const isApproveMove = getNextApprovalStatus(currentStatus) === status;
-      const isRejectMove = getRejectStatusForStage(currentStatus) === status;
-      // Assign from Inventory / Procure New are shortcut resolutions available to whichever
-      // reviewer owns the current stage, not just the IT Manager. Repair & Closed stays an
-      // IT-Manager-only outcome (only they assess the physical device).
-      const isReviewerOutcomeMove = isActiveApprovalStatus(currentStatus)
-        && (status === 'Assign from Inventory' || status === 'Assign from Inventory & Closed' || status === 'Procure New');
+      // "Assign existing laptop" isn't a distinct transition anymore — it's the IT
+      // Manager's normal approve-forward move, just with a specific unit attached (see
+      // assignedLaptopAssignment below). Rejections are handled by rejectLaptopRequest,
+      // never here.
+      const isApproveMove = getNextApprovalStatus(currentStatus, hasAssignedUnit, isProcureNewFlow) === status;
+      // Country Manager can flag a request as needing a brand new device procured instead
+      // of approving it outright — routes to the IT Team for device details. Also how a CM
+      // overrides an IT Manager's "Assign existing laptop" pick (see clearsAssignedUnit below).
+      const isCmProcureNewMove = currentStatus === 'CM Approval' && status === 'Procure New Details';
+      // Repair & Closed stays an IT-Manager-only outcome (only they assess the physical device).
       const isRepairMove = IT_MANAGER_STATUSES.includes(currentStatus) && status === 'Repaired & Closed';
 
-      if (!isApproveMove && !isRejectMove && !isReviewerOutcomeMove && !isRepairMove) {
+      if (!isApproveMove && !isCmProcureNewMove && !isRepairMove) {
         return { success: false, error: `Cannot move ${row.reference_number} from ${currentStatus} to ${status}.` };
       }
 
@@ -1279,11 +1355,8 @@ export async function updateLaptopRequestStatus(
         };
       }
 
-      const acting = resolveLaptopActing(actor, requiredPermission, isRejectMove, row);
+      const acting = resolveLaptopActing(actor, requiredPermission, false, row);
       if (!acting.allowed) {
-        if (acting.reason === 'reject') {
-          return { success: false, error: `${actor.role} cannot reject requests.` };
-        }
         if (acting.reason === 'scope') {
           return { success: false, error: `${actor.role} access is limited to your assigned country / segment.` };
         }
@@ -1295,17 +1368,11 @@ export async function updateLaptopRequestStatus(
       onBehalfOf = acting.onBehalfOf;
     }
 
-    const isRejection = status.startsWith('Rejected');
-    if (isRejection && !comment) {
-      return { success: false, error: 'Add a comment before rejecting this request.' };
-    }
-
     const stageColumn = STAGE_COMMENT_COLUMN[currentStatus];
     const setsReviewer = !userCancellingOwnRequest;
-    const rejectionReason = isRejection ? blankToNull(comment) : null;
 
-    // Stamp the stage approval timestamp when the current stage is signed off (not on rejection / cancellation).
-    const stageDateColumn = (!isRejection && !userCancellingOwnRequest) ? STAGE_APPROVED_DATE_COLUMN[currentStatus] : undefined;
+    // Stamp the stage approval timestamp when the current stage is signed off (not on cancellation).
+    const stageDateColumn = !userCancellingOwnRequest ? STAGE_APPROVED_DATE_COLUMN[currentStatus] : undefined;
     const stageDateAssignment = stageDateColumn ? `, ${stageDateColumn} = CURRENT_TIMESTAMP` : '';
     // Build dynamic SET for the stage comment column when applicable.
     const stageCommentAssignment = stageColumn && comment ? `, ${stageColumn} = ?` : '';
@@ -1313,13 +1380,26 @@ export async function updateLaptopRequestStatus(
     // not just the timestamp, so "Assigned Approvers" shows a name instead of staying blank.
     const stageApproverColumn = setsReviewer ? STAGE_APPROVER_NAME_COLUMN[currentStatus] : undefined;
     const stageApproverAssignment = stageApproverColumn ? `, ${stageApproverColumn} = ?` : '';
-    // "Assign existing laptop" / "Assign & Close" hand over a specific second-hand unit —
-    // record which one, separate from the current_brand/current_model/serial_no/age_years
-    // columns above, which describe the OLD device being replaced.
-    const isAssignMove = status === 'Assign from Inventory' || status === 'Assign from Inventory & Closed';
-    const assignedLaptopAssignment = isAssignMove && assignedLaptop
+    // "Assign existing laptop" hands over a specific second-hand unit — record which one,
+    // separate from the current_brand/current_model/serial_no/age_years columns above,
+    // which describe the OLD device being replaced.
+    const assignedLaptopAssignment = assignedLaptop
       ? `, assigned_serial_no = ?, assigned_model = ?, assigned_age = ?`
       : '';
+    // A CM choosing "Procure New" on a request that already has an assigned unit is
+    // overriding the IT Manager's pick — clear it so hasAssignedUnit resets to false and
+    // the rest of the chain (IT Director, SC Director) treats this as a genuine new-device
+    // procurement rather than continuing the now-abandoned assign-from-inventory path.
+    const clearsAssignedUnit = currentStatus === 'CM Approval' && status === 'Procure New Details' && hasAssignedUnit;
+    const clearAssignedUnitAssignment = clearsAssignedUnit
+      ? `, assigned_serial_no = NULL, assigned_model = NULL, assigned_age = NULL`
+      : '';
+    // Sticky flag: once the CM flags a request for a brand new device, it stays flagged
+    // through the rest of the chain (see laptopIsProcureNewFlow) — even after resends —
+    // so Supply Chain Director's final sign-off still lands on 'Procure New', not
+    // 'Approved'.
+    const flagsProcureNew = currentStatus === 'CM Approval' && status === 'Procure New Details';
+    const procureNewFlagAssignment = flagsProcureNew ? `, procure_new_requested = TRUE` : '';
 
     const params: QueryParam[] = [
       status,
@@ -1327,16 +1407,16 @@ export async function updateLaptopRequestStatus(
       setsReviewer ? actor.name : row.reviewed_by_name,
       setsReviewer ? actor.email : row.reviewed_by_email,
       setsReviewer,
-      rejectionReason,
+      null,
       comment ? comment : row.review_comments,
     ];
     if (stageCommentAssignment) params.push(comment);
     if (stageApproverAssignment) params.push(actor.name);
-    if (assignedLaptopAssignment) {
+    if (assignedLaptop) {
       params.push(
-        blankToNull(assignedLaptop!.serial_no),
-        blankToNull(assignedLaptop!.model),
-        blankToNull(assignedLaptop!.age),
+        blankToNull(assignedLaptop.serial_no),
+        blankToNull(assignedLaptop.model),
+        blankToNull(assignedLaptop.age),
       );
     }
     params.push(id);
@@ -1349,7 +1429,7 @@ export async function updateLaptopRequestStatus(
          reviewed_by_email = ?,
          reviewed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
          rejection_reason = ?,
-         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment},
+         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment}${clearAssignedUnitAssignment}${procureNewFlagAssignment},
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       params,
@@ -1374,6 +1454,51 @@ export async function updateLaptopRequestStatus(
   } catch (err) {
     console.error('[updateLaptopRequestStatus]', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update request status.' };
+  }
+}
+
+/**
+ * Country Manager flags a request as needing a brand new device instead of approving
+ * it outright — it comes back here so the IT Team can specify exactly what to procure
+ * (the requester never picks a model upfront). Submitting sends it back to the Country
+ * Manager to confirm the specific device before it continues to IT Director.
+ */
+export async function submitProcureNewDetails(id: number, input: SubmitProcureNewDetailsInput): Promise<ActionResult> {
+  try {
+    const actor = await getActor();
+    requireOperationalAccess(actor);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const row = rows[0];
+    if (!row) return { success: false, error: 'Request not found.' };
+
+    if (row.status !== 'Procure New Details' && !actor.permissions.canManageData) {
+      return { success: false, error: 'Device details can only be submitted while the request is with the IT Team.' };
+    }
+    const canSubmit = actor.permissions.canManageData || laptopActingIdentities(actor).some(identity =>
+      identity.permissions.canReviewItManager && scopeMatches(identity.role, identity.country, identity.segment, row),
+    );
+    if (!canSubmit) {
+      return { success: false, error: 'IT Manager access is required to submit device details.' };
+    }
+
+    const typeOfDevice = requireText(input.type_of_device, 'Type of device');
+    const model = requireText(input.model, 'Model');
+    const nextStatus: LaptopRequestStatus = 'CM Confirm Device';
+
+    await exec(
+      `UPDATE laptop_requests SET
+         type_of_device = ?, requested_model = ?, status = ?, pending_with = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [typeOfDevice, model, nextStatus, getPendingWithLabel(nextStatus), id],
+    );
+    await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Device details submitted, sent to Country Manager for confirmation', actor });
+    revalidateLaptopPaths();
+    revalidatePath(`/laptop-procurement/requests/${id}`);
+    await notifyLaptopNextApprover(serialise<LaptopRequest>({ ...row, status: nextStatus, type_of_device: typeOfDevice, requested_model: model }));
+    return { success: true };
+  } catch (err) {
+    console.error('[submitProcureNewDetails]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to submit device details.' };
   }
 }
 

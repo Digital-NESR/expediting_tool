@@ -174,6 +174,8 @@ export const APPROVAL_ACTIVE_STATUSES: LaptopRequestStatus[] = [
   'Submitted',
   'IT Approval',
   'CM Approval',
+  'Procure New Details',
+  'CM Confirm Device',
   'IT Director Approval',
   'Supply Chain Director Approval',
 ];
@@ -195,6 +197,8 @@ export const STATUS_OPTIONS: LaptopRequestStatus[] = [
   'Submitted',
   'IT Approval',
   'CM Approval',
+  'Procure New Details',
+  'CM Confirm Device',
   'IT Director Approval',
   'Supply Chain Director Approval',
   'Procure New',
@@ -264,28 +268,80 @@ export function isActiveApprovalStatus(status: LaptopRequestStatus): boolean {
   return APPROVAL_ACTIVE_STATUSES.includes(status);
 }
 
-export function getNextApprovalStatus(currentStatus: LaptopRequestStatus): LaptopRequestStatus | null {
+// True once IT Manager has assigned a specific second-hand unit (via "Assign existing
+// laptop") — used to tell that path apart from a genuine new-device procurement once
+// both are sitting at the same 'CM Approval' / 'Supply Chain Director Approval' statuses.
+export function laptopHasAssignedUnit(request: {
+  assigned_serial_no?: string | null;
+  assigned_model?: string | null;
+  assigned_age?: string | null;
+}): boolean {
+  return Boolean(request.assigned_serial_no || request.assigned_model || request.assigned_age);
+}
+
+// True once the Country Manager has ever flagged this request for a brand new device
+// (via "Procure New") — persists through the rest of the chain (see
+// procure_new_requested) so the final sign-off at Supply Chain Director can still tell
+// a genuine new-device procurement apart from a plain approval, even once both are
+// funneling through the same IT Director / SC Director steps.
+export function laptopIsProcureNewFlow(request: { procure_new_requested?: boolean | null }): boolean {
+  return Boolean(request.procure_new_requested);
+}
+
+export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAssignedUnit: boolean, isProcureNewFlow: boolean): LaptopRequestStatus | null {
   const transitions: Partial<Record<LaptopRequestStatus, LaptopRequestStatus>> = {
     Submitted: 'CM Approval',
     'IT Approval': 'CM Approval',
+    // Country Manager's plain "Approve", an assigned-inventory continuation, and a
+    // confirmed new-device procurement all now continue through the same IT Director /
+    // SC Director sign-off — only the final terminal below tells them apart.
     'CM Approval': 'IT Director Approval',
+    // The CM confirming the exact new device IT Manager picked — always continues to
+    // IT Director.
+    'CM Confirm Device': 'IT Director Approval',
     'IT Director Approval': 'Supply Chain Director Approval',
-    'Supply Chain Director Approval': 'Procure New',
+    // Final sign-off: an assigned-inventory unit lands on 'Assign from Inventory'; a
+    // genuine new-device procurement lands on 'Procure New'; otherwise (a plain
+    // approval — nothing being procured or assigned) it lands on 'Approved'.
+    'Supply Chain Director Approval': hasAssignedUnit ? 'Assign from Inventory' : (isProcureNewFlow ? 'Procure New' : 'Approved'),
   };
   return transitions[currentStatus] ?? null;
 }
 
+// Every rejection bounces the request back to the IT Manager to fix and resend, rather
+// than ending it — only the IT Manager themselves has no reject option (nothing to
+// bounce it back further to).
 export function getRejectStatusForStage(currentStatus: LaptopRequestStatus): LaptopRequestStatus | null {
   switch (currentStatus) {
+    case 'CM Approval':
+    case 'CM Confirm Device':
+    case 'IT Director Approval':
+    case 'Supply Chain Director Approval':
+      return 'IT Approval';
+    default:
+      return null;
+  }
+}
+
+export type LaptopApprovalStage = 'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
+
+// Which human role currently owns a given status — used both to route the
+// approval-chain notification email and, via the read-only status-check API, to let
+// an external workflow (e.g. n8n) verify a request is still actually pending before
+// escalating, instead of trusting a stale snapshot from when it first fired.
+export function getLaptopApprovalStage(status: LaptopRequestStatus): LaptopApprovalStage | null {
+  switch (status) {
     case 'Submitted':
     case 'IT Approval':
-      return 'Rejected';
+    case 'Procure New Details':
+      return 'IT Manager';
     case 'CM Approval':
-      return 'Rejected by CM';
+    case 'CM Confirm Device':
+      return 'Country Manager';
     case 'IT Director Approval':
-      return 'Rejected by ITD';
+      return 'IT Director';
     case 'Supply Chain Director Approval':
-      return 'Rejected by SCD';
+      return 'Supply Chain Director';
     default:
       return null;
   }
@@ -297,6 +353,14 @@ export function getRequiredPermissionForStage(currentStatus: LaptopRequestStatus
     case 'IT Approval':
       return 'canReviewItManager';
     case 'CM Approval':
+      return 'canReviewCountryManager';
+    // Back with the IT Team to specify the new device before the request continues —
+    // same identity that owns the initial intake stage.
+    case 'Procure New Details':
+      return 'canReviewItManager';
+    // Same Country Manager identity confirming the device IT Manager picked, before
+    // it continues to IT Director.
+    case 'CM Confirm Device':
       return 'canReviewCountryManager';
     case 'IT Director Approval':
       return 'canReviewItDirector';
@@ -310,21 +374,30 @@ export function getRequiredPermissionForStage(currentStatus: LaptopRequestStatus
 export function getLaptopAvailableActions(
   permissions: LaptopPermissionProfile,
   currentStatus: LaptopRequestStatus,
+  hasAssignedUnit: boolean = false,
+  isProcureNewFlow: boolean = false,
 ): LaptopRequestActions {
-  const nextStatus = getNextApprovalStatus(currentStatus);
+  const nextStatus = getNextApprovalStatus(currentStatus, hasAssignedUnit, isProcureNewFlow);
   const requiredPermission = getRequiredPermissionForStage(currentStatus);
   const ownsCurrentStep = Boolean(requiredPermission && permissions[requiredPermission]);
   const isItManagerStage = IT_MANAGER_STATUSES.includes(currentStatus);
+  const isCmStage = currentStatus === 'CM Approval';
+  const isProcureDetailsStage = currentStatus === 'Procure New Details';
   return {
     nextStatus,
     canApprove: Boolean(nextStatus && ownsCurrentStep),
     canReject: Boolean(ownsCurrentStep && permissions.canReject && getRejectStatusForStage(currentStatus)),
-    // Assign from Inventory / Procure New are available to whichever reviewer owns the
-    // current stage — not just the IT Manager — so any approver in the chain can resolve
-    // the request directly instead of always forwarding it further.
-    canAssignInventory: ownsCurrentStep,
-    canProcureNew: ownsCurrentStep,
+    // IT Manager is the only one who checks physical inventory, so only they can
+    // resolve a request by assigning a second-hand unit — it then continues through
+    // the normal chain (see getNextApprovalStatus) rather than ending immediately.
+    canAssignInventory: isItManagerStage && ownsCurrentStep,
+    // Only the Country Manager can flag a request as needing a brand new device
+    // procured — everyone else just approves forward. Stays available even once the
+    // request is on the assigned-inventory path, so the CM can still override the IT
+    // Manager's pick and send it back for a genuine new-device procurement instead.
+    canProcureNew: isCmStage && ownsCurrentStep,
     canMarkRepaired: isItManagerStage && permissions.canReviewItManager,
+    canSubmitProcureDetails: isProcureDetailsStage && ownsCurrentStep,
     rejectStatus: getRejectStatusForStage(currentStatus),
     ownerLabel: requiredPermission ? PERMISSION_OWNER_LABELS[requiredPermission] ?? 'Assigned approver' : 'No active owner',
   };
@@ -338,9 +411,11 @@ export type LaptopWorkflowStep = {
 };
 
 export const WORKFLOW_STEPS: LaptopWorkflowStep[] = [
-  { status: 'Submitted', label: 'IT Review', owner: 'IT Manager', description: 'IT checks the device condition and inventory, then repairs, assigns from stock, or sends for procurement approval.' },
-  { status: 'CM Approval', label: 'Country Manager Approval', owner: 'Country Manager', description: 'Country Manager reviews and approves the request.' },
-  { status: 'IT Director Approval', label: 'IT Director Approval', owner: 'IT Director', description: 'IT Director reviews after the Country Manager.' },
+  { status: 'Submitted', label: 'IT Review', owner: 'IT Manager', description: 'IT checks the device condition and inventory, then repairs, assigns from stock, or sends for approval.' },
+  { status: 'CM Approval', label: 'Country Manager Approval', owner: 'Country Manager', description: 'Country Manager approves the request outright, or flags it for new-device procurement.' },
+  { status: 'Procure New Details', label: 'Device Details', owner: 'IT Manager', description: 'IT Team specifies the new device to be procured before the remaining approvals.' },
+  { status: 'CM Confirm Device', label: 'Country Manager Confirmation', owner: 'Country Manager', description: 'Country Manager confirms the specific device before it goes to IT Director.' },
+  { status: 'IT Director Approval', label: 'IT Director Approval', owner: 'IT Director', description: 'IT Director reviews the procurement request.' },
   { status: 'Supply Chain Director Approval', label: 'Supply Chain Director Approval', owner: 'Supply Chain Director', description: 'Supply Chain Director gives the final procurement approval.' },
   { status: 'Procure New', label: 'Procure New', owner: 'Workflow Complete', description: 'Approved — a new device will be procured.' },
 ];
@@ -394,6 +469,8 @@ export function getStatusBadge(status: string): { label: string; className: stri
     Submitted: { label: 'Submitted', className: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
     'IT Approval': { label: 'IT Review', className: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
     'CM Approval': { label: 'Country Manager', className: 'bg-cyan-50 text-cyan-800 border-cyan-200', dot: 'bg-cyan-500' },
+    'Procure New Details': { label: 'New Device Details', className: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
+    'CM Confirm Device': { label: 'Country Manager (Confirm Device)', className: 'bg-cyan-50 text-cyan-800 border-cyan-200', dot: 'bg-cyan-500' },
     'IT Director Approval': { label: 'IT Director', className: 'bg-teal-50 text-teal-800 border-teal-200', dot: 'bg-teal-500' },
     'Supply Chain Director Approval': { label: 'SC Director', className: 'bg-indigo-50 text-indigo-800 border-indigo-200', dot: 'bg-indigo-500' },
     'Procure New': { label: 'Procure New', className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },

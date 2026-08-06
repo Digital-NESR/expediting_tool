@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useState, useTransition } from 'react';
+import { useId, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import LaptopShell, { CTA, GLASS } from '../../components/LaptopShell';
 import { createLaptopRequest, updateLaptopRequest, uploadLaptopDocument } from '@/app/actions/laptopProcurement';
@@ -15,7 +15,6 @@ import type { EmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory'
 import type {
   CreateLaptopRequestInput,
   LaptopAccessView,
-  LaptopDeviceOption,
   LaptopRequest,
 } from '@/types/laptopProcurement';
 
@@ -72,14 +71,12 @@ function AttachmentPicker({ files, onFilesSelected }: { files: File[]; onFilesSe
 
 export default function LaptopRequestFormClient({
   accessView,
-  devices,
   editRequest,
   directoryDefaults,
 }: {
   requesterName: string;
   requesterEmail: string;
   accessView: LaptopAccessView;
-  devices: LaptopDeviceOption[];
   editRequest?: LaptopRequest;
   directoryDefaults?: EmployeeDirectoryDefaults | null;
 }) {
@@ -100,7 +97,6 @@ export default function LaptopRequestFormClient({
   const [companyName, setCompanyName] = useState(editRequest?.company_name ?? '');
   const [costCenter, setCostCenter] = useState(editRequest?.cost_center ?? '');
   const [typeOfDevice, setTypeOfDevice] = useState(editRequest?.type_of_device ?? '');
-  const [requestedModel, setRequestedModel] = useState(editRequest?.requested_model ?? '');
   const [specialRequirements, setSpecialRequirements] = useState(editRequest?.special_requirements ?? '');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
@@ -113,11 +109,6 @@ export default function LaptopRequestFormClient({
   const isNewEmployee = requestType === 'New Employee';
   const isUnit = requestType === 'Unit';
   const isSelfRequest = requestType === 'Upgrade/Replacement' || isUnit;
-
-  const modelOptions = useMemo(
-    () => [...new Set(devices.filter(d => !typeOfDevice || d.type_of_device === typeOfDevice).map(d => d.model))],
-    [devices, typeOfDevice],
-  );
 
   // Self-service requests are for the requester's own record, so the directory
   // can fill in what it already knows instead of the requester retyping it. New
@@ -148,7 +139,6 @@ export default function LaptopRequestFormClient({
     if (!position.trim()) e.position = 'Position is required.';
     if (!companyName.trim()) e.companyName = 'Company Name is required.';
     if (!typeOfDevice) e.typeOfDevice = 'Type of device is required.';
-    if (!requestedModel) e.requestedModel = 'Requested model is required.';
     if (!specialRequirements.trim()) e.specialRequirements = 'Special requirements / justification is required.';
     if (selectedFiles.some(file => file.size > MAX_FILE_BYTES)) e.attachments = 'Each file must be 10 MB or smaller.';
     return e;
@@ -193,7 +183,6 @@ export default function LaptopRequestFormClient({
       company_name: companyName,
       cost_center: costCenter,
       type_of_device: typeOfDevice,
-      requested_model: requestedModel,
       special_requirements: specialRequirements,
     };
 
@@ -294,16 +283,10 @@ export default function LaptopRequestFormClient({
               <select
                 className={errors.typeOfDevice ? ERR : INP}
                 value={typeOfDevice}
-                onChange={e => { setTypeOfDevice(e.target.value); setRequestedModel(''); }}
+                onChange={e => setTypeOfDevice(e.target.value)}
               >
                 <option value="">Select device type</option>
                 {DEVICE_TYPE_OPTIONS.map(item => <option key={item}>{item}</option>)}
-              </select>
-            </Field>
-            <Field label="Model of the Device" required error={errors.requestedModel}>
-              <select className={errors.requestedModel ? ERR : INP} value={requestedModel} onChange={e => setRequestedModel(e.target.value)} disabled={!typeOfDevice}>
-                <option value="">{typeOfDevice ? 'Select model' : 'Select a device type first'}</option>
-                {modelOptions.map(item => <option key={item}>{item}</option>)}
               </select>
             </Field>
           </div>

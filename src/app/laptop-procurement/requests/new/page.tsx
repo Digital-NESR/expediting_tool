@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getLaptopActor, getLaptopDeviceOptions } from '@/app/actions/laptopProcurement';
+import { getLaptopActor } from '@/app/actions/laptopProcurement';
 import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import { getProcureGuardUser } from '@/lib/auth';
 import { canUseLaptopOperationalPages } from '@/lib/laptopProcurement-utils';
@@ -16,10 +16,7 @@ export default async function NewLaptopRequestPage() {
     redirect('/laptop-procurement/analytics');
   }
 
-  const [devices, directoryDefaults] = await Promise.all([
-    getLaptopDeviceOptions(),
-    getEmployeeDirectoryDefaults(user?.email ?? ''),
-  ]);
+  const directoryDefaults = await getEmployeeDirectoryDefaults(user?.email ?? '');
 
   return (
     <LaptopRequestFormClient
@@ -27,7 +24,6 @@ export default async function NewLaptopRequestPage() {
       requesterEmail={user?.email ?? ''}
       directoryDefaults={directoryDefaults}
       accessView={actor.effectiveAccessView}
-      devices={devices}
     />
   );
 }

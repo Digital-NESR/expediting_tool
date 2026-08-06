@@ -10,6 +10,8 @@ import {
   getLaptopAvailableActions,
   getPriorityBadge,
   getStatusBadge,
+  laptopHasAssignedUnit,
+  laptopIsProcureNewFlow,
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopRequest, LaptopRequestListData } from '@/types/laptopProcurement';
 
@@ -89,8 +91,8 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
   if (!actor) return <DbError />;
 
   const pendingCount = requests.filter(r => {
-    const actions = getLaptopAvailableActions(actor.permissions, r.status);
-    return actions.canApprove || actions.canReject || actions.canAssignInventory;
+    const actions = getLaptopAvailableActions(actor.permissions, r.status, laptopHasAssignedUnit(r), laptopIsProcureNewFlow(r));
+    return actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canSubmitProcureDetails;
   }).length;
 
   const requestTypes = Array.from(new Set(requests.map(r => r.request_type).filter(Boolean))) as string[];
