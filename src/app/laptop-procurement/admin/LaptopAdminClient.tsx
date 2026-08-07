@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import LaptopShell, { CTA, GLASS } from '../components/LaptopShell';
 import EmployeeAutocomplete from '@/app/procure-guard/components/EmployeeAutocomplete';
 import {
@@ -42,6 +42,21 @@ function DbError() {
 
 const REQUESTS_PAGE_SIZE = 10;
 
+// Deliberately not React's useTransition: transition updates are scheduled at low
+// priority, and if the tab is backgrounded even briefly (a very normal thing for an
+// admin to do while waiting — switching windows, checking another tab), Chrome's
+// timer throttling for hidden pages can delay that scheduled update by many seconds,
+// even though the underlying fetch already finished. A plain boolean applied via a
+// normal-priority setState isn't subject to that starvation.
+function usePendingAction(): [boolean, (fn: () => Promise<void>) => void] {
+  const [isPending, setIsPending] = useState(false);
+  function run(fn: () => Promise<void>) {
+    setIsPending(true);
+    fn().finally(() => setIsPending(false));
+  }
+  return [isPending, run];
+}
+
 function delegationIsLive(d: LaptopDelegationRow): boolean {
   return d.is_active
     && (!d.starts_at || new Date(d.starts_at).getTime() <= Date.now())
@@ -63,7 +78,7 @@ function DelegationsPanel({
   onDone: (message: string) => void;
   onMutated: () => Promise<unknown>;
 }) {
-  const [isPending, startTransition] = useTransition();
+  const [isPending, startTransition] = usePendingAction();
   const [delegatorEmail, setDelegatorEmail] = useState('');
   const [delegateEmail, setDelegateEmail] = useState('');
   const [delegateName, setDelegateName] = useState('');
@@ -237,7 +252,7 @@ function DevicesPanel({
   onDone: (message: string) => void;
   onMutated: () => Promise<unknown>;
 }) {
-  const [isPending, startTransition] = useTransition();
+  const [isPending, startTransition] = usePendingAction();
   const [typeOfDevice, setTypeOfDevice] = useState(DEVICE_TYPE_OPTIONS[0]);
   const [model, setModel] = useState('');
   const [error, setError] = useState('');
@@ -421,7 +436,7 @@ function DevicesPanel({
 
 export default function LaptopAdminClient({ data: initialData, embedded = false }: { data: LaptopAdminData | null; embedded?: boolean }) {
   const [tab, setTab] = useState<'permissions' | 'requests' | 'activity' | 'delegations' | 'devices'>('permissions');
-  const [isPending, startTransition] = useTransition();
+  const [isPending, startTransition] = usePendingAction();
   const [banner, setBanner] = useState('');
   // Owned entirely by this component after mount — every mutation below refetches
   // explicitly and calls setData itself, rather than relying on router.refresh().

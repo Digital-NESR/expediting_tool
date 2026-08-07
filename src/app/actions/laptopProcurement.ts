@@ -802,10 +802,16 @@ function revalidateLaptopPaths(): void {
   revalidatePath('/laptop-procurement/requests/new');
   revalidatePath('/laptop-procurement/my-work');
   revalidatePath('/laptop-procurement/analytics');
-  // The shared admin dashboard embeds the Laptop Procurement admin panel — without
-  // this, another admin's browser would keep showing a deleted/changed record
-  // until they happened to trigger a full reload some other way.
-  revalidatePath('/admin');
+  // Deliberately NOT revalidating '/admin': that shared shell's Server Component
+  // fetches data for every admin tool in one Promise.all (ProcureGuard, SourceGuide,
+  // TI-TE, ...), several of which fail against databases this environment can't
+  // reach — revalidating it here made every laptop-procurement mutation pay for
+  // those unrelated failures in the background. LaptopAdminClient manages its own
+  // data after mount (see refreshAdminData) and no longer depends on this route's
+  // cache being fresh, so the only cost of dropping this is that a laptop-related
+  // tab elsewhere in the SAME shared shell (Analytics, Access Approvals) could show
+  // stale data until that admin reloads — a much smaller cost than paying for three
+  // broken database connections on every delete.
 }
 
 /* ── Device catalogue ─────────────────────────────────────────── */
