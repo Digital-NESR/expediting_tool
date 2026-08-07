@@ -7,6 +7,8 @@ import { revalidatePath } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
 import laptopProcurementPool from '@/lib/db-laptop';
 import {
+  ADMIN_REQUESTS_PAGE_SIZE,
+  APPROVAL_ACTIVE_STATUSES,
   bestAccessView,
   canUseLaptopAdmin,
   canUseLaptopAnalytics,
@@ -41,6 +43,7 @@ import type {
   LaptopAnalyticsMetric,
   LaptopApproverMatrixRow,
   LaptopDashboardData,
+  LaptopDashboardStats,
   LaptopDeviceCatalogRow,
   LaptopDeviceOption,
   LaptopDocument,
@@ -700,6 +703,38 @@ function buildStats(requests: LaptopRequest[]) {
   };
 }
 
+// Same stats as buildStats, but computed with SQL aggregates against an optional
+// scope (WHERE clause + params) instead of pulling every matching row into JS first —
+// for callers (admin panel, dashboard) that only need the counts, not the rows.
+async function computeLaptopStats(whereClause: string, whereParams: QueryParams): Promise<LaptopDashboardStats> {
+  const activePlaceholders = APPROVAL_ACTIVE_STATUSES.map(() => '?').join(', ');
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT
+       COUNT(*)::int AS total,
+       COUNT(*) FILTER (WHERE status IN (${activePlaceholders}))::int AS pending_review,
+       COUNT(*) FILTER (WHERE status IN ('Procure New', 'Approved'))::int AS procure_new,
+       COUNT(*) FILTER (WHERE status IN ('Assign from Inventory', 'Assign from Inventory & Closed'))::int AS assigned_inventory,
+       COUNT(*) FILTER (WHERE status = 'Repaired & Closed')::int AS repaired,
+       COUNT(*) FILTER (WHERE status LIKE 'Rejected%')::int AS rejected,
+       COUNT(*) FILTER (WHERE LOWER(type_of_device) = 'laptop')::int AS laptops,
+       COUNT(*) FILTER (WHERE LOWER(type_of_device) = 'desktop')::int AS desktops
+     FROM laptop_requests
+     ${whereClause}`,
+    [...APPROVAL_ACTIVE_STATUSES, ...whereParams],
+  );
+  const row = rows[0] ?? {};
+  return {
+    total: Number(row.total ?? 0),
+    pending_review: Number(row.pending_review ?? 0),
+    procure_new: Number(row.procure_new ?? 0),
+    assigned_inventory: Number(row.assigned_inventory ?? 0),
+    repaired: Number(row.repaired ?? 0),
+    rejected: Number(row.rejected ?? 0),
+    laptops: Number(row.laptops ?? 0),
+    desktops: Number(row.desktops ?? 0),
+  };
+}
+
 function buildMonthlyTrend(requests: LaptopRequest[]): LaptopMonthlyMetric[] {
   const map = new Map<string, number>();
   for (const r of requests) {
@@ -864,8 +899,18 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
     requireOperationalAccess(actor);
     const scope = scopedWhere(actor);
 
-    const [requestRows, activityRows] = await Promise.all([
-      sql<QueryResultRow[]>(`SELECT * FROM laptop_requests ${scope.where} ORDER BY created_at DESC, id DESC`, scope.params),
+    // Only the top 7 active-approval requests, in the same priority order the widget
+    // displays them — avoids pulling every visible request (which can run into the
+    // hundreds for a canViewAll actor) just to show a handful.
+    const priorityRank = `CASE priority WHEN 'Critical' THEN 0 WHEN 'High' THEN 1 WHEN 'Normal' THEN 2 WHEN 'Low' THEN 3 ELSE 2 END`;
+    const activePlaceholders = APPROVAL_ACTIVE_STATUSES.map(() => '?').join(', ');
+    const pendingWhere = scope.where ? `${scope.where} AND status IN (${activePlaceholders})` : `WHERE status IN (${activePlaceholders})`;
+
+    const [pendingRows, activityRows, stats] = await Promise.all([
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_requests ${pendingWhere} ORDER BY ${priorityRank}, created_at DESC LIMIT 7`,
+        [...scope.params, ...APPROVAL_ACTIVE_STATUSES],
+      ),
       sql<QueryResultRow[]>(
         actor.permissions.canViewAll
           ? `SELECT * FROM laptop_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 12`
@@ -875,12 +920,12 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
              ORDER BY a.created_at DESC LIMIT 12`,
         actor.permissions.canViewAll ? [] : [actor.email],
       ),
+      computeLaptopStats(scope.where, scope.params),
     ]);
 
-    const requests = serialise<LaptopRequest[]>(requestRows);
     return {
-      stats: buildStats(requests),
-      requests,
+      stats,
+      pendingQueue: serialise<LaptopRequest[]>(pendingRows),
       activity: serialise<LaptopActivityRow[]>(activityRows),
       actor,
     };
@@ -967,28 +1012,34 @@ export async function getLaptopWorkQueueData(): Promise<LaptopWorkQueueData | nu
   }
 }
 
-export async function getLaptopAdminData(): Promise<LaptopAdminData | null> {
+export async function getLaptopAdminData(requestsPage: number = 0): Promise<LaptopAdminData | null> {
   try {
     const actor = await requireAdminActor();
     await ensureLaptopDelegationTable();
     await expireStaleLaptopDelegations();
-    const [requestRows, activityRows, permissionRows, delegationRows, deviceRows] = await Promise.all([
-      sql<QueryResultRow[]>(`SELECT * FROM laptop_requests ORDER BY created_at DESC, id DESC`),
+    const offset = Math.max(0, Math.floor(requestsPage)) * ADMIN_REQUESTS_PAGE_SIZE;
+    const [requestRows, requestsCountRows, activityRows, permissionRows, delegationRows, deviceRows, stats] = await Promise.all([
+      // Only the current page — the table only ever shows ADMIN_REQUESTS_PAGE_SIZE
+      // rows at a time, so there's no reason to pull the entire (and ever-growing)
+      // requests table on every admin panel load or action.
+      sql<QueryResultRow[]>(`SELECT * FROM laptop_requests ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, [ADMIN_REQUESTS_PAGE_SIZE, offset]),
+      sql<QueryResultRow[]>(`SELECT COUNT(*)::int AS count FROM laptop_requests`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 100`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions ORDER BY role, email`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_delegations ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_device_catalog ORDER BY type_of_device, model`),
+      computeLaptopStats('', []),
     ]);
-    const requests = serialise<LaptopRequest[]>(requestRows);
     const delegations = serialise<LaptopDelegationRow[]>(delegationRows);
     return {
       actor,
-      requests,
+      requests: serialise<LaptopRequest[]>(requestRows),
+      requestsTotal: Number(requestsCountRows[0]?.count ?? 0),
       activity: serialise<LaptopActivityRow[]>(activityRows),
       permissions: serialise<LaptopPermissionRow[]>(permissionRows),
       delegations,
       deviceCatalog: serialise<LaptopDeviceCatalogRow[]>(deviceRows),
-      stats: buildStats(requests),
+      stats,
     };
   } catch (err) {
     console.error('[getLaptopAdminData]', err);

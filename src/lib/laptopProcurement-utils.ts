@@ -170,6 +170,10 @@ export function bestAccessView(views: LaptopAccessView[]): LaptopAccessView {
 
 export const IT_MANAGER_STATUSES: LaptopRequestStatus[] = ['Submitted', 'IT Approval'];
 
+// Shared by the admin panel's requests table (server-side LIMIT/OFFSET) and its
+// client-side pagination controls, so the two stay in lockstep.
+export const ADMIN_REQUESTS_PAGE_SIZE = 10;
+
 export const APPROVAL_ACTIVE_STATUSES: LaptopRequestStatus[] = [
   'Submitted',
   'IT Approval',
