@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import LaptopShell, { CTA, GLASS } from '../components/LaptopShell';
 import EmployeeAutocomplete from '@/app/procure-guard/components/EmployeeAutocomplete';
 import {
@@ -11,6 +10,7 @@ import {
   deleteLaptopDevice,
   deleteLaptopPermission,
   deleteLaptopRecord,
+  getLaptopAdminData,
   revokeLaptopDelegation,
   updateLaptopDevice,
   updateLaptopPermission,
@@ -56,12 +56,13 @@ function DelegationsPanel({
   delegations,
   approvers,
   onDone,
+  onMutated,
 }: {
   delegations: LaptopDelegationRow[];
   approvers: Array<{ email: string; name: string | null; role: LaptopPermissionRole }>;
   onDone: (message: string) => void;
+  onMutated: () => Promise<unknown>;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [delegatorEmail, setDelegatorEmail] = useState('');
   const [delegateEmail, setDelegateEmail] = useState('');
@@ -83,7 +84,7 @@ function DelegationsPanel({
       if (result.success) {
         onDone(`Delegated ${delegatorEmail}'s approvals to ${delegateEmail}.`);
         setDelegatorEmail(''); setDelegateEmail(''); setDelegateName(''); setStartsAt(''); setEndsAt('');
-        router.refresh();
+        await onMutated();
       } else {
         setError(result.error ?? 'Failed to create delegation.');
       }
@@ -96,7 +97,7 @@ function DelegationsPanel({
       const result = await revokeLaptopDelegation(id);
       if (result.success) {
         onDone(`Revoked delegation for ${who}.`);
-        router.refresh();
+        await onMutated();
       } else {
         setError(result.error ?? 'Failed to revoke delegation.');
       }
@@ -230,11 +231,12 @@ function DelegationsPanel({
 function DevicesPanel({
   devices,
   onDone,
+  onMutated,
 }: {
   devices: LaptopDeviceCatalogRow[];
   onDone: (message: string) => void;
+  onMutated: () => Promise<unknown>;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [typeOfDevice, setTypeOfDevice] = useState(DEVICE_TYPE_OPTIONS[0]);
   const [model, setModel] = useState('');
@@ -257,7 +259,7 @@ function DevicesPanel({
       if (result.success) {
         onDone(`Added ${typeOfDevice} model "${model.trim()}" to the catalog.`);
         setModel('');
-        router.refresh();
+        await onMutated();
       } else {
         setError(result.error ?? 'Failed to add device.');
       }
@@ -279,7 +281,7 @@ function DevicesPanel({
       if (result.success) {
         setEditingId(null);
         onDone('Device updated.');
-        router.refresh();
+        await onMutated();
       } else {
         setError(result.error ?? 'Failed to update device.');
       }
@@ -292,7 +294,7 @@ function DevicesPanel({
       const result = await updateLaptopDevice(d.id, { active: !d.active });
       if (result.success) {
         onDone(`${d.model} ${d.active ? 'deactivated' : 'reactivated'}.`);
-        router.refresh();
+        await onMutated();
       } else {
         setError(result.error ?? 'Failed to update device.');
       }
@@ -305,7 +307,7 @@ function DevicesPanel({
       const result = await deleteLaptopDevice(d.id);
       if (result.success) {
         onDone(`Removed ${d.model} from the catalog.`);
-        router.refresh();
+        await onMutated();
       } else {
         setError(result.error ?? 'Failed to delete device.');
       }
@@ -417,13 +419,19 @@ function DevicesPanel({
   );
 }
 
-export default function LaptopAdminClient({ data, embedded = false }: { data: LaptopAdminData | null; embedded?: boolean }) {
+export default function LaptopAdminClient({ data: initialData, embedded = false }: { data: LaptopAdminData | null; embedded?: boolean }) {
   const [tab, setTab] = useState<'permissions' | 'requests' | 'activity' | 'delegations' | 'devices'>('permissions');
   const [isPending, startTransition] = useTransition();
   const [banner, setBanner] = useState('');
+  // Owned entirely by this component after mount — every mutation below refetches
+  // explicitly and calls setData itself, rather than relying on router.refresh().
+  // deleteLaptopRecord (and friends) call revalidatePath server-side, which makes
+  // Next.js silently re-render this route's Server Component in the background
+  // (with requestsPage reset to 0); syncing local state to that incoming prop would
+  // race with — and clobber — the page we just explicitly fetched.
+  const [data, setData] = useState(initialData);
   const [requestsPage, setRequestsPage] = useState(0);
   const [permissionsPage, setPermissionsPage] = useState(0);
-  const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -435,13 +443,29 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
   const { actor, requests, activity, permissions, delegations, deviceCatalog, stats } = data;
   const approvers = permissions.filter(p => getPermissionProfile(p.role).canViewAll);
 
-  const requestsPageCount = Math.max(1, Math.ceil(requests.length / REQUESTS_PAGE_SIZE));
+  // Requests are paginated server-side (see getLaptopAdminData) — `requests` here is
+  // already just the current page, so no client-side slicing is needed.
+  const requestsPageCount = Math.max(1, Math.ceil(data.requestsTotal / REQUESTS_PAGE_SIZE));
   const currentRequestsPage = Math.min(requestsPage, requestsPageCount - 1);
-  const pagedRequests = requests.slice(currentRequestsPage * REQUESTS_PAGE_SIZE, (currentRequestsPage + 1) * REQUESTS_PAGE_SIZE);
 
   const permissionsPageCount = Math.max(1, Math.ceil(permissions.length / REQUESTS_PAGE_SIZE));
   const currentPermissionsPage = Math.min(permissionsPage, permissionsPageCount - 1);
   const pagedPermissions = permissions.slice(currentPermissionsPage * REQUESTS_PAGE_SIZE, (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE);
+
+  async function refreshAdminData(page: number = currentRequestsPage) {
+    const fresh = await getLaptopAdminData(page);
+    if (fresh) setData(fresh);
+    else setBanner('Failed to refresh data.');
+    return fresh;
+  }
+
+  function goToRequestsPage(page: number) {
+    const clamped = Math.max(0, page);
+    startTransition(async () => {
+      const fresh = await refreshAdminData(clamped);
+      if (fresh) setRequestsPage(clamped);
+    });
+  }
 
   function savePermission() {
     setBanner('');
@@ -451,7 +475,7 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
       if (result.success) {
         setBanner(`Saved permission for ${email}.`);
         setEmail(''); setName(''); setRole('Requester'); setCountry(''); setSegment('');
-        router.refresh();
+        await refreshAdminData();
       } else {
         setBanner(result.error ?? 'Failed to save permission.');
       }
@@ -461,7 +485,7 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
   function removePermission(targetEmail: string) {
     startTransition(async () => {
       const result = await deleteLaptopPermission(targetEmail);
-      if (result.success) router.refresh();
+      if (result.success) await refreshAdminData();
       else setBanner(result.error ?? 'Failed to delete permission.');
     });
   }
@@ -469,14 +493,22 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
   function removeRequest(id: number) {
     startTransition(async () => {
       const result = await deleteLaptopRecord('request', id);
-      if (result.success) router.refresh();
-      else setBanner(result.error ?? 'Failed to delete request.');
+      if (!result.success) { setBanner(result.error ?? 'Failed to delete request.'); return; }
+      let page = currentRequestsPage;
+      let fresh = await refreshAdminData(page);
+      // Deleted the last item on the last page — step back one so the view isn't blank.
+      if (fresh && page > 0 && page * REQUESTS_PAGE_SIZE >= fresh.requestsTotal) {
+        page -= 1;
+        fresh = await refreshAdminData(page);
+      }
+      if (fresh) setRequestsPage(page);
+      else setBanner('Request deleted, but the list failed to refresh.');
     });
   }
 
   const tabs: Array<{ id: typeof tab; label: string }> = [
     { id: 'permissions', label: `Permissions (${permissions.length})` },
-    { id: 'requests', label: `Requests (${requests.length})` },
+    { id: 'requests', label: `Requests (${data.requestsTotal})` },
     { id: 'activity', label: `Activity (${activity.length})` },
     { id: 'delegations', label: `Delegations (${delegations.length})` },
     { id: 'devices', label: `Devices (${deviceCatalog.length})` },
@@ -617,7 +649,7 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pagedRequests.map(r => {
+                  {requests.map(r => {
                     const badge = getStatusBadge(r.status);
                     return (
                       <tr key={r.id} className="transition-colors hover:bg-white">
@@ -636,13 +668,13 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
             </div>
             <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
               <p className="text-xs text-slate-500/80">
-                Showing {requests.length === 0 ? 0 : currentRequestsPage * REQUESTS_PAGE_SIZE + 1}
-                –{Math.min((currentRequestsPage + 1) * REQUESTS_PAGE_SIZE, requests.length)} of {requests.length} requests
+                Showing {data.requestsTotal === 0 ? 0 : currentRequestsPage * REQUESTS_PAGE_SIZE + 1}
+                –{Math.min((currentRequestsPage + 1) * REQUESTS_PAGE_SIZE, data.requestsTotal)} of {data.requestsTotal} requests
               </p>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setRequestsPage(p => Math.max(0, p - 1))}
-                  disabled={currentRequestsPage === 0}
+                  onClick={() => goToRequestsPage(currentRequestsPage - 1)}
+                  disabled={currentRequestsPage === 0 || isPending}
                   aria-label="Previous page"
                   className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -650,8 +682,8 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
                 </button>
                 <span className="text-xs font-semibold text-slate-600">Page {currentRequestsPage + 1} of {requestsPageCount}</span>
                 <button
-                  onClick={() => setRequestsPage(p => Math.min(requestsPageCount - 1, p + 1))}
-                  disabled={currentRequestsPage >= requestsPageCount - 1}
+                  onClick={() => goToRequestsPage(currentRequestsPage + 1)}
+                  disabled={currentRequestsPage >= requestsPageCount - 1 || isPending}
                   aria-label="Next page"
                   className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -677,11 +709,11 @@ export default function LaptopAdminClient({ data, embedded = false }: { data: La
         )}
 
         {tab === 'delegations' && (
-          <DelegationsPanel delegations={delegations} approvers={approvers} onDone={setBanner} />
+          <DelegationsPanel delegations={delegations} approvers={approvers} onDone={setBanner} onMutated={refreshAdminData} />
         )}
 
         {tab === 'devices' && (
-          <DevicesPanel devices={deviceCatalog} onDone={setBanner} />
+          <DevicesPanel devices={deviceCatalog} onDone={setBanner} onMutated={refreshAdminData} />
         )}
       </div>
   );

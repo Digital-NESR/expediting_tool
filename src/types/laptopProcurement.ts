@@ -274,14 +274,19 @@ export interface LaptopDashboardStats {
 
 export interface LaptopDashboardData {
   stats: LaptopDashboardStats;
-  requests: LaptopRequest[];
+  // Top 7 active-approval requests in priority order — computed server-side so the
+  // dashboard never needs to pull every visible request just to show a small widget.
+  pendingQueue: LaptopRequest[];
   activity: LaptopActivityRow[];
   actor: LaptopActor;
 }
 
 export interface LaptopAdminData {
   actor: LaptopActor;
+  // Only the current page (see requestsTotal for the full count) — the admin table
+  // shows 10 at a time, so there's no need to fetch the entire table on every load.
   requests: LaptopRequest[];
+  requestsTotal: number;
   activity: LaptopActivityRow[];
   permissions: LaptopPermissionRow[];
   delegations: LaptopDelegationRow[];

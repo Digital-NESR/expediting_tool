@@ -1,10 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import LaptopShell, { CTA, GLASS } from './components/LaptopShell';
-import { canUseLaptopAnalytics, getPriorityBadge, getStatusBadge, isActiveApprovalStatus, timeAgo } from '@/lib/laptopProcurement-utils';
+import { canUseLaptopAnalytics, getPriorityBadge, getStatusBadge, timeAgo } from '@/lib/laptopProcurement-utils';
 import type { LaptopDashboardData, LaptopRequest } from '@/types/laptopProcurement';
 
 const AVATAR_GRADIENTS = [
@@ -107,21 +106,10 @@ function RequestRow({ request, index }: { request: LaptopRequest; index: number 
 
 export default function LaptopDashboardClient({ data }: { data: LaptopDashboardData | null }) {
   const router = useRouter();
-  const pendingQueue = useMemo(() => {
-    const all = data?.requests ?? [];
-    return all
-      .filter(r => isActiveApprovalStatus(r.status))
-      .sort((a, b) => {
-        const rank: Record<string, number> = { Critical: 0, High: 1, Normal: 2, Low: 3 };
-        return (rank[a.priority] ?? 2) - (rank[b.priority] ?? 2)
-          || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      })
-      .slice(0, 7);
-  }, [data]);
 
   if (!data) return <DbError />;
 
-  const { stats, activity, actor } = data;
+  const { stats, pendingQueue, activity, actor } = data;
   const firstName = (actor.name || '').split(' ')[0] || 'there';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
