@@ -32,9 +32,11 @@ import LaptopAdminClient from '../laptop-procurement/admin/LaptopAdminClient';
 import LaptopAnalyticsClient from '../laptop-procurement/analytics/LaptopAnalyticsClient';
 import LaptopApproverMatrixClient from './LaptopApproverMatrixClient';
 import LaptopAccessApprovalsClient from './LaptopAccessApprovalsClient';
+import LearningHubAdminClient from '../learning-hub/admin/AdminClient';
 import type { Shipment } from '@/types/tite';
 import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
 import type { LaptopAdminData, LaptopAnalyticsData } from '@/types/laptopProcurement';
+import type { LearningHubAdminData } from '@/types/learning-hub';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
@@ -65,6 +67,7 @@ interface AdminClientProps {
   laptopAdminData: LaptopAdminData | null;
   laptopAnalyticsData: LaptopAnalyticsData | null;
   laptopPendingAccessCount?: number;
+  learningHubAdminData: LearningHubAdminData;
   initialTool?: string;
 }
 
@@ -1361,6 +1364,7 @@ export default function AdminClient({
   laptopAdminData,
   laptopAnalyticsData,
   laptopPendingAccessCount = 0,
+  learningHubAdminData,
   initialTool = 'po-expediting',
 }: AdminClientProps) {
   const [selectedTool, setSelectedTool]       = useState<string>(initialTool);
@@ -1439,6 +1443,7 @@ export default function AdminClient({
       'laptop-procurement-admin': 'Admin Panel — Laptop Procurement | Admin | SC Agents',
       'laptop-procurement-analytics': 'Analytics — Laptop Procurement | Admin | SC Agents',
       'laptop-procurement-access': 'Access Approval — Laptop Procurement | Admin | SC Agents',
+      'learning-hub-admin':     'Content Admin — Learning Hub | Admin | SC Agents',
     };
     document.title = titles[selectedTool] ?? 'Admin — SC Agents';
   }, [selectedTool]);
@@ -1961,6 +1966,27 @@ export default function AdminClient({
 
           <div style={{ margin: '8px 0' }} />
 
+          {/* Learning Hub group label */}
+          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+            Learning Hub
+          </div>
+
+          <button
+            onClick={() => setSelectedTool('learning-hub-admin')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'learning-hub-admin' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'learning-hub-admin' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'learning-hub-admin' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Content Admin
+          </button>
+
+          <div style={{ margin: '8px 0' }} />
+
           {/* Coming-soon tools */}
           <div
             style={{
@@ -2069,6 +2095,9 @@ export default function AdminClient({
                 <LaptopApproverMatrixClient />
               </div>
             </div>
+          )}
+          {selectedTool === 'learning-hub-admin' && (
+            <LearningHubAdminClient data={learningHubAdminData} embedded />
           )}
           {selectedTool === 'po-expediting' && (
             <>

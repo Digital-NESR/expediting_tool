@@ -13,6 +13,7 @@ import {
 import { getSourceGuidePendingCount } from '@/app/actions/sourceguide';
 import { getCatalogAccessPendingCount } from '@/app/actions/catalog-manager';
 import { getLaptopAdminData, getLaptopAnalyticsData, getLaptopPendingAccessCount } from '@/app/actions/laptopProcurement';
+import { getLearningHubAdminData } from '@/app/actions/learning-hub';
 import AdminClient from './AdminClient';
 
 export const metadata = { title: 'NESR | Admin' };
@@ -39,6 +40,7 @@ const ADMIN_TOOLS = new Set([
   'laptop-procurement-admin',
   'laptop-procurement-analytics',
   'laptop-procurement-access',
+  'learning-hub-admin',
 ]);
 
 export default async function AdminPage({
@@ -98,6 +100,7 @@ export default async function AdminPage({
     laptopAdminData,
     laptopAnalyticsData,
     laptopPendingAccessCount,
+    learningHubAdminData,
   ] = await Promise.all([
     getExpeditingAnalytics(),
     getPendingAccessCount(),
@@ -112,6 +115,7 @@ export default async function AdminPage({
     getLaptopAdminData(),
     getLaptopAnalyticsData(),
     getLaptopPendingAccessCount(),
+    getLearningHubAdminData(),
   ]);
 
   return (
@@ -131,6 +135,7 @@ export default async function AdminPage({
       laptopAdminData={laptopAdminData}
       laptopAnalyticsData={laptopAnalyticsData}
       laptopPendingAccessCount={laptopPendingAccessCount}
+      learningHubAdminData={learningHubAdminData}
       initialTool={initialTool}
     />
   );

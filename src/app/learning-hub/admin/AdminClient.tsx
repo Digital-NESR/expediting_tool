@@ -620,7 +620,7 @@ function ResetTrackButton({ trackKey, trackName, onChanged }: { trackKey: string
 
 /* ── Page ──────────────────────────────────────────────────────────────── */
 
-export default function AdminClient({ data }: { data: LearningHubAdminData }) {
+export default function AdminClient({ data, embedded = false }: { data: LearningHubAdminData; embedded?: boolean }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState(data.tracks[0]?.key ?? '');
   const router = useRouter();
@@ -630,6 +630,40 @@ export default function AdminClient({ data }: { data: LearningHubAdminData }) {
   }
 
   const selectedTrack = data.tracks.find((t) => t.key === selectedKey) ?? data.tracks[0];
+
+  const content = (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {data.tracks.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setSelectedKey(t.key)}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+                selectedTrack?.key === t.key ? 'bg-[#307c4c] text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {t.name} <span className="ml-1 opacity-70">({t.courses.length})</span>
+            </button>
+          ))}
+        </div>
+        {selectedTrack && (
+          <ResetTrackButton trackKey={selectedTrack.key} trackName={selectedTrack.name} onChanged={onChanged} />
+        )}
+      </div>
+
+      {selectedTrack && (
+        <div className="space-y-4">
+          {selectedTrack.courses.map((c) => (
+            <CourseAdmin key={c.id} course={c} trackId={selectedTrack.id} onChanged={onChanged} />
+          ))}
+          <NewCourseForm trackId={selectedTrack.id} onChanged={onChanged} />
+        </div>
+      )}
+    </div>
+  );
+
+  if (embedded) return content;
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
@@ -644,34 +678,7 @@ export default function AdminClient({ data }: { data: LearningHubAdminData }) {
       </header>
       <main className="mx-auto max-w-[1000px] space-y-6 px-4 py-6 sm:px-6">
         <LearningHubHero title="Content Admin" subtitle="Create, edit, reorder, and publish courses, modules, and lessons for each track." />
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            {data.tracks.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setSelectedKey(t.key)}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-                  selectedTrack?.key === t.key ? 'bg-[#307c4c] text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {t.name} <span className="ml-1 opacity-70">({t.courses.length})</span>
-              </button>
-            ))}
-          </div>
-          {selectedTrack && (
-            <ResetTrackButton trackKey={selectedTrack.key} trackName={selectedTrack.name} onChanged={onChanged} />
-          )}
-        </div>
-
-        {selectedTrack && (
-          <div className="space-y-4">
-            {selectedTrack.courses.map((c) => (
-              <CourseAdmin key={c.id} course={c} trackId={selectedTrack.id} onChanged={onChanged} />
-            ))}
-            <NewCourseForm trackId={selectedTrack.id} onChanged={onChanged} />
-          </div>
-        )}
+        {content}
       </main>
     </div>
   );
