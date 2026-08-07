@@ -216,6 +216,37 @@ async function expireStaleLaptopDelegations(): Promise<void> {
 }
 
 /**
+ * Who should actually be notified in place of `email`, if anyone — follows an active
+ * delegation FROM `email` to its delegate, and recursively from there in case the
+ * delegate has also delegated onward. Returns null if `email` has no active
+ * delegation (the caller should keep using `email` unchanged).
+ */
+async function resolveActiveLaptopDelegateEmail(
+  email: string | null | undefined,
+  depth = 0,
+): Promise<{ name: string | null; email: string } | null> {
+  if (!email || depth > 5) return null;
+  try {
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT delegate_email, delegate_name FROM laptop_delegations
+       WHERE LOWER(delegator_email) = ? AND is_active = TRUE
+         AND (starts_at IS NULL OR starts_at <= CURRENT_TIMESTAMP)
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+       LIMIT 1`,
+      [email.toLowerCase()],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    const delegateEmail = String(row.delegate_email);
+    const further = await resolveActiveLaptopDelegateEmail(delegateEmail, depth + 1);
+    return further ?? { name: (row.delegate_name as string | null) ?? null, email: delegateEmail };
+  } catch (err) {
+    console.error('[resolveActiveLaptopDelegateEmail]', err);
+    return null;
+  }
+}
+
+/**
  * Resolve active delegations TO `email` for Laptop Procurement. Each delegator
  * is expanded into their own role/permissions/scope (from this DB's permission
  * table). Only delegators who are reviewers/approvers (canViewAll) are inherited.
@@ -567,7 +598,7 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
     );
     const matrix = matrixRows[0];
 
-    const realRecipients: Array<{ name: string | null; email: string }> =
+    const matrixRecipients: Array<{ name: string | null; email: string }> =
       stage === 'IT Manager'
         ? ([
             { name: (matrix?.it_manager_name as string) ?? null, email: matrix?.it_manager_email as string },
@@ -578,6 +609,17 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
           : stage === 'IT Director'
             ? (matrix?.itd_email ? [{ name: (matrix.itd_name as string) ?? null, email: matrix.itd_email as string }] : [])
             : (matrix?.scd_email ? [{ name: (matrix.scd_name as string) ?? null, email: matrix.scd_email as string }] : []);
+
+    // The approver matrix is static per country — if whoever it names has delegated
+    // their authority (laptop_delegations), the notification needs to follow that to
+    // the delegate, same as getActor() already does for who can actually act on the
+    // request. Otherwise the delegate never finds out there's anything to review.
+    const realRecipients = await Promise.all(
+      matrixRecipients.map(async r => {
+        const delegate = await resolveActiveLaptopDelegateEmail(r.email);
+        return delegate ? { name: delegate.name ?? r.name, email: delegate.email } : r;
+      }),
+    );
 
     // TESTING OVERRIDE: replace the real laptop_approver_matrix lookup above with a fixed
     // per-stage test roster, so the full chain — including the IT Manager → IT Manager 2
