@@ -1210,14 +1210,18 @@ function buildMergedPermissionsList(
         role: String(row.role ?? ''),
         country: (row.country as string | null) ?? null,
         segment: (row.segment as string | null) ?? null,
+        countries: [],
       });
     }
   }
+  // One row per (email, stage) rather than one merged row per email — Remove/Edit need
+  // an unambiguous single stage to act on, and someone like Aamil holding both Country
+  // Manager and Supply Chain Director needs to be able to manage just one.
   const byEmail = accumulateMatrixApprovers(matrixRows);
   for (const entry of byEmail.values()) {
-    for (const [stage, countries] of entry.stages) {
-      const country = countries.size === 1 ? [...countries][0] : `${countries.size} countries`;
-      items.push({ source: 'matrix', email: entry.email, name: entry.name, role: stage, country, segment: null });
+    for (const [stage, countrySet] of entry.stages) {
+      const countries = [...countrySet].sort();
+      items.push({ source: 'matrix', email: entry.email, name: entry.name, role: stage, country: countries.join(', '), segment: null, countries });
     }
   }
   return items.sort((a, b) => a.role.localeCompare(b.role) || a.email.localeCompare(b.email));
@@ -1976,54 +1980,80 @@ const STAGE_TO_MATRIX_COLUMNS: Record<LaptopApprovalStage, { emailCol: string; n
   'Supply Chain Director': { emailCol: 'scd_email', nameCol: 'scd_name' },
 };
 
+// Clears `email` out of every matrix row's slot for `role` — IT Manager can occupy
+// either the primary or secondary slot, so both are cleared there; shared by
+// removeApproverMatrixRole and saveApproverMatrixRole's edit path.
+async function clearApproverMatrixRoleForEmail(email: string, role: LaptopApprovalStage): Promise<void> {
+  if (role === 'IT Manager') {
+    await exec(`UPDATE laptop_approver_matrix SET it_manager_email = NULL, it_manager_name = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(it_manager_email) = ?`, [email]);
+    await exec(`UPDATE laptop_approver_matrix SET it_manager_2_email = NULL, it_manager_2_name = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(it_manager_2_email) = ?`, [email]);
+  } else {
+    const cols = STAGE_TO_MATRIX_COLUMNS[role];
+    await exec(`UPDATE laptop_approver_matrix SET ${cols.emailCol} = NULL, ${cols.nameCol} = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(${cols.emailCol}) = ?`, [email]);
+  }
+}
+
 /**
- * Sets someone as the named approver for a stage in a given country — the "Add /
- * Update Permission" form's write path for IT Manager / Country Manager / IT
- * Director / Supply Chain Director, since that authority lives in
+ * Sets someone as the named approver for a stage across exactly the given countries —
+ * the "Add / Update Permission" form's write path for IT Manager / Country Manager /
+ * IT Director / Supply Chain Director, since that authority lives in
  * laptop_approver_matrix, not laptop_permissions (see buildEffectivePermissions).
- * Creates the country's matrix row if it doesn't exist yet; otherwise updates just
- * that one stage's email/name, leaving every other stage on the row untouched.
+ * Creates a country's matrix row if it doesn't exist yet; otherwise updates just that
+ * one stage's email/name, leaving every other stage on the row untouched.
+ *
+ * Pass `originalEmail` when editing an existing assignment (including renaming to a
+ * different email) — it's cleared from this stage everywhere first, so dropping a
+ * country from the new list actually removes it rather than leaving it stale.
+ * IT Manager always writes the primary slot; use the Approver Matrix tab directly to
+ * manage a co-manager in the secondary slot.
  */
-export async function assignApproverMatrixRole(input: {
+export async function saveApproverMatrixRole(input: {
+  originalEmail?: string;
   email: string;
   name?: string;
   role: LaptopApprovalStage;
-  country: string;
+  countries: string[];
 }): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
     if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
     const email = requireText(input.email, 'Email').toLowerCase();
-    const country = requireText(input.country, 'Country');
+    const countries = [...new Set(input.countries.map(c => c.trim()).filter(Boolean))];
+    if (!countries.length) return { success: false, error: 'At least one country is required.' };
     const cols = STAGE_TO_MATRIX_COLUMNS[input.role];
     if (!cols) return { success: false, error: 'Unknown approver role.' };
 
-    const rows = await sql<QueryResultRow[]>(`SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`, [country]);
-    if (rows[0]) {
-      await exec(
-        `UPDATE laptop_approver_matrix SET ${cols.emailCol} = ?, ${cols.nameCol} = ?, is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [email, blankToNull(input.name), rows[0].id],
-      );
-    } else {
-      await exec(
-        `INSERT INTO laptop_approver_matrix (country, ${cols.emailCol}, ${cols.nameCol}, is_active) VALUES (?, ?, ?, TRUE)`,
-        [country, email, blankToNull(input.name)],
-      );
+    if (input.originalEmail?.trim()) {
+      await clearApproverMatrixRoleForEmail(input.originalEmail.trim().toLowerCase(), input.role);
+    }
+
+    for (const country of countries) {
+      const rows = await sql<QueryResultRow[]>(`SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`, [country]);
+      if (rows[0]) {
+        await exec(
+          `UPDATE laptop_approver_matrix SET ${cols.emailCol} = ?, ${cols.nameCol} = ?, is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          [email, blankToNull(input.name), rows[0].id],
+        );
+      } else {
+        await exec(
+          `INSERT INTO laptop_approver_matrix (country, ${cols.emailCol}, ${cols.nameCol}, is_active) VALUES (?, ?, ?, TRUE)`,
+          [country, email, blankToNull(input.name)],
+        );
+      }
     }
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[assignApproverMatrixRole]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to assign approver.' };
+    console.error('[saveApproverMatrixRole]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to save approver.' };
   }
 }
 
 /**
  * Clears someone as the named approver for a stage, across every country's matrix
  * row — the "Remove" action for a matrix-sourced row in the merged Permissions list.
- * Per-country adjustments (removing just one of several countries) still go through
- * the Approver Matrix tab directly. IT Manager can occupy either the primary or
- * secondary slot, so both are cleared.
+ * Per-country adjustments (removing just one of several countries) can be done via
+ * Edit instead, or through the Approver Matrix tab directly.
  */
 export async function removeApproverMatrixRole(input: { email: string; role: LaptopApprovalStage }): Promise<ActionResult> {
   try {
@@ -2032,14 +2062,7 @@ export async function removeApproverMatrixRole(input: { email: string; role: Lap
     const email = input.email.trim().toLowerCase();
     if (!email) return { success: false, error: 'Email is required.' };
 
-    if (input.role === 'IT Manager') {
-      await exec(`UPDATE laptop_approver_matrix SET it_manager_email = NULL, it_manager_name = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(it_manager_email) = ?`, [email]);
-      await exec(`UPDATE laptop_approver_matrix SET it_manager_2_email = NULL, it_manager_2_name = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(it_manager_2_email) = ?`, [email]);
-    } else {
-      const cols = STAGE_TO_MATRIX_COLUMNS[input.role];
-      if (!cols) return { success: false, error: 'Unknown approver role.' };
-      await exec(`UPDATE laptop_approver_matrix SET ${cols.emailCol} = NULL, ${cols.nameCol} = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(${cols.emailCol}) = ?`, [email]);
-    }
+    await clearApproverMatrixRoleForEmail(email, input.role);
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {

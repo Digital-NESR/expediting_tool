@@ -317,6 +317,10 @@ export interface LaptopPermissionListItem {
   role: string;
   country: string | null;
   segment: string | null;
+  // Structured country list for matrix-sourced rows (empty for permissions-sourced
+  // rows, which just use the single `country` field) — lets Edit pre-fill the
+  // multi-country picker without parsing the display string.
+  countries: string[];
 }
 
 export type LaptopAccessRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';

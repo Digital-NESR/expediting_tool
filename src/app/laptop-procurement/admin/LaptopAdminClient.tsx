@@ -7,13 +7,13 @@ import EmployeeAutocomplete from '@/app/procure-guard/components/EmployeeAutocom
 import {
   addLaptopDevice,
   adminGrantLaptopDelegation,
-  assignApproverMatrixRole,
   deleteLaptopDevice,
   deleteLaptopPermission,
   deleteLaptopRecord,
   getLaptopAdminData,
   removeApproverMatrixRole,
   revokeLaptopDelegation,
+  saveApproverMatrixRole,
   updateLaptopDevice,
   updateLaptopPermission,
 } from '@/app/actions/laptopProcurement';
@@ -458,6 +458,14 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   const [role, setRole] = useState<LaptopPermissionRole>('Requester');
   const [country, setCountry] = useState('');
   const [segment, setSegment] = useState('');
+  // Only relevant for IT Manager/Country Manager/IT Director/Supply Chain Director —
+  // one person can hold a stage across several countries, so it's a checklist rather
+  // than the single-select `country` above (which base roles still use).
+  const [matrixCountries, setMatrixCountries] = useState<string[]>([]);
+  // Set while editing an existing matrix-sourced row — saveApproverMatrixRole clears
+  // this email's slots for the role first, so dropping a country (or renaming the
+  // email) actually takes effect instead of just adding alongside the old ones.
+  const [editingApproverEmail, setEditingApproverEmail] = useState<string | null>(null);
 
   if (!data) return <DbError />;
   const { actor, requests, activity, permissionsList, delegations, deviceCatalog, stats, approvers } = data;
@@ -487,23 +495,53 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
     });
   }
 
+  function resetPermissionForm() {
+    setEmail(''); setName(''); setRole('Requester'); setCountry(''); setSegment(''); setMatrixCountries([]); setEditingApproverEmail(null);
+  }
+
   function savePermission() {
     setBanner('');
     if (!email.trim()) { setBanner('Email is required.'); return; }
-    if (isMatrixRole && !country.trim()) { setBanner('Country is required for this role.'); return; }
+    if (isMatrixRole && matrixCountries.length === 0) { setBanner('At least one country is required.'); return; }
     startTransition(async () => {
       // IT Manager/Country Manager/IT Director/Supply Chain Director authority lives in
-      // the approver matrix, not laptop_permissions — see assignApproverMatrixRole.
+      // the approver matrix, not laptop_permissions — see saveApproverMatrixRole.
       const result = isMatrixRole
-        ? await assignApproverMatrixRole({ email, name, role: role as LaptopApprovalStage, country })
+        ? await saveApproverMatrixRole({
+            originalEmail: editingApproverEmail ?? undefined,
+            email,
+            name,
+            role: role as LaptopApprovalStage,
+            countries: matrixCountries,
+          })
         : await updateLaptopPermission({ email, name, role, country, segment });
       if (result.success) {
         setBanner(`Saved permission for ${email}.`);
-        setEmail(''); setName(''); setRole('Requester'); setCountry(''); setSegment('');
+        resetPermissionForm();
         await refreshAdminData();
       } else {
         setBanner(result.error ?? 'Failed to save permission.');
       }
+    });
+  }
+
+  function startEditPermission(item: LaptopPermissionListItem) {
+    setBanner('');
+    setEmail(item.email);
+    setName(item.name ?? '');
+    setRole(item.role as LaptopPermissionRole);
+    if (item.source === 'matrix') {
+      setEditingApproverEmail(item.email);
+      setMatrixCountries(item.countries);
+      setCountry(''); setSegment('');
+    } else {
+      setEditingApproverEmail(null);
+      setCountry(item.country ?? '');
+      setSegment(item.segment ?? '');
+      setMatrixCountries([]);
+    }
+    requestAnimationFrame(() => {
+      document.getElementById('permission-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -512,8 +550,12 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
       const result = item.source === 'matrix'
         ? await removeApproverMatrixRole({ email: item.email, role: item.role as LaptopApprovalStage })
         : await deleteLaptopPermission(item.email);
-      if (result.success) await refreshAdminData();
-      else setBanner(result.error ?? 'Failed to delete permission.');
+      if (result.success) {
+        if (editingApproverEmail === item.email) resetPermissionForm();
+        await refreshAdminData();
+      } else {
+        setBanner(result.error ?? 'Failed to delete permission.');
+      }
     });
   }
 
@@ -563,9 +605,14 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
 
         {tab === 'permissions' && (
           <>
-            <section className={`${GLASS} relative z-20 p-5`}>
+            <section id="permission-form" className={`${GLASS} relative z-20 p-5`}>
               <h2 className="mb-4 text-[15px] font-bold">Add / Update Permission</h2>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+              {editingApproverEmail && (
+                <p className="mb-3 text-xs font-semibold text-[#307c4c]">
+                  Editing {editingApproverEmail} as {role} — <button type="button" onClick={resetPermissionForm} className="underline hover:no-underline">Cancel</button>
+                </p>
+              )}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-slate-500">Email</label>
                   <EmployeeAutocomplete
@@ -579,30 +626,60 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
                 <div><label className="mb-1 block text-xs font-semibold text-slate-500">Name</label><input className={INP} value={name} onChange={e => setName(e.target.value)} /></div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-slate-500">Role</label>
-                  <select className={INP} value={role} onChange={e => setRole(e.target.value as LaptopPermissionRole)}>
+                  <select
+                    className={INP}
+                    value={role}
+                    onChange={e => {
+                      const nextRole = e.target.value as LaptopPermissionRole;
+                      setRole(nextRole);
+                      if (!APPROVER_MATRIX_ROLE_SET.has(nextRole)) { setMatrixCountries([]); setEditingApproverEmail(null); }
+                    }}
+                  >
                     {PERMISSION_ROLE_OPTIONS.map(r => <option key={r}>{r}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Country{isMatrixRole ? ' (required)' : ' (scope)'}</label>
-                  <select className={INP} value={country} onChange={e => setCountry(e.target.value)}>
-                    <option value="">{isMatrixRole ? 'Select country…' : 'All countries'}</option>
-                    {COUNTRY_OPTIONS.map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
-                {!isMatrixRole && (
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-500">Segment (scope)</label>
-                    <select className={INP} value={segment} onChange={e => setSegment(e.target.value)}>
-                      <option value="">All segments</option>
-                      {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
-                    </select>
+                {isMatrixRole ? (
+                  <div className="md:col-span-2 xl:col-span-3">
+                    <label className="mb-1 block text-xs font-semibold text-slate-500">Countries (required)</label>
+                    {/* Includes any country already assigned even if it's not one of the
+                        standard COUNTRY_OPTIONS (e.g. legacy matrix entries like EOS/
+                        Jordan/Malaysia) — otherwise editing would silently drop it, since
+                        saving only keeps whatever's checked here. */}
+                    <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4">
+                      {[...new Set([...COUNTRY_OPTIONS, ...matrixCountries])].map(c => (
+                        <label key={c} className="flex items-center gap-1.5 text-xs text-slate-900">
+                          <input
+                            type="checkbox"
+                            checked={matrixCountries.includes(c)}
+                            onChange={e => setMatrixCountries(prev => e.target.checked ? [...prev, c] : prev.filter(x => x !== c))}
+                          />
+                          {c}
+                        </label>
+                      ))}
+                    </div>
                   </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">Country (scope)</label>
+                      <select className={INP} value={country} onChange={e => setCountry(e.target.value)}>
+                        <option value="">All countries</option>
+                        {COUNTRY_OPTIONS.map(c => <option key={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">Segment (scope)</label>
+                      <select className={INP} value={segment} onChange={e => setSegment(e.target.value)}>
+                        <option value="">All segments</option>
+                        {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  </>
                 )}
               </div>
               <p className="mt-3 text-xs text-slate-500">
                 {isMatrixRole
-                  ? `Sets this person as the named ${role} for the selected country in the Approver Matrix — the actual source of that authority.`
+                  ? `Sets this person as the named ${role} for every checked country in the Approver Matrix — the actual source of that authority.`
                   : PERMISSION_PROFILES[role].description}
               </p>
               <button onClick={savePermission} disabled={isPending} className={`mt-4 ${CTA} disabled:opacity-60`}>
@@ -629,11 +706,13 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
                         <td className="px-5 py-3 text-slate-600">{p.name || '—'}</td>
                         <td className="px-5 py-3">
                           <span className="inline-flex rounded-full border border-[#307c4c]/30 bg-[#307c4c]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#307c4c]">{p.role}</span>
-                          {p.source === 'matrix' && <span className="ml-1.5 text-[10px] text-slate-400">via matrix</span>}
                         </td>
                         <td className="px-5 py-3 text-xs text-slate-600">{[p.country, p.segment].filter(Boolean).join(' · ') || 'All'}</td>
                         <td className="px-5 py-3 text-right">
-                          <button onClick={() => removePermission(p)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Remove</button>
+                          <div className="inline-flex gap-2">
+                            <button onClick={() => startEditPermission(p)} disabled={isPending} className="rounded-lg border border-[#307c4c]/30 bg-[#307c4c]/10 px-3 py-1 text-xs font-bold text-[#307c4c] transition hover:bg-[#307c4c]/20 disabled:opacity-60">Edit</button>
+                            <button onClick={() => removePermission(p)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Remove</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
