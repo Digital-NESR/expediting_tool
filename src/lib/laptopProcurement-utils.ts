@@ -9,6 +9,11 @@ import type {
 
 export const LAPTOP_GREEN = '#307c4c';
 
+// IT Manager / Country Manager / IT Director / Supply Chain Director are shown here for
+// convenience, but picking one doesn't write to laptop_permissions — it writes into
+// laptop_approver_matrix instead (see assignApproverMatrixRole), which is the actual
+// source of that approval authority and the only thing that lets one person hold
+// several of those roles across different countries.
 export const PERMISSION_ROLE_OPTIONS: LaptopPermissionRole[] = [
   'Requester',
   'Analyst',
@@ -19,6 +24,8 @@ export const PERMISSION_ROLE_OPTIONS: LaptopPermissionRole[] = [
   'Supply Chain Director',
   'Admin',
 ];
+
+export const APPROVER_MATRIX_ROLES: LaptopPermissionRole[] = ['IT Manager', 'Country Manager', 'IT Director', 'Supply Chain Director'];
 
 const BASE_PERMISSION_PROFILE: Omit<LaptopPermissionProfile, 'role' | 'label' | 'description' | 'accessView'> = {
   canViewAll: false,
@@ -375,22 +382,25 @@ export function getRequiredPermissionForStage(currentStatus: LaptopRequestStatus
   }
 }
 
+// `ownsCurrentStep` is resolved by the caller — whether the acting identity is the
+// named approver (via laptop_approver_matrix, or Admin) for currentStatus's stage on
+// this specific request's country. Kept out of this function so it stays a pure,
+// DB-free helper; the actual matrix/admin lookup lives in the server action.
 export function getLaptopAvailableActions(
-  permissions: LaptopPermissionProfile,
+  ownsCurrentStep: boolean,
   currentStatus: LaptopRequestStatus,
   hasAssignedUnit: boolean = false,
   isProcureNewFlow: boolean = false,
 ): LaptopRequestActions {
   const nextStatus = getNextApprovalStatus(currentStatus, hasAssignedUnit, isProcureNewFlow);
   const requiredPermission = getRequiredPermissionForStage(currentStatus);
-  const ownsCurrentStep = Boolean(requiredPermission && permissions[requiredPermission]);
   const isItManagerStage = IT_MANAGER_STATUSES.includes(currentStatus);
   const isCmStage = currentStatus === 'CM Approval';
   const isProcureDetailsStage = currentStatus === 'Procure New Details';
   return {
     nextStatus,
     canApprove: Boolean(nextStatus && ownsCurrentStep),
-    canReject: Boolean(ownsCurrentStep && permissions.canReject && getRejectStatusForStage(currentStatus)),
+    canReject: Boolean(ownsCurrentStep && getRejectStatusForStage(currentStatus)),
     // IT Manager is the only one who checks physical inventory, so only they can
     // resolve a request by assigning a second-hand unit — it then continues through
     // the normal chain (see getNextApprovalStatus) rather than ending immediately.
@@ -400,7 +410,7 @@ export function getLaptopAvailableActions(
     // request is on the assigned-inventory path, so the CM can still override the IT
     // Manager's pick and send it back for a genuine new-device procurement instead.
     canProcureNew: isCmStage && ownsCurrentStep,
-    canMarkRepaired: isItManagerStage && permissions.canReviewItManager,
+    canMarkRepaired: isItManagerStage && ownsCurrentStep,
     canSubmitProcureDetails: isProcureDetailsStage && ownsCurrentStep,
     rejectStatus: getRejectStatusForStage(currentStatus),
     ownerLabel: requiredPermission ? PERMISSION_OWNER_LABELS[requiredPermission] ?? 'Assigned approver' : 'No active owner',

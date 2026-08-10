@@ -631,9 +631,9 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                 <Field label="On Behalf Of" value={request.on_behalf_of} />
                 <Field label="Employee ID" value={request.employee_id} />
                 <Field label="Computer For" value={request.computer_for} />
+                <Field label="Computer For Employee ID" value={request.computer_for_employee_id} />
                 <Field label="Pending With" value={request.pending_with} />
                 <Field label="Country" value={request.country} />
-                <Field label="Segment" value={request.segment} />
                 <Field label="Department" value={request.department} />
                 <Field label="Position" value={request.position} />
                 <Field label="Company Code" value={request.company_code} />

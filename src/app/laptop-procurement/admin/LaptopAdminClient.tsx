@@ -11,21 +11,26 @@ import {
   deleteLaptopPermission,
   deleteLaptopRecord,
   getLaptopAdminData,
+  removeApproverMatrixRole,
   revokeLaptopDelegation,
+  saveApproverMatrixRole,
   updateLaptopDevice,
   updateLaptopPermission,
 } from '@/app/actions/laptopProcurement';
 import {
+  APPROVER_MATRIX_ROLES,
   COUNTRY_OPTIONS,
   DEVICE_TYPE_OPTIONS,
   PERMISSION_PROFILES,
   PERMISSION_ROLE_OPTIONS,
   SEGMENT_OPTIONS,
   fmtDate,
-  getPermissionProfile,
   getStatusBadge,
 } from '@/lib/laptopProcurement-utils';
-import type { LaptopAdminData, LaptopDelegationRow, LaptopDeviceCatalogRow, LaptopPermissionRole } from '@/types/laptopProcurement';
+import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
+import type { LaptopAdminData, LaptopDelegationRow, LaptopDeviceCatalogRow, LaptopPermissionListItem, LaptopPermissionRole } from '@/types/laptopProcurement';
+
+const APPROVER_MATRIX_ROLE_SET: Set<LaptopPermissionRole> = new Set(APPROVER_MATRIX_ROLES);
 
 const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 
@@ -74,7 +79,7 @@ function DelegationsPanel({
   onMutated,
 }: {
   delegations: LaptopDelegationRow[];
-  approvers: Array<{ email: string; name: string | null; role: LaptopPermissionRole }>;
+  approvers: Array<{ email: string; name: string | null; role: string; country: string | null }>;
   onDone: (message: string) => void;
   onMutated: () => Promise<unknown>;
 }) {
@@ -138,7 +143,7 @@ function DelegationsPanel({
             <select className={INP} value={delegatorEmail} onChange={e => setDelegatorEmail(e.target.value)} required>
               <option value="">Select an approver…</option>
               {approvers.map(a => (
-                <option key={a.email} value={a.email}>{a.name ? `${a.name} (${a.email})` : a.email} — {a.role}</option>
+                <option key={a.email} value={a.email}>{a.name ? `${a.name} (${a.email})` : a.email} — {a.role}{a.country ? ` (${a.country})` : ''}</option>
               ))}
             </select>
           </div>
@@ -453,19 +458,27 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   const [role, setRole] = useState<LaptopPermissionRole>('Requester');
   const [country, setCountry] = useState('');
   const [segment, setSegment] = useState('');
+  // Only relevant for IT Manager/Country Manager/IT Director/Supply Chain Director —
+  // one person can hold a stage across several countries, so it's a checklist rather
+  // than the single-select `country` above (which base roles still use).
+  const [matrixCountries, setMatrixCountries] = useState<string[]>([]);
+  // Set while editing an existing matrix-sourced row — saveApproverMatrixRole clears
+  // this email's slots for the role first, so dropping a country (or renaming the
+  // email) actually takes effect instead of just adding alongside the old ones.
+  const [editingApproverEmail, setEditingApproverEmail] = useState<string | null>(null);
 
   if (!data) return <DbError />;
-  const { actor, requests, activity, permissions, delegations, deviceCatalog, stats } = data;
-  const approvers = permissions.filter(p => getPermissionProfile(p.role).canViewAll);
+  const { actor, requests, activity, permissionsList, delegations, deviceCatalog, stats, approvers } = data;
+  const isMatrixRole = APPROVER_MATRIX_ROLE_SET.has(role);
 
   // Requests are paginated server-side (see getLaptopAdminData) — `requests` here is
   // already just the current page, so no client-side slicing is needed.
   const requestsPageCount = Math.max(1, Math.ceil(data.requestsTotal / REQUESTS_PAGE_SIZE));
   const currentRequestsPage = Math.min(requestsPage, requestsPageCount - 1);
 
-  const permissionsPageCount = Math.max(1, Math.ceil(permissions.length / REQUESTS_PAGE_SIZE));
+  const permissionsPageCount = Math.max(1, Math.ceil(permissionsList.length / REQUESTS_PAGE_SIZE));
   const currentPermissionsPage = Math.min(permissionsPage, permissionsPageCount - 1);
-  const pagedPermissions = permissions.slice(currentPermissionsPage * REQUESTS_PAGE_SIZE, (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE);
+  const pagedPermissions = permissionsList.slice(currentPermissionsPage * REQUESTS_PAGE_SIZE, (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE);
 
   async function refreshAdminData(page: number = currentRequestsPage) {
     const fresh = await getLaptopAdminData(page);
@@ -482,14 +495,29 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
     });
   }
 
+  function resetPermissionForm() {
+    setEmail(''); setName(''); setRole('Requester'); setCountry(''); setSegment(''); setMatrixCountries([]); setEditingApproverEmail(null);
+  }
+
   function savePermission() {
     setBanner('');
     if (!email.trim()) { setBanner('Email is required.'); return; }
+    if (isMatrixRole && matrixCountries.length === 0) { setBanner('At least one country is required.'); return; }
     startTransition(async () => {
-      const result = await updateLaptopPermission({ email, name, role, country, segment });
+      // IT Manager/Country Manager/IT Director/Supply Chain Director authority lives in
+      // the approver matrix, not laptop_permissions — see saveApproverMatrixRole.
+      const result = isMatrixRole
+        ? await saveApproverMatrixRole({
+            originalEmail: editingApproverEmail ?? undefined,
+            email,
+            name,
+            role: role as LaptopApprovalStage,
+            countries: matrixCountries,
+          })
+        : await updateLaptopPermission({ email, name, role, country, segment });
       if (result.success) {
         setBanner(`Saved permission for ${email}.`);
-        setEmail(''); setName(''); setRole('Requester'); setCountry(''); setSegment('');
+        resetPermissionForm();
         await refreshAdminData();
       } else {
         setBanner(result.error ?? 'Failed to save permission.');
@@ -497,11 +525,37 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
     });
   }
 
-  function removePermission(targetEmail: string) {
+  function startEditPermission(item: LaptopPermissionListItem) {
+    setBanner('');
+    setEmail(item.email);
+    setName(item.name ?? '');
+    setRole(item.role as LaptopPermissionRole);
+    if (item.source === 'matrix') {
+      setEditingApproverEmail(item.email);
+      setMatrixCountries(item.countries);
+      setCountry(''); setSegment('');
+    } else {
+      setEditingApproverEmail(null);
+      setCountry(item.country ?? '');
+      setSegment(item.segment ?? '');
+      setMatrixCountries([]);
+    }
+    requestAnimationFrame(() => {
+      document.getElementById('permission-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function removePermission(item: LaptopPermissionListItem) {
     startTransition(async () => {
-      const result = await deleteLaptopPermission(targetEmail);
-      if (result.success) await refreshAdminData();
-      else setBanner(result.error ?? 'Failed to delete permission.');
+      const result = item.source === 'matrix'
+        ? await removeApproverMatrixRole({ email: item.email, role: item.role as LaptopApprovalStage })
+        : await deleteLaptopPermission(item.email);
+      if (result.success) {
+        if (editingApproverEmail === item.email) resetPermissionForm();
+        await refreshAdminData();
+      } else {
+        setBanner(result.error ?? 'Failed to delete permission.');
+      }
     });
   }
 
@@ -522,7 +576,7 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   }
 
   const tabs: Array<{ id: typeof tab; label: string }> = [
-    { id: 'permissions', label: `Permissions (${permissions.length})` },
+    { id: 'permissions', label: `Permissions (${permissionsList.length})` },
     { id: 'requests', label: `Requests (${data.requestsTotal})` },
     { id: 'activity', label: `Activity (${activity.length})` },
     { id: 'delegations', label: `Delegations (${delegations.length})` },
@@ -551,9 +605,14 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
 
         {tab === 'permissions' && (
           <>
-            <section className={`${GLASS} relative z-20 p-5`}>
+            <section id="permission-form" className={`${GLASS} relative z-20 p-5`}>
               <h2 className="mb-4 text-[15px] font-bold">Add / Update Permission</h2>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+              {editingApproverEmail && (
+                <p className="mb-3 text-xs font-semibold text-[#307c4c]">
+                  Editing {editingApproverEmail} as {role} — <button type="button" onClick={resetPermissionForm} className="underline hover:no-underline">Cancel</button>
+                </p>
+              )}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-slate-500">Email</label>
                   <EmployeeAutocomplete
@@ -567,26 +626,62 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
                 <div><label className="mb-1 block text-xs font-semibold text-slate-500">Name</label><input className={INP} value={name} onChange={e => setName(e.target.value)} /></div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-slate-500">Role</label>
-                  <select className={INP} value={role} onChange={e => setRole(e.target.value as LaptopPermissionRole)}>
+                  <select
+                    className={INP}
+                    value={role}
+                    onChange={e => {
+                      const nextRole = e.target.value as LaptopPermissionRole;
+                      setRole(nextRole);
+                      if (!APPROVER_MATRIX_ROLE_SET.has(nextRole)) { setMatrixCountries([]); setEditingApproverEmail(null); }
+                    }}
+                  >
                     {PERMISSION_ROLE_OPTIONS.map(r => <option key={r}>{r}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Country (scope)</label>
-                  <select className={INP} value={country} onChange={e => setCountry(e.target.value)}>
-                    <option value="">All countries</option>
-                    {COUNTRY_OPTIONS.map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Segment (scope)</label>
-                  <select className={INP} value={segment} onChange={e => setSegment(e.target.value)}>
-                    <option value="">All segments</option>
-                    {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
+                {isMatrixRole ? (
+                  <div className="md:col-span-2 xl:col-span-3">
+                    <label className="mb-1 block text-xs font-semibold text-slate-500">Countries (required)</label>
+                    {/* Includes any country already assigned even if it's not one of the
+                        standard COUNTRY_OPTIONS (e.g. legacy matrix entries like EOS/
+                        Jordan/Malaysia) — otherwise editing would silently drop it, since
+                        saving only keeps whatever's checked here. */}
+                    <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4">
+                      {[...new Set([...COUNTRY_OPTIONS, ...matrixCountries])].map(c => (
+                        <label key={c} className="flex items-center gap-1.5 text-xs text-slate-900">
+                          <input
+                            type="checkbox"
+                            checked={matrixCountries.includes(c)}
+                            onChange={e => setMatrixCountries(prev => e.target.checked ? [...prev, c] : prev.filter(x => x !== c))}
+                          />
+                          {c}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">Country (scope)</label>
+                      <select className={INP} value={country} onChange={e => setCountry(e.target.value)}>
+                        <option value="">All countries</option>
+                        {COUNTRY_OPTIONS.map(c => <option key={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">Segment (scope)</label>
+                      <select className={INP} value={segment} onChange={e => setSegment(e.target.value)}>
+                        <option value="">All segments</option>
+                        {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  </>
+                )}
               </div>
-              <p className="mt-3 text-xs text-slate-500">{PERMISSION_PROFILES[role].description}</p>
+              <p className="mt-3 text-xs text-slate-500">
+                {isMatrixRole
+                  ? `Sets this person as the named ${role} for every checked country in the Approver Matrix — the actual source of that authority.`
+                  : PERMISSION_PROFILES[role].description}
+              </p>
               <button onClick={savePermission} disabled={isPending} className={`mt-4 ${CTA} disabled:opacity-60`}>
                 {isPending ? 'Saving...' : 'Save Permission'}
               </button>
@@ -606,24 +701,29 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {pagedPermissions.map(p => (
-                      <tr key={p.id} className="transition-colors hover:bg-white">
+                      <tr key={`${p.source}-${p.email}-${p.role}`} className="transition-colors hover:bg-white">
                         <td className="px-5 py-3 font-semibold text-slate-900">{p.email}</td>
                         <td className="px-5 py-3 text-slate-600">{p.name || '—'}</td>
-                        <td className="px-5 py-3"><span className="inline-flex rounded-full border border-[#307c4c]/30 bg-[#307c4c]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#307c4c]">{p.role}</span></td>
+                        <td className="px-5 py-3">
+                          <span className="inline-flex rounded-full border border-[#307c4c]/30 bg-[#307c4c]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#307c4c]">{p.role}</span>
+                        </td>
                         <td className="px-5 py-3 text-xs text-slate-600">{[p.country, p.segment].filter(Boolean).join(' · ') || 'All'}</td>
                         <td className="px-5 py-3 text-right">
-                          <button onClick={() => removePermission(p.email)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Remove</button>
+                          <div className="inline-flex gap-2">
+                            <button onClick={() => startEditPermission(p)} disabled={isPending} className="rounded-lg border border-[#307c4c]/30 bg-[#307c4c]/10 px-3 py-1 text-xs font-bold text-[#307c4c] transition hover:bg-[#307c4c]/20 disabled:opacity-60">Edit</button>
+                            <button onClick={() => removePermission(p)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Remove</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              {permissions.length > 0 && (
+              {permissionsList.length > 0 && (
                 <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
                   <p className="text-xs text-slate-500/80">
                     Showing {currentPermissionsPage * REQUESTS_PAGE_SIZE + 1}
-                    –{Math.min((currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE, permissions.length)} of {permissions.length} permissions
+                    –{Math.min((currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE, permissionsList.length)} of {permissionsList.length} permissions
                   </p>
                   <div className="flex items-center gap-2">
                     <button

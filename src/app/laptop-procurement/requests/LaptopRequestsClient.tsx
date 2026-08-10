@@ -9,6 +9,7 @@ import {
   fmtDate,
   getLaptopAvailableActions,
   getPriorityBadge,
+  getRequiredPermissionForStage,
   getStatusBadge,
   laptopHasAssignedUnit,
   laptopIsProcureNewFlow,
@@ -75,7 +76,7 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
         (r.requested_by_name ?? '').toLowerCase().includes(q) ||
         r.requested_by_email.toLowerCase().includes(q) ||
         (r.country ?? '').toLowerCase().includes(q) ||
-        (r.segment ?? '').toLowerCase().includes(q) ||
+        (r.company_name ?? '').toLowerCase().includes(q) ||
         (r.requested_model ?? '').toLowerCase().includes(q) ||
         (r.computer_for ?? '').toLowerCase().includes(q);
       const matchesStatus = status === 'All' || r.status === status;
@@ -91,7 +92,12 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
   if (!actor) return <DbError />;
 
   const pendingCount = requests.filter(r => {
-    const actions = getLaptopAvailableActions(actor.permissions, r.status, laptopHasAssignedUnit(r), laptopIsProcureNewFlow(r));
+    // Cosmetic "needs attention" hint only — doesn't check whether the request's
+    // country falls within the actor's approver-matrix scope for this stage, same
+    // imprecision as before; the real per-request gate is server-side.
+    const requiredPermission = getRequiredPermissionForStage(r.status);
+    const ownsCurrentStep = Boolean(requiredPermission && actor.permissions[requiredPermission]);
+    const actions = getLaptopAvailableActions(ownsCurrentStep, r.status, laptopHasAssignedUnit(r), laptopIsProcureNewFlow(r));
     return actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canSubmitProcureDetails;
   }).length;
 
@@ -170,7 +176,7 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
                     </td>
                     <td className="px-5 py-4 align-top">
                       <p className="font-semibold text-slate-900">{r.requested_by_name || '—'}</p>
-                      <p className="text-xs text-slate-500">{r.segment || 'No segment'}</p>
+                      <p className="text-xs text-slate-500">{r.company_name || 'No company'}</p>
                       <span className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getPriorityBadge(r.priority)}`}>{r.priority}</span>
                     </td>
                     <td className="px-5 py-4 align-top">
