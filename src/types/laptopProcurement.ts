@@ -67,13 +67,19 @@ export interface UpdateLaptopPermissionInput {
   segment?: string;
 }
 
+// Which countries this identity is the named approver for, per approval stage — the
+// approver matrix (laptop_approver_matrix) is the sole source of this, replacing the
+// old single role+country scope from laptop_permissions. One identity can hold several
+// stages across different (or overlapping) countries, e.g. Country Manager for one
+// country and Supply Chain Director broadly.
+export type LaptopApproverCapabilities = Record<'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director', string[]>;
+
 export interface LaptopDelegationGrant {
   email: string;
   name: string;
   role: LaptopPermissionRole;
   permissions: LaptopPermissionProfile;
-  country?: string | null;
-  segment?: string | null;
+  matrixCapabilities: LaptopApproverCapabilities;
 }
 
 export interface LaptopActor {
@@ -84,8 +90,7 @@ export interface LaptopActor {
   isAdmin: boolean;
   role: LaptopPermissionRole;
   permissions: LaptopPermissionProfile;
-  country?: string | null;
-  segment?: string | null;
+  matrixCapabilities: LaptopApproverCapabilities;
   /** People whose approval authority this actor currently holds (active delegations). */
   delegatedFrom?: LaptopDelegationGrant[];
   /**
@@ -149,6 +154,7 @@ export interface LaptopRequest {
   requested_by_email: string;
   on_behalf_of: string | null;
   computer_for: string | null;
+  computer_for_employee_id: string | null;
   segment: string | null;
   department: string | null;
   position: string | null;
@@ -215,9 +221,8 @@ export interface CreateLaptopRequestInput {
   employee_id?: string;
   country: string;
   computer_for?: string;
-  segment: string;
+  computer_for_employee_id?: string;
   department?: string;
-  position?: string;
   company_code?: string;
   company_name?: string;
   cost_center?: string;
@@ -292,6 +297,11 @@ export interface LaptopAdminData {
   delegations: LaptopDelegationRow[];
   deviceCatalog: LaptopDeviceCatalogRow[];
   stats: LaptopDashboardStats;
+  // Everyone eligible to be a delegation's "approver (delegator)" — Admins from
+  // laptop_permissions, plus everyone named anywhere in the approver matrix, since
+  // matrix presence (not a laptop_permissions role) is what carries real approval
+  // authority to delegate.
+  approvers: Array<{ email: string; name: string | null; role: string; country: string | null }>;
 }
 
 export type LaptopAccessRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';

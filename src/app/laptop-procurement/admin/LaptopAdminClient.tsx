@@ -22,7 +22,6 @@ import {
   PERMISSION_ROLE_OPTIONS,
   SEGMENT_OPTIONS,
   fmtDate,
-  getPermissionProfile,
   getStatusBadge,
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopAdminData, LaptopDelegationRow, LaptopDeviceCatalogRow, LaptopPermissionRole } from '@/types/laptopProcurement';
@@ -74,7 +73,7 @@ function DelegationsPanel({
   onMutated,
 }: {
   delegations: LaptopDelegationRow[];
-  approvers: Array<{ email: string; name: string | null; role: LaptopPermissionRole }>;
+  approvers: Array<{ email: string; name: string | null; role: string; country: string | null }>;
   onDone: (message: string) => void;
   onMutated: () => Promise<unknown>;
 }) {
@@ -138,7 +137,7 @@ function DelegationsPanel({
             <select className={INP} value={delegatorEmail} onChange={e => setDelegatorEmail(e.target.value)} required>
               <option value="">Select an approver…</option>
               {approvers.map(a => (
-                <option key={a.email} value={a.email}>{a.name ? `${a.name} (${a.email})` : a.email} — {a.role}</option>
+                <option key={a.email} value={a.email}>{a.name ? `${a.name} (${a.email})` : a.email} — {a.role}{a.country ? ` (${a.country})` : ''}</option>
               ))}
             </select>
           </div>
@@ -455,8 +454,7 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   const [segment, setSegment] = useState('');
 
   if (!data) return <DbError />;
-  const { actor, requests, activity, permissions, delegations, deviceCatalog, stats } = data;
-  const approvers = permissions.filter(p => getPermissionProfile(p.role).canViewAll);
+  const { actor, requests, activity, permissions, delegations, deviceCatalog, stats, approvers } = data;
 
   // Requests are paginated server-side (see getLaptopAdminData) — `requests` here is
   // already just the current page, so no client-side slicing is needed.

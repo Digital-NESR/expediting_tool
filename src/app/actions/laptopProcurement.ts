@@ -48,6 +48,7 @@ import type {
   LaptopDeviceOption,
   LaptopDocument,
   LaptopMonthlyMetric,
+  LaptopPermissionProfile,
   LaptopPermissionRole,
   LaptopPermissionRow,
   LaptopRequest,
@@ -144,6 +145,85 @@ async function getPermissionRowForEmail(email: string): Promise<LaptopPermission
   }
 }
 
+// laptop_approver_matrix is the sole source of IT Manager / Country Manager / IT
+// Director / Supply Chain Director approval authority — laptop_permissions no longer
+// grants it (see buildEffectivePermissions). This lets one person hold several of
+// those stages across different countries, which a single role+country permission row
+// could never express — e.g. Country Manager for one country and Supply Chain
+// Director broadly.
+const APPROVAL_STAGES: LaptopApprovalStage[] = ['IT Manager', 'Country Manager', 'IT Director', 'Supply Chain Director'];
+
+function emptyMatrixCapabilities(): Record<LaptopApprovalStage, string[]> {
+  return { 'IT Manager': [], 'Country Manager': [], 'IT Director': [], 'Supply Chain Director': [] };
+}
+
+async function getApproverMatrixCapabilities(email: string): Promise<Record<LaptopApprovalStage, string[]>> {
+  const capabilities = emptyMatrixCapabilities();
+  const target = email.trim().toLowerCase();
+  if (!target) return capabilities;
+  try {
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix WHERE is_active = TRUE`);
+    const add = (stage: LaptopApprovalStage, matrixEmail: unknown, country: string) => {
+      if (String(matrixEmail ?? '').trim().toLowerCase() !== target) return;
+      capabilities[stage].push(country);
+    };
+    for (const row of rows) {
+      const country = String(row.country ?? '').trim();
+      if (!country) continue;
+      add('IT Manager', row.it_manager_email, country);
+      add('IT Manager', row.it_manager_2_email, country);
+      add('Country Manager', row.cm_email, country);
+      add('IT Director', row.itd_email, country);
+      add('Supply Chain Director', row.scd_email, country);
+    }
+  } catch (err) {
+    console.error('[getApproverMatrixCapabilities]', err);
+  }
+  return capabilities;
+}
+
+function hasAnyMatrixCapability(capabilities: Record<LaptopApprovalStage, string[]>): boolean {
+  return APPROVAL_STAGES.some(stage => capabilities[stage].length > 0);
+}
+
+// Admin bypasses everything (unchanged); Analyst/Read Only keep their analytics-only
+// access; everyone else's view-all/reject/per-stage review rights are derived purely
+// from approver-matrix presence, ignoring any IT Manager/Country Manager/IT
+// Director/Supply Chain Director role a laptop_permissions row might still carry.
+function buildEffectivePermissions(baseRole: LaptopPermissionRole, capabilities: Record<LaptopApprovalStage, string[]>): LaptopPermissionProfile {
+  const base = getPermissionProfile(baseRole);
+  const isAdmin = baseRole === 'Admin';
+  const isAnalyst = baseRole === 'Analyst' || baseRole === 'Read Only';
+  const hasCapability = hasAnyMatrixCapability(capabilities);
+  return {
+    ...base,
+    canViewAll: isAdmin || hasCapability,
+    canReject: isAdmin || hasCapability,
+    canReviewItManager: isAdmin || capabilities['IT Manager'].length > 0,
+    canReviewCountryManager: isAdmin || capabilities['Country Manager'].length > 0,
+    canReviewItDirector: isAdmin || capabilities['IT Director'].length > 0,
+    canReviewScmDirector: isAdmin || capabilities['Supply Chain Director'].length > 0,
+    accessView: isAdmin ? 'admin' : isAnalyst ? 'analyst' : (hasCapability ? 'reviewer' : 'requester'),
+  };
+}
+
+function stageHasCountry(capabilities: Record<LaptopApprovalStage, string[]> | undefined, stage: LaptopApprovalStage, country: string | null | undefined): boolean {
+  const countries = capabilities?.[stage] ?? [];
+  if (!countries.length) return false;
+  const target = normaliseScopeValue(country);
+  return countries.some(c => normaliseScopeValue(c) === target);
+}
+
+function anyMatrixCapabilityForCountry(capabilities: Record<LaptopApprovalStage, string[]> | undefined, country: string | null | undefined): boolean {
+  if (!capabilities) return false;
+  return APPROVAL_STAGES.some(stage => stageHasCountry(capabilities, stage, country));
+}
+
+function allMatrixCountries(capabilities: Record<LaptopApprovalStage, string[]> | undefined): string[] {
+  if (!capabilities) return [];
+  return [...new Set(APPROVAL_STAGES.flatMap(stage => capabilities[stage]))];
+}
+
 async function getActor(): Promise<LaptopActor> {
   const user = await getProcureGuardUser();
   const email = user?.email ?? '';
@@ -151,8 +231,9 @@ async function getActor(): Promise<LaptopActor> {
 
   const permissionRow = await getPermissionRowForEmail(email);
   const fallbackRole: LaptopPermissionRole = adminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
-  const role = (permissionRow?.role ?? fallbackRole) as LaptopPermissionRole;
-  const permissions = getPermissionProfile(role);
+  const baseRole = (permissionRow?.role ?? fallbackRole) as LaptopPermissionRole;
+  const matrixCapabilities = await getApproverMatrixCapabilities(email);
+  const permissions = buildEffectivePermissions(baseRole, matrixCapabilities);
   const delegatedFrom = await resolveLaptopDelegations(email);
   // Whole-page gates (Admin Panel, Analytics, Reviewer Queue) use the best access
   // tier across the actor's own role and every role they hold via delegation, so a
@@ -168,8 +249,7 @@ async function getActor(): Promise<LaptopActor> {
     isAdmin: permissions.role === 'Admin',
     role: permissions.role,
     permissions,
-    country: permissionRow?.country ?? null,
-    segment: permissionRow?.segment ?? null,
+    matrixCapabilities,
     delegatedFrom,
     effectiveAccessView,
   };
@@ -248,9 +328,10 @@ async function resolveActiveLaptopDelegateEmail(
 
 /**
  * Resolve active delegations TO `email` for Laptop Procurement. Each delegator
- * is expanded into their own role/permissions/scope (from this DB's permission
- * table). Only delegators who are reviewers/approvers (canViewAll) are inherited.
- * Fail-safe: returns [] if the delegations table is unavailable.
+ * is expanded into their own effective role/permissions/approver-matrix capabilities.
+ * Only delegators who actually carry authority (Admin, or named anywhere in the
+ * approver matrix) are inherited. Fail-safe: returns [] if the delegations table is
+ * unavailable.
  */
 async function resolveLaptopDelegations(email: string): Promise<LaptopDelegationGrant[]> {
   try {
@@ -268,16 +349,16 @@ async function resolveLaptopDelegations(email: string): Promise<LaptopDelegation
     for (const row of rows) {
       const delegatorEmail = String(row.delegator_email);
       const permRow = await getPermissionRowForEmail(delegatorEmail);
-      if (!permRow?.role) continue;
-      const grantPermissions = getPermissionProfile(permRow.role as LaptopPermissionRole);
-      if (!grantPermissions.canViewAll) continue; // only reviewers/approvers carry delegatable authority
+      const baseRole = (permRow?.role ?? 'Requester') as LaptopPermissionRole;
+      const matrixCapabilities = await getApproverMatrixCapabilities(delegatorEmail);
+      const grantPermissions = buildEffectivePermissions(baseRole, matrixCapabilities);
+      if (!grantPermissions.canViewAll) continue; // only reviewers/approvers/admins carry delegatable authority
       grants.push({
         email: delegatorEmail,
-        name: permRow.name ?? (row.delegator_name as string | null) ?? delegatorEmail,
+        name: permRow?.name ?? (row.delegator_name as string | null) ?? delegatorEmail,
         role: grantPermissions.role,
+        matrixCapabilities,
         permissions: grantPermissions,
-        country: permRow.country ?? null,
-        segment: permRow.segment ?? null,
       });
     }
     return grants;
@@ -309,73 +390,56 @@ export async function canAccessLaptopApp(): Promise<boolean> {
 
 /* ── Scoping ──────────────────────────────────────────────────── */
 
-// Build a single scope group (country/segment AND-ed). Returns null when the
-// scope is unrestricted (a view-all role with no country/segment = sees all).
-function laptopScopeGroup(country?: string | null, segment?: string | null): { clause: string; params: string[] } | null {
-  const filters: string[] = [];
-  const params: string[] = [];
-  if (country) {
-    filters.push('country = ?');
-    params.push(country);
-  }
-  if (segment) {
-    filters.push('segment = ?');
-    params.push(segment);
-  }
-  if (!filters.length) return null;
-  return { clause: `(${filters.join(' AND ')})`, params };
+function normaliseScopeValue(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
 }
+
+// Maps the required permission for a stage transition back to the approver-matrix
+// stage it corresponds to, so resolveLaptopActing can check the acting identity's
+// matrix countries for that stage — see getRequiredPermissionForStage.
+const PERMISSION_KEY_TO_STAGE: Partial<Record<LaptopPermissionKey, LaptopApprovalStage>> = {
+  canReviewItManager: 'IT Manager',
+  canReviewCountryManager: 'Country Manager',
+  canReviewItDirector: 'IT Director',
+  canReviewScmDirector: 'Supply Chain Director',
+};
 
 function scopedWhere(actor: LaptopActor): { where: string; params: string[] } {
   const delegated = (actor.delegatedFrom ?? []).filter(d => d.permissions.canViewAll);
 
   if (actor.role === 'Admin' || delegated.some(d => d.role === 'Admin')) {
-    if (actor.permissions.canViewAll || delegated.length) return { where: '', params: [] };
+    return { where: '', params: [] };
   }
 
   const orGroups: string[] = [];
   const params: string[] = [];
 
   if (actor.permissions.canViewAll) {
-    const g = laptopScopeGroup(actor.country, actor.segment);
-    if (!g) return { where: '', params: [] };
-    orGroups.push(g.clause);
-    params.push(...g.params);
-  } else {
-    orGroups.push('requested_by_email = ?');
-    params.push(actor.email);
+    const countries = allMatrixCountries(actor.matrixCapabilities);
+    if (countries.length) {
+      orGroups.push(`country IN (${countries.map(() => '?').join(', ')})`);
+      params.push(...countries);
+    }
   }
+  // Always see your own submitted requests too, regardless of reviewer scope.
+  orGroups.push('requested_by_email = ?');
+  params.push(actor.email);
 
   for (const d of delegated) {
-    const g = laptopScopeGroup(d.country, d.segment);
-    if (!g) return { where: '', params: [] };
-    orGroups.push(g.clause);
-    params.push(...g.params);
+    const countries = allMatrixCountries(d.matrixCapabilities);
+    if (!countries.length) continue;
+    orGroups.push(`country IN (${countries.map(() => '?').join(', ')})`);
+    params.push(...countries);
   }
 
-  return { where: orGroups.length ? `WHERE ${orGroups.join(' OR ')}` : '', params };
+  return { where: `WHERE ${orGroups.join(' OR ')}`, params };
 }
 
-function normaliseScopeValue(value: string | null | undefined): string {
-  return (value ?? '').trim().toLowerCase();
-}
-
-function scopeMatches(
-  role: LaptopPermissionRole,
-  country: string | null | undefined,
-  segment: string | null | undefined,
-  request: { country?: string | null; segment?: string | null },
-): boolean {
-  if (role === 'Admin') return true;
-  const countryOk = !country || normaliseScopeValue(country) === normaliseScopeValue(request.country);
-  const segmentOk = !segment || normaliseScopeValue(segment) === normaliseScopeValue(request.segment);
-  return countryOk && segmentOk;
-}
-
-// Identities (self + delegators) the actor can act through, each with its own scope.
+// Identities (self + delegators) the actor can act through, each with its own
+// approver-matrix capabilities.
 function laptopActingIdentities(actor: LaptopActor): LaptopDelegationGrant[] {
   return [
-    { email: actor.email, name: actor.name, role: actor.role, permissions: actor.permissions, country: actor.country, segment: actor.segment },
+    { email: actor.email, name: actor.name, role: actor.role, permissions: actor.permissions, matrixCapabilities: actor.matrixCapabilities },
     ...(actor.delegatedFrom ?? []),
   ];
 }
@@ -383,7 +447,6 @@ function laptopActingIdentities(actor: LaptopActor): LaptopDelegationGrant[] {
 function getScopedActions(actor: LaptopActor, request: {
   status: LaptopRequestStatus;
   country?: string | null;
-  segment?: string | null;
   assigned_serial_no?: string | null;
   assigned_model?: string | null;
   assigned_age?: string | null;
@@ -391,36 +454,29 @@ function getScopedActions(actor: LaptopActor, request: {
 }) {
   const hasAssignedUnit = laptopHasAssignedUnit(request);
   const isProcureNewFlow = laptopIsProcureNewFlow(request);
-  const base = getLaptopAvailableActions(actor.permissions, request.status, hasAssignedUnit, isProcureNewFlow);
-  // Merge action capability across every identity whose scope matches this request.
-  const merged = { ...base, canApprove: false, canReject: false, canAssignInventory: false, canMarkRepaired: false, canProcureNew: false, canSubmitProcureDetails: false };
-  for (const id of laptopActingIdentities(actor)) {
-    if (!scopeMatches(id.role, id.country, id.segment, request)) continue;
-    const a = getLaptopAvailableActions(id.permissions, request.status, hasAssignedUnit, isProcureNewFlow);
-    merged.canApprove ||= a.canApprove;
-    merged.canReject ||= a.canReject;
-    merged.canAssignInventory ||= a.canAssignInventory;
-    merged.canMarkRepaired ||= a.canMarkRepaired;
-    merged.canProcureNew ||= a.canProcureNew;
-    merged.canSubmitProcureDetails ||= a.canSubmitProcureDetails;
-  }
-  return merged;
+  const requiredStage = getLaptopApprovalStage(request.status);
+  const ownsCurrentStep = Boolean(requiredStage) && laptopActingIdentities(actor).some(id =>
+    id.role === 'Admin' || stageHasCountry(id.matrixCapabilities, requiredStage as LaptopApprovalStage, request.country),
+  );
+  return getLaptopAvailableActions(ownsCurrentStep, request.status, hasAssignedUnit, isProcureNewFlow);
 }
 
 /**
  * Decide whether the actor may perform a stage transition needing
  * `requiredPermission` (and, when rejecting, canReject) on `request` — using
- * their OWN authority first, then any delegated authority scoped to the
- * delegator's country/segment. Returns the "on behalf of" label to record.
+ * their OWN authority first, then any delegated authority whose approver-matrix
+ * capabilities cover the request's country for that stage. Returns the "on behalf
+ * of" label to record.
  */
 function resolveLaptopActing(
   actor: LaptopActor,
   requiredPermission: LaptopPermissionKey,
   needsReject: boolean,
-  request: { country?: string | null; segment?: string | null },
+  request: { country?: string | null },
 ): { allowed: boolean; reason: 'permission' | 'reject' | 'scope' | null; onBehalfOf: string | null } {
   let sawPermission = false;
   let sawReject = true;
+  const stage = PERMISSION_KEY_TO_STAGE[requiredPermission];
   const identities = laptopActingIdentities(actor);
   for (let i = 0; i < identities.length; i++) {
     const id = identities[i];
@@ -430,7 +486,8 @@ function resolveLaptopActing(
       sawReject = false;
       continue;
     }
-    if (scopeMatches(id.role, id.country, id.segment, request)) {
+    const inScope = id.role === 'Admin' || (stage ? stageHasCountry(id.matrixCapabilities, stage, request.country) : false);
+    if (inScope) {
       return { allowed: true, reason: null, onBehalfOf: i === 0 ? null : id.name };
     }
   }
@@ -998,7 +1055,7 @@ export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestD
     // needs the "it's my own request" fallback.
     const canView = laptopActingIdentities(actor).some(id =>
       id.permissions.canViewAll
-        ? scopeMatches(id.role, id.country, id.segment, request)
+        ? (id.role === 'Admin' || anyMatrixCapabilityForCountry(id.matrixCapabilities, request.country))
         : id.email.toLowerCase() === request.requested_by_email?.toLowerCase(),
     );
     if (!canView) return null;
@@ -1060,13 +1117,63 @@ export async function getLaptopWorkQueueData(): Promise<LaptopWorkQueueData | nu
   }
 }
 
+// Everyone eligible to be picked as a delegation's "approver (delegator)": Admins from
+// laptop_permissions, plus everyone named anywhere in the approver matrix (their real
+// source of approval authority now). Deduped by email — an Admin who also happens to
+// be named in the matrix is just shown as Admin, since that already covers everything.
+function buildDelegationApprovers(
+  permissionRows: QueryResultRow[],
+  matrixRows: QueryResultRow[],
+): Array<{ email: string; name: string | null; role: string; country: string | null }> {
+  type MatrixAcc = { email: string; name: string | null; stages: Map<LaptopApprovalStage, Set<string>> };
+  const byEmail = new Map<string, MatrixAcc>();
+  const addApprover = (rawEmail: unknown, rawName: unknown, stage: LaptopApprovalStage, country: string) => {
+    const email = String(rawEmail ?? '').trim();
+    if (!email) return;
+    const key = email.toLowerCase();
+    let entry = byEmail.get(key);
+    if (!entry) {
+      entry = { email, name: null, stages: new Map() };
+      byEmail.set(key, entry);
+    }
+    if (!entry.name && rawName) entry.name = String(rawName);
+    if (!entry.stages.has(stage)) entry.stages.set(stage, new Set());
+    entry.stages.get(stage)!.add(country);
+  };
+  for (const row of matrixRows) {
+    const country = String(row.country ?? '').trim();
+    if (!country) continue;
+    addApprover(row.it_manager_email, row.it_manager_name, 'IT Manager', country);
+    addApprover(row.it_manager_2_email, row.it_manager_2_name, 'IT Manager', country);
+    addApprover(row.cm_email, row.cm_name, 'Country Manager', country);
+    addApprover(row.itd_email, row.itd_name, 'IT Director', country);
+    addApprover(row.scd_email, row.scd_name, 'Supply Chain Director', country);
+  }
+
+  const approvers = new Map<string, { email: string; name: string | null; role: string; country: string | null }>();
+  for (const entry of byEmail.values()) {
+    const stages = [...entry.stages.keys()];
+    const countries = new Set<string>();
+    for (const set of entry.stages.values()) for (const c of set) countries.add(c);
+    const country = countries.size === 1 ? [...countries][0] : `${countries.size} countries`;
+    approvers.set(entry.email.toLowerCase(), { email: entry.email, name: entry.name, role: stages.join(', '), country });
+  }
+  for (const row of permissionRows) {
+    if (row.role !== 'Admin') continue;
+    const email = String(row.email ?? '').trim();
+    if (!email) continue;
+    approvers.set(email.toLowerCase(), { email, name: (row.name as string | null) ?? null, role: 'Admin', country: null });
+  }
+  return [...approvers.values()].sort((a, b) => a.role.localeCompare(b.role) || a.email.localeCompare(b.email));
+}
+
 export async function getLaptopAdminData(requestsPage: number = 0): Promise<LaptopAdminData | null> {
   try {
     const actor = await requireAdminActor();
     await ensureLaptopDelegationTable();
     await expireStaleLaptopDelegations();
     const offset = Math.max(0, Math.floor(requestsPage)) * ADMIN_REQUESTS_PAGE_SIZE;
-    const [requestRows, requestsCountRows, activityRows, permissionRows, delegationRows, deviceRows, stats] = await Promise.all([
+    const [requestRows, requestsCountRows, activityRows, permissionRows, delegationRows, deviceRows, matrixRows, stats] = await Promise.all([
       // Only the current page — the table only ever shows ADMIN_REQUESTS_PAGE_SIZE
       // rows at a time, so there's no reason to pull the entire (and ever-growing)
       // requests table on every admin panel load or action.
@@ -1076,6 +1183,7 @@ export async function getLaptopAdminData(requestsPage: number = 0): Promise<Lapt
       sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions ORDER BY role, email`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_delegations ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_device_catalog ORDER BY type_of_device, model`),
+      sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix WHERE is_active = TRUE`),
       computeLaptopStats('', []),
     ]);
     const delegations = serialise<LaptopDelegationRow[]>(delegationRows);
@@ -1088,6 +1196,7 @@ export async function getLaptopAdminData(requestsPage: number = 0): Promise<Lapt
       delegations,
       deviceCatalog: serialise<LaptopDeviceCatalogRow[]>(deviceRows),
       stats,
+      approvers: buildDelegationApprovers(permissionRows, matrixRows),
     };
   } catch (err) {
     console.error('[getLaptopAdminData]', err);
@@ -1140,7 +1249,9 @@ function validateCreateInput(input: CreateLaptopRequestInput) {
   return {
     requestType: requireText(input.request_type, 'Type of request'),
     country: requireText(input.country, 'Country'),
-    segment: requireText(input.segment, 'Segment'),
+    companyCode: requireText(input.company_code, 'Company Code'),
+    companyName: requireText(input.company_name, 'Company Name'),
+    costCenter: requireText(input.cost_center, 'Cost Center'),
     typeOfDevice: requireText(input.type_of_device, 'Type of device'),
     // No longer collected from the requester — the IT Team fills this in later, only if
     // the request is actually flagged for new-device procurement (see submitProcureNewDetails).
@@ -1163,10 +1274,10 @@ async function insertRequest(input: CreateLaptopRequestInput & Partial<UpdateLap
   const result = await exec(
     `INSERT INTO laptop_requests
       (reference_number, employee_id, status, priority, request_type, indirect_request, pending_with, country,
-       requested_by_name, requested_by_email, computer_for, segment, department, position,
+       requested_by_name, requested_by_email, computer_for, computer_for_employee_id, department,
        company_code, company_name, cost_center, type_of_device, requested_model, special_requirements,
        unit_id, current_brand, current_model, serial_no, age_years, sap_number)
-     VALUES (?, ?, ?, ?, ?, FALSE, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+     VALUES (?, ?, ?, ?, ?, FALSE, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     [
       opts.reference,
       blankToNull(input.employee_id),
@@ -1178,12 +1289,11 @@ async function insertRequest(input: CreateLaptopRequestInput & Partial<UpdateLap
       opts.requestedByName,
       opts.requestedByEmail,
       blankToNull(input.computer_for),
-      v.segment,
+      blankToNull(input.computer_for_employee_id),
       blankToNull(input.department),
-      blankToNull(input.position),
-      blankToNull(input.company_code),
-      blankToNull(input.company_name),
-      blankToNull(input.cost_center),
+      v.companyCode,
+      v.companyName,
+      v.costCenter,
       v.typeOfDevice,
       v.requestedModel,
       v.reason,
@@ -1250,15 +1360,15 @@ export async function updateLaptopRequest(id: number, input: CreateLaptopRequest
     const v = validateCreateInput(input);
     await exec(
       `UPDATE laptop_requests SET
-         employee_id = ?, priority = ?, request_type = ?, country = ?, computer_for = ?, segment = ?,
-         department = ?, position = ?, company_code = ?, company_name = ?, cost_center = ?,
+         employee_id = ?, priority = ?, request_type = ?, country = ?, computer_for = ?, computer_for_employee_id = ?,
+         department = ?, company_code = ?, company_name = ?, cost_center = ?,
          type_of_device = ?, requested_model = ?, special_requirements = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
         blankToNull(input.employee_id), input.priority || 'Normal', v.requestType, v.country,
-        blankToNull(input.computer_for), v.segment, blankToNull(input.department), blankToNull(input.position),
-        blankToNull(input.company_code), blankToNull(input.company_name), blankToNull(input.cost_center),
+        blankToNull(input.computer_for), blankToNull(input.computer_for_employee_id), blankToNull(input.department),
+        v.companyCode, v.companyName, v.costCenter,
         // Requested model isn't collected on this form — preserve whatever the IT Team may
         // have already filled in via submitProcureNewDetails rather than blanking it out.
         v.typeOfDevice, v.requestedModel ?? row.requested_model, v.reason, id,
@@ -1293,7 +1403,7 @@ export async function updateLaptopExistingDevice(id: number, input: UpdateLaptop
       return { success: false, error: 'Existing Device details can only be edited while the request is with the IT Manager.' };
     }
     const canEdit = actor.permissions.canManageData || laptopActingIdentities(actor).some(identity =>
-      identity.permissions.canReviewItManager && scopeMatches(identity.role, identity.country, identity.segment, row),
+      identity.permissions.canReviewItManager && (identity.role === 'Admin' || stageHasCountry(identity.matrixCapabilities, 'IT Manager', row.country)),
     );
     if (!canEdit) {
       return { success: false, error: 'IT Manager access is required to edit Existing Device details.' };
@@ -1588,7 +1698,7 @@ export async function submitProcureNewDetails(id: number, input: SubmitProcureNe
       return { success: false, error: 'Device details can only be submitted while the request is with the IT Team.' };
     }
     const canSubmit = actor.permissions.canManageData || laptopActingIdentities(actor).some(identity =>
-      identity.permissions.canReviewItManager && scopeMatches(identity.role, identity.country, identity.segment, row),
+      identity.permissions.canReviewItManager && (identity.role === 'Admin' || stageHasCountry(identity.matrixCapabilities, 'IT Manager', row.country)),
     );
     if (!canSubmit) {
       return { success: false, error: 'IT Manager access is required to submit device details.' };
@@ -1661,7 +1771,7 @@ export async function uploadLaptopDocument(formData: FormData): Promise<{ succes
     if (!requestRows[0]) return { success: false, error: 'Request not found.' };
     const canView = laptopActingIdentities(actor).some(id =>
       id.permissions.canViewAll
-        ? scopeMatches(id.role, id.country, id.segment, requestRows[0])
+        ? (id.role === 'Admin' || anyMatrixCapabilityForCountry(id.matrixCapabilities, requestRows[0].country))
         : id.email.toLowerCase() === requestRows[0].requested_by_email?.toLowerCase(),
     );
     if (!canView) {

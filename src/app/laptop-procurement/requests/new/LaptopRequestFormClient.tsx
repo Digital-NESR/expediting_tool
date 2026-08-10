@@ -9,8 +9,13 @@ import {
   DEVICE_TYPE_OPTIONS,
   PRIORITY_OPTIONS,
   REQUEST_TYPE_OPTIONS,
-  SEGMENT_OPTIONS,
 } from '@/lib/laptopProcurement-utils';
+import {
+  getCompaniesForRequestorCountry,
+  getCompanyByCode,
+  getCostCenterFor,
+  getDepartmentsForCompany,
+} from '@/lib/laptopCostCenterMapping';
 import type { EmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import type {
   CreateLaptopRequestInput,
@@ -21,13 +26,16 @@ import type {
 const LBL = 'mb-2 block text-sm font-semibold text-slate-900';
 const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 const ERR = 'w-full rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-2 focus:ring-red-200';
+const LOCKED_INP = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-500 shadow-sm outline-none cursor-not-allowed';
+const DISPLAY_INP = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 shadow-sm';
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
-function Field({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
+function Field({ label, required, error, hint, children }: { label: string; required?: boolean; error?: string; hint?: string; children: React.ReactNode }) {
   return (
     <div data-field-error={error ? 'true' : undefined}>
       <label className={LBL}>{required && <span className="mr-1 text-red-500">*</span>}{label}</label>
       {children}
+      {hint && !error && <p className="mt-1.5 text-xs text-slate-400">{hint}</p>}
       {error && <p className="mt-1.5 text-xs font-semibold text-red-700">{error}</p>}
     </div>
   );
@@ -70,6 +78,7 @@ function AttachmentPicker({ files, onFilesSelected }: { files: File[]; onFilesSe
 }
 
 export default function LaptopRequestFormClient({
+  requesterName,
   accessView,
   editRequest,
   directoryDefaults,
@@ -89,10 +98,9 @@ export default function LaptopRequestFormClient({
   const [priority, setPriority] = useState(editRequest?.priority ?? 'Normal');
   const [employeeId, setEmployeeId] = useState(editRequest?.employee_id ?? '');
   const [country, setCountry] = useState(editRequest?.country ?? '');
-  const [segment, setSegment] = useState(editRequest?.segment ?? '');
   const [department, setDepartment] = useState(editRequest?.department ?? '');
-  const [position, setPosition] = useState(editRequest?.position ?? '');
   const [computerFor, setComputerFor] = useState(editRequest?.computer_for ?? '');
+  const [computerForEmployeeId, setComputerForEmployeeId] = useState(editRequest?.computer_for_employee_id ?? '');
   const [companyCode, setCompanyCode] = useState(editRequest?.company_code ?? '');
   const [companyName, setCompanyName] = useState(editRequest?.company_name ?? '');
   const [costCenter, setCostCenter] = useState(editRequest?.cost_center ?? '');
@@ -110,34 +118,97 @@ export default function LaptopRequestFormClient({
   const isUnit = requestType === 'Unit';
   const isSelfRequest = requestType === 'Upgrade/Replacement' || isUnit;
 
-  // Self-service requests are for the requester's own record, so the directory
-  // can fill in what it already knows instead of the requester retyping it. New
-  // Employee requests are on behalf of someone else, so this never applies there.
-  // Never overwrites a field the requester has already typed into.
+  // Companies available in the Cost Allocation dropdown for New Employee, filtered by
+  // the requestor's own country (from the Excel-derived mapping in laptopCostCenterMapping).
+  const availableCompanies = getCompaniesForRequestorCountry(country);
+  // Departments (and their cost centers) available for whichever company is currently
+  // selected — drives both the New Employee "Computer For" department dropdown and the
+  // Cost Center auto-fill.
+  const availableDepartments = getDepartmentsForCompany(companyCode);
+
+  // Self-service requests (Upgrade/Replacement, Unit) are for the requester's own
+  // record, so the directory can fill in what it already knows instead of the requester
+  // retyping it — and, since it's their own record, Cost Allocation can be fully
+  // resolved and locked too. New Employee requests only get the requestor's own
+  // identity auto-filled (name/employee id/country); the new hire's details and the
+  // company they should be allocated to are picked manually. Never overwrites a field
+  // the requester has already typed into.
   function handleRequestTypeChange(value: string) {
     setRequestType(value);
+    if (isEditMode || !directoryDefaults) return;
     const willBeSelfRequest = value === 'Upgrade/Replacement' || value === 'Unit';
-    if (isEditMode || !willBeSelfRequest || !directoryDefaults) return;
-    if (directoryDefaults.employeeId && !employeeId.trim()) setEmployeeId(directoryDefaults.employeeId);
-    if (directoryDefaults.country && !country.trim()) setCountry(directoryDefaults.country);
-    if (directoryDefaults.segment && !segment.trim()) setSegment(directoryDefaults.segment);
-    if (directoryDefaults.department && !department.trim()) setDepartment(directoryDefaults.department);
-    if (directoryDefaults.position && !position.trim()) setPosition(directoryDefaults.position);
-    if (directoryDefaults.companyCode && !companyCode.trim()) setCompanyCode(directoryDefaults.companyCode);
-    if (directoryDefaults.costCenter && !costCenter.trim()) setCostCenter(directoryDefaults.costCenter);
+
+    const nextEmployeeId = !employeeId.trim() && directoryDefaults.employeeId ? directoryDefaults.employeeId : employeeId;
+    const nextCountry = !country.trim() && directoryDefaults.country ? directoryDefaults.country : country;
+    if (nextEmployeeId !== employeeId) setEmployeeId(nextEmployeeId);
+    if (nextCountry !== country) setCountry(nextCountry);
+    if (!willBeSelfRequest) return;
+
+    const nextDepartment = !department.trim() && directoryDefaults.department ? directoryDefaults.department : department;
+    const nextCompanyCode = !companyCode.trim() && directoryDefaults.companyCode ? directoryDefaults.companyCode : companyCode;
+    if (nextDepartment !== department) setDepartment(nextDepartment);
+    if (nextCompanyCode !== companyCode) setCompanyCode(nextCompanyCode);
+
+    const company = getCompanyByCode(nextCompanyCode);
+    if (company) setCompanyName(company.name);
+
+    const nextCostCenter = costCenter.trim() ? costCenter : (getCostCenterFor(nextCompanyCode, nextDepartment) ?? directoryDefaults.costCenter ?? '');
+    if (nextCostCenter !== costCenter) setCostCenter(nextCostCenter);
+  }
+
+  // Requestor's department is editable for self-service requests (auto-filled, but the
+  // directory can be wrong) — re-derive Cost Center whenever it changes, since it's
+  // looked up by company + department.
+  function handleSelfDepartmentChange(value: string) {
+    setDepartment(value);
+    const cc = getCostCenterFor(companyCode, value);
+    if (cc) setCostCenter(cc);
+  }
+
+  // New Employee's "Computer For" department drives Cost Center directly, since the
+  // company was already chosen in Cost Allocation.
+  function handleComputerForDepartmentChange(value: string) {
+    setDepartment(value);
+    setCostCenter(getCostCenterFor(companyCode, value) ?? '');
+  }
+
+  // Company Name and Company Code are two views of the same underlying company record
+  // (keyed by code) — selecting either one fills both, per the 1-1 mapping. Changing
+  // company invalidates whatever department/cost center was picked for the old one.
+  function handleCompanyChange(code: string) {
+    setCompanyCode(code);
+    const company = getCompanyByCode(code);
+    setCompanyName(company?.name ?? '');
+    setDepartment('');
+    setCostCenter('');
+  }
+
+  function handleCountryChange(value: string) {
+    setCountry(value);
+    if (!isNewEmployee) return;
+    const validCodes = new Set(getCompaniesForRequestorCountry(value).map(c => c.code));
+    if (companyCode && !validCodes.has(companyCode)) {
+      setCompanyCode('');
+      setCompanyName('');
+      setDepartment('');
+      setCostCenter('');
+    }
   }
 
   function validate() {
     const e: Record<string, string> = {};
     if (!requestType) e.requestType = 'Type of request is required.';
-    if (isSelfRequest && !employeeId.trim()) e.employeeId = 'Employee ID is required.';
-    if (isNewEmployee && !computerFor.trim()) e.computerFor = 'Computer For is required.';
-    if (isUnit && !computerFor.trim()) e.computerFor = 'Unit Name is required.';
+    if (!employeeId.trim()) e.employeeId = 'Employee ID is required.';
     if (!country) e.country = 'Country is required.';
-    if (!segment) e.segment = 'Segment is required.';
-    if (!department.trim()) e.department = 'Department is required.';
-    if (!position.trim()) e.position = 'Position is required.';
+    if (isNewEmployee) {
+      if (!computerFor.trim()) e.computerFor = "Employee's name is required.";
+      if (!department.trim()) e.department = 'Department is required.';
+    }
+    if (isUnit && !computerFor.trim()) e.computerFor = 'Unit Name / ID is required.';
+    if (isSelfRequest && !department.trim()) e.department = 'Department is required.';
+    if (!companyCode.trim()) e.companyCode = 'Company Code is required.';
     if (!companyName.trim()) e.companyName = 'Company Name is required.';
+    if (!costCenter.trim()) e.costCenter = 'Cost Center is required.';
     if (!typeOfDevice) e.typeOfDevice = 'Type of device is required.';
     if (!specialRequirements.trim()) e.specialRequirements = 'Special requirements / justification is required.';
     if (selectedFiles.some(file => file.size > MAX_FILE_BYTES)) e.attachments = 'Each file must be 10 MB or smaller.';
@@ -176,9 +247,8 @@ export default function LaptopRequestFormClient({
       employee_id: employeeId,
       country,
       computer_for: computerFor,
-      segment,
+      computer_for_employee_id: computerForEmployeeId,
       department,
-      position,
       company_code: companyCode,
       company_name: companyName,
       cost_center: costCenter,
@@ -215,7 +285,7 @@ export default function LaptopRequestFormClient({
 
         <section className={`${GLASS} p-5 sm:p-6`}>
           <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Request</h2>
-          <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-2">
             <Field label="Type of Request" required error={errors.requestType}>
               <select className={errors.requestType ? ERR : INP} value={requestType} onChange={e => handleRequestTypeChange(e.target.value)}>
                 <option value="">Select request type</option>
@@ -227,52 +297,124 @@ export default function LaptopRequestFormClient({
                 {PRIORITY_OPTIONS.map(item => <option key={item}>{item}</option>)}
               </select>
             </Field>
-            <Field label="Employee ID" required={isSelfRequest} error={errors.employeeId}>
-              <input className={errors.employeeId ? ERR : INP} value={employeeId} onChange={e => setEmployeeId(e.target.value)} />
-            </Field>
-            {!isNewEmployee && !isUnit ? null : (
-              <Field label={isUnit ? 'Unit Name' : 'Computer For'} required error={errors.computerFor}>
-                <input
-                  className={errors.computerFor ? ERR : INP}
-                  value={computerFor}
-                  onChange={e => setComputerFor(e.target.value)}
-                  placeholder={isUnit ? "Enter the unit's name" : "Enter the Employee's Name for the Laptop Request"}
-                />
-              </Field>
-            )}
-            <Field label="Country" required error={errors.country}>
-              <select className={errors.country ? ERR : INP} value={country} onChange={e => setCountry(e.target.value)}>
-                <option value="">Find Country</option>
-                {COUNTRY_OPTIONS.map(item => <option key={item}>{item}</option>)}
-              </select>
-            </Field>
-            <Field label="Segment" required error={errors.segment}>
-              <select className={errors.segment ? ERR : INP} value={segment} onChange={e => setSegment(e.target.value)}>
-                <option value="">Find Segment</option>
-                {SEGMENT_OPTIONS.map(item => <option key={item}>{item}</option>)}
-              </select>
-            </Field>
-            <Field label="Department" required error={errors.department}>
-              <input className={errors.department ? ERR : INP} value={department} onChange={e => setDepartment(e.target.value)} />
-            </Field>
-            <Field label="Position" required error={errors.position}>
-              <input className={errors.position ? ERR : INP} value={position} onChange={e => setPosition(e.target.value)} />
-            </Field>
           </div>
         </section>
 
         <section className={`${GLASS} p-5 sm:p-6`}>
-          <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Cost Allocation</h2>
+          <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Requestor Details</h2>
           <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
-            <Field label="Company Code">
-              <input className={INP} value={companyCode} onChange={e => setCompanyCode(e.target.value)} />
+            <Field label="Requestor Name">
+              <input className={DISPLAY_INP} value={requesterName} disabled />
             </Field>
-            <Field label="Company Name" required error={errors.companyName}>
-              <input className={errors.companyName ? ERR : INP} value={companyName} onChange={e => setCompanyName(e.target.value)} />
+            <Field label="Employee ID" required error={errors.employeeId}>
+              <input className={errors.employeeId ? ERR : INP} value={employeeId} onChange={e => setEmployeeId(e.target.value)} />
             </Field>
-            <Field label="Cost Center">
-              <input className={INP} value={costCenter} onChange={e => setCostCenter(e.target.value)} />
+            <Field label="Country" required error={errors.country}>
+              <select className={errors.country ? ERR : INP} value={country} onChange={e => handleCountryChange(e.target.value)}>
+                <option value="">Find Country</option>
+                {COUNTRY_OPTIONS.map(item => <option key={item}>{item}</option>)}
+              </select>
             </Field>
+            {isSelfRequest && (
+              <Field label="Department" required error={errors.department}>
+                <input className={errors.department ? ERR : INP} value={department} onChange={e => handleSelfDepartmentChange(e.target.value)} />
+              </Field>
+            )}
+            {isUnit && (
+              <Field label="Unit Name / ID" required error={errors.computerFor}>
+                <input
+                  className={errors.computerFor ? ERR : INP}
+                  value={computerFor}
+                  onChange={e => setComputerFor(e.target.value)}
+                  placeholder="Enter the unit's name or ID"
+                />
+              </Field>
+            )}
+          </div>
+        </section>
+
+        {isNewEmployee && (
+          <section className={`${GLASS} p-5 sm:p-6`}>
+            <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Computer For Details</h2>
+            <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
+              <Field label="Name" required error={errors.computerFor}>
+                <input
+                  className={errors.computerFor ? ERR : INP}
+                  value={computerFor}
+                  onChange={e => setComputerFor(e.target.value)}
+                  placeholder="Enter the new employee's name"
+                />
+              </Field>
+              <Field label="Employee ID">
+                <input
+                  className={INP}
+                  value={computerForEmployeeId}
+                  onChange={e => setComputerForEmployeeId(e.target.value)}
+                  placeholder="If available"
+                />
+              </Field>
+              <Field
+                label="Department"
+                required
+                error={errors.department}
+                hint={!companyCode ? 'Select Company Name in Cost Allocation below first.' : undefined}
+              >
+                <select
+                  className={errors.department ? ERR : INP}
+                  value={department}
+                  disabled={!companyCode}
+                  onChange={e => handleComputerForDepartmentChange(e.target.value)}
+                >
+                  <option value="">{companyCode ? 'Select department' : 'Select company first'}</option>
+                  {availableDepartments.map(d => <option key={d.department} value={d.department}>{d.department}</option>)}
+                </select>
+              </Field>
+            </div>
+          </section>
+        )}
+
+        <section className={`${GLASS} p-5 sm:p-6`}>
+          <h2 className="mb-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Cost Allocation</h2>
+          {isSelfRequest && (
+            <p className="mb-4 text-xs text-slate-400">Auto-filled from your employee record — locked.</p>
+          )}
+          <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
+            {isSelfRequest ? (
+              <>
+                <Field label="Company Code" required error={errors.companyCode}>
+                  <input className={LOCKED_INP} value={companyCode} disabled readOnly />
+                </Field>
+                <Field label="Company Name" required error={errors.companyName}>
+                  <input className={LOCKED_INP} value={companyName} disabled readOnly />
+                </Field>
+                <Field label="Cost Center" required error={errors.costCenter}>
+                  <input className={LOCKED_INP} value={costCenter} disabled readOnly />
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field
+                  label="Company Name"
+                  required
+                  error={errors.companyName}
+                  hint={!country ? 'Select Country in Requestor Details first.' : undefined}
+                >
+                  <select className={errors.companyName ? ERR : INP} value={companyCode} disabled={!country} onChange={e => handleCompanyChange(e.target.value)}>
+                    <option value="">{country ? 'Find Company Name' : 'Select country first'}</option>
+                    {availableCompanies.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Company Code" required error={errors.companyCode}>
+                  <select className={errors.companyCode ? ERR : INP} value={companyCode} disabled={!country} onChange={e => handleCompanyChange(e.target.value)}>
+                    <option value="">{country ? 'Find Company Code' : 'Select country first'}</option>
+                    {availableCompanies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                  </select>
+                </Field>
+                <Field label="Cost Center" required error={errors.costCenter}>
+                  <input className={LOCKED_INP} value={costCenter} disabled readOnly placeholder="Auto-filled once Department is chosen above" />
+                </Field>
+              </>
+            )}
           </div>
         </section>
 
