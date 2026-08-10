@@ -302,6 +302,21 @@ export interface LaptopAdminData {
   // matrix presence (not a laptop_permissions role) is what carries real approval
   // authority to delegate.
   approvers: Array<{ email: string; name: string | null; role: string; country: string | null }>;
+  // The Permissions tab's actual displayed list: Admin/Analyst/Read Only/Requester
+  // rows straight from laptop_permissions, plus one synthesized row per person named
+  // anywhere in the approver matrix — since matrix presence, not a stale
+  // laptop_permissions role, is what actually grants IT Manager/Country
+  // Manager/IT Director/Supply Chain Director authority now.
+  permissionsList: LaptopPermissionListItem[];
+}
+
+export interface LaptopPermissionListItem {
+  source: 'permissions' | 'matrix';
+  email: string;
+  name: string | null;
+  role: string;
+  country: string | null;
+  segment: string | null;
 }
 
 export type LaptopAccessRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';

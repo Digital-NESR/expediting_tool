@@ -9,17 +9,23 @@ import type {
 
 export const LAPTOP_GREEN = '#307c4c';
 
-// IT Manager / Country Manager / IT Director / Supply Chain Director are no longer
-// assignable here — that approval authority comes exclusively from the approver
-// matrix (laptop_approver_matrix) now, which lets one person hold several of those
-// roles across different countries, something a single permission row per email never
-// could. Manage them from the Approver Matrix tab instead.
+// IT Manager / Country Manager / IT Director / Supply Chain Director are shown here for
+// convenience, but picking one doesn't write to laptop_permissions — it writes into
+// laptop_approver_matrix instead (see assignApproverMatrixRole), which is the actual
+// source of that approval authority and the only thing that lets one person hold
+// several of those roles across different countries.
 export const PERMISSION_ROLE_OPTIONS: LaptopPermissionRole[] = [
   'Requester',
   'Analyst',
   'Read Only',
+  'IT Manager',
+  'Country Manager',
+  'IT Director',
+  'Supply Chain Director',
   'Admin',
 ];
+
+export const APPROVER_MATRIX_ROLES: LaptopPermissionRole[] = ['IT Manager', 'Country Manager', 'IT Director', 'Supply Chain Director'];
 
 const BASE_PERMISSION_PROFILE: Omit<LaptopPermissionProfile, 'role' | 'label' | 'description' | 'accessView'> = {
   canViewAll: false,

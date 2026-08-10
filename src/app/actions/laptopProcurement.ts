@@ -9,6 +9,7 @@ import laptopProcurementPool from '@/lib/db-laptop';
 import {
   ADMIN_REQUESTS_PAGE_SIZE,
   APPROVAL_ACTIVE_STATUSES,
+  APPROVER_MATRIX_ROLES,
   bestAccessView,
   canUseLaptopAdmin,
   canUseLaptopAnalytics,
@@ -48,6 +49,7 @@ import type {
   LaptopDeviceOption,
   LaptopDocument,
   LaptopMonthlyMetric,
+  LaptopPermissionListItem,
   LaptopPermissionProfile,
   LaptopPermissionRole,
   LaptopPermissionRow,
@@ -1121,12 +1123,16 @@ export async function getLaptopWorkQueueData(): Promise<LaptopWorkQueueData | nu
 // laptop_permissions, plus everyone named anywhere in the approver matrix (their real
 // source of approval authority now). Deduped by email — an Admin who also happens to
 // be named in the matrix is just shown as Admin, since that already covers everything.
-function buildDelegationApprovers(
-  permissionRows: QueryResultRow[],
-  matrixRows: QueryResultRow[],
-): Array<{ email: string; name: string | null; role: string; country: string | null }> {
-  type MatrixAcc = { email: string; name: string | null; stages: Map<LaptopApprovalStage, Set<string>> };
-  const byEmail = new Map<string, MatrixAcc>();
+const APPROVER_MATRIX_ROLE_SET: Set<string> = new Set(APPROVER_MATRIX_ROLES);
+
+type MatrixApproverAcc = { email: string; name: string | null; stages: Map<LaptopApprovalStage, Set<string>> };
+
+// Every person named anywhere in the active approver matrix, keyed by email, with the
+// stage(s) and country(ies) they're the approver for — shared by the Delegations
+// dropdown (buildDelegationApprovers) and the Permissions tab's merged list
+// (buildMergedPermissionsList).
+function accumulateMatrixApprovers(matrixRows: QueryResultRow[]): Map<string, MatrixApproverAcc> {
+  const byEmail = new Map<string, MatrixApproverAcc>();
   const addApprover = (rawEmail: unknown, rawName: unknown, stage: LaptopApprovalStage, country: string) => {
     const email = String(rawEmail ?? '').trim();
     if (!email) return;
@@ -1149,14 +1155,29 @@ function buildDelegationApprovers(
     addApprover(row.itd_email, row.itd_name, 'IT Director', country);
     addApprover(row.scd_email, row.scd_name, 'Supply Chain Director', country);
   }
+  return byEmail;
+}
 
+function summariseMatrixApprover(entry: MatrixApproverAcc): { role: string; country: string } {
+  const stages = [...entry.stages.keys()];
+  const countries = new Set<string>();
+  for (const set of entry.stages.values()) for (const c of set) countries.add(c);
+  const country = countries.size === 1 ? [...countries][0] : `${countries.size} countries`;
+  return { role: stages.join(', '), country };
+}
+
+// Everyone eligible to be a delegation's "approver (delegator)": Admins from
+// laptop_permissions, plus everyone named anywhere in the approver matrix (their real
+// source of approval authority now). Deduped by email — an Admin who also happens to
+// be named in the matrix is just shown as Admin, since that already covers everything.
+function buildDelegationApprovers(
+  permissionRows: QueryResultRow[],
+  matrixRows: QueryResultRow[],
+): Array<{ email: string; name: string | null; role: string; country: string | null }> {
+  const byEmail = accumulateMatrixApprovers(matrixRows);
   const approvers = new Map<string, { email: string; name: string | null; role: string; country: string | null }>();
   for (const entry of byEmail.values()) {
-    const stages = [...entry.stages.keys()];
-    const countries = new Set<string>();
-    for (const set of entry.stages.values()) for (const c of set) countries.add(c);
-    const country = countries.size === 1 ? [...countries][0] : `${countries.size} countries`;
-    approvers.set(entry.email.toLowerCase(), { email: entry.email, name: entry.name, role: stages.join(', '), country });
+    approvers.set(entry.email.toLowerCase(), { email: entry.email, name: entry.name, ...summariseMatrixApprover(entry) });
   }
   for (const row of permissionRows) {
     if (row.role !== 'Admin') continue;
@@ -1165,6 +1186,41 @@ function buildDelegationApprovers(
     approvers.set(email.toLowerCase(), { email, name: (row.name as string | null) ?? null, role: 'Admin', country: null });
   }
   return [...approvers.values()].sort((a, b) => a.role.localeCompare(b.role) || a.email.localeCompare(b.email));
+}
+
+// The Permissions tab's actual displayed list: Admin/Analyst/Read Only/Requester rows
+// straight from laptop_permissions (source: 'permissions'), plus one synthesized row
+// per (email, stage) named anywhere in the approver matrix (source: 'matrix') — split
+// per stage, not merged per person, so someone holding several stages (like Aamil
+// holding both Country Manager and Supply Chain Director) can have just one removed.
+// Stale IT Manager/Country Manager/IT Director/Supply Chain Director rows left over in
+// laptop_permissions from before the switch are intentionally excluded, since they no
+// longer grant anything.
+function buildMergedPermissionsList(
+  permissionRows: QueryResultRow[],
+  matrixRows: QueryResultRow[],
+): LaptopPermissionListItem[] {
+  const items: LaptopPermissionListItem[] = [];
+  for (const row of permissionRows) {
+    if (!APPROVER_MATRIX_ROLE_SET.has(String(row.role))) {
+      items.push({
+        source: 'permissions',
+        email: String(row.email ?? ''),
+        name: (row.name as string | null) ?? null,
+        role: String(row.role ?? ''),
+        country: (row.country as string | null) ?? null,
+        segment: (row.segment as string | null) ?? null,
+      });
+    }
+  }
+  const byEmail = accumulateMatrixApprovers(matrixRows);
+  for (const entry of byEmail.values()) {
+    for (const [stage, countries] of entry.stages) {
+      const country = countries.size === 1 ? [...countries][0] : `${countries.size} countries`;
+      items.push({ source: 'matrix', email: entry.email, name: entry.name, role: stage, country, segment: null });
+    }
+  }
+  return items.sort((a, b) => a.role.localeCompare(b.role) || a.email.localeCompare(b.email));
 }
 
 export async function getLaptopAdminData(requestsPage: number = 0): Promise<LaptopAdminData | null> {
@@ -1197,6 +1253,7 @@ export async function getLaptopAdminData(requestsPage: number = 0): Promise<Lapt
       deviceCatalog: serialise<LaptopDeviceCatalogRow[]>(deviceRows),
       stats,
       approvers: buildDelegationApprovers(permissionRows, matrixRows),
+      permissionsList: buildMergedPermissionsList(permissionRows, matrixRows),
     };
   } catch (err) {
     console.error('[getLaptopAdminData]', err);
@@ -1909,6 +1966,85 @@ export async function updateLaptopApproverMatrix(input: UpdateLaptopApproverMatr
   } catch (err) {
     console.error('[updateLaptopApproverMatrix]', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update approver matrix.' };
+  }
+}
+
+const STAGE_TO_MATRIX_COLUMNS: Record<LaptopApprovalStage, { emailCol: string; nameCol: string }> = {
+  'IT Manager': { emailCol: 'it_manager_email', nameCol: 'it_manager_name' },
+  'Country Manager': { emailCol: 'cm_email', nameCol: 'cm_name' },
+  'IT Director': { emailCol: 'itd_email', nameCol: 'itd_name' },
+  'Supply Chain Director': { emailCol: 'scd_email', nameCol: 'scd_name' },
+};
+
+/**
+ * Sets someone as the named approver for a stage in a given country — the "Add /
+ * Update Permission" form's write path for IT Manager / Country Manager / IT
+ * Director / Supply Chain Director, since that authority lives in
+ * laptop_approver_matrix, not laptop_permissions (see buildEffectivePermissions).
+ * Creates the country's matrix row if it doesn't exist yet; otherwise updates just
+ * that one stage's email/name, leaving every other stage on the row untouched.
+ */
+export async function assignApproverMatrixRole(input: {
+  email: string;
+  name?: string;
+  role: LaptopApprovalStage;
+  country: string;
+}): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    const email = requireText(input.email, 'Email').toLowerCase();
+    const country = requireText(input.country, 'Country');
+    const cols = STAGE_TO_MATRIX_COLUMNS[input.role];
+    if (!cols) return { success: false, error: 'Unknown approver role.' };
+
+    const rows = await sql<QueryResultRow[]>(`SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`, [country]);
+    if (rows[0]) {
+      await exec(
+        `UPDATE laptop_approver_matrix SET ${cols.emailCol} = ?, ${cols.nameCol} = ?, is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [email, blankToNull(input.name), rows[0].id],
+      );
+    } else {
+      await exec(
+        `INSERT INTO laptop_approver_matrix (country, ${cols.emailCol}, ${cols.nameCol}, is_active) VALUES (?, ?, ?, TRUE)`,
+        [country, email, blankToNull(input.name)],
+      );
+    }
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err) {
+    console.error('[assignApproverMatrixRole]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to assign approver.' };
+  }
+}
+
+/**
+ * Clears someone as the named approver for a stage, across every country's matrix
+ * row — the "Remove" action for a matrix-sourced row in the merged Permissions list.
+ * Per-country adjustments (removing just one of several countries) still go through
+ * the Approver Matrix tab directly. IT Manager can occupy either the primary or
+ * secondary slot, so both are cleared.
+ */
+export async function removeApproverMatrixRole(input: { email: string; role: LaptopApprovalStage }): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    const email = input.email.trim().toLowerCase();
+    if (!email) return { success: false, error: 'Email is required.' };
+
+    if (input.role === 'IT Manager') {
+      await exec(`UPDATE laptop_approver_matrix SET it_manager_email = NULL, it_manager_name = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(it_manager_email) = ?`, [email]);
+      await exec(`UPDATE laptop_approver_matrix SET it_manager_2_email = NULL, it_manager_2_name = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(it_manager_2_email) = ?`, [email]);
+    } else {
+      const cols = STAGE_TO_MATRIX_COLUMNS[input.role];
+      if (!cols) return { success: false, error: 'Unknown approver role.' };
+      await exec(`UPDATE laptop_approver_matrix SET ${cols.emailCol} = NULL, ${cols.nameCol} = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(${cols.emailCol}) = ?`, [email]);
+    }
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err) {
+    console.error('[removeApproverMatrixRole]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to remove approver.' };
   }
 }
 

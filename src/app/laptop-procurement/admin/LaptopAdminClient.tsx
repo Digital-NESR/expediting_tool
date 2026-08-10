@@ -7,15 +7,18 @@ import EmployeeAutocomplete from '@/app/procure-guard/components/EmployeeAutocom
 import {
   addLaptopDevice,
   adminGrantLaptopDelegation,
+  assignApproverMatrixRole,
   deleteLaptopDevice,
   deleteLaptopPermission,
   deleteLaptopRecord,
   getLaptopAdminData,
+  removeApproverMatrixRole,
   revokeLaptopDelegation,
   updateLaptopDevice,
   updateLaptopPermission,
 } from '@/app/actions/laptopProcurement';
 import {
+  APPROVER_MATRIX_ROLES,
   COUNTRY_OPTIONS,
   DEVICE_TYPE_OPTIONS,
   PERMISSION_PROFILES,
@@ -24,7 +27,10 @@ import {
   fmtDate,
   getStatusBadge,
 } from '@/lib/laptopProcurement-utils';
-import type { LaptopAdminData, LaptopDelegationRow, LaptopDeviceCatalogRow, LaptopPermissionRole } from '@/types/laptopProcurement';
+import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
+import type { LaptopAdminData, LaptopDelegationRow, LaptopDeviceCatalogRow, LaptopPermissionListItem, LaptopPermissionRole } from '@/types/laptopProcurement';
+
+const APPROVER_MATRIX_ROLE_SET: Set<LaptopPermissionRole> = new Set(APPROVER_MATRIX_ROLES);
 
 const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 
@@ -454,16 +460,17 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   const [segment, setSegment] = useState('');
 
   if (!data) return <DbError />;
-  const { actor, requests, activity, permissions, delegations, deviceCatalog, stats, approvers } = data;
+  const { actor, requests, activity, permissionsList, delegations, deviceCatalog, stats, approvers } = data;
+  const isMatrixRole = APPROVER_MATRIX_ROLE_SET.has(role);
 
   // Requests are paginated server-side (see getLaptopAdminData) — `requests` here is
   // already just the current page, so no client-side slicing is needed.
   const requestsPageCount = Math.max(1, Math.ceil(data.requestsTotal / REQUESTS_PAGE_SIZE));
   const currentRequestsPage = Math.min(requestsPage, requestsPageCount - 1);
 
-  const permissionsPageCount = Math.max(1, Math.ceil(permissions.length / REQUESTS_PAGE_SIZE));
+  const permissionsPageCount = Math.max(1, Math.ceil(permissionsList.length / REQUESTS_PAGE_SIZE));
   const currentPermissionsPage = Math.min(permissionsPage, permissionsPageCount - 1);
-  const pagedPermissions = permissions.slice(currentPermissionsPage * REQUESTS_PAGE_SIZE, (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE);
+  const pagedPermissions = permissionsList.slice(currentPermissionsPage * REQUESTS_PAGE_SIZE, (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE);
 
   async function refreshAdminData(page: number = currentRequestsPage) {
     const fresh = await getLaptopAdminData(page);
@@ -483,8 +490,13 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   function savePermission() {
     setBanner('');
     if (!email.trim()) { setBanner('Email is required.'); return; }
+    if (isMatrixRole && !country.trim()) { setBanner('Country is required for this role.'); return; }
     startTransition(async () => {
-      const result = await updateLaptopPermission({ email, name, role, country, segment });
+      // IT Manager/Country Manager/IT Director/Supply Chain Director authority lives in
+      // the approver matrix, not laptop_permissions — see assignApproverMatrixRole.
+      const result = isMatrixRole
+        ? await assignApproverMatrixRole({ email, name, role: role as LaptopApprovalStage, country })
+        : await updateLaptopPermission({ email, name, role, country, segment });
       if (result.success) {
         setBanner(`Saved permission for ${email}.`);
         setEmail(''); setName(''); setRole('Requester'); setCountry(''); setSegment('');
@@ -495,9 +507,11 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
     });
   }
 
-  function removePermission(targetEmail: string) {
+  function removePermission(item: LaptopPermissionListItem) {
     startTransition(async () => {
-      const result = await deleteLaptopPermission(targetEmail);
+      const result = item.source === 'matrix'
+        ? await removeApproverMatrixRole({ email: item.email, role: item.role as LaptopApprovalStage })
+        : await deleteLaptopPermission(item.email);
       if (result.success) await refreshAdminData();
       else setBanner(result.error ?? 'Failed to delete permission.');
     });
@@ -520,7 +534,7 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   }
 
   const tabs: Array<{ id: typeof tab; label: string }> = [
-    { id: 'permissions', label: `Permissions (${permissions.length})` },
+    { id: 'permissions', label: `Permissions (${permissionsList.length})` },
     { id: 'requests', label: `Requests (${data.requestsTotal})` },
     { id: 'activity', label: `Activity (${activity.length})` },
     { id: 'delegations', label: `Delegations (${delegations.length})` },
@@ -570,21 +584,27 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Country (scope)</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">Country{isMatrixRole ? ' (required)' : ' (scope)'}</label>
                   <select className={INP} value={country} onChange={e => setCountry(e.target.value)}>
-                    <option value="">All countries</option>
+                    <option value="">{isMatrixRole ? 'Select country…' : 'All countries'}</option>
                     {COUNTRY_OPTIONS.map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Segment (scope)</label>
-                  <select className={INP} value={segment} onChange={e => setSegment(e.target.value)}>
-                    <option value="">All segments</option>
-                    {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
+                {!isMatrixRole && (
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-500">Segment (scope)</label>
+                    <select className={INP} value={segment} onChange={e => setSegment(e.target.value)}>
+                      <option value="">All segments</option>
+                      {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
-              <p className="mt-3 text-xs text-slate-500">{PERMISSION_PROFILES[role].description}</p>
+              <p className="mt-3 text-xs text-slate-500">
+                {isMatrixRole
+                  ? `Sets this person as the named ${role} for the selected country in the Approver Matrix — the actual source of that authority.`
+                  : PERMISSION_PROFILES[role].description}
+              </p>
               <button onClick={savePermission} disabled={isPending} className={`mt-4 ${CTA} disabled:opacity-60`}>
                 {isPending ? 'Saving...' : 'Save Permission'}
               </button>
@@ -604,24 +624,27 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {pagedPermissions.map(p => (
-                      <tr key={p.id} className="transition-colors hover:bg-white">
+                      <tr key={`${p.source}-${p.email}-${p.role}`} className="transition-colors hover:bg-white">
                         <td className="px-5 py-3 font-semibold text-slate-900">{p.email}</td>
                         <td className="px-5 py-3 text-slate-600">{p.name || '—'}</td>
-                        <td className="px-5 py-3"><span className="inline-flex rounded-full border border-[#307c4c]/30 bg-[#307c4c]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#307c4c]">{p.role}</span></td>
+                        <td className="px-5 py-3">
+                          <span className="inline-flex rounded-full border border-[#307c4c]/30 bg-[#307c4c]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#307c4c]">{p.role}</span>
+                          {p.source === 'matrix' && <span className="ml-1.5 text-[10px] text-slate-400">via matrix</span>}
+                        </td>
                         <td className="px-5 py-3 text-xs text-slate-600">{[p.country, p.segment].filter(Boolean).join(' · ') || 'All'}</td>
                         <td className="px-5 py-3 text-right">
-                          <button onClick={() => removePermission(p.email)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Remove</button>
+                          <button onClick={() => removePermission(p)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Remove</button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              {permissions.length > 0 && (
+              {permissionsList.length > 0 && (
                 <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
                   <p className="text-xs text-slate-500/80">
                     Showing {currentPermissionsPage * REQUESTS_PAGE_SIZE + 1}
-                    –{Math.min((currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE, permissions.length)} of {permissions.length} permissions
+                    –{Math.min((currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE, permissionsList.length)} of {permissionsList.length} permissions
                   </p>
                   <div className="flex items-center gap-2">
                     <button
