@@ -386,6 +386,14 @@ export async function canAccessLaptopApp(): Promise<boolean> {
   if (adminEmails().includes(email)) return true;
   const permissionRow = await getPermissionRowForEmail(email);
   if (permissionRow) return true;
+  // Named directly in the approver matrix (IT Manager/Country Manager/IT
+  // Director/Supply Chain Director) with no laptop_permissions row at all — still a
+  // real approver, so still let them in. Without this, someone set up purely via the
+  // unified Permissions form (which writes only to the matrix for those four roles)
+  // would be locked out of the whole app before ever reaching a page that could use
+  // their authority.
+  const matrixCapabilities = await getApproverMatrixCapabilities(email);
+  if (hasAnyMatrixCapability(matrixCapabilities)) return true;
   const delegations = await resolveLaptopDelegations(email);
   return delegations.length > 0;
 }
@@ -2443,7 +2451,11 @@ export async function adminGrantLaptopDelegation(input: {
 
     const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
     const delegatorRole = (delegatorRow?.role ?? (adminEmails().includes(delegatorEmail) ? 'Admin' : 'Requester')) as LaptopPermissionRole;
-    const delegatorProfile = getPermissionProfile(delegatorRole);
+    // Same effective-permissions build getActor() uses — matrix presence, not the
+    // laptop_permissions role alone, is what actually carries approval authority for
+    // IT Manager/Country Manager/IT Director/Supply Chain Director now.
+    const delegatorMatrixCapabilities = await getApproverMatrixCapabilities(delegatorEmail);
+    const delegatorProfile = buildEffectivePermissions(delegatorRole, delegatorMatrixCapabilities);
     if (!delegatorProfile.canViewAll) {
       return { success: false, error: 'The selected approver has no approval authority to delegate.' };
     }
