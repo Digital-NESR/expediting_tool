@@ -53,6 +53,7 @@ import type {
   LaptopPermissionProfile,
   LaptopPermissionRole,
   LaptopPermissionRow,
+  LaptopStageAssignee,
   LaptopRequest,
   LaptopRequestDetailData,
   LaptopRequestListData,
@@ -379,23 +380,13 @@ export async function getLaptopActor(): Promise<LaptopActor | null> {
   }
 }
 
+// Laptop Procurement is open to every signed-in user — anyone with no
+// laptop_permissions row, no approver-matrix presence, and no delegation still gets
+// in as a plain Requester (see getActor's fallback role), so there's nothing left to
+// gate here beyond being signed in at all.
 export async function canAccessLaptopApp(): Promise<boolean> {
   const user = await getProcureGuardUser();
-  const email = user?.email?.toLowerCase();
-  if (!email) return false;
-  if (adminEmails().includes(email)) return true;
-  const permissionRow = await getPermissionRowForEmail(email);
-  if (permissionRow) return true;
-  // Named directly in the approver matrix (IT Manager/Country Manager/IT
-  // Director/Supply Chain Director) with no laptop_permissions row at all — still a
-  // real approver, so still let them in. Without this, someone set up purely via the
-  // unified Permissions form (which writes only to the matrix for those four roles)
-  // would be locked out of the whole app before ever reaching a page that could use
-  // their authority.
-  const matrixCapabilities = await getApproverMatrixCapabilities(email);
-  if (hasAnyMatrixCapability(matrixCapabilities)) return true;
-  const delegations = await resolveLaptopDelegations(email);
-  return delegations.length > 0;
+  return Boolean(user?.email);
 }
 
 /* ── Scoping ──────────────────────────────────────────────────── */
@@ -1050,6 +1041,54 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
   }
 }
 
+// Which named individual (following any active delegation) is currently responsible
+// for each stage on this specific request — so the detail page can show exactly who
+// to poke if it's stuck, and grey out whoever already acted. Completed stages show
+// who actually acted (the historical it_manager/country_manager/it_director/sc_director
+// columns), since the live matrix assignment may have changed since; pending/upcoming
+// stages show the live, delegation-resolved assignee, since that's who needs to act now.
+async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStageAssignee[]> {
+  const matrixRows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix WHERE country = ? AND is_active = TRUE LIMIT 1`, [request.country]);
+  const matrix = matrixRows[0];
+  const currentStage = getLaptopApprovalStage(request.status);
+  const currentIndex = currentStage ? APPROVAL_STAGES.indexOf(currentStage) : -1;
+
+  async function liveNameFor(matrixEmail: unknown, matrixName: unknown): Promise<string | null> {
+    const email = String(matrixEmail ?? '').trim();
+    if (!email) return null;
+    const delegate = await resolveActiveLaptopDelegateEmail(email);
+    if (delegate) return delegate.name ?? delegate.email;
+    return String(matrixName ?? '').trim() || email;
+  }
+
+  function stateFor(stage: LaptopApprovalStage, hasAssignee: boolean): LaptopStageAssignee['state'] {
+    if (!hasAssignee) return 'none';
+    // Terminal status (approved/rejected/cancelled/...) — nothing is "pending" anymore.
+    if (currentIndex === -1) return 'done';
+    const stageIndex = APPROVAL_STAGES.indexOf(stage);
+    if (stageIndex < currentIndex) return 'done';
+    if (stageIndex === currentIndex) return 'pending';
+    return 'upcoming';
+  }
+
+  const slots: Array<{ label: LaptopStageAssignee['label']; stage: LaptopApprovalStage; matrixEmail: unknown; matrixName: unknown; actedName: string | null }> = [
+    { label: 'IT Manager', stage: 'IT Manager', matrixEmail: matrix?.it_manager_email, matrixName: matrix?.it_manager_name, actedName: request.it_manager },
+    { label: 'IT Manager 2', stage: 'IT Manager', matrixEmail: matrix?.it_manager_2_email, matrixName: matrix?.it_manager_2_name, actedName: null },
+    { label: 'Country Manager', stage: 'Country Manager', matrixEmail: matrix?.cm_email, matrixName: matrix?.cm_name, actedName: request.country_manager },
+    { label: 'IT Director', stage: 'IT Director', matrixEmail: matrix?.itd_email, matrixName: matrix?.itd_name, actedName: request.it_director },
+    { label: 'Supply Chain Director', stage: 'Supply Chain Director', matrixEmail: matrix?.scd_email, matrixName: matrix?.scd_name, actedName: request.sc_director },
+  ];
+
+  return Promise.all(slots.map(async slot => {
+    const hasAssignee = Boolean(String(slot.matrixEmail ?? '').trim()) || Boolean(slot.actedName);
+    const state = stateFor(slot.stage, hasAssignee);
+    const name = state === 'done'
+      ? (slot.actedName || await liveNameFor(slot.matrixEmail, slot.matrixName))
+      : await liveNameFor(slot.matrixEmail, slot.matrixName);
+    return { label: slot.label, name: name || null, state };
+  }));
+}
+
 export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestDetailData | null> {
   try {
     const actor = await getActor();
@@ -1086,6 +1125,7 @@ export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestD
       activity: serialise<LaptopActivityRow[]>(activityRows),
       documents: serialise<LaptopDocument[]>(documentRows),
       actions: getScopedActions(actor, request),
+      stageAssignees: await resolveStageAssignees(request),
     };
   } catch (err) {
     console.error('[getLaptopRequestDetail]', err);
@@ -1601,6 +1641,7 @@ export async function updateLaptopRequestStatus(
   status: LaptopRequestStatus,
   notes?: string,
   assignedLaptop?: AssignExistingLaptopInput,
+  procureNew?: SubmitProcureNewDetailsInput,
 ): Promise<ActionResult> {
   try {
     const actor = await getActor();
@@ -1617,6 +1658,8 @@ export async function updateLaptopRequestStatus(
     let onBehalfOf: string | null = null;
     const hasAssignedUnit = laptopHasAssignedUnit(row);
     const isProcureNewFlow = laptopIsProcureNewFlow(row);
+    let procureNewTypeOfDevice = '';
+    let procureNewModel = '';
 
     if (userCancellingOwnRequest && actor.permissions.canCreateRequests) {
       if (!IT_MANAGER_STATUSES.includes(currentStatus)) {
@@ -1658,6 +1701,15 @@ export async function updateLaptopRequestStatus(
         };
       }
       onBehalfOf = acting.onBehalfOf;
+
+      // IT Manager's forward move can specify the device to procure up front instead of
+      // assigning existing inventory — this skips the separate CM "Procure New" round-trip
+      // entirely, since there's nothing left for the CM to decide once the device is
+      // already specified (see canProcureNew's !isProcureNewFlow gate).
+      if (procureNew && isApproveMove && IT_MANAGER_STATUSES.includes(currentStatus)) {
+        procureNewTypeOfDevice = requireText(procureNew.type_of_device, 'Type of device');
+        procureNewModel = requireText(procureNew.model, 'Model');
+      }
     }
 
     const stageColumn = STAGE_COMMENT_COLUMN[currentStatus];
@@ -1686,12 +1738,16 @@ export async function updateLaptopRequestStatus(
     const clearAssignedUnitAssignment = clearsAssignedUnit
       ? `, assigned_serial_no = NULL, assigned_model = NULL, assigned_age = NULL`
       : '';
-    // Sticky flag: once the CM flags a request for a brand new device, it stays flagged
-    // through the rest of the chain (see laptopIsProcureNewFlow) — even after resends —
-    // so Supply Chain Director's final sign-off still lands on 'Procure New', not
-    // 'Approved'.
-    const flagsProcureNew = currentStatus === 'CM Approval' && status === 'Procure New Details';
+    // Sticky flag: once a request is flagged for a brand new device — whether the CM
+    // flags it later, or the IT Manager specifies it up front via procureNew — it stays
+    // flagged through the rest of the chain (see laptopIsProcureNewFlow) — even after
+    // resends — so Supply Chain Director's final sign-off still lands on 'Procure New',
+    // not 'Approved'.
+    const flagsProcureNew = (currentStatus === 'CM Approval' && status === 'Procure New Details') || Boolean(procureNewTypeOfDevice);
     const procureNewFlagAssignment = flagsProcureNew ? `, procure_new_requested = TRUE` : '';
+    // The IT Manager's up-front device specification — same columns the CM-triggered
+    // "Procure New Details" step fills in later, just set immediately here instead.
+    const procureNewDetailsAssignment = procureNewTypeOfDevice ? `, type_of_device = ?, requested_model = ?` : '';
 
     const params: QueryParam[] = [
       status,
@@ -1711,6 +1767,7 @@ export async function updateLaptopRequestStatus(
         blankToNull(assignedLaptop.age),
       );
     }
+    if (procureNewDetailsAssignment) params.push(procureNewTypeOfDevice, procureNewModel);
     params.push(id);
 
     await exec(
@@ -1721,7 +1778,7 @@ export async function updateLaptopRequestStatus(
          reviewed_by_email = ?,
          reviewed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
          rejection_reason = ?,
-         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment}${clearAssignedUnitAssignment}${procureNewFlagAssignment},
+         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment}${clearAssignedUnitAssignment}${procureNewFlagAssignment}${procureNewDetailsAssignment},
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       params,
