@@ -311,10 +311,13 @@ export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAss
     // IT Director.
     'CM Confirm Device': 'IT Director Approval',
     'IT Director Approval': 'Supply Chain Director Approval',
-    // Final sign-off: an assigned-inventory unit lands on 'Assign from Inventory'; a
-    // genuine new-device procurement lands on 'Procure New'; otherwise (a plain
-    // approval — nothing being procured or assigned) it lands on 'Approved'.
-    'Supply Chain Director Approval': hasAssignedUnit ? 'Assign from Inventory' : (isProcureNewFlow ? 'Procure New' : 'Approved'),
+    // Final sign-off: a genuine new-device procurement lands on 'Procure New' — checked
+    // first since it's sticky and wins even if an earlier IT-Manager-assigned unit is
+    // still on the request (kept around purely so IT Manager can see what to replace,
+    // see laptopHasAssignedUnit's callers); otherwise an assigned-inventory unit lands
+    // on 'Assign from Inventory'; a plain approval (nothing procured or assigned) lands
+    // on 'Approved'.
+    'Supply Chain Director Approval': isProcureNewFlow ? 'Procure New' : (hasAssignedUnit ? 'Assign from Inventory' : 'Approved'),
   };
   return transitions[currentStatus] ?? null;
 }

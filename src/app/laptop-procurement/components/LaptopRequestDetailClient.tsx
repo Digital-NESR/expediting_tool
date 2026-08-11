@@ -227,10 +227,13 @@ function ExistingDeviceSection({
   const [sapNumber, setSapNumber] = useState(request.sap_number ?? '');
 
   const canShowEditToggle = canEdit && isItManagerStage;
+  // Unit ID only really identifies something for Unit requests (a shared/company
+  // asset) — Upgrade/Replacement is a person's own device, which may not have one.
+  const isUnitIdRequired = request.request_type === 'Unit';
 
   function save() {
     setError('');
-    if (!unitId.trim() || !currentBrand.trim() || !currentModel.trim() || !serialNo.trim() || !ageYears.trim() || !sapNumber.trim()) {
+    if ((isUnitIdRequired && !unitId.trim()) || !currentBrand.trim() || !currentModel.trim() || !serialNo.trim() || !ageYears.trim() || !sapNumber.trim()) {
       setError('All Existing Device fields are required.');
       return;
     }
@@ -262,7 +265,7 @@ function ExistingDeviceSection({
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Unit ID</label>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{isUnitIdRequired && <span className="mr-1 text-red-500">*</span>}Unit ID</label>
               <input className={INP} value={unitId} onChange={e => setUnitId(e.target.value)} />
             </div>
             <div>
@@ -512,6 +515,7 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
       if (result.success) {
         setRejectModalOpen(false);
         setRejectReason('');
+        setReviewComment('');
         setNotice('Request rejected and returned to the IT Manager.');
         router.refresh();
       } else {

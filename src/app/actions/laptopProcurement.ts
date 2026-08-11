@@ -1731,13 +1731,12 @@ export async function updateLaptopRequestStatus(
       ? `, assigned_serial_no = ?, assigned_model = ?, assigned_age = ?`
       : '';
     // A CM choosing "Procure New" on a request that already has an assigned unit is
-    // overriding the IT Manager's pick — clear it so hasAssignedUnit resets to false and
-    // the rest of the chain (IT Director, SC Director) treats this as a genuine new-device
-    // procurement rather than continuing the now-abandoned assign-from-inventory path.
-    const clearsAssignedUnit = currentStatus === 'CM Approval' && status === 'Procure New Details' && hasAssignedUnit;
-    const clearAssignedUnitAssignment = clearsAssignedUnit
-      ? `, assigned_serial_no = NULL, assigned_model = NULL, assigned_age = NULL`
-      : '';
+    // overriding the IT Manager's pick — but the assigned unit's details are left in
+    // place (not cleared) so the IT Manager can still see which device they'd
+    // originally picked once the request comes back around to procure something new.
+    // laptopIsProcureNewFlow / getNextApprovalStatus already prioritise the sticky
+    // procure_new_requested flag over hasAssignedUnit, so this doesn't get mistaken
+    // for a still-active assign-from-inventory pick.
     // Sticky flag: once a request is flagged for a brand new device — whether the CM
     // flags it later, or the IT Manager specifies it up front via procureNew — it stays
     // flagged through the rest of the chain (see laptopIsProcureNewFlow) — even after
@@ -1778,7 +1777,7 @@ export async function updateLaptopRequestStatus(
          reviewed_by_email = ?,
          reviewed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
          rejection_reason = ?,
-         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment}${clearAssignedUnitAssignment}${procureNewFlagAssignment}${procureNewDetailsAssignment},
+         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment}${procureNewFlagAssignment}${procureNewDetailsAssignment},
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       params,
