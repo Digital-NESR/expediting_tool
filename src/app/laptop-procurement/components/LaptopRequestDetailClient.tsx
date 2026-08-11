@@ -428,10 +428,12 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   // via the Activity feed below.
   const isReviewerOrAdmin = actor.permissions.canViewAll || (actor.delegatedFrom ?? []).some(d => d.permissions.canViewAll);
   const editHref = `/laptop-procurement/requests/${request.id}/edit`;
-  // Existing Device (the device being replaced) is only ever filled in by the IT
-  // Manager — hide it from everyone else, including the requester.
-  const canSeeExistingDevice = actor.permissions.canReviewItManager
-    || (actor.delegatedFrom ?? []).some(d => d.permissions.canReviewItManager);
+  // Existing Device (the device being replaced) only applies to Upgrade/Replacement
+  // and Unit requests, and is only ever filled in by the IT Manager — hide it from
+  // everyone else, including the requester.
+  const canSeeExistingDevice = request.request_type !== 'New Employee'
+    && (actor.permissions.canReviewItManager
+      || (actor.delegatedFrom ?? []).some(d => d.permissions.canReviewItManager));
   const isProcureDetailsStage = request.status === 'Procure New Details';
 
   function jumpToDecision() {
@@ -716,8 +718,7 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
               <FieldGrid>
                 <Field label="Requester" value={requester} />
                 <Field label="Requester Email" value={request.requested_by_email} />
-                <Field label="On Behalf Of" value={request.on_behalf_of} />
-                <Field label="Employee ID" value={request.employee_id} />
+                <Field label="Requestor ID" value={request.employee_id} />
                 <Field label="Computer For" value={request.computer_for} />
                 {request.request_type === 'New Employee' && (
                   <Field label="Computer For Employee ID" value={request.computer_for_employee_id} />
@@ -725,7 +726,6 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                 <Field label="Pending With" value={request.pending_with} />
                 <Field label="Country" value={request.country} />
                 <Field label="Department" value={request.department} />
-                <Field label="Position" value={request.position} />
                 <Field label="Company Code" value={request.company_code} />
                 <Field label="Company Name" value={request.company_name} />
                 <Field label="Cost Center" value={request.cost_center} />

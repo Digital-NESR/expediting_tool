@@ -371,7 +371,7 @@ export default function LaptopRequestFormClient({
                   </select>
                 </Field>
                 <Field label="Cost Center" required error={errors.costCenter}>
-                  <input className={LOCKED_INP} value={costCenter} disabled readOnly placeholder="Auto-filled once Department is chosen above" />
+                  <input className={LOCKED_INP} value={costCenter} disabled readOnly placeholder="Auto-filled once Department is chosen below" />
                 </Field>
               </>
             )}
