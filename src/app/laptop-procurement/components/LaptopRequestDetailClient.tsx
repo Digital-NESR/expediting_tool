@@ -14,7 +14,7 @@ import {
   getWorkflowStepIndex,
   isActiveApprovalStatus,
 } from '@/lib/laptopProcurement-utils';
-import type { LaptopDeviceOption, LaptopRequestDetailData, LaptopRequestStatus } from '@/types/laptopProcurement';
+import type { LaptopDeviceOption, LaptopRequestDetailData, LaptopRequestStatus, LaptopStageAssignee } from '@/types/laptopProcurement';
 import type { LaptopWorkflowStep } from '@/lib/laptopProcurement-utils';
 import LaptopShell, { CTA_QUIET, GLASS } from './LaptopShell';
 import { rejectLaptopRequest, submitProcureNewDetails, updateLaptopExistingDevice, updateLaptopRequestStatus } from '@/app/actions/laptopProcurement';
@@ -39,6 +39,25 @@ function Field({ label, value }: { label: string; value: DetailValue }) {
 
 function FieldGrid({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{children}</div>;
+}
+
+// Highlights exactly who a request is waiting on right now (green) vs. who has
+// already signed off (grey) vs. a stage that hasn't been reached yet (plain) — so a
+// stuck request makes it obvious who to go poke.
+function AssigneeField({ item }: { item: LaptopStageAssignee }) {
+  const boxClass = item.state === 'pending'
+    ? 'rounded-lg border border-[#307c4c]/40 bg-[#307c4c]/10 px-3 py-2'
+    : item.state === 'done'
+      ? 'rounded-lg border border-slate-200 bg-slate-50 px-3 py-2'
+      : 'px-3 py-2';
+  return (
+    <div className={boxClass}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{item.label}</p>
+      <p className={`mt-1 break-words text-sm font-semibold ${item.state === 'done' ? 'text-slate-500' : 'text-slate-900'}`}>{item.name || '—'}</p>
+      {item.state === 'pending' && <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[#307c4c]">Currently with</p>}
+      {item.state === 'done' && <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">Approved</p>}
+    </div>
+  );
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -347,8 +366,14 @@ function ProcureNewDetailsSection({
             </div>
             <div>
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Model</label>
-              <select className={INP} value={model} onChange={e => setModel(e.target.value)} disabled={!typeOfDevice}>
-                <option value="">{typeOfDevice ? 'Select model' : 'Select a device type first'}</option>
+              <input className={INP} value={model} onChange={e => setModel(e.target.value)} placeholder="Type a model" />
+              <select
+                className={`${INP} mt-2`}
+                value=""
+                disabled={!typeOfDevice}
+                onChange={e => { if (e.target.value) setModel(e.target.value); }}
+              >
+                <option value="">{typeOfDevice ? 'Or pick a frequently used model…' : 'Select a device type first'}</option>
                 {modelOptions.map(o => <option key={o}>{o}</option>)}
               </select>
             </div>
@@ -381,10 +406,14 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState('');
+  const [procureNewModalOpen, setProcureNewModalOpen] = useState(false);
+  const [procureNewType, setProcureNewType] = useState(data.request.type_of_device ?? '');
+  const [procureNewModel, setProcureNewModel] = useState('');
+  const [procureNewError, setProcureNewError] = useState('');
   const [isPending, startTransition] = useTransition();
   const decisionRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
-  const { request, activity, documents, actions, actor } = data;
+  const { request, activity, documents, actions, actor, stageAssignees } = data;
 
   const requester = request.requested_by_name || request.requested_by_email;
   const pendingCount = isActiveApprovalStatus(request.status) ? 1 : 0;
@@ -393,11 +422,18 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   const canEditRequest = isItManagerStage && (ownsRequest || actor.permissions.canManageData);
   const canCancel = ownsRequest && isItManagerStage && actor.permissions.canCreateRequests;
   const hasDecisionActions = actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canMarkRepaired || actions.canProcureNew || canCancel;
+  // Plain requesters just need Cancel + a place to leave a comment — the review
+  // audit trail (who reviewed it, when, rejection reason, latest comment) is really
+  // for reviewers/admins tracking the process; a rejected requester can still see why
+  // via the Activity feed below.
+  const isReviewerOrAdmin = actor.permissions.canViewAll || (actor.delegatedFrom ?? []).some(d => d.permissions.canViewAll);
   const editHref = `/laptop-procurement/requests/${request.id}/edit`;
-  // Existing Device (the device being replaced) is only ever filled in by the IT
-  // Manager — hide it from everyone else, including the requester.
-  const canSeeExistingDevice = actor.permissions.canReviewItManager
-    || (actor.delegatedFrom ?? []).some(d => d.permissions.canReviewItManager);
+  // Existing Device (the device being replaced) only applies to Upgrade/Replacement
+  // and Unit requests, and is only ever filled in by the IT Manager — hide it from
+  // everyone else, including the requester.
+  const canSeeExistingDevice = request.request_type !== 'New Employee'
+    && (actor.permissions.canReviewItManager
+      || (actor.delegatedFrom ?? []).some(d => d.permissions.canReviewItManager));
   const isProcureDetailsStage = request.status === 'Procure New Details';
 
   function jumpToDecision() {
@@ -406,12 +442,17 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
     window.setTimeout(() => setHighlightDecision(false), 1800);
   }
 
-  function submitStatus(nextStatus: LaptopRequestStatus, assignedLaptop?: { serial_no: string; model: string; age: string }, commentOverride?: string) {
+  function submitStatus(
+    nextStatus: LaptopRequestStatus,
+    assignedLaptop?: { serial_no: string; model: string; age: string },
+    commentOverride?: string,
+    procureNew?: { type_of_device: string; model: string },
+  ) {
     setNotice('');
     setError('');
     const comment = (commentOverride ?? reviewComment).trim();
     startTransition(async () => {
-      const result = await updateLaptopRequestStatus(request.id, nextStatus, comment, assignedLaptop);
+      const result = await updateLaptopRequestStatus(request.id, nextStatus, comment, assignedLaptop, procureNew);
       if (result.success) {
         setReviewComment('');
         setIsCancelDialogOpen(false);
@@ -421,6 +462,8 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
         setAssignAge('');
         setRepairModalOpen(false);
         setRepairNotes('');
+        setProcureNewModalOpen(false);
+        setProcureNewModel('');
         setNotice(`Request updated to ${nextStatus}.`);
         router.refresh();
       } else {
@@ -447,6 +490,15 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
       return;
     }
     submitStatus('Repaired & Closed', undefined, repairNotes.trim());
+  }
+
+  function confirmProcureNew() {
+    setProcureNewError('');
+    if (!procureNewType.trim() || !procureNewModel.trim()) {
+      setProcureNewError('Type of device and model are both required.');
+      return;
+    }
+    submitStatus(actions.nextStatus!, undefined, undefined, { type_of_device: procureNewType, model: procureNewModel });
   }
 
   function confirmReject() {
@@ -560,6 +612,44 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
         </div>
       )}
 
+      {procureNewModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 px-4">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-base font-bold text-slate-900">Procure New Device</h2>
+              <p className="mt-1 text-sm text-slate-500">Specify the device to procure for {request.reference_number} before sending it to the Country Manager.</p>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              {procureNewError && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{procureNewError}</div>}
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Type of Device</label>
+                <select className={INP} value={procureNewType} onChange={e => { setProcureNewType(e.target.value); setProcureNewModel(''); }}>
+                  <option value="">Select device type</option>
+                  {DEVICE_TYPE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Model</label>
+                <input className={INP} value={procureNewModel} onChange={e => setProcureNewModel(e.target.value)} placeholder="Type a model" autoFocus />
+                <select
+                  className={`${INP} mt-2`}
+                  value=""
+                  disabled={!procureNewType}
+                  onChange={e => { if (e.target.value) setProcureNewModel(e.target.value); }}
+                >
+                  <option value="">{procureNewType ? 'Or pick a frequently used model…' : 'Select a device type first'}</option>
+                  {[...new Set(devices.filter(d => d.type_of_device === procureNewType).map(d => d.model))].map(o => <option key={o}>{o}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => { setProcureNewModalOpen(false); setProcureNewError(''); }} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
+              <button type="button" onClick={confirmProcureNew} disabled={isPending} className="rounded-lg bg-[#307c4c] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">{isPending ? 'Sending...' : 'Send to Country Manager'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {rejectModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 px-4">
           <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -628,14 +718,14 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
               <FieldGrid>
                 <Field label="Requester" value={requester} />
                 <Field label="Requester Email" value={request.requested_by_email} />
-                <Field label="On Behalf Of" value={request.on_behalf_of} />
-                <Field label="Employee ID" value={request.employee_id} />
+                <Field label="Requestor ID" value={request.employee_id} />
                 <Field label="Computer For" value={request.computer_for} />
-                <Field label="Computer For Employee ID" value={request.computer_for_employee_id} />
+                {request.request_type === 'New Employee' && (
+                  <Field label="Computer For Employee ID" value={request.computer_for_employee_id} />
+                )}
                 <Field label="Pending With" value={request.pending_with} />
                 <Field label="Country" value={request.country} />
                 <Field label="Department" value={request.department} />
-                <Field label="Position" value={request.position} />
                 <Field label="Company Code" value={request.company_code} />
                 <Field label="Company Name" value={request.company_name} />
                 <Field label="Cost Center" value={request.cost_center} />
@@ -684,11 +774,7 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
 
             <Section title="Assigned Approvers & Stage Comments">
               <FieldGrid>
-                <Field label="IT Manager" value={request.it_manager} />
-                <Field label="IT Manager 2" value={request.it_manager_2} />
-                <Field label="Country Manager" value={request.country_manager} />
-                <Field label="IT Director" value={request.it_director} />
-                <Field label="SC Director" value={request.sc_director} />
+                {stageAssignees.map(item => <AssigneeField key={item.label} item={item} />)}
               </FieldGrid>
               <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="IT Manager Comments" value={request.itm_comments} />
@@ -725,10 +811,14 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
               <div className="space-y-4">
                 {notice && <div className="rounded-xl border border-[#307c4c]/25 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#307c4c]">{notice}</div>}
                 {error && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{error}</div>}
-                <Field label="Reviewed By" value={request.reviewed_by_name || request.reviewed_by_email} />
-                <Field label="Reviewed At" value={fmtDateTime(request.reviewed_at)} />
-                <Field label="Rejection Reason" value={request.rejection_reason} />
-                <Field label="Latest Review Comment" value={request.review_comments} />
+                {isReviewerOrAdmin && (
+                  <>
+                    <Field label="Reviewed By" value={request.reviewed_by_name || request.reviewed_by_email} />
+                    <Field label="Reviewed At" value={fmtDateTime(request.reviewed_at)} />
+                    <Field label="Rejection Reason" value={request.rejection_reason} />
+                    <Field label="Latest Review Comment" value={request.review_comments} />
+                  </>
+                )}
 
                 {hasDecisionActions ? (
                   <div ref={decisionRef} className={`rounded-2xl border p-4 transition-all duration-300 ${highlightDecision ? 'border-[#307c4c] ring-4 ring-[#307c4c]/25' : 'border-slate-200'} bg-white`}>
@@ -740,9 +830,15 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                     />
                     <div className="mt-3 flex flex-wrap gap-2">
                       {actions.canApprove && actions.nextStatus && (
-                        <button disabled={isPending} onClick={() => submitStatus(actions.nextStatus!)} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
-                          {approveLabel}
-                        </button>
+                        isItManagerStage ? (
+                          <button disabled={isPending} onClick={() => setProcureNewModalOpen(true)} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
+                            Procure New &amp; Send to Country Manager
+                          </button>
+                        ) : (
+                          <button disabled={isPending} onClick={() => submitStatus(actions.nextStatus!)} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
+                            {approveLabel}
+                          </button>
+                        )
                       )}
                       {actions.canAssignInventory && (
                         <button disabled={isPending} onClick={() => setAssignModalOpen(true)} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign existing laptop</button>

@@ -333,46 +333,6 @@ export default function LaptopRequestFormClient({
           </div>
         </section>
 
-        {isNewEmployee && (
-          <section className={`${GLASS} p-5 sm:p-6`}>
-            <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Computer For Details</h2>
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
-              <Field label="Name" required error={errors.computerFor}>
-                <input
-                  className={errors.computerFor ? ERR : INP}
-                  value={computerFor}
-                  onChange={e => setComputerFor(e.target.value)}
-                  placeholder="Enter the new employee's name"
-                />
-              </Field>
-              <Field label="Employee ID">
-                <input
-                  className={INP}
-                  value={computerForEmployeeId}
-                  onChange={e => setComputerForEmployeeId(e.target.value)}
-                  placeholder="If available"
-                />
-              </Field>
-              <Field
-                label="Department"
-                required
-                error={errors.department}
-                hint={!companyCode ? 'Select Company Name in Cost Allocation below first.' : undefined}
-              >
-                <select
-                  className={errors.department ? ERR : INP}
-                  value={department}
-                  disabled={!companyCode}
-                  onChange={e => handleComputerForDepartmentChange(e.target.value)}
-                >
-                  <option value="">{companyCode ? 'Select department' : 'Select company first'}</option>
-                  {availableDepartments.map(d => <option key={d.department} value={d.department}>{d.department}</option>)}
-                </select>
-              </Field>
-            </div>
-          </section>
-        )}
-
         <section className={`${GLASS} p-5 sm:p-6`}>
           <h2 className="mb-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Cost Allocation</h2>
           {isSelfRequest && (
@@ -411,12 +371,52 @@ export default function LaptopRequestFormClient({
                   </select>
                 </Field>
                 <Field label="Cost Center" required error={errors.costCenter}>
-                  <input className={LOCKED_INP} value={costCenter} disabled readOnly placeholder="Auto-filled once Department is chosen above" />
+                  <input className={LOCKED_INP} value={costCenter} disabled readOnly placeholder="Auto-filled once Department is chosen below" />
                 </Field>
               </>
             )}
           </div>
         </section>
+
+        {isNewEmployee && (
+          <section className={`${GLASS} p-5 sm:p-6`}>
+            <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Computer For Details</h2>
+            <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
+              <Field label="Name" required error={errors.computerFor}>
+                <input
+                  className={errors.computerFor ? ERR : INP}
+                  value={computerFor}
+                  onChange={e => setComputerFor(e.target.value)}
+                  placeholder="Enter the new employee's name"
+                />
+              </Field>
+              <Field label="Employee ID">
+                <input
+                  className={INP}
+                  value={computerForEmployeeId}
+                  onChange={e => setComputerForEmployeeId(e.target.value)}
+                  placeholder="If available"
+                />
+              </Field>
+              <Field
+                label="Department"
+                required
+                error={errors.department}
+                hint={!companyCode ? 'Select Company Name in Cost Allocation above first.' : undefined}
+              >
+                <select
+                  className={errors.department ? ERR : INP}
+                  value={department}
+                  disabled={!companyCode}
+                  onChange={e => handleComputerForDepartmentChange(e.target.value)}
+                >
+                  <option value="">{companyCode ? 'Select department' : 'Select company first'}</option>
+                  {availableDepartments.map(d => <option key={d.department} value={d.department}>{d.department}</option>)}
+                </select>
+              </Field>
+            </div>
+          </section>
+        )}
 
         <section className={`${GLASS} p-5 sm:p-6`}>
           <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Requested Device</h2>

@@ -450,6 +450,16 @@ export interface LaptopRequestDetailData {
   activity: LaptopActivityRow[];
   documents: LaptopDocument[];
   actions: LaptopRequestActions;
+  stageAssignees: LaptopStageAssignee[];
+}
+
+export interface LaptopStageAssignee {
+  label: 'IT Manager' | 'IT Manager 2' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
+  name: string | null;
+  // 'pending' = this is the stage the request is currently stuck at (highlighted);
+  // 'done' = already acted on, shows who actually did it; 'upcoming'/'none' = not
+  // reached yet (or request never had a matrix-named approver for this slot).
+  state: 'pending' | 'done' | 'upcoming' | 'none';
 }
 
 export interface LaptopAnalyticsMetric {
