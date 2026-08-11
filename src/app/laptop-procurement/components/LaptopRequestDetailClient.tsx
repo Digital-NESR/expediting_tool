@@ -422,6 +422,11 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   const canEditRequest = isItManagerStage && (ownsRequest || actor.permissions.canManageData);
   const canCancel = ownsRequest && isItManagerStage && actor.permissions.canCreateRequests;
   const hasDecisionActions = actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canMarkRepaired || actions.canProcureNew || canCancel;
+  // Plain requesters just need Cancel + a place to leave a comment — the review
+  // audit trail (who reviewed it, when, rejection reason, latest comment) is really
+  // for reviewers/admins tracking the process; a rejected requester can still see why
+  // via the Activity feed below.
+  const isReviewerOrAdmin = actor.permissions.canViewAll || (actor.delegatedFrom ?? []).some(d => d.permissions.canViewAll);
   const editHref = `/laptop-procurement/requests/${request.id}/edit`;
   // Existing Device (the device being replaced) is only ever filled in by the IT
   // Manager — hide it from everyone else, including the requester.
@@ -714,7 +719,9 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                 <Field label="On Behalf Of" value={request.on_behalf_of} />
                 <Field label="Employee ID" value={request.employee_id} />
                 <Field label="Computer For" value={request.computer_for} />
-                <Field label="Computer For Employee ID" value={request.computer_for_employee_id} />
+                {request.request_type === 'New Employee' && (
+                  <Field label="Computer For Employee ID" value={request.computer_for_employee_id} />
+                )}
                 <Field label="Pending With" value={request.pending_with} />
                 <Field label="Country" value={request.country} />
                 <Field label="Department" value={request.department} />
@@ -804,10 +811,14 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
               <div className="space-y-4">
                 {notice && <div className="rounded-xl border border-[#307c4c]/25 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#307c4c]">{notice}</div>}
                 {error && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{error}</div>}
-                <Field label="Reviewed By" value={request.reviewed_by_name || request.reviewed_by_email} />
-                <Field label="Reviewed At" value={fmtDateTime(request.reviewed_at)} />
-                <Field label="Rejection Reason" value={request.rejection_reason} />
-                <Field label="Latest Review Comment" value={request.review_comments} />
+                {isReviewerOrAdmin && (
+                  <>
+                    <Field label="Reviewed By" value={request.reviewed_by_name || request.reviewed_by_email} />
+                    <Field label="Reviewed At" value={fmtDateTime(request.reviewed_at)} />
+                    <Field label="Rejection Reason" value={request.rejection_reason} />
+                    <Field label="Latest Review Comment" value={request.review_comments} />
+                  </>
+                )}
 
                 {hasDecisionActions ? (
                   <div ref={decisionRef} className={`rounded-2xl border p-4 transition-all duration-300 ${highlightDecision ? 'border-[#307c4c] ring-4 ring-[#307c4c]/25' : 'border-slate-200'} bg-white`}>
