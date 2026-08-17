@@ -456,6 +456,49 @@ function actorReviewGrants(actor: ProcureGuardActor): ProcureGuardReviewGrant[] 
     : [];
 }
 
+// All active (non-expired) delegations grouped by delegator email (lowercased). Fail-safe → {}.
+// Shared by the initial approval notification and the reminder job so a delegate is emailed by both.
+async function getActiveDelegatesByDelegator(): Promise<Record<string, ProcureGuardDelegation[]>> {
+  const map: Record<string, ProcureGuardDelegation[]> = {};
+  try {
+    await ensureProcureGuardDelegationTable();
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT * FROM procure_guard_delegations WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
+    );
+    for (const d of serialise<ProcureGuardDelegation[]>(rows)) {
+      const key = d.delegator_email.trim().toLowerCase();
+      (map[key] ??= []).push(d);
+    }
+  } catch (err) {
+    console.error('[ProcureGuard] active-delegates lookup failed', err);
+  }
+  return map;
+}
+
+// Expand a role-based approver list to also include each approver's active delegate(s), deduped by email.
+function withDelegateRecipients<T extends { email: string; display_name: string; notification_role: string; approval_status: string | null; country: string }>(
+  recipients: T[],
+  delegatesByDelegator: Record<string, ProcureGuardDelegation[]>,
+): T[] {
+  const delegateRecipients = recipients.flatMap(r =>
+    (delegatesByDelegator[r.email.trim().toLowerCase()] ?? []).map(d => ({
+      display_name: d.delegate_name || d.delegate_email,
+      email: d.delegate_email,
+      notification_role: `Delegate of ${r.display_name || r.email}`,
+      approval_status: r.approval_status,
+      country: r.country,
+      source_column: 'delegation',
+    } as unknown as T)),
+  );
+  const seen = new Set<string>();
+  return [...recipients, ...delegateRecipients].filter(r => {
+    const key = r.email.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 // Memoized per request (React cache) so the several actions that each resolve the actor during one
 // page render share a single resolution instead of re-querying the DB every time.
 const getActor = cache(async (): Promise<ProcureGuardActor> => {
@@ -1379,12 +1422,16 @@ async function notifyProcureGuardNextApprover(input: {
 
     if (!actions.requiredPermission) return;
 
-    const recipients = await getProcureGuardNotificationRecipients({
+    const baseRecipients = await getProcureGuardNotificationRecipients({
       requestType: input.requestType,
       country: request.country,
       approvalStatus: recipientApprovalStatus,
       ownerLabel: actions.ownerLabel,
     });
+    // Include each approver's active delegate(s) so a delegate also gets the approval email
+    // (matches the reminder job). Deduped by email.
+    const delegatesByDelegator = await getActiveDelegatesByDelegator();
+    const recipients = withDelegateRecipients(baseRecipients, delegatesByDelegator);
     const approverTestRecipients = emailTestRecipientsOf(request, input.actor.email, actions.ownerLabel);
     const routedRecipients = isEmailTestMode
       ? approverTestRecipients.map(row => ({
@@ -1537,19 +1584,7 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
   if (secret) headers['x-procureguard-secret'] = secret;
 
   // Active delegates keyed by delegator email, so a delegate also gets nudged.
-  const delegatesByDelegator: Record<string, ProcureGuardDelegation[]> = {};
-  try {
-    await ensureProcureGuardDelegationTable();
-    const delegationRows = await sql<QueryResultRow[]>(
-      `SELECT * FROM procure_guard_delegations WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
-    );
-    for (const d of serialise<ProcureGuardDelegation[]>(delegationRows)) {
-      const key = d.delegator_email.trim().toLowerCase();
-      (delegatesByDelegator[key] ??= []).push(d);
-    }
-  } catch (err) {
-    console.error('[ProcureGuard reminders] delegation lookup failed', err);
-  }
+  const delegatesByDelegator = await getActiveDelegatesByDelegator();
 
   const adminPermissions = getPermissionProfile('Admin');
   const tables: Array<{ table: 'procure_guard_adhoc_payments' | 'procure_guard_advance_payments'; requestType: ProcureGuardRequestType }> = [
