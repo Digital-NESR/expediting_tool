@@ -9,6 +9,8 @@ import type { PurchaseOrder } from '@/types/po';
 import {
   prepareAllExpediteDispatches,
   type DispatchResult,
+  type DispatchResponse,
+  type WebhookStatus,
   type SupplierDispatchParams,
 } from '@/app/actions/expediteDispatch';
 
@@ -34,7 +36,7 @@ function PlaceholderPill({ label }: { label: string }) {
 type SendPhase =
   | { phase: 'idle' }
   | { phase: 'sending' }
-  | { phase: 'done'; results: DispatchResult[] };
+  | { phase: 'done'; results: DispatchResult[]; webhook: WebhookStatus };
 
 /* ─── Group shape (mirrors expedite queue) ───────────────── */
 interface SupplierGroup {
@@ -107,7 +109,7 @@ export default function ConfirmDispatchPage() {
   }
 
   /* ── Core dispatch — single server action call for all groups ── */
-  async function dispatchGroups(toDispatch: SupplierGroup[]): Promise<DispatchResult[]> {
+  async function dispatchGroups(toDispatch: SupplierGroup[]): Promise<DispatchResponse> {
     setSendPhase({ phase: 'sending' });
     const paramsList: SupplierDispatchParams[] = toDispatch.map((g) => ({
       supplierId: g.supplierId,
@@ -132,8 +134,8 @@ export default function ConfirmDispatchPage() {
       return;
     }
     setValidationErrors(new Set());
-    const results = await dispatchGroups(groups);
-    setSendPhase({ phase: 'done', results });
+    const resp = await dispatchGroups(groups);
+    setSendPhase({ phase: 'done', results: resp.results, webhook: resp.webhook });
   }
 
   async function handleRetryFailed() {
@@ -143,12 +145,13 @@ export default function ConfirmDispatchPage() {
     const failedGroups = groups.filter((g) => failedNames.has(g.supplierName));
     if (failedGroups.length === 0) return;
 
-    const newResults = await dispatchGroups(failedGroups);
+    const resp = await dispatchGroups(failedGroups);
 
     // Merge: keep prior successes, replace failed rows with fresh results
     setSendPhase({
       phase: 'done',
-      results: [...prevResults.filter((r) => r.success), ...newResults],
+      results: [...prevResults.filter((r) => r.success), ...resp.results],
+      webhook: resp.webhook,
     });
   }
 
@@ -164,9 +167,43 @@ export default function ConfirmDispatchPage() {
     );
   }
 
-  /* ── Full success state ── */
+  /* ── Full DB success state — split on whether the webhook actually fired ── */
   if (sendPhase.phase === 'done' && sendPhase.results.every((r) => r.success)) {
     const count = sendPhase.results.length;
+    const wh = sendPhase.webhook;
+    const payloadLine = (
+      <p className="text-[11px] text-gray-400">
+        Payload: {wh.payloadSizeKB}kb · {wh.suppliers} supplier{wh.suppliers !== 1 ? 's' : ''}
+      </p>
+    );
+
+    // DB rows saved but the email webhook was not confirmed → amber warning, not green.
+    if (!wh.ok) {
+      return (
+        <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-6">
+          <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
+            <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mb-6">
+              <svg className="w-10 h-10 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold tracking-tight mb-2">Saved, but emails not confirmed</h2>
+            <p className="text-slate-500 mb-2">
+              {count} supplier{count !== 1 ? 's' : ''} recorded. {wh.message}
+            </p>
+            <p className="text-xs text-slate-400 mb-6">You can safely re-send from the queue if suppliers don&apos;t receive their email.</p>
+            {payloadLine}
+            <button
+              onClick={() => { clearSelection(); router.push('/po-expediting'); }}
+              className="mt-6 w-full inline-flex items-center justify-center h-12 bg-[#1e293b] hover:bg-black text-white font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-95"
+            >
+              Return to Dashboard
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-6">
         <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
@@ -176,12 +213,13 @@ export default function ConfirmDispatchPage() {
             </svg>
           </div>
           <h2 className="text-2xl font-bold tracking-tight mb-2">Emails dispatched successfully.</h2>
-          <p className="text-slate-500 mb-8">
+          <p className="text-slate-500 mb-2">
             {count} supplier{count !== 1 ? 's' : ''} notified.
           </p>
+          {payloadLine}
           <button
             onClick={() => { clearSelection(); router.push('/po-expediting'); }}
-            className="w-full inline-flex items-center justify-center h-12 bg-[#307c4c] hover:bg-[#26663e] text-white font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-[#307c4c]/20"
+            className="mt-8 w-full inline-flex items-center justify-center h-12 bg-[#307c4c] hover:bg-[#26663e] text-white font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-[#307c4c]/20"
           >
             Return to Dashboard
           </button>
