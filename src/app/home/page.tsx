@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
 import { submitSourceGuideAccessRequest } from '@/app/actions/sourceguide';
-import { Laptop, Gavel, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3, GraduationCap } from 'lucide-react';
+import { Laptop, Gavel, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3, GraduationCap, Receipt } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | null;
@@ -987,6 +987,10 @@ export default function HomePage() {
     if (isAdmin) router.push('/learning-hub');
   }
 
+  function handleSoaConsolidationClick() {
+    if (isAdmin) router.push('/soa-consolidation');
+  }
+
   async function handleRefreshStatus() {
     await update();
   }
@@ -1218,6 +1222,17 @@ export default function HomePage() {
                 />
               )}
 
+              {show('soa consolidation statement of account reconciliation vendor balance confirmation finance champion corporate rollup') && (
+                <AdminPreviewCard
+                  name="SOA Consolidation"
+                  subtitle="Vendor Statement Reconciliation"
+                  description="Coordinate country finance champions through vendor outreach, SOA collection, and consolidated handoff to corporate finance for quarterly account reconciliation."
+                  icon={<Receipt className="w-6 h-6 text-gray-400" />}
+                  canOpen={isAdmin}
+                  onClick={handleSoaConsolidationClick}
+                />
+              )}
+
               {show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management') && (
                 <button
                   type="button"
@@ -1249,7 +1264,7 @@ export default function HomePage() {
                   </div>
                 </button>
               )}
-              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('rfx officer') && !show('supply chain analytics') && !show('catalog') && !show('learning hub') && (
+              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('rfx officer') && !show('supply chain analytics') && !show('catalog') && !show('learning hub') && !show('soa') && (
                 <div className="col-span-3 py-12 text-center">
                   <p className="text-sm text-slate-400">No applications match &ldquo;{appSearch}&rdquo;</p>
                 </div>
