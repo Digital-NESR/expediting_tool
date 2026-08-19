@@ -235,9 +235,9 @@ export async function prepareAllExpediteDispatches(
           `INSERT INTO active_expediting
              (po_number, po_line, expedite_token, workflow_state,
               current_status, dispatched_by, dispatched_at,
-              session_ref, created_at, updated_at)
+              session_ref, supplier_name, supplier_id, created_at, updated_at)
            VALUES ($1, $2, $3, 'Email Sent', 'Pending Supplier Response',
-                   $4, NOW(), $5, NOW(), NOW())
+                   $4, NOW(), $5, $6, $7, NOW(), NOW())
            ON CONFLICT (po_number, po_line)
            DO UPDATE SET
              expedite_token    = EXCLUDED.expedite_token,
@@ -249,8 +249,11 @@ export async function prepareAllExpediteDispatches(
              dispatched_by     = EXCLUDED.dispatched_by,
              dispatched_at     = NOW(),
              session_ref       = EXCLUDED.session_ref,
+             supplier_name     = EXCLUDED.supplier_name,
+             supplier_id       = EXCLUDED.supplier_id,
              updated_at        = NOW()`,
-          [item['PO Number'], item['PO Line'] ?? '', token, userEmail, sessionRef]
+          [item['PO Number'], item['PO Line'] ?? '', token, userEmail, sessionRef,
+           supplierName || null, supplierId || null]
         );
       }
 
