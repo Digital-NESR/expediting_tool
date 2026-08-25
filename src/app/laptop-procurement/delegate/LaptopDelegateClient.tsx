@@ -79,20 +79,15 @@ export default function LaptopDelegateClient({ data }: { data: LaptopDelegationD
             <p className="mt-0.5 text-xs text-slate-500">The delegate is identified by their NESR sign-in email and inherits your approval scope.</p>
             <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label className={LBL}>Find a colleague</label>
+                <label className={LBL}>Delegate</label>
                 <EmployeeAutocomplete
-                  placeholder="Search directory by name or email…"
+                  value={email}
+                  onChange={v => { setEmail(v); setName(''); }}
                   onSelect={emp => { setEmail(emp.email); setName(emp.name); }}
+                  inputClassName={INP}
+                  placeholder="Search by name or email…"
                 />
-                <p className="mt-1 text-xs text-slate-500/80">Pick from the employee directory to fill the fields below, or type them in manually.</p>
-              </div>
-              <div>
-                <label className={LBL}>Delegate email</label>
-                <input type="email" required className={INP} value={email} onChange={e => setEmail(e.target.value)} placeholder="colleague@nesr.com" />
-              </div>
-              <div>
-                <label className={LBL}>Delegate name (optional)</label>
-                <input className={INP} value={name} onChange={e => setName(e.target.value)} placeholder="Full name" />
+                {name && <p className="mt-1 text-xs text-slate-500/80">{name}</p>}
               </div>
               <div>
                 <label className={LBL}>Start date (optional)</label>

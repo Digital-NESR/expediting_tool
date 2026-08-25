@@ -131,13 +131,6 @@ function DelegationsPanel({
         <p className="mt-0.5 text-xs text-slate-500">Hand an approver&apos;s authority to a delegate on their behalf. The delegate inherits the approver&apos;s scope until the end date or until you revoke it.</p>
         {error && <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>}
         <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-semibold text-slate-500">Find the delegate in the directory</label>
-            <EmployeeAutocomplete
-              placeholder="Search directory by name or email…"
-              onSelect={emp => { setDelegateEmail(emp.email); setDelegateName(emp.name); }}
-            />
-          </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">Approver (delegator)</label>
             <select className={INP} value={delegatorEmail} onChange={e => setDelegatorEmail(e.target.value)} required>
@@ -148,12 +141,15 @@ function DelegationsPanel({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">Delegate email</label>
-            <input type="email" required className={INP} value={delegateEmail} onChange={e => setDelegateEmail(e.target.value)} placeholder="colleague@nesr.com" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">Delegate name (optional)</label>
-            <input className={INP} value={delegateName} onChange={e => setDelegateName(e.target.value)} placeholder="Full name" />
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Delegate</label>
+            <EmployeeAutocomplete
+              value={delegateEmail}
+              onChange={v => { setDelegateEmail(v); setDelegateName(''); }}
+              onSelect={emp => { setDelegateEmail(emp.email); setDelegateName(emp.name); }}
+              inputClassName={INP}
+              placeholder="Search by name or email…"
+            />
+            {delegateName && <p className="mt-1 truncate text-xs text-slate-500">{delegateName}</p>}
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">Start date (optional)</label>

@@ -138,6 +138,19 @@ function adminEmails(): string[] {
     .filter(Boolean);
 }
 
+// Deliberately narrower than adminEmails(): the shared ADMIN_EMAILS list controls who
+// can reach the /admin shell at all (see admin/page.tsx) — it's a platform-wide list,
+// not specific to this app, so it must never by itself grant laptop-procurement's own
+// Admin role. Only this app's own dedicated env var can bootstrap a laptop-procurement
+// Admin when no laptop_permissions row exists yet; real admins should get an explicit
+// row instead of leaning on either env var.
+function laptopProcurementAdminEmails(): string[] {
+  return (process.env.LAPTOP_PROCUREMENT_ADMIN_EMAILS ?? '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 async function getPermissionRowForEmail(email: string): Promise<LaptopPermissionRow | null> {
   try {
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions WHERE email = ? LIMIT 1`, [email]);
@@ -232,7 +245,7 @@ async function getActor(): Promise<LaptopActor> {
   if (!email) throw new Error('You must be signed in to use Laptop Procurement.');
 
   const permissionRow = await getPermissionRowForEmail(email);
-  const fallbackRole: LaptopPermissionRole = adminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
+  const fallbackRole: LaptopPermissionRole = laptopProcurementAdminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
   const baseRole = (permissionRow?.role ?? fallbackRole) as LaptopPermissionRole;
   const matrixCapabilities = await getApproverMatrixCapabilities(email);
   const permissions = buildEffectivePermissions(baseRole, matrixCapabilities);
@@ -2530,7 +2543,7 @@ export async function adminGrantLaptopDelegation(input: {
     if (delegatorEmail === delegateEmail) return { success: false, error: 'Approver and delegate must be different people.' };
 
     const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
-    const delegatorRole = (delegatorRow?.role ?? (adminEmails().includes(delegatorEmail) ? 'Admin' : 'Requester')) as LaptopPermissionRole;
+    const delegatorRole = (delegatorRow?.role ?? (laptopProcurementAdminEmails().includes(delegatorEmail) ? 'Admin' : 'Requester')) as LaptopPermissionRole;
     // Same effective-permissions build getActor() uses — matrix presence, not the
     // laptop_permissions role alone, is what actually carries approval authority for
     // IT Manager/Country Manager/IT Director/Supply Chain Director now.
