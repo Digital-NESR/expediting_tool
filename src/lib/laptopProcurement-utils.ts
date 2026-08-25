@@ -215,7 +215,7 @@ export const DEVICE_AGE_OPTIONS = ['< 1 year', '1-3 years', '4-5 years', '5+ yea
 
 export const COUNTRY_OPTIONS = [
   'Saudi Arabia',
-  'United Arab Emirates (UAE)',
+  'Abu Dhabi',
   'HQ Dubai',
   'Qatar',
   'Kuwait',

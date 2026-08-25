@@ -9873,7 +9873,7 @@ export const COUNTRY_TO_COST_CENTER_COUNTRIES: Record<string, string[]> = {
   "Saudi Arabia": [
     "KSA"
   ],
-  "United Arab Emirates (UAE)": [
+  "Abu Dhabi": [
     "UAE",
     "EOS JAFZA"
   ],
