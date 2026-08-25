@@ -146,7 +146,7 @@ export default function LaptopDashboardClient({ data }: { data: LaptopDashboardD
             <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">{stats.rejected}</p>
             <p className="mt-1 text-sm text-slate-500">Across all approval stages</p>
             {canUseLaptopAnalytics(actor.effectiveAccessView) && (
-              <button onClick={() => router.push('/admin?tool=laptop-procurement-analytics')} className="mt-4 text-sm font-bold text-[#307c4c] transition hover:text-slate-900">View analytics →</button>
+              <button onClick={() => router.push('/laptop-procurement/analytics')} className="mt-4 text-sm font-bold text-[#307c4c] transition hover:text-slate-900">View analytics →</button>
             )}
           </div>
           <div className={`${GLASS} p-5`}>

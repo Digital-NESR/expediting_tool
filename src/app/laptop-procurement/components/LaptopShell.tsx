@@ -20,7 +20,7 @@ const NAV = [
   { href: '/laptop-procurement/my-work', label: 'My Work', icon: 'check', access: ['reviewer', 'admin'] },
   { href: '/laptop-procurement/requests', label: 'Requests', icon: 'laptop', access: ['requester', 'reviewer', 'admin'] },
   { href: '/laptop-procurement/requests/new', label: 'New Request', icon: 'plus', access: ['requester', 'reviewer', 'admin'] },
-  { href: '/admin?tool=laptop-procurement-analytics', label: 'Analytics', icon: 'chart', access: ['analyst', 'reviewer', 'admin'] },
+  { href: '/laptop-procurement/analytics', label: 'Analytics', icon: 'chart', access: ['analyst', 'reviewer', 'admin'] },
   { href: '/laptop-procurement/delegate', label: 'Delegate', icon: 'delegate', access: ['reviewer', 'admin'] },
   { href: '/admin?tool=laptop-procurement-admin', label: 'Admin Panel', icon: 'grid', access: ['admin'] },
 ];

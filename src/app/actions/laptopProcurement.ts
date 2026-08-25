@@ -1313,41 +1313,65 @@ export async function getLaptopAdminData(requestsPage: number = 0): Promise<Lapt
   }
 }
 
+async function computeLaptopAnalytics(actor: LaptopActor, where: string, params: string[]): Promise<LaptopAnalyticsData> {
+  const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests ${where}`, params);
+  const requests = serialise<LaptopRequest[]>(rows);
+
+  const tally = (key: (r: LaptopRequest) => string | null | undefined): LaptopAnalyticsMetric[] => {
+    const map = new Map<string, number>();
+    for (const r of requests) {
+      const label = (key(r) ?? '').trim() || 'Unspecified';
+      map.set(label, (map.get(label) ?? 0) + 1);
+    }
+    return [...map.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+  };
+
+  return {
+    actor,
+    stats: {
+      ...buildStats(requests),
+      active_requester_count: new Set(requests.map(r => r.requested_by_email.trim().toLowerCase()).filter(Boolean)).size,
+      country_count: new Set(requests.map(r => (r.country ?? '').trim().toLowerCase()).filter(Boolean)).size,
+    },
+    status_breakdown: tally(r => r.status),
+    request_type_breakdown: tally(r => r.request_type),
+    device_breakdown: tally(r => r.type_of_device),
+    country_breakdown: tally(r => r.country).slice(0, 12),
+    segment_breakdown: tally(r => r.segment).slice(0, 12),
+    top_models: tally(r => r.requested_model).slice(0, 10),
+    monthly_trend: buildMonthlyTrend(requests),
+    generated_at: new Date().toISOString(),
+  };
+}
+
+// Scoped to the actor's own approval countries (plus their own submitted requests) —
+// same scoping the request list and reviewer queue use. This is what the admin panel's
+// embedded analytics tab has always shown (admin's own scope is unrestricted, so it
+// reads as "global" there), and what the laptop-procurement Analytics page's Personal
+// tab shows for everyone else.
 export async function getLaptopAnalyticsData(): Promise<LaptopAnalyticsData | null> {
   try {
     const actor = await getActor();
     requireAnalyticsAccess(actor);
     const scope = scopedWhere(actor);
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests ${scope.where}`, scope.params);
-    const requests = serialise<LaptopRequest[]>(rows);
-
-    const tally = (key: (r: LaptopRequest) => string | null | undefined): LaptopAnalyticsMetric[] => {
-      const map = new Map<string, number>();
-      for (const r of requests) {
-        const label = (key(r) ?? '').trim() || 'Unspecified';
-        map.set(label, (map.get(label) ?? 0) + 1);
-      }
-      return [...map.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
-    };
-
-    return {
-      actor,
-      stats: {
-        ...buildStats(requests),
-        active_requester_count: new Set(requests.map(r => r.requested_by_email.trim().toLowerCase()).filter(Boolean)).size,
-        country_count: new Set(requests.map(r => (r.country ?? '').trim().toLowerCase()).filter(Boolean)).size,
-      },
-      status_breakdown: tally(r => r.status),
-      request_type_breakdown: tally(r => r.request_type),
-      device_breakdown: tally(r => r.type_of_device),
-      country_breakdown: tally(r => r.country).slice(0, 12),
-      segment_breakdown: tally(r => r.segment).slice(0, 12),
-      top_models: tally(r => r.requested_model).slice(0, 10),
-      monthly_trend: buildMonthlyTrend(requests),
-      generated_at: new Date().toISOString(),
-    };
+    return await computeLaptopAnalytics(actor, scope.where, scope.params);
   } catch (err) {
     console.error('[getLaptopAnalyticsData]', err);
+    return null;
+  }
+}
+
+// Deliberately unscoped — the Global tab on the laptop-procurement Analytics page shows
+// every request regardless of the actor's own approval countries, for anyone who clears
+// the analytics gate (Analyst, Reviewer, or Admin). Distinct from canViewAll, which
+// governs approval-chain visibility elsewhere and stays tied to approver-matrix presence.
+export async function getLaptopGlobalAnalyticsData(): Promise<LaptopAnalyticsData | null> {
+  try {
+    const actor = await getActor();
+    requireAnalyticsAccess(actor);
+    return await computeLaptopAnalytics(actor, '', []);
+  } catch (err) {
+    console.error('[getLaptopGlobalAnalyticsData]', err);
     return null;
   }
 }
