@@ -30,6 +30,14 @@ const LOCKED_INP = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5
 const DISPLAY_INP = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 shadow-sm';
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
+// Display-only labels — the option's value (and everything downstream: DB column,
+// approval routing) stays the plain REQUEST_TYPE_OPTIONS string.
+const REQUEST_TYPE_LABELS: Record<string, string> = {
+  'New Employee': 'New Employee (form for HR only)',
+  'Upgrade/Replacement': 'Upgrade/Replacement (for self)',
+  'Unit': 'for Unit',
+};
+
 function Field({ label, required, error, hint, children }: { label: string; required?: boolean; error?: string; hint?: string; children: React.ReactNode }) {
   return (
     <div data-field-error={error ? 'true' : undefined}>
@@ -289,7 +297,7 @@ export default function LaptopRequestFormClient({
             <Field label="Type of Request" required error={errors.requestType}>
               <select className={errors.requestType ? ERR : INP} value={requestType} onChange={e => handleRequestTypeChange(e.target.value)}>
                 <option value="">Select request type</option>
-                {REQUEST_TYPE_OPTIONS.map(item => <option key={item}>{item}</option>)}
+                {REQUEST_TYPE_OPTIONS.map(item => <option key={item} value={item}>{REQUEST_TYPE_LABELS[item] ?? item}</option>)}
               </select>
             </Field>
             <Field label="Priority">
@@ -333,6 +341,30 @@ export default function LaptopRequestFormClient({
           </div>
         </section>
 
+        {isNewEmployee && (
+          <section className={`${GLASS} p-5 sm:p-6`}>
+            <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Computer For Details</h2>
+            <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
+              <Field label="Name" required error={errors.computerFor}>
+                <input
+                  className={errors.computerFor ? ERR : INP}
+                  value={computerFor}
+                  onChange={e => setComputerFor(e.target.value)}
+                  placeholder="Enter the new employee's name"
+                />
+              </Field>
+              <Field label="Employee ID">
+                <input
+                  className={INP}
+                  value={computerForEmployeeId}
+                  onChange={e => setComputerForEmployeeId(e.target.value)}
+                  placeholder="If available"
+                />
+              </Field>
+            </div>
+          </section>
+        )}
+
         <section className={`${GLASS} p-5 sm:p-6`}>
           <h2 className="mb-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Cost Allocation</h2>
           {isSelfRequest && (
@@ -370,53 +402,29 @@ export default function LaptopRequestFormClient({
                     {availableCompanies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
                   </select>
                 </Field>
+                <Field
+                  label="Department"
+                  required
+                  error={errors.department}
+                  hint={!companyCode ? 'Select Company Name above first.' : undefined}
+                >
+                  <select
+                    className={errors.department ? ERR : INP}
+                    value={department}
+                    disabled={!companyCode}
+                    onChange={e => handleComputerForDepartmentChange(e.target.value)}
+                  >
+                    <option value="">{companyCode ? 'Select department' : 'Select company first'}</option>
+                    {availableDepartments.map(d => <option key={d.department} value={d.department}>{d.department}</option>)}
+                  </select>
+                </Field>
                 <Field label="Cost Center" required error={errors.costCenter}>
-                  <input className={LOCKED_INP} value={costCenter} disabled readOnly placeholder="Auto-filled once Department is chosen below" />
+                  <input className={LOCKED_INP} value={costCenter} disabled readOnly placeholder="Auto-filled once Department is chosen above" />
                 </Field>
               </>
             )}
           </div>
         </section>
-
-        {isNewEmployee && (
-          <section className={`${GLASS} p-5 sm:p-6`}>
-            <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Computer For Details</h2>
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-3">
-              <Field label="Name" required error={errors.computerFor}>
-                <input
-                  className={errors.computerFor ? ERR : INP}
-                  value={computerFor}
-                  onChange={e => setComputerFor(e.target.value)}
-                  placeholder="Enter the new employee's name"
-                />
-              </Field>
-              <Field label="Employee ID">
-                <input
-                  className={INP}
-                  value={computerForEmployeeId}
-                  onChange={e => setComputerForEmployeeId(e.target.value)}
-                  placeholder="If available"
-                />
-              </Field>
-              <Field
-                label="Department"
-                required
-                error={errors.department}
-                hint={!companyCode ? 'Select Company Name in Cost Allocation above first.' : undefined}
-              >
-                <select
-                  className={errors.department ? ERR : INP}
-                  value={department}
-                  disabled={!companyCode}
-                  onChange={e => handleComputerForDepartmentChange(e.target.value)}
-                >
-                  <option value="">{companyCode ? 'Select department' : 'Select company first'}</option>
-                  {availableDepartments.map(d => <option key={d.department} value={d.department}>{d.department}</option>)}
-                </select>
-              </Field>
-            </div>
-          </section>
-        )}
 
         <section className={`${GLASS} p-5 sm:p-6`}>
           <h2 className="mb-5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Requested Device</h2>
