@@ -72,6 +72,18 @@ export interface UpdateLaptopPermissionInput {
 // country and Supply Chain Director broadly.
 export type LaptopApproverCapabilities = Record<'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director', string[]>;
 
+export type LaptopApprovalStageName = 'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
+
+// One specific role a person can delegate — a single (stage, country) slot they hold
+// in the approver matrix, not "everything this person happens to have." Delegating a
+// LaptopDelegatableRole hands over exactly that slot, nothing else the delegator holds.
+export interface LaptopDelegatableRole {
+  email: string;
+  name: string | null;
+  stage: LaptopApprovalStageName;
+  country: string;
+}
+
 export interface LaptopDelegationGrant {
   email: string;
   name: string;
@@ -295,16 +307,15 @@ export interface LaptopAdminData {
   delegations: LaptopDelegationRow[];
   deviceCatalog: LaptopDeviceCatalogRow[];
   stats: LaptopDashboardStats;
-  // Everyone eligible to be a delegation's "approver (delegator)" — Admins from
-  // laptop_permissions, plus everyone named anywhere in the approver matrix, since
-  // matrix presence (not a laptop_permissions role) is what carries real approval
-  // authority to delegate.
-  approvers: Array<{ email: string; name: string | null; role: string; country: string | null }>;
-  // The Permissions tab's actual displayed list: Admin/Analyst/Read Only/Requester
-  // rows straight from laptop_permissions, plus one synthesized row per person named
-  // anywhere in the approver matrix — since matrix presence, not a stale
-  // laptop_permissions role, is what actually grants IT Manager/Country
-  // Manager/IT Director/Supply Chain Director authority now.
+  // Every specific (email, stage, country) role delegatable from the Delegations tab —
+  // one entry per approver-matrix slot, not per person, so delegating is scoped to
+  // exactly the role picked rather than everything that person happens to hold.
+  delegatableRoles: LaptopDelegatableRole[];
+  // The Permissions tab's actual displayed list: Admin/Requester rows straight from
+  // laptop_permissions, plus one synthesized row per person named anywhere in the
+  // approver matrix — since matrix presence, not a stale laptop_permissions role, is
+  // what actually grants IT Manager/Country Manager/IT Director/Supply Chain Director
+  // authority now.
   permissionsList: LaptopPermissionListItem[];
 }
 
@@ -345,6 +356,11 @@ export interface LaptopDelegationRow {
   delegator_name: string | null;
   delegate_email: string;
   delegate_name: string | null;
+  // The specific approver-matrix slot being handed over — required for every
+  // delegation created going forward; only pre-existing rows from before role-based
+  // delegation could have these null.
+  stage: LaptopApprovalStageName | null;
+  country: string | null;
   starts_at: string | null;
   expires_at: string | null;
   is_active: boolean;
