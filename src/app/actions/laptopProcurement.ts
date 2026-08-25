@@ -189,14 +189,13 @@ function hasAnyMatrixCapability(capabilities: Record<LaptopApprovalStage, string
   return APPROVAL_STAGES.some(stage => capabilities[stage].length > 0);
 }
 
-// Admin bypasses everything (unchanged); Analyst/Read Only keep their analytics-only
-// access; everyone else's view-all/reject/per-stage review rights are derived purely
-// from approver-matrix presence, ignoring any IT Manager/Country Manager/IT
-// Director/Supply Chain Director role a laptop_permissions row might still carry.
+// Admin bypasses everything (unchanged); everyone else's view-all/reject/per-stage
+// review rights are derived purely from approver-matrix presence, ignoring any IT
+// Manager/Country Manager/IT Director/Supply Chain Director role a laptop_permissions
+// row might still carry.
 function buildEffectivePermissions(baseRole: LaptopPermissionRole, capabilities: Record<LaptopApprovalStage, string[]>): LaptopPermissionProfile {
   const base = getPermissionProfile(baseRole);
   const isAdmin = baseRole === 'Admin';
-  const isAnalyst = baseRole === 'Analyst' || baseRole === 'Read Only';
   const hasCapability = hasAnyMatrixCapability(capabilities);
   return {
     ...base,
@@ -206,7 +205,7 @@ function buildEffectivePermissions(baseRole: LaptopPermissionRole, capabilities:
     canReviewCountryManager: isAdmin || capabilities['Country Manager'].length > 0,
     canReviewItDirector: isAdmin || capabilities['IT Director'].length > 0,
     canReviewScmDirector: isAdmin || capabilities['Supply Chain Director'].length > 0,
-    accessView: isAdmin ? 'admin' : isAnalyst ? 'analyst' : (hasCapability ? 'reviewer' : 'requester'),
+    accessView: isAdmin ? 'admin' : (hasCapability ? 'reviewer' : 'requester'),
   };
 }
 
@@ -447,6 +446,7 @@ function laptopActingIdentities(actor: LaptopActor): LaptopDelegationGrant[] {
 
 function getScopedActions(actor: LaptopActor, request: {
   status: LaptopRequestStatus;
+  request_type?: string | null;
   country?: string | null;
   assigned_serial_no?: string | null;
   assigned_model?: string | null;
@@ -459,7 +459,7 @@ function getScopedActions(actor: LaptopActor, request: {
   const ownsCurrentStep = Boolean(requiredStage) && laptopActingIdentities(actor).some(id =>
     id.role === 'Admin' || stageHasCountry(id.matrixCapabilities, requiredStage as LaptopApprovalStage, request.country),
   );
-  return getLaptopAvailableActions(ownsCurrentStep, request.status, hasAssignedUnit, isProcureNewFlow);
+  return getLaptopAvailableActions(ownsCurrentStep, request.status, hasAssignedUnit, isProcureNewFlow, request.request_type);
 }
 
 /**
@@ -1236,7 +1236,7 @@ function buildDelegationApprovers(
   return [...approvers.values()].sort((a, b) => a.role.localeCompare(b.role) || a.email.localeCompare(b.email));
 }
 
-// The Permissions tab's actual displayed list: Admin/Analyst/Read Only/Requester rows
+// The Permissions tab's actual displayed list: Admin/Requester rows
 // straight from laptop_permissions (source: 'permissions'), plus one synthesized row
 // per (email, stage) named anywhere in the approver matrix (source: 'matrix') — split
 // per stage, not merged per person, so someone holding several stages (like Aamil
@@ -1363,7 +1363,7 @@ export async function getLaptopAnalyticsData(): Promise<LaptopAnalyticsData | nu
 
 // Deliberately unscoped — the Global tab on the laptop-procurement Analytics page shows
 // every request regardless of the actor's own approval countries, for anyone who clears
-// the analytics gate (Analyst, Reviewer, or Admin). Distinct from canViewAll, which
+// the analytics gate (Reviewer or Admin). Distinct from canViewAll, which
 // governs approval-chain visibility elsewhere and stays tied to approver-matrix presence.
 export async function getLaptopGlobalAnalyticsData(): Promise<LaptopAnalyticsData | null> {
   try {
