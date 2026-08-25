@@ -7,7 +7,6 @@ import { createLaptopRequest, updateLaptopRequest, uploadLaptopDocument } from '
 import {
   COUNTRY_OPTIONS,
   DEVICE_TYPE_OPTIONS,
-  PRIORITY_OPTIONS,
   REQUEST_TYPE_OPTIONS,
 } from '@/lib/laptopProcurement-utils';
 import {
@@ -103,7 +102,9 @@ export default function LaptopRequestFormClient({
   const [banner, setBanner] = useState('');
 
   const [requestType, setRequestType] = useState(editRequest?.request_type ?? '');
-  const [priority, setPriority] = useState(editRequest?.priority ?? 'Normal');
+  // No longer collected from the requester — always defaults to Normal for new
+  // requests, and preserves whatever an existing request already had on edit.
+  const priority = editRequest?.priority ?? 'Normal';
   const [employeeId, setEmployeeId] = useState(editRequest?.employee_id ?? '');
   const [country, setCountry] = useState(editRequest?.country ?? '');
   const [department, setDepartment] = useState(editRequest?.department ?? '');
@@ -298,11 +299,6 @@ export default function LaptopRequestFormClient({
               <select className={errors.requestType ? ERR : INP} value={requestType} onChange={e => handleRequestTypeChange(e.target.value)}>
                 <option value="">Select request type</option>
                 {REQUEST_TYPE_OPTIONS.map(item => <option key={item} value={item}>{REQUEST_TYPE_LABELS[item] ?? item}</option>)}
-              </select>
-            </Field>
-            <Field label="Priority">
-              <select className={INP} value={priority} onChange={e => setPriority(e.target.value as typeof priority)}>
-                {PRIORITY_OPTIONS.map(item => <option key={item}>{item}</option>)}
               </select>
             </Field>
           </div>

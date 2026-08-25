@@ -375,6 +375,7 @@ export function getLaptopAvailableActions(
   currentStatus: LaptopRequestStatus,
   hasAssignedUnit: boolean = false,
   isProcureNewFlow: boolean = false,
+  requestType?: string | null,
 ): LaptopRequestActions {
   const nextStatus = getNextApprovalStatus(currentStatus, hasAssignedUnit, isProcureNewFlow);
   const requiredPermission = getRequiredPermissionForStage(currentStatus);
@@ -396,7 +397,10 @@ export function getLaptopAvailableActions(
     // Hidden once the IT Manager has already specified the device up front (see
     // updateLaptopRequestStatus's procureNew param) — nothing left for the CM to flag.
     canProcureNew: isCmStage && ownsCurrentStep && !isProcureNewFlow,
-    canMarkRepaired: isItManagerStage && ownsCurrentStep,
+    // Repairing in place only makes sense when there's an existing physical device to
+    // repair — Upgrade/Replacement and Unit requests have one; New Employee doesn't
+    // (there's nothing to repair for someone who has no device yet).
+    canMarkRepaired: isItManagerStage && ownsCurrentStep && requestType !== 'New Employee',
     canSubmitProcureDetails: isProcureDetailsStage && ownsCurrentStep,
     rejectStatus: getRejectStatusForStage(currentStatus),
     ownerLabel: requiredPermission ? PERMISSION_OWNER_LABELS[requiredPermission] ?? 'Assigned approver' : 'No active owner',

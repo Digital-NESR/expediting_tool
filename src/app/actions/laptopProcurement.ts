@@ -446,6 +446,7 @@ function laptopActingIdentities(actor: LaptopActor): LaptopDelegationGrant[] {
 
 function getScopedActions(actor: LaptopActor, request: {
   status: LaptopRequestStatus;
+  request_type?: string | null;
   country?: string | null;
   assigned_serial_no?: string | null;
   assigned_model?: string | null;
@@ -458,7 +459,7 @@ function getScopedActions(actor: LaptopActor, request: {
   const ownsCurrentStep = Boolean(requiredStage) && laptopActingIdentities(actor).some(id =>
     id.role === 'Admin' || stageHasCountry(id.matrixCapabilities, requiredStage as LaptopApprovalStage, request.country),
   );
-  return getLaptopAvailableActions(ownsCurrentStep, request.status, hasAssignedUnit, isProcureNewFlow);
+  return getLaptopAvailableActions(ownsCurrentStep, request.status, hasAssignedUnit, isProcureNewFlow, request.request_type);
 }
 
 /**

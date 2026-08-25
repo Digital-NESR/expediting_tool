@@ -417,6 +417,9 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   const decisionRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
   const { request, activity, documents, actions, actor, stageAssignees } = data;
+  // Assign existing laptop picks a real unit from the device catalogue, filtered to
+  // the type of device this request actually asked for.
+  const assignModelOptions = [...new Set(devices.filter(d => d.type_of_device === request.type_of_device).map(d => d.model))];
 
   const requester = request.requested_by_name || request.requested_by_email;
   const pendingCount = isActiveApprovalStatus(request.status) ? 1 : 0;
@@ -576,7 +579,10 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
               </div>
               <div>
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Model</label>
-                <input className={INP} value={assignModel} onChange={e => setAssignModel(e.target.value)} />
+                <select className={INP} value={assignModel} onChange={e => setAssignModel(e.target.value)}>
+                  <option value="">Select model</option>
+                  {assignModelOptions.map(o => <option key={o}>{o}</option>)}
+                </select>
               </div>
               <div>
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Age</label>
