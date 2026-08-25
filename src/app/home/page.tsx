@@ -1133,51 +1133,62 @@ export default function HomePage() {
               )}
 
               {show('rfx officer rfx rfq rfp bidding tendering quotation award negotiation') && (
-                isAdmin ? (
+                <div className="relative">
+                  {/* Help icon — sibling of the card (not nested) so anchors don't nest */}
                   <a
-                    href="https://rfxofficer.nesr.com"
-                    className="group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
+                    href="/help/rfx-officer"
+                    title="View Help & Training"
+                    className="absolute top-3 right-3 z-20 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                   >
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]">
-                      <Gavel className="w-6 h-6 text-[#307c4c]" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-[18px] font-semibold text-gray-900">RFx Officer</h3>
-                      <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                        AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
-                      </p>
-                    </div>
-                    <div className="mt-auto flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        Portal Access
-                      </span>
-                      <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">Open preview →</span>
-                    </div>
+                    <HelpCircle className="w-4 h-4" />
                   </a>
-                ) : (
-                  <div className="group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left opacity-75 cursor-default select-none">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
-                      <Gavel className="w-6 h-6 text-gray-400" />
+
+                  {isAdmin ? (
+                    <a
+                      href="https://rfxofficer.nesr.com"
+                      className="group relative flex h-full w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
+                    >
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]">
+                        <Gavel className="w-6 h-6 text-[#307c4c]" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-[18px] font-semibold text-gray-900">RFx Officer</h3>
+                        <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                          AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
+                        </p>
+                      </div>
+                      <div className="mt-auto flex items-center justify-between">
+                        <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                          Portal Access
+                        </span>
+                        <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">Open preview →</span>
+                      </div>
+                    </a>
+                  ) : (
+                    <div className="group relative flex h-full w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left opacity-75 cursor-default select-none">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
+                        <Gavel className="w-6 h-6 text-gray-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-[18px] font-semibold text-gray-500">RFx Officer</h3>
+                        <p className="mt-2 text-sm leading-relaxed text-gray-400">
+                          AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
+                        </p>
+                      </div>
+                      <div className="mt-auto flex items-center justify-between">
+                        <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                          Portal Access
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="text-[18px] font-semibold text-gray-500">RFx Officer</h3>
-                      <p className="mt-2 text-sm leading-relaxed text-gray-400">
-                        AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
-                      </p>
-                    </div>
-                    <div className="mt-auto flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        Portal Access
-                      </span>
-                    </div>
-                  </div>
-                )
+                  )}
+                </div>
               )}
 
               {show('sourceguide sourcing intelligence suppliers commodity') && (
