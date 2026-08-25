@@ -16,8 +16,6 @@ export const LAPTOP_GREEN = '#307c4c';
 // several of those roles across different countries.
 export const PERMISSION_ROLE_OPTIONS: LaptopPermissionRole[] = [
   'Requester',
-  'Analyst',
-  'Read Only',
   'IT Manager',
   'Country Manager',
   'IT Director',
@@ -47,22 +45,6 @@ export const PERMISSION_PROFILES: Record<LaptopPermissionRole, LaptopPermissionP
     label: 'Requester',
     description: 'Can raise laptop / desktop procurement requests and cancel their own before review.',
     accessView: 'requester',
-  },
-  Analyst: {
-    ...BASE_PERMISSION_PROFILE,
-    role: 'Analyst',
-    label: 'Analyst',
-    description: 'Can view laptop procurement analytics only.',
-    accessView: 'analyst',
-    canCreateRequests: false,
-  },
-  'Read Only': {
-    ...BASE_PERMISSION_PROFILE,
-    role: 'Read Only',
-    label: 'Read Only',
-    description: 'Legacy analyst access. Can view laptop procurement analytics only.',
-    accessView: 'analyst',
-    canCreateRequests: false,
   },
   'IT Manager': {
     ...BASE_PERMISSION_PROFILE,
@@ -145,7 +127,7 @@ export function canUseLaptopAdmin(accessView: LaptopAccessView): boolean {
 }
 
 export function canUseLaptopAnalytics(accessView: LaptopAccessView): boolean {
-  return accessView === 'analyst' || accessView === 'reviewer' || accessView === 'admin';
+  return accessView === 'reviewer' || accessView === 'admin';
 }
 
 export function canUseLaptopOperationalPages(accessView: LaptopAccessView): boolean {
@@ -158,9 +140,8 @@ export function canUseLaptopReviewerQueue(accessView: LaptopAccessView): boolean
 
 const ACCESS_VIEW_RANK: Record<LaptopAccessView, number> = {
   requester: 0,
-  analyst: 1,
-  reviewer: 2,
-  admin: 3,
+  reviewer: 1,
+  admin: 2,
 };
 
 /**

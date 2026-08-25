@@ -21,15 +21,13 @@ export type LaptopRequestPriority = 'Low' | 'Normal' | 'High' | 'Critical';
 
 export type LaptopPermissionRole =
   | 'Requester'
-  | 'Analyst'
-  | 'Read Only'
   | 'IT Manager'
   | 'Country Manager'
   | 'IT Director'
   | 'Supply Chain Director'
   | 'Admin';
 
-export type LaptopAccessView = 'requester' | 'analyst' | 'reviewer' | 'admin';
+export type LaptopAccessView = 'requester' | 'reviewer' | 'admin';
 
 export interface LaptopPermissionProfile {
   role: LaptopPermissionRole;
