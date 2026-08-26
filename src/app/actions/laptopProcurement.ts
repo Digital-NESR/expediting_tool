@@ -2515,7 +2515,13 @@ export async function revokeLaptopDelegation(id: number): Promise<ActionResult> 
     const row = rows[0];
     if (!row) return { success: false, error: 'Delegation not found.' };
     const isOwner = String(row.delegator_email).toLowerCase() === actor.email.toLowerCase();
-    if (!isOwner && !actor.permissions.canManagePermissions) {
+    // This action is shared by the self-service Delegate page (isOwner) and the
+    // /admin console's "All delegations" list, which shows every delegation with a
+    // Revoke button regardless of who's viewing it — so an ADMIN_EMAILS-only console
+    // admin (no laptop_permissions row, hence not actor.permissions.canManagePermissions)
+    // needs the same bypass requireAdminActor() gives them everywhere else in /admin.
+    const isConsoleAdmin = adminEmails().includes(actor.email.toLowerCase());
+    if (!isOwner && !actor.permissions.canManagePermissions && !isConsoleAdmin) {
       return { success: false, error: 'You can only revoke delegations you created.' };
     }
     if (row.is_active) {
