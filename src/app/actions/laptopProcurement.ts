@@ -132,21 +132,13 @@ async function exec(statement: string, params: QueryParams = []): Promise<ExecRe
 
 /* ── Actor / access ───────────────────────────────────────────── */
 
+// Same convention as ProcureGuard/SourceGuide: the shared, platform-wide ADMIN_EMAILS
+// list and this app's own LAPTOP_PROCUREMENT_ADMIN_EMAILS list are OR'd together.
+// Either one bootstraps a laptop-procurement Admin when no laptop_permissions row
+// exists yet for that email — LAPTOP_PROCUREMENT_ADMIN_EMAILS exists only so someone
+// can be made a laptop-procurement Admin without also getting the shared /admin shell.
 function adminEmails(): string[] {
   return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.LAPTOP_PROCUREMENT_ADMIN_EMAILS ?? ''}`)
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-// Deliberately narrower than adminEmails(): the shared ADMIN_EMAILS list controls who
-// can reach the /admin shell at all (see admin/page.tsx) — it's a platform-wide list,
-// not specific to this app, so it must never by itself grant laptop-procurement's own
-// Admin role. Only this app's own dedicated env var can bootstrap a laptop-procurement
-// Admin when no laptop_permissions row exists yet; real admins should get an explicit
-// row instead of leaning on either env var.
-function laptopProcurementAdminEmails(): string[] {
-  return (process.env.LAPTOP_PROCUREMENT_ADMIN_EMAILS ?? '')
     .split(',')
     .map(e => e.trim().toLowerCase())
     .filter(Boolean);
@@ -246,7 +238,7 @@ async function getActor(): Promise<LaptopActor> {
   if (!email) throw new Error('You must be signed in to use Laptop Procurement.');
 
   const permissionRow = await getPermissionRowForEmail(email);
-  const fallbackRole: LaptopPermissionRole = laptopProcurementAdminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
+  const fallbackRole: LaptopPermissionRole = adminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
   const baseRole = (permissionRow?.role ?? fallbackRole) as LaptopPermissionRole;
   const matrixCapabilities = await getApproverMatrixCapabilities(email);
   const permissions = buildEffectivePermissions(baseRole, matrixCapabilities);
@@ -545,7 +537,9 @@ function requireReviewerQueueAccess(actor: LaptopActor): void {
 
 async function requireAdminActor(): Promise<LaptopActor> {
   const actor = await getActor();
-  if (!canUseLaptopAdmin(actor.effectiveAccessView)) {
+  // Belt-and-suspenders, matching ProcureGuard: covers the edge case of an explicit
+  // non-Admin laptop_permissions row for an email that's also in adminEmails().
+  if (!canUseLaptopAdmin(actor.effectiveAccessView) && !adminEmails().includes(actor.email.toLowerCase())) {
     throw new Error('Admin access is required.');
   }
   return actor;
