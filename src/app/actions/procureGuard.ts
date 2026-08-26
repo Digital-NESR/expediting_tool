@@ -1020,30 +1020,46 @@ async function getProcureGuardNotificationContactPreviewRows(input: {
   amount?: number | string | null;
   currency?: string | null;
 }): Promise<ProcureGuardNotificationContact[]> {
-  const countries = countryRecipientKeys(input.country);
   const statuses = getNotificationPreviewStatuses(input.requestType, input.amount, input.currency);
-  if (countries.length === 0 || statuses.length === 0) return [];
+  if (countryRecipientKeys(input.country).length === 0 || statuses.length === 0) return [];
 
-  const countryPlaceholders = countries.map(() => '?').join(', ');
-  const statusPlaceholders = statuses.map(() => '?').join(', ');
-  const rows = await sql<QueryResultRow[]>(
-    `SELECT id, country, request_type, notification_role, approval_status, source_column, display_name, email
-     FROM procure_guard_notification_recipients
-     WHERE is_active = TRUE
-       AND email IS NOT NULL
-       AND TRIM(email) <> ''
-       AND country IN (${countryPlaceholders})
-       AND (request_type = ? OR request_type = 'both')
-       AND approval_status IN (${statusPlaceholders})
-     ORDER BY display_name ASC`,
-    [...countries, input.requestType, ...statuses],
+  // Resolve recipients through the SAME path the notifier uses at each reviewer step, so the
+  // preview shows exactly who will be emailed. The previous single query matched only
+  // approval_status IN (...) gated by country, which dropped role-tagged recipients (no matching
+  // approval_status row) and global approvers (Supply Chain Director / Treasury Director /
+  // Corporate Controller / CFO) whose recipient row is filed under another country — both of which
+  // getProcureGuardNotificationRecipients now handles via its notification_role + global-role rules.
+  const profile = getPermissionProfile(null); // ownerLabel derives from the status only, not the profile
+  const perStep = await Promise.all(
+    statuses.map(async status => {
+      const { ownerLabel } = getProcureGuardAvailableActions(profile, input.requestType, status, input.amount, input.currency);
+      const recipients = await getProcureGuardNotificationRecipients({
+        requestType: input.requestType,
+        country: input.country,
+        approvalStatus: status,
+        ownerLabel,
+      });
+      // Group each recipient under THIS step's status: a role-tagged row may carry a null/other
+      // stored approval_status, and the contacts panel groups + highlights the step by approval_status.
+      return recipients.map((row, index): ProcureGuardNotificationContact => ({
+        id: index,
+        country: row.country,
+        request_type: input.requestType,
+        notification_role: row.notification_role,
+        approval_status: status,
+        source_column: row.source_column,
+        display_name: row.display_name,
+        email: row.email,
+      }));
+    }),
   );
 
   const statusRank = new Map(statuses.map((status, index) => [status, index]));
   const seen = new Set<string>();
-  return serialise<ProcureGuardNotificationContact[]>(rows)
-    .filter(row => {
-      const key = `${row.approval_status || 'none'}:${row.email.trim().toLowerCase()}`;
+  return perStep
+    .flat()
+    .filter(contact => {
+      const key = `${contact.approval_status || 'none'}:${contact.email.trim().toLowerCase()}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
