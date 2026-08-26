@@ -420,6 +420,7 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   const isUnitIdRequired = request.request_type === 'Unit';
 
   function existingDeviceFieldsMissing(): boolean {
+    if (!appliesToExistingDevice) return false;
     return (isUnitIdRequired && !existingUnitId.trim())
       || !existingBrand.trim() || !existingModel.trim() || !existingSerialNo.trim() || !existingAge.trim() || !existingSap.trim();
   }
@@ -443,9 +444,12 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   const isReviewerOrAdmin = actor.permissions.canViewAll || (actor.delegatedFrom ?? []).some(d => d.permissions.canViewAll);
   const editHref = `/laptop-procurement/requests/${request.id}/edit`;
   // Existing Device (the device being replaced) only applies to Upgrade/Replacement
-  // and Unit requests, and is only ever filled in by the IT Manager — hide it from
-  // everyone else, including the requester.
-  const canSeeExistingDevice = request.request_type !== 'New Employee'
+  // and Unit requests — a New Employee has no prior device, so it never applies to
+  // them, whether shown as a read-only summary or as fields inside a decision popup.
+  const appliesToExistingDevice = request.request_type !== 'New Employee';
+  // Only ever filled in by the IT Manager — hide it from everyone else, including
+  // the requester.
+  const canSeeExistingDevice = appliesToExistingDevice
     && (actor.permissions.canReviewItManager
       || (actor.delegatedFrom ?? []).some(d => d.permissions.canReviewItManager));
   const isProcureDetailsStage = request.status === 'Procure New Details';
@@ -502,17 +506,19 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
       setAssignError('All Existing Device fields are required.');
       return;
     }
-    const deviceResult = await updateLaptopExistingDevice(request.id, {
-      unit_id: existingUnitId,
-      current_brand: existingBrand,
-      current_model: existingModel,
-      serial_no: existingSerialNo,
-      age_years: existingAge,
-      sap_number: existingSap,
-    });
-    if (!deviceResult.success) {
-      setAssignError(deviceResult.error ?? 'Failed to save Existing Device details.');
-      return;
+    if (appliesToExistingDevice) {
+      const deviceResult = await updateLaptopExistingDevice(request.id, {
+        unit_id: existingUnitId,
+        current_brand: existingBrand,
+        current_model: existingModel,
+        serial_no: existingSerialNo,
+        age_years: existingAge,
+        sap_number: existingSap,
+      });
+      if (!deviceResult.success) {
+        setAssignError(deviceResult.error ?? 'Failed to save Existing Device details.');
+        return;
+      }
     }
     // No longer a distinct terminal move — it's IT Manager's normal approve-forward,
     // just with a specific unit attached; it still continues through the full chain.
@@ -538,17 +544,19 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
       setProcureNewError('All Existing Device fields are required.');
       return;
     }
-    const deviceResult = await updateLaptopExistingDevice(request.id, {
-      unit_id: existingUnitId,
-      current_brand: existingBrand,
-      current_model: existingModel,
-      serial_no: existingSerialNo,
-      age_years: existingAge,
-      sap_number: existingSap,
-    });
-    if (!deviceResult.success) {
-      setProcureNewError(deviceResult.error ?? 'Failed to save Existing Device details.');
-      return;
+    if (appliesToExistingDevice) {
+      const deviceResult = await updateLaptopExistingDevice(request.id, {
+        unit_id: existingUnitId,
+        current_brand: existingBrand,
+        current_model: existingModel,
+        serial_no: existingSerialNo,
+        age_years: existingAge,
+        sap_number: existingSap,
+      });
+      if (!deviceResult.success) {
+        setProcureNewError(deviceResult.error ?? 'Failed to save Existing Device details.');
+        return;
+      }
     }
     submitStatus(actions.nextStatus!, undefined, undefined, { type_of_device: procureNewType, model: procureNewModel });
   }
@@ -619,18 +627,20 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
             </div>
             <div className="space-y-5 px-5 py-4">
               {assignError && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{assignError}</div>}
-              <div>
-                <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">Existing Device</p>
-                <ExistingDeviceFields
-                  isUnitIdRequired={isUnitIdRequired}
-                  unitId={existingUnitId} setUnitId={setExistingUnitId}
-                  brand={existingBrand} setBrand={setExistingBrand}
-                  model={existingModel} setModel={setExistingModel}
-                  serialNo={existingSerialNo} setSerialNo={setExistingSerialNo}
-                  age={existingAge} setAge={setExistingAge}
-                  sap={existingSap} setSap={setExistingSap}
-                />
-              </div>
+              {appliesToExistingDevice && (
+                <div>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">Existing Device</p>
+                  <ExistingDeviceFields
+                    isUnitIdRequired={isUnitIdRequired}
+                    unitId={existingUnitId} setUnitId={setExistingUnitId}
+                    brand={existingBrand} setBrand={setExistingBrand}
+                    model={existingModel} setModel={setExistingModel}
+                    serialNo={existingSerialNo} setSerialNo={setExistingSerialNo}
+                    age={existingAge} setAge={setExistingAge}
+                    sap={existingSap} setSap={setExistingSap}
+                  />
+                </div>
+              )}
               <div>
                 <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">New Unit (from inventory)</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -694,18 +704,20 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
             </div>
             <div className="space-y-5 px-5 py-4">
               {procureNewError && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{procureNewError}</div>}
-              <div>
-                <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">Existing Device</p>
-                <ExistingDeviceFields
-                  isUnitIdRequired={isUnitIdRequired}
-                  unitId={existingUnitId} setUnitId={setExistingUnitId}
-                  brand={existingBrand} setBrand={setExistingBrand}
-                  model={existingModel} setModel={setExistingModel}
-                  serialNo={existingSerialNo} setSerialNo={setExistingSerialNo}
-                  age={existingAge} setAge={setExistingAge}
-                  sap={existingSap} setSap={setExistingSap}
-                />
-              </div>
+              {appliesToExistingDevice && (
+                <div>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">Existing Device</p>
+                  <ExistingDeviceFields
+                    isUnitIdRequired={isUnitIdRequired}
+                    unitId={existingUnitId} setUnitId={setExistingUnitId}
+                    brand={existingBrand} setBrand={setExistingBrand}
+                    model={existingModel} setModel={setExistingModel}
+                    serialNo={existingSerialNo} setSerialNo={setExistingSerialNo}
+                    age={existingAge} setAge={setExistingAge}
+                    sap={existingSap} setSap={setExistingSap}
+                  />
+                </div>
+              )}
               <div>
                 <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">New Device to Procure</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
