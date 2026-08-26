@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useState, useTransition } from 'react';
 import { getLaptopApproverMatrix, updateLaptopApproverMatrix } from '@/app/actions/laptopProcurement';
+import EmployeeAutocomplete from '@/app/procure-guard/components/EmployeeAutocomplete';
 import type { LaptopApproverMatrixRow } from '@/types/laptopProcurement';
 
 type ApproverEditValues = {
@@ -51,50 +52,33 @@ function ApproverEditForm({
   const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#307c4c]';
   const labelCls = 'mb-1 block text-[11px] font-semibold uppercase text-slate-400';
 
+  // Only email identifies the approver here — name is resolved automatically from the
+  // directory when picked, purely for display elsewhere; it's never typed directly.
+  function slot(label: string, email: string, setEmail: (v: string) => void, setName: (v: string) => void, resolvedName: string) {
+    return (
+      <label>
+        <span className={labelCls}>{label}</span>
+        <EmployeeAutocomplete
+          value={email}
+          onChange={v => { setEmail(v); setName(''); }}
+          onSelect={emp => { setEmail(emp.email); setName(emp.name); }}
+          inputClassName={inputCls}
+          placeholder="Search by name or email…"
+        />
+        {resolvedName && <p className="mt-1 truncate text-[11px] text-slate-500">{resolvedName}</p>}
+      </label>
+    );
+  }
+
   return (
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
       <p className="mb-3 text-xs font-semibold text-slate-600">Edit approvers for {row.country}</p>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <label>
-          <span className={labelCls}>IT Manager Name</span>
-          <input className={inputCls} value={itManagerName} onChange={e => setItManagerName(e.target.value)} />
-        </label>
-        <label>
-          <span className={labelCls}>IT Manager Email</span>
-          <input className={inputCls} value={itManagerEmail} onChange={e => setItManagerEmail(e.target.value)} />
-        </label>
-        <label>
-          <span className={labelCls}>IT Manager 2 Name</span>
-          <input className={inputCls} value={itManager2Name} onChange={e => setItManager2Name(e.target.value)} />
-        </label>
-        <label>
-          <span className={labelCls}>IT Manager 2 Email</span>
-          <input className={inputCls} value={itManager2Email} onChange={e => setItManager2Email(e.target.value)} />
-        </label>
-        <label>
-          <span className={labelCls}>Country Manager Name</span>
-          <input className={inputCls} value={cmName} onChange={e => setCmName(e.target.value)} />
-        </label>
-        <label>
-          <span className={labelCls}>Country Manager Email</span>
-          <input className={inputCls} value={cmEmail} onChange={e => setCmEmail(e.target.value)} />
-        </label>
-        <label>
-          <span className={labelCls}>IT Director Name</span>
-          <input className={inputCls} value={itdName} onChange={e => setItdName(e.target.value)} />
-        </label>
-        <label>
-          <span className={labelCls}>IT Director Email</span>
-          <input className={inputCls} value={itdEmail} onChange={e => setItdEmail(e.target.value)} />
-        </label>
-        <label>
-          <span className={labelCls}>SC Director Name</span>
-          <input className={inputCls} value={scdName} onChange={e => setScdName(e.target.value)} />
-        </label>
-        <label>
-          <span className={labelCls}>SC Director Email</span>
-          <input className={inputCls} value={scdEmail} onChange={e => setScdEmail(e.target.value)} />
-        </label>
+        {slot('IT Manager', itManagerEmail, setItManagerEmail, setItManagerName, itManagerName)}
+        {slot('IT Manager 2', itManager2Email, setItManager2Email, setItManager2Name, itManager2Name)}
+        {slot('Country Manager', cmEmail, setCmEmail, setCmName, cmName)}
+        {slot('IT Director', itdEmail, setItdEmail, setItdName, itdName)}
+        {slot('SC Director', scdEmail, setScdEmail, setScdName, scdName)}
       </div>
       <label className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-700">
         <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-[#307c4c] focus:ring-[#307c4c]" />
