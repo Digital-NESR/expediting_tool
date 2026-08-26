@@ -1611,6 +1611,32 @@ const STAGE_COMMENT_COLUMN: Partial<Record<LaptopRequestStatus, string>> = {
   'Supply Chain Director Approval': 'scd_comments',
 };
 
+// Same keying as STAGE_COMMENT_COLUMN — records which action a stage actually took
+// (not just that it commented), so "Decisions" on the detail page can show the
+// decision itself, not just infer it from other columns after the fact.
+const STAGE_DECISION_COLUMN: Partial<Record<LaptopRequestStatus, string>> = {
+  Submitted: 'itm_decision',
+  'IT Approval': 'itm_decision',
+  'CM Approval': 'cm_decision',
+  'IT Director Approval': 'itd_decision',
+  'Supply Chain Director Approval': 'scd_decision',
+};
+
+let laptopDecisionColumnsEnsured: Promise<void> | null = null;
+async function ensureLaptopDecisionColumns(): Promise<void> {
+  if (laptopDecisionColumnsEnsured) return laptopDecisionColumnsEnsured;
+  laptopDecisionColumnsEnsured = (async () => {
+    await exec(`ALTER TABLE laptop_requests ADD COLUMN IF NOT EXISTS itm_decision TEXT`);
+    await exec(`ALTER TABLE laptop_requests ADD COLUMN IF NOT EXISTS cm_decision TEXT`);
+    await exec(`ALTER TABLE laptop_requests ADD COLUMN IF NOT EXISTS itd_decision TEXT`);
+    await exec(`ALTER TABLE laptop_requests ADD COLUMN IF NOT EXISTS scd_decision TEXT`);
+  })().catch((err) => {
+    laptopDecisionColumnsEnsured = null;
+    throw err;
+  });
+  return laptopDecisionColumnsEnsured;
+}
+
 // Human-readable name of whoever is rejecting, for the activity log — only stages with
 // a reject option appear here (see getRejectStatusForStage).
 const REJECTING_STAGE_LABEL: Partial<Record<LaptopRequestStatus, string>> = {
@@ -1630,6 +1656,7 @@ const REJECTING_STAGE_LABEL: Partial<Record<LaptopRequestStatus, string>> = {
 export async function rejectLaptopRequest(id: number, reason: string): Promise<ActionResult> {
   try {
     const actor = await getActor();
+    await ensureLaptopDecisionColumns();
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
     const row = rows[0];
     if (!row) return { success: false, error: 'Request not found.' };
@@ -1651,6 +1678,7 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     const trimmedReason = requireText(reason, 'Rejection reason');
     const nextStatus: LaptopRequestStatus = 'IT Approval';
     const stageColumn = STAGE_COMMENT_COLUMN[currentStatus];
+    const stageDecisionColumn = STAGE_DECISION_COLUMN[currentStatus];
 
     const sets = [
       'status = ?', 'pending_with = ?', 'reviewed_by_name = ?', 'reviewed_by_email = ?',
@@ -1658,6 +1686,7 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     ];
     const params: QueryParams = [nextStatus, getPendingWithLabel(nextStatus), actor.name, actor.email, trimmedReason, trimmedReason];
     if (stageColumn) { sets.push(`${stageColumn} = ?`); params.push(trimmedReason); }
+    if (stageDecisionColumn) { sets.push(`${stageDecisionColumn} = ?`); params.push('Rejected'); }
     params.push(id);
 
     await exec(`UPDATE laptop_requests SET ${sets.join(', ')} WHERE id = ?`, params);
@@ -1687,6 +1716,7 @@ export async function updateLaptopRequestStatus(
 ): Promise<ActionResult> {
   try {
     const actor = await getActor();
+    await ensureLaptopDecisionColumns();
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
     const row = rows[0];
     if (!row) return { success: false, error: 'Request not found.' };
@@ -1702,6 +1732,8 @@ export async function updateLaptopRequestStatus(
     const isProcureNewFlow = laptopIsProcureNewFlow(row);
     let procureNewTypeOfDevice = '';
     let procureNewModel = '';
+    let isCmProcureNewMove = false;
+    let isRepairMove = false;
 
     if (userCancellingOwnRequest && actor.permissions.canCreateRequests) {
       if (!IT_MANAGER_STATUSES.includes(currentStatus)) {
@@ -1716,9 +1748,9 @@ export async function updateLaptopRequestStatus(
       // Country Manager can flag a request as needing a brand new device procured instead
       // of approving it outright — routes to the IT Team for device details. Also how a CM
       // overrides an IT Manager's "Assign existing laptop" pick (see clearsAssignedUnit below).
-      const isCmProcureNewMove = currentStatus === 'CM Approval' && status === 'Procure New Details';
+      isCmProcureNewMove = currentStatus === 'CM Approval' && status === 'Procure New Details';
       // Repair & Closed stays an IT-Manager-only outcome (only they assess the physical device).
-      const isRepairMove = IT_MANAGER_STATUSES.includes(currentStatus) && status === 'Repaired & Closed';
+      isRepairMove = IT_MANAGER_STATUSES.includes(currentStatus) && status === 'Repaired & Closed';
 
       if (!isApproveMove && !isCmProcureNewMove && !isRepairMove) {
         return { success: false, error: `Cannot move ${row.reference_number} from ${currentStatus} to ${status}.` };
@@ -1766,6 +1798,22 @@ export async function updateLaptopRequestStatus(
     // not just the timestamp, so "Assigned Approvers" shows a name instead of staying blank.
     const stageApproverColumn = setsReviewer ? STAGE_APPROVER_NAME_COLUMN[currentStatus] : undefined;
     const stageApproverAssignment = stageApproverColumn ? `, ${stageApproverColumn} = ?` : '';
+    // What this stage actually decided (as opposed to just that it commented) — shown
+    // alongside the comment in the "Decisions" section. Never recorded for the
+    // requester cancelling their own request, since that's not a reviewer decision.
+    const decisionLabel = userCancellingOwnRequest
+      ? null
+      : isRepairMove
+        ? 'Repaired & Closed'
+        : assignedLaptop
+          ? 'Assigned Existing Laptop'
+          : procureNewTypeOfDevice
+            ? 'Procure New (specified by IT Manager)'
+            : isCmProcureNewMove
+              ? 'Procure New (flagged by Country Manager)'
+              : 'Approved';
+    const stageDecisionColumn = decisionLabel ? STAGE_DECISION_COLUMN[currentStatus] : undefined;
+    const stageDecisionAssignment = stageDecisionColumn ? `, ${stageDecisionColumn} = ?` : '';
     // "Assign existing laptop" hands over a specific second-hand unit — record which one,
     // separate from the current_brand/current_model/serial_no/age_years columns above,
     // which describe the OLD device being replaced.
@@ -1801,6 +1849,7 @@ export async function updateLaptopRequestStatus(
     ];
     if (stageCommentAssignment) params.push(comment);
     if (stageApproverAssignment) params.push(actor.name);
+    if (stageDecisionAssignment) params.push(decisionLabel);
     if (assignedLaptop) {
       params.push(
         blankToNull(assignedLaptop.serial_no),
@@ -1819,7 +1868,7 @@ export async function updateLaptopRequestStatus(
          reviewed_by_email = ?,
          reviewed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
          rejection_reason = ?,
-         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${assignedLaptopAssignment}${procureNewFlagAssignment}${procureNewDetailsAssignment},
+         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${stageDecisionAssignment}${assignedLaptopAssignment}${procureNewFlagAssignment}${procureNewDetailsAssignment},
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       params,

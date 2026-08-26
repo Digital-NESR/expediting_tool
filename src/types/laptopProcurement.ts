@@ -207,6 +207,11 @@ export interface LaptopRequest {
   itd_comments: string | null;
   scd_comments: string | null;
 
+  itm_decision?: string | null;
+  cm_decision?: string | null;
+  itd_decision?: string | null;
+  scd_decision?: string | null;
+
   it_team_approved_date: string | null;
   cm_approved_date: string | null;
   itd_approved_date: string | null;
