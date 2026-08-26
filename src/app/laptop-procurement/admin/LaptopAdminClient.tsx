@@ -28,7 +28,7 @@ import {
   getStatusBadge,
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
-import type { LaptopAdminData, LaptopDelegationRow, LaptopDeviceCatalogRow, LaptopPermissionListItem, LaptopPermissionRole } from '@/types/laptopProcurement';
+import type { LaptopAdminData, LaptopDelegatableRole, LaptopDelegationRow, LaptopDeviceCatalogRow, LaptopPermissionListItem, LaptopPermissionRole } from '@/types/laptopProcurement';
 
 const APPROVER_MATRIX_ROLE_SET: Set<LaptopPermissionRole> = new Set(APPROVER_MATRIX_ROLES);
 
@@ -72,19 +72,28 @@ function delegationIsScheduled(d: LaptopDelegationRow): boolean {
   return d.is_active && Boolean(d.starts_at) && new Date(d.starts_at!).getTime() > Date.now();
 }
 
+// Combines a role's stage + country into one string key for checkbox state and back.
+const ROLE_KEY_SEP = '||';
+function roleKey(stage: string, country: string): string { return `${stage}${ROLE_KEY_SEP}${country}`; }
+function parseRoleKey(key: string): { stage: LaptopApprovalStage; country: string } {
+  const [stage, country] = key.split(ROLE_KEY_SEP);
+  return { stage: stage as LaptopApprovalStage, country };
+}
+
 function DelegationsPanel({
   delegations,
-  approvers,
+  delegatableRoles,
   onDone,
   onMutated,
 }: {
   delegations: LaptopDelegationRow[];
-  approvers: Array<{ email: string; name: string | null; role: string; country: string | null }>;
+  delegatableRoles: LaptopDelegatableRole[];
   onDone: (message: string) => void;
   onMutated: () => Promise<unknown>;
 }) {
   const [isPending, startTransition] = usePendingAction();
   const [delegatorEmail, setDelegatorEmail] = useState('');
+  const [selectedRoleKeys, setSelectedRoleKeys] = useState<Set<string>>(new Set());
   const [delegateEmail, setDelegateEmail] = useState('');
   const [delegateName, setDelegateName] = useState('');
   const [startsAt, setStartsAt] = useState('');
@@ -96,14 +105,29 @@ function DelegationsPanel({
   const currentDelegationsPage = Math.min(delegationsPage, delegationsPageCount - 1);
   const pagedDelegations = delegations.slice(currentDelegationsPage * REQUESTS_PAGE_SIZE, (currentDelegationsPage + 1) * REQUESTS_PAGE_SIZE);
 
+  // Step 1 picks a person; step 2 (below) narrows to exactly which of their roles to
+  // hand over — never "everything this person holds" implicitly.
+  const distinctDelegators = [...new Map(delegatableRoles.map(r => [r.email.toLowerCase(), { email: r.email, name: r.name }])).values()];
+  const rolesForDelegator = delegatableRoles.filter(r => r.email.toLowerCase() === delegatorEmail.toLowerCase());
+
+  function toggleRole(key: string) {
+    setSelectedRoleKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (selectedRoleKeys.size === 0) { setError('Select at least one role to delegate.'); return; }
+    const roles = [...selectedRoleKeys].map(parseRoleKey);
     startTransition(async () => {
-      const result = await adminGrantLaptopDelegation({ delegatorEmail, delegateEmail, delegateName, startsAt: startsAt || null, endsAt: endsAt || null });
+      const result = await adminGrantLaptopDelegation({ delegatorEmail, delegateEmail, delegateName, roles, startsAt: startsAt || null, endsAt: endsAt || null });
       if (result.success) {
-        onDone(`Delegated ${delegatorEmail}'s approvals to ${delegateEmail}.`);
-        setDelegatorEmail(''); setDelegateEmail(''); setDelegateName(''); setStartsAt(''); setEndsAt('');
+        onDone(`Delegated ${roles.length === 1 ? `${roles[0].stage} (${roles[0].country})` : `${roles.length} roles`} from ${delegatorEmail} to ${delegateEmail}.`);
+        setDelegatorEmail(''); setSelectedRoleKeys(new Set()); setDelegateEmail(''); setDelegateName(''); setStartsAt(''); setEndsAt('');
         await onMutated();
       } else {
         setError(result.error ?? 'Failed to create delegation.');
@@ -133,10 +157,15 @@ function DelegationsPanel({
         <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">Approver (delegator)</label>
-            <select className={INP} value={delegatorEmail} onChange={e => setDelegatorEmail(e.target.value)} required>
+            <select
+              className={INP}
+              value={delegatorEmail}
+              onChange={e => { setDelegatorEmail(e.target.value); setSelectedRoleKeys(new Set()); }}
+              required
+            >
               <option value="">Select an approver…</option>
-              {approvers.map(a => (
-                <option key={a.email} value={a.email}>{a.name ? `${a.name} (${a.email})` : a.email} — {a.role}{a.country ? ` (${a.country})` : ''}</option>
+              {distinctDelegators.map(a => (
+                <option key={a.email} value={a.email}>{a.name ? `${a.name} (${a.email})` : a.email}</option>
               ))}
             </select>
           </div>
@@ -151,6 +180,24 @@ function DelegationsPanel({
             />
             {delegateName && <p className="mt-1 truncate text-xs text-slate-500">{delegateName}</p>}
           </div>
+          {delegatorEmail && (
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs font-semibold text-slate-500">Which role(s) to delegate</label>
+              <div className="flex flex-wrap gap-2">
+                {rolesForDelegator.map(r => {
+                  const key = roleKey(r.stage, r.country);
+                  const checked = selectedRoleKeys.has(key);
+                  return (
+                    <label key={key} className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${checked ? 'border-[#307c4c]/40 bg-[#307c4c]/10 text-[#307c4c]' : 'border-slate-200 bg-white text-slate-600'}`}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleRole(key)} className="h-3.5 w-3.5 rounded border-slate-300 text-[#307c4c] focus:ring-[#307c4c]" />
+                      {r.stage} — {r.country}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500/80">Only the roles checked here are handed over — not anything else this approver holds.</p>
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">Start date (optional)</label>
             <input type="date" className={INP} value={startsAt} onChange={e => setStartsAt(e.target.value)} />
@@ -166,7 +213,7 @@ function DelegationsPanel({
             </button>
           </div>
         </form>
-        {approvers.length === 0 && (
+        {distinctDelegators.length === 0 && (
           <p className="mt-3 text-xs text-slate-500/80">No approvers found. Assign approval access from the Permissions tab first.</p>
         )}
       </section>
@@ -188,6 +235,9 @@ function DelegationsPanel({
                   <span className="text-sm font-semibold text-slate-900">{d.delegator_name || d.delegator_email}</span>
                   <span className="text-slate-400">→</span>
                   <span className="text-sm font-semibold text-slate-900">{d.delegate_name || d.delegate_email}</span>
+                  {d.stage && d.country && (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">{d.stage} — {d.country}</span>
+                  )}
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${live ? 'bg-[#307c4c]/10 text-[#307c4c]' : scheduled ? 'bg-amber-500/10 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
                     {live ? 'Active' : scheduled ? 'Scheduled' : 'Inactive'}
                   </span>
@@ -464,7 +514,7 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   const [editingApproverEmail, setEditingApproverEmail] = useState<string | null>(null);
 
   if (!data) return <DbError />;
-  const { actor, requests, activity, permissionsList, delegations, deviceCatalog, stats, approvers } = data;
+  const { actor, requests, activity, permissionsList, delegations, deviceCatalog, stats, delegatableRoles } = data;
   const isMatrixRole = APPROVER_MATRIX_ROLE_SET.has(role);
 
   // Requests are paginated server-side (see getLaptopAdminData) — `requests` here is
@@ -820,7 +870,7 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
         )}
 
         {tab === 'delegations' && (
-          <DelegationsPanel delegations={delegations} approvers={approvers} onDone={setBanner} onMutated={refreshAdminData} />
+          <DelegationsPanel delegations={delegations} delegatableRoles={delegatableRoles} onDone={setBanner} onMutated={refreshAdminData} />
         )}
 
         {tab === 'devices' && (

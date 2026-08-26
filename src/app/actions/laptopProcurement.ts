@@ -36,6 +36,7 @@ import type {
   LaptopAccessRequestStatus,
   LaptopActivityRow,
   LaptopActor,
+  LaptopDelegatableRole,
   LaptopDelegationGrant,
   LaptopDelegationData,
   LaptopDelegationRow,
@@ -131,21 +132,13 @@ async function exec(statement: string, params: QueryParams = []): Promise<ExecRe
 
 /* ── Actor / access ───────────────────────────────────────────── */
 
+// Same convention as ProcureGuard/SourceGuide: the shared, platform-wide ADMIN_EMAILS
+// list and this app's own LAPTOP_PROCUREMENT_ADMIN_EMAILS list are OR'd together.
+// Either one bootstraps a laptop-procurement Admin when no laptop_permissions row
+// exists yet for that email — LAPTOP_PROCUREMENT_ADMIN_EMAILS exists only so someone
+// can be made a laptop-procurement Admin without also getting the shared /admin shell.
 function adminEmails(): string[] {
   return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.LAPTOP_PROCUREMENT_ADMIN_EMAILS ?? ''}`)
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-// Deliberately narrower than adminEmails(): the shared ADMIN_EMAILS list controls who
-// can reach the /admin shell at all (see admin/page.tsx) — it's a platform-wide list,
-// not specific to this app, so it must never by itself grant laptop-procurement's own
-// Admin role. Only this app's own dedicated env var can bootstrap a laptop-procurement
-// Admin when no laptop_permissions row exists yet; real admins should get an explicit
-// row instead of leaning on either env var.
-function laptopProcurementAdminEmails(): string[] {
-  return (process.env.LAPTOP_PROCUREMENT_ADMIN_EMAILS ?? '')
     .split(',')
     .map(e => e.trim().toLowerCase())
     .filter(Boolean);
@@ -245,7 +238,7 @@ async function getActor(): Promise<LaptopActor> {
   if (!email) throw new Error('You must be signed in to use Laptop Procurement.');
 
   const permissionRow = await getPermissionRowForEmail(email);
-  const fallbackRole: LaptopPermissionRole = laptopProcurementAdminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
+  const fallbackRole: LaptopPermissionRole = adminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
   const baseRole = (permissionRow?.role ?? fallbackRole) as LaptopPermissionRole;
   const matrixCapabilities = await getApproverMatrixCapabilities(email);
   const permissions = buildEffectivePermissions(baseRole, matrixCapabilities);
@@ -288,6 +281,11 @@ async function ensureLaptopDelegationTable(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`);
     await exec(`ALTER TABLE laptop_delegations ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ`);
+    // Role-based delegation: which specific approver-matrix slot (stage + country) is
+    // being handed over, rather than delegating everything the delegator happens to
+    // hold. Nullable only because pre-existing rows predate this column.
+    await exec(`ALTER TABLE laptop_delegations ADD COLUMN IF NOT EXISTS stage TEXT`);
+    await exec(`ALTER TABLE laptop_delegations ADD COLUMN IF NOT EXISTS country TEXT`);
     await exec(`CREATE INDEX IF NOT EXISTS idx_laptop_delegations_delegate ON laptop_delegations (LOWER(delegate_email))`);
     await exec(`CREATE INDEX IF NOT EXISTS idx_laptop_delegations_delegator ON laptop_delegations (LOWER(delegator_email))`);
   })().catch((err) => {
@@ -311,29 +309,34 @@ async function expireStaleLaptopDelegations(): Promise<void> {
 }
 
 /**
- * Who should actually be notified in place of `email`, if anyone — follows an active
- * delegation FROM `email` to its delegate, and recursively from there in case the
- * delegate has also delegated onward. Returns null if `email` has no active
+ * Who should actually be notified in place of `email` for this specific (stage,
+ * country) slot, if anyone — follows an active delegation FROM `email` scoped to
+ * exactly that role, and recursively from there in case the delegate has also
+ * delegated that same role onward. A delegation of a *different* role held by the
+ * same person doesn't match and is ignored — role-based delegation only follows the
+ * slot actually being resolved. Returns null if there's no matching active
  * delegation (the caller should keep using `email` unchanged).
  */
 async function resolveActiveLaptopDelegateEmail(
   email: string | null | undefined,
+  stage: LaptopApprovalStage,
+  country: string | null | undefined,
   depth = 0,
 ): Promise<{ name: string | null; email: string } | null> {
-  if (!email || depth > 5) return null;
+  if (!email || !country || depth > 5) return null;
   try {
     const rows = await sql<QueryResultRow[]>(
       `SELECT delegate_email, delegate_name FROM laptop_delegations
-       WHERE LOWER(delegator_email) = ? AND is_active = TRUE
+       WHERE LOWER(delegator_email) = ? AND stage = ? AND LOWER(country) = ? AND is_active = TRUE
          AND (starts_at IS NULL OR starts_at <= CURRENT_TIMESTAMP)
          AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
        LIMIT 1`,
-      [email.toLowerCase()],
+      [email.toLowerCase(), stage, country.toLowerCase()],
     );
     const row = rows[0];
     if (!row) return null;
     const delegateEmail = String(row.delegate_email);
-    const further = await resolveActiveLaptopDelegateEmail(delegateEmail, depth + 1);
+    const further = await resolveActiveLaptopDelegateEmail(delegateEmail, stage, country, depth + 1);
     return further ?? { name: (row.delegate_name as string | null) ?? null, email: delegateEmail };
   } catch (err) {
     console.error('[resolveActiveLaptopDelegateEmail]', err);
@@ -342,11 +345,14 @@ async function resolveActiveLaptopDelegateEmail(
 }
 
 /**
- * Resolve active delegations TO `email` for Laptop Procurement. Each delegator
- * is expanded into their own effective role/permissions/approver-matrix capabilities.
- * Only delegators who actually carry authority (Admin, or named anywhere in the
- * approver matrix) are inherited. Fail-safe: returns [] if the delegations table is
- * unavailable.
+ * Resolve active delegations TO `email` for Laptop Procurement — role-based: each row
+ * hands over exactly the one (stage, country) slot it names, never the delegator's
+ * other roles or their own laptop_permissions standing (deliberately built with
+ * baseRole 'Requester' regardless of what the delegator actually is — an Admin
+ * delegating a single country's IT Manager slot must not hand over admin rights along
+ * with it). Rows predating role-based delegation (stage/country NULL) are skipped, since
+ * there's no active data like that today. Fail-safe: returns [] if the delegations
+ * table is unavailable.
  */
 async function resolveLaptopDelegations(email: string): Promise<LaptopDelegationGrant[]> {
   try {
@@ -362,15 +368,16 @@ async function resolveLaptopDelegations(email: string): Promise<LaptopDelegation
 
     const grants: LaptopDelegationGrant[] = [];
     for (const row of rows) {
+      const stage = row.stage as LaptopApprovalStage | null;
+      const country = row.country as string | null;
+      if (!stage || !country) continue;
       const delegatorEmail = String(row.delegator_email);
-      const permRow = await getPermissionRowForEmail(delegatorEmail);
-      const baseRole = (permRow?.role ?? 'Requester') as LaptopPermissionRole;
-      const matrixCapabilities = await getApproverMatrixCapabilities(delegatorEmail);
-      const grantPermissions = buildEffectivePermissions(baseRole, matrixCapabilities);
-      if (!grantPermissions.canViewAll) continue; // only reviewers/approvers/admins carry delegatable authority
+      const matrixCapabilities = { ...emptyMatrixCapabilities(), [stage]: [country] };
+      const grantPermissions = buildEffectivePermissions('Requester', matrixCapabilities);
+      if (!grantPermissions.canViewAll) continue; // defensive — should always be true given the slot above
       grants.push({
         email: delegatorEmail,
-        name: permRow?.name ?? (row.delegator_name as string | null) ?? delegatorEmail,
+        name: (row.delegator_name as string | null) ?? delegatorEmail,
         role: grantPermissions.role,
         matrixCapabilities,
         permissions: grantPermissions,
@@ -530,7 +537,9 @@ function requireReviewerQueueAccess(actor: LaptopActor): void {
 
 async function requireAdminActor(): Promise<LaptopActor> {
   const actor = await getActor();
-  if (!canUseLaptopAdmin(actor.effectiveAccessView)) {
+  // Belt-and-suspenders, matching ProcureGuard: covers the edge case of an explicit
+  // non-Admin laptop_permissions row for an email that's also in adminEmails().
+  if (!canUseLaptopAdmin(actor.effectiveAccessView) && !adminEmails().includes(actor.email.toLowerCase())) {
     throw new Error('Admin access is required.');
   }
   return actor;
@@ -614,6 +623,7 @@ async function sendLaptopDelegationNotification(
     delegatorName: string;
     delegateEmail: string;
     delegateName: string | null;
+    roles: Array<{ stage: string; country: string }>;
     expiresAt: string | null;
   },
 ): Promise<void> {
@@ -632,6 +642,7 @@ async function sendLaptopDelegationNotification(
       occurred_at: new Date().toISOString(),
       delegator: { email: params.delegatorEmail, name: params.delegatorName },
       delegate: { email: params.delegateEmail, name: params.delegateName },
+      roles: params.roles,
       expires_at: params.expiresAt,
       app_url: `${getLaptopAppBaseUrl()}/laptop-procurement/my-work`,
     };
@@ -687,7 +698,7 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
     // request. Otherwise the delegate never finds out there's anything to review.
     const realRecipients = await Promise.all(
       matrixRecipients.map(async r => {
-        const delegate = await resolveActiveLaptopDelegateEmail(r.email);
+        const delegate = await resolveActiveLaptopDelegateEmail(r.email, stage, request.country);
         return delegate ? { name: delegate.name ?? r.name, email: delegate.email } : r;
       }),
     );
@@ -1066,10 +1077,10 @@ async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStag
   const currentStage = getLaptopApprovalStage(request.status);
   const currentIndex = currentStage ? APPROVAL_STAGES.indexOf(currentStage) : -1;
 
-  async function liveNameFor(matrixEmail: unknown, matrixName: unknown): Promise<string | null> {
+  async function liveNameFor(matrixEmail: unknown, matrixName: unknown, stage: LaptopApprovalStage): Promise<string | null> {
     const email = String(matrixEmail ?? '').trim();
     if (!email) return null;
-    const delegate = await resolveActiveLaptopDelegateEmail(email);
+    const delegate = await resolveActiveLaptopDelegateEmail(email, stage, request.country);
     if (delegate) return delegate.name ?? delegate.email;
     return String(matrixName ?? '').trim() || email;
   }
@@ -1096,8 +1107,8 @@ async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStag
     const hasAssignee = Boolean(String(slot.matrixEmail ?? '').trim()) || Boolean(slot.actedName);
     const state = stateFor(slot.stage, hasAssignee);
     const name = state === 'done'
-      ? (slot.actedName || await liveNameFor(slot.matrixEmail, slot.matrixName))
-      : await liveNameFor(slot.matrixEmail, slot.matrixName);
+      ? (slot.actedName || await liveNameFor(slot.matrixEmail, slot.matrixName, slot.stage))
+      : await liveNameFor(slot.matrixEmail, slot.matrixName, slot.stage);
     return { label: slot.label, name: name || null, state };
   }));
 }
@@ -1190,8 +1201,8 @@ type MatrixApproverAcc = { email: string; name: string | null; stages: Map<Lapto
 
 // Every person named anywhere in the active approver matrix, keyed by email, with the
 // stage(s) and country(ies) they're the approver for — shared by the Delegations
-// dropdown (buildDelegationApprovers) and the Permissions tab's merged list
-// (buildMergedPermissionsList).
+// tab's delegatable-roles list (buildDelegatableRoles) and the Permissions tab's
+// merged list (buildMergedPermissionsList).
 function accumulateMatrixApprovers(matrixRows: QueryResultRow[]): Map<string, MatrixApproverAcc> {
   const byEmail = new Map<string, MatrixApproverAcc>();
   const addApprover = (rawEmail: unknown, rawName: unknown, stage: LaptopApprovalStage, country: string) => {
@@ -1219,34 +1230,22 @@ function accumulateMatrixApprovers(matrixRows: QueryResultRow[]): Map<string, Ma
   return byEmail;
 }
 
-function summariseMatrixApprover(entry: MatrixApproverAcc): { role: string; country: string } {
-  const stages = [...entry.stages.keys()];
-  const countries = new Set<string>();
-  for (const set of entry.stages.values()) for (const c of set) countries.add(c);
-  const country = countries.size === 1 ? [...countries][0] : `${countries.size} countries`;
-  return { role: stages.join(', '), country };
-}
-
-// Everyone eligible to be a delegation's "approver (delegator)": Admins from
-// laptop_permissions, plus everyone named anywhere in the approver matrix (their real
-// source of approval authority now). Deduped by email — an Admin who also happens to
-// be named in the matrix is just shown as Admin, since that already covers everything.
-function buildDelegationApprovers(
-  permissionRows: QueryResultRow[],
-  matrixRows: QueryResultRow[],
-): Array<{ email: string; name: string | null; role: string; country: string | null }> {
+// Every specific (email, stage, country) role delegatable from the Delegations tab —
+// one entry per approver-matrix slot, not per person or per stage, so picking a row
+// unambiguously identifies exactly the one role a delegation would hand over. Admin
+// (laptop_permissions) isn't included — that's account-level access, not an
+// approval-chain role, and isn't something role-based delegation hands over.
+function buildDelegatableRoles(matrixRows: QueryResultRow[]): LaptopDelegatableRole[] {
   const byEmail = accumulateMatrixApprovers(matrixRows);
-  const approvers = new Map<string, { email: string; name: string | null; role: string; country: string | null }>();
+  const roles: LaptopDelegatableRole[] = [];
   for (const entry of byEmail.values()) {
-    approvers.set(entry.email.toLowerCase(), { email: entry.email, name: entry.name, ...summariseMatrixApprover(entry) });
+    for (const [stage, countrySet] of entry.stages) {
+      for (const country of countrySet) {
+        roles.push({ email: entry.email, name: entry.name, stage, country });
+      }
+    }
   }
-  for (const row of permissionRows) {
-    if (row.role !== 'Admin') continue;
-    const email = String(row.email ?? '').trim();
-    if (!email) continue;
-    approvers.set(email.toLowerCase(), { email, name: (row.name as string | null) ?? null, role: 'Admin', country: null });
-  }
-  return [...approvers.values()].sort((a, b) => a.role.localeCompare(b.role) || a.email.localeCompare(b.email));
+  return roles.sort((a, b) => a.email.localeCompare(b.email) || a.stage.localeCompare(b.stage) || a.country.localeCompare(b.country));
 }
 
 // The Permissions tab's actual displayed list: Admin/Requester rows
@@ -1317,7 +1316,7 @@ export async function getLaptopAdminData(requestsPage: number = 0): Promise<Lapt
       delegations,
       deviceCatalog: serialise<LaptopDeviceCatalogRow[]>(deviceRows),
       stats,
-      approvers: buildDelegationApprovers(permissionRows, matrixRows),
+      delegatableRoles: buildDelegatableRoles(matrixRows),
       permissionsList: buildMergedPermissionsList(permissionRows, matrixRows),
     };
   } catch (err) {
@@ -2446,9 +2445,12 @@ export async function getLaptopDelegationData(): Promise<LaptopDelegationData | 
 export async function grantLaptopDelegation(input: {
   delegateEmail: string;
   delegateName?: string;
+  // Role-based: exactly the (stage, country) slots being handed over — never the
+  // actor's other roles, and validated against what they actually hold below.
+  roles: Array<{ stage: LaptopApprovalStage; country: string }>;
   startsAt?: string | null;
   endsAt?: string | null;
-}): Promise<ActionResult<{ id: number }>> {
+}): Promise<ActionResult<{ count: number }>> {
   try {
     const actor = await getActor();
     if (!actor.permissions.canViewAll) {
@@ -2458,32 +2460,41 @@ export async function grantLaptopDelegation(input: {
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
     if (!DELEGATION_EMAIL_RE.test(delegateEmail)) return { success: false, error: 'Enter a valid delegate email address.' };
     if (delegateEmail === actor.email.toLowerCase()) return { success: false, error: 'You cannot delegate to yourself.' };
+    if (!input.roles?.length) return { success: false, error: 'Select at least one role to delegate.' };
+    for (const r of input.roles) {
+      if (!actor.matrixCapabilities[r.stage]?.some(c => normaliseScopeValue(c) === normaliseScopeValue(r.country))) {
+        return { success: false, error: `You don't hold ${r.stage} for ${r.country}.` };
+      }
+    }
     const startsAt = input.startsAt && input.startsAt.trim() ? input.startsAt.trim() : null;
     const expiresAt = input.endsAt && input.endsAt.trim() ? input.endsAt.trim() : null;
     if (startsAt && expiresAt && new Date(startsAt) >= new Date(expiresAt)) {
       return { success: false, error: 'End date must be after the start date.' };
     }
 
-    // Replace any existing active delegation to the same person so there is only one live grant.
-    await exec(
-      `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE LOWER(delegator_email) = ? AND LOWER(delegate_email) = ? AND is_active = TRUE`,
-      [actor.email.toLowerCase(), delegateEmail],
-    );
-    const result = await exec(
-      `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, starts_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-      [actor.email.toLowerCase(), actor.name, delegateEmail, blankToNull(input.delegateName), startsAt, expiresAt],
-    );
+    for (const r of input.roles) {
+      // Replace any existing active delegation of this exact role to the same person.
+      await exec(
+        `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE LOWER(delegator_email) = ? AND LOWER(delegate_email) = ? AND stage = ? AND LOWER(country) = ? AND is_active = TRUE`,
+        [actor.email.toLowerCase(), delegateEmail, r.stage, r.country.toLowerCase()],
+      );
+      await exec(
+        `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, stage, country, starts_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [actor.email.toLowerCase(), actor.name, delegateEmail, blankToNull(input.delegateName), r.stage, r.country, startsAt, expiresAt],
+      );
+    }
     revalidatePath('/laptop-procurement/delegate');
     await sendLaptopDelegationNotification('granted', {
       delegatorEmail: actor.email,
       delegatorName: actor.name,
       delegateEmail,
       delegateName: input.delegateName?.trim() || null,
+      roles: input.roles,
       expiresAt,
     });
-    return { success: true, data: { id: result.insertId } };
+    return { success: true, data: { count: input.roles.length } };
   } catch (err) {
     console.error('[grantLaptopDelegation]', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
@@ -2511,6 +2522,7 @@ export async function revokeLaptopDelegation(id: number): Promise<ActionResult> 
         delegatorName: (row.delegator_name as string) || actor.name,
         delegateEmail: String(row.delegate_email),
         delegateName: (row.delegate_name as string | null) ?? null,
+        roles: row.stage && row.country ? [{ stage: String(row.stage), country: String(row.country) }] : [],
         expiresAt: null,
       });
     }
@@ -2525,14 +2537,17 @@ export async function revokeLaptopDelegation(id: number): Promise<ActionResult> 
 
 // Admin-managed delegation: an admin sets up a delegation on behalf of any approver
 // (delegator → delegate), rather than the delegator delegating their own authority
-// via /laptop-procurement/delegate.
+// via /laptop-procurement/delegate. Role-based: each entry in `roles` must be a slot
+// the delegator actually holds in the approver matrix — validated directly against
+// it, rather than checking whether they carry approval authority in general.
 export async function adminGrantLaptopDelegation(input: {
   delegatorEmail: string;
   delegateEmail: string;
   delegateName?: string;
+  roles: Array<{ stage: LaptopApprovalStage; country: string }>;
   startsAt?: string | null;
   endsAt?: string | null;
-}): Promise<ActionResult<{ id: number }>> {
+}): Promise<ActionResult<{ count: number }>> {
   try {
     await requireAdminActor();
     await ensureLaptopDelegationTable();
@@ -2541,35 +2556,35 @@ export async function adminGrantLaptopDelegation(input: {
     if (!DELEGATION_EMAIL_RE.test(delegatorEmail)) return { success: false, error: 'Enter a valid approver email address.' };
     if (!DELEGATION_EMAIL_RE.test(delegateEmail)) return { success: false, error: 'Enter a valid delegate email address.' };
     if (delegatorEmail === delegateEmail) return { success: false, error: 'Approver and delegate must be different people.' };
+    if (!input.roles?.length) return { success: false, error: 'Select at least one role to delegate.' };
 
     const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
-    const delegatorRole = (delegatorRow?.role ?? (laptopProcurementAdminEmails().includes(delegatorEmail) ? 'Admin' : 'Requester')) as LaptopPermissionRole;
-    // Same effective-permissions build getActor() uses — matrix presence, not the
-    // laptop_permissions role alone, is what actually carries approval authority for
-    // IT Manager/Country Manager/IT Director/Supply Chain Director now.
-    const delegatorMatrixCapabilities = await getApproverMatrixCapabilities(delegatorEmail);
-    const delegatorProfile = buildEffectivePermissions(delegatorRole, delegatorMatrixCapabilities);
-    if (!delegatorProfile.canViewAll) {
-      return { success: false, error: 'The selected approver has no approval authority to delegate.' };
-    }
     const delegatorName = delegatorRow?.name || delegatorEmail;
+    const delegatorMatrixCapabilities = await getApproverMatrixCapabilities(delegatorEmail);
+    for (const r of input.roles) {
+      if (!delegatorMatrixCapabilities[r.stage]?.some(c => normaliseScopeValue(c) === normaliseScopeValue(r.country))) {
+        return { success: false, error: `${delegatorName} doesn't hold ${r.stage} for ${r.country}.` };
+      }
+    }
     const startsAt = input.startsAt && input.startsAt.trim() ? input.startsAt.trim() : null;
     const expiresAt = input.endsAt && input.endsAt.trim() ? input.endsAt.trim() : null;
     if (startsAt && expiresAt && new Date(startsAt) >= new Date(expiresAt)) {
       return { success: false, error: 'End date must be after the start date.' };
     }
 
-    // Replace any existing active delegation for this same pair so there is only one live grant.
-    await exec(
-      `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE LOWER(delegator_email) = ? AND LOWER(delegate_email) = ? AND is_active = TRUE`,
-      [delegatorEmail, delegateEmail],
-    );
-    const result = await exec(
-      `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, starts_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-      [delegatorEmail, delegatorName, delegateEmail, blankToNull(input.delegateName), startsAt, expiresAt],
-    );
+    for (const r of input.roles) {
+      // Replace any existing active delegation of this exact role for this same pair.
+      await exec(
+        `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE LOWER(delegator_email) = ? AND LOWER(delegate_email) = ? AND stage = ? AND LOWER(country) = ? AND is_active = TRUE`,
+        [delegatorEmail, delegateEmail, r.stage, r.country.toLowerCase()],
+      );
+      await exec(
+        `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, stage, country, starts_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [delegatorEmail, delegatorName, delegateEmail, blankToNull(input.delegateName), r.stage, r.country, startsAt, expiresAt],
+      );
+    }
     revalidatePath('/admin');
     revalidatePath('/laptop-procurement/delegate');
     await sendLaptopDelegationNotification('granted', {
@@ -2577,9 +2592,10 @@ export async function adminGrantLaptopDelegation(input: {
       delegatorName,
       delegateEmail,
       delegateName: input.delegateName?.trim() || null,
+      roles: input.roles,
       expiresAt,
     });
-    return { success: true, data: { id: result.insertId } };
+    return { success: true, data: { count: input.roles.length } };
   } catch (err) {
     console.error('[adminGrantLaptopDelegation]', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
