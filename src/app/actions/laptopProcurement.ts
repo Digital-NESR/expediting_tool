@@ -132,13 +132,25 @@ async function exec(statement: string, params: QueryParams = []): Promise<ExecRe
 
 /* ── Actor / access ───────────────────────────────────────────── */
 
-// Same convention as ProcureGuard/SourceGuide: the shared, platform-wide ADMIN_EMAILS
-// list and this app's own LAPTOP_PROCUREMENT_ADMIN_EMAILS list are OR'd together.
-// Either one bootstraps a laptop-procurement Admin when no laptop_permissions row
-// exists yet for that email — LAPTOP_PROCUREMENT_ADMIN_EMAILS exists only so someone
-// can be made a laptop-procurement Admin without also getting the shared /admin shell.
+// Combined list, used ONLY by requireAdminActor()'s bypass below and by the
+// "don't delete this row" guards further down — i.e. it only ever affects the
+// /admin console's Laptop Procurement admin pages, never the actor's own role on
+// the main /laptop-procurement app (see laptopProcurementAdminEmails for that).
 function adminEmails(): string[] {
   return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.LAPTOP_PROCUREMENT_ADMIN_EMAILS ?? ''}`)
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+// Deliberately narrower than adminEmails(): the shared, platform-wide ADMIN_EMAILS
+// list only ever grants the outer /admin shell and its console pages (see
+// requireAdminActor) — by itself it must never make someone an Admin on the actual
+// /laptop-procurement app. Only this app's own dedicated env var can bootstrap a
+// laptop-procurement Admin there when no laptop_permissions row exists yet; real
+// admins should get an explicit row instead of leaning on either env var.
+function laptopProcurementAdminEmails(): string[] {
+  return (process.env.LAPTOP_PROCUREMENT_ADMIN_EMAILS ?? '')
     .split(',')
     .map(e => e.trim().toLowerCase())
     .filter(Boolean);
@@ -238,7 +250,7 @@ async function getActor(): Promise<LaptopActor> {
   if (!email) throw new Error('You must be signed in to use Laptop Procurement.');
 
   const permissionRow = await getPermissionRowForEmail(email);
-  const fallbackRole: LaptopPermissionRole = adminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
+  const fallbackRole: LaptopPermissionRole = laptopProcurementAdminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
   const baseRole = (permissionRow?.role ?? fallbackRole) as LaptopPermissionRole;
   const matrixCapabilities = await getApproverMatrixCapabilities(email);
   const permissions = buildEffectivePermissions(baseRole, matrixCapabilities);
@@ -537,12 +549,18 @@ function requireReviewerQueueAccess(actor: LaptopActor): void {
 
 async function requireAdminActor(): Promise<LaptopActor> {
   const actor = await getActor();
-  // Belt-and-suspenders, matching ProcureGuard: covers the edge case of an explicit
-  // non-Admin laptop_permissions row for an email that's also in adminEmails().
-  if (!canUseLaptopAdmin(actor.effectiveAccessView) && !adminEmails().includes(actor.email.toLowerCase())) {
+  if (canUseLaptopAdmin(actor.effectiveAccessView)) return actor;
+  // ADMIN_EMAILS (platform-wide) or LAPTOP_PROCUREMENT_ADMIN_EMAILS opens the /admin
+  // console's Laptop Procurement admin pages — every function above that calls
+  // requireAdminActor() is reached only through /admin, never through the main
+  // /laptop-procurement app. The elevation below is scoped to the actor object this
+  // call returns; it never touches what getActor() itself hands back, so someone
+  // here only via the env var still shows up as a plain Requester on the app itself.
+  if (!adminEmails().includes(actor.email.toLowerCase())) {
     throw new Error('Admin access is required.');
   }
-  return actor;
+  const permissions = buildEffectivePermissions('Admin', actor.matrixCapabilities);
+  return { ...actor, role: 'Admin', isAdmin: true, permissions, effectiveAccessView: permissions.accessView };
 }
 
 /* ── n8n webhooks (mirrors ProcureGuard's notifier) ───────────── */
@@ -1029,33 +1047,36 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
     requireOperationalAccess(actor);
     const scope = scopedWhere(actor);
 
-    // Only the top 7 active-approval requests, in the same priority order the widget
-    // displays them — avoids pulling every visible request (which can run into the
-    // hundreds for a canViewAll actor) just to show a handful.
+    // Pull a generous batch of active-approval requests in scope, then keep only the
+    // ones actually awaiting this actor's decision (same "needs my action" filter as
+    // My Work) — being in scope isn't enough, since scope includes requests already
+    // past this actor's stage and sitting with someone else.
     const priorityRank = `CASE priority WHEN 'Critical' THEN 0 WHEN 'High' THEN 1 WHEN 'Normal' THEN 2 WHEN 'Low' THEN 3 ELSE 2 END`;
     const activePlaceholders = APPROVAL_ACTIVE_STATUSES.map(() => '?').join(', ');
     const pendingWhere = scope.where ? `${scope.where} AND status IN (${activePlaceholders})` : `WHERE status IN (${activePlaceholders})`;
 
     const [pendingRows, activityRows, stats] = await Promise.all([
       sql<QueryResultRow[]>(
-        `SELECT * FROM laptop_requests ${pendingWhere} ORDER BY ${priorityRank}, created_at DESC LIMIT 7`,
+        `SELECT * FROM laptop_requests ${pendingWhere} ORDER BY ${priorityRank}, created_at DESC LIMIT 50`,
         [...scope.params, ...APPROVAL_ACTIVE_STATUSES],
       ),
+      // Always the actor's own actions — not everything canViewAll can see — so
+      // "Recent Activity" reflects what this person actually did.
       sql<QueryResultRow[]>(
-        actor.permissions.canViewAll
-          ? `SELECT * FROM laptop_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 12`
-          : `SELECT a.* FROM laptop_activity_log a
-             JOIN laptop_requests r ON a.request_id = r.id
-             WHERE r.requested_by_email = ? AND a.request_id > 0 AND a.action NOT ILIKE '%seeded%'
-             ORDER BY a.created_at DESC LIMIT 12`,
-        actor.permissions.canViewAll ? [] : [actor.email],
+        `SELECT * FROM laptop_activity_log WHERE actor_email = ? AND ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 12`,
+        [actor.email],
       ),
       computeLaptopStats(scope.where, scope.params),
     ]);
 
+    const pendingQueue = serialise<LaptopRequest[]>(pendingRows).filter(r => {
+      const actions = getScopedActions(actor, r);
+      return actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canProcureNew || actions.canSubmitProcureDetails;
+    });
+
     return {
       stats,
-      pendingQueue: serialise<LaptopRequest[]>(pendingRows),
+      pendingQueue,
       activity: serialise<LaptopActivityRow[]>(activityRows),
       actor,
     };
@@ -1369,21 +1390,6 @@ export async function getLaptopAnalyticsData(): Promise<LaptopAnalyticsData | nu
     return await computeLaptopAnalytics(actor, scope.where, scope.params);
   } catch (err) {
     console.error('[getLaptopAnalyticsData]', err);
-    return null;
-  }
-}
-
-// Deliberately unscoped — the Global tab on the laptop-procurement Analytics page shows
-// every request regardless of the actor's own approval countries, for anyone who clears
-// the analytics gate (Reviewer or Admin). Distinct from canViewAll, which
-// governs approval-chain visibility elsewhere and stays tied to approver-matrix presence.
-export async function getLaptopGlobalAnalyticsData(): Promise<LaptopAnalyticsData | null> {
-  try {
-    const actor = await getActor();
-    requireAnalyticsAccess(actor);
-    return await computeLaptopAnalytics(actor, '', []);
-  } catch (err) {
-    console.error('[getLaptopGlobalAnalyticsData]', err);
     return null;
   }
 }

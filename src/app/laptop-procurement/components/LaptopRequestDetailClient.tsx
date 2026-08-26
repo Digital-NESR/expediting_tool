@@ -288,7 +288,7 @@ function ExistingDeviceSection({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>SAP Number</label>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>SAP Asset ID</label>
               <input className={INP} value={sapNumber} onChange={e => setSapNumber(e.target.value)} />
             </div>
           </div>
@@ -306,7 +306,7 @@ function ExistingDeviceSection({
           <Field label="Model" value={request.current_model} />
           <Field label="Serial No." value={request.serial_no} />
           <Field label="Age" value={request.age_years} />
-          <Field label="SAP Number" value={request.sap_number} />
+          <Field label="SAP Asset ID" value={request.sap_number} />
         </FieldGrid>
       )}
     </Section>

@@ -135,13 +135,17 @@ function SidebarBody({
       </nav>
 
       <div className="border-t border-slate-100 px-3 pb-3 pt-3">
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-4 py-2.5 text-white shadow-sm shadow-[#307c4c]/20">
+        <Link
+          href="/laptop-procurement/my-work"
+          onClick={onNavigate}
+          className="flex items-center justify-between gap-3 rounded-xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-4 py-2.5 text-white shadow-sm shadow-[#307c4c]/20 transition hover:from-[#2b6f44] hover:to-[#193f27]"
+        >
           <div className="min-w-0">
             <p className="text-[0.625rem] font-semibold uppercase tracking-wider text-white/70">Review Queue</p>
             <p className="text-[0.6875rem] text-white/70">active approval items</p>
           </div>
           <p className="text-2xl font-bold leading-none tabular-nums">{pendingCount ?? 0}</p>
-        </div>
+        </Link>
       </div>
     </>
   );

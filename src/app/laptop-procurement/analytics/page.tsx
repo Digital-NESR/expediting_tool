@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getLaptopActor, getLaptopAnalyticsData, getLaptopGlobalAnalyticsData } from '@/app/actions/laptopProcurement';
+import { getLaptopActor, getLaptopAnalyticsData } from '@/app/actions/laptopProcurement';
 import { canUseLaptopAnalytics } from '@/lib/laptopProcurement-utils';
 import LaptopAnalyticsPageClient from './LaptopAnalyticsPageClient';
 
@@ -9,10 +9,7 @@ export default async function LaptopAnalyticsPage() {
     redirect('/laptop-procurement');
   }
 
-  const [personal, globalData] = await Promise.all([
-    getLaptopAnalyticsData(),
-    getLaptopGlobalAnalyticsData(),
-  ]);
+  const data = await getLaptopAnalyticsData();
 
-  return <LaptopAnalyticsPageClient personal={personal} globalData={globalData} accessView={actor.effectiveAccessView} />;
+  return <LaptopAnalyticsPageClient data={data} accessView={actor.effectiveAccessView} />;
 }
