@@ -1,8 +1,12 @@
 /*
  * Public help & training page for RFx Officer — no auth required.
  * Tab 1: Training video (SharePoint). Tab 2: the RFQ Flow walkthrough (training material).
- * If the inline video ever stops embedding, replace VIDEO_URL with the SharePoint
- * "Embed" URL (…/_layouts/15/embed.aspx?UniqueId=…) — same format TI-TE uses.
+ *
+ * The iframe MUST use the SharePoint "Embed" URL (…/_layouts/15/embed.aspx?UniqueId=…) —
+ * same format TI-TE/ProcureGuard use. A plain share link (…/:v:/g/personal/…) is served
+ * with frame-blocking headers and renders as an empty/blocked box. To refresh the video,
+ * open it in SharePoint/Stream → Share → Embed, and paste the new embed.aspx URL below.
+ * VIDEO_SHARE_URL is only the "open in SharePoint" fallback link (opens the full page).
  */
 'use client';
 
@@ -14,7 +18,10 @@ import {
   Map, BookOpen, Globe, History, ChevronRight, Sparkles, Play,
 } from 'lucide-react';
 
-const VIDEO_URL = 'https://nesrcorp-my.sharepoint.com/:v:/g/personal/mfarhan1_nesr_com/IQDRcTl5dTRpTIwfOCh4uUFCAUJ0EWXTUU_V7YUUqBI1ocY';
+// Inline player — SharePoint "Embed" URL (frame-safe). Refresh via Share > Embed in Stream.
+const VIDEO_EMBED_URL = 'https://nesrcorp-my.sharepoint.com/personal/mfarhan1_nesr_com/_layouts/15/embed.aspx?UniqueId=793971d1-3475-4c69-8c1f-382878b94142&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
+// Fallback "open in SharePoint" link — the plain share URL opens the full Stream page.
+const VIDEO_SHARE_URL = 'https://nesrcorp-my.sharepoint.com/:v:/g/personal/mfarhan1_nesr_com/IQDRcTl5dTRpTIwfOCh4uUFCAUJ0EWXTUU_V7YUUqBI1ocY';
 const GREEN = '#307c4c';
 
 /* ── small building blocks ─────────────────────────────────────── */
@@ -423,7 +430,7 @@ export default function RFxOfficerHelpPage() {
             </div>
             <div className="p-5 space-y-3">
               <iframe
-                src={VIDEO_URL}
+                src={VIDEO_EMBED_URL}
                 width="100%"
                 height="520"
                 frameBorder="0"
@@ -433,7 +440,7 @@ export default function RFxOfficerHelpPage() {
                 className="rounded-lg bg-slate-100"
               />
               <a
-                href={VIDEO_URL}
+                href={VIDEO_SHARE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
