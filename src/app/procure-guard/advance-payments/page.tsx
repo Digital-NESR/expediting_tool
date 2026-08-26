@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation';
 import { getAdvancePaymentRequestsData, getProcureGuardActor } from '@/app/actions/procureGuard';
 import { canUseProcureGuardOperationalPages } from '@/lib/procureGuard-utils';
 import AdvancePaymentsStatusClient from './AdvancePaymentsStatusClient';
+import RefreshOnView from '../components/RefreshOnView';
 
 export const metadata: Metadata = { title: 'NESR | Advance Payments - ProcureGuard' };
+export const dynamic = 'force-dynamic';
 
 export default async function AdvancePaymentsStatusPage() {
   const actor = await getProcureGuardActor();
@@ -13,5 +15,5 @@ export default async function AdvancePaymentsStatusPage() {
     redirect('/procure-guard/analytics');
   }
   const data = await getAdvancePaymentRequestsData();
-  return <AdvancePaymentsStatusClient data={data} />;
+  return <><RefreshOnView /><AdvancePaymentsStatusClient data={data} /></>;
 }

@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation';
 import { getProcureGuardActor, getProcureGuardDashboardData } from '@/app/actions/procureGuard';
 import { canUseProcureGuardOperationalPages } from '@/lib/procureGuard-utils';
 import ProcureGuardDashboardClient from './ProcureGuardDashboardClient';
+import RefreshOnView from './components/RefreshOnView';
 
 export const metadata: Metadata = { title: 'NESR | ProcureGuard' };
+export const dynamic = 'force-dynamic';
 
 export default async function ProcureGuardDashboardPage() {
   const actor = await getProcureGuardActor();
@@ -13,5 +15,5 @@ export default async function ProcureGuardDashboardPage() {
     redirect('/procure-guard/analytics');
   }
   const data = await getProcureGuardDashboardData();
-  return <ProcureGuardDashboardClient data={data} />;
+  return <><RefreshOnView /><ProcureGuardDashboardClient data={data} /></>;
 }

@@ -1052,6 +1052,18 @@ async function getProcureGuardNotificationContactPreviewRows(input: {
       || a.notification_role.localeCompare(b.notification_role)
       || a.display_name.localeCompare(b.display_name));
 }
+// Approver roles that are NOT country-scoped (they can approve any country's request). For these
+// steps the notification lookup must NOT be gated by the request's country — otherwise a single
+// global approver only gets emailed for countries where a recipient row happens to be seeded, and
+// the request silently stalls at the final step. Mirrors COUNTRY_SCOPED_PERMISSION_ROLES (which is
+// only SCM Manager + Country Controller).
+const GLOBAL_APPROVER_OWNER_LABELS = new Set<string>([
+  'Supply Chain Director',
+  'Treasury Director',
+  'Corporate Controller',
+  'CFO',
+]);
+
 async function getProcureGuardNotificationRecipients(input: {
   requestType: ProcureGuardRequestType;
   country: string | null | undefined;
@@ -1062,19 +1074,33 @@ async function getProcureGuardNotificationRecipients(input: {
   if (countries.length === 0) return [];
 
   const countryPlaceholders = countries.map(() => '?').join(', ');
+  // For a global approver step, also match recipients tagged with that role regardless of country,
+  // so a single Supply Chain Director / Treasury Director / Corporate Controller / CFO is notified
+  // for every country's request (not only the country their recipient row is filed under).
+  const isGlobalOwner = GLOBAL_APPROVER_OWNER_LABELS.has(input.ownerLabel);
+  const globalClause = isGlobalOwner ? 'OR LOWER(notification_role) = LOWER(?)' : '';
   const rows = await sql<QueryResultRow[]>(
     `SELECT display_name, email, notification_role, approval_status, country, source_column
      FROM procure_guard_notification_recipients
      WHERE is_active = TRUE
        AND email IS NOT NULL
        AND TRIM(email) <> ''
-       AND country IN (${countryPlaceholders})
        AND (request_type = ? OR request_type = 'both')
-       AND (approval_status = ? OR LOWER(notification_role) = LOWER(?))
+       AND (
+         (country IN (${countryPlaceholders}) AND (approval_status = ? OR LOWER(notification_role) = LOWER(?)))
+         ${globalClause}
+       )
      ORDER BY CASE WHEN approval_status = ? THEN 0 ELSE 1 END,
               is_required DESC,
               display_name ASC`,
-    [...countries, input.requestType, input.approvalStatus, input.ownerLabel, input.approvalStatus],
+    [
+      input.requestType,
+      ...countries,
+      input.approvalStatus,
+      input.ownerLabel,
+      ...(isGlobalOwner ? [input.ownerLabel] : []),
+      input.approvalStatus,
+    ],
   );
 
   const seen = new Set<string>();
