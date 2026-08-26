@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LaptopShell, { CTA, GLASS } from './components/LaptopShell';
 import { canUseLaptopAnalytics, getPriorityBadge, getStatusBadge, timeAgo } from '@/lib/laptopProcurement-utils';
@@ -104,12 +105,19 @@ function RequestRow({ request, index }: { request: LaptopRequest; index: number 
   );
 }
 
+const ACTION_QUEUE_PAGE_SIZE = 5;
+const HEADER_BG = 'bg-[#e3f3e6]';
+
 export default function LaptopDashboardClient({ data }: { data: LaptopDashboardData | null }) {
   const router = useRouter();
+  const [page, setPage] = useState(0);
 
   if (!data) return <DbError />;
 
   const { stats, pendingQueue, activity, actor } = data;
+  const pageCount = Math.max(1, Math.ceil(pendingQueue.length / ACTION_QUEUE_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pagedQueue = pendingQueue.slice(currentPage * ACTION_QUEUE_PAGE_SIZE, (currentPage + 1) * ACTION_QUEUE_PAGE_SIZE);
   const firstName = (actor.name || '').split(' ')[0] || 'there';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
@@ -164,26 +172,53 @@ export default function LaptopDashboardClient({ data }: { data: LaptopDashboardD
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <div className={`${GLASS} overflow-hidden xl:col-span-2`}>
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <div className={`flex items-center justify-between border-b border-slate-100 px-5 py-4 ${HEADER_BG}`}>
               <div>
                 <h2 className="text-[15px] font-bold">Action Queue</h2>
-                <p className="mt-0.5 text-xs text-slate-500">Highest priority requests in the approval chain.</p>
+                <p className="mt-0.5 text-xs text-slate-500">Requests waiting on your decision.</p>
               </div>
               <span className="text-xs font-semibold text-slate-500">{pendingQueue.length} shown</span>
             </div>
             {pendingQueue.length === 0 ? (
               <div className="p-8 text-center text-sm text-slate-500">No pending requests right now.</div>
             ) : (
-              <div className="divide-y divide-slate-100">
-                {pendingQueue.map((r, i) => <RequestRow key={r.id} request={r} index={i} />)}
-              </div>
+              <>
+                <div className="divide-y divide-slate-100">
+                  {pagedQueue.map((r, i) => <RequestRow key={r.id} request={r} index={i} />)}
+                </div>
+                <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+                  <p className="text-xs text-slate-500">
+                    Showing {currentPage * ACTION_QUEUE_PAGE_SIZE + 1}
+                    –{Math.min((currentPage + 1) * ACTION_QUEUE_PAGE_SIZE, pendingQueue.length)} of {pendingQueue.length}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage(p => Math.max(0, p - 1))}
+                      disabled={currentPage === 0}
+                      aria-label="Previous page"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      ‹
+                    </button>
+                    <span className="text-xs font-semibold text-slate-600">Page {currentPage + 1} of {pageCount}</span>
+                    <button
+                      onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
+                      disabled={currentPage >= pageCount - 1}
+                      aria-label="Next page"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      ›
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
           </div>
 
           <div className={`${GLASS} overflow-hidden`}>
-            <div className="border-b border-slate-100 px-5 py-4">
+            <div className={`border-b border-slate-100 px-5 py-4 ${HEADER_BG}`}>
               <h2 className="text-[15px] font-bold">Recent Activity</h2>
-              <p className="mt-0.5 text-xs text-slate-500">Latest workflow movements.</p>
+              <p className="mt-0.5 text-xs text-slate-500">Latest workflow movements you made.</p>
             </div>
             <div className="divide-y divide-slate-100">
               {activity.length === 0 ? (

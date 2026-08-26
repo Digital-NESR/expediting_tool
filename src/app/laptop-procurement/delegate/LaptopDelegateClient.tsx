@@ -102,7 +102,7 @@ export default function LaptopDelegateClient({ data }: { data: LaptopDelegationD
             <p className="mt-0.5 text-xs text-slate-500">The delegate is identified by their NESR sign-in email and inherits only the specific role(s) you check below.</p>
             <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label className={LBL}>Delegate</label>
+                <label className={LBL}>Delegatee</label>
                 <EmployeeAutocomplete
                   value={email}
                   onChange={v => { setEmail(v); setName(''); }}
