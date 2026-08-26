@@ -25,6 +25,19 @@ const NAV = [
   { href: '/admin?tool=laptop-procurement-admin', label: 'Admin Panel', icon: 'grid', access: ['admin'] },
 ];
 
+// Whichever nav item's href most specifically matches the current path — so a path
+// like /requests/new (itself a valid prefix-match for "Requests") only lights up
+// "New Request", the more specific of the two, not both at once.
+function bestNavMatch<T extends { href: string }>(items: T[], pathname: string): T | undefined {
+  let best: T | undefined;
+  for (const item of items) {
+    const matches = pathname === item.href || pathname.startsWith(`${item.href}/`);
+    if (!matches) continue;
+    if (!best || item.href.length > best.href.length) best = item;
+  }
+  return best;
+}
+
 function Icon({ name }: { name: string }) {
   if (name === 'home') return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -110,9 +123,10 @@ function SidebarBody({
         </Link>
         <div className="space-y-1">
           {visibleNav.map(item => {
-            const active = item.href === '/laptop-procurement'
-              ? pathname === item.href
-              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+            // Only the single most-specific matching item lights up — otherwise a nav
+            // item whose href is a prefix of another's (e.g. "Requests" vs "New
+            // Request") would both show active on /requests/new.
+            const active = item.href === bestNavMatch(visibleNav, pathname)?.href;
             return (
               <Link
                 key={item.href}

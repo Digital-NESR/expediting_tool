@@ -60,6 +60,34 @@ function AssigneeField({ item }: { item: LaptopStageAssignee }) {
   );
 }
 
+// What a given stage actually decided, alongside their comment — separate from
+// AssigneeField above, which is about who's currently assigned, not what they did.
+function DecisionCard({
+  role,
+  decision,
+  comment,
+  modelLabel,
+  modelValue,
+}: {
+  role: string;
+  decision: string | null | undefined;
+  comment: string | null | undefined;
+  modelLabel?: string;
+  modelValue?: string | null;
+}) {
+  const hasDecision = Boolean(decision);
+  return (
+    <div className={`rounded-lg border px-3 py-2.5 ${hasDecision ? 'border-slate-200 bg-slate-50' : 'border-slate-100 bg-white'}`}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{role}</p>
+      <p className={`mt-1 text-sm font-semibold ${hasDecision ? 'text-slate-900' : 'text-slate-400'}`}>{decision || 'Not yet decided'}</p>
+      {modelValue && (
+        <p className="mt-1 text-xs text-slate-600"><span className="font-semibold text-slate-500">{modelLabel}:</span> {modelValue}</p>
+      )}
+      <p className="mt-1.5 whitespace-pre-wrap break-words text-xs text-slate-600">{comment || '—'}</p>
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className={`${GLASS} p-5`}>
@@ -205,111 +233,71 @@ function fileBadgeLabel(mime: string | null) {
  * shown to viewers with IT Manager review authority (own role or delegated),
  * and only editable while the request is actually at the IT Manager stage.
  */
-function ExistingDeviceSection({
-  request,
-  canEdit,
-  isItManagerStage,
-  onSaved,
-}: {
-  request: LaptopRequestDetailData['request'];
-  canEdit: boolean;
-  isItManagerStage: boolean;
-  onSaved: () => void;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState('');
-  const [unitId, setUnitId] = useState(request.unit_id ?? '');
-  const [currentBrand, setCurrentBrand] = useState(request.current_brand ?? '');
-  const [currentModel, setCurrentModel] = useState(request.current_model ?? '');
-  const [serialNo, setSerialNo] = useState(request.serial_no ?? '');
-  const [ageYears, setAgeYears] = useState(request.age_years ?? '');
-  const [sapNumber, setSapNumber] = useState(request.sap_number ?? '');
-
-  const canShowEditToggle = canEdit && isItManagerStage;
-  // Unit ID only really identifies something for Unit requests (a shared/company
-  // asset) — Upgrade/Replacement is a person's own device, which may not have one.
-  const isUnitIdRequired = request.request_type === 'Unit';
-
-  function save() {
-    setError('');
-    if ((isUnitIdRequired && !unitId.trim()) || !currentBrand.trim() || !currentModel.trim() || !serialNo.trim() || !ageYears.trim() || !sapNumber.trim()) {
-      setError('All Existing Device fields are required.');
-      return;
-    }
-    startTransition(async () => {
-      const result = await updateLaptopExistingDevice(request.id, {
-        unit_id: unitId,
-        current_brand: currentBrand,
-        current_model: currentModel,
-        serial_no: serialNo,
-        age_years: ageYears,
-        sap_number: sapNumber,
-      });
-      if (result.success) {
-        setIsEditing(false);
-        onSaved();
-      } else {
-        setError(result.error ?? 'Failed to save Existing Device details.');
-      }
-    });
-  }
-
+function ExistingDeviceSection({ request }: { request: LaptopRequestDetailData['request'] }) {
   return (
     <Section title="Existing Device">
-      {canShowEditToggle && !isEditing && (
-        <button type="button" onClick={() => setIsEditing(true)} className="mb-4 rounded-lg border border-[#307c4c]/30 bg-white px-3 py-1.5 text-xs font-bold text-[#307c4c] transition hover:bg-white">Edit</button>
-      )}
-      {error && <div className="mb-3 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{error}</div>}
-      {isEditing ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{isUnitIdRequired && <span className="mr-1 text-red-500">*</span>}Unit ID</label>
-              <input className={INP} value={unitId} onChange={e => setUnitId(e.target.value)} />
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Brand</label>
-              <input className={INP} value={currentBrand} onChange={e => setCurrentBrand(e.target.value)} />
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Model</label>
-              <input className={INP} value={currentModel} onChange={e => setCurrentModel(e.target.value)} />
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Serial No.</label>
-              <input className={INP} value={serialNo} onChange={e => setSerialNo(e.target.value)} />
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Age</label>
-              <select className={INP} value={ageYears} onChange={e => setAgeYears(e.target.value)}>
-                <option value="">Select age</option>
-                {DEVICE_AGE_OPTIONS.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>SAP Asset ID</label>
-              <input className={INP} value={sapNumber} onChange={e => setSapNumber(e.target.value)} />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button type="button" disabled={isPending} onClick={save} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
-              {isPending ? 'Saving...' : 'Save'}
-            </button>
-            <button type="button" disabled={isPending} onClick={() => setIsEditing(false)} className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
-          </div>
-        </div>
-      ) : (
-        <FieldGrid>
-          <Field label="Unit ID" value={request.unit_id} />
-          <Field label="Brand" value={request.current_brand} />
-          <Field label="Model" value={request.current_model} />
-          <Field label="Serial No." value={request.serial_no} />
-          <Field label="Age" value={request.age_years} />
-          <Field label="SAP Asset ID" value={request.sap_number} />
-        </FieldGrid>
-      )}
+      <FieldGrid>
+        <Field label="Unit ID" value={request.unit_id} />
+        <Field label="Brand" value={request.current_brand} />
+        <Field label="Model" value={request.current_model} />
+        <Field label="Serial No." value={request.serial_no} />
+        <Field label="Age" value={request.age_years} />
+        <Field label="SAP Asset ID" value={request.sap_number} />
+      </FieldGrid>
     </Section>
+  );
+}
+
+// The same six Existing Device fields, reused inside both the "Procure New Device"
+// and "Assign existing laptop" popups so the IT Manager fills them in as part of
+// making that decision, instead of a separate box that's easy to miss.
+function ExistingDeviceFields({
+  isUnitIdRequired,
+  unitId, setUnitId,
+  brand, setBrand,
+  model, setModel,
+  serialNo, setSerialNo,
+  age, setAge,
+  sap, setSap,
+}: {
+  isUnitIdRequired: boolean;
+  unitId: string; setUnitId: (v: string) => void;
+  brand: string; setBrand: (v: string) => void;
+  model: string; setModel: (v: string) => void;
+  serialNo: string; setSerialNo: (v: string) => void;
+  age: string; setAge: (v: string) => void;
+  sap: string; setSap: (v: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div>
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{isUnitIdRequired && <span className="mr-1 text-red-500">*</span>}Unit ID</label>
+        <input className={INP} value={unitId} onChange={e => setUnitId(e.target.value)} />
+      </div>
+      <div>
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Brand</label>
+        <input className={INP} value={brand} onChange={e => setBrand(e.target.value)} />
+      </div>
+      <div>
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Model</label>
+        <input className={INP} value={model} onChange={e => setModel(e.target.value)} />
+      </div>
+      <div>
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Serial No.</label>
+        <input className={INP} value={serialNo} onChange={e => setSerialNo(e.target.value)} />
+      </div>
+      <div>
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Age</label>
+        <select className={INP} value={age} onChange={e => setAge(e.target.value)}>
+          <option value="">Select age</option>
+          {DEVICE_AGE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>SAP Asset ID</label>
+        <input className={INP} value={sap} onChange={e => setSap(e.target.value)} />
+      </div>
+    </div>
   );
 }
 
@@ -406,9 +394,6 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   const [repairModalOpen, setRepairModalOpen] = useState(false);
   const [repairNotes, setRepairNotes] = useState('');
   const [repairError, setRepairError] = useState('');
-  const [rejectModalOpen, setRejectModalOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectError, setRejectError] = useState('');
   const [procureNewModalOpen, setProcureNewModalOpen] = useState(false);
   const [procureNewType, setProcureNewType] = useState(data.request.type_of_device ?? '');
   const [procureNewModel, setProcureNewModel] = useState('');
@@ -421,6 +406,24 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   // the type of device this request actually asked for.
   const assignModelOptions = [...new Set(devices.filter(d => d.type_of_device === request.type_of_device).map(d => d.model))];
 
+  // Existing Device (the OLD device being replaced) — filled in as part of whichever
+  // IT Manager decision popup is used (see ExistingDeviceFields), not edited on its
+  // own, so it can't be skipped by accident.
+  const [existingUnitId, setExistingUnitId] = useState(request.unit_id ?? '');
+  const [existingBrand, setExistingBrand] = useState(request.current_brand ?? '');
+  const [existingModel, setExistingModel] = useState(request.current_model ?? '');
+  const [existingSerialNo, setExistingSerialNo] = useState(request.serial_no ?? '');
+  const [existingAge, setExistingAge] = useState(request.age_years ?? '');
+  const [existingSap, setExistingSap] = useState(request.sap_number ?? '');
+  // Unit ID only really identifies something for Unit requests (a shared/company
+  // asset) — Upgrade/Replacement is a person's own device, which may not have one.
+  const isUnitIdRequired = request.request_type === 'Unit';
+
+  function existingDeviceFieldsMissing(): boolean {
+    return (isUnitIdRequired && !existingUnitId.trim())
+      || !existingBrand.trim() || !existingModel.trim() || !existingSerialNo.trim() || !existingAge.trim() || !existingSap.trim();
+  }
+
   const requester = request.requested_by_name || request.requested_by_email;
   const pendingCount = isActiveApprovalStatus(request.status) ? 1 : 0;
   const ownsRequest = request.requested_by_email.toLowerCase() === actor.email.toLowerCase();
@@ -428,6 +431,11 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   const canEditRequest = isItManagerStage && (ownsRequest || actor.permissions.canManageData);
   const canCancel = ownsRequest && isItManagerStage && actor.permissions.canCreateRequests;
   const hasDecisionActions = actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canMarkRepaired || actions.canProcureNew || canCancel;
+  // A decision comment is mandatory before any review decision — Cancel Request is
+  // exempt since it's the requester backing out before review even starts, not a
+  // reviewer decision.
+  const hasComment = reviewComment.trim().length > 0;
+  const decisionDisabled = isPending || !hasComment;
   // Plain requesters just need Cancel + a place to leave a comment — the review
   // audit trail (who reviewed it, when, rejection reason, latest comment) is really
   // for reviewers/admins tracking the process; a rejected requester can still see why
@@ -470,6 +478,12 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
         setRepairNotes('');
         setProcureNewModalOpen(false);
         setProcureNewModel('');
+        setExistingUnitId(request.unit_id ?? '');
+        setExistingBrand(request.current_brand ?? '');
+        setExistingModel(request.current_model ?? '');
+        setExistingSerialNo(request.serial_no ?? '');
+        setExistingAge(request.age_years ?? '');
+        setExistingSap(request.sap_number ?? '');
         setNotice(`Request updated to ${nextStatus}.`);
         router.refresh();
       } else {
@@ -478,10 +492,26 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
     });
   }
 
-  function confirmAssign() {
+  async function confirmAssign() {
     setAssignError('');
     if (!assignSerialNo.trim() || !assignModel.trim() || !assignAge.trim()) {
       setAssignError('Serial number, model, and age are all required.');
+      return;
+    }
+    if (existingDeviceFieldsMissing()) {
+      setAssignError('All Existing Device fields are required.');
+      return;
+    }
+    const deviceResult = await updateLaptopExistingDevice(request.id, {
+      unit_id: existingUnitId,
+      current_brand: existingBrand,
+      current_model: existingModel,
+      serial_no: existingSerialNo,
+      age_years: existingAge,
+      sap_number: existingSap,
+    });
+    if (!deviceResult.success) {
+      setAssignError(deviceResult.error ?? 'Failed to save Existing Device details.');
       return;
     }
     // No longer a distinct terminal move — it's IT Manager's normal approve-forward,
@@ -498,31 +528,47 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
     submitStatus('Repaired & Closed', undefined, repairNotes.trim());
   }
 
-  function confirmProcureNew() {
+  async function confirmProcureNew() {
     setProcureNewError('');
     if (!procureNewType.trim() || !procureNewModel.trim()) {
       setProcureNewError('Type of device and model are both required.');
+      return;
+    }
+    if (existingDeviceFieldsMissing()) {
+      setProcureNewError('All Existing Device fields are required.');
+      return;
+    }
+    const deviceResult = await updateLaptopExistingDevice(request.id, {
+      unit_id: existingUnitId,
+      current_brand: existingBrand,
+      current_model: existingModel,
+      serial_no: existingSerialNo,
+      age_years: existingAge,
+      sap_number: existingSap,
+    });
+    if (!deviceResult.success) {
+      setProcureNewError(deviceResult.error ?? 'Failed to save Existing Device details.');
       return;
     }
     submitStatus(actions.nextStatus!, undefined, undefined, { type_of_device: procureNewType, model: procureNewModel });
   }
 
   function confirmReject() {
-    setRejectError('');
-    if (!rejectReason.trim()) {
-      setRejectError('A reason is required before rejecting this request.');
+    setNotice('');
+    setError('');
+    const reason = reviewComment.trim();
+    if (!reason) {
+      setError('A decision comment is required before rejecting this request.');
       return;
     }
     startTransition(async () => {
-      const result = await rejectLaptopRequest(request.id, rejectReason.trim());
+      const result = await rejectLaptopRequest(request.id, reason);
       if (result.success) {
-        setRejectModalOpen(false);
-        setRejectReason('');
         setReviewComment('');
         setNotice('Request rejected and returned to the IT Manager.');
         router.refresh();
       } else {
-        setRejectError(result.error ?? 'Failed to reject request.');
+        setError(result.error ?? 'Failed to reject request.');
       }
     });
   }
@@ -565,31 +611,48 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
       )}
 
       {assignModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 px-4">
-          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/40 px-4 py-8">
+          <div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-5 py-4">
               <h2 className="text-base font-bold text-slate-900">Assign existing laptop</h2>
               <p className="mt-1 text-sm text-slate-500">Enter the second-hand unit being assigned to {request.reference_number}.</p>
             </div>
-            <div className="space-y-4 px-5 py-4">
+            <div className="space-y-5 px-5 py-4">
               {assignError && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{assignError}</div>}
               <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Serial Number</label>
-                <input className={INP} value={assignSerialNo} onChange={e => setAssignSerialNo(e.target.value)} autoFocus />
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">Existing Device</p>
+                <ExistingDeviceFields
+                  isUnitIdRequired={isUnitIdRequired}
+                  unitId={existingUnitId} setUnitId={setExistingUnitId}
+                  brand={existingBrand} setBrand={setExistingBrand}
+                  model={existingModel} setModel={setExistingModel}
+                  serialNo={existingSerialNo} setSerialNo={setExistingSerialNo}
+                  age={existingAge} setAge={setExistingAge}
+                  sap={existingSap} setSap={setExistingSap}
+                />
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Model</label>
-                <select className={INP} value={assignModel} onChange={e => setAssignModel(e.target.value)}>
-                  <option value="">Select model</option>
-                  {assignModelOptions.map(o => <option key={o}>{o}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Age</label>
-                <select className={INP} value={assignAge} onChange={e => setAssignAge(e.target.value)}>
-                  <option value="">Select age</option>
-                  {DEVICE_AGE_OPTIONS.map(o => <option key={o}>{o}</option>)}
-                </select>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">New Unit (from inventory)</p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Serial Number</label>
+                    <input className={INP} value={assignSerialNo} onChange={e => setAssignSerialNo(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Model</label>
+                    <select className={INP} value={assignModel} onChange={e => setAssignModel(e.target.value)}>
+                      <option value="">Select model</option>
+                      {assignModelOptions.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Age</label>
+                    <select className={INP} value={assignAge} onChange={e => setAssignAge(e.target.value)}>
+                      <option value="">Select age</option>
+                      {DEVICE_AGE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
@@ -623,60 +686,54 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
       )}
 
       {procureNewModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 px-4">
-          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/40 px-4 py-8">
+          <div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-5 py-4">
               <h2 className="text-base font-bold text-slate-900">Procure New Device</h2>
               <p className="mt-1 text-sm text-slate-500">Specify the device to procure for {request.reference_number} before sending it to the Country Manager.</p>
             </div>
-            <div className="space-y-4 px-5 py-4">
+            <div className="space-y-5 px-5 py-4">
               {procureNewError && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{procureNewError}</div>}
               <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Type of Device</label>
-                <select className={INP} value={procureNewType} onChange={e => { setProcureNewType(e.target.value); setProcureNewModel(''); }}>
-                  <option value="">Select device type</option>
-                  {DEVICE_TYPE_OPTIONS.map(o => <option key={o}>{o}</option>)}
-                </select>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">Existing Device</p>
+                <ExistingDeviceFields
+                  isUnitIdRequired={isUnitIdRequired}
+                  unitId={existingUnitId} setUnitId={setExistingUnitId}
+                  brand={existingBrand} setBrand={setExistingBrand}
+                  model={existingModel} setModel={setExistingModel}
+                  serialNo={existingSerialNo} setSerialNo={setExistingSerialNo}
+                  age={existingAge} setAge={setExistingAge}
+                  sap={existingSap} setSap={setExistingSap}
+                />
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Model</label>
-                <input className={INP} value={procureNewModel} onChange={e => setProcureNewModel(e.target.value)} placeholder="Type a model" autoFocus />
-                <select
-                  className={`${INP} mt-2`}
-                  value=""
-                  disabled={!procureNewType}
-                  onChange={e => { if (e.target.value) setProcureNewModel(e.target.value); }}
-                >
-                  <option value="">{procureNewType ? 'Or pick a frequently used model…' : 'Select a device type first'}</option>
-                  {[...new Set(devices.filter(d => d.type_of_device === procureNewType).map(d => d.model))].map(o => <option key={o}>{o}</option>)}
-                </select>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">New Device to Procure</p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Type of Device</label>
+                    <select className={INP} value={procureNewType} onChange={e => { setProcureNewType(e.target.value); setProcureNewModel(''); }}>
+                      <option value="">Select device type</option>
+                      {DEVICE_TYPE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Model</label>
+                    <select
+                      className={INP}
+                      value={procureNewModel}
+                      disabled={!procureNewType}
+                      onChange={e => setProcureNewModel(e.target.value)}
+                    >
+                      <option value="">{procureNewType ? 'Select model' : 'Select a device type first'}</option>
+                      {[...new Set(devices.filter(d => d.type_of_device === procureNewType).map(d => d.model))].map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => { setProcureNewModalOpen(false); setProcureNewError(''); }} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
               <button type="button" onClick={confirmProcureNew} disabled={isPending} className="rounded-lg bg-[#307c4c] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">{isPending ? 'Sending...' : 'Send to Country Manager'}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {rejectModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 px-4">
-          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-base font-bold text-slate-900">Reject request</h2>
-              <p className="mt-1 text-sm text-slate-500">{request.reference_number} will go back to the IT Manager to fix and resend.</p>
-            </div>
-            <div className="space-y-4 px-5 py-4">
-              {rejectError && <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">{rejectError}</div>}
-              <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reason for rejection</label>
-                <textarea className={`${INP} min-h-28 resize-none`} value={rejectReason} onChange={e => setRejectReason(e.target.value)} autoFocus />
-              </div>
-            </div>
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => { setRejectModalOpen(false); setRejectError(''); }} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
-              <button type="button" onClick={confirmReject} disabled={isPending} className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-60">{isPending ? 'Rejecting...' : 'Reject & Return to IT Manager'}</button>
             </div>
           </div>
         </div>
@@ -733,7 +790,6 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                 {request.request_type === 'New Employee' && (
                   <Field label="Computer For Employee ID" value={request.computer_for_employee_id} />
                 )}
-                <Field label="Pending With" value={request.pending_with} />
                 <Field label="Country" value={request.country} />
                 <Field label="Department" value={request.department} />
                 <Field label="Company Code" value={request.company_code} />
@@ -773,24 +829,26 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
               </Section>
             )}
 
-            {canSeeExistingDevice && (
-              <ExistingDeviceSection
-                request={request}
-                canEdit={canSeeExistingDevice}
-                isItManagerStage={isItManagerStage}
-                onSaved={() => router.refresh()}
-              />
-            )}
+            {canSeeExistingDevice && <ExistingDeviceSection request={request} />}
 
-            <Section title="Assigned Approvers & Stage Comments">
+            <Section title="Assigned Approvers">
               <FieldGrid>
                 {stageAssignees.map(item => <AssigneeField key={item.label} item={item} />)}
               </FieldGrid>
-              <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="IT Manager Comments" value={request.itm_comments} />
-                <Field label="Country Manager Comments" value={request.cm_comments} />
-                <Field label="IT Director Comments" value={request.itd_comments} />
-                <Field label="SC Director Comments" value={request.scd_comments} />
+            </Section>
+
+            <Section title="Decisions">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <DecisionCard
+                  role="IT Manager"
+                  decision={request.itm_decision}
+                  comment={request.itm_comments}
+                  modelLabel={request.itm_decision === 'Assigned Existing Laptop' ? 'Assigned Model' : request.itm_decision === 'Procure New (specified by IT Manager)' ? 'Requested Model' : undefined}
+                  modelValue={request.itm_decision === 'Assigned Existing Laptop' ? request.assigned_model : request.itm_decision === 'Procure New (specified by IT Manager)' ? request.requested_model : undefined}
+                />
+                <DecisionCard role="Country Manager" decision={request.cm_decision} comment={request.cm_comments} />
+                <DecisionCard role="IT Director" decision={request.itd_decision} comment={request.itd_comments} />
+                <DecisionCard role="Supply Chain Director" decision={request.scd_decision} comment={request.scd_comments} />
               </div>
             </Section>
 
@@ -832,35 +890,36 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
 
                 {hasDecisionActions ? (
                   <div ref={decisionRef} className={`rounded-2xl border p-4 transition-all duration-300 ${highlightDecision ? 'border-[#307c4c] ring-4 ring-[#307c4c]/25' : 'border-slate-200'} bg-white`}>
-                    <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Decision Comment <span className="font-normal normal-case tracking-normal text-slate-400">(required for rejection)</span></label>
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Decision Comment</label>
                     <textarea
                       className="mt-2 min-h-28 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25"
                       value={reviewComment}
                       onChange={e => setReviewComment(e.target.value)}
                     />
+                    {!hasComment && <p className="mt-1.5 text-[11px] font-semibold text-slate-400">A comment is required before any decision below can be made.</p>}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {actions.canApprove && actions.nextStatus && (
                         isItManagerStage ? (
-                          <button disabled={isPending} onClick={() => setProcureNewModalOpen(true)} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
+                          <button disabled={decisionDisabled} onClick={() => setProcureNewModalOpen(true)} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
                             Procure New &amp; Send to Country Manager
                           </button>
                         ) : (
-                          <button disabled={isPending} onClick={() => submitStatus(actions.nextStatus!)} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
+                          <button disabled={decisionDisabled} onClick={() => submitStatus(actions.nextStatus!)} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
                             {approveLabel}
                           </button>
                         )
                       )}
                       {actions.canAssignInventory && (
-                        <button disabled={isPending} onClick={() => setAssignModalOpen(true)} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign existing laptop</button>
+                        <button disabled={decisionDisabled} onClick={() => setAssignModalOpen(true)} className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Assign existing laptop</button>
                       )}
                       {actions.canMarkRepaired && (
-                        <button disabled={isPending} onClick={() => setRepairModalOpen(true)} className="rounded-lg border border-violet-200 bg-violet-50 px-3.5 py-2 text-xs font-bold text-violet-900 transition hover:bg-violet-100 disabled:opacity-60">Repaired &amp; Closed</button>
+                        <button disabled={decisionDisabled} onClick={() => setRepairModalOpen(true)} className="rounded-lg border border-violet-200 bg-violet-50 px-3.5 py-2 text-xs font-bold text-violet-900 transition hover:bg-violet-100 disabled:opacity-60">Repaired &amp; Closed</button>
                       )}
                       {actions.canProcureNew && (
-                        <button disabled={isPending} onClick={() => submitStatus('Procure New Details')} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-900 transition hover:bg-emerald-100 disabled:opacity-60">Procure New</button>
+                        <button disabled={decisionDisabled} onClick={() => submitStatus('Procure New Details')} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-900 transition hover:bg-emerald-100 disabled:opacity-60">Procure New</button>
                       )}
                       {actions.canReject && (
-                        <button disabled={isPending} onClick={() => setRejectModalOpen(true)} className="rounded-lg border border-red-300 bg-red-50 px-3.5 py-2 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Reject</button>
+                        <button disabled={decisionDisabled} onClick={confirmReject} className="rounded-lg border border-red-300 bg-red-50 px-3.5 py-2 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Reject</button>
                       )}
                       {canCancel && (
                         <button disabled={isPending} onClick={() => setIsCancelDialogOpen(true)} className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel Request</button>
