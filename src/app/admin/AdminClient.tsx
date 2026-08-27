@@ -28,6 +28,8 @@ import ProcureGuardAnalyticsClient from '../procure-guard/analytics/AnalyticsCli
 import ProcureGuardAdminAnalyticsClient from '../procure-guard/admin-analytics/AdminAnalyticsClient';
 import { SourceGuideAccessApprovalsClient, SourceGuideGuidesClient, SourceGuideAnalyticsClient, SourceGuideChampionsClient } from './SourceGuideAdmin';
 import { CatalogAccessApprovalsClient, CatalogAdminPanelClient, CatalogSyncHealthClient } from './CatalogRepoAdmin';
+import SnsAccessApprovalsClient from './SnsAccessApprovalsClient';
+import SnsReferenceDataClient from './SnsReferenceDataClient';
 import LaptopAdminClient from '../laptop-procurement/admin/LaptopAdminClient';
 import LaptopAnalyticsClient from '../laptop-procurement/analytics/LaptopAnalyticsClient';
 import LaptopApproverMatrixClient from './LaptopApproverMatrixClient';
@@ -64,6 +66,7 @@ interface AdminClientProps {
   procureGuardAdminAnalyticsData: ProcureGuardAdminAnalyticsData | null;
   sourceGuidePendingCount?: number;
   catalogPendingCount?: number;
+  snsPendingCount?: number;
   laptopAdminData: LaptopAdminData | null;
   laptopAnalyticsData: LaptopAnalyticsData | null;
   laptopPendingAccessCount?: number;
@@ -1361,6 +1364,7 @@ export default function AdminClient({
   procureGuardAdminAnalyticsData,
   sourceGuidePendingCount = 0,
   catalogPendingCount = 0,
+  snsPendingCount = 0,
   laptopAdminData,
   laptopAnalyticsData,
   laptopPendingAccessCount = 0,
@@ -1376,6 +1380,7 @@ export default function AdminClient({
   const [liveProcureGuardPendingCount, setLiveProcureGuardPendingCount] = useState(procureGuardPendingCount);
   const [liveSourceGuidePendingCount, setLiveSourceGuidePendingCount] = useState(sourceGuidePendingCount);
   const [liveCatalogPendingCount, setLiveCatalogPendingCount] = useState(catalogPendingCount);
+  const [liveSnsPendingCount, setLiveSnsPendingCount] = useState(snsPendingCount);
   const [liveLaptopPendingAccessCount, setLiveLaptopPendingAccessCount] = useState(laptopPendingAccessCount);
 
   // Modal state
@@ -1908,6 +1913,50 @@ export default function AdminClient({
 
           <div style={{ margin: '8px 0' }} />
 
+          {/* S&S Registry group label */}
+          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+            S&amp;S Registry
+          </div>
+
+          <button
+            onClick={() => setSelectedTool('sns-access')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'sns-access' ? '3px solid #2A7E4F' : '3px solid transparent',
+              background: selectedTool === 'sns-access' ? '#eaf4ef' : 'transparent',
+              color: selectedTool === 'sns-access' ? '#1d4f31' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            <span>Access Approvals</span>
+            {liveSnsPendingCount > 0 && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999,
+                fontSize: 10, fontWeight: 700, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a',
+              }}>
+                {liveSnsPendingCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setSelectedTool('sns-reference')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'sns-reference' ? '3px solid #2A7E4F' : '3px solid transparent',
+              background: selectedTool === 'sns-reference' ? '#eaf4ef' : 'transparent',
+              color: selectedTool === 'sns-reference' ? '#1d4f31' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            Reference Data
+          </button>
+
+          <div style={{ margin: '8px 0' }} />
+
           {/* Laptop Procurement group label */}
           <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
             Laptop Procurement
@@ -2078,6 +2127,12 @@ export default function AdminClient({
               userEmail={userEmail}
               onPendingCountChange={setLiveCatalogPendingCount}
             />
+          )}
+          {selectedTool === 'sns-access' && (
+            <SnsAccessApprovalsClient onPendingCountChange={setLiveSnsPendingCount} />
+          )}
+          {selectedTool === 'sns-reference' && (
+            <SnsReferenceDataClient />
           )}
           {selectedTool === 'laptop-procurement-admin' && (
             <LaptopAdminClient data={laptopAdminData} embedded />

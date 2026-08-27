@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
 import { submitSourceGuideAccessRequest } from '@/app/actions/sourceguide';
-import { Laptop, Gavel, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3, GraduationCap, Receipt } from 'lucide-react';
+import { Laptop, Gavel, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3, GraduationCap, Receipt, ShieldCheck } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | null;
@@ -712,6 +712,56 @@ function SourceGuideCard({
   );
 }
 
+/* ─── S&S Registry Card ──────────────────────────────────────── */
+
+function SnsRegistryCard({
+  status,
+  isAdmin,
+  roleLabel,
+  onClick,
+}: {
+  status: ToolStatus;
+  isAdmin: boolean;
+  roleLabel?: string;
+  onClick: () => void;
+}) {
+  const canOpen = isAdmin || status === 'approved';
+  const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
+  return (
+    <button
+      onClick={onClick}
+      className="group relative flex w-full cursor-pointer flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10"
+    >
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#2A7E4F18' }}>
+        <ShieldCheck className="h-6 w-6" style={{ color: '#2A7E4F' }} />
+      </div>
+
+      <div className="flex-1">
+        <h3 className="text-[18px] font-semibold text-slate-900">S&amp;S Registry</h3>
+        <p className="mt-0.5 text-[13px] font-medium text-slate-400">Single &amp; Sole Source Compliance</p>
+        <p className="mt-2 text-sm leading-relaxed text-gray-500">
+          System of record for single-quotation compliance: register single and sole source cases, route them through
+          two-level validation, and keep an audit trail against the 12-month expiry.
+        </p>
+        {canOpen && roleLabel && (
+          <p className="mt-2 text-[12px] font-medium text-slate-400">Signed in as {roleLabel}</p>
+        )}
+      </div>
+
+      <div className="mt-auto flex items-center justify-between">
+        <AccessBadge status={status} isAdmin={isAdmin} />
+        {canOpen ? (
+          <span className="text-sm font-semibold group-hover:underline" style={{ color: '#2A7E4F' }}>Open →</span>
+        ) : status === 'new' ? (
+          <span className="text-sm font-semibold group-hover:underline" style={{ color: '#2A7E4F' }}>Request Access →</span>
+        ) : isDenied ? (
+          <span className="text-xs font-semibold text-red-600 group-hover:underline">Reapply for access →</span>
+        ) : null}
+      </div>
+    </button>
+  );
+}
+
 /* ─── Catalog Repo Card (Admin Preview) ───────────────────── */
 
 function CatalogManagerCard({
@@ -941,6 +991,9 @@ export default function HomePage() {
   const canOpenProcureGuard = isAdmin || procureGuardStatus === 'approved';
   const sourceGuideStatus: ToolStatus = session?.user?.toolAccess?.sourceguide?.status ?? 'new';
   const canOpenCatalogManager = isAdmin;
+  const snsStatus: ToolStatus = session?.user?.toolAccess?.sns_registry?.status ?? 'new';
+  const snsRole = session?.user?.toolAccess?.sns_registry?.snsRole;
+  const snsRoleLabel = isAdmin || snsRole === 'admin' ? 'Admin — full access' : snsRole;
 
   function handlePOClick() {
     if (isAdmin || poStatus === 'approved') {
@@ -974,6 +1027,13 @@ export default function HomePage() {
 
   function handleCatalogManagerClick() {
     if (canOpenCatalogManager) router.push('/catalog-manager');
+  }
+
+  function handleSnsClick() {
+    // Both destinations are server-gated: /sns-registry bounces anyone without
+    // approved access to the request page, and the request page bounces anyone
+    // who already has it back to the tool.
+    router.push(isAdmin || snsStatus === 'approved' ? '/sns-registry' : '/sns-registry/request-access');
   }
 
   function handleLaptopClick() {
@@ -1113,6 +1173,15 @@ export default function HomePage() {
                 <CatalogManagerCard
                   canOpen={canOpenCatalogManager}
                   onClick={handleCatalogManagerClick}
+                />
+              )}
+
+              {show('s&s sns registry single sole source compliance single-quotation exception waiver') && (
+                <SnsRegistryCard
+                  status={snsStatus}
+                  isAdmin={isAdmin}
+                  roleLabel={snsRoleLabel}
+                  onClick={handleSnsClick}
                 />
               )}
 
@@ -1275,7 +1344,7 @@ export default function HomePage() {
                   </div>
                 </button>
               )}
-              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('rfx officer') && !show('supply chain analytics') && !show('catalog') && !show('learning hub') && !show('soa') && (
+              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('rfx officer') && !show('supply chain analytics') && !show('catalog') && !show('learning hub') && !show('soa') && !show('s&s sns registry single sole source') && (
                 <div className="col-span-3 py-12 text-center">
                   <p className="text-sm text-slate-400">No applications match &ldquo;{appSearch}&rdquo;</p>
                 </div>

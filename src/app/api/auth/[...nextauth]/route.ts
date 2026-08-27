@@ -5,6 +5,7 @@ import pool from "@/lib/db";
 import titePool from "@/lib/db-tite";
 import sourceGuidePool from "@/lib/db-sourceguide";
 import procureGuardPool from "@/lib/db-procureguard";
+import snsPool from "@/lib/db-sns";
 import { getPermissionProfile } from "@/lib/procureGuard-utils";
 import type { ProcureGuardPermissionRole } from "@/types/procureGuard";
 
@@ -109,7 +110,7 @@ export const authOptions: NextAuthOptions = {
             .filter(Boolean);
 
           // Query each tool's access table in parallel
-          const [poResult, titeResult, sgChampResult, sgAccessResult, pgPermResult] = await Promise.all([
+          const [poResult, titeResult, sgChampResult, sgAccessResult, pgPermResult, snsResult] = await Promise.all([
             pool.query(
               `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
               [token.email]
@@ -130,6 +131,10 @@ export const authOptions: NextAuthOptions = {
               `SELECT role FROM procure_guard_permissions WHERE LOWER(email) = LOWER($1) LIMIT 1`,
               [token.email]
             ).catch(() => ({ rows: [] as { role: string }[] })),
+            snsPool.query(
+              `SELECT status, approved_role, approved_countries FROM sns_access_requests WHERE LOWER(user_email) = LOWER($1)`,
+              [token.email]
+            ).catch(() => ({ rows: [] as { status: string; approved_role: string | null; approved_countries: string[] }[] })),
           ]);
 
           // PO Expediting access
@@ -211,12 +216,38 @@ export const authOptions: NextAuthOptions = {
             sgCountries = [];
           }
 
+          // S&S Registry access: env admins bypass the queue entirely; everyone
+          // else needs an Approved row in sns_access_requests. `accessType` carries
+          // the granted role so the home card can label it.
+          let snsStatus: string;
+          let snsCountries: string[];
+          let snsRole: string | undefined;
+          if (token.isAdmin) {
+            snsStatus = 'approved';
+            snsCountries = [];
+            snsRole = 'admin';
+          } else if (snsResult.rows.length > 0) {
+            const sr = snsResult.rows[0];
+            const st = String(sr.status).toLowerCase();
+            snsStatus =
+              st === 'pending'  ? 'pending'  :
+              st === 'approved' ? 'approved' :
+              st === 'revoked'  ? 'revoked'  :
+              st === 'rejected' ? 'rejected' : 'denied';
+            snsCountries = snsStatus === 'approved' ? (sr.approved_countries || []) : [];
+            snsRole = sr.approved_role ?? undefined;
+          } else {
+            snsStatus = 'new';
+            snsCountries = [];
+          }
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (token as any).toolAccess = {
             po_expediting: { status: poStatus,   approvedCountries: poCountries   },
             tite:          { status: titeStatus, approvedCountries: titeCountries },
             procure_guard: { status: procureGuardStatus, approvedCountries: [], accessType: procureGuardAccessType },
             sourceguide:   { status: sgStatus, approvedCountries: sgCountries },
+            sns_registry:  { status: snsStatus, approvedCountries: snsCountries, snsRole },
           };
           token.titeViewOnly = titeViewOnly;
         } catch (err) {
@@ -227,6 +258,7 @@ export const authOptions: NextAuthOptions = {
               tite:          { status: 'new', approvedCountries: [] },
               procure_guard: { status: 'new', approvedCountries: [] },
               sourceguide:   { status: 'new', approvedCountries: [] },
+              sns_registry:  { status: 'new', approvedCountries: [] },
             };
           }
         }
@@ -248,6 +280,7 @@ export const authOptions: NextAuthOptions = {
           tite?:          { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
           procure_guard?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[]; accessType?: 'requester' | 'approver' | 'viewer' | 'admin' };
           sourceguide?:   { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
+          sns_registry?:  { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[]; snsRole?: string };
         } | undefined;
         session.user.titeViewOnly = token.titeViewOnly as boolean | undefined;
       }

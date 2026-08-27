@@ -12,6 +12,7 @@ import {
 } from '@/app/actions/procureGuard';
 import { getSourceGuidePendingCount } from '@/app/actions/sourceguide';
 import { getCatalogAccessPendingCount } from '@/app/actions/catalog-manager';
+import { getSnsPendingAccessCount } from '@/app/actions/sns';
 import { getLaptopAdminData, getLaptopAnalyticsData, getLaptopPendingAccessCount } from '@/app/actions/laptopProcurement';
 import { getLearningHubAdminData } from '@/app/actions/learning-hub';
 import AdminClient from './AdminClient';
@@ -37,6 +38,8 @@ const ADMIN_TOOLS = new Set([
   'catalog-admin',
   'catalog-sync',
   'catalog-access',
+  'sns-access',
+  'sns-reference',
   'laptop-procurement-admin',
   'laptop-procurement-analytics',
   'laptop-procurement-access',
@@ -97,6 +100,7 @@ export default async function AdminPage({
     procureGuardAdminAnalyticsData,
     sourceGuidePendingCount,
     catalogPendingCount,
+    snsPendingCount,
     laptopAdminData,
     laptopAnalyticsData,
     laptopPendingAccessCount,
@@ -112,6 +116,7 @@ export default async function AdminPage({
     getProcureGuardAdminAnalyticsData(),
     getSourceGuidePendingCount(),
     getCatalogAccessPendingCount(),
+    getSnsPendingAccessCount(),
     getLaptopAdminData(),
     getLaptopAnalyticsData(),
     getLaptopPendingAccessCount(),
@@ -132,6 +137,7 @@ export default async function AdminPage({
       procureGuardAdminAnalyticsData={procureGuardAdminAnalyticsData}
       sourceGuidePendingCount={sourceGuidePendingCount}
       catalogPendingCount={catalogPendingCount}
+      snsPendingCount={snsPendingCount}
       laptopAdminData={laptopAdminData}
       laptopAnalyticsData={laptopAnalyticsData}
       laptopPendingAccessCount={laptopPendingAccessCount}

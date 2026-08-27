@@ -5,6 +5,8 @@ type ToolAccessEntry = {
   approvedCountries: string[];
   // ProcureGuard: the kind of access the user has, derived from procure_guard_permissions.
   accessType?: 'requester' | 'approver' | 'viewer' | 'admin';
+  // S&S Registry: the approved role string, or 'admin' for env-listed platform admins.
+  snsRole?: string;
 };
 
 declare module "next-auth" {
@@ -23,6 +25,7 @@ declare module "next-auth" {
         tite?: ToolAccessEntry;
         procure_guard?: ToolAccessEntry;
         sourceguide?: ToolAccessEntry;
+        sns_registry?: ToolAccessEntry;
       };
     };
   }
@@ -40,6 +43,7 @@ declare module "next-auth/jwt" {
       tite?: ToolAccessEntry;
       procure_guard?: ToolAccessEntry;
       sourceguide?: ToolAccessEntry;
+      sns_registry?: ToolAccessEntry;
     };
   }
 }
