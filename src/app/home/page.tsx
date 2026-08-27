@@ -1176,15 +1176,6 @@ export default function HomePage() {
                 />
               )}
 
-              {show('s&s sns registry single sole source compliance single-quotation exception waiver') && (
-                <SnsRegistryCard
-                  status={snsStatus}
-                  isAdmin={isAdmin}
-                  roleLabel={snsRoleLabel}
-                  onClick={handleSnsClick}
-                />
-              )}
-
               {show('po expediting purchase orders monitor expedite supplier delivery') && (
                 <POExpeditingCard
                   status={poStatus}
@@ -1258,6 +1249,15 @@ export default function HomePage() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {show('s&s sns registry single sole source compliance single-quotation exception waiver') && (
+                <SnsRegistryCard
+                  status={snsStatus}
+                  isAdmin={isAdmin}
+                  roleLabel={snsRoleLabel}
+                  onClick={handleSnsClick}
+                />
               )}
 
               {show('sourceguide sourcing intelligence suppliers commodity') && (
