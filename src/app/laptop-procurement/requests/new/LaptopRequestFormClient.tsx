@@ -139,8 +139,10 @@ export default function LaptopRequestFormClient({
   // record, so the directory can fill in what it already knows instead of the requester
   // retyping it — and, since it's their own record, Cost Allocation can be fully
   // resolved and locked too. New Employee requests only get the requestor's own
-  // identity auto-filled (name/employee id/country); the new hire's details and the
-  // company they should be allocated to are picked manually. Never overwrites a field
+  // employee ID auto-filled; the new hire's details and the company they should be
+  // allocated to are picked manually. Country is always chosen manually — the
+  // directory's country values don't reliably line up with COUNTRY_OPTIONS, so
+  // auto-filling it risked silently picking the wrong one. Never overwrites a field
   // the requester has already typed into.
   function handleRequestTypeChange(value: string) {
     setRequestType(value);
@@ -148,9 +150,7 @@ export default function LaptopRequestFormClient({
     const willBeSelfRequest = value === 'Upgrade/Replacement' || value === 'Unit';
 
     const nextEmployeeId = !employeeId.trim() && directoryDefaults.employeeId ? directoryDefaults.employeeId : employeeId;
-    const nextCountry = !country.trim() && directoryDefaults.country ? directoryDefaults.country : country;
     if (nextEmployeeId !== employeeId) setEmployeeId(nextEmployeeId);
-    if (nextCountry !== country) setCountry(nextCountry);
     if (!willBeSelfRequest) return;
 
     const nextDepartment = !department.trim() && directoryDefaults.department ? directoryDefaults.department : department;

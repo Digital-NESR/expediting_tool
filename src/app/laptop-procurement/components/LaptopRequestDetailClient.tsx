@@ -37,6 +37,27 @@ function Field({ label, value }: { label: string; value: DetailValue }) {
   );
 }
 
+// Flags device age for whoever reviews the request next — green once the device is
+// old enough (5+ years) that replacing/procuring makes obvious sense, red when it's
+// still relatively new, since that's worth a second look before approving.
+function AgeField({ label, value }: { label: string; value: DetailValue }) {
+  const raw = value === null || value === undefined ? '' : String(value);
+  const isOldEnough = raw === '5+ years';
+  const isYoung = raw === '< 1 year' || raw === '1-3 years' || raw === '4-5 years';
+  const boxClass = isOldEnough
+    ? 'rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2'
+    : isYoung
+      ? 'rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2'
+      : '';
+  const textClass = isOldEnough ? 'text-emerald-900' : isYoung ? 'text-red-900' : 'text-slate-900';
+  return (
+    <div className={boxClass}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className={`mt-1 break-words text-sm font-semibold ${textClass}`}>{textValue(value)}</p>
+    </div>
+  );
+}
+
 function FieldGrid({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{children}</div>;
 }
@@ -241,7 +262,7 @@ function ExistingDeviceSection({ request }: { request: LaptopRequestDetailData['
         <Field label="Brand" value={request.current_brand} />
         <Field label="Model" value={request.current_model} />
         <Field label="Serial No." value={request.serial_no} />
-        <Field label="Age" value={request.age_years} />
+        <AgeField label="Age" value={request.age_years} />
         <Field label="SAP Asset ID" value={request.sap_number} />
       </FieldGrid>
     </Section>
@@ -387,6 +408,7 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   const [highlightDecision, setHighlightDecision] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignType, setAssignType] = useState(data.request.type_of_device ?? '');
   const [assignSerialNo, setAssignSerialNo] = useState('');
   const [assignModel, setAssignModel] = useState('');
   const [assignAge, setAssignAge] = useState('');
@@ -403,8 +425,10 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
   const router = useRouter();
   const { request, activity, documents, actions, actor, stageAssignees } = data;
   // Assign existing laptop picks a real unit from the device catalogue, filtered to
-  // the type of device this request actually asked for.
-  const assignModelOptions = [...new Set(devices.filter(d => d.type_of_device === request.type_of_device).map(d => d.model))];
+  // whichever device type is selected in that popup (defaults to what was requested,
+  // but the IT Manager can assign a different type — e.g. a desktop instead of a
+  // laptop — if that's what's actually available).
+  const assignModelOptions = [...new Set(devices.filter(d => d.type_of_device === assignType).map(d => d.model))];
 
   // Existing Device (the OLD device being replaced) — filled in as part of whichever
   // IT Manager decision popup is used (see ExistingDeviceFields), not edited on its
@@ -462,7 +486,7 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
 
   function submitStatus(
     nextStatus: LaptopRequestStatus,
-    assignedLaptop?: { serial_no: string; model: string; age: string },
+    assignedLaptop?: { type_of_device: string; serial_no: string; model: string; age: string },
     commentOverride?: string,
     procureNew?: { type_of_device: string; model: string },
   ) {
@@ -482,12 +506,10 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
         setRepairNotes('');
         setProcureNewModalOpen(false);
         setProcureNewModel('');
-        setExistingUnitId(request.unit_id ?? '');
-        setExistingBrand(request.current_brand ?? '');
-        setExistingModel(request.current_model ?? '');
-        setExistingSerialNo(request.serial_no ?? '');
-        setExistingAge(request.age_years ?? '');
-        setExistingSap(request.sap_number ?? '');
+        // Deliberately not reset to request.* here — that's the pre-save closure
+        // value, not what was just saved, and router.refresh() won't re-run these
+        // useState initializers. Leaving them as whatever was just typed keeps them
+        // correct if the same popup reopens later (e.g. after another reject).
         setNotice(`Request updated to ${nextStatus}.`);
         router.refresh();
       } else {
@@ -498,8 +520,8 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
 
   async function confirmAssign() {
     setAssignError('');
-    if (!assignSerialNo.trim() || !assignModel.trim() || !assignAge.trim()) {
-      setAssignError('Serial number, model, and age are all required.');
+    if (!assignType.trim() || !assignSerialNo.trim() || !assignModel.trim() || !assignAge.trim()) {
+      setAssignError('Type of device, serial number, model, and age are all required.');
       return;
     }
     if (existingDeviceFieldsMissing()) {
@@ -522,7 +544,7 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
     }
     // No longer a distinct terminal move — it's IT Manager's normal approve-forward,
     // just with a specific unit attached; it still continues through the full chain.
-    submitStatus(actions.nextStatus!, { serial_no: assignSerialNo.trim(), model: assignModel.trim(), age: assignAge });
+    submitStatus(actions.nextStatus!, { type_of_device: assignType, serial_no: assignSerialNo.trim(), model: assignModel.trim(), age: assignAge });
   }
 
   function confirmRepair() {
@@ -645,13 +667,20 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                 <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">New Unit (from inventory)</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Type of Device</label>
+                    <select className={INP} value={assignType} onChange={e => { setAssignType(e.target.value); setAssignModel(''); }}>
+                      <option value="">Select device type</option>
+                      {DEVICE_TYPE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div>
                     <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Serial Number</label>
                     <input className={INP} value={assignSerialNo} onChange={e => setAssignSerialNo(e.target.value)} />
                   </div>
                   <div>
                     <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Model</label>
-                    <select className={INP} value={assignModel} onChange={e => setAssignModel(e.target.value)}>
-                      <option value="">Select model</option>
+                    <select className={INP} value={assignModel} disabled={!assignType} onChange={e => setAssignModel(e.target.value)}>
+                      <option value="">{assignType ? 'Select model' : 'Select a device type first'}</option>
                       {assignModelOptions.map(o => <option key={o}>{o}</option>)}
                     </select>
                   </div>
@@ -836,7 +865,7 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                 <FieldGrid>
                   <Field label="Serial Number" value={request.assigned_serial_no} />
                   <Field label="Model" value={request.assigned_model} />
-                  <Field label="Age" value={request.assigned_age} />
+                  <AgeField label="Age" value={request.assigned_age} />
                 </FieldGrid>
               </Section>
             )}

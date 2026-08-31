@@ -79,7 +79,7 @@ export default function LaptopMyWorkClient({ data }: { data: LaptopWorkQueueData
         <section className={`${GLASS} p-5`}>
           <div className="mb-4">
             <h2 className="text-lg font-bold">Approval Queue</h2>
-            <p className="mt-0.5 text-sm text-slate-500">Requests waiting for your decision, highest priority first.</p>
+            <p className="mt-0.5 text-sm text-slate-500">Requests waiting for your decision.</p>
           </div>
           {items.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
