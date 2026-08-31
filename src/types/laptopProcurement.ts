@@ -270,6 +270,7 @@ export interface UpdateLaptopExistingDeviceInput {
 // Captured when an IT Manager (or any reviewer) resolves a request by assigning
 // a specific second-hand unit from inventory.
 export interface AssignExistingLaptopInput {
+  type_of_device: string;
   serial_no: string;
   model: string;
   age: string;

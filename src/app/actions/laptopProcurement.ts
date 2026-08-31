@@ -21,7 +21,6 @@ import {
   getPermissionProfile,
   getRequiredPermissionForStage,
   IT_MANAGER_STATUSES,
-  isActiveApprovalStatus,
   laptopHasAssignedUnit,
   laptopIsProcureNewFlow,
 } from '@/lib/laptopProcurement-utils';
@@ -467,6 +466,22 @@ function scopedWhere(actor: LaptopActor): { where: string; params: string[] } {
   return { where: `WHERE ${orGroups.join(' OR ')}`, params };
 }
 
+// For the document-download API route (a plain GET handler, outside the server-action
+// boundary) — reuses the exact same scoping getActor()/scopedWhere() already apply
+// everywhere else, so a document is downloadable by anyone who could see its request.
+export async function canViewLaptopRequest(requestId: number): Promise<boolean> {
+  try {
+    const actor = await getActor();
+    const scope = scopedWhere(actor);
+    const where = scope.where ? `${scope.where} AND id = ?` : 'WHERE id = ?';
+    const rows = await sql<QueryResultRow[]>(`SELECT id FROM laptop_requests ${where}`, [...scope.params, requestId]);
+    return rows.length > 0;
+  } catch (err) {
+    console.error('[canViewLaptopRequest]', err);
+    return false;
+  }
+}
+
 // Identities (self + delegators) the actor can act through, each with its own
 // approver-matrix capabilities.
 function laptopActingIdentities(actor: LaptopActor): LaptopDelegationGrant[] {
@@ -831,11 +846,19 @@ async function writeActivity(input: {
   );
 }
 
-function buildStats(requests: LaptopRequest[]) {
+// pending_review means "awaiting THIS actor's decision" (same filter My Work uses),
+// not just "active and in scope" — a country-scoped reviewer/delegate can see
+// requests that are active but currently sitting at a different stage entirely.
+function isActionableForActor(actor: LaptopActor, request: LaptopRequest): boolean {
+  const actions = getScopedActions(actor, request);
+  return actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canProcureNew || actions.canSubmitProcureDetails;
+}
+
+function buildStats(requests: LaptopRequest[], actor: LaptopActor) {
   const isAssigned = (s: string) => s === 'Assign from Inventory' || s === 'Assign from Inventory & Closed';
   return {
     total: requests.length,
-    pending_review: requests.filter(r => isActiveApprovalStatus(r.status)).length,
+    pending_review: requests.filter(r => isActionableForActor(actor, r)).length,
     procure_new: requests.filter(r => r.status === 'Procure New' || r.status === 'Approved').length,
     assigned_inventory: requests.filter(r => isAssigned(r.status)).length,
     repaired: requests.filter(r => r.status === 'Repaired & Closed').length,
@@ -845,29 +868,39 @@ function buildStats(requests: LaptopRequest[]) {
   };
 }
 
-// Same stats as buildStats, but computed with SQL aggregates against an optional
-// scope (WHERE clause + params) instead of pulling every matching row into JS first —
-// for callers (admin panel, dashboard) that only need the counts, not the rows.
-async function computeLaptopStats(whereClause: string, whereParams: QueryParams): Promise<LaptopDashboardStats> {
+// Same stats as buildStats, but the outcome-category counts are computed with SQL
+// aggregates against an optional scope (WHERE clause + params) instead of pulling
+// every matching row into JS first — for callers (admin panel, dashboard) that
+// mostly just need counts. pending_review is the one exception: it has to mean
+// "awaiting THIS actor's decision" (see isActionableForActor), which isn't
+// expressible as a SQL aggregate, so it's computed separately from the (bounded,
+// active-only) rows.
+async function computeLaptopStats(actor: LaptopActor, whereClause: string, whereParams: QueryParams): Promise<LaptopDashboardStats> {
   const activePlaceholders = APPROVAL_ACTIVE_STATUSES.map(() => '?').join(', ');
-  const rows = await sql<QueryResultRow[]>(
-    `SELECT
-       COUNT(*)::int AS total,
-       COUNT(*) FILTER (WHERE status IN (${activePlaceholders}))::int AS pending_review,
-       COUNT(*) FILTER (WHERE status IN ('Procure New', 'Approved'))::int AS procure_new,
-       COUNT(*) FILTER (WHERE status IN ('Assign from Inventory', 'Assign from Inventory & Closed'))::int AS assigned_inventory,
-       COUNT(*) FILTER (WHERE status = 'Repaired & Closed')::int AS repaired,
-       COUNT(*) FILTER (WHERE status LIKE 'Rejected%')::int AS rejected,
-       COUNT(*) FILTER (WHERE LOWER(type_of_device) = 'laptop')::int AS laptops,
-       COUNT(*) FILTER (WHERE LOWER(type_of_device) = 'desktop')::int AS desktops
-     FROM laptop_requests
-     ${whereClause}`,
-    [...APPROVAL_ACTIVE_STATUSES, ...whereParams],
-  );
+  const [rows, activeRows] = await Promise.all([
+    sql<QueryResultRow[]>(
+      `SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (WHERE status IN ('Procure New', 'Approved'))::int AS procure_new,
+         COUNT(*) FILTER (WHERE status IN ('Assign from Inventory', 'Assign from Inventory & Closed'))::int AS assigned_inventory,
+         COUNT(*) FILTER (WHERE status = 'Repaired & Closed')::int AS repaired,
+         COUNT(*) FILTER (WHERE status LIKE 'Rejected%')::int AS rejected,
+         COUNT(*) FILTER (WHERE LOWER(type_of_device) = 'laptop')::int AS laptops,
+         COUNT(*) FILTER (WHERE LOWER(type_of_device) = 'desktop')::int AS desktops
+       FROM laptop_requests
+       ${whereClause}`,
+      whereParams,
+    ),
+    sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_requests ${whereClause ? `${whereClause} AND status IN (${activePlaceholders})` : `WHERE status IN (${activePlaceholders})`}`,
+      [...whereParams, ...APPROVAL_ACTIVE_STATUSES],
+    ),
+  ]);
   const row = rows[0] ?? {};
+  const pendingReview = serialise<LaptopRequest[]>(activeRows).filter(r => isActionableForActor(actor, r)).length;
   return {
     total: Number(row.total ?? 0),
-    pending_review: Number(row.pending_review ?? 0),
+    pending_review: pendingReview,
     procure_new: Number(row.procure_new ?? 0),
     assigned_inventory: Number(row.assigned_inventory ?? 0),
     repaired: Number(row.repaired ?? 0),
@@ -1066,7 +1099,7 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
         `SELECT * FROM laptop_activity_log WHERE actor_email = ? AND ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 12`,
         [actor.email],
       ),
-      computeLaptopStats(scope.where, scope.params),
+      computeLaptopStats(actor, scope.where, scope.params),
     ]);
 
     const pendingQueue = serialise<LaptopRequest[]>(pendingRows).filter(r => {
@@ -1325,7 +1358,7 @@ export async function getLaptopAdminData(requestsPage: number = 0): Promise<Lapt
       sql<QueryResultRow[]>(`SELECT * FROM laptop_delegations ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_device_catalog ORDER BY type_of_device, model`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix WHERE is_active = TRUE`),
-      computeLaptopStats('', []),
+      computeLaptopStats(actor, '', []),
     ]);
     const delegations = serialise<LaptopDelegationRow[]>(delegationRows);
     return {
@@ -1362,7 +1395,7 @@ async function computeLaptopAnalytics(actor: LaptopActor, where: string, params:
   return {
     actor,
     stats: {
-      ...buildStats(requests),
+      ...buildStats(requests, actor),
       active_requester_count: new Set(requests.map(r => r.requested_by_email.trim().toLowerCase()).filter(Boolean)).size,
       country_count: new Set(requests.map(r => (r.country ?? '').trim().toLowerCase()).filter(Boolean)).size,
     },
@@ -1816,9 +1849,11 @@ export async function updateLaptopRequestStatus(
     const stageDecisionAssignment = stageDecisionColumn ? `, ${stageDecisionColumn} = ?` : '';
     // "Assign existing laptop" hands over a specific second-hand unit — record which one,
     // separate from the current_brand/current_model/serial_no/age_years columns above,
-    // which describe the OLD device being replaced.
+    // which describe the OLD device being replaced. Also updates type_of_device, since
+    // the IT Manager can assign a different device type than what was first
+    // requested (e.g. a desktop instead of a laptop).
     const assignedLaptopAssignment = assignedLaptop
-      ? `, assigned_serial_no = ?, assigned_model = ?, assigned_age = ?`
+      ? `, assigned_serial_no = ?, assigned_model = ?, assigned_age = ?, type_of_device = ?`
       : '';
     // A CM choosing "Procure New" on a request that already has an assigned unit is
     // overriding the IT Manager's pick — but the assigned unit's details are left in
@@ -1833,7 +1868,19 @@ export async function updateLaptopRequestStatus(
     // resends — so Supply Chain Director's final sign-off still lands on 'Procure New',
     // not 'Approved'.
     const flagsProcureNew = (currentStatus === 'CM Approval' && status === 'Procure New Details') || Boolean(procureNewTypeOfDevice);
-    const procureNewFlagAssignment = flagsProcureNew ? `, procure_new_requested = TRUE` : '';
+    // IT Manager assigning an existing unit is a fresh, definitive "no new device
+    // needed" decision — it has to clear any procure_new_requested left over from an
+    // earlier pass through this same stage (e.g. they originally specified a new
+    // device up front, Country Manager rejected it, and now they're assigning
+    // existing stock instead). Without this, the stale flag keeps Country Manager's
+    // own "Procure New" option hidden even though nothing is actually locked in for
+    // procurement anymore.
+    const clearsProcureNewFlag = Boolean(assignedLaptop) && IT_MANAGER_STATUSES.includes(currentStatus);
+    const procureNewFlagAssignment = flagsProcureNew
+      ? `, procure_new_requested = TRUE`
+      : clearsProcureNewFlag
+        ? `, procure_new_requested = FALSE`
+        : '';
     // The IT Manager's up-front device specification — same columns the CM-triggered
     // "Procure New Details" step fills in later, just set immediately here instead.
     const procureNewDetailsAssignment = procureNewTypeOfDevice ? `, type_of_device = ?, requested_model = ?` : '';
@@ -1855,6 +1902,7 @@ export async function updateLaptopRequestStatus(
         blankToNull(assignedLaptop.serial_no),
         blankToNull(assignedLaptop.model),
         blankToNull(assignedLaptop.age),
+        blankToNull(assignedLaptop.type_of_device),
       );
     }
     if (procureNewDetailsAssignment) params.push(procureNewTypeOfDevice, procureNewModel);
