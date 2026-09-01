@@ -522,9 +522,42 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   const requestsPageCount = Math.max(1, Math.ceil(data.requestsTotal / REQUESTS_PAGE_SIZE));
   const currentRequestsPage = Math.min(requestsPage, requestsPageCount - 1);
 
-  const permissionsPageCount = Math.max(1, Math.ceil(permissionsList.length / REQUESTS_PAGE_SIZE));
+  // The four approver-matrix roles are shown grouped by country (one card per
+  // country, one row per role) — see matrixCountryGroups below. Requester/Admin
+  // entries aren't country-based in the same way, so they stay in a flat,
+  // paginated list beneath the country cards.
+  const otherPermissions = permissionsList.filter(p => p.source !== 'matrix');
+  const permissionsPageCount = Math.max(1, Math.ceil(otherPermissions.length / REQUESTS_PAGE_SIZE));
   const currentPermissionsPage = Math.min(permissionsPage, permissionsPageCount - 1);
-  const pagedPermissions = permissionsList.slice(currentPermissionsPage * REQUESTS_PAGE_SIZE, (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE);
+  const pagedPermissions = otherPermissions.slice(currentPermissionsPage * REQUESTS_PAGE_SIZE, (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE);
+
+  // Explode each matrix-role item (which can span several countries) into one
+  // row per country, then group those rows by country so every country shows
+  // all four approval roles together, matching how the matrix actually grants
+  // authority (per-country, not one flat list).
+  const matrixCountryGroups: Array<{ country: string; roles: Array<{ role: LaptopApprovalStage; items: LaptopPermissionListItem[] }> }> = (() => {
+    const byCountry = new Map<string, Map<string, LaptopPermissionListItem[]>>();
+    for (const item of permissionsList) {
+      if (item.source !== 'matrix') continue;
+      const countries = item.countries.length ? item.countries : (item.country ? item.country.split(',').map(c => c.trim()).filter(Boolean) : []);
+      for (const c of countries) {
+        if (!byCountry.has(c)) byCountry.set(c, new Map());
+        const roleMap = byCountry.get(c)!;
+        if (!roleMap.has(item.role)) roleMap.set(item.role, []);
+        roleMap.get(item.role)!.push(item);
+      }
+    }
+    const countries = [...new Set([...COUNTRY_OPTIONS, ...byCountry.keys()])].filter(c => byCountry.has(c));
+    return countries.map(c => ({
+      country: c,
+      // Most roles hold at most one person; IT Manager can hold two (primary +
+      // secondary matrix slot), so this stays a list rather than a single item.
+      roles: APPROVER_MATRIX_ROLES.map(role => ({
+        role: role as LaptopApprovalStage,
+        items: byCountry.get(c)!.get(role) ?? [],
+      })),
+    }));
+  })();
 
   async function refreshAdminData(page: number = currentRequestsPage) {
     const fresh = await getLaptopAdminData(page);
@@ -586,6 +619,21 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
       setSegment(item.segment ?? '');
       setMatrixCountries([]);
     }
+    requestAnimationFrame(() => {
+      document.getElementById('permission-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  // Jumps to the form pre-filled for a specific empty role+country slot from the
+  // country cards below, instead of the requiring the admin to fill role/country
+  // in the general form from scratch.
+  function startAddForRole(role: LaptopApprovalStage, country: string) {
+    setBanner('');
+    setEmail(''); setName('');
+    setRole(role as LaptopPermissionRole);
+    setEditingApproverEmail(null);
+    setMatrixCountries([country]);
+    setCountry(''); setSegment('');
     requestAnimationFrame(() => {
       document.getElementById('permission-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -733,7 +781,40 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
               </button>
             </section>
 
+            <div className="space-y-4">
+              {matrixCountryGroups.length === 0 && (
+                <section className={`${GLASS} p-5 text-sm text-slate-500`}>No approver matrix countries configured yet.</section>
+              )}
+              {matrixCountryGroups.map(group => (
+                <section key={group.country} className={`${GLASS} overflow-hidden`}>
+                  <h3 className="border-b border-slate-100 px-5 py-3 text-[13px] font-bold text-slate-900">{group.country}</h3>
+                  <div className="divide-y divide-slate-100">
+                    {group.roles.map(({ role, items }) => (
+                      items.length > 0 ? items.map(item => (
+                        <div key={`${role}-${item.email}`} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                          <span className="w-44 shrink-0 text-xs font-bold uppercase tracking-wide text-slate-500">{role}</span>
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{item.name || '—'}</span>
+                          <span className="min-w-0 flex-1 truncate text-sm text-slate-600">{item.email}</span>
+                          <div className="ml-auto flex shrink-0 gap-2">
+                            <button onClick={() => startEditPermission(item)} disabled={isPending} className="rounded-lg border border-[#307c4c]/30 bg-[#307c4c]/10 px-3 py-1 text-xs font-bold text-[#307c4c] transition hover:bg-[#307c4c]/20 disabled:opacity-60">Edit</button>
+                            <button onClick={() => removePermission(item)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Remove</button>
+                          </div>
+                        </div>
+                      )) : (
+                        <div key={role} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                          <span className="w-44 shrink-0 text-xs font-bold uppercase tracking-wide text-slate-500">{role}</span>
+                          <span className="flex-1 text-sm italic text-slate-400">Not assigned</span>
+                          <button onClick={() => startAddForRole(role, group.country)} disabled={isPending} className="ml-auto shrink-0 rounded-lg border border-[#307c4c]/30 bg-[#307c4c]/10 px-3 py-1 text-xs font-bold text-[#307c4c] transition hover:bg-[#307c4c]/20 disabled:opacity-60">Add</button>
+                        </div>
+                      )
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+
             <section className={`${GLASS} overflow-hidden`}>
+              <h2 className="border-b border-slate-100 px-5 py-3 text-[13px] font-bold text-slate-900">Other Permissions</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-[11px] uppercase tracking-wider text-slate-500">
@@ -765,11 +846,11 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
                   </tbody>
                 </table>
               </div>
-              {permissionsList.length > 0 && (
+              {otherPermissions.length > 0 && (
                 <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
                   <p className="text-xs text-slate-500/80">
                     Showing {currentPermissionsPage * REQUESTS_PAGE_SIZE + 1}
-                    –{Math.min((currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE, permissionsList.length)} of {permissionsList.length} permissions
+                    –{Math.min((currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE, otherPermissions.length)} of {otherPermissions.length} permissions
                   </p>
                   <div className="flex items-center gap-2">
                     <button

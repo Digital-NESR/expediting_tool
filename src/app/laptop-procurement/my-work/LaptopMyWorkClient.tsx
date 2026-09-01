@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import LaptopShell, { GLASS, GLASS_SOFT } from '../components/LaptopShell';
-import { fmtDate, getPriorityBadge, getStatusBadge } from '@/lib/laptopProcurement-utils';
+import { fmtDate, getStatusBadge } from '@/lib/laptopProcurement-utils';
 import type { LaptopWorkQueueData } from '@/types/laptopProcurement';
 
 const PAGE_SIZE = 10;
@@ -98,7 +98,6 @@ export default function LaptopMyWorkClient({ data }: { data: LaptopWorkQueueData
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[12.5px] font-bold text-[#307c4c]">{request.reference_number}</span>
                       <StatusPill status={request.status} />
-                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getPriorityBadge(request.priority)}`}>{request.priority}</span>
                     </div>
                     <p className="mt-1 truncate text-sm text-slate-600">{request.request_type || 'Request'} · {request.type_of_device || 'Device'} · {request.requested_model || '—'}</p>
                     <p className="mt-0.5 text-xs text-slate-500">{request.requested_by_name || request.requested_by_email} · {request.country || '—'} · Created {fmtDate(request.created_at)}</p>

@@ -286,7 +286,7 @@ export default function LaptopRequestFormClient({
   return (
     <LaptopShell
       title={isEditMode ? 'Edit Laptop / Desktop Request' : 'New Laptop / Desktop Request'}
-      subtitle="Routes through IT review → Country Manager → IT Director → SC Director"
+      subtitle="Routes through IT review → Country Manager, then IT Director → SC Director only if a new device is procured"
       accessView={accessView}
     >
       <form onSubmit={handleSubmit} className="space-y-5">
