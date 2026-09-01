@@ -169,7 +169,7 @@ export default function LaptopDashboardClient({ data }: { data: LaptopDashboardD
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <section className="grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
           <div className={`${GLASS} overflow-hidden xl:col-span-2`}>
             <div className={`flex items-center justify-between border-b border-slate-100 px-5 py-4 ${HEADER_BG}`}>
               <div>
