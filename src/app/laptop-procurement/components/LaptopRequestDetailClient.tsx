@@ -666,25 +666,25 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                 <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#307c4c]">New Unit (from inventory)</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Type of Device</label>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Type of Device</label>
                     <select className={INP} value={assignType} onChange={e => { setAssignType(e.target.value); setAssignModel(''); }}>
                       <option value="">Select device type</option>
                       {DEVICE_TYPE_OPTIONS.map(o => <option key={o}>{o}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Serial Number</label>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Serial Number</label>
                     <input className={INP} value={assignSerialNo} onChange={e => setAssignSerialNo(e.target.value)} />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Model</label>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Model</label>
                     <select className={INP} value={assignModel} disabled={!assignType} onChange={e => setAssignModel(e.target.value)}>
                       <option value="">{assignType ? 'Select model' : 'Select a device type first'}</option>
                       {assignModelOptions.map(o => <option key={o}>{o}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Age</label>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Age</label>
                     <select className={INP} value={assignAge} onChange={e => setAssignAge(e.target.value)}>
                       <option value="">Select age</option>
                       {DEVICE_AGE_OPTIONS.map(o => <option key={o}>{o}</option>)}

@@ -498,6 +498,7 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   const [data, setData] = useState(initialData);
   const [requestsPage, setRequestsPage] = useState(0);
   const [permissionsPage, setPermissionsPage] = useState(0);
+  const [activityPage, setActivityPage] = useState(0);
 
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -530,6 +531,10 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   const permissionsPageCount = Math.max(1, Math.ceil(otherPermissions.length / REQUESTS_PAGE_SIZE));
   const currentPermissionsPage = Math.min(permissionsPage, permissionsPageCount - 1);
   const pagedPermissions = otherPermissions.slice(currentPermissionsPage * REQUESTS_PAGE_SIZE, (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE);
+
+  const activityPageCount = Math.max(1, Math.ceil(activity.length / REQUESTS_PAGE_SIZE));
+  const currentActivityPage = Math.min(activityPage, activityPageCount - 1);
+  const pagedActivity = activity.slice(currentActivityPage * REQUESTS_PAGE_SIZE, (currentActivityPage + 1) * REQUESTS_PAGE_SIZE);
 
   // Explode each matrix-role item (which can span several countries) into one
   // row per country, then group those rows by country so every country shows
@@ -937,16 +942,45 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
         )}
 
         {tab === 'activity' && (
-          <section className={`${GLASS} divide-y divide-slate-100 overflow-hidden`}>
-            {activity.length === 0 ? (
-              <div className="p-8 text-center text-sm text-slate-500">No activity recorded.</div>
-            ) : activity.map(item => (
-              <div key={item.id} className="px-5 py-4">
-                <p className="text-sm font-semibold text-slate-900">{item.action}</p>
-                <p className="mt-1 text-xs text-slate-500">{item.reference_number} · {item.actor_name || item.actor_email || 'System'} · {fmtDate(item.created_at)}</p>
-                {item.notes && <p className="mt-1 rounded-xl bg-white p-2 text-xs text-slate-600">{item.notes}</p>}
+          <section className={`${GLASS} overflow-hidden`}>
+            <div className="divide-y divide-slate-100">
+              {activity.length === 0 ? (
+                <div className="p-8 text-center text-sm text-slate-500">No activity recorded.</div>
+              ) : pagedActivity.map(item => (
+                <div key={item.id} className="px-5 py-4">
+                  <p className="text-sm font-semibold text-slate-900">{item.action}</p>
+                  <p className="mt-1 text-xs text-slate-500">{item.reference_number} · {item.actor_name || item.actor_email || 'System'} · {fmtDate(item.created_at)}</p>
+                  {item.notes && <p className="mt-1 rounded-xl bg-white p-2 text-xs text-slate-600">{item.notes}</p>}
+                </div>
+              ))}
+            </div>
+            {activity.length > 0 && (
+              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+                <p className="text-xs text-slate-500/80">
+                  Showing {currentActivityPage * REQUESTS_PAGE_SIZE + 1}
+                  –{Math.min((currentActivityPage + 1) * REQUESTS_PAGE_SIZE, activity.length)} of {activity.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActivityPage(p => Math.max(0, p - 1))}
+                    disabled={currentActivityPage === 0}
+                    aria-label="Previous page"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    ‹
+                  </button>
+                  <span className="text-xs font-semibold text-slate-600">Page {currentActivityPage + 1} of {activityPageCount}</span>
+                  <button
+                    onClick={() => setActivityPage(p => Math.min(activityPageCount - 1, p + 1))}
+                    disabled={currentActivityPage >= activityPageCount - 1}
+                    aria-label="Next page"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    ›
+                  </button>
+                </div>
               </div>
-            ))}
+            )}
           </section>
         )}
 
