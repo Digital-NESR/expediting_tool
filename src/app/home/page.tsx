@@ -833,6 +833,52 @@ function ProcureGuardCard({
   );
 }
 
+function LaptopProcurementCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group relative rounded-xl border border-gray-200 bg-white p-8 flex flex-col gap-4 text-left w-full cursor-pointer transition-all duration-200 hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
+    >
+      <a
+        href="/help/laptop-procurement"
+        title="View Help & Training"
+        onClick={e => e.stopPropagation()}
+        className="absolute top-3 right-3 z-10 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+      >
+        <HelpCircle className="w-4 h-4" />
+      </a>
+
+      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
+        <Laptop className="w-6 h-6 text-[#307c4c]" />
+      </div>
+
+      <div className="flex-1">
+        <h3 className="text-[18px] font-semibold text-slate-900">Laptop Procurement</h3>
+        <p className="text-[13px] text-slate-400 font-medium mt-0.5">Device Requests & Approvals</p>
+        <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+          Raise laptop and device requests and route IT → Country Manager → IT Director → SC Director approvals.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between mt-auto">
+        <span
+          className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+          style={{ border: '1px solid #bbf7d0' }}
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+          </svg>
+          Full Access
+        </span>
+        <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">
+          Open →
+        </span>
+      </div>
+    </button>
+  );
+}
+
 /* ─── Admin-preview tool card (env-gated, matches Catalog Repo) ─── */
 
 function AdminPreviewCard({
@@ -1209,17 +1255,7 @@ export default function HomePage() {
               {/* ── Preview / Coming Soon ── */}
 
               {show('laptop procurement asset request device approvals') && (
-                <AdminPreviewCard
-                  name="Laptop Procurement"
-                  subtitle="Device Requests & Approvals"
-                  description="Raise laptop and device requests and route IT → Category Manager → IT Director → SC Director approvals."
-                  icon={<Laptop className="w-6 h-6 text-gray-400" />}
-                  canOpen
-                  badgeLabel="Beta"
-                  openLabel="Open →"
-                  onClick={handleLaptopClick}
-                  helpHref="/help/laptop-procurement"
-                />
+                <LaptopProcurementCard onClick={handleLaptopClick} />
               )}
 
               {show('learning hub training courses sap supply chain academy lms') && (
