@@ -610,6 +610,19 @@ function getLaptopAppBaseUrl(): string {
   return stripEnvQuotes(configured).replace(/\/$/, '');
 }
 
+// De-dupes a notification recipient list by email, keeping the first occurrence's
+// name — used once a delegated stage notifies both the original approver and their
+// delegate, in case they somehow resolve to the same address.
+function dedupeLaptopRecipients<T extends { email: string }>(recipients: T[]): T[] {
+  const seen = new Set<string>();
+  return recipients.filter(r => {
+    const key = r.email.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 async function postLaptopWebhook(
   webhookUrl: string,
   headers: Record<string, string>,
@@ -728,12 +741,16 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
     // The approver matrix is static per country — if whoever it names has delegated
     // their authority (laptop_delegations), the notification needs to follow that to
     // the delegate, same as getActor() already does for who can actually act on the
-    // request. Otherwise the delegate never finds out there's anything to review.
-    const realRecipients = await Promise.all(
-      matrixRecipients.map(async r => {
-        const delegate = await resolveActiveLaptopDelegateEmail(r.email, stage, request.country);
-        return delegate ? { name: delegate.name ?? r.name, email: delegate.email } : r;
-      }),
+    // request. The original approver stays on the notification too (rather than being
+    // replaced), so they're kept in the loop even while someone else is covering for
+    // them.
+    const realRecipients = dedupeLaptopRecipients(
+      (await Promise.all(
+        matrixRecipients.map(async r => {
+          const delegate = await resolveActiveLaptopDelegateEmail(r.email, stage, request.country);
+          return delegate ? [r, { name: delegate.name, email: delegate.email }] : [r];
+        }),
+      )).flat(),
     );
 
     // TESTING OVERRIDE: replace the real laptop_approver_matrix lookup above with a fixed
@@ -803,6 +820,95 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
     }
   } catch (err) {
     console.error('[Laptop Procurement n8n] Approval webhook failed', laptopWebhookErrorMessage(err), err);
+  }
+}
+
+/**
+ * Notifies the IT Manager once a request is FULLY, finally approved — the two cases
+ * are the assign-from-inventory chain ending at Country Manager, and the procure-new
+ * chain ending at Supply Chain Director. Every other stage transition only tells the
+ * *next* approver (see notifyLaptopNextApprover); this is the one closing-the-loop
+ * notification back to whoever originally triaged the request, so they know it's done
+ * and can go ahead and fulfil it.
+ */
+async function notifyLaptopFinalApproval(request: LaptopRequest): Promise<void> {
+  if (request.status !== 'Assign from Inventory' && request.status !== 'Procure New') return;
+
+  const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL?.trim();
+  if (!webhookUrl) {
+    console.warn('[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL not configured; skipping final-approval notification.');
+    return;
+  }
+
+  try {
+    const matrixRows = await sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_approver_matrix WHERE country = ? AND is_active = TRUE LIMIT 1`,
+      [request.country],
+    );
+    const matrix = matrixRows[0];
+    const itManagerCandidates: Array<{ name: string | null; email: string }> = ([
+      { name: (matrix?.it_manager_name as string) ?? null, email: matrix?.it_manager_email as string },
+      { name: (matrix?.it_manager_2_name as string) ?? null, email: matrix?.it_manager_2_email as string },
+    ].filter(r => r.email) as Array<{ name: string | null; email: string }>);
+
+    const realRecipients = dedupeLaptopRecipients(
+      (await Promise.all(
+        itManagerCandidates.map(async r => {
+          const delegate = await resolveActiveLaptopDelegateEmail(r.email, 'IT Manager', request.country);
+          return delegate ? [r, { name: delegate.name, email: delegate.email }] : [r];
+        }),
+      )).flat(),
+    );
+
+    const testMode = process.env.LAPTOP_APPROVAL_EMAIL_TEST_MODE !== 'false';
+    const testRecipients = [
+      { name: 'IT Manager (test)', email: process.env.LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL?.trim() || 'sbagalkot@nesr.com' },
+      { name: 'IT Manager 2 (test)', email: process.env.LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL?.trim() || 'sbagalkot@nesr.com' },
+    ];
+    // Deduped because LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL and
+    // LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL both default to the same address when
+    // unset, which would otherwise email the same test inbox twice.
+    const recipients = dedupeLaptopRecipients(testMode ? testRecipients : realRecipients);
+
+    if (recipients.length === 0) {
+      console.warn('[Laptop Procurement n8n] No IT Manager configured; skipping final-approval notification', { country: request.country });
+      return;
+    }
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const secret = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_SECRET?.trim();
+    if (secret) headers['x-laptop-procurement-secret'] = secret;
+
+    const payload = {
+      event: 'laptop_procurement.request_finally_approved',
+      occurred_at: new Date().toISOString(),
+      test_mode: testMode,
+      outcome: request.status,
+      request: {
+        id: request.id,
+        reference_number: request.reference_number,
+        status: request.status,
+        request_type: request.request_type,
+        country: request.country,
+        segment: request.segment,
+        type_of_device: request.type_of_device,
+        requested_model: request.requested_model,
+        requested_by_name: request.requested_by_name,
+        requested_by_email: request.requested_by_email,
+        created_at: request.created_at,
+      },
+      recipients,
+      detail_url: `${getLaptopAppBaseUrl()}/laptop-procurement/requests/${request.id}`,
+    };
+
+    const response = await postLaptopWebhook(webhookUrl, headers, payload);
+    if (!response.ok) {
+      console.error('[Laptop Procurement n8n] Final-approval webhook failed', response.status, response.statusText);
+    } else {
+      console.log('[Laptop Procurement n8n] Final-approval webhook sent', { requestId: request.id, status: response.status });
+    }
+  } catch (err) {
+    console.error('[Laptop Procurement n8n] Final-approval webhook failed', laptopWebhookErrorMessage(err), err);
   }
 }
 
@@ -1084,13 +1190,12 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
     // ones actually awaiting this actor's decision (same "needs my action" filter as
     // My Work) — being in scope isn't enough, since scope includes requests already
     // past this actor's stage and sitting with someone else.
-    const priorityRank = `CASE priority WHEN 'Critical' THEN 0 WHEN 'High' THEN 1 WHEN 'Normal' THEN 2 WHEN 'Low' THEN 3 ELSE 2 END`;
     const activePlaceholders = APPROVAL_ACTIVE_STATUSES.map(() => '?').join(', ');
     const pendingWhere = scope.where ? `${scope.where} AND status IN (${activePlaceholders})` : `WHERE status IN (${activePlaceholders})`;
 
     const [pendingRows, activityRows, stats] = await Promise.all([
       sql<QueryResultRow[]>(
-        `SELECT * FROM laptop_requests ${pendingWhere} ORDER BY ${priorityRank}, created_at DESC LIMIT 50`,
+        `SELECT * FROM laptop_requests ${pendingWhere} ORDER BY created_at DESC LIMIT 50`,
         [...scope.params, ...APPROVAL_ACTIVE_STATUSES],
       ),
       // Always the actor's own actions — not everything canViewAll can see — so
@@ -1130,6 +1235,11 @@ async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStag
   const matrix = matrixRows[0];
   const currentStage = getLaptopApprovalStage(request.status);
   const currentIndex = currentStage ? APPROVAL_STAGES.indexOf(currentStage) : -1;
+  // Assign-from-inventory / plain-approved requests now end at Country Manager — IT
+  // Director and Supply Chain Director never see them, so don't show those two as
+  // having "Approved" once the request is done.
+  const endedAtCountryManager = !request.procure_new_requested &&
+    (request.status === 'Assign from Inventory' || request.status === 'Assign from Inventory & Closed' || request.status === 'Approved');
 
   async function liveNameFor(matrixEmail: unknown, matrixName: unknown, stage: LaptopApprovalStage): Promise<string | null> {
     const email = String(matrixEmail ?? '').trim();
@@ -1141,6 +1251,7 @@ async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStag
 
   function stateFor(stage: LaptopApprovalStage, hasAssignee: boolean): LaptopStageAssignee['state'] {
     if (!hasAssignee) return 'none';
+    if (endedAtCountryManager && (stage === 'IT Director' || stage === 'Supply Chain Director')) return 'none';
     // Terminal status (approved/rejected/cancelled/...) — nothing is "pending" anymore.
     if (currentIndex === -1) return 'done';
     const stageIndex = APPROVAL_STAGES.indexOf(stage);
@@ -1224,11 +1335,7 @@ export async function getLaptopWorkQueueData(): Promise<LaptopWorkQueueData | nu
     const items = requests
       .map(request => ({ request, actions: getScopedActions(actor, request) }))
       .filter(item => item.actions.canApprove || item.actions.canReject || item.actions.canAssignInventory || item.actions.canProcureNew || item.actions.canSubmitProcureDetails)
-      .sort((a, b) => {
-        const rank: Record<string, number> = { Critical: 0, High: 1, Normal: 2, Low: 3 };
-        return (rank[a.request.priority] ?? 2) - (rank[b.request.priority] ?? 2)
-          || new Date(a.request.created_at).getTime() - new Date(b.request.created_at).getTime();
-      });
+      .sort((a, b) => new Date(a.request.created_at).getTime() - new Date(b.request.created_at).getTime());
 
     return {
       actor,
@@ -1732,7 +1839,8 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     });
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
-    await notifyLaptopNextApprover(serialise<LaptopRequest>({ ...row, status: nextStatus }));
+    const rejectedRequest = serialise<LaptopRequest>({ ...row, status: nextStatus });
+    await notifyLaptopNextApprover(rejectedRequest);
     return { success: true };
   } catch (err) {
     console.error('[rejectLaptopRequest]', err);
@@ -1936,7 +2044,9 @@ export async function updateLaptopRequestStatus(
 
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
-    await notifyLaptopNextApprover(serialise<LaptopRequest>({ ...row, status }));
+    const updatedRequest = serialise<LaptopRequest>({ ...row, status });
+    await notifyLaptopNextApprover(updatedRequest);
+    await notifyLaptopFinalApproval(updatedRequest);
     return { success: true };
   } catch (err) {
     console.error('[updateLaptopRequestStatus]', err);
@@ -1981,7 +2091,8 @@ export async function submitProcureNewDetails(id: number, input: SubmitProcureNe
     await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Device details submitted, sent to Country Manager for confirmation', actor });
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
-    await notifyLaptopNextApprover(serialise<LaptopRequest>({ ...row, status: nextStatus, type_of_device: typeOfDevice, requested_model: model }));
+    const confirmedRequest = serialise<LaptopRequest>({ ...row, status: nextStatus, type_of_device: typeOfDevice, requested_model: model });
+    await notifyLaptopNextApprover(confirmedRequest);
     return { success: true };
   } catch (err) {
     console.error('[submitProcureNewDetails]', err);

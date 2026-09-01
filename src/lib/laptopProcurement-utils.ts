@@ -284,10 +284,12 @@ export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAss
   const transitions: Partial<Record<LaptopRequestStatus, LaptopRequestStatus>> = {
     Submitted: 'CM Approval',
     'IT Approval': 'CM Approval',
-    // Country Manager's plain "Approve", an assigned-inventory continuation, and a
-    // confirmed new-device procurement all now continue through the same IT Director /
-    // SC Director sign-off — only the final terminal below tells them apart.
-    'CM Approval': 'IT Director Approval',
+    // Country Manager's plain "Approve" only continues on to IT Director / SC Director
+    // for a genuine new-device procurement — IT Director and SC Director only need to
+    // weigh in on brand-new device spend. Assigning from inventory (or, on the rare
+    // legacy path, a plain approval with nothing procured or assigned at all) ends the
+    // chain right here at Country Manager.
+    'CM Approval': isProcureNewFlow ? 'IT Director Approval' : (hasAssignedUnit ? 'Assign from Inventory' : 'Approved'),
     // The CM confirming the exact new device IT Manager picked — always continues to
     // IT Director.
     'CM Confirm Device': 'IT Director Approval',

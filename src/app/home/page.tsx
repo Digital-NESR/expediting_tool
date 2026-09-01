@@ -844,6 +844,7 @@ function AdminPreviewCard({
   onClick,
   badgeLabel,
   openLabel,
+  helpHref,
 }: {
   name: string;
   subtitle?: string;
@@ -855,6 +856,8 @@ function AdminPreviewCard({
   badgeLabel?: string;
   /** Override the default "Open preview →" link copy. */
   openLabel?: string;
+  /** When set, shows a small "?" Help & Training link in the top-right corner. */
+  helpHref?: string;
 }) {
   return (
     <button
@@ -867,6 +870,17 @@ function AdminPreviewCard({
           : 'opacity-50 cursor-default select-none'
       }`}
     >
+      {helpHref && (
+        <a
+          href={helpHref}
+          title="View Help & Training"
+          onClick={e => e.stopPropagation()}
+          className="absolute top-3 right-3 z-10 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+        >
+          <HelpCircle className="w-4 h-4" />
+        </a>
+      )}
+
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
         {icon}
       </div>
@@ -1204,6 +1218,7 @@ export default function HomePage() {
                   badgeLabel="Beta"
                   openLabel="Open →"
                   onClick={handleLaptopClick}
+                  helpHref="/help/laptop-procurement"
                 />
               )}
 

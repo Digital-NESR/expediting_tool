@@ -9,7 +9,6 @@ import {
   DEVICE_TYPE_OPTIONS,
   WORKFLOW_STEPS,
   fmtDateTime,
-  getPriorityBadge,
   getStatusBadge,
   getWorkflowStepIndex,
   isActiveApprovalStatus,
@@ -40,16 +39,21 @@ function Field({ label, value }: { label: string; value: DetailValue }) {
 // Flags device age for whoever reviews the request next — green once the device is
 // old enough (5+ years) that replacing/procuring makes obvious sense, red when it's
 // still relatively new, since that's worth a second look before approving.
-function AgeField({ label, value }: { label: string; value: DetailValue }) {
+// The assigned/inventory unit being handed OUT reads the opposite way (invert=true):
+// green when it's still young (< 5 years, good to give), red when it's 5+ years old
+// (too old to be handing out as a "new" assignment).
+function AgeField({ label, value, invert }: { label: string; value: DetailValue; invert?: boolean }) {
   const raw = value === null || value === undefined ? '' : String(value);
   const isOldEnough = raw === '5+ years';
   const isYoung = raw === '< 1 year' || raw === '1-3 years' || raw === '4-5 years';
-  const boxClass = isOldEnough
+  const isGreen = invert ? isYoung : isOldEnough;
+  const isRed = invert ? isOldEnough : isYoung;
+  const boxClass = isGreen
     ? 'rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2'
-    : isYoung
+    : isRed
       ? 'rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2'
       : '';
-  const textClass = isOldEnough ? 'text-emerald-900' : isYoung ? 'text-red-900' : 'text-slate-900';
+  const textClass = isGreen ? 'text-emerald-900' : isRed ? 'text-red-900' : 'text-slate-900';
   return (
     <div className={boxClass}>
       <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
@@ -128,20 +132,18 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function PriorityPill({ priority }: { priority: string }) {
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getPriorityBadge(priority)}`}>{priority}</span>;
-}
-
 type StepState = 'complete' | 'current' | 'skipped' | 'upcoming';
 
 function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'] }) {
   const status = request.status;
   const steps = WORKFLOW_STEPS;
-  // 'Procure New', 'Assign from Inventory', and 'Approved' are all now only reached
-  // after the full CM -> IT Director -> SC Director chain (a plain approval just skips
-  // the Procure New Details / CM Confirm Device waypoints along the way — see
-  // stepState below), so all three are genuine full-chain completions, not short-circuits.
+  // Only a genuine new-device procurement ('Procure New') reaches this after the full
+  // CM -> IT Director -> SC Director chain. Assigning from inventory and a plain
+  // approval both now end right at Country Manager — see stepState below, which skips
+  // the IT Director / SC Director cards for those two outcomes instead of marking them
+  // complete.
   const terminalApproved = status === 'Procure New' || status === 'Assign from Inventory' || status === 'Approved';
+  const endedAtCountryManager = !request.procure_new_requested && (status === 'Assign from Inventory' || status === 'Approved');
   const isRejected = status.startsWith('Rejected');
   const isCancelled = status === 'Cancelled';
   const altOutcome = status === 'Assign from Inventory & Closed' || status === 'Repaired & Closed';
@@ -166,6 +168,9 @@ function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'
     // a brand new device — a plain approval or an assigned-inventory continuation skips
     // them entirely, regardless of where the chain currently stands or ends up.
     if (isProcureNewOnlyStep && !request.procure_new_requested) return 'skipped';
+    // Assign-from-inventory / plain-approved requests never reach IT Director or SC
+    // Director now — they end right at Country Manager.
+    if (endedAtCountryManager && (step.status === 'IT Director Approval' || step.status === 'Supply Chain Director Approval')) return 'skipped';
     if (terminalApproved) return 'complete';
     if (approvedDateByStatus[step.status]) return 'complete';
     // 'Procure New Details' and 'CM Confirm Device' have no date of their own — infer
@@ -378,14 +383,8 @@ function ProcureNewDetailsSection({
             </div>
             <div>
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><span className="mr-1 text-red-500">*</span>Model</label>
-              <input className={INP} value={model} onChange={e => setModel(e.target.value)} placeholder="Type a model" />
-              <select
-                className={`${INP} mt-2`}
-                value=""
-                disabled={!typeOfDevice}
-                onChange={e => { if (e.target.value) setModel(e.target.value); }}
-              >
-                <option value="">{typeOfDevice ? 'Or pick a frequently used model…' : 'Select a device type first'}</option>
+              <select className={INP} value={model} disabled={!typeOfDevice} onChange={e => setModel(e.target.value)}>
+                <option value="">{typeOfDevice ? 'Select a model' : 'Select a device type first'}</option>
                 {modelOptions.map(o => <option key={o}>{o}</option>)}
               </select>
             </div>
@@ -796,7 +795,6 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                 <button type="button" onClick={jumpToDecision} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80">Go to decision</button>
               )}
               <StatusPill status={request.status} />
-              <PriorityPill priority={request.priority} />
             </div>
           </div>
 
@@ -865,7 +863,7 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                 <FieldGrid>
                   <Field label="Serial Number" value={request.assigned_serial_no} />
                   <Field label="Model" value={request.assigned_model} />
-                  <AgeField label="Age" value={request.assigned_age} />
+                  <AgeField label="Age" value={request.assigned_age} invert />
                 </FieldGrid>
               </Section>
             )}

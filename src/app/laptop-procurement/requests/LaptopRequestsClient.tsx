@@ -8,7 +8,6 @@ import {
   STATUS_OPTIONS,
   fmtDate,
   getLaptopAvailableActions,
-  getPriorityBadge,
   getRequiredPermissionForStage,
   getStatusBadge,
   laptopHasAssignedUnit,
@@ -177,7 +176,6 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
                     <td className="px-5 py-4 align-top">
                       <p className="font-semibold text-slate-900">{r.requested_by_name || '—'}</p>
                       <p className="text-xs text-slate-500">{r.company_name || 'No company'}</p>
-                      <span className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getPriorityBadge(r.priority)}`}>{r.priority}</span>
                     </td>
                     <td className="px-5 py-4 align-top">
                       <p className="font-semibold text-slate-900">{r.type_of_device || '—'}</p>

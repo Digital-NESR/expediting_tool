@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LaptopShell, { CTA, GLASS } from './components/LaptopShell';
-import { canUseLaptopAnalytics, getPriorityBadge, getStatusBadge, timeAgo } from '@/lib/laptopProcurement-utils';
+import { canUseLaptopAnalytics, getStatusBadge, timeAgo } from '@/lib/laptopProcurement-utils';
 import type { LaptopDashboardData, LaptopRequest } from '@/types/laptopProcurement';
 
 const AVATAR_GRADIENTS = [
@@ -93,7 +93,6 @@ function RequestRow({ request, index }: { request: LaptopRequest; index: number 
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[12.5px] font-bold text-[#307c4c]">{request.reference_number}</span>
           <StatusPill status={request.status} />
-          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getPriorityBadge(request.priority)}`}>{request.priority}</span>
         </div>
         <p className="mt-1 truncate text-sm text-slate-600">
           {request.requested_by_name || request.requested_by_email} · {request.type_of_device || 'Device'} · {request.requested_model || '—'}
