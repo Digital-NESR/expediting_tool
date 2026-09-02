@@ -31,15 +31,12 @@
     <div style="display:flex; align-items:center; gap:14px;">
       <div style="font-weight:900; letter-spacing:1.5px; font-size:24px; color:#FFFFFF;">NESR</div>
       <div style="width:1px; height:24px; background:rgba(255,255,255,0.45);"></div>
-      <div style="width:15px; height:28px; border-radius:3px; border:1px solid #FFFFFF; overflow:hidden; display:flex; flex-direction:column;">
-        <div style="height:4px; background:#C5E0D2;"></div>
-        <div style="flex:1; background:#FFFFFF;"></div>
-        <div style="height:4px; background:#C5E0D2;"></div>
-      </div>
+      <img src="/red-bull-can.png" alt="Red Bull" style="height:30px; width:auto; display:block;" />
       <div style="font-size:15px; font-weight:bold; color:#FFFFFF; letter-spacing:0.3px;">The Red Bull Distribution Game</div>
     </div>
     <div style="display:flex; align-items:center; gap:18px;">
       <div style="font-size:11px; color:#C5E0D2; letter-spacing:0.5px;">{{ headerStatus }}</div>
+      <div onClick="{{ goLeaderboard }}" style="cursor:pointer; font-size:11px; font-weight:bold; letter-spacing:0.5px; color:#FFFFFF; border:1px solid rgba(255,255,255,0.6); padding:6px 12px;" style-hover="{{ leaveHover }}">LEADERBOARD</div>
       <sc-if value="{{ showHowto }}" hint-placeholder-val="{{ true }}">
         <div onClick="{{ goHowto }}" style="cursor:pointer; font-size:11px; font-weight:bold; letter-spacing:0.5px; color:#FFFFFF; border:1px solid rgba(255,255,255,0.6); padding:6px 12px;" style-hover="{{ leaveHover }}">HOW TO PLAY</div>
       </sc-if>
@@ -1300,6 +1297,8 @@ class Component extends DCLogic {
       isHowto: screen === "howto",
       showHowto: screen === "home",
       goHowto: () => this.setState({ screen: "howto", error: "" }),
+      // Ask the NESR wrapper (parent frame) to show the leaderboard page.
+      goLeaderboard: () => { try { window.parent && window.parent.postMessage({ type: "rbg-nav", to: "leaderboard" }, "*"); } catch (e) {} },
       linkHover: { color: "#1F1F1D", borderColor: "#1F1F1D" },
       howChain: [
         { isStage: true, name: "Factory", note: "Two-week production run" },
