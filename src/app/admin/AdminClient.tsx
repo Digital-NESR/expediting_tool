@@ -35,6 +35,7 @@ import LaptopAnalyticsClient from '../laptop-procurement/analytics/LaptopAnalyti
 import LaptopApproverMatrixClient from './LaptopApproverMatrixClient';
 import LaptopAccessApprovalsClient from './LaptopAccessApprovalsClient';
 import LearningHubAdminClient from '../learning-hub/admin/AdminClient';
+import LearningHubAccessApprovalsClient from './LearningHubAccessApprovals';
 import type { Shipment } from '@/types/tite';
 import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
 import type { LaptopAdminData, LaptopAnalyticsData } from '@/types/laptopProcurement';
@@ -71,6 +72,7 @@ interface AdminClientProps {
   laptopAnalyticsData: LaptopAnalyticsData | null;
   laptopPendingAccessCount?: number;
   learningHubAdminData: LearningHubAdminData;
+  learningHubPendingCount?: number;
   initialTool?: string;
 }
 
@@ -1369,6 +1371,7 @@ export default function AdminClient({
   laptopAnalyticsData,
   laptopPendingAccessCount = 0,
   learningHubAdminData,
+  learningHubPendingCount = 0,
   initialTool = 'po-expediting',
 }: AdminClientProps) {
   const [selectedTool, setSelectedTool]       = useState<string>(initialTool);
@@ -1379,6 +1382,7 @@ export default function AdminClient({
   const [liveTitePendingCount, setLiveTitePendingCount] = useState(titePendingCount);
   const [liveProcureGuardPendingCount, setLiveProcureGuardPendingCount] = useState(procureGuardPendingCount);
   const [liveSourceGuidePendingCount, setLiveSourceGuidePendingCount] = useState(sourceGuidePendingCount);
+  const [liveLearningHubPendingCount, setLiveLearningHubPendingCount] = useState(learningHubPendingCount);
   const [liveCatalogPendingCount, setLiveCatalogPendingCount] = useState(catalogPendingCount);
   const [liveSnsPendingCount, setLiveSnsPendingCount] = useState(snsPendingCount);
   const [liveLaptopPendingAccessCount, setLiveLaptopPendingAccessCount] = useState(laptopPendingAccessCount);
@@ -1449,6 +1453,7 @@ export default function AdminClient({
       'laptop-procurement-analytics': 'Analytics — Laptop Procurement | Admin | SC Agents',
       'laptop-procurement-access': 'Access Approval — Laptop Procurement | Admin | SC Agents',
       'learning-hub-admin':     'Content Admin — Learning Hub | Admin | SC Agents',
+      'learning-hub-access':    'Access Approvals — Learning Hub | Admin | SC Agents',
     };
     document.title = titles[selectedTool] ?? 'Admin — SC Agents';
   }, [selectedTool]);
@@ -2034,6 +2039,29 @@ export default function AdminClient({
             Content Admin
           </button>
 
+          <button
+            onClick={() => setSelectedTool('learning-hub-access')}
+            style={{
+              ...navItemBase,
+              paddingLeft: 24,
+              borderLeft: selectedTool === 'learning-hub-access' ? '3px solid #059669' : '3px solid transparent',
+              background: selectedTool === 'learning-hub-access' ? '#f0fdf4' : 'transparent',
+              color: selectedTool === 'learning-hub-access' ? '#059669' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            <span>Access Approvals</span>
+            {liveLearningHubPendingCount > 0 && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999,
+                fontSize: 10, fontWeight: 700, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a',
+              }}>
+                {liveLearningHubPendingCount}
+              </span>
+            )}
+          </button>
+
           <div style={{ margin: '8px 0' }} />
 
           {/* Coming-soon tools */}
@@ -2153,6 +2181,9 @@ export default function AdminClient({
           )}
           {selectedTool === 'learning-hub-admin' && (
             <LearningHubAdminClient data={learningHubAdminData} embedded />
+          )}
+          {selectedTool === 'learning-hub-access' && (
+            <LearningHubAccessApprovalsClient onPendingCountChange={setLiveLearningHubPendingCount} />
           )}
           {selectedTool === 'po-expediting' && (
             <>

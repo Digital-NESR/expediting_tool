@@ -6,6 +6,7 @@ import titePool from "@/lib/db-tite";
 import sourceGuidePool from "@/lib/db-sourceguide";
 import procureGuardPool from "@/lib/db-procureguard";
 import snsPool from "@/lib/db-sns";
+import learningHubPool from "@/lib/db-learning-hub";
 import { getPermissionProfile } from "@/lib/procureGuard-utils";
 import type { ProcureGuardPermissionRole } from "@/types/procureGuard";
 
@@ -110,7 +111,7 @@ export const authOptions: NextAuthOptions = {
             .filter(Boolean);
 
           // Query each tool's access table in parallel
-          const [poResult, titeResult, sgChampResult, sgAccessResult, pgPermResult, snsResult] = await Promise.all([
+          const [poResult, titeResult, sgChampResult, sgAccessResult, pgPermResult, snsResult, lhResult] = await Promise.all([
             pool.query(
               `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
               [token.email]
@@ -135,6 +136,10 @@ export const authOptions: NextAuthOptions = {
               `SELECT status, approved_role, approved_countries FROM sns_access_requests WHERE LOWER(user_email) = LOWER($1)`,
               [token.email]
             ).catch(() => ({ rows: [] as { status: string; approved_role: string | null; approved_countries: string[] }[] })),
+            learningHubPool.query(
+              `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
+              [token.email]
+            ).catch(() => ({ rows: [] as { status: string; approved_countries: string[] }[] })),
           ]);
 
           // PO Expediting access
@@ -241,6 +246,19 @@ export const authOptions: NextAuthOptions = {
             snsCountries = [];
           }
 
+          // Learning Hub access: env admins bypass (see isAdmin); everyone else needs an Approved row.
+          let lhStatus: string;
+          if (lhResult.rows.length > 0) {
+            const ls = String(lhResult.rows[0].status).toLowerCase();
+            lhStatus =
+              ls === 'pending'  ? 'pending'  :
+              ls === 'approved' ? 'approved' :
+              ls === 'revoked'  ? 'revoked'  :
+              ls === 'rejected' ? 'rejected' : 'denied';
+          } else {
+            lhStatus = 'new';
+          }
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (token as any).toolAccess = {
             po_expediting: { status: poStatus,   approvedCountries: poCountries   },
@@ -248,6 +266,7 @@ export const authOptions: NextAuthOptions = {
             procure_guard: { status: procureGuardStatus, approvedCountries: [], accessType: procureGuardAccessType },
             sourceguide:   { status: sgStatus, approvedCountries: sgCountries },
             sns_registry:  { status: snsStatus, approvedCountries: snsCountries, snsRole },
+            learning_hub:  { status: lhStatus, approvedCountries: [] },
           };
           token.titeViewOnly = titeViewOnly;
         } catch (err) {
@@ -259,6 +278,7 @@ export const authOptions: NextAuthOptions = {
               procure_guard: { status: 'new', approvedCountries: [] },
               sourceguide:   { status: 'new', approvedCountries: [] },
               sns_registry:  { status: 'new', approvedCountries: [] },
+              learning_hub:  { status: 'new', approvedCountries: [] },
             };
           }
         }
@@ -281,6 +301,7 @@ export const authOptions: NextAuthOptions = {
           procure_guard?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[]; accessType?: 'requester' | 'approver' | 'viewer' | 'admin' };
           sourceguide?:   { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
           sns_registry?:  { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[]; snsRole?: string };
+          learning_hub?:  { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
         } | undefined;
         session.user.titeViewOnly = token.titeViewOnly as boolean | undefined;
       }

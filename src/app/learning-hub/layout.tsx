@@ -12,13 +12,11 @@ export default async function LearningHubLayout({ children }: { children: React.
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect('/login');
 
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = adminEmails.includes(session.user.email.toLowerCase());
-
-  // Env-gated admin preview: only configured admins may enter; everyone else is
-  // bounced to the tool picker (where the home card shows an "Admin Preview" badge).
-  if (!isAdmin) redirect('/home');
+  // Tool-level gate: env admins, or users approved for 'learning_hub'. Non-approved users are
+  // bounced to the tool picker, where the home card offers "Request access".
+  const isAdmin = session.user.isAdmin ?? false;
+  const status = session.user.toolAccess?.learning_hub?.status;
+  if (!isAdmin && status !== 'approved') redirect('/home');
 
   return <>{children}</>;
 }

@@ -26,6 +26,7 @@ declare module "next-auth" {
         procure_guard?: ToolAccessEntry;
         sourceguide?: ToolAccessEntry;
         sns_registry?: ToolAccessEntry;
+        learning_hub?: ToolAccessEntry;
       };
     };
   }
@@ -44,6 +45,7 @@ declare module "next-auth/jwt" {
       procure_guard?: ToolAccessEntry;
       sourceguide?: ToolAccessEntry;
       sns_registry?: ToolAccessEntry;
+      learning_hub?: ToolAccessEntry;
     };
   }
 }
