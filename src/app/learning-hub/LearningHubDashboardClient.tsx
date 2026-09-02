@@ -110,6 +110,36 @@ export default function LearningHubDashboardClient({ data }: { data: LearningHub
         </section>
 
         <section>
+          <Link
+            href="/learning-hub/red-bull-game"
+            className="group relative flex items-center gap-5 overflow-hidden rounded-2xl border border-white/10 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-300/50 sm:p-6"
+            style={{ background: 'linear-gradient(110deg,#0a1a4f 0%,#0a1a4f 52%,#12276e 100%)' }}
+          >
+            <span className="absolute inset-y-0 left-0 w-1.5 bg-[#DB0007]" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-md bg-[#DB0007] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white">New</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-white/60">Supply Chain Simulator</span>
+              </div>
+              <h3 className="mt-2 text-xl font-bold text-white sm:text-2xl">Red Bull Distribution Game</h3>
+              <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-white/70">
+                Run one stage of a four-stage supply chain, weather the demand swings, and watch the bullwhip effect build in real time. Outsmart the AI and climb the leaderboard.
+              </p>
+              <span className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-[#0a1a4f] transition-transform group-hover:translate-x-0.5">
+                Play now <ArrowRight className="h-4 w-4" />
+              </span>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/red-bull-can.png"
+              alt=""
+              className="h-28 w-auto shrink-0 self-center object-contain drop-shadow-2xl sm:h-40"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </Link>
+        </section>
+
+        <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">Tracks</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {data.tracks.map((track) => (

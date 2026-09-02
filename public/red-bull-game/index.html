@@ -1,0 +1,1673 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+  // Self-host React/ReactDOM so the game depends on no external CDN (NESR networks may block unpkg).
+  window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };
+</script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  body { margin:0; background:#F4F5F4; font-family: Arial, Calibri, Helvetica, sans-serif; color:#1F1F1D; -webkit-user-select:none; user-select:none; }
+  input, table, p { -webkit-user-select:text; user-select:text; }
+  a { color:#2A7E4F; text-decoration:none; }
+  a:hover { color:#1F1F1D; text-decoration:underline; }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+  input { font-family: Arial, Helvetica, sans-serif; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; display:flex; flex-direction:column; background:#F4F5F4;">
+
+  <div style="background:#2A7E4F; padding:12px 28px; display:flex; align-items:center; justify-content:space-between; gap:24px;">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div style="font-weight:900; letter-spacing:1.5px; font-size:24px; color:#FFFFFF;">NESR</div>
+      <div style="width:1px; height:24px; background:rgba(255,255,255,0.45);"></div>
+      <div style="width:15px; height:28px; border-radius:3px; border:1px solid #FFFFFF; overflow:hidden; display:flex; flex-direction:column;">
+        <div style="height:4px; background:#C5E0D2;"></div>
+        <div style="flex:1; background:#FFFFFF;"></div>
+        <div style="height:4px; background:#C5E0D2;"></div>
+      </div>
+      <div style="font-size:15px; font-weight:bold; color:#FFFFFF; letter-spacing:0.3px;">The Red Bull Distribution Game</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:18px;">
+      <div style="font-size:11px; color:#C5E0D2; letter-spacing:0.5px;">{{ headerStatus }}</div>
+      <sc-if value="{{ showHowto }}" hint-placeholder-val="{{ true }}">
+        <div onClick="{{ goHowto }}" style="cursor:pointer; font-size:11px; font-weight:bold; letter-spacing:0.5px; color:#FFFFFF; border:1px solid rgba(255,255,255,0.6); padding:6px 12px;" style-hover="{{ leaveHover }}">HOW TO PLAY</div>
+      </sc-if>
+      <sc-if value="{{ showLeave }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ leave }}" style="cursor:pointer; font-size:11px; font-weight:bold; letter-spacing:0.5px; color:#FFFFFF; border:1px solid rgba(255,255,255,0.6); padding:6px 12px;" style-hover="{{ leaveHover }}">EXIT</div>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1; display:flex; justify-content:center; padding:44px 24px 60px;">
+      <div style="width:100%; max-width:1080px;">
+        <div style="display:flex; align-items:flex-end; gap:14px;">
+          <div style="font-size:32px; font-weight:bold;">Choose How You Play</div>
+          <div style="display:flex; gap:5px; align-items:flex-end; padding-bottom:6px;">
+            <div style="width:12px; height:22px; border-radius:3px; background:#C5E0D2; border:1px solid #2A7E4F;"></div>
+            <div style="width:12px; height:30px; border-radius:3px; background:#6AAF8E; border:1px solid #2A7E4F;"></div>
+            <div style="width:12px; height:26px; border-radius:3px; background:#2A7E4F; border:1px solid #1F1F1D;"></div>
+          </div>
+        </div>
+        <div style="font-size:14px; color:#58595B; max-width:700px; line-height:1.6; margin-top:10px;">
+          Four stages move cases of energy drink from the plant to the shelf: retailer, wholesaler, distributor, factory. Orders take two weeks to travel up the chain and shipments take two weeks to come back down. Holding stock costs money, running out costs more. Nobody sees the whole picture.
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; margin-top:30px;">
+          <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3">
+            <div onClick="{{ m.pick }}" style="cursor:pointer; background:#FFFFFF; border-top:4px solid #2A7E4F; padding:22px 22px 24px; box-shadow:0 1px 3px rgba(31,31,29,0.12); display:flex; flex-direction:column; gap:12px; min-height:240px;" style-hover="{{ cardHover }}">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <div style="font-size:18px; font-weight:bold;">{{ m.name }}</div>
+                <div style="display:flex; gap:4px;">
+                  <sc-for list="{{ m.cans }}" as="c" hint-placeholder-count="2">
+                    <div style="width:11px; height:21px; border-radius:2px; background:#2A7E4F; border:1px solid #1F1F1D;"></div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="font-size:12px; font-weight:bold; color:#2A7E4F; letter-spacing:0.5px;">{{ m.tag }}</div>
+              <div style="font-size:13px; color:#58595B; line-height:1.6; flex:1;">{{ m.blurb }}</div>
+              <div style="font-size:12px; font-weight:bold; color:#1F1F1D; letter-spacing:0.5px;">{{ m.cta }} →</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="margin-top:26px; background:#FFFFFF; padding:20px 24px; border-left:4px solid #2A7E4F; display:flex; flex-wrap:wrap; gap:24px; align-items:center;">
+          <div style="font-size:13px; font-weight:bold;">Already have a game code?</div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input value="{{ nameInput }}" onChange="{{ onName }}" placeholder="Your name" style="width:170px; font-size:13px; padding:10px 12px; border:1px solid #D1D3D4;" />
+            <input value="{{ codeInput }}" onChange="{{ onCode }}" placeholder="CODE" style="width:120px; font-size:15px; font-weight:bold; letter-spacing:2px; text-transform:uppercase; padding:10px 12px; border:1px solid #D1D3D4;" />
+            <div onClick="{{ joinGame }}" style="cursor:pointer; background:#2A7E4F; color:#FFFFFF; font-size:12px; font-weight:bold; letter-spacing:0.5px; padding:12px 22px;" style-hover="{{ ctaHover }}">JOIN</div>
+          </div>
+          <div onClick="{{ goHowto }}" style="cursor:pointer; margin-left:auto; font-size:12px; font-weight:bold; color:#2A7E4F; border-bottom:2px solid #2A7E4F; padding-bottom:2px;" style-hover="{{ linkHover }}">HOW TO PLAY →</div>
+          <div style="font-size:12px; color:#58595B;">{{ error }}</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSetup }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1; display:flex; justify-content:center; padding:36px 24px 60px;">
+      <div style="width:100%; max-width:1000px; background:#FFFFFF; border-top:4px solid #2A7E4F; padding:30px 34px 36px; box-shadow:0 1px 3px rgba(31,31,29,0.12);">
+        <div style="font-size:24px; font-weight:bold;">{{ setupTitle }}</div>
+        <div style="font-size:13px; color:#58595B; line-height:1.6; max-width:660px; margin-top:8px;">{{ setupBlurb }}</div>
+
+        <sc-if value="{{ needsName }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:24px;">
+            <div style="font-size:11px; color:#58595B; letter-spacing:0.5px; font-weight:bold;">YOUR NAME</div>
+            <input value="{{ nameInput }}" onChange="{{ onName }}" placeholder="Name shown to the group" style="margin-top:8px; width:280px; font-size:14px; padding:11px 12px; border:1px solid #D1D3D4;" />
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showRolePick }}" hint-placeholder-val="{{ true }}">
+          <div style="font-size:13px; font-weight:bold; color:#2A7E4F; margin-top:26px; letter-spacing:0.5px;">Your Position</div>
+          <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-top:12px;">
+            <sc-for list="{{ setupRoles }}" as="r" hint-placeholder-count="4">
+              <div onClick="{{ r.pick }}" style="{{ r.cardStyle }}" style-hover="{{ r.hoverStyle }}">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <div style="{{ r.canStyle }}"></div>
+                  <div style="font-size:14px; font-weight:bold;">{{ r.name }}</div>
+                </div>
+                <div style="{{ r.blurbStyle }}">{{ r.blurb }}</div>
+                <div style="{{ r.tagStyle }}">{{ r.tag }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <div style="font-size:13px; font-weight:bold; color:#2A7E4F; margin-top:28px; letter-spacing:0.5px;">Run Settings</div>
+        <div style="display:flex; flex-wrap:wrap; gap:34px; margin-top:14px; align-items:flex-start;">
+          <div>
+            <div style="font-size:11px; color:#58595B; letter-spacing:0.5px; margin-bottom:8px; font-weight:bold;">CUSTOMER DEMAND</div>
+            <div style="display:flex; gap:8px;">
+              <sc-for list="{{ patternOptions }}" as="p" hint-placeholder-count="3">
+                <div onClick="{{ p.pick }}" style="{{ p.chipStyle }}" style-hover="{{ p.hoverStyle }}">{{ p.label }}</div>
+              </sc-for>
+            </div>
+            <div style="font-size:11px; color:#58595B; margin-top:10px; max-width:340px; line-height:1.5;">{{ patternNote }}</div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:#58595B; letter-spacing:0.5px; margin-bottom:8px; font-weight:bold;">WEEKS</div>
+            <div style="display:flex; gap:8px;">
+              <sc-for list="{{ weekOptions }}" as="w" hint-placeholder-count="3">
+                <div onClick="{{ w.pick }}" style="{{ w.chipStyle }}" style-hover="{{ w.hoverStyle }}">{{ w.label }}</div>
+              </sc-for>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:#58595B; letter-spacing:0.5px; margin-bottom:8px; font-weight:bold;">WHAT PLAYERS CAN SEE</div>
+            <div style="display:flex; gap:8px;">
+              <sc-for list="{{ visOptions }}" as="v" hint-placeholder-count="3">
+                <div onClick="{{ v.pick }}" style="{{ v.chipStyle }}" style-hover="{{ v.hoverStyle }}">{{ v.label }}</div>
+              </sc-for>
+            </div>
+            <div style="font-size:11px; color:#58595B; margin-top:10px; max-width:340px; line-height:1.5;">{{ visNote }}</div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:#58595B; letter-spacing:0.5px; margin-bottom:8px; font-weight:bold;">AI SEAT PRESET</div>
+            <div style="display:flex; gap:8px;">
+              <sc-for list="{{ policyOptions }}" as="p" hint-placeholder-count="3">
+                <div onClick="{{ p.pick }}" style="{{ p.chipStyle }}" style-hover="{{ p.hoverStyle }}">{{ p.label }}</div>
+              </sc-for>
+            </div>
+            <div style="font-size:11px; color:#58595B; margin-top:10px; max-width:300px; line-height:1.5;">{{ policyNote }}</div>
+          </div>
+        </div>
+
+        <sc-if value="{{ isTrainerSetup }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:28px;">
+            <div style="font-size:13px; font-weight:bold; color:#2A7E4F; letter-spacing:0.5px;">Team Size</div>
+            <div style="display:flex; gap:8px; margin-top:12px;">
+              <sc-for list="{{ sizeOptions }}" as="o" hint-placeholder-count="3">
+                <div onClick="{{ o.pick }}" style="{{ o.chipStyle }}" style-hover="{{ o.hoverStyle }}">{{ o.label }}</div>
+              </sc-for>
+            </div>
+            <div style="font-size:11px; color:#58595B; margin-top:10px; line-height:1.5; max-width:520px;">Any seat left empty in a team is run by the AI preset above, so teams of two, three, or four all play a full four-stage chain.</div>
+          </div>
+        </sc-if>
+
+        <div style="display:flex; gap:12px; align-items:center; margin-top:32px;">
+          <div onClick="{{ setupGo }}" style="cursor:pointer; background:#2A7E4F; color:#FFFFFF; font-size:14px; font-weight:bold; letter-spacing:0.5px; padding:14px 32px;" style-hover="{{ ctaHover }}">{{ setupCta }}</div>
+          <div onClick="{{ goHome }}" style="cursor:pointer; border:1px solid #D1D3D4; color:#58595B; font-size:13px; font-weight:bold; padding:13px 22px;" style-hover="{{ ghostHover }}">BACK</div>
+          <div style="font-size:12px; color:#58595B;">{{ error }}</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isLobby }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1; display:flex; justify-content:center; padding:30px 24px 60px;">
+      <div style="width:100%; max-width:1180px; display:flex; flex-direction:column; gap:18px;">
+
+        <div style="background:#1F1F1D; padding:24px 28px; display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap;">
+          <div>
+            <div style="font-size:11px; letter-spacing:1px; color:#C5E0D2; font-weight:bold;">SHARE THIS CODE</div>
+            <div style="font-size:44px; font-weight:900; letter-spacing:8px; color:#FFFFFF; line-height:1.1; margin-top:4px; -webkit-user-select:text; user-select:text;">{{ code }}</div>
+            <div style="font-size:12px; color:#D1D3D4; margin-top:6px;">{{ lobbyHint }}</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+            <div style="font-size:12px; color:#C5E0D2;">{{ lobbyConfigLine }}</div>
+            <div style="font-size:12px; color:#C5E0D2;">{{ playerCountLine }}</div>
+            <sc-if value="{{ amHost }}" hint-placeholder-val="{{ false }}">
+              <div onClick="{{ startRun }}" style="cursor:pointer; margin-top:6px; background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:13px 28px;" style-hover="{{ ctaHoverLight }}">START THE RUN →</div>
+            </sc-if>
+          </div>
+        </div>
+
+        <sc-if value="{{ amHost }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+            <div style="background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Coordinator Controls</div>
+            <div style="padding:18px; display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start;">
+              <div>
+                <div style="font-size:11px; font-weight:bold; color:#58595B; letter-spacing:0.5px;">HOW TEAMS ARE FORMED</div>
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                  <sc-for list="{{ assignOptions }}" as="a" hint-placeholder-count="3">
+                    <div onClick="{{ a.pick }}" style="cursor:pointer; padding:9px 16px; font-size:12px; font-weight:bold; border:1px solid #D1D3D4;" style-hover="{{ a.hoverStyle }}">{{ a.label }}</div>
+                  </sc-for>
+                </div>
+                <div style="font-size:11px; color:#58595B; margin-top:10px; max-width:400px; line-height:1.5;">{{ assignNote }}</div>
+              </div>
+              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <div onClick="{{ shuffle }}" style="cursor:pointer; border:1px solid #2A7E4F; color:#2A7E4F; font-size:12px; font-weight:bold; padding:10px 18px;" style-hover="{{ ghostHover }}">SHUFFLE TEAMS</div>
+                <div onClick="{{ addTeam }}" style="cursor:pointer; border:1px solid #2A7E4F; color:#2A7E4F; font-size:12px; font-weight:bold; padding:10px 18px;" style-hover="{{ ghostHover }}">ADD TEAM</div>
+                <div onClick="{{ clearTeams }}" style="cursor:pointer; border:1px solid #D1D3D4; color:#58595B; font-size:12px; font-weight:bold; padding:10px 18px;" style-hover="{{ ghostHover }}">CLEAR SEATS</div>
+                <div onClick="{{ addDemo }}" style="cursor:pointer; border:1px solid #D1D3D4; color:#58595B; font-size:12px; font-weight:bold; padding:10px 18px;" style-hover="{{ ghostHover }}">ADD TEST PLAYER</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="display:grid; grid-template-columns:300px 1fr; gap:18px; align-items:start;">
+          <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+            <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">In The Room</div>
+            <div style="padding:12px 0;">
+              <sc-for list="{{ roster }}" as="p" hint-placeholder-count="3">
+                <div onClick="{{ p.pick }}" style="cursor:pointer; padding:10px 18px; display:flex; align-items:center; justify-content:space-between; gap:10px; border-bottom:1px solid #F4F5F4;" style-hover="{{ p.hoverStyle }}">
+                  <div>
+                    <div style="font-size:13px; font-weight:bold;">{{ p.name }}</div>
+                    <div style="font-size:11px; color:#58595B;">{{ p.where }}</div>
+                  </div>
+                  <div style="font-size:9px; font-weight:bold; letter-spacing:0.6px; color:#2A7E4F;">{{ p.badge }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="padding:12px 18px 16px; font-size:11px; color:#58595B; line-height:1.5;">{{ rosterNote }}</div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:14px;">
+            <sc-for list="{{ teams }}" as="t" hint-placeholder-count="2">
+              <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+                <div style="background:#2A7E4F; padding:9px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                  <div style="font-size:13px; font-weight:bold; color:#FFFFFF; letter-spacing:0.5px;">{{ t.name }}</div>
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="font-size:11px; color:#C5E0D2;">{{ t.summary }}</div>
+                    <sc-if value="{{ t.canAssign }}" hint-placeholder-val="{{ false }}">
+                      <div onClick="{{ t.assignSelected }}" style="cursor:pointer; font-size:10px; font-weight:bold; letter-spacing:0.5px; color:#FFFFFF; border:1px solid rgba(255,255,255,0.7); padding:5px 10px;" style-hover="{{ leaveHover }}">PUT SELECTED PLAYER HERE</div>
+                    </sc-if>
+                  </div>
+                </div>
+                <div style="padding:16px 18px 18px; display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
+                  <sc-for list="{{ t.seats }}" as="s" hint-placeholder-count="4">
+                    <div onClick="{{ s.take }}" style="cursor:pointer; border:1px solid #D1D3D4; padding:12px 12px 14px; display:flex; flex-direction:column; gap:8px; background:#FFFFFF;" style-hover="{{ s.hoverStyle }}">
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="width:9px; height:18px; border-radius:2px; background:#2A7E4F;"></div>
+                        <div style="font-size:12px; font-weight:bold;">{{ s.role }}</div>
+                      </div>
+                      <div style="font-size:13px; font-weight:bold; color:#1F1F1D;">{{ s.who }}</div>
+                      <div style="font-size:10px; letter-spacing:0.6px; font-weight:bold; color:#2A7E4F;">{{ s.state }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+            <div style="font-size:12px; color:#58595B; line-height:1.6;">{{ seatNote }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+
+  <sc-if value="{{ isHowto }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1; display:flex; justify-content:center; padding:40px 24px 60px;">
+      <div style="width:100%; max-width:1000px; display:flex; flex-direction:column; gap:18px;">
+
+        <div style="background:#FFFFFF; border-top:4px solid #2A7E4F; padding:30px 34px 34px; box-shadow:0 1px 3px rgba(31,31,29,0.12);">
+          <div style="font-size:28px; font-weight:bold;">How To Play</div>
+          <div style="font-size:14px; color:#58595B; line-height:1.7; max-width:700px; margin-top:10px;">
+            You run one stage of a four-stage supply chain moving cases of energy drink from the plant to the shelf. Your job each week is simple to state and hard to do: decide how many cases to order from your supplier so the shelves stay stocked without burying yourself in stock.
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 30px 1fr 30px 1fr 30px 1fr 30px 1fr; align-items:center; gap:0; margin-top:26px;">
+            <sc-for list="{{ howChain }}" as="h" hint-placeholder-count="9">
+              <sc-if value="{{ h.isArrow }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; flex-direction:column; gap:6px; padding:0 4px;">
+                  <div style="display:flex; align-items:center;">
+                    <div style="flex:1; height:2px; background:#2A7E4F;"></div>
+                    <div style="width:0; height:0; border-left:7px solid #2A7E4F; border-top:5px solid transparent; border-bottom:5px solid transparent;"></div>
+                  </div>
+                  <div style="display:flex; align-items:center;">
+                    <div style="width:0; height:0; border-right:7px solid #58595B; border-top:5px solid transparent; border-bottom:5px solid transparent;"></div>
+                    <div style="flex:1; height:2px; background:#58595B;"></div>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ h.isStage }}" hint-placeholder-val="{{ true }}">
+                <div style="min-width:0; border:1px solid #D1D3D4; padding:12px 10px; background:#FFFFFF; height:100%;">
+                  <div style="font-size:13px; font-weight:bold;">{{ h.name }}</div>
+                  <div style="font-size:11px; color:#58595B; margin-top:4px; line-height:1.45;">{{ h.note }}</div>
+                </div>
+              </sc-if>
+            </sc-for>
+          </div>
+          <div style="font-size:12px; color:#58595B; margin-top:10px;">Green arrow: cases moving down the chain. Gray arrow: orders moving up. Both take two weeks.</div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
+          <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+            <div style="background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">What Happens Each Week</div>
+            <div style="padding:18px 20px 22px; display:flex; flex-direction:column; gap:14px;">
+              <sc-for list="{{ howSteps }}" as="s" hint-placeholder-count="5">
+                <div style="display:flex; gap:14px; align-items:flex-start;">
+                  <div style="flex:0 0 26px; height:26px; background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; display:flex; align-items:center; justify-content:center;">{{ s.n }}</div>
+                  <div>
+                    <div style="font-size:13px; font-weight:bold;">{{ s.title }}</div>
+                    <div style="font-size:12px; color:#58595B; line-height:1.6; margin-top:3px;">{{ s.text }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:18px;">
+            <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+              <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">What It Costs</div>
+              <div style="padding:0;">
+                <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                  <tbody>
+                    <sc-for list="{{ howCosts }}" as="c" hint-placeholder-count="3">
+                      <tr style="{{ c.style }}">
+                        <td style="padding:10px 18px; font-weight:bold;">{{ c.item }}</td>
+                        <td style="padding:10px 18px; text-align:right; font-weight:bold; color:#2A7E4F;">{{ c.rate }}</td>
+                        <td style="padding:10px 18px; color:#58595B;">{{ c.note }}</td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+              <div style="padding:14px 18px 18px; font-size:12px; color:#58595B; line-height:1.6;">Your score at the end compares your chain's total cost against a perfectly informed chain playing the same demand. Lowest cost wins; in a trainer session teams are ranked on total chain cost.</div>
+            </div>
+
+            <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+              <div style="background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Three Ways To Run It</div>
+              <div style="padding:16px 20px 20px; display:flex; flex-direction:column; gap:12px;">
+                <sc-for list="{{ howModes }}" as="m" hint-placeholder-count="3">
+                  <div style="border-left:3px solid #2A7E4F; background:#F4F5F4; padding:12px 14px;">
+                    <div style="font-size:13px; font-weight:bold;">{{ m.name }}</div>
+                    <div style="font-size:12px; color:#58595B; line-height:1.6; margin-top:3px;">{{ m.text }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+          <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Traps Everyone Falls Into</div>
+          <div style="padding:18px 20px 22px; display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <sc-for list="{{ howTips }}" as="t" hint-placeholder-count="4">
+              <div style="display:flex; gap:10px;">
+                <div style="flex:0 0 9px; height:18px; border-radius:2px; background:#2A7E4F; margin-top:2px;"></div>
+                <div style="font-size:12px; color:#1F1F1D; line-height:1.6;">{{ t.text }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px;">
+          <div onClick="{{ goHome }}" style="cursor:pointer; background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:14px 30px;" style-hover="{{ ctaHover }}">BACK TO THE MODES</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isPlaying }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; padding:22px 24px 60px;">
+      <div style="width:100%; max-width:1240px; display:flex; flex-direction:column; gap:16px;">
+
+        <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:14px;">
+          <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="5">
+            <div style="background:#FFFFFF; border-top:4px solid #2A7E4F; padding:14px 16px 16px; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+              <div style="font-size:10px; letter-spacing:0.7px; color:#58595B; font-weight:bold;">{{ k.label }}</div>
+              <div style="font-size:27px; font-weight:bold; color:#2A7E4F; line-height:1.2; margin-top:6px;">{{ k.value }}</div>
+              <div style="font-size:11px; color:#58595B;">{{ k.sub }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+          <div style="background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px; display:flex; justify-content:space-between; gap:16px;">
+            <div>{{ boardTitle }}</div>
+            <div style="font-size:11px; font-weight:normal; color:#C5E0D2;">{{ boardSub }}</div>
+          </div>
+          <div style="padding:20px 18px 22px; display:flex; align-items:stretch; gap:0; overflow-x:auto;">
+            <sc-for list="{{ chain }}" as="n" hint-placeholder-count="4">
+              <sc-if value="{{ n.isConn }}" hint-placeholder-val="{{ false }}">
+                <div style="flex:0 0 46px; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 4px;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:1px;">
+                    <div style="font-size:8px; letter-spacing:0.6px; color:#58595B; font-weight:bold;">CASES SHIPPED</div>
+                    <div style="display:flex; align-items:center; gap:2px; width:100%;">
+                      <div style="flex:1; height:2px; background:#2A7E4F;"></div>
+                      <div style="width:0; height:0; border-left:7px solid #2A7E4F; border-top:5px solid transparent; border-bottom:5px solid transparent;"></div>
+                    </div>
+                    <div style="font-size:12px; font-weight:bold; color:#2A7E4F;">{{ n.ship }}</div>
+                  </div>
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:1px;">
+                    <div style="font-size:12px; font-weight:bold; color:#1F1F1D;">{{ n.order }}</div>
+                    <div style="display:flex; align-items:center; gap:2px; width:100%;">
+                      <div style="width:0; height:0; border-right:7px solid #58595B; border-top:5px solid transparent; border-bottom:5px solid transparent;"></div>
+                      <div style="flex:1; height:2px; background:#58595B;"></div>
+                    </div>
+                    <div style="font-size:8px; letter-spacing:0.6px; color:#58595B; font-weight:bold;">ORDER PLACED</div>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ n.isMasked }}" hint-placeholder-val="{{ false }}">
+                <div style="flex:0.7 1 0; min-width:96px; border:1px dashed #D1D3D4; background:#F4F5F4; display:flex; flex-direction:column;">
+                  <div style="padding:8px 12px; display:flex; align-items:center; justify-content:space-between; gap:8px; border-bottom:1px dashed #D1D3D4;">
+                    <div style="font-size:13px; font-weight:bold; color:#58595B;">{{ n.name }}</div>
+                    <div style="font-size:9px; font-weight:bold; letter-spacing:0.7px; color:#D1D3D4;">{{ n.who }}</div>
+                  </div>
+                  <div style="padding:16px 12px; display:flex; flex-direction:column; gap:10px; align-items:center; justify-content:center; flex:1;">
+                    <div style="display:flex; gap:3px;">
+                      <div style="width:7px; height:18px; border-radius:1px; background:#D1D3D4;"></div>
+                      <div style="width:7px; height:18px; border-radius:1px; background:#D1D3D4;"></div>
+                      <div style="width:7px; height:18px; border-radius:1px; background:#D1D3D4;"></div>
+                    </div>
+                    <div style="font-size:26px; font-weight:bold; color:#D1D3D4;">?</div>
+                    <div style="font-size:11px; color:#58595B; text-align:center; line-height:1.5;">{{ n.maskNote }}</div>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ n.isOpen }}" hint-placeholder-val="{{ true }}">
+              <div style="{{ n.cardStyle }}">
+                <div style="padding:8px 12px; display:flex; align-items:center; justify-content:space-between; gap:8px; border-bottom:1px solid #D1D3D4; background:#F4F5F4;">
+                  <div style="font-size:13px; font-weight:bold;">{{ n.name }}</div>
+                  <div style="font-size:9px; font-weight:bold; letter-spacing:0.7px; color:#58595B;">{{ n.who }}</div>
+                </div>
+                <div style="padding:12px; display:flex; flex-direction:column; gap:10px;">
+                  <div style="display:flex; gap:10px;">
+                    <div style="flex:1; background:#C5E0D2; padding:8px 10px;">
+                      <div style="font-size:9px; letter-spacing:0.6px; font-weight:bold;">ON HAND</div>
+                      <div style="font-size:22px; font-weight:bold;">{{ n.inv }}</div>
+                    </div>
+                    <div style="flex:1; background:#F4F5F4; padding:8px 10px; border-left:3px solid #58595B;">
+                      <div style="font-size:9px; letter-spacing:0.6px; color:#58595B; font-weight:bold;">BACKLOG</div>
+                      <div style="font-size:22px; font-weight:bold; color:#58595B;">{{ n.back }}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex; flex-wrap:nowrap; gap:3px; align-items:flex-end; height:20px; width:100%; overflow:hidden;">
+                    <sc-for list="{{ n.cans }}" as="c" hint-placeholder-count="6">
+                      <div style="flex:0 0 7px; height:18px; border-radius:1px; background:#2A7E4F; border:1px solid #1F1F1D;"></div>
+                    </sc-for>
+                    <sc-if value="{{ n.hasNote }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10px; color:#58595B; align-self:center; white-space:nowrap; margin-left:2px;">{{ n.cansNote }}</div>
+                    </sc-if>
+                  </div>
+                  <div style="border:1px solid #C5E0D2; background:#FFFFFF;">
+                    <div style="background:#C5E0D2; padding:5px 10px; display:flex; align-items:center; gap:6px;">
+                      <div style="width:0; height:0; border-left:6px solid #2A7E4F; border-top:4px solid transparent; border-bottom:4px solid transparent;"></div>
+                      <div style="font-size:9px; font-weight:bold; letter-spacing:0.6px;">{{ n.inboundLabel }}</div>
+                    </div>
+                    <div style="padding:8px 10px; display:flex; flex-direction:column; gap:5px;">
+                      <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:#58595B;">
+                        <div>{{ n.in1Label }}</div><div style="font-weight:bold; color:#2A7E4F;">{{ n.in1 }}</div>
+                      </div>
+                      <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:#58595B;">
+                        <div>{{ n.in2Label }}</div><div style="font-weight:bold; color:#2A7E4F;">{{ n.in2 }}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="border:1px solid #D1D3D4; background:#FFFFFF;">
+                    <div style="background:#F4F5F4; padding:5px 10px; display:flex; align-items:center; gap:6px;">
+                      <div style="width:0; height:0; border-right:6px solid #58595B; border-top:4px solid transparent; border-bottom:4px solid transparent;"></div>
+                      <div style="font-size:9px; font-weight:bold; letter-spacing:0.6px; color:#58595B;">OUTBOUND — LAST WEEK</div>
+                    </div>
+                    <div style="padding:8px 10px; display:flex; flex-direction:column; gap:5px;">
+                      <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:#58595B;">
+                        <div>Order you received</div><div style="font-weight:bold; color:#1F1F1D;">{{ n.demandIn }}</div>
+                      </div>
+                      <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:#58595B;">
+                        <div>Cases you shipped</div><div style="font-weight:bold; color:#1F1F1D;">{{ n.shippedOut }}</div>
+                      </div>
+                      <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:#58595B;">
+                        <div>{{ n.placedLabel }}</div><div style="font-weight:bold; color:#1F1F1D;">{{ n.orderPlaced }}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; font-size:11px; color:#58595B; border-top:1px solid #D1D3D4; padding-top:8px;">
+                    <div>Cost to date</div><div style="font-weight:bold; color:#1F1F1D;">{{ n.cost }}</div>
+                  </div>
+                </div>
+              </div>
+              </sc-if>
+            </sc-for>
+            <sc-if value="{{ hideCustomers }}" hint-placeholder-val="{{ false }}">
+              <div style="flex:0 0 126px; border:1px dashed #D1D3D4; background:#F4F5F4; display:flex; flex-direction:column;">
+                <div style="padding:8px 12px; border-bottom:1px dashed #D1D3D4;">
+                  <div style="font-size:13px; font-weight:bold; color:#58595B;">Customers</div>
+                </div>
+                <div style="padding:16px 12px; display:flex; flex-direction:column; gap:10px; align-items:center; justify-content:center; flex:1;">
+                  <div style="font-size:26px; font-weight:bold; color:#D1D3D4;">?</div>
+                  <div style="font-size:11px; color:#58595B; text-align:center; line-height:1.5;">Only the retailer sees real customer demand. You see the orders your customer sends you.</div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ showCustomers }}" hint-placeholder-val="{{ true }}">
+            <div style="flex:0 0 126px; border:1px solid #2A7E4F; background:#C5E0D2; display:flex; flex-direction:column;">
+              <div style="padding:8px 12px; border-bottom:1px solid #2A7E4F; background:#2A7E4F; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                <div style="font-size:13px; font-weight:bold; color:#FFFFFF;">Customers</div>
+                <div style="font-size:9px; font-weight:bold; letter-spacing:0.7px; color:#C5E0D2;">DEMAND</div>
+              </div>
+              <div style="padding:12px; display:flex; flex-direction:column; gap:10px;">
+                <div>
+                  <div style="font-size:9px; letter-spacing:0.6px; font-weight:bold;">ASKED FOR LAST WEEK</div>
+                  <div style="font-size:26px; font-weight:bold;">{{ custLast }}</div>
+                </div>
+                <div style="display:flex; flex-wrap:nowrap; gap:3px; align-items:flex-end; height:20px; overflow:hidden;">
+                  <sc-for list="{{ custCans }}" as="c" hint-placeholder-count="4">
+                    <div style="flex:0 0 7px; height:18px; border-radius:1px; background:#1F1F1D; border:1px solid #1F1F1D;"></div>
+                  </sc-for>
+                </div>
+                <div style="font-size:11px; line-height:1.5; color:#1F1F1D;">{{ custNote }}</div>
+                <div style="display:flex; align-items:flex-end; gap:2px; height:34px; border-bottom:1px solid #6AAF8E;">
+                  <sc-for list="{{ custBars }}" as="b" hint-placeholder-count="8">
+                    <div style="{{ b.style }}"></div>
+                  </sc-for>
+                </div>
+                <div style="font-size:9px; letter-spacing:0.5px; color:#58595B; font-weight:bold;">DEMAND HISTORY</div>
+              </div>
+            </div>
+            </sc-if>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:360px 1fr; gap:18px; align-items:start;">
+          <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+            <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Your Decision — {{ roleName }}</div>
+            <div style="padding:18px;">
+              <div style="font-size:12px; color:#58595B; line-height:1.55;">{{ decisionPrompt }}</div>
+              <div style="display:flex; gap:8px; margin-top:14px;">
+                <div onClick="{{ dec }}" style="cursor:pointer; width:44px; display:flex; align-items:center; justify-content:center; background:#F4F5F4; border:1px solid #D1D3D4; font-size:20px; font-weight:bold;" style-hover="{{ stepHover }}">−</div>
+                <input type="number" value="{{ orderInput }}" onChange="{{ onOrderChange }}" style="flex:1; min-width:0; font-size:30px; font-weight:bold; text-align:center; border:1px solid #D1D3D4; padding:10px 6px;" />
+                <div onClick="{{ inc }}" style="cursor:pointer; width:44px; display:flex; align-items:center; justify-content:center; background:#F4F5F4; border:1px solid #D1D3D4; font-size:20px; font-weight:bold;" style-hover="{{ stepHover }}">+</div>
+              </div>
+              <div style="display:flex; gap:8px; margin-top:10px;">
+                <sc-for list="{{ quickOrders }}" as="q" hint-placeholder-count="4">
+                  <div onClick="{{ q.pick }}" style="cursor:pointer; flex:1; text-align:center; font-size:11px; font-weight:bold; padding:7px 0; border:1px solid #D1D3D4; color:#58595B;" style-hover="{{ q.hoverStyle }}">{{ q.label }}</div>
+                </sc-for>
+              </div>
+              <div onClick="{{ advance }}" style="cursor:pointer; margin-top:14px; text-align:center; background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:14px 0;" style-hover="{{ ctaHover }}">{{ advanceLabel }}</div>
+              <div style="font-size:10px; color:#58595B; margin-top:10px; line-height:1.5;">{{ orderHint }}</div>
+              <sc-if value="{{ waiting }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:12px; background:#C5E0D2; border-left:3px solid #2A7E4F; padding:10px 12px; font-size:11px; line-height:1.5;">{{ waitingNote }}</div>
+              </sc-if>
+            </div>
+            <div style="border-top:1px solid #D1D3D4; padding:14px 18px 18px;">
+              <div style="font-size:11px; font-weight:bold; letter-spacing:0.6px; color:#2A7E4F;">WEEK LOG</div>
+              <div style="display:flex; flex-direction:column; gap:6px; margin-top:10px;">
+                <sc-for list="{{ log }}" as="l" hint-placeholder-count="4">
+                  <div style="font-size:11px; color:#58595B; line-height:1.45; display:flex; gap:8px;">
+                    <div style="color:#2A7E4F; font-weight:bold;">›</div><div>{{ l.text }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:18px;">
+            <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+              <div style="background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px; display:flex; justify-content:space-between;">
+                <div>{{ chartTitle }}</div>
+                <div style="font-size:11px; font-weight:normal; color:#C5E0D2;">{{ chartSub }}</div>
+              </div>
+              <div style="padding:16px 18px 18px;">
+                <div style="display:flex; flex-direction:column; gap:9px;">
+                  <sc-for list="{{ series }}" as="s" hint-placeholder-count="5">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <div style="width:104px; font-size:11px; font-weight:bold; text-align:right;">{{ s.name }}</div>
+                      <div style="flex:1; height:34px; display:flex; align-items:flex-end; gap:2px; border-bottom:1px solid #D1D3D4;">
+                        <sc-for list="{{ s.bars }}" as="b" hint-placeholder-count="12">
+                          <div style="{{ b.style }}"></div>
+                        </sc-for>
+                      </div>
+                      <div style="width:56px; font-size:11px; color:#58595B; text-align:right;">max {{ s.max }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="font-size:11px; color:#58595B; margin-top:12px;">{{ bullwhipNote }}</div>
+              </div>
+            </div>
+
+            <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+              <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Your Ledger</div>
+              <div style="max-height:240px; overflow:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                  <thead>
+                    <tr>
+                      <sc-for list="{{ ledgerCols }}" as="c" hint-placeholder-count="8">
+                        <th style="background:#2A7E4F; color:#FFFFFF; font-size:10px; letter-spacing:0.5px; text-align:right; padding:8px 12px; border-right:1px solid #FFFFFF; position:sticky; top:0;">{{ c.label }}</th>
+                      </sc-for>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <sc-for list="{{ ledger }}" as="row" hint-placeholder-count="4">
+                      <tr style="{{ row.style }}">
+                        <sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="8">
+                          <td style="text-align:right; padding:7px 12px;">{{ cell.v }}</td>
+                        </sc-for>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isMonitor }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1; display:flex; justify-content:center; padding:26px 24px 60px;">
+      <div style="width:100%; max-width:1180px; display:flex; flex-direction:column; gap:18px;">
+        <div style="background:#1F1F1D; padding:22px 28px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;">
+          <div>
+            <div style="font-size:11px; letter-spacing:1px; color:#C5E0D2; font-weight:bold;">RUN IN PROGRESS · CODE {{ code }}</div>
+            <div style="font-size:26px; font-weight:bold; color:#FFFFFF; margin-top:6px;">{{ monitorHeadline }}</div>
+            <div style="font-size:12px; color:#D1D3D4; margin-top:6px;">{{ lobbyConfigLine }}</div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <div onClick="{{ nudgeAll }}" style="cursor:pointer; border:1px solid rgba(255,255,255,0.6); color:#FFFFFF; font-size:12px; font-weight:bold; padding:12px 20px;" style-hover="{{ leaveHover }}">AUTO-PLAY STALLED SEATS</div>
+            <div onClick="{{ endRun }}" style="cursor:pointer; background:#2A7E4F; color:#FFFFFF; font-size:12px; font-weight:bold; letter-spacing:0.5px; padding:12px 22px;" style-hover="{{ ctaHoverLight }}">END RUN & SHOW SCORECARD</div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <sc-for list="{{ monitorTeams }}" as="t" hint-placeholder-count="2">
+            <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+              <div style="background:#2A7E4F; padding:9px 18px; display:flex; justify-content:space-between; gap:14px;">
+                <div style="font-size:13px; font-weight:bold; color:#FFFFFF;">{{ t.name }}</div>
+                <div style="font-size:12px; color:#C5E0D2;">{{ t.status }}</div>
+              </div>
+              <div style="padding:14px 18px 16px; display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
+                <sc-for list="{{ t.seats }}" as="s" hint-placeholder-count="4">
+                  <div style="border:1px solid #D1D3D4; padding:10px 12px;">
+                    <div style="font-size:11px; font-weight:bold; color:#58595B; letter-spacing:0.5px;">{{ s.role }}</div>
+                    <div style="font-size:13px; font-weight:bold; margin-top:4px;">{{ s.who }}</div>
+                    <div style="font-size:11px; color:#58595B; margin-top:6px;">{{ s.line }}</div>
+                    <div style="font-size:11px; font-weight:bold; color:#2A7E4F; margin-top:4px;">{{ s.state }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="padding:0 18px 16px; display:flex; gap:24px; flex-wrap:wrap; font-size:12px; color:#58595B;">
+                <div>Chain cost <span style="font-weight:bold; color:#1F1F1D;">{{ t.cost }}</span></div>
+                <div>Peak order <span style="font-weight:bold; color:#1F1F1D;">{{ t.peak }}</span></div>
+                <div>Amplification <span style="font-weight:bold; color:#1F1F1D;">{{ t.amp }}</span></div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isScore }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1; display:flex; justify-content:center; padding:30px 24px 60px;">
+      <div style="width:100%; max-width:1100px; display:flex; flex-direction:column; gap:18px;">
+        <div style="background:#2A7E4F; padding:28px 34px;">
+          <div style="font-size:11px; letter-spacing:1px; color:#C5E0D2; font-weight:bold;">SCORECARD</div>
+          <div style="font-size:30px; font-weight:bold; color:#FFFFFF; margin-top:6px;">{{ finalHeadline }}</div>
+          <div style="font-size:14px; color:#C5E0D2; margin-top:8px;">{{ finalSub }}</div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <sc-for list="{{ scoreTeams }}" as="t" hint-placeholder-count="2">
+            <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1); border-left:5px solid #2A7E4F;">
+              <div style="padding:16px 20px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; border-bottom:1px solid #D1D3D4;">
+                <div style="display:flex; align-items:center; gap:16px;">
+                  <div style="font-size:26px; font-weight:900; color:#2A7E4F; min-width:44px;">{{ t.rank }}</div>
+                  <div>
+                    <div style="font-size:18px; font-weight:bold;">{{ t.name }}</div>
+                    <div style="font-size:12px; color:#58595B; margin-top:2px;">{{ t.members }}</div>
+                  </div>
+                  <sc-if value="{{ t.isWinner }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:10px; font-weight:bold; letter-spacing:1px; background:#2A7E4F; color:#FFFFFF; padding:6px 12px;">WINNER</div>
+                  </sc-if>
+                </div>
+                <div style="display:flex; gap:26px; flex-wrap:wrap;">
+                  <sc-for list="{{ t.stats }}" as="s" hint-placeholder-count="4">
+                    <div>
+                      <div style="font-size:10px; letter-spacing:0.6px; color:#58595B; font-weight:bold;">{{ s.label }}</div>
+                      <div style="font-size:20px; font-weight:bold; color:#1F1F1D;">{{ s.value }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="padding:14px 20px 18px;">
+                <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                  <thead>
+                    <tr>
+                      <sc-for list="{{ scoreCols }}" as="c" hint-placeholder-count="6">
+                        <th style="background:#2A7E4F; color:#FFFFFF; font-size:10px; letter-spacing:0.5px; text-align:right; padding:7px 12px; border-right:1px solid #FFFFFF;">{{ c.label }}</th>
+                      </sc-for>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <sc-for list="{{ t.rows }}" as="row" hint-placeholder-count="4">
+                      <tr style="{{ row.style }}">
+                        <sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="6">
+                          <td style="text-align:right; padding:7px 12px;">{{ cell.v }}</td>
+                        </sc-for>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+              <div style="padding:0 20px 20px; display:grid; grid-template-columns:1fr 190px; gap:20px; align-items:center;">
+                <div>
+                  <div style="font-size:11px; font-weight:bold; letter-spacing:0.6px; color:#2A7E4F;">IDEAL CHAIN VS. YOUR CHAIN — COST PER WEEK</div>
+                  <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <div style="width:96px; font-size:11px; font-weight:bold; text-align:right; color:#58595B;">Ideal chain</div>
+                      <div style="flex:1; height:34px; display:flex; align-items:flex-end; gap:2px; border-bottom:1px solid #D1D3D4;">
+                        <sc-for list="{{ t.idealBars }}" as="b" hint-placeholder-count="12">
+                          <div style="{{ b.style }}"></div>
+                        </sc-for>
+                      </div>
+                      <div style="width:74px; font-size:11px; text-align:right; color:#58595B;">{{ t.idealTotal }}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <div style="width:96px; font-size:11px; font-weight:bold; text-align:right;">Your chain</div>
+                      <div style="flex:1; height:34px; display:flex; align-items:flex-end; gap:2px; border-bottom:1px solid #D1D3D4;">
+                        <sc-for list="{{ t.actualBars }}" as="b" hint-placeholder-count="12">
+                          <div style="{{ b.style }}"></div>
+                        </sc-for>
+                      </div>
+                      <div style="width:74px; font-size:11px; text-align:right; font-weight:bold;">{{ t.actualTotal }}</div>
+                    </div>
+                  </div>
+                  <div style="font-size:11px; color:#58595B; line-height:1.5; margin-top:10px;">{{ t.scoreNote }}</div>
+                </div>
+                <div style="background:#2A7E4F; padding:16px 18px; color:#FFFFFF;">
+                  <div style="font-size:10px; letter-spacing:0.8px; color:#C5E0D2; font-weight:bold;">SCORE VS. IDEAL</div>
+                  <div style="font-size:42px; font-weight:900; line-height:1.1;">{{ t.score }}</div>
+                  <div style="font-size:13px; font-weight:bold; color:#C5E0D2;">{{ t.grade }}</div>
+                  <div style="font-size:11px; color:#C5E0D2; margin-top:8px; line-height:1.5;">Cost above ideal: {{ t.gap }}</div>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="background:#FFFFFF; padding:24px 28px; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+          <div style="font-size:13px; font-weight:bold; color:#2A7E4F; letter-spacing:0.5px;">Debrief Points</div>
+          <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
+            <sc-for list="{{ lessons }}" as="l" hint-placeholder-count="3">
+              <div style="border-left:3px solid #2A7E4F; background:#F4F5F4; padding:12px 16px; font-size:13px; line-height:1.6;">{{ l.text }}</div>
+            </sc-for>
+          </div>
+          <div style="display:flex; gap:12px; margin-top:24px;">
+            <div onClick="{{ playAgain }}" style="cursor:pointer; background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:14px 30px;" style-hover="{{ ctaHover }}">NEW RUN</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="background:#1F1F1D; color:#FFFFFF; font-size:11px; padding:14px 28px; display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap;">
+    <div>National Energy Services Reunited Corp.</div>
+    <div style="color:#D1D3D4;">{{ footerRules }}</div>
+    <div><a href="https://www.nesr.com" style="color:#C5E0D2;">www.nesr.com</a></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;holdingCost&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:0.5,&quot;min&quot;:0.1,&quot;max&quot;:2,&quot;step&quot;:0.1,&quot;unit&quot;:&quot;$/case/wk&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Rules&quot;},&quot;shortageCost&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:1,&quot;min&quot;:0.5,&quot;max&quot;:5,&quot;step&quot;:0.5,&quot;unit&quot;:&quot;$/case/wk&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Rules&quot;}}">
+const ROLES = ["Retailer", "Wholesaler", "Distributor", "Factory"];
+const AI_GAIN = { steady: [0.2, 0.3], standard: [0.35, 0.22], panicky: [0.6, 0.1] };
+const ROLE_BLURB = [
+  "Sells to the public. You see real customer demand first.",
+  "Supplies retailers. You only ever see retailer orders.",
+  "Supplies wholesalers. Two steps from the customer.",
+  "Cans the drink. Your orders become production runs."
+];
+const PATTERNS = [["step", "Step change"], ["seasonal", "Seasonal swing"], ["random", "Choppy"]];
+const PATTERN_NOTE = {
+  step: "Four cases a week for four weeks, then demand doubles to eight and stays there. The classic run.",
+  seasonal: "Demand rolls between three and thirteen cases a week on a slow cycle.",
+  random: "Demand jumps between four and thirteen cases with no pattern to lean on."
+};
+const POLICY_NOTE = {
+  steady: "AI seats hold their nerve and adjust slowly.",
+  standard: "AI seats use a textbook anchor-and-adjust rule.",
+  panicky: "AI seats over-react to shortages — a much wilder chain."
+};
+const CHANNEL = "rbg-sessions";
+const SKEY = c => "rbg:session:" + c;
+// Admin flag passed by the NESR wrapper (?admin=1). Team & Trainer modes are marked
+// "Coming Soon" for everyone but stay openable when this is set.
+const RBG_ADMIN = (() => { try { return new URLSearchParams(location.search).get("admin") === "1"; } catch (e) { return false; } })();
+
+const money = n => "$" + Math.round(n).toLocaleString("en-US");
+const uid = () => Math.random().toString(36).slice(2, 9);
+const gameCode = () => {
+  const a = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "";
+  for (let i = 0; i < 5; i++) s += a[Math.floor(Math.random() * a.length)];
+  return s;
+};
+
+function demandAt(pattern, week) {
+  if (pattern === "step") return week <= 4 ? 4 : 8;
+  if (pattern === "seasonal") return Math.max(2, Math.round(8 + 5 * Math.sin((week - 1) / 5)));
+  let x = Math.sin(week * 12.9898) * 43758.5453;
+  x -= Math.floor(x);
+  return Math.max(0, Math.round(4 + x * 9));
+}
+
+function makeSim() {
+  return {
+    week: 1,
+    inv: [12, 12, 12, 12], back: [0, 0, 0, 0], cost: [0, 0, 0, 0],
+    shipQ: [[4, 4], [4, 4], [4, 4], [4, 4]],
+    ordQ: [[0, 0], [4, 4], [4, 4], [4, 4]],
+    forecast: [4, 4, 4, 4], lastOrder: [4, 4, 4, 4],
+    lastDemand: [4, 4, 4, 4], lastShipped: [4, 4, 4, 4],
+    history: []
+  };
+}
+
+function aiOrder(sim, i, policy) {
+  const g = AI_GAIN[policy] || AI_GAIN.standard;
+  const f = sim.forecast[i];
+  const eff = sim.inv[i] - sim.back[i];
+  const pipeline = sim.shipQ[i].reduce((a, b) => a + b, 0) + (i < 3 ? sim.ordQ[i + 1].reduce((a, b) => a + b, 0) : 0);
+  const o = f + g[0] * (12 - eff) + g[1] * (2 * f + 4 - pipeline);
+  return Math.max(0, Math.min(80, Math.round(o)));
+}
+
+function stepSim(sim, orders, cfg) {
+  const inv = sim.inv.slice(), back = sim.back.slice(), cost = sim.cost.slice();
+  const shipQ = sim.shipQ.map(q => q.slice()), ordQ = sim.ordQ.map(q => q.slice());
+  const forecast = sim.forecast.slice();
+  const received = [0, 0, 0, 0], demand = [0, 0, 0, 0], shipped = [0, 0, 0, 0];
+
+  for (let i = 0; i < 4; i++) { received[i] = shipQ[i].shift() || 0; inv[i] += received[i]; }
+  const cust = demandAt(cfg.pattern, sim.week);
+  demand[0] = cust;
+  for (let i = 1; i < 4; i++) demand[i] = ordQ[i].shift() || 0;
+  for (let i = 0; i < 4; i++) {
+    const need = demand[i] + back[i];
+    const out = Math.min(inv[i], need);
+    inv[i] -= out; back[i] = need - out; shipped[i] = out;
+    if (i > 0) shipQ[i - 1].push(out);
+    forecast[i] = 0.7 * forecast[i] + 0.3 * demand[i];
+  }
+  for (let i = 0; i < 4; i++) cost[i] += cfg.holding * inv[i] + cfg.shortage * back[i];
+  for (let i = 0; i < 3; i++) ordQ[i + 1].push(orders[i]);
+  shipQ[3].push(orders[3]);
+  ordQ[0].push(0); ordQ[0].shift();
+
+  return {
+    week: sim.week + 1, inv, back, cost, shipQ, ordQ, forecast,
+    lastOrder: orders.slice(), lastDemand: demand, lastShipped: shipped,
+    history: sim.history.concat([{
+      week: sim.week, custDemand: cust, demand, orders: orders.slice(),
+      inv: inv.slice(), back: back.slice(), cost: cost.slice(), received, shipped
+    }])
+  };
+}
+
+function makeTeam(n) {
+  return { id: uid(), name: "Team " + n, seats: [null, null, null, null], pending: {}, sim: makeSim(), done: false };
+}
+
+class Component extends DCLogic {
+  state = {
+    screen: "home", myId: uid(), myName: "", nameInput: "", codeInput: "",
+    error: "", mode: "solo", role: 0, pattern: "step", weeks: 30, policy: "standard",
+    teamSize: 4, visibility: "own", sim: null, code: "", session: null, orderInput: 4, selected: null, tick: 0
+  };
+
+  componentDidMount() {
+    try {
+      this.chan = new BroadcastChannel(CHANNEL);
+      this.chan.onmessage = e => { if (e.data && e.data.code === this.state.code) this.pull(); };
+    } catch (e) { this.chan = null; }
+    this.onStore = e => { if (e.key === SKEY(this.state.code)) this.pull(); };
+    window.addEventListener("storage", this.onStore);
+    this.poll = setInterval(() => { if (this.state.code) this.pull(); }, 1200);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener("storage", this.onStore);
+    clearInterval(this.poll);
+    if (this.chan) this.chan.close();
+  }
+
+  cfg(s) { return { pattern: s.pattern, weeks: s.weeks, holding: this.HOLD, shortage: this.SHORT, policy: s.policy, visibility: s.visibility }; }
+  get HOLD() { return this.props.holdingCost ?? 0.5; }
+  get SHORT() { return this.props.shortageCost ?? 1.0; }
+
+  load(code) { try { return JSON.parse(localStorage.getItem(SKEY(code))); } catch (e) { return null; } }
+  save(sess) {
+    localStorage.setItem(SKEY(sess.code), JSON.stringify(sess));
+    if (this.chan) this.chan.postMessage({ code: sess.code });
+    this.setState({ session: sess });
+  }
+  pull() {
+    const s = this.load(this.state.code);
+    if (s) this.setState({ session: s });
+  }
+  mutate(fn) {
+    const cur = this.load(this.state.code) || this.state.session;
+    if (!cur) return;
+    const next = JSON.parse(JSON.stringify(cur));
+    fn(next);
+    this.save(next);
+  }
+
+  myTeam(sess) {
+    if (!sess) return null;
+    return (sess.teams || []).find(t => t.seats.some(p => p && p.id === this.state.myId)) || null;
+  }
+  mySeat(team) {
+    if (!team) return -1;
+    return team.seats.findIndex(p => p && p.id === this.state.myId);
+  }
+  humanSeats(team) {
+    return team.seats.map((p, i) => (p ? i : -1)).filter(i => i >= 0);
+  }
+
+  createSession(mode) {
+    const st = this.state;
+    const name = (st.nameInput || "").trim() || (mode === "trainer" ? "Coordinator" : "Player 1");
+    const code = gameCode();
+    const sess = {
+      code, mode, phase: "lobby", hostId: st.myId, hostName: name,
+      cfg: this.cfg(st), assign: mode === "trainer" ? "self" : "self",
+      players: [{ id: st.myId, name }], teams: [makeTeam(1)]
+    };
+    if (mode === "team") sess.teams[0].name = "Your Chain";
+    this.setState({ code, myName: name, session: sess, screen: "session", error: "" }, () => this.save(sess));
+  }
+
+  joinSession = () => {
+    const st = this.state;
+    const code = (st.codeInput || "").trim().toUpperCase();
+    const name = (st.nameInput || "").trim();
+    if (!code) return this.setState({ error: "Enter the game code your coordinator shared." });
+    if (!name) return this.setState({ error: "Enter your name so the room knows who you are." });
+    const sess = this.load(code);
+    if (!sess) return this.setState({ error: "No live game with code " + code + " on this device." });
+    if (sess.phase === "ended") return this.setState({ error: "That run has already finished." });
+    this.setState({ code, myName: name, screen: "session", error: "" }, () => {
+      this.mutate(s => {
+        if (!s.players.some(p => p.id === this.state.myId)) s.players.push({ id: this.state.myId, name });
+      });
+    });
+  };
+
+  seatMe(teamId, seat) {
+    this.mutate(s => {
+      if (s.phase !== "lobby") return;
+      s.teams.forEach(t => t.seats.forEach((p, i) => { if (p && p.id === this.state.myId) t.seats[i] = null; }));
+      const t = s.teams.find(x => x.id === teamId);
+      if (t && !t.seats[seat]) t.seats[seat] = { id: this.state.myId, name: this.state.myName };
+    });
+  }
+
+  shuffleTeams = () => {
+    this.mutate(s => {
+      const pool = s.players.filter(p => !(s.mode === "trainer" && p.id === s.hostId));
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      const size = Math.max(2, Math.min(4, s.cfg.teamSize || 4));
+      const count = Math.max(1, Math.ceil(pool.length / size));
+      s.teams = [];
+      for (let i = 0; i < count; i++) s.teams.push(makeTeam(i + 1));
+      if (s.mode === "team") s.teams[0].name = "Your Chain";
+      pool.forEach((p, i) => {
+        const t = s.teams[i % count];
+        const free = t.seats.findIndex(x => !x);
+        if (free >= 0) t.seats[free] = { id: p.id, name: p.name };
+      });
+    });
+  };
+
+  startRun = () => {
+    this.mutate(s => {
+      s.teams = s.teams.filter(t => t.seats.some(x => x) || s.teams.length === 1);
+      const unseated = s.players.filter(p =>
+        !(s.mode === "trainer" && p.id === s.hostId) &&
+        !s.teams.some(t => t.seats.some(x => x && x.id === p.id)));
+      unseated.forEach(p => {
+        let t = s.teams.find(x => x.seats.some(y => !y));
+        if (!t) { t = makeTeam(s.teams.length + 1); s.teams.push(t); }
+        t.seats[t.seats.findIndex(y => !y)] = { id: p.id, name: p.name };
+      });
+      s.teams.forEach(t => { t.sim = makeSim(); t.pending = {}; t.done = false; });
+      s.phase = "running";
+    });
+  };
+
+  // Bridge the finished solo run's score up to the NESR wrapper for the leaderboard.
+  postSoloScore(sim, st) {
+    try {
+      const cfg = this.cfg(st);
+      const cmp = this.compare(sim, cfg);
+      const chain = sim.cost.reduce((a, b) => a + b, 0);
+      window.parent && window.parent.postMessage({
+        type: "rbg-score",
+        game: "red_bull_distribution",
+        mode: "solo",
+        score: cmp.score,
+        grade: cmp.grade,
+        chainCost: Math.round(chain),
+        role: ROLES[st.role],
+        pattern: st.pattern,
+        weeks: st.weeks
+      }, "*");
+    } catch (e) { /* leaderboard is best-effort; never block the game */ }
+  }
+
+  submitOrder = () => {
+    const st = this.state;
+    const order = Math.max(0, Math.min(200, Math.round(Number(st.orderInput) || 0)));
+    if (!st.session) {
+      const sim = st.sim;
+      if (!sim || sim.week > st.weeks) return;
+      const orders = [0, 1, 2, 3].map(i => (i === st.role ? order : aiOrder(sim, i, st.policy)));
+      const next = stepSim(sim, orders, this.cfg(st));
+      const over = next.week > st.weeks;
+      this.setState({ sim: next, screen: over ? "solo-over" : "solo-play" });
+      if (over) this.postSoloScore(next, st);
+      return;
+    }
+    this.mutate(s => {
+      const team = s.teams.find(t => t.seats.some(p => p && p.id === this.state.myId));
+      if (!team || team.done || s.phase !== "running") return;
+      const seat = team.seats.findIndex(p => p && p.id === this.state.myId);
+      team.pending[seat] = order;
+      const humans = team.seats.map((p, i) => (p ? i : -1)).filter(i => i >= 0);
+      if (humans.every(i => team.pending[i] !== undefined)) {
+        const orders = [0, 1, 2, 3].map(i =>
+          team.pending[i] !== undefined ? team.pending[i] : aiOrder(team.sim, i, s.cfg.policy));
+        team.sim = stepSim(team.sim, orders, s.cfg);
+        team.pending = {};
+        if (team.sim.week > s.cfg.weeks) team.done = true;
+      }
+      if (s.teams.every(t => t.done)) s.phase = "ended";
+    });
+  };
+
+  nudgeAll = () => {
+    this.mutate(s => {
+      s.teams.forEach(team => {
+        if (team.done) return;
+        const orders = [0, 1, 2, 3].map(i =>
+          team.pending[i] !== undefined ? team.pending[i] : aiOrder(team.sim, i, s.cfg.policy));
+        team.sim = stepSim(team.sim, orders, s.cfg);
+        team.pending = {};
+        if (team.sim.week > s.cfg.weeks) team.done = true;
+      });
+      if (s.teams.every(t => t.done)) s.phase = "ended";
+    });
+  };
+
+  endRun = () => { this.mutate(s => { s.phase = "ended"; s.teams.forEach(t => { t.done = true; }); }); };
+
+  leave = () => {
+    if (this.chan) { /* keep session alive for others */ }
+    this.setState({ screen: "home", code: "", session: null, sim: null, error: "", selected: null });
+  };
+
+  hover(active) {
+    return active
+      ? { background: "#2A7E4F", color: "#FFFFFF", borderColor: "#2A7E4F" }
+      : { background: "#C5E0D2", borderColor: "#6AAF8E" };
+  }
+  bar(v, max, color) {
+    const h = max > 0 ? Math.max(2, Math.round((v / max) * 34)) : 2;
+    return { flex: "1 1 0", minWidth: "2px", height: h + "px", background: color };
+  }
+
+  idealRun(cfg) {
+    const key = [cfg.pattern, cfg.weeks, cfg.holding, cfg.shortage].join("|");
+    this._ideal = this._ideal || {};
+    if (this._ideal[key]) return this._ideal[key];
+    // Perfect-information base-stock benchmark: hold inventory position at
+    // lead-time demand + a safety buffer, with the buffer tuned by search.
+    let best = null;
+    for (let safety = 0; safety <= 14; safety += 2) {
+      let sim = makeSim();
+      for (let w = 1; w <= cfg.weeks; w++) {
+        const d = demandAt(cfg.pattern, w);
+        const orders = [0, 1, 2, 3].map(i => {
+          const pipe = sim.shipQ[i].reduce((a, b) => a + b, 0) + (i < 3 ? sim.ordQ[i + 1].reduce((a, b) => a + b, 0) : 0);
+          const ip = sim.inv[i] - sim.back[i] + pipe;
+          return Math.max(0, Math.round(4 * d + safety - ip));
+        });
+        sim = stepSim(sim, orders, cfg);
+      }
+      const total = sim.cost.reduce((a, b) => a + b, 0);
+      if (!best || total < best.total) best = { sim, total };
+    }
+    const out = { sim: best.sim, weekly: this.weeklyCost(best.sim), total: best.total };
+    this._ideal[key] = out;
+    return out;
+  }
+
+  weeklyCost(sim) {
+    let prev = 0;
+    return sim.history.map(h => {
+      const cum = h.cost.reduce((a, b) => a + b, 0);
+      const wk = cum - prev;
+      prev = cum;
+      return wk;
+    });
+  }
+
+  compare(sim, cfg) {
+    const ideal = this.idealRun(cfg);
+    const actual = this.weeklyCost(sim);
+    const n = Math.max(actual.length, 1);
+    const idealW = ideal.weekly.slice(0, n);
+    const idealTotal = idealW.reduce((a, b) => a + b, 0);
+    const actualTotal = actual.reduce((a, b) => a + b, 0);
+    const max = Math.max(1, ...actual, ...idealW);
+    const score = Math.max(0, Math.min(100, Math.round(100 * (idealTotal / Math.max(1, actualTotal)))));
+    const grade = score >= 80 ? "Excellent" : score >= 60 ? "Solid" : score >= 40 ? "Choppy" : "Whiplashed";
+    return {
+      idealBars: idealW.map(v => ({ style: this.bar(v, max, "#6AAF8E") })),
+      actualBars: actual.map(v => ({ style: this.bar(v, max, "#2A7E4F") })),
+      idealTotal: money(idealTotal), actualTotal: money(actualTotal),
+      gap: money(Math.max(0, actualTotal - idealTotal)),
+      score, grade,
+      scoreNote: "A perfectly informed chain on the same demand would have spent " + money(idealTotal) +
+        " over these " + n + " weeks. You spent " + money(actualTotal) + " — " +
+        money(Math.max(0, actualTotal - idealTotal)) + " of that is the cost of not seeing the whole chain."
+    };
+  }
+
+  teamStats(team, cfg) {
+    const h = team.sim.history;
+    const chain = team.sim.cost.reduce((a, b) => a + b, 0);
+    const peak = Math.max(0, ...h.map(x => Math.max(...x.orders)));
+    const peakCust = Math.max(1, ...h.map(x => x.custDemand));
+    return { chain, peak, peakCust, amp: (peak / peakCust).toFixed(1) };
+  }
+
+  boardVals(sim, role, cfg, seatNames) {
+    const s = sim;
+    const nodes = ROLES.map((name, i) => {
+      const cap = 12;
+      const shown = Math.min(cap, s.inv[i]);
+      return {
+        name, who: seatNames[i],
+        inv: s.inv[i], back: s.back[i],
+        cans: Array.from({ length: shown }, (_, k) => ({ k })),
+        hasNote: s.inv[i] > cap || s.inv[i] === 0,
+        cansNote: s.inv[i] > cap ? "+" + (s.inv[i] - cap) : "empty yard",
+        demandIn: i === 0 ? demandAt(cfg.pattern, Math.max(1, s.week - 1)) : s.lastDemand[i],
+        shippedOut: s.lastShipped[i],
+        inboundLabel: i === 3 ? "IN PRODUCTION — COMING TO YOU" : "INBOUND — CASES COMING TO YOU",
+        in1Label: i === 3 ? "Off the line next week" : "Arriving next week",
+        in2Label: i === 3 ? "Off the line in 2 weeks" : "Arriving in 2 weeks",
+        in1: s.shipQ[i][0] || 0,
+        in2: s.shipQ[i][1] || 0,
+        placedLabel: i === 3 ? "Production you started" : "Order you placed",
+        orderPlaced: s.lastOrder[i],
+        inbound: s.shipQ[i].map(q => ({ qty: q })),
+        cost: money(s.cost[i])
+      };
+    });
+    const custLast = s.history.length ? s.history[s.history.length - 1].custDemand : demandAt(cfg.pattern, 1);
+    const chain = [];
+    const vis = cfg.visibility || "own";
+    [3, 2, 1, 0].forEach(i => {
+      const mine = i === role;
+      const open = mine || vis !== "own";
+      chain.push({
+        ...nodes[i], isNode: true, isOpen: open, isMasked: !open,
+        cardStyle: {
+          flex: mine ? "1.5 1 0" : "1 1 0", minWidth: mine ? "208px" : "152px",
+          border: "2px solid " + (mine ? "#2A7E4F" : "#D1D3D4"),
+          background: "#FFFFFF", display: "flex", flexDirection: "column"
+        },
+        maskNote: i > role
+          ? "Your supplier's yard. You only learn what they ship you."
+          : "Downstream of you. You only see the orders they send."
+      });
+      const shown = vis !== "own" || i === role || i - 1 === role;
+      chain.push({
+        isConn: true,
+        ship: shown ? s.lastShipped[i] : "?",
+        order: shown ? (i === 0 ? custLast : s.lastOrder[i - 1]) : "?"
+      });
+    });
+    const custHist = s.history.slice(-14).map(h => h.custDemand);
+    const custMax = Math.max(4, ...custHist);
+    const cust = s.history.map(h => h.custDemand);
+    const allMax = Math.max(8, ...s.history.map(h => Math.max(h.custDemand, ...h.orders)));
+    const openSeries = vis === "own"
+      ? [
+          { name: "Orders you got", vals: s.history.map(h => h.demand[role]), color: "#1F1F1D" },
+          { name: "Cases you shipped", vals: s.history.map(h => h.shipped[role]), color: "#6AAF8E" },
+          { name: "Orders you placed", vals: s.history.map(h => h.orders[role]), color: "#2A7E4F" }
+        ]
+      : (vis === "full" || role === 0 ? [{ name: "Customer demand", vals: s.history.map(h => h.custDemand), color: "#1F1F1D" }] : []).concat(
+          ROLES.map((n, i) => ({
+            name: n + (i === role ? " (you)" : ""),
+            vals: s.history.map(h => h.orders[i]),
+            color: i === role ? "#2A7E4F" : "#6AAF8E"
+          }))
+        );
+    const series = openSeries.map(sr => ({
+      name: sr.name,
+      max: sr.vals.length ? Math.max(...sr.vals) : 0,
+      bars: sr.vals.map(v => ({ style: this.bar(v, allMax, sr.color) }))
+    }));
+    const peakOrder = Math.max(0, ...s.history.map(h => h.orders[role]));
+    const peakCust = Math.max(1, ...cust);
+    const ledger = s.history.slice().reverse().map((h, idx) => ({
+      style: { background: idx % 2 === 0 ? "#FFFFFF" : "#C5E0D2" },
+      cells: [h.week, h.received[role], h.demand[role], h.shipped[role], h.inv[role], h.back[role], h.orders[role], money(h.cost[role])].map(v => ({ v }))
+    }));
+    const last = s.history[s.history.length - 1];
+    const log = last ? [
+      { text: "Week " + last.week + ": received " + last.received[role] + " cases, order in was " + last.demand[role] + "." },
+      { text: "Shipped " + last.shipped[role] + " cases. " + (last.back[role] > 0 ? last.back[role] + " cases still owed." : "Nothing owed downstream.") },
+      { text: (role === 3 ? "Started production of " : "Ordered ") + last.orders[role] + " cases." },
+      { text: "Running cost " + money(last.cost[role]) + "." }
+    ] : [{ text: "Opening position: 12 cases on hand at every stage, 4 cases a week moving through the chain." }];
+
+    return {
+      nodes, chain, series, ledger, log,
+      showCustomers: vis === "full" || role === 0, hideCustomers: !(vis === "full" || role === 0),
+      chartTitle: vis === "own" ? "What You Can See" : "Orders Placed Up The Chain",
+      chartSub: vis === "own" ? "your own orders, shipments and demand only" : "bullwhip view — every stage is open in this run",
+      custLast,
+      custCans: Array.from({ length: Math.min(9, custLast) }, (_, k) => ({ k })),
+      custBars: custHist.map(v => ({ style: this.bar(v, custMax, "#1F1F1D") })),
+      custNote: "Real demand at the shelf. Only the retailer sees this — everyone upstream sees orders, not customers.",
+      ledgerCols: ["WK", "RECEIVED", "ORDER IN", "SHIPPED", "ON HAND", "BACKLOG", "ORDERED", "COST"].map(l => ({ label: l })),
+      kpis: [
+        { label: "WEEK", value: Math.min(s.week, cfg.weeks) + " / " + cfg.weeks, sub: "of the run" },
+        { label: "ON HAND", value: s.inv[role], sub: "cases in your yard" },
+        { label: "BACKLOG", value: s.back[role], sub: "cases you owe" },
+        { label: "YOUR COST", value: money(s.cost[role]), sub: "cumulative" },
+        (cfg.visibility && cfg.visibility !== "own")
+          ? { label: "CHAIN COST", value: money(s.cost.reduce((a, b) => a + b, 0)), sub: "all four stages" }
+          : { label: "INBOUND", value: s.shipQ[role].reduce((a, b) => a + b, 0), sub: "cases on the way to you" }
+      ],
+      bullwhipNote: s.history.length < 3
+        ? "Only your own three lines. How the rest of the chain reacted is revealed on the scorecard."
+        : "Your orders peaked at " + peakOrder + " cases. Whether that was an over-reaction is something you find out at the debrief.",
+      orderHint: "Last week you " + (role === 3 ? "started " : "ordered ") + s.lastOrder[role] + " cases. Inbound: " + (s.shipQ[role][0] || 0) + " next week, " + (s.shipQ[role][1] || 0) + " the week after.",
+      decisionPrompt: role === 3
+        ? "How many cases do you can this week? Production takes two weeks to reach your yard."
+        : "How many cases do you order from your " + ROLES[role + 1].toLowerCase() + " this week? Two weeks for them to see it, two more for the cases to arrive."
+    };
+  }
+
+  renderVals() {
+    const st = this.state;
+    const sess = st.session;
+    const cfg = sess ? sess.cfg : this.cfg(st);
+    const amHost = !!(sess && sess.hostId === st.myId);
+    const isCoordinator = !!(sess && sess.mode === "trainer" && amHost);
+    const team = this.myTeam(sess);
+    const seat = this.mySeat(team);
+
+    const phase = sess ? sess.phase : null;
+    const screen = !sess
+      ? st.screen
+      : phase === "lobby" ? "lobby"
+      : phase === "ended" ? "score"
+      : isCoordinator ? "monitor"
+      : (team && team.done) ? "score" : "play";
+
+    const activeStyle = { background: "#2A7E4F", color: "#FFFFFF", borderColor: "#2A7E4F" };
+    const chip = on => ({
+      cursor: "pointer", padding: "9px 16px", fontSize: "12px", fontWeight: "bold",
+      border: "1px solid " + (on ? "#2A7E4F" : "#D1D3D4"),
+      background: on ? "#2A7E4F" : "#FFFFFF", color: on ? "#FFFFFF" : "#1F1F1D"
+    });
+    const common = {
+      isHome: screen === "home",
+      isHowto: screen === "howto",
+      showHowto: screen === "home",
+      goHowto: () => this.setState({ screen: "howto", error: "" }),
+      linkHover: { color: "#1F1F1D", borderColor: "#1F1F1D" },
+      howChain: [
+        { isStage: true, name: "Factory", note: "Two-week production run" },
+        { isArrow: true },
+        { isStage: true, name: "Distributor", note: "Regional stock" },
+        { isArrow: true },
+        { isStage: true, name: "Wholesaler", note: "Serves retailers" },
+        { isArrow: true },
+        { isStage: true, name: "Retailer", note: "Stocks the shelf" },
+        { isArrow: true },
+        { isStage: true, name: "Customers", note: "Demand starts here" }
+      ],
+      howSteps: [
+        { n: "1", title: "Cases arrive", text: "Whatever your supplier shipped two weeks ago lands in your yard and is added to stock." },
+        { n: "2", title: "An order comes in", text: "The stage below you placed it two weeks ago. The retailer instead gets real customer demand." },
+        { n: "3", title: "You ship what you can", text: "Fill the order plus anything you already owe. Short of stock? The rest becomes backlog and stays owed." },
+        { n: "4", title: "Costs are booked", text: "You pay for stock sitting in the yard and, at double the rate, for every case you still owe." },
+        { n: "5", title: "You place your order", text: "The only decision you make. It reaches your supplier in two weeks; cases come back two weeks after that — a four-week round trip." }
+      ],
+      howCosts: [
+        { item: "Stock on hand", rate: "$" + this.HOLD.toFixed(2) + " / case / week", note: "Cases sitting in your yard", style: { background: "#FFFFFF" } },
+        { item: "Backlog", rate: "$" + this.SHORT.toFixed(2) + " / case / week", note: "Cases you owe and cannot ship", style: { background: "#C5E0D2" } },
+        { item: "Your score", rate: "ideal ÷ actual", note: "0–100 against a perfectly informed chain", style: { background: "#FFFFFF" } }
+      ],
+      howModes: [
+        { name: "Solo", text: "You take one seat, the AI preset plays the other three. Best for learning the mechanics." },
+        { name: "Team — 2 to 4 players", text: "Create a game, share the code. Joiners take seats; any empty seat is played by the AI, so a full chain runs either way. The week closes once every human seat has ordered." },
+        { name: "Trainer-led", text: "A coordinator sets demand, length and visibility, shares one code, watches people arrive, then forms teams randomly, by hand, or by letting players choose. Live monitor during the run, ranked scorecard at the end." }
+      ],
+      howTips: [
+        { text: "Ordering twice for the same shortage. Your order is already on its way — check what is inbound before you add more." },
+        { text: "Reacting to one week's number. A single spike is noise; the four-week delay means you feel your own reaction long after you forgot making it." },
+        { text: "Forgetting the supply line. Stock in your yard plus stock in transit is what you actually own." },
+        { text: "Cutting to zero after a glut. That is how the chain whips back the other way and how the stage above you gets whipsawed." }
+      ],
+      isSetup: screen === "solo-setup" || screen === "team-setup" || screen === "trainer-setup",
+      isLobby: screen === "lobby",
+      isPlaying: screen === "solo-play" || screen === "play",
+      isMonitor: screen === "monitor",
+      isScore: screen === "score" || screen === "solo-over",
+      code: st.code, error: st.error,
+      nameInput: st.nameInput, codeInput: st.codeInput,
+      onName: e => this.setState({ nameInput: e.target.value }),
+      onCode: e => this.setState({ codeInput: e.target.value.toUpperCase() }),
+      joinGame: this.joinSession,
+      goHome: () => this.setState({ screen: "home", error: "" }),
+      leave: this.leave,
+      showLeave: screen !== "home",
+      ctaHover: { background: "#1F1F1D" },
+      ctaHoverLight: { background: "#6AAF8E" },
+      ghostHover: { background: "#C5E0D2" },
+      cardHover: { background: "#F4F5F4" },
+      stepHover: { background: "#C5E0D2", borderColor: "#6AAF8E" },
+      leaveHover: { background: "rgba(255,255,255,0.18)" },
+      footerRules: "Holding $" + this.HOLD.toFixed(2) + " / case / week · Backlog $" + this.SHORT.toFixed(2) + " / case / week · 2-week order and shipping delays",
+      headerStatus: sess
+        ? (isCoordinator ? "Coordinator · code " + st.code : st.myName + " · code " + st.code + (team ? " · " + team.name : ""))
+        : ({
+            home: "NESR Internal Training",
+            howto: "How to play",
+            "solo-setup": "Solo setup",
+            "team-setup": "Team setup",
+            "trainer-setup": "Trainer setup",
+            "solo-play": "Solo run",
+            "solo-over": "Solo debrief"
+          }[screen] || "NESR Internal Training"),
+      modes: [
+        { name: "Solo", tag: "ONE PLAYER · 3 AI SEATS", blurb: "Take one position and let the AI preset run the other three stages. Best for learning the mechanics before a session.", cta: "PLAY SOLO", cans: [{}], pick: () => this.setState({ screen: "solo-setup", mode: "solo", error: "" }) },
+        { name: "Team", tag: "COMING SOON · 2–4 PLAYERS", blurb: "Create a game code and share it. Whoever joins takes a seat; any seat nobody takes is run by the AI preset. One chain, one score.", cta: RBG_ADMIN ? "CREATE A TEAM GAME" : "COMING SOON", cans: [{}, {}], pick: () => { if (!RBG_ADMIN) return this.setState({ error: "Team play is coming soon." }); this.setState({ screen: "team-setup", mode: "team", error: "" }); } },
+        { name: "Trainer-Led", tag: "COMING SOON · COORDINATOR", blurb: "You set the demand pattern and rules, share a code, watch people join, then split them into teams — randomly, by hand, or let them pick. Live monitor and a full scorecard at the end.", cta: RBG_ADMIN ? "SET UP A SESSION" : "COMING SOON", cans: [{}, {}, {}], pick: () => { if (!RBG_ADMIN) return this.setState({ error: "Trainer-led sessions are coming soon." }); this.setState({ screen: "trainer-setup", mode: "trainer", error: "" }); } }
+      ],
+      patternOptions: PATTERNS.map(([id, label]) => ({
+        label, pick: () => this.setState({ pattern: id }),
+        chipStyle: chip(id === st.pattern),
+        hoverStyle: id === st.pattern ? activeStyle : this.hover(false)
+      })),
+      patternNote: PATTERN_NOTE[st.pattern],
+      weekOptions: [20, 30, 40].map(w => ({
+        label: w + " weeks", pick: () => this.setState({ weeks: w }),
+        chipStyle: chip(w === st.weeks),
+        hoverStyle: w === st.weeks ? activeStyle : this.hover(false)
+      })),
+      policyOptions: [["steady", "Steady"], ["standard", "Standard"], ["panicky", "Panicky"]].map(([id, label]) => ({
+        label, pick: () => this.setState({ policy: id }),
+        chipStyle: chip(id === st.policy),
+        hoverStyle: id === st.policy ? activeStyle : this.hover(false)
+      })),
+      policyNote: POLICY_NOTE[st.policy],
+      visOptions: [["own", "Your stage only"], ["chain", "Whole chain"], ["full", "Everything"]].map(([id, label]) => ({
+        label, pick: () => this.setState({ visibility: id }),
+        chipStyle: chip(id === st.visibility),
+        hoverStyle: id === st.visibility ? activeStyle : this.hover(false)
+      })),
+      visNote: {
+        own: "Classic rules. You see your own yard and the orders your customer sends — nothing else.",
+        chain: "Every stage's inventory, backlog and cost is open to all players. Real customer demand still stays with the retailer.",
+        full: "Full transparency: all four stages plus real customer demand. Play it after a blind round to show what information sharing is worth."
+      }[st.visibility],
+      sizeOptions: [2, 3, 4].map(n => ({
+        label: n + " per team", pick: () => this.setState({ teamSize: n }),
+        chipStyle: chip(n === st.teamSize),
+        hoverStyle: n === st.teamSize ? activeStyle : this.hover(false)
+      })),
+      setupRoles: ROLES.map((name, i) => {
+        const on = i === st.role;
+        return {
+          name, blurb: ROLE_BLURB[i], tag: on ? "SELECTED" : "SELECT",
+          pick: () => this.setState({ role: i }),
+          cardStyle: {
+            cursor: "pointer", padding: "14px",
+            border: "1px solid " + (on ? "#2A7E4F" : "#D1D3D4"),
+            background: on ? "#2A7E4F" : "#FFFFFF",
+            color: on ? "#FFFFFF" : "#1F1F1D"
+          },
+          canStyle: { width: "9px", height: "18px", borderRadius: "2px", background: on ? "#FFFFFF" : "#2A7E4F", border: "1px solid " + (on ? "#FFFFFF" : "#2A7E4F") },
+          blurbStyle: { fontSize: "11px", lineHeight: 1.5, marginTop: "8px", color: on ? "#C5E0D2" : "#58595B" },
+          tagStyle: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.6px", marginTop: "10px", color: on ? "#FFFFFF" : "#2A7E4F" },
+          hoverStyle: on ? activeStyle : this.hover(false)
+        };
+      }),
+      isTrainerSetup: screen === "trainer-setup",
+      needsName: screen !== "solo-setup",
+      showRolePick: screen === "solo-setup",
+      setupTitle: screen === "solo-setup" ? "Solo Run" : screen === "team-setup" ? "Create A Team Game" : "Set Up A Trainer-Led Session",
+      setupBlurb: screen === "solo-setup"
+        ? "Pick your seat and the demand pattern. The other three stages follow the AI preset you choose."
+        : screen === "team-setup"
+        ? "You get a five-character code to share. Anyone who joins on this device picks a seat in your chain; empty seats are played by the AI preset."
+        : "Choose the rules now — they apply to every team in the room. You will get a code to share, see people arrive, and decide how teams are formed before you start the run.",
+      setupCta: screen === "solo-setup" ? "START WEEK 1 →" : "CREATE GAME & GET CODE →",
+      setupGo: () => {
+        if (screen === "solo-setup") {
+          this.setState({ sim: makeSim(), session: null, code: "", screen: "solo-play", orderInput: 4 });
+        } else {
+          const st2 = this.state;
+          const sess2 = { ...this.cfg(st2), teamSize: st2.teamSize };
+          this.createSessionWith(screen === "team-setup" ? "team" : "trainer", sess2);
+        }
+      },
+      playAgain: () => this.setState({ screen: "home", session: null, sim: null, code: "", selected: null, error: "" })
+    };
+
+    if (screen === "solo-setup" || screen === "team-setup" || screen === "trainer-setup" ||
+        screen === "home" || screen === "howto") return common;
+
+    if (screen === "lobby") {
+      const selected = st.selected;
+      const nonHostPlayers = sess.players.filter(p => !(sess.mode === "trainer" && p.id === sess.hostId));
+      return {
+        ...common,
+        amHost,
+        lobbyHint: sess.mode === "trainer"
+          ? "Players open this game on their device, enter their name and this code, and appear in the room below."
+          : "Share the code with up to three teammates. They join, pick a seat, and you start the run.",
+        lobbyConfigLine: PATTERNS.find(p => p[0] === sess.cfg.pattern)[1] + " demand · " + sess.cfg.weeks + " weeks · " + sess.cfg.policy + " AI seats · visibility: " + (sess.cfg.visibility === "full" ? "everything" : sess.cfg.visibility === "chain" ? "whole chain" : "own stage only"),
+        playerCountLine: nonHostPlayers.length + " player" + (nonHostPlayers.length === 1 ? "" : "s") + " in the room · " + sess.teams.length + " team" + (sess.teams.length === 1 ? "" : "s"),
+        assignOptions: [["self", "Players choose"], ["random", "Random draw"], ["manual", "I assign"]].map(([id, label]) => ({
+          label,
+          pick: () => this.mutate(s => { s.assign = id; }),
+          hoverStyle: sess.assign === id ? activeStyle : this.hover(false)
+        })),
+        assignNote: {
+          self: "Everyone picks their own team and seat from their screen.",
+          random: "Hit Shuffle Teams to deal everyone into teams of " + (sess.cfg.teamSize || 4) + ".",
+          manual: "Click a player in the room, then click Put Selected Player Here on a team."
+        }[sess.assign],
+        shuffle: this.shuffleTeams,
+        addTeam: () => this.mutate(s => s.teams.push(makeTeam(s.teams.length + 1))),
+        clearTeams: () => this.mutate(s => s.teams.forEach(t => { t.seats = [null, null, null, null]; })),
+        addDemo: () => this.mutate(s => s.players.push({ id: uid(), name: "Test Player " + (s.players.length) })),
+        startRun: this.startRun,
+        roster: sess.players.map(p => {
+          const t = sess.teams.find(x => x.seats.some(y => y && y.id === p.id));
+          const si = t ? t.seats.findIndex(y => y && y.id === p.id) : -1;
+          return {
+            name: p.name + (p.id === st.myId ? " (you)" : ""),
+            where: t ? t.name + " · " + ROLES[si] : "not seated yet",
+            badge: p.id === sess.hostId ? (sess.mode === "trainer" ? "COORDINATOR" : "HOST") : (selected === p.id ? "SELECTED" : ""),
+            pick: () => this.setState({ selected: selected === p.id ? null : p.id }),
+            hoverStyle: selected === p.id ? { background: "#C5E0D2" } : { background: "#F4F5F4" }
+          };
+        }),
+        rosterNote: amHost && sess.assign === "manual"
+          ? "Select a player here, then place them on a team."
+          : "This list updates live as people join with the code.",
+        teams: sess.teams.map(t => ({
+          name: t.name,
+          summary: t.seats.filter(x => x).length + " of 4 seats taken · rest played by AI",
+          canAssign: amHost && sess.assign === "manual" && !!selected,
+          assignSelected: () => this.mutate(s => {
+            const tt = s.teams.find(x => x.id === t.id);
+            const p = s.players.find(x => x.id === selected);
+            if (!tt || !p) return;
+            s.teams.forEach(x => x.seats.forEach((y, i) => { if (y && y.id === p.id) x.seats[i] = null; }));
+            const free = tt.seats.findIndex(y => !y);
+            if (free >= 0) tt.seats[free] = { id: p.id, name: p.name };
+          }),
+          seats: t.seats.map((p, i) => ({
+            role: ROLES[i],
+            who: p ? p.name : "AI seat",
+            state: p ? (p.id === st.myId ? "THAT'S YOU" : "TAKEN") : "TAP TO TAKE",
+            take: () => {
+              if (sess.mode === "trainer" && amHost) return;
+              if (!p) this.seatMe(t.id, i);
+            },
+            hoverStyle: p ? { background: "#F4F5F4" } : this.hover(false)
+          }))
+        })),
+        seatNote: sess.mode === "trainer"
+          ? "Teams of two or three are fine — the AI preset covers any empty seat so every chain still has four stages."
+          : "Any seat left empty is played by the AI preset, so two players can run a full chain."
+      };
+    }
+
+    if (screen === "monitor") {
+      const teams = sess.teams;
+      return {
+        ...common,
+        monitorHeadline: teams.filter(t => t.done).length + " of " + teams.length + " teams finished",
+        lobbyConfigLine: PATTERNS.find(p => p[0] === sess.cfg.pattern)[1] + " demand · " + sess.cfg.weeks + " weeks",
+        nudgeAll: this.nudgeAll,
+        endRun: this.endRun,
+        monitorTeams: teams.map(t => {
+          const stt = this.teamStats(t, sess.cfg);
+          return {
+            name: t.name,
+            status: t.done ? "Finished" : "Week " + Math.min(t.sim.week, sess.cfg.weeks) + " of " + sess.cfg.weeks,
+            cost: money(stt.chain), peak: stt.peak, amp: stt.amp + "×",
+            seats: t.seats.map((p, i) => ({
+              role: ROLES[i],
+              who: p ? p.name : "AI seat",
+              line: "on hand " + t.sim.inv[i] + " · backlog " + t.sim.back[i] + " · " + money(t.sim.cost[i]),
+              state: t.done ? "done" : p ? (t.pending[i] !== undefined ? "ORDER IN" : "DECIDING") : "AUTO"
+            }))
+          };
+        })
+      };
+    }
+
+    if (screen === "play") {
+      const sim = team.sim;
+      const seatNames = team.seats.map((p, i) => (p ? (p.id === st.myId ? "YOU" : p.name.toUpperCase()) : "AI"));
+      const b = this.boardVals(sim, seat, sess.cfg, seatNames);
+      const humans = this.humanSeats(team);
+      const submitted = team.pending[seat] !== undefined;
+      const waitingOn = humans.filter(i => team.pending[i] === undefined).map(i => team.seats[i].name);
+      return {
+        ...common,
+        ...b,
+        week: sim.week, roleName: ROLES[seat],
+        boardTitle: team.name + " — Week " + Math.min(sim.week, sess.cfg.weeks),
+        boardSub: "Cases flow left to right · orders travel right to left · both take two weeks",
+        orderInput: st.orderInput,
+        onOrderChange: e => this.setState({ orderInput: e.target.value }),
+        inc: () => this.setState({ orderInput: (Number(st.orderInput) || 0) + 1 }),
+        dec: () => this.setState({ orderInput: Math.max(0, (Number(st.orderInput) || 0) - 1) }),
+        quickOrders: [0, 4, 8, 16].map(v => ({ label: String(v), pick: () => this.setState({ orderInput: v }), hoverStyle: this.hover(false) })),
+        advance: this.submitOrder,
+        advanceLabel: submitted ? "ORDER SUBMITTED — WAITING" : "SUBMIT ORDER FOR WEEK " + Math.min(sim.week, sess.cfg.weeks),
+        waiting: submitted,
+        waitingNote: waitingOn.length
+          ? "Waiting on " + waitingOn.join(", ") + " before the week closes."
+          : "Closing the week…"
+      };
+    }
+
+    // solo play / solo over / session score
+    if (screen === "solo-play") {
+      const sim = st.sim || makeSim();
+      const seatNames = ROLES.map((r, i) => (i === st.role ? "YOU" : "AI"));
+      const b = this.boardVals(sim, st.role, cfg, seatNames);
+      return {
+        ...common, ...b,
+        week: sim.week, roleName: ROLES[st.role],
+        boardTitle: "Your Chain — Week " + Math.min(sim.week, st.weeks),
+        boardSub: "Cases flow left to right · orders travel right to left · AI seats on the " + st.policy + " preset",
+        orderInput: st.orderInput,
+        onOrderChange: e => this.setState({ orderInput: e.target.value }),
+        inc: () => this.setState({ orderInput: (Number(st.orderInput) || 0) + 1 }),
+        dec: () => this.setState({ orderInput: Math.max(0, (Number(st.orderInput) || 0) - 1) }),
+        quickOrders: [0, 4, 8, 16].map(v => ({ label: String(v), pick: () => this.setState({ orderInput: v }), hoverStyle: this.hover(false) })),
+        advance: this.submitOrder,
+        advanceLabel: sim.week >= st.weeks ? "PLACE ORDER & FINISH" : "PLACE ORDER & ADVANCE TO WEEK " + (sim.week + 1),
+        waiting: false, waitingNote: ""
+      };
+    }
+
+    // scorecard (solo or session)
+    const scoreCols = ["SEAT", "PLAYER", "ON HAND", "BACKLOG", "PEAK ORDER", "COST"].map(l => ({ label: l }));
+    let scoreTeams, headline, sub;
+    if (sess) {
+      const ranked = sess.teams.map(t => ({ t, s: this.teamStats(t, sess.cfg) })).sort((a, b2) => a.s.chain - b2.s.chain);
+      const winner = ranked[0];
+      scoreTeams = ranked.map((r, idx) => ({
+        rank: "#" + (idx + 1),
+        name: r.t.name,
+        isWinner: idx === 0,
+        members: r.t.seats.map((p, i) => (p ? p.name : "AI") + " — " + ROLES[i]).join(" · "),
+        ...this.compare(r.t.sim, sess.cfg),
+        stats: [
+          { label: "CHAIN COST", value: money(r.s.chain) },
+          { label: "IDEAL CHAIN", value: this.compare(r.t.sim, sess.cfg).idealTotal },
+          { label: "SCORE", value: this.compare(r.t.sim, sess.cfg).score + " / 100" },
+          { label: "AMPLIFICATION", value: r.s.amp + "×" }
+        ],
+        rows: ROLES.map((role, i) => ({
+          style: { background: i % 2 === 0 ? "#FFFFFF" : "#C5E0D2" },
+          cells: [role, r.t.seats[i] ? r.t.seats[i].name : "AI seat", r.t.sim.inv[i], r.t.sim.back[i],
+            Math.max(0, ...r.t.sim.history.map(h => h.orders[i])), money(r.t.sim.cost[i])].map(v => ({ v }))
+        }))
+      }));
+      headline = winner ? winner.t.name + " wins on " + money(winner.s.chain) + " total chain cost" : "Run complete";
+      sub = sess.teams.length > 1
+        ? "Lowest total cost across all four stages takes it. Spread between first and last: " +
+          money(ranked[ranked.length - 1].s.chain - ranked[0].s.chain) + "."
+        : "One chain, " + sess.cfg.weeks + " weeks, " + money(winner.s.chain) + " spent keeping the shelves stocked.";
+    } else {
+      const sim = st.sim || makeSim();
+      const chain = sim.cost.reduce((a, b) => a + b, 0);
+      const peakCust = Math.max(1, ...sim.history.map(h => h.custDemand));
+      const peak = Math.max(0, ...sim.history.map(h => h.orders[st.role]));
+      const cmp = this.compare(sim, cfg);
+      scoreTeams = [{
+        rank: "—", name: "Your Chain", isWinner: false,
+        members: ROLES.map((r, i) => (i === st.role ? st.myName || "You" : "AI") + " — " + r).join(" · "),
+        ...cmp,
+        stats: [
+          { label: "CHAIN COST", value: money(chain) },
+          { label: "IDEAL CHAIN", value: cmp.idealTotal },
+          { label: "SCORE", value: cmp.score + " / 100" },
+          { label: "AMPLIFICATION", value: (peak / peakCust).toFixed(1) + "×" }
+        ],
+        rows: ROLES.map((role, i) => ({
+          style: { background: i % 2 === 0 ? "#FFFFFF" : "#C5E0D2" },
+          cells: [role, i === st.role ? "You" : "AI seat", sim.inv[i], sim.back[i],
+            Math.max(0, ...sim.history.map(h => h.orders[i])), money(sim.cost[i])].map(v => ({ v }))
+        }))
+      }];
+      headline = cmp.score + " / 100 — " + cmp.grade.toLowerCase() + " run as " + ROLES[st.role].toLowerCase();
+      sub = "Your chain spent " + money(chain) + " against an ideal " + cmp.idealTotal + " on the same demand.";
+    }
+
+    return {
+      ...common,
+      isScore: true,
+      scoreCols, scoreTeams, finalHeadline: headline, finalSub: sub,
+      lessons: [
+        { text: "Orders grow as they travel up the chain. Every stage reacts to the stage below it rather than to the customer, so a small change at the shelf becomes a swing at the plant — the bullwhip effect." },
+        { text: "Most of the cost comes from swinging between empty shelves and full yards. The four-week round trip hides the effect of your own orders, so it is easy to order twice for the same shortage." },
+        { text: "The fix is structural: shorter delays, shared demand information, and ordering to a target stock position instead of reacting to the last order you saw." }
+      ]
+    };
+  }
+
+  createSessionWith(mode, cfgObj) {
+    const st = this.state;
+    const name = (st.nameInput || "").trim() || (mode === "trainer" ? "Coordinator" : "Player 1");
+    const code = gameCode();
+    const sess = {
+      code, mode, phase: "lobby", hostId: st.myId, hostName: name,
+      cfg: cfgObj, assign: "self",
+      players: [{ id: st.myId, name }],
+      teams: [makeTeam(1)]
+    };
+    if (mode === "team") sess.teams[0].name = "Your Chain";
+    this.setState({ code, myName: name, session: sess, error: "" }, () => this.save(sess));
+  }
+}
+</script>
+</body>
+</html>
