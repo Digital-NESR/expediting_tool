@@ -30,7 +30,33 @@ import {
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
 import type { LaptopAdminData, LaptopDelegatableRole, LaptopDelegationRow, LaptopDeviceCatalogRow, LaptopPermissionListItem, LaptopPermissionRole } from '@/types/laptopProcurement';
 
-const APPROVER_MATRIX_ROLE_SET: Set<LaptopPermissionRole> = new Set(APPROVER_MATRIX_ROLES);
+// IT Manager can hold up to 3 named slots (co-managers) for the same country — these
+// two extra options exist only in this admin form/display, mapped to
+// { stage: 'IT Manager', slot: 2|3 } before hitting the server actions, which only ever
+// deal in the functional 4-stage LaptopApprovalStage plus a numeric slot.
+type RoleSelectValue = LaptopPermissionRole | 'IT Manager 2' | 'IT Manager 3';
+const MATRIX_ROLE_SELECT_SET: Set<RoleSelectValue> = new Set([...APPROVER_MATRIX_ROLES, 'IT Manager 2', 'IT Manager 3']);
+const ROLE_SELECT_OPTIONS: RoleSelectValue[] = PERMISSION_ROLE_OPTIONS.flatMap(r =>
+  r === 'IT Manager' ? (['IT Manager', 'IT Manager 2', 'IT Manager 3'] as const) : [r],
+);
+// The fixed display order for the country cards below — every non-IT-Manager role has
+// exactly one slot.
+const MATRIX_DISPLAY_ROLES: RoleSelectValue[] = ['IT Manager', 'IT Manager 2', 'IT Manager 3', 'Country Manager', 'IT Director', 'Supply Chain Director'];
+
+function roleSelectToStageSlot(value: RoleSelectValue): { role: LaptopApprovalStage; slot: number } {
+  if (value === 'IT Manager 2') return { role: 'IT Manager', slot: 2 };
+  if (value === 'IT Manager 3') return { role: 'IT Manager', slot: 3 };
+  return { role: value as LaptopApprovalStage, slot: 1 };
+}
+
+function matrixItemDisplayRole(item: LaptopPermissionListItem): RoleSelectValue {
+  if (item.role === 'IT Manager') {
+    if (item.matrixSlot === 2) return 'IT Manager 2';
+    if (item.matrixSlot === 3) return 'IT Manager 3';
+    return 'IT Manager';
+  }
+  return item.role as RoleSelectValue;
+}
 
 const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 
@@ -502,7 +528,7 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
 
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<LaptopPermissionRole>('Requester');
+  const [role, setRole] = useState<RoleSelectValue>('Requester');
   const [country, setCountry] = useState('');
   const [segment, setSegment] = useState('');
   // Only relevant for IT Manager/Country Manager/IT Director/Supply Chain Director —
@@ -516,7 +542,7 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
 
   if (!data) return <DbError />;
   const { actor, requests, activity, permissionsList, delegations, deviceCatalog, stats, delegatableRoles } = data;
-  const isMatrixRole = APPROVER_MATRIX_ROLE_SET.has(role);
+  const isMatrixRole = MATRIX_ROLE_SELECT_SET.has(role);
 
   // Requests are paginated server-side (see getLaptopAdminData) — `requests` here is
   // already just the current page, so no client-side slicing is needed.
@@ -537,28 +563,28 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   const pagedActivity = activity.slice(currentActivityPage * REQUESTS_PAGE_SIZE, (currentActivityPage + 1) * REQUESTS_PAGE_SIZE);
 
   // Explode each matrix-role item (which can span several countries) into one
-  // row per country, then group those rows by country so every country shows
-  // all four approval roles together, matching how the matrix actually grants
-  // authority (per-country, not one flat list).
-  const matrixCountryGroups: Array<{ country: string; roles: Array<{ role: LaptopApprovalStage; items: LaptopPermissionListItem[] }> }> = (() => {
-    const byCountry = new Map<string, Map<string, LaptopPermissionListItem[]>>();
+  // row per (country, slot), then group those rows by country so every country shows
+  // all six slots (IT Manager x3, Country Manager, IT Director, Supply Chain Director)
+  // together, matching how the matrix actually grants authority (per-country, not one
+  // flat list).
+  const matrixCountryGroups: Array<{ country: string; roles: Array<{ role: RoleSelectValue; items: LaptopPermissionListItem[] }> }> = (() => {
+    const byCountry = new Map<string, Map<RoleSelectValue, LaptopPermissionListItem[]>>();
     for (const item of permissionsList) {
       if (item.source !== 'matrix') continue;
+      const displayRole = matrixItemDisplayRole(item);
       const countries = item.countries.length ? item.countries : (item.country ? item.country.split(',').map(c => c.trim()).filter(Boolean) : []);
       for (const c of countries) {
         if (!byCountry.has(c)) byCountry.set(c, new Map());
         const roleMap = byCountry.get(c)!;
-        if (!roleMap.has(item.role)) roleMap.set(item.role, []);
-        roleMap.get(item.role)!.push(item);
+        if (!roleMap.has(displayRole)) roleMap.set(displayRole, []);
+        roleMap.get(displayRole)!.push(item);
       }
     }
     const countries = [...new Set([...COUNTRY_OPTIONS, ...byCountry.keys()])].filter(c => byCountry.has(c));
     return countries.map(c => ({
       country: c,
-      // Most roles hold at most one person; IT Manager can hold two (primary +
-      // secondary matrix slot), so this stays a list rather than a single item.
-      roles: APPROVER_MATRIX_ROLES.map(role => ({
-        role: role as LaptopApprovalStage,
+      roles: MATRIX_DISPLAY_ROLES.map(role => ({
+        role,
         items: byCountry.get(c)!.get(role) ?? [],
       })),
     }));
@@ -595,10 +621,10 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
             originalEmail: editingApproverEmail ?? undefined,
             email,
             name,
-            role: role as LaptopApprovalStage,
+            ...roleSelectToStageSlot(role),
             countries: matrixCountries,
           })
-        : await updateLaptopPermission({ email, name, role, country, segment });
+        : await updateLaptopPermission({ email, name, role: role as LaptopPermissionRole, country, segment });
       if (result.success) {
         setBanner(`Saved permission for ${email}.`);
         resetPermissionForm();
@@ -613,7 +639,7 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
     setBanner('');
     setEmail(item.email);
     setName(item.name ?? '');
-    setRole(item.role as LaptopPermissionRole);
+    setRole(item.source === 'matrix' ? matrixItemDisplayRole(item) : (item.role as LaptopPermissionRole));
     if (item.source === 'matrix') {
       setEditingApproverEmail(item.email);
       setMatrixCountries(item.countries);
@@ -632,10 +658,10 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   // Jumps to the form pre-filled for a specific empty role+country slot from the
   // country cards below, instead of the requiring the admin to fill role/country
   // in the general form from scratch.
-  function startAddForRole(role: LaptopApprovalStage, country: string) {
+  function startAddForRole(role: RoleSelectValue, country: string) {
     setBanner('');
     setEmail(''); setName('');
-    setRole(role as LaptopPermissionRole);
+    setRole(role);
     setEditingApproverEmail(null);
     setMatrixCountries([country]);
     setCountry(''); setSegment('');
@@ -647,7 +673,7 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   function removePermission(item: LaptopPermissionListItem) {
     startTransition(async () => {
       const result = item.source === 'matrix'
-        ? await removeApproverMatrixRole({ email: item.email, role: item.role as LaptopApprovalStage })
+        ? await removeApproverMatrixRole({ email: item.email, role: item.role as LaptopApprovalStage, slot: item.matrixSlot ?? 1 })
         : await deleteLaptopPermission(item.email);
       if (result.success) {
         if (editingApproverEmail === item.email) resetPermissionForm();
@@ -729,12 +755,12 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
                     className={INP}
                     value={role}
                     onChange={e => {
-                      const nextRole = e.target.value as LaptopPermissionRole;
+                      const nextRole = e.target.value as RoleSelectValue;
                       setRole(nextRole);
-                      if (!APPROVER_MATRIX_ROLE_SET.has(nextRole)) { setMatrixCountries([]); setEditingApproverEmail(null); }
+                      if (!MATRIX_ROLE_SELECT_SET.has(nextRole)) { setMatrixCountries([]); setEditingApproverEmail(null); }
                     }}
                   >
-                    {PERMISSION_ROLE_OPTIONS.map(r => <option key={r}>{r}</option>)}
+                    {ROLE_SELECT_OPTIONS.map(r => <option key={r}>{r}</option>)}
                   </select>
                 </div>
                 {isMatrixRole ? (
@@ -779,7 +805,7 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
               <p className="mt-3 text-xs text-slate-500">
                 {isMatrixRole
                   ? `Sets this person as the named ${role} for every checked country in the Approver Matrix — the actual source of that authority.`
-                  : PERMISSION_PROFILES[role].description}
+                  : PERMISSION_PROFILES[role as LaptopPermissionRole].description}
               </p>
               <button onClick={savePermission} disabled={isPending} className={`mt-4 ${CTA} disabled:opacity-60`}>
                 {isPending ? 'Saving...' : 'Save Permission'}
