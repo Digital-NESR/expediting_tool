@@ -283,6 +283,30 @@ interface CountRow extends QueryResultRow {
   completed_count: number;
 }
 
+/* ── Lightweight title lookups (for page <title> metadata) ───────────────── */
+
+export async function getTrackName(key: string): Promise<string | null> {
+  try {
+    await ensureLearningHubReady();
+    const rows = await sql<QueryResultRow[]>(`SELECT name FROM learning_tracks WHERE key = ?`, [key]);
+    return (rows[0]?.name as string) ?? null;
+  } catch { return null; }
+}
+export async function getCourseTitle(id: number): Promise<string | null> {
+  try {
+    await ensureLearningHubReady();
+    const rows = await sql<QueryResultRow[]>(`SELECT title FROM learning_courses WHERE id = ?`, [id]);
+    return (rows[0]?.title as string) ?? null;
+  } catch { return null; }
+}
+export async function getLessonTitle(id: number): Promise<string | null> {
+  try {
+    await ensureLearningHubReady();
+    const rows = await sql<QueryResultRow[]>(`SELECT title FROM learning_lessons WHERE id = ?`, [id]);
+    return (rows[0]?.title as string) ?? null;
+  } catch { return null; }
+}
+
 /* ── Dashboard ────────────────────────────────────────────────────────── */
 
 export async function getLearningHubDashboardData(userEmail: string): Promise<LearningHubDashboardData> {

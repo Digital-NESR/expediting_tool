@@ -3,7 +3,9 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-export const metadata: Metadata = { title: 'Learning Hub | NESR' };
+export const metadata: Metadata = {
+  title: { template: 'SC Agents | %s', default: 'SC Agents | Learning Hub' },
+};
 export const dynamic = 'force-dynamic';
 
 export default async function LearningHubLayout({ children }: { children: React.ReactNode }) {

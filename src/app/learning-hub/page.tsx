@@ -3,7 +3,7 @@ import { getProcureGuardUser } from '@/lib/auth';
 import { getLearningHubDashboardData } from '@/app/actions/learning-hub';
 import LearningHubDashboardClient from './LearningHubDashboardClient';
 
-export const metadata: Metadata = { title: 'Learning Hub Dashboard | NESR' };
+export const metadata: Metadata = { title: 'Learning Hub' };
 
 export default async function LearningHubDashboardPage() {
   const user = await getProcureGuardUser();

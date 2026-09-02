@@ -17,6 +17,8 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
 
   // First not-yet-completed lesson across the whole course, for a "Resume" CTA.
   const nextLesson = modules.flatMap((m) => m.lessons).find((l) => !l.completed);
+  // A course with a single module is shown as a flat lesson list — no "Module" header.
+  const flat = modules.length === 1;
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
@@ -61,10 +63,12 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
         <div className="space-y-5">
           {modules.map((mod, modIdx) => (
             <div key={mod.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Module {modIdx + 1}</p>
-                <h2 className="text-sm font-bold text-slate-900">{mod.title}</h2>
-              </div>
+              {!flat && (
+                <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Module {modIdx + 1}</p>
+                  <h2 className="text-sm font-bold text-slate-900">{mod.title}</h2>
+                </div>
+              )}
               {mod.resource_label && mod.resource_url && (
                 <a
                   href={mod.resource_url}

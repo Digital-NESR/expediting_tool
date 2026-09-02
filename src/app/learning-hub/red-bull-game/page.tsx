@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { getRedBullLeaderboard } from '@/app/actions/learning-game';
 import RedBullGameClient from './RedBullGameClient';
 
-export const metadata: Metadata = { title: 'Red Bull Distribution Game | Learning Hub' };
+export const metadata: Metadata = { title: 'Red Bull Game' };
 export const dynamic = 'force-dynamic';
 
 export default async function RedBullGamePage({

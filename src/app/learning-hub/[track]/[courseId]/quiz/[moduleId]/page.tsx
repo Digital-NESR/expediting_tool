@@ -5,9 +5,8 @@ import QuizClient from './QuizClient';
 
 type PageProps = { params: Promise<{ track: string; courseId: string; moduleId: string }> };
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { moduleId } = await params;
-  return { title: `Knowledge check ${moduleId} | Learning Hub | NESR` };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: 'Knowledge check' };
 }
 
 export default async function ModuleQuizPage({ params }: PageProps) {
