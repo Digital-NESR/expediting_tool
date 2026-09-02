@@ -336,6 +336,9 @@ export interface LaptopPermissionListItem {
   // rows, which just use the single `country` field) — lets Edit pre-fill the
   // multi-country picker without parsing the display string.
   countries: string[];
+  // Which named slot this row represents, for roles with more than one (IT Manager has
+  // up to 3: 1/2/3). Undefined/1 for every other role, which only ever has one slot.
+  matrixSlot?: number;
 }
 
 export type LaptopAccessRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
@@ -389,6 +392,8 @@ export interface LaptopApproverMatrixRow {
   it_manager_email: string | null;
   it_manager_2_name: string | null;
   it_manager_2_email: string | null;
+  it_manager_3_name: string | null;
+  it_manager_3_email: string | null;
   cm_name: string | null;
   cm_email: string | null;
   itd_name: string | null;
@@ -406,6 +411,8 @@ export interface UpdateLaptopApproverMatrixInput {
   it_manager_email?: string;
   it_manager_2_name?: string;
   it_manager_2_email?: string;
+  it_manager_3_name?: string;
+  it_manager_3_email?: string;
   cm_name?: string;
   cm_email?: string;
   itd_name?: string;
@@ -474,7 +481,7 @@ export interface LaptopRequestDetailData {
 }
 
 export interface LaptopStageAssignee {
-  label: 'IT Manager' | 'IT Manager 2' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
+  label: 'IT Manager' | 'IT Manager 2' | 'IT Manager 3' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
   name: string | null;
   // 'pending' = this is the stage the request is currently stuck at (highlighted);
   // 'done' = already acted on, shows who actually did it; 'upcoming'/'none' = not

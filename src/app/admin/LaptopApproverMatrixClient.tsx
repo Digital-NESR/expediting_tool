@@ -8,6 +8,7 @@ import type { LaptopApproverMatrixRow } from '@/types/laptopProcurement';
 type ApproverEditValues = {
   it_manager_name: string; it_manager_email: string;
   it_manager_2_name: string; it_manager_2_email: string;
+  it_manager_3_name: string; it_manager_3_email: string;
   cm_name: string; cm_email: string;
   itd_name: string; itd_email: string;
   scd_name: string; scd_email: string;
@@ -41,6 +42,8 @@ function ApproverEditForm({
   const [itManagerEmail, setItManagerEmail] = useState(row.it_manager_email ?? '');
   const [itManager2Name, setItManager2Name] = useState(row.it_manager_2_name ?? '');
   const [itManager2Email, setItManager2Email] = useState(row.it_manager_2_email ?? '');
+  const [itManager3Name, setItManager3Name] = useState(row.it_manager_3_name ?? '');
+  const [itManager3Email, setItManager3Email] = useState(row.it_manager_3_email ?? '');
   const [cmName, setCmName] = useState(row.cm_name ?? '');
   const [cmEmail, setCmEmail] = useState(row.cm_email ?? '');
   const [itdName, setItdName] = useState(row.itd_name ?? '');
@@ -73,9 +76,10 @@ function ApproverEditForm({
   return (
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
       <p className="mb-3 text-xs font-semibold text-slate-600">Edit approvers for {row.country}</p>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
         {slot('IT Manager', itManagerEmail, setItManagerEmail, setItManagerName, itManagerName)}
         {slot('IT Manager 2', itManager2Email, setItManager2Email, setItManager2Name, itManager2Name)}
+        {slot('IT Manager 3', itManager3Email, setItManager3Email, setItManager3Name, itManager3Name)}
         {slot('Country Manager', cmEmail, setCmEmail, setCmName, cmName)}
         {slot('IT Director', itdEmail, setItdEmail, setItdName, itdName)}
         {slot('SC Director', scdEmail, setScdEmail, setScdName, scdName)}
@@ -91,6 +95,7 @@ function ApproverEditForm({
           onClick={() => onConfirm({
             it_manager_name: itManagerName, it_manager_email: itManagerEmail,
             it_manager_2_name: itManager2Name, it_manager_2_email: itManager2Email,
+            it_manager_3_name: itManager3Name, it_manager_3_email: itManager3Email,
             cm_name: cmName, cm_email: cmEmail,
             itd_name: itdName, itd_email: itdEmail,
             scd_name: scdName, scd_email: scdEmail,
@@ -202,6 +207,7 @@ export default function LaptopApproverMatrixClient() {
                     <th className="px-4 py-3 text-left font-semibold">Country</th>
                     <th className="px-4 py-3 text-left font-semibold">IT Manager</th>
                     <th className="px-4 py-3 text-left font-semibold">IT Manager 2</th>
+                    <th className="px-4 py-3 text-left font-semibold">IT Manager 3</th>
                     <th className="px-4 py-3 text-left font-semibold">Country Manager</th>
                     <th className="px-4 py-3 text-left font-semibold">IT Director</th>
                     <th className="px-4 py-3 text-left font-semibold">SC Director</th>
@@ -224,6 +230,10 @@ export default function LaptopApproverMatrixClient() {
                           <td className="px-4 py-3">
                             <p className="font-semibold text-slate-800">{row.it_manager_2_name || '—'}</p>
                             {row.it_manager_2_email && <p className="text-xs text-slate-500">{row.it_manager_2_email}</p>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="font-semibold text-slate-800">{row.it_manager_3_name || '—'}</p>
+                            {row.it_manager_3_email && <p className="text-xs text-slate-500">{row.it_manager_3_email}</p>}
                           </td>
                           <td className="px-4 py-3">
                             <p className="font-semibold text-slate-800">{row.cm_name || '—'}</p>
