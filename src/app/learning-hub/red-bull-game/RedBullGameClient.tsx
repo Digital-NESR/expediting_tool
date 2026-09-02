@@ -111,6 +111,15 @@ export default function RedBullGameClient({
           {saving && (
             <span className="inline-flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving score…</span>
           )}
+          {view === 'game' && (
+            <button
+              onClick={async () => { await refresh(); setView('leaderboard'); }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              <Trophy className="h-4 w-4" style={{ color: GREEN }} />
+              Leaderboard
+            </button>
+          )}
           {view === 'leaderboard' && (
             <button
               onClick={() => setView('game')}

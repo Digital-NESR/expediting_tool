@@ -27,25 +27,6 @@
 
 <div style="min-height:100vh; display:flex; flex-direction:column; background:#F4F5F4;">
 
-  <div style="background:#2A7E4F; padding:12px 28px; display:flex; align-items:center; justify-content:space-between; gap:24px;">
-    <div style="display:flex; align-items:center; gap:14px;">
-      <div style="font-weight:900; letter-spacing:1.5px; font-size:24px; color:#FFFFFF;">NESR</div>
-      <div style="width:1px; height:24px; background:rgba(255,255,255,0.45);"></div>
-      <img src="/red-bull-can.png" alt="Red Bull" style="height:30px; width:auto; display:block;" />
-      <div style="font-size:15px; font-weight:bold; color:#FFFFFF; letter-spacing:0.3px;">The Red Bull Distribution Game</div>
-    </div>
-    <div style="display:flex; align-items:center; gap:18px;">
-      <div style="font-size:11px; color:#C5E0D2; letter-spacing:0.5px;">{{ headerStatus }}</div>
-      <div onClick="{{ goLeaderboard }}" style="cursor:pointer; font-size:11px; font-weight:bold; letter-spacing:0.5px; color:#FFFFFF; border:1px solid rgba(255,255,255,0.6); padding:6px 12px;" style-hover="{{ leaveHover }}">LEADERBOARD</div>
-      <sc-if value="{{ showHowto }}" hint-placeholder-val="{{ true }}">
-        <div onClick="{{ goHowto }}" style="cursor:pointer; font-size:11px; font-weight:bold; letter-spacing:0.5px; color:#FFFFFF; border:1px solid rgba(255,255,255,0.6); padding:6px 12px;" style-hover="{{ leaveHover }}">HOW TO PLAY</div>
-      </sc-if>
-      <sc-if value="{{ showLeave }}" hint-placeholder-val="{{ false }}">
-        <div onClick="{{ leave }}" style="cursor:pointer; font-size:11px; font-weight:bold; letter-spacing:0.5px; color:#FFFFFF; border:1px solid rgba(255,255,255,0.6); padding:6px 12px;" style-hover="{{ leaveHover }}">EXIT</div>
-      </sc-if>
-    </div>
-  </div>
-
   <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
     <div style="flex:1; display:flex; justify-content:center; padding:44px 24px 60px;">
       <div style="width:100%; max-width:1080px;">
@@ -454,7 +435,7 @@
                   </div>
                   <div style="display:flex; flex-wrap:nowrap; gap:3px; align-items:flex-end; height:20px; width:100%; overflow:hidden;">
                     <sc-for list="{{ n.cans }}" as="c" hint-placeholder-count="6">
-                      <div style="flex:0 0 7px; height:18px; border-radius:1px; background:#2A7E4F; border:1px solid #1F1F1D;"></div>
+                      <img src="/red-bull-can.png" alt="" style="flex:0 0 auto; height:18px; width:auto; display:block; object-fit:contain;" />
                     </sc-for>
                     <sc-if value="{{ n.hasNote }}" hint-placeholder-val="{{ false }}">
                       <div style="font-size:10px; color:#58595B; align-self:center; white-space:nowrap; margin-left:2px;">{{ n.cansNote }}</div>
@@ -522,7 +503,7 @@
                 </div>
                 <div style="display:flex; flex-wrap:nowrap; gap:3px; align-items:flex-end; height:20px; overflow:hidden;">
                   <sc-for list="{{ custCans }}" as="c" hint-placeholder-count="4">
-                    <div style="flex:0 0 7px; height:18px; border-radius:1px; background:#1F1F1D; border:1px solid #1F1F1D;"></div>
+                    <img src="/red-bull-can.png" alt="" style="flex:0 0 auto; height:18px; width:auto; display:block; object-fit:contain;" />
                   </sc-for>
                 </div>
                 <div style="font-size:11px; line-height:1.5; color:#1F1F1D;">{{ custNote }}</div>
