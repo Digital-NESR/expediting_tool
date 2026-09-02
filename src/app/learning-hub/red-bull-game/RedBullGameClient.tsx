@@ -15,7 +15,8 @@ type View = 'game' | 'leaderboard';
 
 type GameMessage =
   | { type: 'rbg-score'; score: number; grade?: string; chainCost?: number; role?: string; pattern?: string; weeks?: number }
-  | { type: 'rbg-nav'; to: 'leaderboard' };
+  | { type: 'rbg-nav'; to: 'leaderboard' }
+  | { type: 'rbg-copied' };
 
 function runLabel(e: { role: string | null; pattern: string | null; weeks: number | null }) {
   const parts = [e.role, e.pattern ? `${e.pattern} demand` : null, e.weeks ? `${e.weeks} wks` : null].filter(Boolean);
@@ -25,17 +26,27 @@ function runLabel(e: { role: string | null; pattern: string | null; weeks: numbe
 export default function RedBullGameClient({
   isAdmin,
   initialLeaderboard,
+  initialCode,
 }: {
   isAdmin: boolean;
   initialLeaderboard: RedBullLeaderboard;
+  initialCode?: string;
 }) {
   const [board, setBoard] = useState<RedBullLeaderboard>(initialLeaderboard);
   const [view, setView] = useState<View>('game');
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ score: number; grade?: string } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const src = `/red-bull-game/index.html${isAdmin ? '?admin=1' : ''}`;
+  const src = (() => {
+    const p = new URLSearchParams();
+    if (isAdmin) p.set('admin', '1');
+    if (initialCode) p.set('code', initialCode);
+    const qs = p.toString();
+    return `/red-bull-game/index.html${qs ? `?${qs}` : ''}`;
+  })();
 
   const refresh = useCallback(async () => {
     setBoard(await getRedBullLeaderboard());
@@ -47,6 +58,13 @@ export default function RedBullGameClient({
       if (e.origin !== window.location.origin) return;
       const data = e.data as GameMessage | undefined;
       if (!data || typeof data !== 'object') return;
+
+      if (data.type === 'rbg-copied') {
+        setLinkCopied(true);
+        if (copyTimer.current) clearTimeout(copyTimer.current);
+        copyTimer.current = setTimeout(() => setLinkCopied(false), 4000);
+        return;
+      }
 
       if (data.type === 'rbg-nav' && data.to === 'leaderboard') {
         await refresh();
@@ -79,6 +97,7 @@ export default function RedBullGameClient({
     return () => {
       window.removeEventListener('message', onMessage);
       if (toastTimer.current) clearTimeout(toastTimer.current);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
     };
   }, [refresh]);
 
@@ -139,6 +158,7 @@ export default function RedBullGameClient({
           <iframe
             src={src}
             title="Red Bull Distribution Game"
+            allow="clipboard-write"
             className="block h-[calc(100dvh-84px)] min-h-[620px] w-full border-0"
           />
         </div>
@@ -209,6 +229,13 @@ export default function RedBullGameClient({
             <ArrowLeft className="h-4 w-4" />
             Back to game
           </button>
+        </div>
+      )}
+
+      {/* Invite-link copied toast */}
+      {linkCopied && (
+        <div className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg">
+          Invite link copied — share it so people join this game
         </div>
       )}
 
