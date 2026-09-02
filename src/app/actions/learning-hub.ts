@@ -316,6 +316,17 @@ export async function getCourseTitle(id: number): Promise<string | null> {
     return (rows[0]?.title as string) ?? null;
   } catch { return null; }
 }
+// Browser-tab label. The Supply Chain track uses the short level form ("SC lvl 1") in the
+// tight tab space, even though the card/page shows the full course title.
+export async function getCourseTabTitle(trackKey: string, id: number): Promise<string | null> {
+  try {
+    await ensureLearningHubReady();
+    const rows = await sql<QueryResultRow[]>(`SELECT title, order_index FROM learning_courses WHERE id = ?`, [id]);
+    if (!rows[0]) return null;
+    if (trackKey === 'supply_chain') return `SC lvl ${Number(rows[0].order_index ?? 0) + 1}`;
+    return (rows[0].title as string) ?? null;
+  } catch { return null; }
+}
 export async function getLessonTitle(id: number): Promise<string | null> {
   try {
     await ensureLearningHubReady();

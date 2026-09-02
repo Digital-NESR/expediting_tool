@@ -1,14 +1,14 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getProcureGuardUser } from '@/lib/auth';
-import { getCourseDetail, getCourseTitle } from '@/app/actions/learning-hub';
+import { getCourseDetail, getCourseTabTitle } from '@/app/actions/learning-hub';
 import CourseDetailClient from './CourseDetailClient';
 
 type PageProps = { params: Promise<{ track: string; courseId: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { courseId } = await params;
-  const title = await getCourseTitle(Number(courseId));
+  const { track, courseId } = await params;
+  const title = await getCourseTabTitle(track, Number(courseId));
   return { title: title ?? 'Course' };
 }
 
