@@ -908,16 +908,24 @@ class Component extends DCLogic {
   // Read-modify-write with a version check; on a conflicting concurrent write, re-read and
   // retry so two players acting at once merge instead of clobbering each other.
   async mutate(fn) {
-    for (let attempt = 0; attempt < 6; attempt++) {
+    for (let attempt = 0; attempt < 8; attempt++) {
       const g = await this.apiGet(this.state.code);
       if (!g || !g.state) return;
       const next = JSON.parse(JSON.stringify(g.state));
       fn(next);
       const res = await this.apiPost({ code: this.state.code, state: next, baseVersion: g.version });
       if (res.status === 200 && res.ok) { this.setState({ session: next }); return; }
-      if (res.status === 409) { if (res.state) this.setState({ session: res.state }); continue; }
+      if (res.status === 409) {
+        if (res.state) this.setState({ session: res.state });
+        // jitter/backoff so a burst of simultaneous writers doesn't thrash in lockstep
+        await new Promise(r => setTimeout(r, 40 + Math.random() * 140));
+        continue;
+      }
+      // terminal failure (400/413/500/network) — surface it rather than freezing silently
+      this.setState({ error: "Could not sync your move. Check your connection and try again." });
       return;
     }
+    this.setState({ error: "The room is busy right now — give that another click in a moment." });
   }
   // Create a new shared session; if the 5-char code is already taken, try a fresh one.
   async createRemote(sess) {
@@ -1050,6 +1058,8 @@ class Component extends DCLogic {
       if (over) this.postSoloScore(next, st);
       return;
     }
+    if (this._submitInFlight) return; // ignore a rapid double-click while the write is in flight
+    this._submitInFlight = true;
     this.mutate(s => {
       const team = s.teams.find(t => t.seats.some(p => p && p.id === this.state.myId));
       if (!team || team.done || s.phase !== "running") return;
@@ -1064,7 +1074,7 @@ class Component extends DCLogic {
         if (team.sim.week > s.cfg.weeks) team.done = true;
       }
       if (s.teams.every(t => t.done)) s.phase = "ended";
-    });
+    }).finally(() => { this._submitInFlight = false; });
   };
 
   nudgeAll = () => {
