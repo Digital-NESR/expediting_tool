@@ -834,9 +834,12 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
 async function notifyLaptopFinalApproval(request: LaptopRequest): Promise<void> {
   if (request.status !== 'Assign from Inventory' && request.status !== 'Procure New') return;
 
-  const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL?.trim();
+  // Its own dedicated workflow/webhook — not the shared "approval needed" one, which is
+  // hardcoded around that event's own field names (intended_recipients, stage) and isn't
+  // meant to also serve this notification's different purpose/wording.
+  const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_FINAL_APPROVAL_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn('[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL not configured; skipping final-approval notification.');
+    console.warn('[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_FINAL_APPROVAL_WEBHOOK_URL not configured; skipping final-approval notification.');
     return;
   }
 
@@ -909,6 +912,75 @@ async function notifyLaptopFinalApproval(request: LaptopRequest): Promise<void> 
     }
   } catch (err) {
     console.error('[Laptop Procurement n8n] Final-approval webhook failed', laptopWebhookErrorMessage(err), err);
+  }
+}
+
+/**
+ * Sends a plain-language status update to the REQUESTER whenever their request moves —
+ * forwarded to (or now pending with) the next approver, rejected back to them, or
+ * finally approved/completed — separate from notifyLaptopNextApprover/
+ * notifyLaptopFinalApproval, which tell the approver/IT Manager it's their turn, not
+ * the person who originally asked for the device. Its own dedicated workflow/webhook,
+ * same reasoning as notifyLaptopFinalApproval above.
+ */
+async function notifyLaptopRequesterUpdate(
+  request: LaptopRequest,
+  params: {
+    kind: 'forwarded' | 'rejected' | 'final_approved';
+    actorName: string;
+    actorEmail: string;
+    comment: string | null;
+    nextOwnerLabel: string | null;
+  },
+): Promise<void> {
+  if (!request.requested_by_email) return;
+
+  const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_REQUESTER_UPDATE_WEBHOOK_URL?.trim();
+  if (!webhookUrl) {
+    console.warn('[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_REQUESTER_UPDATE_WEBHOOK_URL not configured; skipping requester update.');
+    return;
+  }
+
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const secret = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_SECRET?.trim();
+    if (secret) headers['x-laptop-procurement-secret'] = secret;
+
+    const testMode = process.env.LAPTOP_APPROVAL_EMAIL_TEST_MODE !== 'false';
+    const recipient = testMode
+      ? { name: 'Requester (test)', email: process.env.LAPTOP_APPROVAL_TEST_REQUESTER_EMAIL?.trim() || 'sbagalkot@nesr.com' }
+      : { name: request.requested_by_name, email: request.requested_by_email };
+
+    const payload = {
+      event: 'laptop_procurement.requester_update',
+      occurred_at: new Date().toISOString(),
+      test_mode: testMode,
+      kind: params.kind,
+      status: request.status,
+      by: { name: params.actorName, email: params.actorEmail },
+      comment: params.comment,
+      next_owner: params.nextOwnerLabel,
+      request: {
+        id: request.id,
+        reference_number: request.reference_number,
+        status: request.status,
+        request_type: request.request_type,
+        country: request.country,
+        type_of_device: request.type_of_device,
+        requested_model: request.requested_model,
+      },
+      recipients: [recipient],
+      detail_url: `${getLaptopAppBaseUrl()}/laptop-procurement/requests/${request.id}`,
+    };
+
+    const response = await postLaptopWebhook(webhookUrl, headers, payload);
+    if (!response.ok) {
+      console.error('[Laptop Procurement n8n] Requester-update webhook failed', response.status, response.statusText);
+    } else {
+      console.log('[Laptop Procurement n8n] Requester-update webhook sent', { kind: params.kind, requestId: request.id, status: response.status });
+    }
+  } catch (err) {
+    console.error('[Laptop Procurement n8n] Requester-update webhook failed', laptopWebhookErrorMessage(err), err);
   }
 }
 
@@ -1541,7 +1613,10 @@ function validateCreateInput(input: CreateLaptopRequestInput) {
     requestType: requireText(input.request_type, 'Type of request'),
     country: requireText(input.country, 'Country'),
     companyCode: requireText(input.company_code, 'Company Code'),
-    companyName: requireText(input.company_name, 'Company Name'),
+    // Optional: the static company-code reference table doesn't cover every real company
+    // code an employee's directory record can report, which used to leave requesters with
+    // this locked field permanently blank and no way to submit at all.
+    companyName: blankToNull(input.company_name),
     costCenter: requireText(input.cost_center, 'Cost Center'),
     typeOfDevice: requireText(input.type_of_device, 'Type of device'),
     // No longer collected from the requester — the IT Team fills this in later, only if
@@ -1841,6 +1916,13 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     revalidatePath(`/laptop-procurement/requests/${id}`);
     const rejectedRequest = serialise<LaptopRequest>({ ...row, status: nextStatus });
     await notifyLaptopNextApprover(rejectedRequest);
+    await notifyLaptopRequesterUpdate(rejectedRequest, {
+      kind: 'rejected',
+      actorName: actor.name,
+      actorEmail: actor.email,
+      comment: trimmedReason,
+      nextOwnerLabel: 'IT Manager',
+    });
     return { success: true };
   } catch (err) {
     console.error('[rejectLaptopRequest]', err);
@@ -2047,6 +2129,18 @@ export async function updateLaptopRequestStatus(
     const updatedRequest = serialise<LaptopRequest>({ ...row, status });
     await notifyLaptopNextApprover(updatedRequest);
     await notifyLaptopFinalApproval(updatedRequest);
+    // The requester already knows about their own cancellation — everyone else's
+    // decision (approve/assign/procure-new/repair) gets reported back to them.
+    if (!userCancellingOwnRequest) {
+      const nextStage = getLaptopApprovalStage(status);
+      await notifyLaptopRequesterUpdate(updatedRequest, {
+        kind: nextStage ? 'forwarded' : 'final_approved',
+        actorName: actor.name,
+        actorEmail: actor.email,
+        comment: comment || null,
+        nextOwnerLabel: nextStage,
+      });
+    }
     return { success: true };
   } catch (err) {
     console.error('[updateLaptopRequestStatus]', err);
@@ -2093,6 +2187,13 @@ export async function submitProcureNewDetails(id: number, input: SubmitProcureNe
     revalidatePath(`/laptop-procurement/requests/${id}`);
     const confirmedRequest = serialise<LaptopRequest>({ ...row, status: nextStatus, type_of_device: typeOfDevice, requested_model: model });
     await notifyLaptopNextApprover(confirmedRequest);
+    await notifyLaptopRequesterUpdate(confirmedRequest, {
+      kind: 'forwarded',
+      actorName: actor.name,
+      actorEmail: actor.email,
+      comment: null,
+      nextOwnerLabel: 'Country Manager',
+    });
     return { success: true };
   } catch (err) {
     console.error('[submitProcureNewDetails]', err);

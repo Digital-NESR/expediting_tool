@@ -216,7 +216,6 @@ export default function LaptopRequestFormClient({
     if (isUnit && !computerFor.trim()) e.computerFor = 'Unit Name / ID is required.';
     if (isSelfRequest && !department.trim()) e.department = 'Department is required.';
     if (!companyCode.trim()) e.companyCode = 'Company Code is required.';
-    if (!companyName.trim()) e.companyName = 'Company Name is required.';
     if (!costCenter.trim()) e.costCenter = 'Cost Center is required.';
     if (!typeOfDevice) e.typeOfDevice = 'Type of device is required.';
     if (!specialRequirements.trim()) e.specialRequirements = 'Special requirements / justification is required.';
@@ -372,7 +371,7 @@ export default function LaptopRequestFormClient({
                 <Field label="Company Code" required error={errors.companyCode}>
                   <input className={LOCKED_INP} value={companyCode} disabled readOnly />
                 </Field>
-                <Field label="Company Name" required error={errors.companyName}>
+                <Field label="Company Name" error={errors.companyName} hint={!companyName ? 'Not found in the company reference list — Company Code and Cost Center are still valid.' : undefined}>
                   <input className={LOCKED_INP} value={companyName} disabled readOnly />
                 </Field>
                 <Field label="Cost Center" required error={errors.costCenter}>
