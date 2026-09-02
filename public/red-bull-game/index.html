@@ -781,6 +781,10 @@ const POLICY_NOTE = {
 };
 const CHANNEL = "rbg-sessions";
 const SKEY = c => "rbg:session:" + c;
+// Multiplayer sync: shared session state lives in Postgres (learning_game_sessions),
+// reached through this signed-in-only API. Clients poll it while a game is open.
+const SESSION_API = "/api/red-bull/session";
+const POLL_MS = 1500;
 // Admin flag passed by the NESR wrapper (?admin=1). Team & Trainer modes are marked
 // "Coming Soon" for everyone but stay openable when this is set.
 const RBG_ADMIN = (() => { try { return new URLSearchParams(location.search).get("admin") === "1"; } catch (e) { return false; } })();
@@ -867,41 +871,65 @@ class Component extends DCLogic {
   };
 
   componentDidMount() {
-    try {
-      this.chan = new BroadcastChannel(CHANNEL);
-      this.chan.onmessage = e => { if (e.data && e.data.code === this.state.code) this.pull(); };
-    } catch (e) { this.chan = null; }
-    this.onStore = e => { if (e.key === SKEY(this.state.code)) this.pull(); };
-    window.addEventListener("storage", this.onStore);
-    this.poll = setInterval(() => { if (this.state.code) this.pull(); }, 1200);
+    // Poll the shared session while a game is open so every device stays in sync.
+    // Solo play never sets a code, so it never hits the network.
+    this.poll = setInterval(() => { if (this.state.code) this.pull(); }, POLL_MS);
   }
 
   componentWillUnmount() {
-    window.removeEventListener("storage", this.onStore);
     clearInterval(this.poll);
-    if (this.chan) this.chan.close();
   }
 
   cfg(s) { return { pattern: s.pattern, weeks: s.weeks, holding: this.HOLD, shortage: this.SHORT, policy: s.policy, visibility: s.visibility }; }
   get HOLD() { return this.props.holdingCost ?? 0.5; }
   get SHORT() { return this.props.shortageCost ?? 1.0; }
 
-  load(code) { try { return JSON.parse(localStorage.getItem(SKEY(code))); } catch (e) { return null; } }
-  save(sess) {
-    localStorage.setItem(SKEY(sess.code), JSON.stringify(sess));
-    if (this.chan) this.chan.postMessage({ code: sess.code });
-    this.setState({ session: sess });
+  // ── Server-backed session sync (SQL row + optimistic locking) ──────────────
+  async apiGet(code) {
+    if (!code) return null;
+    try {
+      const r = await fetch(SESSION_API + "?code=" + encodeURIComponent(code), { headers: { accept: "application/json" } });
+      if (!r.ok) return null;
+      const j = await r.json();
+      return { state: j.state, version: j.version };
+    } catch (e) { return null; }
   }
-  pull() {
-    const s = this.load(this.state.code);
-    if (s) this.setState({ session: s });
+  async apiPost(body) {
+    try {
+      const r = await fetch(SESSION_API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => ({}));
+      return { status: r.status, ...j };
+    } catch (e) { return { status: 0 }; }
   }
-  mutate(fn) {
-    const cur = this.load(this.state.code) || this.state.session;
-    if (!cur) return;
-    const next = JSON.parse(JSON.stringify(cur));
-    fn(next);
-    this.save(next);
+  async pull() {
+    const g = await this.apiGet(this.state.code);
+    if (g && g.state) this.setState({ session: g.state });
+  }
+  // Read-modify-write with a version check; on a conflicting concurrent write, re-read and
+  // retry so two players acting at once merge instead of clobbering each other.
+  async mutate(fn) {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const g = await this.apiGet(this.state.code);
+      if (!g || !g.state) return;
+      const next = JSON.parse(JSON.stringify(g.state));
+      fn(next);
+      const res = await this.apiPost({ code: this.state.code, state: next, baseVersion: g.version });
+      if (res.status === 200 && res.ok) { this.setState({ session: next }); return; }
+      if (res.status === 409) { if (res.state) this.setState({ session: res.state }); continue; }
+      return;
+    }
+  }
+  // Create a new shared session; if the 5-char code is already taken, try a fresh one.
+  async createRemote(sess) {
+    let s = sess;
+    for (let i = 0; i < 5; i++) {
+      const res = await this.apiPost({ code: s.code, state: s, create: true });
+      if (res.status === 200 && res.ok) { this.setState({ code: s.code, myName: s.hostName, session: s, error: "" }); return true; }
+      if (res.status === 409) { s = { ...s, code: gameCode() }; continue; }
+      break;
+    }
+    this.setState({ error: "Could not start a game right now. Please try again." });
+    return false;
   }
 
   myTeam(sess) {
@@ -926,22 +954,21 @@ class Component extends DCLogic {
       players: [{ id: st.myId, name }], teams: [makeTeam(1)]
     };
     if (mode === "team") sess.teams[0].name = "Your Chain";
-    this.setState({ code, myName: name, session: sess, screen: "session", error: "" }, () => this.save(sess));
+    this.createRemote(sess);
   }
 
-  joinSession = () => {
+  joinSession = async () => {
     const st = this.state;
     const code = (st.codeInput || "").trim().toUpperCase();
     const name = (st.nameInput || "").trim();
     if (!code) return this.setState({ error: "Enter the game code your coordinator shared." });
     if (!name) return this.setState({ error: "Enter your name so the room knows who you are." });
-    const sess = this.load(code);
-    if (!sess) return this.setState({ error: "No live game with code " + code + " on this device." });
-    if (sess.phase === "ended") return this.setState({ error: "That run has already finished." });
-    this.setState({ code, myName: name, screen: "session", error: "" }, () => {
-      this.mutate(s => {
-        if (!s.players.some(p => p.id === this.state.myId)) s.players.push({ id: this.state.myId, name });
-      });
+    const g = await this.apiGet(code);
+    if (!g || !g.state) return this.setState({ error: "No live game with code " + code + "." });
+    if (g.state.phase === "ended") return this.setState({ error: "That run has already finished." });
+    this.setState({ code, myName: name, session: g.state, error: "" });
+    await this.mutate(s => {
+      if (!s.players.some(p => p.id === this.state.myId)) s.players.push({ id: this.state.myId, name });
     });
   };
 
@@ -1348,8 +1375,8 @@ class Component extends DCLogic {
           }[screen] || "NESR Internal Training"),
       modes: [
         { name: "Solo", tag: "ONE PLAYER · 3 AI SEATS", blurb: "Take one position and let the AI preset run the other three stages. Best for learning the mechanics before a session.", cta: "PLAY SOLO", cans: [{}], pick: () => this.setState({ screen: "solo-setup", mode: "solo", error: "" }) },
-        { name: "Team", tag: "COMING SOON · 2–4 PLAYERS", blurb: "Create a game code and share it. Whoever joins takes a seat; any seat nobody takes is run by the AI preset. One chain, one score.", cta: RBG_ADMIN ? "CREATE A TEAM GAME" : "COMING SOON", cans: [{}, {}], pick: () => { if (!RBG_ADMIN) return this.setState({ error: "Team play is coming soon." }); this.setState({ screen: "team-setup", mode: "team", error: "" }); } },
-        { name: "Trainer-Led", tag: "COMING SOON · COORDINATOR", blurb: "You set the demand pattern and rules, share a code, watch people join, then split them into teams — randomly, by hand, or let them pick. Live monitor and a full scorecard at the end.", cta: RBG_ADMIN ? "SET UP A SESSION" : "COMING SOON", cans: [{}, {}, {}], pick: () => { if (!RBG_ADMIN) return this.setState({ error: "Trainer-led sessions are coming soon." }); this.setState({ screen: "trainer-setup", mode: "trainer", error: "" }); } }
+        { name: "Team", tag: "2–4 PLAYERS · ONE CHAIN", blurb: "Create a game code and share it. Whoever joins takes a seat; any seat nobody takes is run by the AI preset. One chain, one score.", cta: "CREATE A TEAM GAME", cans: [{}, {}], pick: () => this.setState({ screen: "team-setup", mode: "team", error: "" }) },
+        { name: "Trainer-Led", tag: "COORDINATOR + MANY TEAMS", blurb: "You set the demand pattern and rules, share a code, watch people join, then split them into teams — randomly, by hand, or let them pick. Live monitor and a full scorecard at the end.", cta: "SET UP A SESSION", cans: [{}, {}, {}], pick: () => this.setState({ screen: "trainer-setup", mode: "trainer", error: "" }) }
       ],
       patternOptions: PATTERNS.map(([id, label]) => ({
         label, pick: () => this.setState({ pattern: id }),
@@ -1645,7 +1672,7 @@ class Component extends DCLogic {
       teams: [makeTeam(1)]
     };
     if (mode === "team") sess.teams[0].name = "Your Chain";
-    this.setState({ code, myName: name, session: sess, error: "" }, () => this.save(sess));
+    this.createRemote(sess);
   }
 }
 </script>
