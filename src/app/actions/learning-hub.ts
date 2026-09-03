@@ -30,6 +30,8 @@ import type {
   ModuleQuizPageData,
   QuizAnswerInput,
   QuizAttemptResult,
+  LessonQuiz,
+  LessonQuizAttemptResult,
 } from '@/types/learning-hub';
 
 /* ── Query helpers (house pattern: ? -> $n, sql() for SELECT, exec() for writes) ── */
@@ -166,6 +168,22 @@ async function ensureLearningHubSchema(): Promise<void> {
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_quiz_options_question ON learning_quiz_options(question_id)`);
+
+  // Lesson-level quizzes (attach a quiz to a lesson/video) + per-user pass tracking for gating.
+  await execSchema(`ALTER TABLE learning_quizzes ALTER COLUMN module_id DROP NOT NULL`);
+  await execSchema(`ALTER TABLE learning_quizzes ADD COLUMN IF NOT EXISTS lesson_id INT REFERENCES learning_lessons(id) ON DELETE CASCADE`);
+  await execSchema(`ALTER TABLE learning_quizzes ADD COLUMN IF NOT EXISTS pass_pct INT NOT NULL DEFAULT 70`);
+  await execSchema(`CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_quizzes_lesson ON learning_quizzes(lesson_id) WHERE lesson_id IS NOT NULL`);
+  await execSchema(`CREATE TABLE IF NOT EXISTS learning_quiz_results (
+    id SERIAL PRIMARY KEY,
+    user_email TEXT NOT NULL,
+    quiz_id INT NOT NULL REFERENCES learning_quizzes(id) ON DELETE CASCADE,
+    best_pct INT NOT NULL DEFAULT 0,
+    passed BOOLEAN NOT NULL DEFAULT false,
+    attempts INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_email, quiz_id)
+  )`);
 
   // Access requests: request -> admin approves (mirrors the other tools). One row per user.
   await execSchema(`CREATE TABLE IF NOT EXISTS access_requests (
@@ -555,6 +573,63 @@ export async function getTrackDetail(trackKey: string, userEmail: string): Promi
   return { track, courses: coursesWithProgress };
 }
 
+/* ── Quiz gating (lesson-level quizzes; must pass one to unlock the next lesson) ── */
+
+interface LessonGate { hasQuiz: boolean; quizId: number | null; passPct: number; quizPassed: boolean; locked: boolean }
+
+// For a course's lessons in order: a lesson is `locked` when any EARLIER lesson that has a quiz
+// has not been passed. The lesson holding the first unpassed quiz is itself unlocked (you take it);
+// everything after it is locked until it passes.
+async function getCourseGating(courseId: number, userEmail: string): Promise<Map<number, LessonGate>> {
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT l.id AS lesson_id, z.id AS quiz_id, z.pass_pct, (r.passed IS TRUE) AS passed
+     FROM learning_lessons l
+     JOIN learning_modules m ON m.id = l.module_id
+     LEFT JOIN learning_quizzes z ON z.lesson_id = l.id
+     LEFT JOIN learning_quiz_results r ON r.quiz_id = z.id AND r.user_email = ?
+     WHERE m.course_id = ?
+     ORDER BY m.order_index ASC, m.id ASC, l.order_index ASC, l.id ASC`,
+    [userEmail, courseId],
+  );
+  const map = new Map<number, LessonGate>();
+  let blocked = false;
+  for (const r of rows) {
+    const quizId = r.quiz_id != null ? Number(r.quiz_id) : null;
+    const hasQuiz = quizId != null;
+    const quizPassed = r.passed === true;
+    map.set(Number(r.lesson_id), { hasQuiz, quizId, passPct: Number(r.pass_pct ?? 70), quizPassed, locked: blocked });
+    if (hasQuiz && !quizPassed) blocked = true;
+  }
+  return map;
+}
+
+// The learner-facing quiz (no answer key).
+async function loadLessonQuiz(quizId: number): Promise<LessonQuiz | null> {
+  const quizRows = await sql<QueryResultRow[]>(`SELECT id, title, pass_pct FROM learning_quizzes WHERE id = ?`, [quizId]);
+  if (!quizRows[0]) return null;
+  const questions = await sql<QueryResultRow[]>(
+    `SELECT id, question_text FROM learning_quiz_questions WHERE quiz_id = ? ORDER BY order_index ASC, id ASC`, [quizId],
+  );
+  const qIds = questions.map((q) => Number(q.id));
+  const options = qIds.length
+    ? await sql<QueryResultRow[]>(
+        `SELECT id, question_id, option_text FROM learning_quiz_options WHERE question_id = ANY(?) ORDER BY order_index ASC, id ASC`, [qIds],
+      )
+    : [];
+  const optsByQ = new Map<number, { id: number; text: string }[]>();
+  for (const o of options) {
+    const arr = optsByQ.get(Number(o.question_id)) ?? [];
+    arr.push({ id: Number(o.id), text: String(o.option_text) });
+    optsByQ.set(Number(o.question_id), arr);
+  }
+  return {
+    id: Number(quizRows[0].id),
+    title: String(quizRows[0].title),
+    pass_pct: Number(quizRows[0].pass_pct ?? 70),
+    questions: questions.map((q) => ({ id: Number(q.id), text: String(q.question_text), options: optsByQ.get(Number(q.id)) ?? [] })),
+  };
+}
+
 /* ── Course detail (modules + lessons outline) ───────────────────────── */
 
 export async function getCourseDetail(
@@ -589,6 +664,7 @@ export async function getCourseDetail(
     [course.id, userEmail],
   );
   const completedIds = new Set(completedRows.map((r) => Number(r.lesson_id)));
+  const gating = await getCourseGating(course.id, userEmail);
 
   const moduleIds = modules.map((m) => m.id);
   const quizRows = moduleIds.length
@@ -604,7 +680,11 @@ export async function getCourseDetail(
       `SELECT * FROM learning_lessons WHERE module_id = ? ORDER BY order_index ASC, id ASC`,
       [mod.id],
     );
-    const lessonsWithCompletion = lessons.map((l) => ({ ...l, completed: completedIds.has(l.id) }));
+    const lessonsWithCompletion = lessons.map((l) => {
+      const g = gating.get(l.id);
+      const completed = g?.hasQuiz ? !!g.quizPassed : completedIds.has(l.id);
+      return { ...l, completed, has_quiz: !!g?.hasQuiz, quiz_passed: !!g?.quizPassed, locked: !!g?.locked };
+    });
     lessonCount += lessons.length;
     completedCount += lessonsWithCompletion.filter((l) => l.completed).length;
     moduleOutlines.push({ ...mod, lessons: lessonsWithCompletion, has_quiz: quizModuleIds.has(mod.id) });
@@ -661,13 +741,28 @@ export async function getLessonDetail(
   const prevRow = idx > 0 ? lessons[idx - 1] : null;
   const nextRow = idx < lessons.length - 1 ? lessons[idx + 1] : null;
 
+  const gating = await getCourseGating(course.id, userEmail);
+  const g = gating.get(lessonId);
+  const locked = !!g?.locked;
+  const quizPassed = !!g?.quizPassed;
+  const passPct = g?.passPct ?? 70;
+  const quiz = g?.hasQuiz && g.quizId != null && !locked ? await loadLessonQuiz(g.quizId) : null;
+  const nextLocked = nextRow ? !!gating.get(Number(nextRow.id))?.locked : false;
+  // Don't ship a locked lesson's body/video to the client.
+  const visibleLesson = locked ? { ...lesson, body: '', video_url: null } : lesson;
+
   return {
     track,
     course,
-    lesson,
-    completed: completedRows.length > 0,
+    lesson: visibleLesson,
+    completed: g?.hasQuiz ? quizPassed : completedRows.length > 0,
     prev: prevRow ? { lesson_id: Number(prevRow.id), course_id: course.id, title: String(prevRow.title) } : null,
     next: nextRow ? { lesson_id: Number(nextRow.id), course_id: course.id, title: String(nextRow.title) } : null,
+    locked,
+    quiz,
+    quiz_passed: quizPassed,
+    pass_pct: passPct,
+    next_locked: nextLocked,
   };
 }
 
@@ -687,6 +782,65 @@ export async function markLessonIncomplete(lessonId: number, userEmail: string):
   await ensureLearningHubReady();
   await exec(`DELETE FROM learning_lesson_progress WHERE user_email = ? AND lesson_id = ?`, [userEmail, lessonId]);
   return { success: true };
+}
+
+// Grade a lesson quiz server-side (answer key never ships to the client), persist the best
+// result, and on a pass (>= pass_pct) mark the lesson complete so the next one unlocks.
+export async function submitLessonQuiz(quizId: number, answers: QuizAnswerInput[]): Promise<LessonQuizAttemptResult | null> {
+  try {
+    const actor = await getLearningHubActor();
+    if (!actor) return null;
+    await ensureLearningHubReady();
+
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT q.id AS question_id, o.id AS option_id, o.is_correct
+       FROM learning_quiz_questions q JOIN learning_quiz_options o ON o.question_id = q.id
+       WHERE q.quiz_id = ?`,
+      [quizId],
+    );
+    const correctByQ = new Map<number, number>();
+    for (const r of rows) if (r.is_correct) correctByQ.set(Number(r.question_id), Number(r.option_id));
+    const total = correctByQ.size;
+    if (total === 0) return null;
+
+    const answerMap = new Map<number, number | null>();
+    for (const a of answers) answerMap.set(Number(a.questionId), a.optionId != null ? Number(a.optionId) : null);
+
+    let correctCount = 0;
+    const results = [...correctByQ.entries()].map(([questionId, correctOptionId]) => {
+      const selectedOptionId = answerMap.get(questionId) ?? null;
+      const correct = selectedOptionId === correctOptionId;
+      if (correct) correctCount++;
+      return { questionId, selectedOptionId, correctOptionId, correct };
+    });
+    const scorePct = Math.round((correctCount / total) * 100);
+
+    const meta = await sql<QueryResultRow[]>(`SELECT pass_pct, lesson_id FROM learning_quizzes WHERE id = ?`, [quizId]);
+    const passPct = Number(meta[0]?.pass_pct ?? 70);
+    const lessonId = meta[0]?.lesson_id != null ? Number(meta[0].lesson_id) : null;
+    const passed = scorePct >= passPct;
+
+    await exec(
+      `INSERT INTO learning_quiz_results (user_email, quiz_id, best_pct, passed, attempts)
+       VALUES (?, ?, ?, ?, 1)
+       ON CONFLICT (user_email, quiz_id) DO UPDATE SET
+         best_pct = GREATEST(learning_quiz_results.best_pct, EXCLUDED.best_pct),
+         passed = learning_quiz_results.passed OR EXCLUDED.passed,
+         attempts = learning_quiz_results.attempts + 1,
+         updated_at = NOW()`,
+      [actor.email, quizId, scorePct, passed],
+    );
+    if (passed && lessonId != null) {
+      await exec(
+        `INSERT INTO learning_lesson_progress (user_email, lesson_id) VALUES (?, ?) ON CONFLICT (user_email, lesson_id) DO NOTHING`,
+        [actor.email, lessonId],
+      );
+    }
+    return { total, correctCount, scorePct, passed, pass_pct: passPct, results };
+  } catch (err) {
+    console.error('[lh.submitLessonQuiz]', err);
+    return null;
+  }
 }
 
 /* ── My Work (cross-track progress) ──────────────────────────────────── */

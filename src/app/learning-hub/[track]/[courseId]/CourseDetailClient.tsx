@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Circle, Clock, ExternalLink, ClipboardCheck } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, ExternalLink, ClipboardCheck, Lock } from 'lucide-react';
 import LearningHubSidebar from '../../components/LearningHubSidebar';
 import LearningHubLogo from '../../components/LearningHubLogo';
 import LearningHubHero from '../../components/LearningHubHero';
@@ -88,28 +88,46 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
                 </a>
               )}
               <div className="divide-y divide-slate-100">
-                {mod.lessons.map((lesson) => (
-                  <Link
-                    key={lesson.id}
-                    href={`/learning-hub/${track.key}/${course.id}/${lesson.id}`}
-                    className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50"
-                  >
-                    {lesson.completed ? (
-                      <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color }} />
-                    ) : (
-                      <Circle className="h-5 w-5 shrink-0 text-slate-300" />
-                    )}
-                    <span className={`flex-1 text-sm ${lesson.completed ? 'text-slate-500 line-through decoration-slate-300' : 'font-medium text-slate-800'}`}>
-                      {lesson.title}
-                    </span>
-                    {lesson.duration_minutes != null && (
-                      <span className="flex shrink-0 items-center gap-1 text-xs text-slate-400">
-                        <Clock className="h-3.5 w-3.5" />
-                        {formatDuration(lesson.duration_minutes)}
+                {mod.lessons.map((lesson) => {
+                  const inner = (
+                    <>
+                      {lesson.locked ? (
+                        <Lock className="h-5 w-5 shrink-0 text-slate-300" />
+                      ) : lesson.completed ? (
+                        <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color }} />
+                      ) : (
+                        <Circle className="h-5 w-5 shrink-0 text-slate-300" />
+                      )}
+                      <span className={`flex-1 text-sm ${lesson.locked ? 'text-slate-400' : lesson.completed ? 'text-slate-500 line-through decoration-slate-300' : 'font-medium text-slate-800'}`}>
+                        {lesson.title}
                       </span>
-                    )}
-                  </Link>
-                ))}
+                      {lesson.has_quiz && (
+                        <span className="hidden shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:inline-flex">
+                          <ClipboardCheck className="h-3 w-3" /> Quiz
+                        </span>
+                      )}
+                      {lesson.duration_minutes != null && (
+                        <span className="flex shrink-0 items-center gap-1 text-xs text-slate-400">
+                          <Clock className="h-3.5 w-3.5" />
+                          {formatDuration(lesson.duration_minutes)}
+                        </span>
+                      )}
+                    </>
+                  );
+                  return lesson.locked ? (
+                    <div key={lesson.id} className="flex cursor-not-allowed items-center gap-3 px-5 py-3.5 opacity-70" title="Pass the previous quiz to unlock">
+                      {inner}
+                    </div>
+                  ) : (
+                    <Link
+                      key={lesson.id}
+                      href={`/learning-hub/${track.key}/${course.id}/${lesson.id}`}
+                      className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50"
+                    >
+                      {inner}
+                    </Link>
+                  );
+                })}
               </div>
               {mod.has_quiz && (
                 <Link

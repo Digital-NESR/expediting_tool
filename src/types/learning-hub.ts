@@ -82,6 +82,9 @@ export interface TrackDetailData {
 
 export interface LessonOutline extends LearningLesson {
   completed: boolean;
+  has_quiz: boolean;
+  quiz_passed: boolean;
+  locked: boolean;
 }
 
 export interface ModuleOutline extends LearningModule {
@@ -111,6 +114,24 @@ export interface LessonDetailData {
   completed: boolean;
   prev: LessonNavRef | null;
   next: LessonNavRef | null;
+  // Quiz gating: a lesson with a quiz must be passed (>= pass_pct) before the next unlocks.
+  locked: boolean;          // this lesson isn't accessible yet (an earlier quiz is unpassed)
+  quiz: LessonQuiz | null;  // the lesson's quiz (no answer key), when present and unlocked
+  quiz_passed: boolean;     // the current user has passed this lesson's quiz
+  pass_pct: number;         // pass threshold for this lesson's quiz
+  next_locked: boolean;     // the next lesson is currently locked
+}
+
+export interface LessonQuizOption { id: number; text: string }
+export interface LessonQuizQuestion { id: number; text: string; options: LessonQuizOption[] }
+export interface LessonQuiz { id: number; title: string; pass_pct: number; questions: LessonQuizQuestion[] }
+export interface LessonQuizAttemptResult {
+  total: number;
+  correctCount: number;
+  scorePct: number;
+  passed: boolean;
+  pass_pct: number;
+  results: { questionId: number; selectedOptionId: number | null; correctOptionId: number; correct: boolean }[];
 }
 
 export interface MyWorkCourse {
