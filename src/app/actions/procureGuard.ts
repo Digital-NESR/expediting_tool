@@ -3977,8 +3977,43 @@ const APPROVER_MATRIX_COLUMNS: ApproverMatrixColumn[] = [
   { key: 'cfo',        label: 'CFO',                   notificationRole: 'CFO',                   requestType: 'advance' },
 ];
 
+// Update the recipient for one (country, role, request_type), or insert one cloning that role's
+// existing defaults when the country has no row yet. Callers run the recipients->access sync afterwards.
+async function upsertProcureGuardRecipientRow(
+  country: string,
+  role: string,
+  rt: 'adhoc' | 'advance',
+  email: string,
+  displayName: string,
+): Promise<void> {
+  const upd = await exec(
+    `UPDATE procure_guard_notification_recipients
+     SET display_name = ?, email = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE country = ? AND notification_role = ? AND request_type = ? AND is_active = TRUE`,
+    [displayName, email, country, role, rt],
+  );
+  if (upd.rowCount === 0) {
+    const tmpl = await sql<QueryResultRow[]>(
+      `SELECT approval_status, source_column, is_required FROM procure_guard_notification_recipients
+       WHERE notification_role = ? AND request_type = ? AND is_active = TRUE LIMIT 1`,
+      [role, rt],
+    );
+    const t = tmpl[0];
+    await exec(
+      `INSERT INTO procure_guard_notification_recipients
+         (country, request_type, notification_role, approval_status, source_column, display_name, email, is_required, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+      [country, rt, role, t?.approval_status ?? null, t?.source_column ?? 'manual', displayName, email, t?.is_required ?? false],
+    );
+  }
+}
+
 export async function getProcureGuardApproverMatrix(): Promise<ProcureGuardApproverMatrix> {
   try {
+    const actor = await requirePermissionManager();
+    if (!actor.permissions.canManagePermissions) {
+      return { countries: [], columns: APPROVER_MATRIX_COLUMNS, cells: {} };
+    }
     const roles = [...new Set(APPROVER_MATRIX_COLUMNS.map((c) => c.notificationRole))];
     const rows = await sql<QueryResultRow[]>(
       `SELECT id, country, notification_role, request_type, display_name, email
@@ -4037,26 +4072,7 @@ export async function setProcureGuardApprover(input: {
     const role = requireText(input.notificationRole, 'Role');
     const rt = input.requestType === 'adhoc' ? 'adhoc' : 'advance';
 
-    const upd = await exec(
-      `UPDATE procure_guard_notification_recipients
-       SET display_name = ?, email = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE country = ? AND notification_role = ? AND request_type = ? AND is_active = TRUE`,
-      [displayName, email, country, role, rt],
-    );
-    if (upd.rowCount === 0) {
-      const tmpl = await sql<QueryResultRow[]>(
-        `SELECT approval_status, source_column, is_required FROM procure_guard_notification_recipients
-         WHERE notification_role = ? AND request_type = ? AND is_active = TRUE LIMIT 1`,
-        [role, rt],
-      );
-      const t = tmpl[0];
-      await exec(
-        `INSERT INTO procure_guard_notification_recipients
-           (country, request_type, notification_role, approval_status, source_column, display_name, email, is_required, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
-        [country, rt, role, t?.approval_status ?? null, t?.source_column ?? 'manual', displayName, email, t?.is_required ?? false],
-      );
-    }
+    await upsertProcureGuardRecipientRow(country, role, rt, email, displayName);
 
     await syncProcureGuardRecipientAccessApprovals();
     revalidateProcureGuardPaths();
@@ -4064,6 +4080,47 @@ export async function setProcureGuardApprover(input: {
   } catch (err) {
     console.error('[setProcureGuardApprover]', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to set approver.' };
+  }
+}
+
+// Assign one person to an ENTIRE column (a role/request_type across every country). Bulk overwrite,
+// then re-sync recipients -> access/permissions so the person can approve everywhere.
+export async function setProcureGuardApproverForColumn(input: {
+  notificationRole: string;
+  requestType: 'adhoc' | 'advance';
+  email: string;
+  displayName: string;
+}): Promise<ActionResult> {
+  try {
+    const actor = await requirePermissionManager();
+    if (!actor.permissions.canManagePermissions) {
+      return { success: false, error: 'Permission management access is required.' };
+    }
+    const email = requireText(input.email, 'Email').toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { success: false, error: 'Enter a valid email address.' };
+    const displayName = requireText(input.displayName, 'Name');
+    const role = requireText(input.notificationRole, 'Role');
+    const rt = input.requestType === 'adhoc' ? 'adhoc' : 'advance';
+
+    // Cover every country the matrix shows: update existing rows and insert where a country has none,
+    // so a header assignment truly sets the whole column (not just countries that already had a row).
+    const countryRows = await sql<QueryResultRow[]>(
+      `SELECT DISTINCT country FROM procure_guard_notification_recipients
+       WHERE is_active = TRUE AND notification_role = ANY(?) AND country IS NOT NULL AND TRIM(country) <> ''`,
+      [[...new Set(APPROVER_MATRIX_COLUMNS.map((c) => c.notificationRole))]],
+    );
+    const countries = countryRows.map((r) => String(r.country).trim()).filter(Boolean);
+    if (countries.length === 0) return { success: false, error: 'No countries found to assign.' };
+    for (const country of countries) {
+      await upsertProcureGuardRecipientRow(country, role, rt, email, displayName);
+    }
+
+    await syncProcureGuardRecipientAccessApprovals();
+    revalidateProcureGuardPaths();
+    return { success: true };
+  } catch (err) {
+    console.error('[setProcureGuardApproverForColumn]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to set column approver.' };
   }
 }
 
@@ -4136,6 +4193,13 @@ const PROCURE_GUARD_REVIEW_ROLE_RANK: Record<ProcureGuardPermissionRole, number>
   CFO: 7,
   Admin: 8,
 };
+
+// Roles the recipient sync derives (procureGuardRoleFromRecipient only ever returns one of these).
+// A permission row with one of these roles whose email is no longer an active recipient is a stale
+// approver grant — pruned on sync so a reassigned/removed approver cleanly loses authority + visibility.
+const PROCURE_GUARD_APPROVER_ROLES: ProcureGuardPermissionRole[] = [
+  'SCM Manager', 'Country Controller', 'Supply Chain Director', 'Treasury Director', 'Corporate Controller', 'CFO',
+];
 
 function normalisePersonName(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -4305,6 +4369,23 @@ async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
          reviewed_by = EXCLUDED.reviewed_by,
          notes = EXCLUDED.notes`,
       [recipient.email, recipient.name, recipient.role, recipient.role, blankToNull(country), syncNotes],
+    );
+  }
+
+  // Clean handoff: prune approver grants no longer backed by an active recipient, so a reassigned or
+  // removed approver loses authority AND queue visibility for the scope they were taken off. Admins and
+  // manually granted non-approver roles (Viewer / Analyst / Read Only) are preserved untouched.
+  const liveApproverEmails = new Set(byEmail.keys());
+  for (const existing of existingRows) {
+    const email = String(existing.email ?? '').toLowerCase();
+    if (!email) continue;
+    const role = normaliseProcureGuardRole(existing.role);
+    if (!PROCURE_GUARD_APPROVER_ROLES.includes(role)) continue; // preserve Admin / Viewer / Analyst / Read Only
+    if (liveApproverEmails.has(email)) continue; // still an active recipient somewhere
+    await exec(`DELETE FROM procure_guard_permissions WHERE LOWER(email) = ?`, [email]);
+    await exec(
+      `DELETE FROM procure_guard_access_requests WHERE LOWER(user_email) = ? AND reviewed_by = 'ProcureGuard recipient sync'`,
+      [email],
     );
   }
 }

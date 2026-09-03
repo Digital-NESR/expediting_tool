@@ -5,6 +5,7 @@ import { Pencil } from 'lucide-react';
 import {
   getProcureGuardApproverMatrix,
   setProcureGuardApprover,
+  setProcureGuardApproverForColumn,
   type ProcureGuardApproverMatrix,
   type ApproverMatrixColumn,
   type ApproverCell,
@@ -98,6 +99,46 @@ function EmployeePicker({
   );
 }
 
+// Shared anchor logic for the fixed-positioned employee picker (used by both cells and column headers).
+function usePickerAnchor() {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const toggle = useCallback(() => {
+    setOpen((o) => {
+      if (o) return false;
+      const r = btnRef.current?.getBoundingClientRect();
+      if (r) {
+        const left = Math.min(r.left, window.innerWidth - 288 - 12);
+        setPos({ top: r.bottom + 4, left: Math.max(12, left) });
+      }
+      return true;
+    });
+  }, []);
+  const close = useCallback(() => setOpen(false), []);
+  return { btnRef, open, pos, toggle, close };
+}
+
+function PickerPortal({
+  open,
+  pos,
+  onPick,
+  onClose,
+}: {
+  open: boolean;
+  pos: { top: number; left: number } | null;
+  onPick: (emp: EmployeeDirectoryEntry) => void;
+  onClose: () => void;
+}) {
+  if (!open || !pos) return null;
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <EmployeePicker pos={pos} onPick={onPick} onClose={onClose} />
+    </>
+  );
+}
+
 function EditableApproverCell({
   cell,
   saving,
@@ -107,23 +148,7 @@ function EditableApproverCell({
   saving: boolean;
   onAssign: (emp: EmployeeDirectoryEntry) => void;
 }) {
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-
-  function toggle() {
-    if (open) {
-      setOpen(false);
-      return;
-    }
-    const r = btnRef.current?.getBoundingClientRect();
-    if (r) {
-      const left = Math.min(r.left, window.innerWidth - 288 - 12);
-      setPos({ top: r.bottom + 4, left: Math.max(12, left) });
-    }
-    setOpen(true);
-  }
-
+  const { btnRef, open, pos, toggle, close } = usePickerAnchor();
   return (
     <>
       <button
@@ -147,19 +172,56 @@ function EditableApproverCell({
         )}
         <Pencil className="ml-auto h-3 w-3 shrink-0 text-slate-300 opacity-0 transition-opacity group-hover:opacity-100" />
       </button>
-      {open && pos && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <EmployeePicker
-            pos={pos}
-            onPick={(emp) => {
-              setOpen(false);
-              onAssign(emp);
-            }}
-            onClose={() => setOpen(false)}
-          />
-        </>
-      )}
+      <PickerPortal
+        open={open}
+        pos={pos}
+        onPick={(emp) => {
+          close();
+          onAssign(emp);
+        }}
+        onClose={close}
+      />
+    </>
+  );
+}
+
+// Clickable column header: picking a person reassigns that role for EVERY country at once.
+function ColumnHeader({
+  col,
+  busy,
+  onAssign,
+}: {
+  col: ApproverMatrixColumn;
+  busy: boolean;
+  onAssign: (emp: EmployeeDirectoryEntry) => void;
+}) {
+  const { btnRef, open, pos, toggle, close } = usePickerAnchor();
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        disabled={busy}
+        onClick={toggle}
+        title="Assign this role for every country"
+        className="group flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide text-slate-500 transition-colors hover:text-[#307c4c] disabled:opacity-50"
+      >
+        {col.label}
+        {busy ? (
+          <span className="normal-case tracking-normal text-slate-400">· saving...</span>
+        ) : (
+          <Pencil className="h-3 w-3 shrink-0 text-slate-300 opacity-0 transition-opacity group-hover:opacity-100" />
+        )}
+      </button>
+      <PickerPortal
+        open={open}
+        pos={pos}
+        onPick={(emp) => {
+          close();
+          onAssign(emp);
+        }}
+        onClose={close}
+      />
     </>
   );
 }
@@ -174,6 +236,7 @@ function EditableApproverMatrix({
   const [data, setData] = useState<ProcureGuardApproverMatrix | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [savingCol, setSavingCol] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -216,6 +279,30 @@ function EditableApproverMatrix({
     );
   }
 
+  async function assignColumn(col: ApproverMatrixColumn, emp: EmployeeDirectoryEntry) {
+    setSavingCol(col.key);
+    setError('');
+    const res = await setProcureGuardApproverForColumn({
+      notificationRole: col.notificationRole,
+      requestType: col.requestType,
+      email: emp.email,
+      displayName: emp.name,
+    });
+    setSavingCol(null);
+    if (!res.success) {
+      setError(res.error ?? 'Failed to update column.');
+      return;
+    }
+    setData((prev) => {
+      if (!prev) return prev;
+      const cells = { ...prev.cells };
+      for (const country of prev.countries) {
+        cells[country] = { ...cells[country], [col.key]: { name: emp.name, email: emp.email } };
+      }
+      return { ...prev, cells };
+    });
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white py-12 text-slate-500">
@@ -248,8 +335,8 @@ function EditableApproverMatrix({
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 <th className="sticky left-0 z-10 bg-slate-50 px-4 py-3">Country</th>
                 {data.columns.map((col) => (
-                  <th key={col.key} className="whitespace-nowrap px-3 py-3">
-                    {col.label}
+                  <th key={col.key} className="px-3 py-3">
+                    <ColumnHeader col={col} busy={savingCol === col.key} onAssign={(emp) => assignColumn(col, emp)} />
                   </th>
                 ))}
               </tr>
