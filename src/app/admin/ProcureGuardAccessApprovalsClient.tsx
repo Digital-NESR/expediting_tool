@@ -136,6 +136,74 @@ function RoleSelector({
   );
 }
 
+/* ── Approvers pivot: countries (rows) × approval roles (columns) → responsible person(s) ── */
+
+const APPROVER_ROLES: ProcureGuardPermissionRole[] = [
+  'SCM Manager', 'Country Controller', 'Supply Chain Director', 'Treasury Director', 'Corporate Controller', 'CFO',
+];
+const ROLE_COLUMN_LABEL: Partial<Record<ProcureGuardPermissionRole, string>> = {
+  'SCM Manager': 'Country SCM',
+  'Supply Chain Director': 'SC Director',
+};
+
+function personInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const s = (parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '');
+  return s.toUpperCase() || '?';
+}
+
+function PersonChip({ name }: { name: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#307c4c]/10 text-[10px] font-bold text-[#307c4c]">{personInitials(name)}</span>
+      <span className="truncate text-[13px] font-medium text-slate-700">{name}</span>
+    </div>
+  );
+}
+
+function ApprovalMatrix({ approved }: { approved: ProcureGuardAccessRequestRow[] }) {
+  function personsFor(country: string, role: ProcureGuardPermissionRole): string[] {
+    const names = approved
+      .filter(row => (row.approved_role ?? row.requested_role) === role
+        && (roleRequiresProcureGuardCountryScope(role) ? countryScopeParts(row.country).includes(country) : true))
+      .map(row => row.display_name || row.user_email);
+    return [...new Set(names)];
+  }
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <th className="sticky left-0 z-10 bg-slate-50 px-4 py-3">Country</th>
+              {APPROVER_ROLES.map(role => (
+                <th key={role} className="whitespace-nowrap px-4 py-3">{ROLE_COLUMN_LABEL[role] ?? role}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {COUNTRY_OPTIONS.map(country => (
+              <tr key={country} className="hover:bg-[#307c4c]/5">
+                <td className="sticky left-0 z-10 bg-white px-4 py-3 font-semibold text-slate-900">{country}</td>
+                {APPROVER_ROLES.map(role => {
+                  const people = personsFor(country, role);
+                  return (
+                    <td key={role} className="px-4 py-3 align-top">
+                      {people.length === 0
+                        ? <span className="text-xs text-slate-300">—</span>
+                        : <div className="space-y-1.5">{people.map((p, i) => <PersonChip key={i} name={p} />)}</div>}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function ProcureGuardAccessApprovalsClient({
   userEmail,
   onPendingCountChange,
@@ -176,7 +244,7 @@ export default function ProcureGuardAccessApprovalsClient({
   }, [onPendingCountChange]);
 
   const pending = useMemo(() => requests.filter(row => row.status === 'Pending'), [requests]);
-  const allUsers = requests;
+  const approvedUsers = useMemo(() => requests.filter(row => row.status === 'Approved'), [requests]);
 
   function openExpand(email: string, mode: 'approve' | 'edit') {
     if (expandedEmail === email && expandMode === mode) {
@@ -349,7 +417,7 @@ export default function ProcureGuardAccessApprovalsClient({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 tracking-tight">ProcureGuard Access Approvals</h2>
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight">ProcureGuard Approval Access</h2>
           <p className="mt-0.5 text-[12px] text-gray-400">
             Last updated: {lastRefreshed ? lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
           </p>
@@ -374,11 +442,12 @@ export default function ProcureGuardAccessApprovalsClient({
       </section>
 
       <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900">All ProcureGuard Users</h3>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{allUsers.length}</span>
+        <div className="mb-1 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900">Approvers by Country &amp; Role</h3>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{approvedUsers.length} approved</span>
         </div>
-        {renderRows(allUsers, 'No ProcureGuard access records yet.')}
+        <p className="mb-3 text-[12px] text-slate-400">Who holds each approval role in each country. Country roles (Country SCM, Country Controller) vary by country; Director / Treasury / Corporate Controller / CFO are global.</p>
+        <ApprovalMatrix approved={approvedUsers} />
       </section>
     </div>
   );

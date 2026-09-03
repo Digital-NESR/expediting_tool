@@ -1444,7 +1444,7 @@ export default function AdminClient({
       'procureguard-admin':     'ProcureGuard Admin | Admin | SC Agents',
       'procureguard-analytics': 'ProcureGuard Analytics | Admin | SC Agents',
       'procureguard-usage':     'ProcureGuard Usage Analytics | Admin | SC Agents',
-      'procureguard-access':    'ProcureGuard Access Approvals | Admin | SC Agents',
+      'procureguard-access':    'ProcureGuard Approval Access | Admin | SC Agents',
       'sourceguide-guides':     'Source Guides — SourceGuide | Admin | SC Agents',
       'sourceguide-champions':  'Champions — SourceGuide | Admin | SC Agents',
       'sourceguide-analytics':  'Analytics — SourceGuide | Admin | SC Agents',
@@ -1765,7 +1765,7 @@ export default function AdminClient({
               cursor: 'pointer',
             }}
           >
-            <span>Access Approvals</span>
+            <span>Approval Access</span>
             {liveProcureGuardPendingCount > 0 && (
               <span style={{
                 display: 'inline-flex',
