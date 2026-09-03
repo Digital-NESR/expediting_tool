@@ -3952,6 +3952,121 @@ export async function updateProcureGuardNotificationRecipientGroup(input: {
   }
 }
 
+/* ── Approver matrix (country x role/request-type -> the notified approver) ── */
+
+export interface ApproverMatrixColumn {
+  key: string;
+  label: string;
+  notificationRole: string;
+  requestType: 'adhoc' | 'advance';
+}
+export interface ApproverCell { name: string; email: string }
+export interface ProcureGuardApproverMatrix {
+  countries: string[];
+  columns: ApproverMatrixColumn[];
+  cells: Record<string, Record<string, ApproverCell | null>>;
+}
+
+const APPROVER_MATRIX_COLUMNS: ApproverMatrixColumn[] = [
+  { key: 'scm',        label: 'Country SCM',           notificationRole: 'SCM Manager',           requestType: 'adhoc' },
+  { key: 'cc',         label: 'Country Controller',    notificationRole: 'Country Controller',    requestType: 'advance' },
+  { key: 'sd_adhoc',   label: 'SC Director (Adhoc)',   notificationRole: 'Supply Chain Director', requestType: 'adhoc' },
+  { key: 'sd_advance', label: 'SC Director (Advance)', notificationRole: 'Supply Chain Director', requestType: 'advance' },
+  { key: 'treasury',   label: 'Treasury Director',     notificationRole: 'Treasury Director',     requestType: 'advance' },
+  { key: 'corp',       label: 'Corporate Controller',  notificationRole: 'Corporate Controller',  requestType: 'advance' },
+  { key: 'cfo',        label: 'CFO',                   notificationRole: 'CFO',                   requestType: 'advance' },
+];
+
+export async function getProcureGuardApproverMatrix(): Promise<ProcureGuardApproverMatrix> {
+  try {
+    const roles = [...new Set(APPROVER_MATRIX_COLUMNS.map((c) => c.notificationRole))];
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT id, country, notification_role, request_type, display_name, email
+       FROM procure_guard_notification_recipients
+       WHERE is_active = TRUE AND notification_role = ANY(?)
+       ORDER BY country ASC, id ASC`,
+      [roles],
+    );
+    const colFor = (role: string, rt: string) =>
+      APPROVER_MATRIX_COLUMNS.find((c) => c.notificationRole === role && c.requestType === rt);
+
+    const cells: Record<string, Record<string, ApproverCell | null>> = {};
+    const countrySet = new Set<string>();
+    for (const r of rows) {
+      const country = String(r.country ?? '').trim();
+      if (!country) continue;
+      const col = colFor(String(r.notification_role), String(r.request_type));
+      if (!col) continue;
+      countrySet.add(country);
+      cells[country] = cells[country] ?? {};
+      if (!cells[country][col.key]) {
+        const name = String(r.display_name ?? '').trim() || String(r.email ?? '');
+        cells[country][col.key] = { name, email: String(r.email ?? '') };
+      }
+    }
+    const countries = [...countrySet].sort((a, b) => a.localeCompare(b));
+    for (const country of countries) {
+      cells[country] = cells[country] ?? {};
+      for (const col of APPROVER_MATRIX_COLUMNS) if (!(col.key in cells[country])) cells[country][col.key] = null;
+    }
+    return { countries, columns: APPROVER_MATRIX_COLUMNS, cells };
+  } catch (err) {
+    console.error('[getProcureGuardApproverMatrix]', err);
+    return { countries: [], columns: APPROVER_MATRIX_COLUMNS, cells: {} };
+  }
+}
+
+// Assign the approver for one (country, role, request_type). Updates the matching recipient
+// row(s) or inserts one, then re-syncs recipients -> access/permissions so the person can approve.
+export async function setProcureGuardApprover(input: {
+  country: string;
+  notificationRole: string;
+  requestType: 'adhoc' | 'advance';
+  email: string;
+  displayName: string;
+}): Promise<ActionResult> {
+  try {
+    const actor = await requirePermissionManager();
+    if (!actor.permissions.canManagePermissions) {
+      return { success: false, error: 'Permission management access is required.' };
+    }
+    const email = requireText(input.email, 'Email').toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { success: false, error: 'Enter a valid email address.' };
+    const displayName = requireText(input.displayName, 'Name');
+    const country = requireText(input.country, 'Country');
+    const role = requireText(input.notificationRole, 'Role');
+    const rt = input.requestType === 'adhoc' ? 'adhoc' : 'advance';
+
+    const upd = await exec(
+      `UPDATE procure_guard_notification_recipients
+       SET display_name = ?, email = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE country = ? AND notification_role = ? AND request_type = ? AND is_active = TRUE`,
+      [displayName, email, country, role, rt],
+    );
+    if (upd.rowCount === 0) {
+      const tmpl = await sql<QueryResultRow[]>(
+        `SELECT approval_status, source_column, is_required FROM procure_guard_notification_recipients
+         WHERE notification_role = ? AND request_type = ? AND is_active = TRUE LIMIT 1`,
+        [role, rt],
+      );
+      const t = tmpl[0];
+      await exec(
+        `INSERT INTO procure_guard_notification_recipients
+           (country, request_type, notification_role, approval_status, source_column, display_name, email, is_required, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+        [country, rt, role, t?.approval_status ?? null, t?.source_column ?? 'manual', displayName, email, t?.is_required ?? false],
+      );
+    }
+
+    await syncProcureGuardRecipientAccessApprovals();
+    revalidateProcureGuardPaths();
+    return { success: true };
+  } catch (err) {
+    console.error('[setProcureGuardApprover]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to set approver.' };
+  }
+}
+
 export async function testProcureGuardN8nWebhook(): Promise<ActionResult<{
   status: number;
   statusText: string;

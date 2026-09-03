@@ -1380,7 +1380,8 @@ export default function AdminClient({
   const [lastRefreshed, setLastRefreshed]     = useState<Date>(() => new Date());
   const [livePendingCount, setLivePendingCount]       = useState(pendingCount);
   const [liveTitePendingCount, setLiveTitePendingCount] = useState(titePendingCount);
-  const [liveProcureGuardPendingCount, setLiveProcureGuardPendingCount] = useState(procureGuardPendingCount);
+  // ProcureGuard is open-access now — no pending approvals, so never seed a stale badge.
+  const [liveProcureGuardPendingCount, setLiveProcureGuardPendingCount] = useState(0);
   const [liveSourceGuidePendingCount, setLiveSourceGuidePendingCount] = useState(sourceGuidePendingCount);
   const [liveLearningHubPendingCount, setLiveLearningHubPendingCount] = useState(learningHubPendingCount);
   const [liveCatalogPendingCount, setLiveCatalogPendingCount] = useState(catalogPendingCount);
