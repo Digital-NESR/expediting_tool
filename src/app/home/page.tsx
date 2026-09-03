@@ -1120,9 +1120,9 @@ export default function HomePage() {
   const isAdmin = session?.user?.isAdmin ?? false;
   const poStatus: ToolStatus   = session?.user?.toolAccess?.po_expediting?.status ?? 'new';
   const titeStatus: ToolStatus = session?.user?.toolAccess?.tite?.status          ?? 'new';
-  const procureGuardStatus: ToolStatus = session?.user?.toolAccess?.procure_guard?.status ?? 'new';
   const procureGuardAccessType = session?.user?.toolAccess?.procure_guard?.accessType ?? 'requester';
-  const canOpenProcureGuard = isAdmin || procureGuardStatus === 'approved';
+  // ProcureGuard is open-access: any signed-in NESR user can open it (the layout enforces sign-in only).
+  const canOpenProcureGuard = true;
   const sourceGuideStatus: ToolStatus = session?.user?.toolAccess?.sourceguide?.status ?? 'new';
   const learningHubStatus: ToolStatus = session?.user?.toolAccess?.learning_hub?.status ?? 'new';
   const canOpenCatalogManager = isAdmin;
@@ -1149,9 +1149,8 @@ export default function HomePage() {
   }
 
   function handleProcureGuardClick() {
-    if (canOpenProcureGuard) {
-      router.push('/procure-guard');
-    }
+    // Open-access: no gate, just navigate. The layout enforces sign-in.
+    router.push('/procure-guard');
   }
 
   function handleSourceGuideClick() {
