@@ -3,7 +3,6 @@
 import { useState, useMemo, useTransition, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
 import { submitSourceGuideAccessRequest } from '@/app/actions/sourceguide';
@@ -756,86 +755,6 @@ function LearningHubAccessRequestModal({
   );
 }
 
-function LearningHubCard({ status, isAdmin, onClick }: { status: ToolStatus; isAdmin: boolean; onClick: () => void }) {
-  const canOpen = isAdmin || status === 'approved';
-  const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
-  return (
-    <button onClick={onClick}
-      className="group relative flex w-full cursor-pointer flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#307c4c18' }}>
-        <GraduationCap className="h-6 w-6" style={{ color: '#307c4c' }} />
-      </div>
-      <div className="flex-1">
-        <h3 className="text-[18px] font-semibold text-slate-900">Learning Hub</h3>
-        <p className="mt-0.5 text-[13px] font-medium text-slate-400">SAP, Supply Chain &amp; NESR Training</p>
-        <p className="mt-2 text-sm leading-relaxed text-gray-500">
-          Self-paced courses across three tracks: SAP, general Supply Chain fundamentals, and NESR-specific supply chain practice.
-        </p>
-      </div>
-      <div className="mt-auto flex items-center justify-between">
-        <AccessBadge status={status} isAdmin={isAdmin} />
-        {canOpen ? (
-          <span className="text-sm font-semibold group-hover:underline" style={{ color: '#307c4c' }}>Open →</span>
-        ) : status === 'new' ? (
-          <span className="text-sm font-semibold group-hover:underline" style={{ color: '#307c4c' }}>Request Access →</span>
-        ) : isDenied ? (
-          <span className="text-xs font-semibold text-red-600 group-hover:underline">Reapply for access →</span>
-        ) : null}
-      </div>
-    </button>
-  );
-}
-
-/* ─── S&S Registry Card ──────────────────────────────────────── */
-
-function SnsRegistryCard({
-  status,
-  isAdmin,
-  roleLabel,
-  onClick,
-}: {
-  status: ToolStatus;
-  isAdmin: boolean;
-  roleLabel?: string;
-  onClick: () => void;
-}) {
-  const canOpen = isAdmin || status === 'approved';
-  const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
-  return (
-    <button
-      onClick={onClick}
-      className="group relative flex w-full cursor-pointer flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10"
-    >
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#2A7E4F18' }}>
-        <ShieldCheck className="h-6 w-6" style={{ color: '#2A7E4F' }} />
-      </div>
-
-      <div className="flex-1">
-        <h3 className="text-[18px] font-semibold text-slate-900">S&amp;S Registry</h3>
-        <p className="mt-0.5 text-[13px] font-medium text-slate-400">Single &amp; Sole Source Compliance</p>
-        <p className="mt-2 text-sm leading-relaxed text-gray-500">
-          System of record for single-quotation compliance: register single and sole source cases, route them through
-          two-level validation, and keep an audit trail against the 12-month expiry.
-        </p>
-        {canOpen && roleLabel && (
-          <p className="mt-2 text-[12px] font-medium text-slate-400">Signed in as {roleLabel}</p>
-        )}
-      </div>
-
-      <div className="mt-auto flex items-center justify-between">
-        <AccessBadge status={status} isAdmin={isAdmin} />
-        {canOpen ? (
-          <span className="text-sm font-semibold group-hover:underline" style={{ color: '#2A7E4F' }}>Open →</span>
-        ) : status === 'new' ? (
-          <span className="text-sm font-semibold group-hover:underline" style={{ color: '#2A7E4F' }}>Request Access →</span>
-        ) : isDenied ? (
-          <span className="text-xs font-semibold text-red-600 group-hover:underline">Reapply for access →</span>
-        ) : null}
-      </div>
-    </button>
-  );
-}
-
 /* ─── Catalog Repo Card (Admin Preview) ───────────────────── */
 
 function CatalogManagerCard({
@@ -1104,7 +1023,6 @@ function ComingSoonCard({
 
 export default function HomePage() {
   const { data: session, update } = useSession();
-  const router = useRouter();
 
   const [modal, setModal] = useState<ModalType>(null);
   const [appSearch, setAppSearch] = useState('');
@@ -1127,12 +1045,15 @@ export default function HomePage() {
   const learningHubStatus: ToolStatus = session?.user?.toolAccess?.learning_hub?.status ?? 'new';
   const canOpenCatalogManager = isAdmin;
   const snsStatus: ToolStatus = session?.user?.toolAccess?.sns_registry?.status ?? 'new';
-  const snsRole = session?.user?.toolAccess?.sns_registry?.snsRole;
-  const snsRoleLabel = isAdmin || snsRole === 'admin' ? 'Admin — full access' : snsRole;
+
+  function openTool(url: string) {
+    // Every tool opens in a new browser tab.
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
 
   function handlePOClick() {
     if (isAdmin || poStatus === 'approved') {
-      router.push('/po-expediting');
+      openTool('/po-expediting');
       return;
     }
     if (poStatus === 'pending') { setModal('po-pending'); return; }
@@ -1141,7 +1062,7 @@ export default function HomePage() {
 
   function handleTiteClick() {
     if (isAdmin || titeStatus === 'approved') {
-      router.push('/ti-te');
+      openTool('/ti-te');
       return;
     }
     if (titeStatus === 'pending') { setModal('tite-pending'); return; }
@@ -1149,42 +1070,39 @@ export default function HomePage() {
   }
 
   function handleProcureGuardClick() {
-    // Open-access: no gate, just navigate. The layout enforces sign-in.
-    router.push('/procure-guard');
+    // Open-access: no gate, just open. The layout enforces sign-in.
+    openTool('/procure-guard');
   }
 
   function handleSourceGuideClick() {
-    if (isAdmin || sourceGuideStatus === 'approved') { router.push('/sourceguide'); return; }
+    if (isAdmin || sourceGuideStatus === 'approved') { openTool('/sourceguide'); return; }
     if (sourceGuideStatus === 'pending') { setModal('sg-pending'); return; }
     setModal('sg-request');
   }
 
   function handleCatalogManagerClick() {
-    if (canOpenCatalogManager) router.push('/catalog-manager');
+    if (canOpenCatalogManager) openTool('/catalog-manager');
   }
 
   function handleSnsClick() {
-    // Both destinations are server-gated: /sns-registry bounces anyone without
-    // approved access to the request page, and the request page bounces anyone
-    // who already has it back to the tool.
-    router.push(isAdmin || snsStatus === 'approved' ? '/sns-registry' : '/sns-registry/request-access');
+    // Admin-preview card: only opens for admins (or an approved user, if re-enabled).
+    if (isAdmin || snsStatus === 'approved') openTool('/sns-registry');
   }
 
   function handleLaptopClick() {
     // Real access (admin, granted permission, or delegation) is enforced
     // server-side in the laptop-procurement layout; unauthorized users are
     // bounced straight back here.
-    router.push('/laptop-procurement');
+    openTool('/laptop-procurement');
   }
 
   function handleLearningHubClick() {
-    if (isAdmin || learningHubStatus === 'approved') { router.push('/learning-hub'); return; }
-    if (learningHubStatus === 'pending') { setModal('lh-pending'); return; }
-    setModal('lh-request');
+    // Admin-preview card: only opens for admins (or an approved user, if re-enabled).
+    if (isAdmin || learningHubStatus === 'approved') openTool('/learning-hub');
   }
 
   function handleSoaConsolidationClick() {
-    if (isAdmin) router.push('/soa-consolidation');
+    if (isAdmin) openTool('/soa-consolidation');
   }
 
   async function handleRefreshStatus() {
@@ -1310,14 +1228,6 @@ export default function HomePage() {
                   <LaptopProcurementCard onClick={handleLaptopClick} />
                 )}
 
-                {show('learning hub training courses sap supply chain academy lms') && (
-                  <LearningHubCard
-                    status={learningHubStatus}
-                    isAdmin={isAdmin}
-                    onClick={handleLearningHubClick}
-                  />
-                )}
-
                 {show('po expediting purchase orders monitor expedite supplier delivery') && (
                   <POExpeditingCard
                     status={poStatus}
@@ -1348,6 +1258,8 @@ export default function HomePage() {
                     {isAdmin ? (
                       <a
                         href="https://rfxofficer.nesr.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="group relative flex h-full w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
                       >
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]">
@@ -1421,11 +1333,24 @@ export default function HomePage() {
                   />
                 )}
 
+                {show('learning hub training courses sap supply chain academy lms') && (
+                  <AdminPreviewCard
+                    name="Learning Hub"
+                    subtitle={"SAP, Supply Chain & NESR Training"}
+                    description="Self-paced courses across three tracks: SAP, general Supply Chain fundamentals, and NESR-specific supply chain practice."
+                    icon={<GraduationCap className="w-6 h-6 text-gray-400" />}
+                    canOpen={isAdmin}
+                    onClick={handleLearningHubClick}
+                  />
+                )}
+
                 {show('s&s sns registry single sole source compliance single-quotation exception waiver') && (
-                  <SnsRegistryCard
-                    status={snsStatus}
-                    isAdmin={isAdmin}
-                    roleLabel={snsRoleLabel}
+                  <AdminPreviewCard
+                    name={"S&S Registry"}
+                    subtitle={"Single & Sole Source Compliance"}
+                    description="System of record for single-quotation compliance: register single and sole source cases, route them through two-level validation, and keep an audit trail against the 12-month expiry."
+                    icon={<ShieldCheck className="w-6 h-6 text-gray-400" />}
+                    canOpen={isAdmin}
                     onClick={handleSnsClick}
                   />
                 )}
@@ -1444,7 +1369,7 @@ export default function HomePage() {
                 {show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management') && (
                   <button
                     type="button"
-                    onClick={() => { if (isAdmin) router.push('/supply-chain-analytics'); }}
+                    onClick={() => { if (isAdmin) openTool('/supply-chain-analytics'); }}
                     disabled={!isAdmin}
                     className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
                       isAdmin
