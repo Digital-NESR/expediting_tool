@@ -1301,175 +1301,182 @@ export default function HomePage() {
           <div className="flex gap-6 items-stretch">
 
             {/* ── Tool cards ── */}
-            <div className="flex-1 grid grid-cols-3 gap-6 content-start">
+            <div className="flex-1 flex flex-col gap-6">
 
-              {/* ── Available ── */}
+              {/* ── Available (launched) — alphabetical ── */}
+              <div className="grid grid-cols-3 gap-6 content-start">
 
-              {show('catalog manager supplier service indirect item rates price catalog spend') && (
-                <CatalogManagerCard
-                  canOpen={canOpenCatalogManager}
-                  onClick={handleCatalogManagerClick}
-                />
-              )}
+                {show('laptop procurement asset request device approvals') && (
+                  <LaptopProcurementCard onClick={handleLaptopClick} />
+                )}
 
-              {show('po expediting purchase orders monitor expedite supplier delivery') && (
-                <POExpeditingCard
-                  status={poStatus}
-                  isAdmin={isAdmin}
-                  onClick={handlePOClick}
-                />
-              )}
+                {show('learning hub training courses sap supply chain academy lms') && (
+                  <LearningHubCard
+                    status={learningHubStatus}
+                    isAdmin={isAdmin}
+                    onClick={handleLearningHubClick}
+                  />
+                )}
 
-              {show('procureguard payment request approvals procurement') && (
-                <ProcureGuardCard
-                  canOpen={canOpenProcureGuard}
-                  accessType={procureGuardAccessType}
-                  onClick={handleProcureGuardClick}
-                />
-              )}
+                {show('po expediting purchase orders monitor expedite supplier delivery') && (
+                  <POExpeditingCard
+                    status={poStatus}
+                    isAdmin={isAdmin}
+                    onClick={handlePOClick}
+                  />
+                )}
 
-              {show('rfx officer rfx rfq rfp bidding tendering quotation award negotiation') && (
-                <div className="relative">
-                  {/* Help icon — sibling of the card (not nested) so anchors don't nest */}
-                  <a
-                    href="/help/rfx-officer"
-                    title="View Help & Training"
-                    className="absolute top-3 right-3 z-20 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-                  >
-                    <HelpCircle className="w-4 h-4" />
-                  </a>
+                {show('procureguard payment request approvals procurement') && (
+                  <ProcureGuardCard
+                    canOpen={canOpenProcureGuard}
+                    accessType={procureGuardAccessType}
+                    onClick={handleProcureGuardClick}
+                  />
+                )}
 
-                  {isAdmin ? (
+                {show('rfx officer rfx rfq rfp bidding tendering quotation award negotiation') && (
+                  <div className="relative">
+                    {/* Help icon — sibling of the card (not nested) so anchors don't nest */}
                     <a
-                      href="https://rfxofficer.nesr.com"
-                      className="group relative flex h-full w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
+                      href="/help/rfx-officer"
+                      title="View Help & Training"
+                      className="absolute top-3 right-3 z-20 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                     >
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]">
-                        <Gavel className="w-6 h-6 text-[#307c4c]" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-[18px] font-semibold text-gray-900">RFx Officer</h3>
-                        <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                          AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
-                        </p>
-                      </div>
-                      <div className="mt-auto flex items-center justify-between">
-                        <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                          </svg>
-                          Portal Access
-                        </span>
-                        <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">Open preview →</span>
-                      </div>
+                      <HelpCircle className="w-4 h-4" />
                     </a>
-                  ) : (
-                    <div className="group relative flex h-full w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left opacity-75 cursor-default select-none">
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
-                        <Gavel className="w-6 h-6 text-gray-400" />
+
+                    {isAdmin ? (
+                      <a
+                        href="https://rfxofficer.nesr.com"
+                        className="group relative flex h-full w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
+                      >
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]">
+                          <Gavel className="w-6 h-6 text-[#307c4c]" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-[18px] font-semibold text-gray-900">RFx Officer</h3>
+                          <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                            AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
+                          </p>
+                        </div>
+                        <div className="mt-auto flex items-center justify-between">
+                          <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                            Portal Access
+                          </span>
+                          <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">Open preview →</span>
+                        </div>
+                      </a>
+                    ) : (
+                      <div className="group relative flex h-full w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left opacity-75 cursor-default select-none">
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
+                          <Gavel className="w-6 h-6 text-gray-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-[18px] font-semibold text-gray-500">RFx Officer</h3>
+                          <p className="mt-2 text-sm leading-relaxed text-gray-400">
+                            AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
+                          </p>
+                        </div>
+                        <div className="mt-auto flex items-center justify-between">
+                          <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                            Portal Access
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-[18px] font-semibold text-gray-500">RFx Officer</h3>
-                        <p className="mt-2 text-sm leading-relaxed text-gray-400">
-                          AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
-                        </p>
-                      </div>
-                      <div className="mt-auto flex items-center justify-between">
-                        <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                          </svg>
-                          Portal Access
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {show('s&s sns registry single sole source compliance single-quotation exception waiver') && (
-                <SnsRegistryCard
-                  status={snsStatus}
-                  isAdmin={isAdmin}
-                  roleLabel={snsRoleLabel}
-                  onClick={handleSnsClick}
-                />
-              )}
-
-              {show('sourceguide sourcing intelligence suppliers commodity') && (
-                <SourceGuideCard
-                  status={sourceGuideStatus}
-                  isAdmin={isAdmin}
-                  onClick={handleSourceGuideClick}
-                />
-              )}
-
-              {show('ti-te tite temporary import export customs shipments') && (
-                <TITECard
-                  status={titeStatus}
-                  isAdmin={isAdmin}
-                  onClick={handleTiteClick}
-                />
-              )}
-
-              {/* ── Preview / Coming Soon ── */}
-
-              {show('laptop procurement asset request device approvals') && (
-                <LaptopProcurementCard onClick={handleLaptopClick} />
-              )}
-
-              {show('learning hub training courses sap supply chain academy lms') && (
-                <LearningHubCard
-                  status={learningHubStatus}
-                  isAdmin={isAdmin}
-                  onClick={handleLearningHubClick}
-                />
-              )}
-
-              {show('soa consolidation statement of account reconciliation vendor balance confirmation finance champion corporate rollup') && (
-                <AdminPreviewCard
-                  name="SOA Consolidation"
-                  subtitle="Vendor Statement Reconciliation"
-                  description="Coordinate country finance champions through vendor outreach, SOA collection, and consolidated handoff to corporate finance for quarterly account reconciliation."
-                  icon={<Receipt className="w-6 h-6 text-gray-400" />}
-                  canOpen={isAdmin}
-                  onClick={handleSoaConsolidationClick}
-                />
-              )}
-
-              {show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management') && (
-                <button
-                  type="button"
-                  onClick={() => { if (isAdmin) router.push('/supply-chain-analytics'); }}
-                  disabled={!isAdmin}
-                  className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
-                    isAdmin
-                      ? 'opacity-75 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10'
-                      : 'opacity-50 cursor-default select-none'
-                  }`}
-                >
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
-                    <BarChart3 className="w-6 h-6 text-gray-400" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-[18px] font-semibold text-gray-500">Supply Chain Analytics</h3>
-                    <p className="mt-0.5 text-[13px] font-medium text-slate-400">Power BI Dashboards</p>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                      Repository of all Supply Chain Power BI dashboards covering sourcing, procurement, logistics, inventory, and materials management.
-                    </p>
-                  </div>
-                  <div className="mt-auto flex items-center justify-between">
-                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
-                      {isAdmin ? 'Admin Preview' : 'Coming Soon'}
-                    </span>
-                    {isAdmin && (
-                      <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open preview →</span>
                     )}
                   </div>
-                </button>
-              )}
+                )}
+
+                {show('sourceguide sourcing intelligence suppliers commodity') && (
+                  <SourceGuideCard
+                    status={sourceGuideStatus}
+                    isAdmin={isAdmin}
+                    onClick={handleSourceGuideClick}
+                  />
+                )}
+
+                {show('ti-te tite temporary import export customs shipments') && (
+                  <TITECard
+                    status={titeStatus}
+                    isAdmin={isAdmin}
+                    onClick={handleTiteClick}
+                  />
+                )}
+
+              </div>
+
+              {/* ── Coming Soon / under development — alphabetical ── */}
+              <div className="grid grid-cols-3 gap-6 content-start">
+
+                {show('catalog manager supplier service indirect item rates price catalog spend') && (
+                  <CatalogManagerCard
+                    canOpen={canOpenCatalogManager}
+                    onClick={handleCatalogManagerClick}
+                  />
+                )}
+
+                {show('s&s sns registry single sole source compliance single-quotation exception waiver') && (
+                  <SnsRegistryCard
+                    status={snsStatus}
+                    isAdmin={isAdmin}
+                    roleLabel={snsRoleLabel}
+                    onClick={handleSnsClick}
+                  />
+                )}
+
+                {show('soa consolidation statement of account reconciliation vendor balance confirmation finance champion corporate rollup') && (
+                  <AdminPreviewCard
+                    name="SOA Consolidation"
+                    subtitle="Vendor Statement Reconciliation"
+                    description="Coordinate country finance champions through vendor outreach, SOA collection, and consolidated handoff to corporate finance for quarterly account reconciliation."
+                    icon={<Receipt className="w-6 h-6 text-gray-400" />}
+                    canOpen={isAdmin}
+                    onClick={handleSoaConsolidationClick}
+                  />
+                )}
+
+                {show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management') && (
+                  <button
+                    type="button"
+                    onClick={() => { if (isAdmin) router.push('/supply-chain-analytics'); }}
+                    disabled={!isAdmin}
+                    className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
+                      isAdmin
+                        ? 'opacity-75 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10'
+                        : 'opacity-50 cursor-default select-none'
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
+                      <BarChart3 className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-[18px] font-semibold text-gray-500">Supply Chain Analytics</h3>
+                      <p className="mt-0.5 text-[13px] font-medium text-slate-400">Power BI Dashboards</p>
+                      <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                        Repository of all Supply Chain Power BI dashboards covering sourcing, procurement, logistics, inventory, and materials management.
+                      </p>
+                    </div>
+                    <div className="mt-auto flex items-center justify-between">
+                      <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
+                        {isAdmin ? 'Admin Preview' : 'Coming Soon'}
+                      </span>
+                      {isAdmin && (
+                        <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open preview →</span>
+                      )}
+                    </div>
+                  </button>
+                )}
+
+              </div>
+
               {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('rfx officer') && !show('supply chain analytics') && !show('catalog') && !show('learning hub') && !show('soa') && !show('s&s sns registry single sole source') && (
-                <div className="col-span-3 py-12 text-center">
+                <div className="py-12 text-center">
                   <p className="text-sm text-slate-400">No applications match &ldquo;{appSearch}&rdquo;</p>
                 </div>
               )}
