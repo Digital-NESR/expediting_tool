@@ -405,6 +405,12 @@ export async function submitLearningHubAccessRequest(input: {
   if (!input.userEmail) return { success: false, error: 'Not signed in.' };
   try {
     await ensureLearningHubReady();
+    // Never demote an already-approved user (e.g. a mis-click before the session finished loading).
+    const adminList = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    if (adminList.includes(input.userEmail.trim().toLowerCase())) return { success: true };
+    const existing = await sql<QueryResultRow[]>(`SELECT status FROM access_requests WHERE user_email = ?`, [input.userEmail.toLowerCase()]);
+    if (String(existing[0]?.status ?? '') === 'Approved') return { success: true };
+
     await exec(
       `INSERT INTO access_requests (user_email, display_name, job_title, department, status, requested_countries, requested_at)
        VALUES (?, ?, ?, ?, 'Pending', '{}', NOW())

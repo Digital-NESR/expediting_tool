@@ -1022,7 +1022,7 @@ function ComingSoonCard({
 /* ─── Page ───────────────────────────────────────────────────── */
 
 export default function HomePage() {
-  const { data: session, update } = useSession();
+  const { data: session, status: sessionStatus, update } = useSession();
 
   const [modal, setModal] = useState<ModalType>(null);
   const [appSearch, setAppSearch] = useState('');
@@ -1219,7 +1219,21 @@ export default function HomePage() {
           <div className="flex gap-6 items-stretch">
 
             {/* ── Tool cards ── */}
-            <div className="flex-1 flex flex-col gap-6">
+            <div className="relative flex-1 flex flex-col gap-6">
+
+              {/* While the session (and per-tool access) is still loading, cover the cards so nobody
+                  mis-clicks "Request Access" before their real access has resolved. */}
+              {sessionStatus === 'loading' && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
+                  <div className="flex items-center gap-2.5 text-sm font-medium text-slate-500">
+                    <svg className="h-5 w-5 animate-spin text-[#307c4c]" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Checking your access...
+                  </div>
+                </div>
+              )}
 
               {/* ── Available (launched) — alphabetical ── */}
               <div className="grid grid-cols-3 gap-6 content-start">
