@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { GraduationCap, ArrowRight } from 'lucide-react';
+import { GraduationCap, ArrowRight, Sparkles } from 'lucide-react';
 import LearningHubSidebar from './components/LearningHubSidebar';
 import LearningHubLogo from './components/LearningHubLogo';
 import LearningHubHero from './components/LearningHubHero';
@@ -47,6 +47,59 @@ function TrackCard({ track }: { track: LearningHubDashboardData['tracks'][number
   );
 }
 
+function RedBullGameCard() {
+  const color = '#12276e';
+  return (
+    <Link
+      href="/learning-hub/red-bull-game"
+      className="group relative flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60"
+    >
+      <span className="absolute inset-x-0 top-0 h-1 rounded-t-2xl" style={{ background: color }} />
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: `${color}18` }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/red-bull-can.png" alt="" className="h-6 w-auto object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+        </div>
+        <div className="min-w-0">
+          <h3 className="truncate text-[15px] font-semibold text-slate-900">Red Bull Game</h3>
+          <p className="text-xs text-slate-400">Supply chain simulator</p>
+        </div>
+      </div>
+      <p className="text-sm leading-relaxed text-slate-500">A hands-on distribution game: manage inventory and orders across a four-stage supply chain and watch the bullwhip effect play out.</p>
+      <div className="mt-auto flex items-center justify-between text-xs">
+        <span className="font-medium text-slate-500">Interactive simulator</span>
+        <span className="inline-flex items-center gap-1 font-semibold" style={{ color }}>Play <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" /></span>
+      </div>
+    </Link>
+  );
+}
+
+function AIVerseCard() {
+  const color = '#7c3aed';
+  return (
+    <a
+      href="https://aiverse.nesr.com"
+      className="group relative flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60"
+    >
+      <span className="absolute inset-x-0 top-0 h-1 rounded-t-2xl" style={{ background: color }} />
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: `${color}18` }}>
+          <Sparkles className="h-5 w-5" style={{ color }} />
+        </div>
+        <div className="min-w-0">
+          <h3 className="truncate text-[15px] font-semibold text-slate-900">AI Verse</h3>
+          <p className="text-xs text-slate-400">General AI knowledge</p>
+        </div>
+      </div>
+      <p className="text-sm leading-relaxed text-slate-500">Build general AI skills across multiple tracks, from beginner to intermediate to expert.</p>
+      <div className="mt-auto flex items-center justify-between text-xs">
+        <span className="font-medium text-slate-500">Opens aiverse.nesr.com</span>
+        <span className="inline-flex items-center gap-1 font-semibold" style={{ color }}>Open <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" /></span>
+      </div>
+    </a>
+  );
+}
+
 export default function LearningHubDashboardClient({ data }: { data: LearningHubDashboardData }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const overallPct = data.totalLessons > 0 ? Math.round((data.totalCompleted / data.totalLessons) * 100) : 0;
@@ -65,7 +118,7 @@ export default function LearningHubDashboardClient({ data }: { data: LearningHub
       <main className="mx-auto max-w-[1220px] space-y-6 px-4 py-6 sm:px-6">
         <LearningHubHero
           title="Learning Hub"
-          subtitle="Build your NESR supply chain knowledge across SAP, general Supply Chain fundamentals, and NESR-specific practice — at your own pace."
+          subtitle="Build your NESR supply chain knowledge across SAP, General Supply Chain fundamentals, and NESR-specific practice, at your own pace."
         />
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -102,7 +155,7 @@ export default function LearningHubDashboardClient({ data }: { data: LearningHub
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-900">You&apos;re all caught up</p>
-                  <p className="text-sm text-slate-500">Every published lesson across all tracks is complete.</p>
+                  <p className="text-sm text-slate-500">Every published lesson across all modules is complete.</p>
                 </div>
               </div>
             </div>
@@ -110,32 +163,15 @@ export default function LearningHubDashboardClient({ data }: { data: LearningHub
         </section>
 
         <section>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Tracks</h2>
-            <Link
-              href="/learning-hub/red-bull-game"
-              title="Red Bull Distribution Game — a supply chain simulator"
-              className="group inline-flex shrink-0 items-center gap-2.5 overflow-hidden rounded-xl border border-white/10 py-1.5 pl-2 pr-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-              style={{ background: 'linear-gradient(110deg,#0a1a4f,#12276e)' }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/red-bull-can.png"
-                alt=""
-                className="h-9 w-auto shrink-0 object-contain"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
-              <span className="leading-tight">
-                <span className="block text-[9px] font-bold uppercase tracking-wider text-white/50">Simulator</span>
-                <span className="block text-xs font-bold text-white">Red Bull Game</span>
-              </span>
-              <ArrowRight className="h-3.5 w-3.5 text-white/70 transition-transform group-hover:translate-x-0.5" />
-            </Link>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Modules</h2>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {data.tracks.map((track) => (
               <TrackCard key={track.id} track={track} />
             ))}
+            <RedBullGameCard />
+            <AIVerseCard />
           </div>
         </section>
       </main>
