@@ -1334,7 +1334,21 @@ export default function Dashboard() {
             <span className="hidden sm:inline text-gray-300 select-none">·</span>
             <span className="hidden sm:inline text-sm font-medium text-gray-500">PO Expediting Dashboard</span>
           </div>
-          <span className="text-xs text-gray-400 font-medium hidden sm:block">{todayLabel}</span>
+          <div className="flex items-center gap-2 md:gap-3">
+            <Link
+              href="/po-expediting/help"
+              title="Help & Training"
+              aria-label="Help & Training"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#307c4c]"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                <path d="M12 17h.01" />
+              </svg>
+            </Link>
+            <span className="text-xs text-gray-400 font-medium hidden sm:block">{todayLabel}</span>
+          </div>
         </header>
 
         {/* ── Scrollable body ── */}
