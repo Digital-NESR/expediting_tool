@@ -16,12 +16,12 @@
 <x-dc>
 <helmet>
 <style>
-  body { margin:0; background:#F4F5F4; font-family: Arial, Calibri, Helvetica, sans-serif; color:#1F1F1D; -webkit-user-select:none; user-select:none; }
+  body { margin:0; background:#F4F5F4; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color:#1F1F1D; -webkit-user-select:none; user-select:none; }
   input, table, p { -webkit-user-select:text; user-select:text; }
-  a { color:#2A7E4F; text-decoration:none; }
+  a { color:#307c4c; text-decoration:none; }
   a:hover { color:#1F1F1D; text-decoration:underline; }
   input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
-  input { font-family: Arial, Helvetica, sans-serif; }
+  input { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
 </style>
 </helmet>
 
@@ -33,9 +33,9 @@
         <div style="display:flex; align-items:flex-end; gap:14px;">
           <div style="font-size:32px; font-weight:bold;">Choose How You Play</div>
           <div style="display:flex; gap:5px; align-items:flex-end; padding-bottom:6px;">
-            <div style="width:12px; height:22px; border-radius:3px; background:#C5E0D2; border:1px solid #2A7E4F;"></div>
-            <div style="width:12px; height:30px; border-radius:3px; background:#6AAF8E; border:1px solid #2A7E4F;"></div>
-            <div style="width:12px; height:26px; border-radius:3px; background:#2A7E4F; border:1px solid #1F1F1D;"></div>
+            <div style="width:12px; height:22px; border-radius:3px; background:#C5E0D2; border:1px solid #307c4c;"></div>
+            <div style="width:12px; height:30px; border-radius:3px; background:#6AAF8E; border:1px solid #307c4c;"></div>
+            <div style="width:12px; height:26px; border-radius:3px; background:#307c4c; border:1px solid #1F1F1D;"></div>
           </div>
         </div>
         <div style="font-size:14px; color:#58595B; max-width:700px; line-height:1.6; margin-top:10px;">
@@ -44,30 +44,30 @@
 
         <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; margin-top:30px;">
           <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3">
-            <div onClick="{{ m.pick }}" style="cursor:pointer; background:#FFFFFF; border-top:4px solid #2A7E4F; padding:22px 22px 24px; box-shadow:0 1px 3px rgba(31,31,29,0.12); display:flex; flex-direction:column; gap:12px; min-height:240px;" style-hover="{{ cardHover }}">
+            <div onClick="{{ m.pick }}" style="cursor:pointer; background:#FFFFFF; border-top:4px solid #307c4c; padding:22px 22px 24px; box-shadow:0 1px 3px rgba(31,31,29,0.12); display:flex; flex-direction:column; gap:12px; min-height:240px;" style-hover="{{ cardHover }}">
               <div style="display:flex; align-items:center; justify-content:space-between;">
                 <div style="font-size:18px; font-weight:bold;">{{ m.name }}</div>
                 <div style="display:flex; gap:4px;">
                   <sc-for list="{{ m.cans }}" as="c" hint-placeholder-count="2">
-                    <div style="width:11px; height:21px; border-radius:2px; background:#2A7E4F; border:1px solid #1F1F1D;"></div>
+                    <div style="width:11px; height:21px; border-radius:2px; background:#307c4c; border:1px solid #1F1F1D;"></div>
                   </sc-for>
                 </div>
               </div>
-              <div style="font-size:12px; font-weight:bold; color:#2A7E4F; letter-spacing:0.5px;">{{ m.tag }}</div>
+              <div style="font-size:12px; font-weight:bold; color:#307c4c; letter-spacing:0.5px;">{{ m.tag }}</div>
               <div style="font-size:13px; color:#58595B; line-height:1.6; flex:1;">{{ m.blurb }}</div>
               <div style="font-size:12px; font-weight:bold; color:#1F1F1D; letter-spacing:0.5px;">{{ m.cta }} →</div>
             </div>
           </sc-for>
         </div>
 
-        <div style="margin-top:26px; background:#FFFFFF; padding:20px 24px; border-left:4px solid #2A7E4F; display:flex; flex-wrap:wrap; gap:24px; align-items:center;">
+        <div style="margin-top:26px; background:#FFFFFF; padding:20px 24px; border-left:4px solid #307c4c; display:flex; flex-wrap:wrap; gap:24px; align-items:center;">
           <div style="font-size:13px; font-weight:bold;">Already have a game code?</div>
           <div style="display:flex; gap:10px; align-items:center;">
             <input value="{{ nameInput }}" onChange="{{ onName }}" placeholder="Your name" style="width:170px; font-size:13px; padding:10px 12px; border:1px solid #D1D3D4;" />
             <input value="{{ codeInput }}" onChange="{{ onCode }}" placeholder="CODE" style="width:120px; font-size:15px; font-weight:bold; letter-spacing:2px; text-transform:uppercase; padding:10px 12px; border:1px solid #D1D3D4;" />
-            <div onClick="{{ joinGame }}" style="cursor:pointer; background:#2A7E4F; color:#FFFFFF; font-size:12px; font-weight:bold; letter-spacing:0.5px; padding:12px 22px;" style-hover="{{ ctaHover }}">JOIN</div>
+            <div onClick="{{ joinGame }}" style="cursor:pointer; background:#307c4c; color:#FFFFFF; font-size:12px; font-weight:bold; letter-spacing:0.5px; padding:12px 22px;" style-hover="{{ ctaHover }}">JOIN</div>
           </div>
-          <div onClick="{{ goHowto }}" style="cursor:pointer; margin-left:auto; font-size:12px; font-weight:bold; color:#2A7E4F; border-bottom:2px solid #2A7E4F; padding-bottom:2px;" style-hover="{{ linkHover }}">HOW TO PLAY →</div>
+          <div onClick="{{ goHowto }}" style="cursor:pointer; margin-left:auto; font-size:12px; font-weight:bold; color:#307c4c; border-bottom:2px solid #307c4c; padding-bottom:2px;" style-hover="{{ linkHover }}">HOW TO PLAY →</div>
           <div style="font-size:12px; color:#58595B;">{{ error }}</div>
         </div>
       </div>
@@ -76,7 +76,7 @@
 
   <sc-if value="{{ isSetup }}" hint-placeholder-val="{{ false }}">
     <div style="flex:1; display:flex; justify-content:center; padding:36px 24px 60px;">
-      <div style="width:100%; max-width:1000px; background:#FFFFFF; border-top:4px solid #2A7E4F; padding:30px 34px 36px; box-shadow:0 1px 3px rgba(31,31,29,0.12);">
+      <div style="width:100%; max-width:1000px; background:#FFFFFF; border-top:4px solid #307c4c; padding:30px 34px 36px; box-shadow:0 1px 3px rgba(31,31,29,0.12);">
         <div style="font-size:24px; font-weight:bold;">{{ setupTitle }}</div>
         <div style="font-size:13px; color:#58595B; line-height:1.6; max-width:660px; margin-top:8px;">{{ setupBlurb }}</div>
 
@@ -88,7 +88,7 @@
         </sc-if>
 
         <sc-if value="{{ showRolePick }}" hint-placeholder-val="{{ true }}">
-          <div style="font-size:13px; font-weight:bold; color:#2A7E4F; margin-top:26px; letter-spacing:0.5px;">Your Position</div>
+          <div style="font-size:13px; font-weight:bold; color:#307c4c; margin-top:26px; letter-spacing:0.5px;">Your Position</div>
           <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-top:12px;">
             <sc-for list="{{ setupRoles }}" as="r" hint-placeholder-count="4">
               <div onClick="{{ r.pick }}" style="{{ r.cardStyle }}" style-hover="{{ r.hoverStyle }}">
@@ -103,7 +103,7 @@
           </div>
         </sc-if>
 
-        <div style="font-size:13px; font-weight:bold; color:#2A7E4F; margin-top:28px; letter-spacing:0.5px;">Run Settings</div>
+        <div style="font-size:13px; font-weight:bold; color:#307c4c; margin-top:28px; letter-spacing:0.5px;">Run Settings</div>
         <div style="display:flex; flex-wrap:wrap; gap:34px; margin-top:14px; align-items:flex-start;">
           <div>
             <div style="font-size:11px; color:#58595B; letter-spacing:0.5px; margin-bottom:8px; font-weight:bold;">CUSTOMER DEMAND</div>
@@ -144,7 +144,7 @@
 
         <sc-if value="{{ isTrainerSetup }}" hint-placeholder-val="{{ false }}">
           <div style="margin-top:28px;">
-            <div style="font-size:13px; font-weight:bold; color:#2A7E4F; letter-spacing:0.5px;">Team Size</div>
+            <div style="font-size:13px; font-weight:bold; color:#307c4c; letter-spacing:0.5px;">Team Size</div>
             <div style="display:flex; gap:8px; margin-top:12px;">
               <sc-for list="{{ sizeOptions }}" as="o" hint-placeholder-count="3">
                 <div onClick="{{ o.pick }}" style="{{ o.chipStyle }}" style-hover="{{ o.hoverStyle }}">{{ o.label }}</div>
@@ -155,7 +155,7 @@
         </sc-if>
 
         <div style="display:flex; gap:12px; align-items:center; margin-top:32px;">
-          <div onClick="{{ setupGo }}" style="cursor:pointer; background:#2A7E4F; color:#FFFFFF; font-size:14px; font-weight:bold; letter-spacing:0.5px; padding:14px 32px;" style-hover="{{ ctaHover }}">{{ setupCta }}</div>
+          <div onClick="{{ setupGo }}" style="cursor:pointer; background:#307c4c; color:#FFFFFF; font-size:14px; font-weight:bold; letter-spacing:0.5px; padding:14px 32px;" style-hover="{{ ctaHover }}">{{ setupCta }}</div>
           <div onClick="{{ goHome }}" style="cursor:pointer; border:1px solid #D1D3D4; color:#58595B; font-size:13px; font-weight:bold; padding:13px 22px;" style-hover="{{ ghostHover }}">BACK</div>
           <div style="font-size:12px; color:#58595B;">{{ error }}</div>
         </div>
@@ -172,33 +172,33 @@
             <div style="font-size:11px; letter-spacing:1px; color:#C5E0D2; font-weight:bold;">SHARE THIS CODE</div>
             <div style="font-size:44px; font-weight:900; letter-spacing:8px; color:#FFFFFF; line-height:1.1; margin-top:4px; -webkit-user-select:text; user-select:text;">{{ code }}</div>
             <div style="font-size:12px; color:#D1D3D4; margin-top:6px;">{{ lobbyHint }}</div>
-            <div onClick="{{ copyInvite }}" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px; margin-top:12px; background:#2A7E4F; color:#FFFFFF; font-size:11px; font-weight:bold; letter-spacing:0.5px; padding:8px 14px;" style-hover="{{ ctaHoverLight }}">COPY INVITE LINK</div>
+            <div onClick="{{ copyInvite }}" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px; margin-top:12px; background:#307c4c; color:#FFFFFF; font-size:11px; font-weight:bold; letter-spacing:0.5px; padding:8px 14px;" style-hover="{{ ctaHoverLight }}">COPY INVITE LINK</div>
           </div>
           <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
             <div style="font-size:12px; color:#C5E0D2;">{{ lobbyConfigLine }}</div>
             <div style="font-size:12px; color:#C5E0D2;">{{ playerCountLine }}</div>
             <sc-if value="{{ amHost }}" hint-placeholder-val="{{ false }}">
-              <div onClick="{{ startRun }}" style="cursor:pointer; margin-top:6px; background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:13px 28px;" style-hover="{{ ctaHoverLight }}">START THE RUN →</div>
+              <div onClick="{{ startRun }}" style="cursor:pointer; margin-top:6px; background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:13px 28px;" style-hover="{{ ctaHoverLight }}">START THE RUN →</div>
             </sc-if>
           </div>
         </div>
 
         <sc-if value="{{ amHost }}" hint-placeholder-val="{{ false }}">
           <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
-            <div style="background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Coordinator Controls</div>
+            <div style="background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Coordinator Controls</div>
             <div style="padding:18px; display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start;">
               <div>
                 <div style="font-size:11px; font-weight:bold; color:#58595B; letter-spacing:0.5px;">HOW TEAMS ARE FORMED</div>
                 <div style="display:flex; gap:8px; margin-top:10px;">
                   <sc-for list="{{ assignOptions }}" as="a" hint-placeholder-count="3">
-                    <div onClick="{{ a.pick }}" style="cursor:pointer; padding:9px 16px; font-size:12px; font-weight:bold; border:1px solid #D1D3D4;" style-hover="{{ a.hoverStyle }}">{{ a.label }}</div>
+                    <div onClick="{{ a.pick }}" style="{{ a.chipStyle }}" style-hover="{{ a.hoverStyle }}">{{ a.label }}</div>
                   </sc-for>
                 </div>
                 <div style="font-size:11px; color:#58595B; margin-top:10px; max-width:400px; line-height:1.5;">{{ assignNote }}</div>
               </div>
               <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                <div onClick="{{ shuffle }}" style="cursor:pointer; border:1px solid #2A7E4F; color:#2A7E4F; font-size:12px; font-weight:bold; padding:10px 18px;" style-hover="{{ ghostHover }}">SHUFFLE TEAMS</div>
-                <div onClick="{{ addTeam }}" style="cursor:pointer; border:1px solid #2A7E4F; color:#2A7E4F; font-size:12px; font-weight:bold; padding:10px 18px;" style-hover="{{ ghostHover }}">ADD TEAM</div>
+                <div onClick="{{ shuffle }}" style="cursor:pointer; border:1px solid #307c4c; color:#307c4c; font-size:12px; font-weight:bold; padding:10px 18px;" style-hover="{{ ghostHover }}">SHUFFLE TEAMS</div>
+                <div onClick="{{ addTeam }}" style="cursor:pointer; border:1px solid #307c4c; color:#307c4c; font-size:12px; font-weight:bold; padding:10px 18px;" style-hover="{{ ghostHover }}">ADD TEAM</div>
                 <div onClick="{{ clearTeams }}" style="cursor:pointer; border:1px solid #D1D3D4; color:#58595B; font-size:12px; font-weight:bold; padding:10px 18px;" style-hover="{{ ghostHover }}">CLEAR SEATS</div>
                 <div onClick="{{ addDemo }}" style="cursor:pointer; border:1px solid #D1D3D4; color:#58595B; font-size:12px; font-weight:bold; padding:10px 18px;" style-hover="{{ ghostHover }}">ADD TEST PLAYER</div>
               </div>
@@ -211,12 +211,12 @@
             <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">In The Room</div>
             <div style="padding:12px 0;">
               <sc-for list="{{ roster }}" as="p" hint-placeholder-count="3">
-                <div onClick="{{ p.pick }}" style="cursor:pointer; padding:10px 18px; display:flex; align-items:center; justify-content:space-between; gap:10px; border-bottom:1px solid #F4F5F4;" style-hover="{{ p.hoverStyle }}">
+                <div onClick="{{ p.pick }}" style="{{ p.rowStyle }}" style-hover="{{ p.hoverStyle }}">
                   <div>
-                    <div style="font-size:13px; font-weight:bold;">{{ p.name }}</div>
-                    <div style="font-size:11px; color:#58595B;">{{ p.where }}</div>
+                    <div style="{{ p.nameStyle }}">{{ p.name }}</div>
+                    <div style="{{ p.whereStyle }}">{{ p.where }}</div>
                   </div>
-                  <div style="font-size:9px; font-weight:bold; letter-spacing:0.6px; color:#2A7E4F;">{{ p.badge }}</div>
+                  <div style="{{ p.badgeStyle }}">{{ p.badge }}</div>
                 </div>
               </sc-for>
             </div>
@@ -226,7 +226,7 @@
           <div style="display:flex; flex-direction:column; gap:14px;">
             <sc-for list="{{ teams }}" as="t" hint-placeholder-count="2">
               <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
-                <div style="background:#2A7E4F; padding:9px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                <div style="background:#307c4c; padding:9px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
                   <div style="font-size:13px; font-weight:bold; color:#FFFFFF; letter-spacing:0.5px;">{{ t.name }}</div>
                   <div style="display:flex; align-items:center; gap:12px;">
                     <div style="font-size:11px; color:#C5E0D2;">{{ t.summary }}</div>
@@ -239,11 +239,11 @@
                   <sc-for list="{{ t.seats }}" as="s" hint-placeholder-count="4">
                     <div onClick="{{ s.take }}" style="cursor:pointer; border:1px solid #D1D3D4; padding:12px 12px 14px; display:flex; flex-direction:column; gap:8px; background:#FFFFFF;" style-hover="{{ s.hoverStyle }}">
                       <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="width:9px; height:18px; border-radius:2px; background:#2A7E4F;"></div>
+                        <div style="width:9px; height:18px; border-radius:2px; background:#307c4c;"></div>
                         <div style="font-size:12px; font-weight:bold;">{{ s.role }}</div>
                       </div>
                       <div style="font-size:13px; font-weight:bold; color:#1F1F1D;">{{ s.who }}</div>
-                      <div style="font-size:10px; letter-spacing:0.6px; font-weight:bold; color:#2A7E4F;">{{ s.state }}</div>
+                      <div style="font-size:10px; letter-spacing:0.6px; font-weight:bold; color:#307c4c;">{{ s.state }}</div>
                     </div>
                   </sc-for>
                 </div>
@@ -261,7 +261,7 @@
     <div style="flex:1; display:flex; justify-content:center; padding:40px 24px 60px;">
       <div style="width:100%; max-width:1000px; display:flex; flex-direction:column; gap:18px;">
 
-        <div style="background:#FFFFFF; border-top:4px solid #2A7E4F; padding:30px 34px 34px; box-shadow:0 1px 3px rgba(31,31,29,0.12);">
+        <div style="background:#FFFFFF; border-top:4px solid #307c4c; padding:30px 34px 34px; box-shadow:0 1px 3px rgba(31,31,29,0.12);">
           <div style="font-size:28px; font-weight:bold;">How To Play</div>
           <div style="font-size:14px; color:#58595B; line-height:1.7; max-width:700px; margin-top:10px;">
             You run one stage of a four-stage supply chain moving cases of energy drink from the plant to the shelf. Your job each week is simple to state and hard to do: decide how many cases to order from your supplier so the shelves stay stocked without burying yourself in stock.
@@ -271,8 +271,8 @@
               <sc-if value="{{ h.isArrow }}" hint-placeholder-val="{{ false }}">
                 <div style="display:flex; flex-direction:column; gap:6px; padding:0 4px;">
                   <div style="display:flex; align-items:center;">
-                    <div style="flex:1; height:2px; background:#2A7E4F;"></div>
-                    <div style="width:0; height:0; border-left:7px solid #2A7E4F; border-top:5px solid transparent; border-bottom:5px solid transparent;"></div>
+                    <div style="flex:1; height:2px; background:#307c4c;"></div>
+                    <div style="width:0; height:0; border-left:7px solid #307c4c; border-top:5px solid transparent; border-bottom:5px solid transparent;"></div>
                   </div>
                   <div style="display:flex; align-items:center;">
                     <div style="width:0; height:0; border-right:7px solid #58595B; border-top:5px solid transparent; border-bottom:5px solid transparent;"></div>
@@ -293,11 +293,11 @@
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
           <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
-            <div style="background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">What Happens Each Week</div>
+            <div style="background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">What Happens Each Week</div>
             <div style="padding:18px 20px 22px; display:flex; flex-direction:column; gap:14px;">
               <sc-for list="{{ howSteps }}" as="s" hint-placeholder-count="5">
                 <div style="display:flex; gap:14px; align-items:flex-start;">
-                  <div style="flex:0 0 26px; height:26px; background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; display:flex; align-items:center; justify-content:center;">{{ s.n }}</div>
+                  <div style="flex:0 0 26px; height:26px; background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; display:flex; align-items:center; justify-content:center;">{{ s.n }}</div>
                   <div>
                     <div style="font-size:13px; font-weight:bold;">{{ s.title }}</div>
                     <div style="font-size:12px; color:#58595B; line-height:1.6; margin-top:3px;">{{ s.text }}</div>
@@ -316,7 +316,7 @@
                     <sc-for list="{{ howCosts }}" as="c" hint-placeholder-count="3">
                       <tr style="{{ c.style }}">
                         <td style="padding:10px 18px; font-weight:bold;">{{ c.item }}</td>
-                        <td style="padding:10px 18px; text-align:right; font-weight:bold; color:#2A7E4F;">{{ c.rate }}</td>
+                        <td style="padding:10px 18px; text-align:right; font-weight:bold; color:#307c4c;">{{ c.rate }}</td>
                         <td style="padding:10px 18px; color:#58595B;">{{ c.note }}</td>
                       </tr>
                     </sc-for>
@@ -327,10 +327,10 @@
             </div>
 
             <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
-              <div style="background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Three Ways To Run It</div>
+              <div style="background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Three Ways To Run It</div>
               <div style="padding:16px 20px 20px; display:flex; flex-direction:column; gap:12px;">
                 <sc-for list="{{ howModes }}" as="m" hint-placeholder-count="3">
-                  <div style="border-left:3px solid #2A7E4F; background:#F4F5F4; padding:12px 14px;">
+                  <div style="border-left:3px solid #307c4c; background:#F4F5F4; padding:12px 14px;">
                     <div style="font-size:13px; font-weight:bold;">{{ m.name }}</div>
                     <div style="font-size:12px; color:#58595B; line-height:1.6; margin-top:3px;">{{ m.text }}</div>
                   </div>
@@ -345,7 +345,7 @@
           <div style="padding:18px 20px 22px; display:grid; grid-template-columns:1fr 1fr; gap:14px;">
             <sc-for list="{{ howTips }}" as="t" hint-placeholder-count="4">
               <div style="display:flex; gap:10px;">
-                <div style="flex:0 0 9px; height:18px; border-radius:2px; background:#2A7E4F; margin-top:2px;"></div>
+                <div style="flex:0 0 9px; height:18px; border-radius:2px; background:#307c4c; margin-top:2px;"></div>
                 <div style="font-size:12px; color:#1F1F1D; line-height:1.6;">{{ t.text }}</div>
               </div>
             </sc-for>
@@ -353,7 +353,7 @@
         </div>
 
         <div style="display:flex; gap:12px;">
-          <div onClick="{{ goHome }}" style="cursor:pointer; background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:14px 30px;" style-hover="{{ ctaHover }}">BACK TO THE MODES</div>
+          <div onClick="{{ goHome }}" style="cursor:pointer; background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:14px 30px;" style-hover="{{ ctaHover }}">BACK TO THE MODES</div>
         </div>
       </div>
     </div>
@@ -365,16 +365,16 @@
 
         <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:14px;">
           <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="5">
-            <div style="background:#FFFFFF; border-top:4px solid #2A7E4F; padding:14px 16px 16px; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
+            <div style="background:#FFFFFF; border-top:4px solid #307c4c; padding:14px 16px 16px; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
               <div style="font-size:10px; letter-spacing:0.7px; color:#58595B; font-weight:bold;">{{ k.label }}</div>
-              <div style="font-size:27px; font-weight:bold; color:#2A7E4F; line-height:1.2; margin-top:6px;">{{ k.value }}</div>
+              <div style="font-size:27px; font-weight:bold; color:#307c4c; line-height:1.2; margin-top:6px;">{{ k.value }}</div>
               <div style="font-size:11px; color:#58595B;">{{ k.sub }}</div>
             </div>
           </sc-for>
         </div>
 
         <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
-          <div style="background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px; display:flex; justify-content:space-between; gap:16px;">
+          <div style="background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px; display:flex; justify-content:space-between; gap:16px;">
             <div>{{ boardTitle }}</div>
             <div style="font-size:11px; font-weight:normal; color:#C5E0D2;">{{ boardSub }}</div>
           </div>
@@ -385,10 +385,10 @@
                   <div style="display:flex; flex-direction:column; align-items:center; gap:1px;">
                     <div style="font-size:8px; letter-spacing:0.6px; color:#58595B; font-weight:bold;">CASES SHIPPED</div>
                     <div style="display:flex; align-items:center; gap:2px; width:100%;">
-                      <div style="flex:1; height:2px; background:#2A7E4F;"></div>
-                      <div style="width:0; height:0; border-left:7px solid #2A7E4F; border-top:5px solid transparent; border-bottom:5px solid transparent;"></div>
+                      <div style="flex:1; height:2px; background:#307c4c;"></div>
+                      <div style="width:0; height:0; border-left:7px solid #307c4c; border-top:5px solid transparent; border-bottom:5px solid transparent;"></div>
                     </div>
-                    <div style="font-size:12px; font-weight:bold; color:#2A7E4F;">{{ n.ship }}</div>
+                    <div style="font-size:12px; font-weight:bold; color:#307c4c;">{{ n.ship }}</div>
                   </div>
                   <div style="display:flex; flex-direction:column; align-items:center; gap:1px;">
                     <div style="font-size:12px; font-weight:bold; color:#1F1F1D;">{{ n.order }}</div>
@@ -444,22 +444,22 @@
                   </div>
                   <div style="border:1px solid #C5E0D2; background:#FFFFFF;">
                     <div style="background:#C5E0D2; padding:5px 10px; display:flex; align-items:center; gap:6px;">
-                      <div style="width:0; height:0; border-left:6px solid #2A7E4F; border-top:4px solid transparent; border-bottom:4px solid transparent;"></div>
+                      <div style="width:0; height:0; border-left:6px solid #307c4c; border-top:4px solid transparent; border-bottom:4px solid transparent;"></div>
                       <div style="font-size:9px; font-weight:bold; letter-spacing:0.6px;">{{ n.inboundLabel }}</div>
                     </div>
                     <div style="padding:8px 10px; display:flex; flex-direction:column; gap:5px;">
                       <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:#58595B;">
-                        <div>{{ n.in1Label }}</div><div style="font-weight:bold; color:#2A7E4F;">{{ n.in1 }}</div>
+                        <div>{{ n.in1Label }}</div><div style="font-weight:bold; color:#307c4c;">{{ n.in1 }}</div>
                       </div>
                       <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:#58595B;">
-                        <div>{{ n.in2Label }}</div><div style="font-weight:bold; color:#2A7E4F;">{{ n.in2 }}</div>
+                        <div>{{ n.in2Label }}</div><div style="font-weight:bold; color:#307c4c;">{{ n.in2 }}</div>
                       </div>
                     </div>
                   </div>
                   <div style="border:1px solid #D1D3D4; background:#FFFFFF;">
                     <div style="background:#F4F5F4; padding:5px 10px; display:flex; align-items:center; gap:6px;">
                       <div style="width:0; height:0; border-right:6px solid #58595B; border-top:4px solid transparent; border-bottom:4px solid transparent;"></div>
-                      <div style="font-size:9px; font-weight:bold; letter-spacing:0.6px; color:#58595B;">OUTBOUND — LAST WEEK</div>
+                      <div style="font-size:9px; font-weight:bold; letter-spacing:0.6px; color:#58595B;">OUTBOUND - LAST WEEK</div>
                     </div>
                     <div style="padding:8px 10px; display:flex; flex-direction:column; gap:5px;">
                       <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:#58595B;">
@@ -492,8 +492,8 @@
               </div>
             </sc-if>
             <sc-if value="{{ showCustomers }}" hint-placeholder-val="{{ true }}">
-            <div style="flex:0 0 126px; border:1px solid #2A7E4F; background:#C5E0D2; display:flex; flex-direction:column;">
-              <div style="padding:8px 12px; border-bottom:1px solid #2A7E4F; background:#2A7E4F; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <div style="flex:0 0 126px; border:1px solid #307c4c; background:#C5E0D2; display:flex; flex-direction:column;">
+              <div style="padding:8px 12px; border-bottom:1px solid #307c4c; background:#307c4c; display:flex; align-items:center; justify-content:space-between; gap:8px;">
                 <div style="font-size:13px; font-weight:bold; color:#FFFFFF;">Customers</div>
                 <div style="font-size:9px; font-weight:bold; letter-spacing:0.7px; color:#C5E0D2;">DEMAND</div>
               </div>
@@ -522,7 +522,7 @@
 
         <div style="display:grid; grid-template-columns:360px 1fr; gap:18px; align-items:start;">
           <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
-            <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Your Decision — {{ roleName }}</div>
+            <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Your Decision - {{ roleName }}</div>
             <div style="padding:18px;">
               <div style="font-size:12px; color:#58595B; line-height:1.55;">{{ decisionPrompt }}</div>
               <div style="display:flex; gap:8px; margin-top:14px;">
@@ -535,18 +535,18 @@
                   <div onClick="{{ q.pick }}" style="cursor:pointer; flex:1; text-align:center; font-size:11px; font-weight:bold; padding:7px 0; border:1px solid #D1D3D4; color:#58595B;" style-hover="{{ q.hoverStyle }}">{{ q.label }}</div>
                 </sc-for>
               </div>
-              <div onClick="{{ advance }}" style="cursor:pointer; margin-top:14px; text-align:center; background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:14px 0;" style-hover="{{ ctaHover }}">{{ advanceLabel }}</div>
+              <div onClick="{{ advance }}" style="cursor:pointer; margin-top:14px; text-align:center; background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:14px 0;" style-hover="{{ ctaHover }}">{{ advanceLabel }}</div>
               <div style="font-size:10px; color:#58595B; margin-top:10px; line-height:1.5;">{{ orderHint }}</div>
               <sc-if value="{{ waiting }}" hint-placeholder-val="{{ false }}">
-                <div style="margin-top:12px; background:#C5E0D2; border-left:3px solid #2A7E4F; padding:10px 12px; font-size:11px; line-height:1.5;">{{ waitingNote }}</div>
+                <div style="margin-top:12px; background:#C5E0D2; border-left:3px solid #307c4c; padding:10px 12px; font-size:11px; line-height:1.5;">{{ waitingNote }}</div>
               </sc-if>
             </div>
             <div style="border-top:1px solid #D1D3D4; padding:14px 18px 18px;">
-              <div style="font-size:11px; font-weight:bold; letter-spacing:0.6px; color:#2A7E4F;">WEEK LOG</div>
+              <div style="font-size:11px; font-weight:bold; letter-spacing:0.6px; color:#307c4c;">WEEK LOG</div>
               <div style="display:flex; flex-direction:column; gap:6px; margin-top:10px;">
                 <sc-for list="{{ log }}" as="l" hint-placeholder-count="4">
                   <div style="font-size:11px; color:#58595B; line-height:1.45; display:flex; gap:8px;">
-                    <div style="color:#2A7E4F; font-weight:bold;">›</div><div>{{ l.text }}</div>
+                    <div style="color:#307c4c; font-weight:bold;">›</div><div>{{ l.text }}</div>
                   </div>
                 </sc-for>
               </div>
@@ -555,7 +555,7 @@
 
           <div style="display:flex; flex-direction:column; gap:18px;">
             <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
-              <div style="background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px; display:flex; justify-content:space-between;">
+              <div style="background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px; display:flex; justify-content:space-between;">
                 <div>{{ chartTitle }}</div>
                 <div style="font-size:11px; font-weight:normal; color:#C5E0D2;">{{ chartSub }}</div>
               </div>
@@ -584,7 +584,7 @@
                   <thead>
                     <tr>
                       <sc-for list="{{ ledgerCols }}" as="c" hint-placeholder-count="8">
-                        <th style="background:#2A7E4F; color:#FFFFFF; font-size:10px; letter-spacing:0.5px; text-align:right; padding:8px 12px; border-right:1px solid #FFFFFF; position:sticky; top:0;">{{ c.label }}</th>
+                        <th style="background:#307c4c; color:#FFFFFF; font-size:10px; letter-spacing:0.5px; text-align:right; padding:8px 12px; border-right:1px solid #FFFFFF; position:sticky; top:0;">{{ c.label }}</th>
                       </sc-for>
                     </tr>
                   </thead>
@@ -617,14 +617,14 @@
           </div>
           <div style="display:flex; gap:10px;">
             <div onClick="{{ nudgeAll }}" style="cursor:pointer; border:1px solid rgba(255,255,255,0.6); color:#FFFFFF; font-size:12px; font-weight:bold; padding:12px 20px;" style-hover="{{ leaveHover }}">AUTO-PLAY STALLED SEATS</div>
-            <div onClick="{{ endRun }}" style="cursor:pointer; background:#2A7E4F; color:#FFFFFF; font-size:12px; font-weight:bold; letter-spacing:0.5px; padding:12px 22px;" style-hover="{{ ctaHoverLight }}">END RUN & SHOW SCORECARD</div>
+            <div onClick="{{ endRun }}" style="cursor:pointer; background:#307c4c; color:#FFFFFF; font-size:12px; font-weight:bold; letter-spacing:0.5px; padding:12px 22px;" style-hover="{{ ctaHoverLight }}">END RUN & SHOW SCORECARD</div>
           </div>
         </div>
 
         <div style="display:flex; flex-direction:column; gap:14px;">
           <sc-for list="{{ monitorTeams }}" as="t" hint-placeholder-count="2">
             <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
-              <div style="background:#2A7E4F; padding:9px 18px; display:flex; justify-content:space-between; gap:14px;">
+              <div style="background:#307c4c; padding:9px 18px; display:flex; justify-content:space-between; gap:14px;">
                 <div style="font-size:13px; font-weight:bold; color:#FFFFFF;">{{ t.name }}</div>
                 <div style="font-size:12px; color:#C5E0D2;">{{ t.status }}</div>
               </div>
@@ -634,7 +634,7 @@
                     <div style="font-size:11px; font-weight:bold; color:#58595B; letter-spacing:0.5px;">{{ s.role }}</div>
                     <div style="font-size:13px; font-weight:bold; margin-top:4px;">{{ s.who }}</div>
                     <div style="font-size:11px; color:#58595B; margin-top:6px;">{{ s.line }}</div>
-                    <div style="font-size:11px; font-weight:bold; color:#2A7E4F; margin-top:4px;">{{ s.state }}</div>
+                    <div style="font-size:11px; font-weight:bold; color:#307c4c; margin-top:4px;">{{ s.state }}</div>
                   </div>
                 </sc-for>
               </div>
@@ -653,7 +653,7 @@
   <sc-if value="{{ isScore }}" hint-placeholder-val="{{ false }}">
     <div style="flex:1; display:flex; justify-content:center; padding:30px 24px 60px;">
       <div style="width:100%; max-width:1100px; display:flex; flex-direction:column; gap:18px;">
-        <div style="background:#2A7E4F; padding:28px 34px;">
+        <div style="background:#307c4c; padding:28px 34px;">
           <div style="font-size:11px; letter-spacing:1px; color:#C5E0D2; font-weight:bold;">SCORECARD</div>
           <div style="font-size:30px; font-weight:bold; color:#FFFFFF; margin-top:6px;">{{ finalHeadline }}</div>
           <div style="font-size:14px; color:#C5E0D2; margin-top:8px;">{{ finalSub }}</div>
@@ -661,16 +661,16 @@
 
         <div style="display:flex; flex-direction:column; gap:14px;">
           <sc-for list="{{ scoreTeams }}" as="t" hint-placeholder-count="2">
-            <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1); border-left:5px solid #2A7E4F;">
+            <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1); border-left:5px solid #307c4c;">
               <div style="padding:16px 20px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; border-bottom:1px solid #D1D3D4;">
                 <div style="display:flex; align-items:center; gap:16px;">
-                  <div style="font-size:26px; font-weight:900; color:#2A7E4F; min-width:44px;">{{ t.rank }}</div>
+                  <div style="font-size:26px; font-weight:900; color:#307c4c; min-width:44px;">{{ t.rank }}</div>
                   <div>
                     <div style="font-size:18px; font-weight:bold;">{{ t.name }}</div>
                     <div style="font-size:12px; color:#58595B; margin-top:2px;">{{ t.members }}</div>
                   </div>
                   <sc-if value="{{ t.isWinner }}" hint-placeholder-val="{{ false }}">
-                    <div style="font-size:10px; font-weight:bold; letter-spacing:1px; background:#2A7E4F; color:#FFFFFF; padding:6px 12px;">WINNER</div>
+                    <div style="font-size:10px; font-weight:bold; letter-spacing:1px; background:#307c4c; color:#FFFFFF; padding:6px 12px;">WINNER</div>
                   </sc-if>
                 </div>
                 <div style="display:flex; gap:26px; flex-wrap:wrap;">
@@ -687,7 +687,7 @@
                   <thead>
                     <tr>
                       <sc-for list="{{ scoreCols }}" as="c" hint-placeholder-count="6">
-                        <th style="background:#2A7E4F; color:#FFFFFF; font-size:10px; letter-spacing:0.5px; text-align:right; padding:7px 12px; border-right:1px solid #FFFFFF;">{{ c.label }}</th>
+                        <th style="background:#307c4c; color:#FFFFFF; font-size:10px; letter-spacing:0.5px; text-align:right; padding:7px 12px; border-right:1px solid #FFFFFF;">{{ c.label }}</th>
                       </sc-for>
                     </tr>
                   </thead>
@@ -704,7 +704,7 @@
               </div>
               <div style="padding:0 20px 20px; display:grid; grid-template-columns:1fr 190px; gap:20px; align-items:center;">
                 <div>
-                  <div style="font-size:11px; font-weight:bold; letter-spacing:0.6px; color:#2A7E4F;">IDEAL CHAIN VS. YOUR CHAIN — COST PER WEEK</div>
+                  <div style="font-size:11px; font-weight:bold; letter-spacing:0.6px; color:#307c4c;">IDEAL CHAIN VS. YOUR CHAIN - COST PER WEEK</div>
                   <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
                     <div style="display:flex; align-items:center; gap:10px;">
                       <div style="width:96px; font-size:11px; font-weight:bold; text-align:right; color:#58595B;">Ideal chain</div>
@@ -727,7 +727,7 @@
                   </div>
                   <div style="font-size:11px; color:#58595B; line-height:1.5; margin-top:10px;">{{ t.scoreNote }}</div>
                 </div>
-                <div style="background:#2A7E4F; padding:16px 18px; color:#FFFFFF;">
+                <div style="background:#307c4c; padding:16px 18px; color:#FFFFFF;">
                   <div style="font-size:10px; letter-spacing:0.8px; color:#C5E0D2; font-weight:bold;">SCORE VS. IDEAL</div>
                   <div style="font-size:42px; font-weight:900; line-height:1.1;">{{ t.score }}</div>
                   <div style="font-size:13px; font-weight:bold; color:#C5E0D2;">{{ t.grade }}</div>
@@ -739,14 +739,14 @@
         </div>
 
         <div style="background:#FFFFFF; padding:24px 28px; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
-          <div style="font-size:13px; font-weight:bold; color:#2A7E4F; letter-spacing:0.5px;">Debrief Points</div>
+          <div style="font-size:13px; font-weight:bold; color:#307c4c; letter-spacing:0.5px;">Debrief Points</div>
           <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
             <sc-for list="{{ lessons }}" as="l" hint-placeholder-count="3">
-              <div style="border-left:3px solid #2A7E4F; background:#F4F5F4; padding:12px 16px; font-size:13px; line-height:1.6;">{{ l.text }}</div>
+              <div style="border-left:3px solid #307c4c; background:#F4F5F4; padding:12px 16px; font-size:13px; line-height:1.6;">{{ l.text }}</div>
             </sc-for>
           </div>
           <div style="display:flex; gap:12px; margin-top:24px;">
-            <div onClick="{{ playAgain }}" style="cursor:pointer; background:#2A7E4F; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:14px 30px;" style-hover="{{ ctaHover }}">NEW RUN</div>
+            <div onClick="{{ playAgain }}" style="cursor:pointer; background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:14px 30px;" style-hover="{{ ctaHover }}">NEW RUN</div>
           </div>
         </div>
       </div>
@@ -778,7 +778,7 @@ const PATTERN_NOTE = {
 const POLICY_NOTE = {
   steady: "AI seats hold their nerve and adjust slowly.",
   standard: "AI seats use a textbook anchor-and-adjust rule.",
-  panicky: "AI seats over-react to shortages — a much wilder chain."
+  panicky: "AI seats over-react to shortages, a much wilder chain."
 };
 const CHANNEL = "rbg-sessions";
 const SKEY = c => "rbg:session:" + c;
@@ -924,11 +924,11 @@ class Component extends DCLogic {
         await new Promise(r => setTimeout(r, 40 + Math.random() * 140));
         continue;
       }
-      // terminal failure (400/413/500/network) — surface it rather than freezing silently
+      // terminal failure (400/413/500/network), surface it rather than freezing silently
       this.setState({ error: "Could not sync your move. Check your connection and try again." });
       return;
     }
-    this.setState({ error: "The room is busy right now — give that another click in a moment." });
+    this.setState({ error: "The room is busy right now, give that another click in a moment." });
   }
   // Create a new shared session; if the 5-char code is already taken, try a fresh one.
   async createRemote(sess) {
@@ -1103,7 +1103,7 @@ class Component extends DCLogic {
 
   hover(active) {
     return active
-      ? { background: "#2A7E4F", color: "#FFFFFF", borderColor: "#2A7E4F" }
+      ? { background: "#307c4c", color: "#FFFFFF", borderColor: "#307c4c" }
       : { background: "#C5E0D2", borderColor: "#6AAF8E" };
   }
   bar(v, max, color) {
@@ -1159,12 +1159,12 @@ class Component extends DCLogic {
     const grade = score >= 80 ? "Excellent" : score >= 60 ? "Solid" : score >= 40 ? "Choppy" : "Whiplashed";
     return {
       idealBars: idealW.map(v => ({ style: this.bar(v, max, "#6AAF8E") })),
-      actualBars: actual.map(v => ({ style: this.bar(v, max, "#2A7E4F") })),
+      actualBars: actual.map(v => ({ style: this.bar(v, max, "#307c4c") })),
       idealTotal: money(idealTotal), actualTotal: money(actualTotal),
       gap: money(Math.max(0, actualTotal - idealTotal)),
       score, grade,
       scoreNote: "A perfectly informed chain on the same demand would have spent " + money(idealTotal) +
-        " over these " + n + " weeks. You spent " + money(actualTotal) + " — " +
+        " over these " + n + " weeks. You spent " + money(actualTotal) + ", " +
         money(Math.max(0, actualTotal - idealTotal)) + " of that is the cost of not seeing the whole chain."
     };
   }
@@ -1190,7 +1190,7 @@ class Component extends DCLogic {
         cansNote: s.inv[i] > cap ? "+" + (s.inv[i] - cap) : "empty yard",
         demandIn: i === 0 ? demandAt(cfg.pattern, Math.max(1, s.week - 1)) : s.lastDemand[i],
         shippedOut: s.lastShipped[i],
-        inboundLabel: i === 3 ? "IN PRODUCTION — COMING TO YOU" : "INBOUND — CASES COMING TO YOU",
+        inboundLabel: i === 3 ? "IN PRODUCTION - COMING TO YOU" : "INBOUND - CASES COMING TO YOU",
         in1Label: i === 3 ? "Off the line next week" : "Arriving next week",
         in2Label: i === 3 ? "Off the line in 2 weeks" : "Arriving in 2 weeks",
         in1: s.shipQ[i][0] || 0,
@@ -1211,7 +1211,7 @@ class Component extends DCLogic {
         ...nodes[i], isNode: true, isOpen: open, isMasked: !open,
         cardStyle: {
           flex: mine ? "1.5 1 0" : "1 1 0", minWidth: mine ? "208px" : "152px",
-          border: "2px solid " + (mine ? "#2A7E4F" : "#D1D3D4"),
+          border: "2px solid " + (mine ? "#307c4c" : "#D1D3D4"),
           background: "#FFFFFF", display: "flex", flexDirection: "column"
         },
         maskNote: i > role
@@ -1233,13 +1233,13 @@ class Component extends DCLogic {
       ? [
           { name: "Orders you got", vals: s.history.map(h => h.demand[role]), color: "#1F1F1D" },
           { name: "Cases you shipped", vals: s.history.map(h => h.shipped[role]), color: "#6AAF8E" },
-          { name: "Orders you placed", vals: s.history.map(h => h.orders[role]), color: "#2A7E4F" }
+          { name: "Orders you placed", vals: s.history.map(h => h.orders[role]), color: "#307c4c" }
         ]
       : (vis === "full" || role === 0 ? [{ name: "Customer demand", vals: s.history.map(h => h.custDemand), color: "#1F1F1D" }] : []).concat(
           ROLES.map((n, i) => ({
             name: n + (i === role ? " (you)" : ""),
             vals: s.history.map(h => h.orders[i]),
-            color: i === role ? "#2A7E4F" : "#6AAF8E"
+            color: i === role ? "#307c4c" : "#6AAF8E"
           }))
         );
     const series = openSeries.map(sr => ({
@@ -1265,11 +1265,11 @@ class Component extends DCLogic {
       nodes, chain, series, ledger, log,
       showCustomers: vis === "full" || role === 0, hideCustomers: !(vis === "full" || role === 0),
       chartTitle: vis === "own" ? "What You Can See" : "Orders Placed Up The Chain",
-      chartSub: vis === "own" ? "your own orders, shipments and demand only" : "bullwhip view — every stage is open in this run",
+      chartSub: vis === "own" ? "your own orders, shipments and demand only" : "bullwhip view, every stage is open in this run",
       custLast,
       custCans: Array.from({ length: Math.min(9, custLast) }, (_, k) => ({ k })),
       custBars: custHist.map(v => ({ style: this.bar(v, custMax, "#1F1F1D") })),
-      custNote: "Real demand at the shelf. Only the retailer sees this — everyone upstream sees orders, not customers.",
+      custNote: "Real demand at the shelf. Only the retailer sees this, everyone upstream sees orders, not customers.",
       ledgerCols: ["WK", "RECEIVED", "ORDER IN", "SHIPPED", "ON HAND", "BACKLOG", "ORDERED", "COST"].map(l => ({ label: l })),
       kpis: [
         { label: "WEEK", value: Math.min(s.week, cfg.weeks) + " / " + cfg.weeks, sub: "of the run" },
@@ -1307,11 +1307,11 @@ class Component extends DCLogic {
       : isCoordinator ? "monitor"
       : (team && team.done) ? "score" : "play";
 
-    const activeStyle = { background: "#2A7E4F", color: "#FFFFFF", borderColor: "#2A7E4F" };
+    const activeStyle = { background: "#307c4c", color: "#FFFFFF", borderColor: "#307c4c" };
     const chip = on => ({
       cursor: "pointer", padding: "9px 16px", fontSize: "12px", fontWeight: "bold",
-      border: "1px solid " + (on ? "#2A7E4F" : "#D1D3D4"),
-      background: on ? "#2A7E4F" : "#FFFFFF", color: on ? "#FFFFFF" : "#1F1F1D"
+      border: "1px solid " + (on ? "#307c4c" : "#D1D3D4"),
+      background: on ? "#307c4c" : "#FFFFFF", color: on ? "#FFFFFF" : "#1F1F1D"
     });
     const common = {
       isHome: screen === "home",
@@ -1337,7 +1337,7 @@ class Component extends DCLogic {
         { n: "2", title: "An order comes in", text: "The stage below you placed it two weeks ago. The retailer instead gets real customer demand." },
         { n: "3", title: "You ship what you can", text: "Fill the order plus anything you already owe. Short of stock? The rest becomes backlog and stays owed." },
         { n: "4", title: "Costs are booked", text: "You pay for stock sitting in the yard and, at double the rate, for every case you still owe." },
-        { n: "5", title: "You place your order", text: "The only decision you make. It reaches your supplier in two weeks; cases come back two weeks after that — a four-week round trip." }
+        { n: "5", title: "You place your order", text: "The only decision you make. It reaches your supplier in two weeks; cases come back two weeks after that, a four-week round trip." }
       ],
       howCosts: [
         { item: "Stock on hand", rate: "$" + this.HOLD.toFixed(2) + " / case / week", note: "Cases sitting in your yard", style: { background: "#FFFFFF" } },
@@ -1346,11 +1346,11 @@ class Component extends DCLogic {
       ],
       howModes: [
         { name: "Solo", text: "You take one seat, the AI preset plays the other three. Best for learning the mechanics." },
-        { name: "Team — 2 to 4 players", text: "Create a game, share the code. Joiners take seats; any empty seat is played by the AI, so a full chain runs either way. The week closes once every human seat has ordered." },
+        { name: "Team - 2 to 4 players", text: "Create a game, share the code. Joiners take seats; any empty seat is played by the AI, so a full chain runs either way. The week closes once every human seat has ordered." },
         { name: "Trainer-led", text: "A coordinator sets demand, length and visibility, shares one code, watches people arrive, then forms teams randomly, by hand, or by letting players choose. Live monitor during the run, ranked scorecard at the end." }
       ],
       howTips: [
-        { text: "Ordering twice for the same shortage. Your order is already on its way — check what is inbound before you add more." },
+        { text: "Ordering twice for the same shortage. Your order is already on its way, check what is inbound before you add more." },
         { text: "Reacting to one week's number. A single spike is noise; the four-week delay means you feel your own reaction long after you forgot making it." },
         { text: "Forgetting the supply line. Stock in your yard plus stock in transit is what you actually own." },
         { text: "Cutting to zero after a glut. That is how the chain whips back the other way and how the stage above you gets whipsawed." }
@@ -1389,7 +1389,7 @@ class Component extends DCLogic {
       modes: [
         { name: "Solo", tag: "ONE PLAYER · 3 AI SEATS", blurb: "Take one position and let the AI preset run the other three stages. Best for learning the mechanics before a session.", cta: "PLAY SOLO", cans: [{}], pick: () => this.setState({ screen: "solo-setup", mode: "solo", error: "" }) },
         { name: "Team", tag: "2–4 PLAYERS · ONE CHAIN", blurb: "Create a game code and share it. Whoever joins takes a seat; any seat nobody takes is run by the AI preset. One chain, one score.", cta: "CREATE A TEAM GAME", cans: [{}, {}], pick: () => this.setState({ screen: "team-setup", mode: "team", error: "" }) },
-        { name: "Trainer-Led", tag: "COORDINATOR + MANY TEAMS", blurb: "You set the demand pattern and rules, share a code, watch people join, then split them into teams — randomly, by hand, or let them pick. Live monitor and a full scorecard at the end.", cta: "SET UP A SESSION", cans: [{}, {}, {}], pick: () => this.setState({ screen: "trainer-setup", mode: "trainer", error: "" }) }
+        { name: "Trainer-Led", tag: "COORDINATOR + MANY TEAMS", blurb: "You set the demand pattern and rules, share a code, watch people join, then split them into teams, randomly, by hand, or let them pick. Live monitor and a full scorecard at the end.", cta: "SET UP A SESSION", cans: [{}, {}, {}], pick: () => this.setState({ screen: "trainer-setup", mode: "trainer", error: "" }) }
       ],
       patternOptions: PATTERNS.map(([id, label]) => ({
         label, pick: () => this.setState({ pattern: id }),
@@ -1414,7 +1414,7 @@ class Component extends DCLogic {
         hoverStyle: id === st.visibility ? activeStyle : this.hover(false)
       })),
       visNote: {
-        own: "Classic rules. You see your own yard and the orders your customer sends — nothing else.",
+        own: "Classic rules. You see your own yard and the orders your customer sends, nothing else.",
         chain: "Every stage's inventory, backlog and cost is open to all players. Real customer demand still stays with the retailer.",
         full: "Full transparency: all four stages plus real customer demand. Play it after a blind round to show what information sharing is worth."
       }[st.visibility],
@@ -1430,13 +1430,13 @@ class Component extends DCLogic {
           pick: () => this.setState({ role: i }),
           cardStyle: {
             cursor: "pointer", padding: "14px",
-            border: "1px solid " + (on ? "#2A7E4F" : "#D1D3D4"),
-            background: on ? "#2A7E4F" : "#FFFFFF",
+            border: "1px solid " + (on ? "#307c4c" : "#D1D3D4"),
+            background: on ? "#307c4c" : "#FFFFFF",
             color: on ? "#FFFFFF" : "#1F1F1D"
           },
-          canStyle: { width: "9px", height: "18px", borderRadius: "2px", background: on ? "#FFFFFF" : "#2A7E4F", border: "1px solid " + (on ? "#FFFFFF" : "#2A7E4F") },
+          canStyle: { width: "9px", height: "18px", borderRadius: "2px", background: on ? "#FFFFFF" : "#307c4c", border: "1px solid " + (on ? "#FFFFFF" : "#307c4c") },
           blurbStyle: { fontSize: "11px", lineHeight: 1.5, marginTop: "8px", color: on ? "#C5E0D2" : "#58595B" },
-          tagStyle: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.6px", marginTop: "10px", color: on ? "#FFFFFF" : "#2A7E4F" },
+          tagStyle: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.6px", marginTop: "10px", color: on ? "#FFFFFF" : "#307c4c" },
           hoverStyle: on ? activeStyle : this.hover(false)
         };
       }),
@@ -1448,7 +1448,7 @@ class Component extends DCLogic {
         ? "Pick your seat and the demand pattern. The other three stages follow the AI preset you choose."
         : screen === "team-setup"
         ? "You get a five-character code to share. Anyone who joins on this device picks a seat in your chain; empty seats are played by the AI preset."
-        : "Choose the rules now — they apply to every team in the room. You will get a code to share, see people arrive, and decide how teams are formed before you start the run.",
+        : "Choose the rules now, they apply to every team in the room. You will get a code to share, see people arrive, and decide how teams are formed before you start the run.",
       setupCta: screen === "solo-setup" ? "START WEEK 1 →" : "CREATE GAME & GET CODE →",
       setupGo: () => {
         if (screen === "solo-setup") {
@@ -1490,6 +1490,7 @@ class Component extends DCLogic {
         assignOptions: [["self", "Players choose"], ["random", "Random draw"], ["manual", "I assign"]].map(([id, label]) => ({
           label,
           pick: () => this.mutate(s => { s.assign = id; }),
+          chipStyle: chip(sess.assign === id),
           hoverStyle: sess.assign === id ? activeStyle : this.hover(false)
         })),
         assignNote: {
@@ -1510,7 +1511,11 @@ class Component extends DCLogic {
             where: t ? t.name + " · " + ROLES[si] : "not seated yet",
             badge: p.id === sess.hostId ? (sess.mode === "trainer" ? "COORDINATOR" : "HOST") : (selected === p.id ? "SELECTED" : ""),
             pick: () => this.setState({ selected: selected === p.id ? null : p.id }),
-            hoverStyle: selected === p.id ? { background: "#C5E0D2" } : { background: "#F4F5F4" }
+            rowStyle: { cursor: "pointer", padding: "10px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", borderBottom: "1px solid #F4F5F4", background: selected === p.id ? "#307c4c" : "#FFFFFF" },
+            nameStyle: { fontSize: "13px", fontWeight: "bold", color: selected === p.id ? "#FFFFFF" : "#1F1F1D" },
+            whereStyle: { fontSize: "11px", color: selected === p.id ? "#C5E0D2" : "#58595B" },
+            badgeStyle: { fontSize: "9px", fontWeight: "bold", letterSpacing: "0.6px", color: selected === p.id ? "#FFFFFF" : "#307c4c" },
+            hoverStyle: selected === p.id ? { background: "#307c4c" } : { background: "#F4F5F4" }
           };
         }),
         rosterNote: amHost && sess.assign === "manual"
@@ -1540,7 +1545,7 @@ class Component extends DCLogic {
           }))
         })),
         seatNote: sess.mode === "trainer"
-          ? "Teams of two or three are fine — the AI preset covers any empty seat so every chain still has four stages."
+          ? "Teams of two or three are fine, the AI preset covers any empty seat so every chain still has four stages."
           : "Any seat left empty is played by the AI preset, so two players can run a full chain."
       };
     }
@@ -1581,7 +1586,7 @@ class Component extends DCLogic {
         ...common,
         ...b,
         week: sim.week, roleName: ROLES[seat],
-        boardTitle: team.name + " — Week " + Math.min(sim.week, sess.cfg.weeks),
+        boardTitle: team.name + " - Week " + Math.min(sim.week, sess.cfg.weeks),
         boardSub: "Cases flow left to right · orders travel right to left · both take two weeks",
         orderInput: st.orderInput,
         onOrderChange: e => this.setState({ orderInput: e.target.value }),
@@ -1589,7 +1594,7 @@ class Component extends DCLogic {
         dec: () => this.setState({ orderInput: Math.max(0, (Number(st.orderInput) || 0) - 1) }),
         quickOrders: [0, 4, 8, 16].map(v => ({ label: String(v), pick: () => this.setState({ orderInput: v }), hoverStyle: this.hover(false) })),
         advance: this.submitOrder,
-        advanceLabel: submitted ? "ORDER SUBMITTED — WAITING" : "SUBMIT ORDER FOR WEEK " + Math.min(sim.week, sess.cfg.weeks),
+        advanceLabel: submitted ? "ORDER SUBMITTED - WAITING" : "SUBMIT ORDER FOR WEEK " + Math.min(sim.week, sess.cfg.weeks),
         waiting: submitted,
         waitingNote: waitingOn.length
           ? "Waiting on " + waitingOn.join(", ") + " before the week closes."
@@ -1605,7 +1610,7 @@ class Component extends DCLogic {
       return {
         ...common, ...b,
         week: sim.week, roleName: ROLES[st.role],
-        boardTitle: "Your Chain — Week " + Math.min(sim.week, st.weeks),
+        boardTitle: "Your Chain - Week " + Math.min(sim.week, st.weeks),
         boardSub: "Cases flow left to right · orders travel right to left · AI seats on the " + st.policy + " preset",
         orderInput: st.orderInput,
         onOrderChange: e => this.setState({ orderInput: e.target.value }),
@@ -1628,7 +1633,7 @@ class Component extends DCLogic {
         rank: "#" + (idx + 1),
         name: r.t.name,
         isWinner: idx === 0,
-        members: r.t.seats.map((p, i) => (p ? p.name : "AI") + " — " + ROLES[i]).join(" · "),
+        members: r.t.seats.map((p, i) => (p ? p.name : "AI") + " - " + ROLES[i]).join(" · "),
         ...this.compare(r.t.sim, sess.cfg),
         stats: [
           { label: "CHAIN COST", value: money(r.s.chain) },
@@ -1654,8 +1659,8 @@ class Component extends DCLogic {
       const peak = Math.max(0, ...sim.history.map(h => h.orders[st.role]));
       const cmp = this.compare(sim, cfg);
       scoreTeams = [{
-        rank: "—", name: "Your Chain", isWinner: false,
-        members: ROLES.map((r, i) => (i === st.role ? st.myName || "You" : "AI") + " — " + r).join(" · "),
+        rank: "-", name: "Your Chain", isWinner: false,
+        members: ROLES.map((r, i) => (i === st.role ? st.myName || "You" : "AI") + " - " + r).join(" · "),
         ...cmp,
         stats: [
           { label: "CHAIN COST", value: money(chain) },
@@ -1669,7 +1674,7 @@ class Component extends DCLogic {
             Math.max(0, ...sim.history.map(h => h.orders[i])), money(sim.cost[i])].map(v => ({ v }))
         }))
       }];
-      headline = cmp.score + " / 100 — " + cmp.grade.toLowerCase() + " run as " + ROLES[st.role].toLowerCase();
+      headline = cmp.score + " / 100 - " + cmp.grade.toLowerCase() + " run as " + ROLES[st.role].toLowerCase();
       sub = "Your chain spent " + money(chain) + " against an ideal " + cmp.idealTotal + " on the same demand.";
     }
 
@@ -1678,7 +1683,7 @@ class Component extends DCLogic {
       isScore: true,
       scoreCols, scoreTeams, finalHeadline: headline, finalSub: sub,
       lessons: [
-        { text: "Orders grow as they travel up the chain. Every stage reacts to the stage below it rather than to the customer, so a small change at the shelf becomes a swing at the plant — the bullwhip effect." },
+        { text: "Orders grow as they travel up the chain. Every stage reacts to the stage below it rather than to the customer, so a small change at the shelf becomes a swing at the plant, the bullwhip effect." },
         { text: "Most of the cost comes from swinging between empty shelves and full yards. The four-week round trip hides the effect of your own orders, so it is easy to order twice for the same shortage." },
         { text: "The fix is structural: shorter delays, shared demand information, and ordering to a target stock position instead of reacting to the last order you saw." }
       ]
