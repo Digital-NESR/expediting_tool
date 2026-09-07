@@ -109,6 +109,9 @@ export function SupplierPortalForm({ token, data }: Props) {
   /* ── Validation errors — keyed by line key ── */
   const [errors, setErrors] = useState<Record<string, { status: boolean }>>({});
 
+  /* ── Supplier help overlay (kept in-page so in-progress updates are never lost) ── */
+  const [helpOpen, setHelpOpen] = useState(false);
+
   /* ── Submit state ── */
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -278,6 +281,64 @@ export function SupplierPortalForm({ token, data }: Props) {
   /* ── Main render ── */
   return (
     <div className="pb-24">
+
+      {/* Corner Help button */}
+      <button
+        type="button"
+        onClick={() => setHelpOpen(true)}
+        className="fixed right-4 top-3 z-40 inline-flex items-center gap-1.5 rounded-full border border-[#bbf7d0] bg-white px-3.5 py-2 text-sm font-semibold text-[#065f46] shadow-md transition-colors hover:bg-[#f0fdf4] sm:right-6"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+          <path d="M12 17h.01" />
+        </svg>
+        Help
+      </button>
+
+      {/* Help overlay — Supplier Guide only (the full internal guide is not shown here) */}
+      {helpOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
+          onClick={() => setHelpOpen(false)}
+        >
+          <div className="my-6 w-full max-w-2xl rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+              <button
+                type="button"
+                onClick={() => setHelpOpen(false)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#065f46]"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+                Back
+              </button>
+              <span className="text-sm font-semibold text-slate-900">Help &amp; Training</span>
+              <span className="w-[68px]" aria-hidden="true" />
+            </div>
+            <div className="p-5">
+              <h2 className="text-base font-bold text-slate-900">Submitting your delivery updates</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                This portal is where you send NESR your latest delivery status for each purchase order line. For every
+                line, choose a delivery status, set the expected delivery date, and add any comments. When you have
+                updated every line, click <strong>Submit</strong> at the bottom to send them to your NESR buyer in one go.
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-slate-600">The short video below walks you through it.</p>
+              <div className="mt-4 aspect-video w-full overflow-hidden rounded-lg bg-black">
+                <iframe
+                  src="https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=814d1093-6f25-4093-b2eb-aac7402dcc7c&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create"
+                  frameBorder="0"
+                  scrolling="no"
+                  allowFullScreen
+                  title="PO Expediting Supplier Guide"
+                  className="h-full w-full"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Supplier info bar */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-6 text-sm text-gray-500">
