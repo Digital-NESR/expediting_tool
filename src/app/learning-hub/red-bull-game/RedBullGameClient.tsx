@@ -20,7 +20,7 @@ type GameMessage =
 
 function runLabel(e: { role: string | null; pattern: string | null; weeks: number | null }) {
   const parts = [e.role, e.pattern ? `${e.pattern} demand` : null, e.weeks ? `${e.weeks} wks` : null].filter(Boolean);
-  return parts.length ? parts.join(' · ') : '—';
+  return parts.length ? parts.join(' · ') : '-';
 }
 
 export default function RedBullGameClient({
@@ -152,7 +152,7 @@ export default function RedBullGameClient({
         </div>
       </header>
 
-      {/* Game — always mounted; hidden (not unmounted) on the leaderboard page so play state survives */}
+      {/* Game, always mounted; hidden (not unmounted) on the leaderboard page so play state survives */}
       <div className={view === 'game' ? 'w-full px-3 pt-3 md:px-6 md:pt-4' : 'hidden'}>
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <iframe
@@ -209,7 +209,7 @@ export default function RedBullGameClient({
                           <span className="text-base font-bold" style={{ color: GREEN }}>{e.score}</span>
                           <span className="text-xs text-slate-400"> / 100</span>
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{e.grade || '—'}</td>
+                        <td className="px-4 py-3 text-slate-600">{e.grade || '-'}</td>
                         <td className="px-4 py-3 text-xs text-slate-500">{runLabel(e)}</td>
                       </tr>
                     ))}
@@ -235,7 +235,7 @@ export default function RedBullGameClient({
       {/* Invite-link copied toast */}
       {linkCopied && (
         <div className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg">
-          Invite link copied — share it so people join this game
+          Invite link copied, share it so people join this game
         </div>
       )}
 

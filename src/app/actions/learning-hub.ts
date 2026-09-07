@@ -202,7 +202,7 @@ async function ensureLearningHubSchema(): Promise<void> {
 }
 
 // Inserts a track's courses/modules/lessons breadth-first (siblings in parallel, not one deep serial
-// chain) — a cold-start seed of dozens of sequential round trips risks exceeding the serverless
+// chain), a cold-start seed of dozens of sequential round trips risks exceeding the serverless
 // function's execution timeout. Each level only depends on its parent's id, so siblings are independent.
 // Shared by the one-time empty-DB seed and the admin "reset track to defaults" action.
 async function insertTrackCourses(trackId: number, track: SeedTrack): Promise<void> {
@@ -256,11 +256,11 @@ async function applySeedTrackToExisting(trackId: number, track: SeedTrack, versi
   await insertTrackCourses(trackId, track);
 }
 
-// Runs on every cold start (cheap once synced — just one SELECT + hash comparison per track).
+// Runs on every cold start (cheap once synced, just one SELECT + hash comparison per track).
 // A track whose code content hasn't changed since the last sync (seed_version matches) is left
 // completely alone, so admin edits made through the CMS survive unrelated deploys. A track whose
 // code content DID change (this is how a content push like the SAP video rebuild reaches production)
-// gets its courses replaced with what's now in SEED_TRACKS automatically — no manual "reset" needed.
+// gets its courses replaced with what's now in SEED_TRACKS automatically, no manual "reset" needed.
 async function syncSeedTracks(): Promise<void> {
   const existingTracks = await sql<QueryResultRow[]>(`SELECT id, key, seed_version FROM learning_tracks`);
   const existingByKey = new Map(existingTracks.map((t) => [String(t.key), t]));
@@ -302,7 +302,7 @@ async function ensureLearningHubReady(): Promise<void> {
     readyPromise = ensureLearningHubSchema()
       .then(() => syncSeedTracks())
       .catch((err) => {
-        // Don't let a failed cold-start attempt permanently wedge a warm serverless instance —
+        // Don't let a failed cold-start attempt permanently wedge a warm serverless instance -
         // clear the cache so the next request gets a fresh try instead of the same cached rejection.
         readyPromise = null;
         throw err;

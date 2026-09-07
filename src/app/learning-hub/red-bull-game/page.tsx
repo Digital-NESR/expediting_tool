@@ -21,7 +21,7 @@ export default async function RedBullGamePage({
     .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
   const isAdmin = adminEmails.includes(session.user.email.toLowerCase());
 
-  // An invite link lands here as /learning-hub/red-bull-game?code=XXXXX — pass it into the game
+  // An invite link lands here as /learning-hub/red-bull-game?code=XXXXX, pass it into the game
   // so the join box is pre-filled. Sanitised to the game's code alphabet.
   const sp = await searchParams;
   const codeParam = Array.isArray(sp.code) ? sp.code[0] : sp.code;

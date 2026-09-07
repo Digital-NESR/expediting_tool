@@ -36,7 +36,7 @@ function LessonVideo({ videoUrl, title }: { videoUrl: string; title: string }) {
   return (
     <div className="aspect-video w-full overflow-hidden rounded-xl bg-black">
       {videoUrl.startsWith('http') ? (
-        <iframe key={videoUrl} src={videoUrl} frameBorder="0" scrolling="no" allowFullScreen title={`Lesson video — ${title}`} className="h-full w-full" />
+        <iframe key={videoUrl} src={videoUrl} frameBorder="0" scrolling="no" allowFullScreen title={`Lesson video, ${title}`} className="h-full w-full" />
       ) : (
         <video key={videoUrl} controls preload="metadata" className="h-full w-full object-contain">
           <source src={videoUrl} type="video/mp4" />
@@ -111,8 +111,8 @@ function QuizBlock({
         {result && (
           <div className={`mb-4 rounded-lg px-3.5 py-2.5 text-sm font-semibold ${result.passed ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
             {result.passed
-              ? `Passed — ${result.correctCount}/${result.total} correct (${result.scorePct}%). The next video is unlocked.`
-              : `${result.correctCount}/${result.total} correct (${result.scorePct}%). You need ${result.pass_pct}% — review the answers below, rewatch the video, and try again.`}
+              ? `Passed, ${result.correctCount}/${result.total} correct (${result.scorePct}%). The next video is unlocked.`
+              : `${result.correctCount}/${result.total} correct (${result.scorePct}%). You need ${result.pass_pct}%, review the answers below, rewatch the video, and try again.`}
           </div>
         )}
 
@@ -272,7 +272,7 @@ export default function LessonViewerClient({ data, userEmail }: { data: LessonDe
               style={completed ? undefined : { background: color }}
             >
               <CheckCircle2 className="h-4 w-4" />
-              {completed ? 'Completed — mark as not done' : 'Mark as complete'}
+              {completed ? 'Completed, mark as not done' : 'Mark as complete'}
             </button>
           )}
 

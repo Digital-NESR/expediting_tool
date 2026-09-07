@@ -79,7 +79,7 @@ function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; 
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} placeholder="Lesson body (paragraphs separated by a blank line)"
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
         <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-slate-500">Duration (min, optional — leave blank if unknown)</label>
+          <label className="text-xs font-medium text-slate-500">Duration (min, optional, leave blank if unknown)</label>
           <input type="number" min={1} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="Unknown"
             className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
           <div className="ml-auto flex gap-2">
@@ -135,12 +135,12 @@ function NewLessonForm({ moduleId, onChanged }: { moduleId: number; onChanged: (
     <div className="space-y-2 border-t border-slate-100 bg-slate-50/60 p-4">
       <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Lesson title" autoFocus
         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
-      <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="Video URL (optional — SharePoint/Stream embed link)"
+      <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="Video URL (optional, SharePoint/Stream embed link)"
         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
-      <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="Lesson body (optional — can fill in later)"
+      <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="Lesson body (optional, can fill in later)"
         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
       <div className="flex items-center gap-2">
-        <label className="text-xs font-medium text-slate-500">Duration (min, optional — leave blank if unknown)</label>
+        <label className="text-xs font-medium text-slate-500">Duration (min, optional, leave blank if unknown)</label>
         <input type="number" min={1} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="Unknown"
           className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
         <div className="ml-auto flex gap-2">
@@ -573,7 +573,7 @@ function NewCourseForm({ trackId, onChanged }: { trackId: number; onChanged: () 
         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
       <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Course description"
         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
-      <p className="text-xs text-slate-400">New courses start as a draft — publish once content is ready.</p>
+      <p className="text-xs text-slate-400">New courses start as a draft, publish once content is ready.</p>
       <div className="flex justify-end gap-2">
         <button onClick={() => setOpen(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
         <button onClick={submit} disabled={isPending} className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60">Create</button>

@@ -62,7 +62,7 @@ export default function QuizClient({ data }: { data: ModuleQuizPageData }) {
           </div>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{quiz.title}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {result ? 'Here’s how you did — retake anytime, this doesn’t affect your progress.' : 'Answer every question, then submit to see your score.'}
+            {result ? 'Here’s how you did, retake anytime, this doesn’t affect your progress.' : 'Answer every question, then submit to see your score.'}
           </p>
 
           <div className="mt-6 space-y-6">

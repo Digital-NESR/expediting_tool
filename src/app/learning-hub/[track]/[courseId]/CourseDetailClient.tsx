@@ -17,7 +17,7 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
 
   // First not-yet-completed lesson across the whole course, for a "Resume" CTA.
   const nextLesson = modules.flatMap((m) => m.lessons).find((l) => !l.completed);
-  // A course with a single module is shown as a flat lesson list — no "Module" header.
+  // A course with a single module is shown as a flat lesson list, no "Module" header.
   const flat = modules.length === 1;
 
   return (
