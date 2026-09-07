@@ -1426,6 +1426,8 @@ export default function HomePage() {
                   </div>
                   <a
                     href="https://scai.nesr.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="bg-[#307c4c] hover:bg-[#276041] text-white text-xs font-semibold px-4 py-2 rounded-xl text-center transition-colors whitespace-nowrap"
                   >
                     Launch SCAI
