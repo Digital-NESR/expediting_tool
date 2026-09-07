@@ -4124,6 +4124,31 @@ export async function setProcureGuardApproverForColumn(input: {
   }
 }
 
+export interface ProcureGuardViewerGrant {
+  email: string;
+  name: string;
+  countries: string[]; // empty = all countries (global viewer)
+}
+
+// Everyone currently holding the Viewer role, with their country scope (empty array = all countries).
+export async function getProcureGuardViewerGrants(): Promise<ProcureGuardViewerGrant[]> {
+  try {
+    const actor = await requirePermissionManager();
+    if (!actor.permissions.canManagePermissions) return [];
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT email, name, country FROM procure_guard_permissions WHERE role = 'Viewer' ORDER BY LOWER(COALESCE(name, email))`,
+    );
+    return rows.map((r) => ({
+      email: String(r.email),
+      name: String(r.name ?? '').trim() || String(r.email),
+      countries: getProcureGuardCountryScopeCountries(r.country ? String(r.country) : null),
+    }));
+  } catch (err) {
+    console.error('[getProcureGuardViewerGrants]', err);
+    return [];
+  }
+}
+
 export async function testProcureGuardN8nWebhook(): Promise<ActionResult<{
   status: number;
   statusText: string;
