@@ -20,6 +20,7 @@ function ProgressBar({ pct, color }: { pct: number; color: string }) {
 
 function TrackCard({ track }: { track: LearningHubDashboardData['tracks'][number] }) {
   const color = track.color || '#307c4c';
+  const comingSoon = track.key === 'sap' || track.key === 'nesr_supply_chain';
   return (
     <Link
       href={`/learning-hub/${track.key}`}
@@ -31,7 +32,14 @@ function TrackCard({ track }: { track: LearningHubDashboardData['tracks'][number
           <TrackIcon icon={track.icon} className="h-5 w-5" style={{ color }} />
         </div>
         <div className="min-w-0">
-          <h3 className="truncate text-[15px] font-semibold text-slate-900">{track.name}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-[15px] font-semibold text-slate-900">{track.name}</h3>
+            {comingSoon && (
+              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Coming Soon
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-400">{track.course_count} course{track.course_count === 1 ? '' : 's'}</p>
         </div>
       </div>
