@@ -7,6 +7,7 @@ import { CheckCircle2, XCircle, Clock, ArrowLeft, ArrowRight, Lock, ClipboardChe
 import LearningHubSidebar from '../../../components/LearningHubSidebar';
 import LearningHubLogo from '../../../components/LearningHubLogo';
 import LearningHubHomeButton from '../../../components/LearningHubHomeButton';
+import LearningHubBackButton from '../../../components/LearningHubBackButton';
 import { markLessonComplete, markLessonIncomplete, submitLessonQuiz } from '@/app/actions/learning-hub';
 import { formatDuration } from '@/lib/learning-hub-utils';
 import type { LessonDetailData, LessonQuiz, LessonQuizAttemptResult, QuizAnswerInput } from '@/types/learning-hub';
@@ -56,6 +57,7 @@ function Shell({ track, course, children }: { track: LessonDetailData['track']; 
         <button onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
+        <LearningHubBackButton href={`/learning-hub/${track.key}/${course.id}`} />
         <LearningHubHomeButton />
         <LearningHubLogo size="sm" />
         <Link href={`/learning-hub/${track.key}/${course.id}`} className="truncate text-sm font-medium text-slate-400 hover:text-slate-600">{course.title}</Link>

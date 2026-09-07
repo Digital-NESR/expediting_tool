@@ -5,12 +5,9 @@ export default function LearningHubLogo({ size = 'md' }: { size?: 'sm' | 'md' | 
   const icon = { sm: 'h-4 w-4', md: 'h-[18px] w-[18px]', lg: 'h-5 w-5', hero: 'h-9 w-9' };
   return (
     <div
-      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-xl text-white shadow-sm ${box[size]}`}
-      style={{ background: 'linear-gradient(135deg, #3a9560 0%, #307c4c 55%, #245b3c 100%)' }}
+      className={`flex shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-200/80 ${box[size]}`}
     >
-      {/* subtle sheen for a bit of depth */}
-      <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent" />
-      <GraduationCap className={`relative ${icon[size]}`} strokeWidth={2} />
+      <GraduationCap className={`${icon[size]} text-[#307c4c]`} strokeWidth={2} />
     </div>
   );
 }
