@@ -167,11 +167,15 @@ export default function LearningHubDashboardClient({ data }: { data: LearningHub
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Modules</h2>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {data.tracks.map((track) => (
+            {/* General Supply Chain first, then the interactive/AI modules, then the remaining tracks. */}
+            {data.tracks.slice(0, 1).map((track) => (
               <TrackCard key={track.id} track={track} />
             ))}
             <RedBullGameCard />
             <AIVerseCard />
+            {data.tracks.slice(1).map((track) => (
+              <TrackCard key={track.id} track={track} />
+            ))}
           </div>
         </section>
       </main>
