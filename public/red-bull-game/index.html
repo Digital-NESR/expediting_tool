@@ -1050,6 +1050,35 @@ class Component extends DCLogic {
     } catch (e) { /* leaderboard is best-effort; never block the game */ }
   }
 
+  // Bridge a finished TEAM/TRAINER chain's score up to the wrapper, once per
+  // player per game code. Each human seat records their own chain result.
+  postTeamScore(sess) {
+    try {
+      if (!sess || sess.mode === "solo") return;
+      const team = this.myTeam(sess);
+      if (!team || !team.done) return;                 // only completed chains
+      const seat = team.seats.findIndex(p => p && p.id === this.state.myId);
+      if (seat < 0) return;                            // coordinators / unseated don't score
+      const key = "team:" + sess.code + ":" + this.state.myId;
+      this._postedScores = this._postedScores || new Set();
+      if (this._postedScores.has(key)) return;
+      this._postedScores.add(key);
+      const cmp = this.compare(team.sim, sess.cfg);
+      const chain = team.sim.cost.reduce((a, b) => a + b, 0);
+      window.parent && window.parent.postMessage({
+        type: "rbg-score",
+        game: "red_bull_distribution",
+        mode: "team",
+        score: cmp.score,
+        grade: cmp.grade,
+        chainCost: Math.round(chain),
+        role: ROLES[seat],
+        pattern: sess.cfg.pattern,
+        weeks: sess.cfg.weeks
+      }, "*");
+    } catch (e) { /* best-effort */ }
+  }
+
   submitOrder = () => {
     const st = this.state;
     const order = Math.max(0, Math.min(200, Math.round(Number(st.orderInput) || 0)));
@@ -1628,6 +1657,7 @@ class Component extends DCLogic {
     const scoreCols = ["SEAT", "PLAYER", "ON HAND", "BACKLOG", "PEAK ORDER", "COST"].map(l => ({ label: l }));
     let scoreTeams, headline, sub;
     if (sess) {
+      this.postTeamScore(sess); // record this player's team chain result (guarded, once)
       const ranked = sess.teams.map(t => ({ t, s: this.teamStats(t, sess.cfg) })).sort((a, b2) => a.s.chain - b2.s.chain);
       const winner = ranked[0];
       scoreTeams = ranked.map((r, idx) => ({

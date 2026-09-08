@@ -49,6 +49,13 @@ async function ensureGameSchema(): Promise<void> {
       await learningHubPool.query(
         `CREATE INDEX IF NOT EXISTS idx_lgs_game_score ON learning_game_scores (game_key, score DESC)`,
       );
+      // Solo vs team runs (added later; existing rows default to 'solo').
+      await learningHubPool.query(
+        `ALTER TABLE learning_game_scores ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'solo'`,
+      );
+      await learningHubPool.query(
+        `CREATE INDEX IF NOT EXISTS idx_lgs_user ON learning_game_scores (game_key, user_email, created_at DESC)`,
+      );
     })().catch((err) => {
       // Don't let one failed attempt permanently wedge a warm serverless instance.
       schemaReady = null;
@@ -73,6 +80,27 @@ export interface RedBullScoreInput {
   role?: string | null;
   pattern?: string | null;
   weeks?: number | null;
+  mode?: string | null;
+}
+
+export interface RedBullHistoryEntry {
+  score: number;
+  grade: string | null;
+  role: string | null;
+  pattern: string | null;
+  weeks: number | null;
+  mode: 'solo' | 'team';
+  created_at: string;
+}
+
+export interface RedBullMeStats {
+  best: number | null;
+  plays: number;
+  rank: number | null;
+  avgScore: number | null;
+  soloPlays: number;
+  teamPlays: number;
+  bestGrade: string | null;
 }
 
 export interface RedBullLeaderboardEntry {
@@ -89,7 +117,8 @@ export interface RedBullLeaderboardEntry {
 
 export interface RedBullLeaderboard {
   top: RedBullLeaderboardEntry[];
-  me: { best: number | null; plays: number; rank: number | null };
+  me: RedBullMeStats;
+  history: RedBullHistoryEntry[];
 }
 
 function toIntOrNull(v: unknown): number | null {
@@ -106,10 +135,11 @@ export async function submitRedBullScore(input: RedBullScoreInput): Promise<{ su
     const score = Number(input.score);
     if (!Number.isFinite(score) || score < 0 || score > 100) return { success: false };
 
+    const mode = input.mode === 'team' ? 'team' : 'solo';
     await sql(
       `INSERT INTO learning_game_scores
-         (game_key, user_email, player_name, score, chain_cost, grade, role, pattern, weeks)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (game_key, user_email, player_name, score, chain_cost, grade, role, pattern, weeks, mode)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         GAME_KEY,
         user.email,
@@ -120,6 +150,7 @@ export async function submitRedBullScore(input: RedBullScoreInput): Promise<{ su
         input.role ?? null,
         input.pattern ?? null,
         toIntOrNull(input.weeks),
+        mode,
       ],
     );
     return { success: true };
@@ -165,10 +196,16 @@ export async function getRedBullLeaderboard(): Promise<RedBullLeaderboard> {
       isMe: !!myEmail && String(r.user_email).toLowerCase() === myEmail,
     }));
 
-    let me: RedBullLeaderboard['me'] = { best: null, plays: 0, rank: null };
+    let me: RedBullMeStats = { best: null, plays: 0, rank: null, avgScore: null, soloPlays: 0, teamPlays: 0, bestGrade: null };
+    let history: RedBullHistoryEntry[] = [];
     if (myEmail) {
       const mine = await sql<QueryResultRow[]>(
-        `SELECT COUNT(*)::int AS plays, MAX(score) AS best
+        `SELECT COUNT(*)::int AS plays,
+                MAX(score) AS best,
+                ROUND(AVG(score))::int AS avg_score,
+                COUNT(*) FILTER (WHERE mode = 'team')::int AS team_plays,
+                COUNT(*) FILTER (WHERE mode IS DISTINCT FROM 'team')::int AS solo_plays,
+                (ARRAY_AGG(grade ORDER BY score DESC, created_at DESC))[1] AS best_grade
          FROM learning_game_scores WHERE game_key = ? AND user_email = ?`,
         [GAME_KEY, myEmail],
       );
@@ -185,12 +222,34 @@ export async function getRedBullLeaderboard(): Promise<RedBullLeaderboard> {
         );
         rank = Number(rankRow[0]?.ahead ?? 0) + 1;
       }
-      me = { best, plays, rank };
+      me = {
+        best, plays, rank,
+        avgScore: mine[0]?.avg_score == null ? null : Number(mine[0].avg_score),
+        soloPlays: Number(mine[0]?.solo_plays ?? 0),
+        teamPlays: Number(mine[0]?.team_plays ?? 0),
+        bestGrade: (mine[0]?.best_grade as string) ?? null,
+      };
+
+      const hist = await sql<QueryResultRow[]>(
+        `SELECT score, grade, role, pattern, weeks, mode, created_at
+         FROM learning_game_scores WHERE game_key = ? AND user_email = ?
+         ORDER BY created_at DESC LIMIT 20`,
+        [GAME_KEY, myEmail],
+      );
+      history = hist.map((h) => ({
+        score: Number(h.score),
+        grade: (h.grade as string) ?? null,
+        role: (h.role as string) ?? null,
+        pattern: (h.pattern as string) ?? null,
+        weeks: h.weeks == null ? null : Number(h.weeks),
+        mode: h.mode === 'team' ? 'team' : 'solo',
+        created_at: String(h.created_at),
+      }));
     }
 
-    return { top, me };
+    return { top, me, history };
   } catch (err) {
     console.error('[getRedBullLeaderboard]', err);
-    return { top: [], me: { best: null, plays: 0, rank: null } };
+    return { top: [], me: { best: null, plays: 0, rank: null, avgScore: null, soloPlays: 0, teamPlays: 0, bestGrade: null }, history: [] };
   }
 }
