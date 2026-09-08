@@ -27,10 +27,12 @@ export default function RedBullGameClient({
   isAdmin,
   initialLeaderboard,
   initialCode,
+  userName,
 }: {
   isAdmin: boolean;
   initialLeaderboard: RedBullLeaderboard;
   initialCode?: string;
+  userName: string;
 }) {
   const [board, setBoard] = useState<RedBullLeaderboard>(initialLeaderboard);
   const [view, setView] = useState<View>('game');
@@ -44,6 +46,7 @@ export default function RedBullGameClient({
     const p = new URLSearchParams();
     if (isAdmin) p.set('admin', '1');
     if (initialCode) p.set('code', initialCode);
+    if (userName) p.set('name', userName);
     const qs = p.toString();
     return `/red-bull-game/index.html${qs ? `?${qs}` : ''}`;
   })();

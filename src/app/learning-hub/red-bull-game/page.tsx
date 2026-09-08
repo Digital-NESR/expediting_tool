@@ -31,7 +31,9 @@ export default async function RedBullGamePage({
 
   const leaderboard = await getRedBullLeaderboard();
 
+  const userName = session.user.name ?? session.user.email;
+
   return (
-    <RedBullGameClient isAdmin={isAdmin} initialLeaderboard={leaderboard} initialCode={initialCode} />
+    <RedBullGameClient isAdmin={isAdmin} initialLeaderboard={leaderboard} initialCode={initialCode} userName={userName} />
   );
 }

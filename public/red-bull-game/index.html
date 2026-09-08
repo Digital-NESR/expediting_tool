@@ -71,7 +71,6 @@
         <div style="margin-top:26px; background:#FFFFFF; padding:20px 24px; border-left:4px solid #307c4c; display:flex; flex-wrap:wrap; gap:24px; align-items:center;">
           <div style="font-size:13px; font-weight:bold;">Already have a game code?</div>
           <div style="display:flex; gap:10px; align-items:center;">
-            <input value="{{ nameInput }}" onChange="{{ onName }}" placeholder="Your name" style="width:170px; font-size:13px; padding:10px 12px; border:1px solid #D1D3D4;" />
             <input value="{{ codeInput }}" onChange="{{ onCode }}" placeholder="CODE" style="width:120px; font-size:15px; font-weight:bold; letter-spacing:2px; text-transform:uppercase; padding:10px 12px; border:1px solid #D1D3D4;" />
             <div onClick="{{ joinGame }}" style="cursor:pointer; background:#307c4c; color:#FFFFFF; font-size:12px; font-weight:bold; letter-spacing:0.5px; padding:12px 22px;" style-hover="{{ ctaHover }}">JOIN</div>
           </div>
@@ -793,6 +792,8 @@ const POLL_MS = 1500;
 const RBG_ADMIN = (() => { try { return new URLSearchParams(location.search).get("admin") === "1"; } catch (e) { return false; } })();
 // An invite link carries ?code=XXXXX (the NESR wrapper passes it through) so joiners land pre-filled.
 const PREFILL_CODE = (() => { try { return (new URLSearchParams(location.search).get("code") || "").toUpperCase(); } catch (e) { return ""; } })();
+// Player name comes from the NESR login (passed by the wrapper) - we never ask for it again.
+const PREFILL_NAME = (() => { try { return (new URLSearchParams(location.search).get("name") || "").trim(); } catch (e) { return ""; } })();
 
 const money = n => "$" + Math.round(n).toLocaleString("en-US");
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -870,7 +871,7 @@ function makeTeam(n) {
 
 class Component extends DCLogic {
   state = {
-    screen: "home", myId: uid(), myName: "", nameInput: "", codeInput: PREFILL_CODE,
+    screen: "home", myId: uid(), myName: PREFILL_NAME, nameInput: PREFILL_NAME, codeInput: PREFILL_CODE,
     error: "", mode: "solo", role: 0, pattern: "step", weeks: 30, policy: "standard",
     teamSize: 4, visibility: "own", sim: null, code: "", session: null, orderInput: 4, selected: null, tick: 0
   };
@@ -1471,7 +1472,7 @@ class Component extends DCLogic {
         };
       }).reverse(),
       isTrainerSetup: screen === "trainer-setup",
-      needsName: screen !== "solo-setup",
+      needsName: screen !== "solo-setup" && !PREFILL_NAME,
       showRolePick: screen === "solo-setup",
       setupTitle: screen === "solo-setup" ? "Solo Run" : screen === "team-setup" ? "Create A Team Game" : "Set Up A Trainer-Led Session",
       setupBlurb: screen === "solo-setup"
