@@ -109,9 +109,11 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
       pendingCount={pendingCount}
       accessView={actor.effectiveAccessView}
       actions={
-        <button onClick={() => router.push('/laptop-procurement/requests/new')} className={CTA}>
-          + New Request
-        </button>
+        actor.permissions.canCreateRequests ? (
+          <button onClick={() => router.push('/laptop-procurement/requests/new')} className={CTA}>
+            + New Request
+          </button>
+        ) : undefined
       }
     >
       <div className="space-y-5">
