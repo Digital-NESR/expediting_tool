@@ -95,6 +95,7 @@ export const ADMIN_APPS: AdminApp[] = [
     color: '#059669', activeBg: '#f0fdf4', activeColor: '#059669',
     sections: [
       { id: 'admin', label: 'Content Admin' },
+      { id: 'analytics', label: 'Analytics' },
     ],
   },
 ];

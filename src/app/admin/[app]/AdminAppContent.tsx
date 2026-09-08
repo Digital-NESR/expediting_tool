@@ -28,10 +28,12 @@ import LaptopAnalyticsClient from '../../laptop-procurement/analytics/LaptopAnal
 import LaptopApproverMatrixClient from '../LaptopApproverMatrixClient';
 import LaptopAccessApprovalsClient from '../LaptopAccessApprovalsClient';
 import LearningHubAdminClient from '../../learning-hub/admin/AdminClient';
+import LearningHubAnalyticsClient from '../LearningHubAnalyticsClient';
 import type { Shipment } from '@/types/tite';
 import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
 import type { LaptopAdminData, LaptopAnalyticsData } from '@/types/laptopProcurement';
 import type { LearningHubAdminData } from '@/types/learning-hub';
+import type { LearningHubAnalytics } from '@/app/actions/learning-hub';
 import type { ExpeditingAnalytics } from '@/app/actions/adminAnalytics';
 
 export interface AdminAppContentProps {
@@ -46,6 +48,7 @@ export interface AdminAppContentProps {
   laptopAdminData?: LaptopAdminData | null;
   laptopAnalyticsData?: LaptopAnalyticsData | null;
   learningHubAdminData?: LearningHubAdminData;
+  learningHubAnalytics?: LearningHubAnalytics;
 }
 
 /* Badges live in the sidebar (server-fetched in the layout), so the
@@ -125,6 +128,8 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     /* ── Learning Hub ── */
     case 'learning-hub/admin':
       return <LearningHubAdminClient data={props.learningHubAdminData!} embedded />;
+    case 'learning-hub/analytics':
+      return <LearningHubAnalyticsClient data={props.learningHubAnalytics!} />;
 
     default:
       return (

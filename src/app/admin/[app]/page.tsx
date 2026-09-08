@@ -10,7 +10,7 @@ import {
   getProcureGuardAdminAnalyticsData,
 } from '@/app/actions/procureGuard';
 import { getLaptopAdminData, getLaptopAnalyticsData } from '@/app/actions/laptopProcurement';
-import { getLearningHubAdminData } from '@/app/actions/learning-hub';
+import { getLearningHubAdminData, getLearningHubAnalytics } from '@/app/actions/learning-hub';
 
 /* One admin app per route. The layout has already enforced the
    ADMIN_EMAILS gate for this whole segment, so here we only resolve
@@ -67,6 +67,9 @@ export default async function AdminAppPage({
       break;
     case 'learning-hub/admin':
       base.learningHubAdminData = await getLearningHubAdminData();
+      break;
+    case 'learning-hub/analytics':
+      base.learningHubAnalytics = await getLearningHubAnalytics();
       break;
     default:
       // Access-approvals, SourceGuide, Catalog, SNS, TI-TE migration /

@@ -5,6 +5,7 @@ import { createHash } from 'crypto';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import learningHubPool from '@/lib/db-learning-hub';
+import { getRedBullGameStats, type RedBullGameStats } from './learning-game';
 import { SEED_TRACKS, type SeedTrack } from '@/lib/learning-hub-seed-content';
 import type {
   LearningTrack,
@@ -361,6 +362,150 @@ async function getLearningHubActor(): Promise<{ email: string; name: string; isA
   if (!email) return null;
   const adminEmails = (process.env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
   return { email, name: session?.user?.name?.trim() || email.split('@')[0], isAdmin: adminEmails.includes(email) };
+}
+
+/* ── Admin analytics ──────────────────────────────────────────────────── */
+
+export interface LhCourseAnalytics {
+  id: number;
+  title: string;
+  status: string;
+  lessonCount: number;
+  learners: number;          // distinct users with any progress in the course
+  completedLearners: number; // users who completed every lesson in the course
+  lessonCompletions: number; // total lesson completions across users
+  completionPct: number;     // completedLearners / learners
+}
+
+export interface LhTrackAnalytics {
+  key: string;
+  name: string;
+  color: string | null;
+  learners: number;
+  lessonCount: number;
+  lessonCompletions: number;
+  completedLearners: number;
+  courses: LhCourseAnalytics[];
+}
+
+export interface LearningHubAnalytics {
+  overview: {
+    learners: number;
+    lessonCompletions: number;
+    courseCompletions: number;
+    trackCount: number;
+    courseCount: number;
+    lessonCount: number;
+  };
+  tracks: LhTrackAnalytics[];
+  redBull: RedBullGameStats;
+}
+
+const EMPTY_ANALYTICS: LearningHubAnalytics = {
+  overview: { learners: 0, lessonCompletions: 0, courseCompletions: 0, trackCount: 0, courseCount: 0, lessonCount: 0 },
+  tracks: [],
+  redBull: { totalPlays: 0, uniquePlayers: 0, avgScore: null, bestScore: null, soloPlays: 0, teamPlays: 0, top: [] },
+};
+
+export async function getLearningHubAnalytics(): Promise<LearningHubAnalytics> {
+  try {
+    const actor = await getLearningHubActor();
+    if (!actor?.isAdmin) return EMPTY_ANALYTICS;
+    await ensureLearningHubReady();
+
+    const trackRows = await sql<QueryResultRow[]>(
+      `SELECT id, key, name, color, order_index FROM learning_tracks ORDER BY order_index, id`,
+    );
+
+    // Per-course: lesson count, distinct learners, learners who finished all lessons, total completions.
+    const courseRows = await sql<QueryResultRow[]>(
+      `WITH course_lessons AS (
+         SELECT c.id AS course_id, c.track_id, c.title, c.status, c.order_index,
+                COUNT(l.id) AS lesson_count
+         FROM learning_courses c
+         LEFT JOIN learning_modules m ON m.course_id = c.id
+         LEFT JOIN learning_lessons l ON l.module_id = m.id
+         GROUP BY c.id, c.track_id, c.title, c.status, c.order_index
+       ),
+       user_course AS (
+         SELECT c.id AS course_id, p.user_email, COUNT(DISTINCT p.lesson_id) AS done
+         FROM learning_courses c
+         JOIN learning_modules m ON m.course_id = c.id
+         JOIN learning_lessons l ON l.module_id = m.id
+         JOIN learning_lesson_progress p ON p.lesson_id = l.id
+         GROUP BY c.id, p.user_email
+       )
+       SELECT cl.course_id, cl.track_id, cl.title, cl.status, cl.order_index,
+              cl.lesson_count::int AS lesson_count,
+              COUNT(DISTINCT uc.user_email)::int AS learners,
+              COUNT(DISTINCT uc.user_email) FILTER (WHERE cl.lesson_count > 0 AND uc.done >= cl.lesson_count)::int AS completed_learners,
+              COALESCE(SUM(uc.done), 0)::int AS lesson_completions
+       FROM course_lessons cl
+       LEFT JOIN user_course uc ON uc.course_id = cl.course_id
+       GROUP BY cl.course_id, cl.track_id, cl.title, cl.status, cl.order_index, cl.lesson_count
+       ORDER BY cl.track_id, cl.order_index, cl.course_id`,
+    );
+
+    const overallRows = await sql<QueryResultRow[]>(
+      `SELECT COUNT(DISTINCT user_email)::int AS learners, COUNT(*)::int AS completions FROM learning_lesson_progress`,
+    );
+
+    const trackLearnerRows = await sql<QueryResultRow[]>(
+      `SELECT c.track_id, COUNT(DISTINCT p.user_email)::int AS learners
+       FROM learning_courses c
+       JOIN learning_modules m ON m.course_id = c.id
+       JOIN learning_lessons l ON l.module_id = m.id
+       JOIN learning_lesson_progress p ON p.lesson_id = l.id
+       GROUP BY c.track_id`,
+    );
+
+    const tracks: LhTrackAnalytics[] = trackRows.map((t) => {
+      const courses: LhCourseAnalytics[] = courseRows
+        .filter((c) => Number(c.track_id) === Number(t.id))
+        .map((c) => {
+          const learners = Number(c.learners ?? 0);
+          const completedLearners = Number(c.completed_learners ?? 0);
+          return {
+            id: Number(c.course_id),
+            title: String(c.title),
+            status: String(c.status),
+            lessonCount: Number(c.lesson_count ?? 0),
+            learners,
+            completedLearners,
+            lessonCompletions: Number(c.lesson_completions ?? 0),
+            completionPct: learners > 0 ? Math.round((completedLearners / learners) * 100) : 0,
+          };
+        });
+      return {
+        key: String(t.key),
+        name: String(t.name),
+        color: (t.color as string) ?? null,
+        learners: Number(trackLearnerRows.find((r) => Number(r.track_id) === Number(t.id))?.learners ?? 0),
+        lessonCount: courses.reduce((s, c) => s + c.lessonCount, 0),
+        lessonCompletions: courses.reduce((s, c) => s + c.lessonCompletions, 0),
+        completedLearners: courses.reduce((s, c) => s + c.completedLearners, 0),
+        courses,
+      };
+    });
+
+    const redBull = await getRedBullGameStats();
+
+    return {
+      overview: {
+        learners: Number(overallRows[0]?.learners ?? 0),
+        lessonCompletions: Number(overallRows[0]?.completions ?? 0),
+        courseCompletions: tracks.reduce((s, t) => s + t.completedLearners, 0),
+        trackCount: tracks.length,
+        courseCount: courseRows.length,
+        lessonCount: courseRows.reduce((s, c) => s + Number(c.lesson_count ?? 0), 0),
+      },
+      tracks,
+      redBull,
+    };
+  } catch (err) {
+    console.error('[lh.getLearningHubAnalytics]', err);
+    return EMPTY_ANALYTICS;
+  }
 }
 
 /* ── Dashboard ────────────────────────────────────────────────────────── */

@@ -253,3 +253,44 @@ export async function getRedBullLeaderboard(): Promise<RedBullLeaderboard> {
     return { top: [], me: { best: null, plays: 0, rank: null, avgScore: null, soloPlays: 0, teamPlays: 0, bestGrade: null }, history: [] };
   }
 }
+
+export interface RedBullGameStats {
+  totalPlays: number;
+  uniquePlayers: number;
+  avgScore: number | null;
+  bestScore: number | null;
+  soloPlays: number;
+  teamPlays: number;
+  top: RedBullLeaderboardEntry[];
+}
+
+/** Aggregate stats + top leaderboard for the admin analytics page. */
+export async function getRedBullGameStats(): Promise<RedBullGameStats> {
+  try {
+    await ensureGameSchema();
+    const agg = await sql<QueryResultRow[]>(
+      `SELECT COUNT(*)::int AS total_plays,
+              COUNT(DISTINCT user_email)::int AS unique_players,
+              ROUND(AVG(score))::int AS avg_score,
+              MAX(score) AS best_score,
+              COUNT(*) FILTER (WHERE mode = 'team')::int AS team_plays,
+              COUNT(*) FILTER (WHERE mode IS DISTINCT FROM 'team')::int AS solo_plays
+       FROM learning_game_scores WHERE game_key = ?`,
+      [GAME_KEY],
+    );
+    const board = await getRedBullLeaderboard();
+    const r = agg[0] ?? {};
+    return {
+      totalPlays: Number(r.total_plays ?? 0),
+      uniquePlayers: Number(r.unique_players ?? 0),
+      avgScore: r.avg_score == null ? null : Number(r.avg_score),
+      bestScore: r.best_score == null ? null : Number(r.best_score),
+      soloPlays: Number(r.solo_plays ?? 0),
+      teamPlays: Number(r.team_plays ?? 0),
+      top: board.top,
+    };
+  } catch (err) {
+    console.error('[getRedBullGameStats]', err);
+    return { totalPlays: 0, uniquePlayers: 0, avgScore: null, bestScore: null, soloPlays: 0, teamPlays: 0, top: [] };
+  }
+}
