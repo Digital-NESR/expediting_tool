@@ -6,6 +6,7 @@ import { request as httpsRequest } from 'https';
 import { revalidatePath } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
 import laptopProcurementPool from '@/lib/db-laptop';
+import empDirectoryPool from '@/lib/db-emp-directory';
 import {
   ADMIN_REQUESTS_PAGE_SIZE,
   APPROVAL_ACTIVE_STATUSES,
@@ -2406,6 +2407,39 @@ export async function deleteLaptopPermission(email: string): Promise<ActionResul
 
 /* ── Approver matrix admin ─────────────────────────────────────── */
 
+/**
+ * Returns whichever of `emails` have no matching person in the Azure AD directory.
+ *
+ * Approver emails are typed as free text, so a single-character typo silently installs
+ * an approver who can never sign in and never receives a notification — nothing errors,
+ * the stage just goes quiet (this is exactly how Oman's Country Manager sat unreachable:
+ * `hbusaid@` instead of `hbusaidi@`). Every matrix write checks the address first.
+ *
+ * Deliberately fails OPEN: if the directory DB is unreachable this resolves to [] so an
+ * outage can't lock admins out of editing the matrix. A directory that answers but has
+ * no row for the address is a genuine typo, and that does get rejected.
+ */
+async function findUnknownDirectoryEmails(emails: (string | null | undefined)[]): Promise<string[]> {
+  const wanted = [...new Set(emails.map(e => (e ?? '').trim().toLowerCase()).filter(Boolean))];
+  if (!wanted.length) return [];
+  try {
+    const { rows } = await empDirectoryPool.query(
+      `SELECT LOWER(mail) AS mail FROM azure_ad_users_staging WHERE LOWER(mail) = ANY($1)`,
+      [wanted],
+    );
+    const known = new Set(rows.map(r => r.mail as string));
+    return wanted.filter(e => !known.has(e));
+  } catch (err) {
+    console.error('[findUnknownDirectoryEmails]', err);
+    return [];
+  }
+}
+
+function unknownDirectoryEmailError(unknown: string[]): string {
+  const subject = unknown.length === 1 ? `${unknown[0]} is` : `${unknown.join(', ')} are`;
+  return `${subject} not in the employee directory. Pick the person from the search suggestions — an address that isn't in the directory can never sign in or receive approval emails.`;
+}
+
 export async function getLaptopApproverMatrix(): Promise<LaptopApproverMatrixRow[] | null> {
   try {
     await requireAdminActor();
@@ -2421,6 +2455,12 @@ export async function updateLaptopApproverMatrix(input: UpdateLaptopApproverMatr
   try {
     const actor = await requireAdminActor();
     if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+
+    const unknown = await findUnknownDirectoryEmails([
+      input.it_manager_email, input.it_manager_2_email, input.it_manager_3_email,
+      input.cm_email, input.itd_email, input.scd_email,
+    ]);
+    if (unknown.length) return { success: false, error: unknownDirectoryEmailError(unknown) };
 
     await exec(
       `UPDATE laptop_approver_matrix SET
@@ -2508,6 +2548,9 @@ export async function saveApproverMatrixRole(input: {
     if (!countries.length) return { success: false, error: 'At least one country is required.' };
     const cols = getMatrixColumns(input.role, slot);
     if (!cols) return { success: false, error: 'Unknown approver role.' };
+
+    const unknown = await findUnknownDirectoryEmails([email]);
+    if (unknown.length) return { success: false, error: unknownDirectoryEmailError(unknown) };
 
     if (input.originalEmail?.trim()) {
       await clearApproverMatrixRoleForEmail(input.originalEmail.trim().toLowerCase(), input.role, slot);
