@@ -38,6 +38,9 @@ export interface LaptopPermissionProfile {
   description: string;
   accessView: LaptopAccessView;
   canViewAll: boolean;
+  /** Unscoped oversight: every request in every country, not just the matrix countries
+   *  canViewAll is scoped to. Admin and Viewer hold it, as do platform ADMIN_EMAILS. */
+  canViewEveryCountry: boolean;
   canCreateRequests: boolean;
   canManageData: boolean;
   canManagePermissions: boolean;

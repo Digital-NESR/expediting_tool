@@ -249,7 +249,17 @@ function hasAnyMatrixCapability(capabilities: Record<LaptopApprovalStage, string
 // review rights are derived purely from approver-matrix presence, ignoring any IT
 // Manager/Country Manager/IT Director/Supply Chain Director role a laptop_permissions
 // row might still carry.
-function buildEffectivePermissions(baseRole: LaptopPermissionRole, capabilities: Record<LaptopApprovalStage, string[]>): LaptopPermissionProfile {
+function buildEffectivePermissions(
+  baseRole: LaptopPermissionRole,
+  capabilities: Record<LaptopApprovalStage, string[]>,
+  // In the platform-wide ADMIN_EMAILS list. Those people can always open /admin, and
+  // the Laptop Procurement console there links straight into request details on the
+  // main app — so without a read grant here every one of those links 404s. Deliberately
+  // additive and read-only: it adds unscoped visibility on top of whatever role they
+  // already have, and never any review/reject/manage capability. Becoming a real Admin
+  // on the app still needs LAPTOP_PROCUREMENT_ADMIN_EMAILS or an explicit permissions row.
+  platformConsoleAdmin = false,
+): LaptopPermissionProfile {
   const base = getPermissionProfile(baseRole);
   const isAdmin = baseRole === 'Admin';
   // Viewer is read-only oversight: sees everything Admin sees, but never gets any of
@@ -258,7 +268,8 @@ function buildEffectivePermissions(baseRole: LaptopPermissionRole, capabilities:
   const hasCapability = hasAnyMatrixCapability(capabilities);
   return {
     ...base,
-    canViewAll: isAdmin || isViewer || hasCapability,
+    canViewAll: isAdmin || isViewer || platformConsoleAdmin || hasCapability,
+    canViewEveryCountry: isAdmin || isViewer || platformConsoleAdmin,
     canReject: isAdmin || hasCapability,
     canReviewItManager: isAdmin || capabilities['IT Manager'].length > 0,
     canReviewCountryManager: isAdmin || capabilities['Country Manager'].length > 0,
@@ -294,7 +305,10 @@ async function getActor(): Promise<LaptopActor> {
   const fallbackRole: LaptopPermissionRole = laptopProcurementAdminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
   const baseRole = (permissionRow?.role ?? fallbackRole) as LaptopPermissionRole;
   const matrixCapabilities = await getApproverMatrixCapabilities(email);
-  const permissions = buildEffectivePermissions(baseRole, matrixCapabilities);
+  // Applied even when an explicit permissions row exists, so a platform admin who also
+  // holds a Requester row keeps that row's abilities and still isn't 404'd out of the
+  // request details the /admin console links them to.
+  const permissions = buildEffectivePermissions(baseRole, matrixCapabilities, adminEmails().includes(email.toLowerCase()));
   const delegatedFrom = await resolveLaptopDelegations(email);
   // Whole-page gates (Admin Panel, Analytics, Reviewer Queue) use the best access
   // tier across the actor's own role and every role they hold via delegation, so a
@@ -480,7 +494,7 @@ const PERMISSION_KEY_TO_STAGE: Partial<Record<LaptopPermissionKey, LaptopApprova
 function scopedWhere(actor: LaptopActor): { where: string; params: string[] } {
   const delegated = (actor.delegatedFrom ?? []).filter(d => d.permissions.canViewAll);
 
-  if (actor.role === 'Admin' || actor.role === 'Viewer' || delegated.some(d => d.role === 'Admin')) {
+  if (actor.permissions.canViewEveryCountry || delegated.some(d => d.permissions.canViewEveryCountry)) {
     return { where: '', params: [] };
   }
 
@@ -1410,7 +1424,7 @@ export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestD
     // needs the "it's my own request" fallback.
     const canView = laptopActingIdentities(actor).some(id =>
       id.permissions.canViewAll
-        ? (id.role === 'Admin' || id.role === 'Viewer' || anyMatrixCapabilityForCountry(id.matrixCapabilities, request.country))
+        ? (id.permissions.canViewEveryCountry || anyMatrixCapabilityForCountry(id.matrixCapabilities, request.country))
         : id.email.toLowerCase() === request.requested_by_email?.toLowerCase(),
     );
     if (!canView) return null;
@@ -2306,7 +2320,7 @@ export async function uploadLaptopDocument(formData: FormData): Promise<{ succes
     if (!requestRows[0]) return { success: false, error: 'Request not found.' };
     const canView = laptopActingIdentities(actor).some(id =>
       id.permissions.canViewAll
-        ? (id.role === 'Admin' || id.role === 'Viewer' || anyMatrixCapabilityForCountry(id.matrixCapabilities, requestRows[0].country))
+        ? (id.permissions.canViewEveryCountry || anyMatrixCapabilityForCountry(id.matrixCapabilities, requestRows[0].country))
         : id.email.toLowerCase() === requestRows[0].requested_by_email?.toLowerCase(),
     );
     if (!canView) {
