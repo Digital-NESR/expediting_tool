@@ -1440,7 +1440,7 @@ class Component extends DCLogic {
           tagStyle: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.6px", marginTop: "10px", color: on ? "#FFFFFF" : "#307c4c" },
           hoverStyle: on ? activeStyle : this.hover(false)
         };
-      }),
+      }).reverse(),
       isTrainerSetup: screen === "trainer-setup",
       needsName: screen !== "solo-setup",
       showRolePick: screen === "solo-setup",
@@ -1543,7 +1543,7 @@ class Component extends DCLogic {
               if (!p) this.seatMe(t.id, i);
             },
             hoverStyle: p ? { background: "#F4F5F4" } : this.hover(false)
-          }))
+          })).reverse()
         })),
         seatNote: sess.mode === "trainer"
           ? "Teams of two or three are fine, the AI preset covers any empty seat so every chain still has four stages."
@@ -1570,7 +1570,7 @@ class Component extends DCLogic {
               who: p ? p.name : "AI seat",
               line: "on hand " + t.sim.inv[i] + " · backlog " + t.sim.back[i] + " · " + money(t.sim.cost[i]),
               state: t.done ? "done" : p ? (t.pending[i] !== undefined ? "ORDER IN" : "DECIDING") : "AUTO"
-            }))
+            })).reverse()
           };
         })
       };
@@ -1634,7 +1634,7 @@ class Component extends DCLogic {
         rank: "#" + (idx + 1),
         name: r.t.name,
         isWinner: idx === 0,
-        members: r.t.seats.map((p, i) => (p ? p.name : "AI") + " - " + ROLES[i]).join(" · "),
+        members: r.t.seats.map((p, i) => (p ? p.name : "AI") + " - " + ROLES[i]).reverse().join(" · "),
         ...this.compare(r.t.sim, sess.cfg),
         stats: [
           { label: "CHAIN COST", value: money(r.s.chain) },
@@ -1646,7 +1646,7 @@ class Component extends DCLogic {
           style: { background: i % 2 === 0 ? "#FFFFFF" : "#C5E0D2" },
           cells: [role, r.t.seats[i] ? r.t.seats[i].name : "AI seat", r.t.sim.inv[i], r.t.sim.back[i],
             Math.max(0, ...r.t.sim.history.map(h => h.orders[i])), money(r.t.sim.cost[i])].map(v => ({ v }))
-        }))
+        })).reverse()
       }));
       headline = winner ? winner.t.name + " wins on " + money(winner.s.chain) + " total chain cost" : "Run complete";
       sub = sess.teams.length > 1
@@ -1661,7 +1661,7 @@ class Component extends DCLogic {
       const cmp = this.compare(sim, cfg);
       scoreTeams = [{
         rank: "-", name: "Your Chain", isWinner: false,
-        members: ROLES.map((r, i) => (i === st.role ? st.myName || "You" : "AI") + " - " + r).join(" · "),
+        members: ROLES.map((r, i) => (i === st.role ? st.myName || "You" : "AI") + " - " + r).reverse().join(" · "),
         ...cmp,
         stats: [
           { label: "CHAIN COST", value: money(chain) },
@@ -1673,7 +1673,7 @@ class Component extends DCLogic {
           style: { background: i % 2 === 0 ? "#FFFFFF" : "#C5E0D2" },
           cells: [role, i === st.role ? "You" : "AI seat", sim.inv[i], sim.back[i],
             Math.max(0, ...sim.history.map(h => h.orders[i])), money(sim.cost[i])].map(v => ({ v }))
-        }))
+        })).reverse()
       }];
       headline = cmp.score + " / 100 - " + cmp.grade.toLowerCase() + " run as " + ROLES[st.role].toLowerCase();
       sub = "Your chain spent " + money(chain) + " against an ideal " + cmp.idealTotal + " on the same demand.";
