@@ -1048,6 +1048,55 @@ function ComingSoonCard({
   );
 }
 
+/* ─── Learning Hub Card (access-gated, kept greyed / not live) ───
+   Mirrors the SourceGuide access-request card (subtitle + status badge
+   + "Request Access" CTA) but rendered greyed-out and dormant: the
+   request affordance is shown but disabled, so the gate is visible
+   without being live. Admins keep click-through preview access, exactly
+   as the previous Admin-Preview card allowed. */
+function LearningHubCard({
+  isAdmin,
+  onClick,
+}: {
+  isAdmin: boolean;
+  onClick: (newTab: boolean) => void;
+}) {
+  const canOpen = isAdmin;
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(true)}
+      disabled={!canOpen}
+      className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
+        canOpen
+          ? 'opacity-75 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10'
+          : 'opacity-50 cursor-default select-none'
+      }`}
+    >
+      <ToolCardLogo onSameTab={() => { if (canOpen) onClick(false); }} className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+        <GraduationCap className="h-6 w-6 text-gray-400" />
+      </ToolCardLogo>
+
+      <div className="flex-1">
+        <h3 className="text-[18px] font-semibold text-gray-500">Learning Hub</h3>
+        <p className="mt-0.5 text-[13px] font-medium text-slate-400">SAP, Supply Chain &amp; NESR Training</p>
+        <p className="mt-2 text-sm leading-relaxed text-gray-500">
+          Self-paced courses across three tracks: SAP, general Supply Chain fundamentals, and NESR-specific supply chain practice.
+        </p>
+      </div>
+
+      <div className="mt-auto flex items-center justify-between">
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
+          {canOpen ? 'Admin Preview' : 'Coming Soon'}
+        </span>
+        <span className="text-sm font-semibold text-gray-400 group-hover:underline">
+          {canOpen ? 'Open preview →' : 'Request Access →'}
+        </span>
+      </div>
+    </button>
+  );
+}
+
 /* ─── Page ───────────────────────────────────────────────────── */
 
 export default function HomePage() {
@@ -1389,12 +1438,8 @@ export default function HomePage() {
                 )}
 
                 {show('learning hub training courses sap supply chain academy lms') && (
-                  <AdminPreviewCard
-                    name="Learning Hub"
-                    subtitle={"SAP, Supply Chain & NESR Training"}
-                    description="Self-paced courses across three tracks: SAP, general Supply Chain fundamentals, and NESR-specific supply chain practice."
-                    icon={<GraduationCap className="w-6 h-6 text-gray-400" />}
-                    canOpen={isAdmin}
+                  <LearningHubCard
+                    isAdmin={isAdmin}
                     onClick={handleLearningHubClick}
                   />
                 )}
