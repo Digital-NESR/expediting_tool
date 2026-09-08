@@ -28,6 +28,7 @@ export const APPROVER_MATRIX_ROLES: LaptopPermissionRole[] = ['IT Manager', 'Cou
 
 const BASE_PERMISSION_PROFILE: Omit<LaptopPermissionProfile, 'role' | 'label' | 'description' | 'accessView'> = {
   canViewAll: false,
+  canViewEveryCountry: false,
   canCreateRequests: true,
   canManageData: false,
   canManagePermissions: false,
@@ -94,6 +95,7 @@ export const PERMISSION_PROFILES: Record<LaptopPermissionRole, LaptopPermissionP
     description: 'Full access to data, permissions, every approval step, and deletion.',
     accessView: 'admin',
     canViewAll: true,
+    canViewEveryCountry: true,
     canCreateRequests: true,
     canManageData: true,
     canManagePermissions: true,
@@ -111,6 +113,7 @@ export const PERMISSION_PROFILES: Record<LaptopPermissionRole, LaptopPermissionP
     description: 'Read-only access to every request, the dashboard, and analytics, across every country — cannot create, approve, reject, or manage anything.',
     accessView: 'viewer',
     canViewAll: true,
+    canViewEveryCountry: true,
     canCreateRequests: false,
   },
 };

@@ -167,7 +167,7 @@ export default function LaptopDashboardClient({ data }: { data: LaptopDashboardD
                 <p className="truncate text-xs text-slate-500">{actor.email}</p>
               </div>
             </div>
-            <p className="mt-3 text-xs text-slate-500">{actor.role} · {actor.isAdmin || actor.role === 'Viewer' ? 'all requests' : actor.permissions.canViewAll ? 'scoped view' : 'your requests only'}</p>
+            <p className="mt-3 text-xs text-slate-500">{actor.role} · {actor.permissions.canViewEveryCountry ? 'all requests' : actor.permissions.canViewAll ? 'scoped view' : 'your requests only'}</p>
           </div>
         </section>
 
