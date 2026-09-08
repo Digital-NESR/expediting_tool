@@ -140,6 +140,7 @@ const AUDIENCES: AudienceMaterial[] = [
         bullets: [
           'Requester — anyone signed in can submit and track their own requests.',
           'Reviewer — IT Manager, Country Manager, IT Director, or Supply Chain Director authority, granted per country through the approver matrix rather than a fixed account role.',
+          'Viewer — read-only access to every request, the dashboard, and analytics across every country; cannot submit, approve, reject, or manage anything.',
           'Admin — manages permissions, the approver matrix, and the device catalog from the Admin Panel.',
         ],
       },

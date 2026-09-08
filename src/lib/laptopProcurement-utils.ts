@@ -21,6 +21,7 @@ export const PERMISSION_ROLE_OPTIONS: LaptopPermissionRole[] = [
   'IT Director',
   'Supply Chain Director',
   'Admin',
+  'Viewer',
 ];
 
 export const APPROVER_MATRIX_ROLES: LaptopPermissionRole[] = ['IT Manager', 'Country Manager', 'IT Director', 'Supply Chain Director'];
@@ -103,6 +104,15 @@ export const PERMISSION_PROFILES: Record<LaptopPermissionRole, LaptopPermissionP
     canReviewItDirector: true,
     canReviewScmDirector: true,
   },
+  Viewer: {
+    ...BASE_PERMISSION_PROFILE,
+    role: 'Viewer',
+    label: 'Viewer',
+    description: 'Read-only access to every request, the dashboard, and analytics, across every country — cannot create, approve, reject, or manage anything.',
+    accessView: 'viewer',
+    canViewAll: true,
+    canCreateRequests: false,
+  },
 };
 
 export type LaptopPermissionKey = keyof Omit<LaptopPermissionProfile, 'role' | 'label' | 'description' | 'accessView'>;
@@ -127,21 +137,25 @@ export function canUseLaptopAdmin(accessView: LaptopAccessView): boolean {
 }
 
 export function canUseLaptopAnalytics(accessView: LaptopAccessView): boolean {
-  return accessView === 'reviewer' || accessView === 'admin';
+  return accessView === 'reviewer' || accessView === 'admin' || accessView === 'viewer';
 }
 
 export function canUseLaptopOperationalPages(accessView: LaptopAccessView): boolean {
-  return accessView === 'requester' || accessView === 'reviewer' || accessView === 'admin';
+  return accessView === 'requester' || accessView === 'reviewer' || accessView === 'admin' || accessView === 'viewer';
 }
 
+// My Work and Delegate are both about acting on (or handing off authority over)
+// requests — Viewer holds no approval authority, so it's deliberately excluded here
+// even though it can see everything elsewhere.
 export function canUseLaptopReviewerQueue(accessView: LaptopAccessView): boolean {
   return accessView === 'reviewer' || accessView === 'admin';
 }
 
 const ACCESS_VIEW_RANK: Record<LaptopAccessView, number> = {
   requester: 0,
-  reviewer: 1,
-  admin: 2,
+  viewer: 1,
+  reviewer: 2,
+  admin: 3,
 };
 
 /**

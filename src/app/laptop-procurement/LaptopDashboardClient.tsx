@@ -128,9 +128,11 @@ export default function LaptopDashboardClient({ data }: { data: LaptopDashboardD
       pendingCount={stats.pending_review}
       accessView={actor.effectiveAccessView}
       actions={
-        <button onClick={() => router.push('/laptop-procurement/requests/new')} className={CTA}>
-          + New Request
-        </button>
+        actor.permissions.canCreateRequests ? (
+          <button onClick={() => router.push('/laptop-procurement/requests/new')} className={CTA}>
+            + New Request
+          </button>
+        ) : undefined
       }
     >
       <div className="space-y-5">
@@ -165,7 +167,7 @@ export default function LaptopDashboardClient({ data }: { data: LaptopDashboardD
                 <p className="truncate text-xs text-slate-500">{actor.email}</p>
               </div>
             </div>
-            <p className="mt-3 text-xs text-slate-500">{actor.role} · {actor.isAdmin ? 'all requests' : actor.permissions.canViewAll ? 'scoped view' : 'your requests only'}</p>
+            <p className="mt-3 text-xs text-slate-500">{actor.role} · {actor.isAdmin || actor.role === 'Viewer' ? 'all requests' : actor.permissions.canViewAll ? 'scoped view' : 'your requests only'}</p>
           </div>
         </section>
 

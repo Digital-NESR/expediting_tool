@@ -16,13 +16,13 @@ export const CTA = 'rounded-lg bg-[#307c4c] px-4 py-2.5 text-sm font-bold text-w
 export const CTA_QUIET = 'rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50';
 
 const NAV = [
-  { href: '/laptop-procurement', label: 'Dashboard', icon: 'grid', access: ['requester', 'reviewer', 'admin'] },
+  { href: '/laptop-procurement', label: 'Dashboard', icon: 'grid', access: ['requester', 'reviewer', 'admin', 'viewer'] },
   { href: '/laptop-procurement/my-work', label: 'My Work', icon: 'check', access: ['reviewer', 'admin'] },
-  { href: '/laptop-procurement/requests', label: 'Requests', icon: 'laptop', access: ['requester', 'reviewer', 'admin'] },
+  { href: '/laptop-procurement/requests', label: 'Requests', icon: 'laptop', access: ['requester', 'reviewer', 'admin', 'viewer'] },
   { href: '/laptop-procurement/requests/new', label: 'New Request', icon: 'plus', access: ['requester', 'reviewer', 'admin'] },
-  { href: '/laptop-procurement/analytics', label: 'Analytics', icon: 'chart', access: ['reviewer', 'admin'] },
+  { href: '/laptop-procurement/analytics', label: 'Analytics', icon: 'chart', access: ['reviewer', 'admin', 'viewer'] },
   { href: '/laptop-procurement/delegate', label: 'Delegate', icon: 'delegate', access: ['reviewer', 'admin'] },
-  { href: '/laptop-procurement/help', label: 'Help & Training', icon: 'help', access: ['requester', 'reviewer', 'admin'] },
+  { href: '/laptop-procurement/help', label: 'Help & Training', icon: 'help', access: ['requester', 'reviewer', 'admin', 'viewer'] },
   { href: '/admin?tool=laptop-procurement-admin', label: 'Admin Panel', icon: 'grid', access: ['admin'] },
 ];
 

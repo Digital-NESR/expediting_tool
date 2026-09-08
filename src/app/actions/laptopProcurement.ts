@@ -193,6 +193,27 @@ async function ensureLaptopApproverMatrixColumns(): Promise<void> {
   return laptopApproverMatrixColumnsEnsured;
 }
 
+// laptop_permissions.role has a DB-level CHECK constraint enumerating every allowed
+// value (a legacy list that already includes roles this app no longer uses, like
+// 'Analyst'/'Read Only') — it doesn't auto-follow LaptopPermissionRole, so adding
+// 'Viewer' there requires widening the constraint here too, or every save of a Viewer
+// permission row fails at the DB with a check-violation.
+let laptopPermissionsRoleConstraintEnsured: Promise<void> | null = null;
+async function ensureLaptopPermissionsRoleConstraint(): Promise<void> {
+  if (laptopPermissionsRoleConstraintEnsured) return laptopPermissionsRoleConstraintEnsured;
+  laptopPermissionsRoleConstraintEnsured = (async () => {
+    await exec(`ALTER TABLE laptop_permissions DROP CONSTRAINT IF EXISTS laptop_permissions_role_check`);
+    await exec(
+      `ALTER TABLE laptop_permissions ADD CONSTRAINT laptop_permissions_role_check
+       CHECK (role IN ('Requester', 'Analyst', 'Read Only', 'IT Manager', 'Country Manager', 'IT Director', 'Supply Chain Director', 'Admin', 'Viewer'))`,
+    );
+  })().catch((err) => {
+    laptopPermissionsRoleConstraintEnsured = null;
+    throw err;
+  });
+  return laptopPermissionsRoleConstraintEnsured;
+}
+
 async function getApproverMatrixCapabilities(email: string): Promise<Record<LaptopApprovalStage, string[]>> {
   const capabilities = emptyMatrixCapabilities();
   const target = email.trim().toLowerCase();
@@ -231,16 +252,19 @@ function hasAnyMatrixCapability(capabilities: Record<LaptopApprovalStage, string
 function buildEffectivePermissions(baseRole: LaptopPermissionRole, capabilities: Record<LaptopApprovalStage, string[]>): LaptopPermissionProfile {
   const base = getPermissionProfile(baseRole);
   const isAdmin = baseRole === 'Admin';
+  // Viewer is read-only oversight: sees everything Admin sees, but never gets any of
+  // the review/reject capabilities below (those stay gated on isAdmin/hasCapability only).
+  const isViewer = baseRole === 'Viewer';
   const hasCapability = hasAnyMatrixCapability(capabilities);
   return {
     ...base,
-    canViewAll: isAdmin || hasCapability,
+    canViewAll: isAdmin || isViewer || hasCapability,
     canReject: isAdmin || hasCapability,
     canReviewItManager: isAdmin || capabilities['IT Manager'].length > 0,
     canReviewCountryManager: isAdmin || capabilities['Country Manager'].length > 0,
     canReviewItDirector: isAdmin || capabilities['IT Director'].length > 0,
     canReviewScmDirector: isAdmin || capabilities['Supply Chain Director'].length > 0,
-    accessView: isAdmin ? 'admin' : (hasCapability ? 'reviewer' : 'requester'),
+    accessView: isAdmin ? 'admin' : (isViewer ? 'viewer' : (hasCapability ? 'reviewer' : 'requester')),
   };
 }
 
@@ -456,7 +480,7 @@ const PERMISSION_KEY_TO_STAGE: Partial<Record<LaptopPermissionKey, LaptopApprova
 function scopedWhere(actor: LaptopActor): { where: string; params: string[] } {
   const delegated = (actor.delegatedFrom ?? []).filter(d => d.permissions.canViewAll);
 
-  if (actor.role === 'Admin' || delegated.some(d => d.role === 'Admin')) {
+  if (actor.role === 'Admin' || actor.role === 'Viewer' || delegated.some(d => d.role === 'Admin')) {
     return { where: '', params: [] };
   }
 
@@ -1386,7 +1410,7 @@ export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestD
     // needs the "it's my own request" fallback.
     const canView = laptopActingIdentities(actor).some(id =>
       id.permissions.canViewAll
-        ? (id.role === 'Admin' || anyMatrixCapabilityForCountry(id.matrixCapabilities, request.country))
+        ? (id.role === 'Admin' || id.role === 'Viewer' || anyMatrixCapabilityForCountry(id.matrixCapabilities, request.country))
         : id.email.toLowerCase() === request.requested_by_email?.toLowerCase(),
     );
     if (!canView) return null;
@@ -2282,7 +2306,7 @@ export async function uploadLaptopDocument(formData: FormData): Promise<{ succes
     if (!requestRows[0]) return { success: false, error: 'Request not found.' };
     const canView = laptopActingIdentities(actor).some(id =>
       id.permissions.canViewAll
-        ? (id.role === 'Admin' || anyMatrixCapabilityForCountry(id.matrixCapabilities, requestRows[0].country))
+        ? (id.role === 'Admin' || id.role === 'Viewer' || anyMatrixCapabilityForCountry(id.matrixCapabilities, requestRows[0].country))
         : id.email.toLowerCase() === requestRows[0].requested_by_email?.toLowerCase(),
     );
     if (!canView) {
@@ -2350,6 +2374,7 @@ export async function updateLaptopPermission(input: UpdateLaptopPermissionInput)
     const role = requireText(input.role, 'Role') as LaptopPermissionRole;
     if (!getPermissionProfile(role)) return { success: false, error: 'Unknown role.' };
 
+    await ensureLaptopPermissionsRoleConstraint();
     await exec(
       `INSERT INTO laptop_permissions (email, name, role, country, segment)
        VALUES (?, ?, ?, ?, ?)
@@ -2677,6 +2702,7 @@ export async function approveLaptopAccess(input: {
       [email, email, role, role, blankToNull(input.country), blankToNull(input.segment), input.reviewedBy, blankToNull(input.notes)],
     );
 
+    await ensureLaptopPermissionsRoleConstraint();
     await exec(
       `INSERT INTO laptop_permissions (email, name, role, country, segment)
        VALUES (?, ?, ?, ?, ?)

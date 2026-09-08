@@ -25,9 +25,12 @@ export type LaptopPermissionRole =
   | 'Country Manager'
   | 'IT Director'
   | 'Supply Chain Director'
-  | 'Admin';
+  | 'Admin'
+  | 'Viewer';
 
-export type LaptopAccessView = 'requester' | 'reviewer' | 'admin';
+// 'viewer' can see everything Admin can (unscoped, every country) but holds none of
+// Admin's write/manage capabilities — a pure read-only oversight role.
+export type LaptopAccessView = 'requester' | 'reviewer' | 'admin' | 'viewer';
 
 export interface LaptopPermissionProfile {
   role: LaptopPermissionRole;
