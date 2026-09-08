@@ -760,12 +760,6 @@
       </div>
     </div>
   </sc-if>
-
-  <div style="background:#1F1F1D; color:#FFFFFF; font-size:11px; padding:14px 28px; display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap;">
-    <div>National Energy Services Reunited Corp.</div>
-    <div style="color:#D1D3D4;">{{ footerRules }}</div>
-    <div><a href="https://www.nesr.com" style="color:#C5E0D2;">www.nesr.com</a></div>
-  </div>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;holdingCost&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:0.5,&quot;min&quot;:0.1,&quot;max&quot;:2,&quot;step&quot;:0.1,&quot;unit&quot;:&quot;$/case/wk&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Rules&quot;},&quot;shortageCost&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:1,&quot;min&quot;:0.5,&quot;max&quot;:5,&quot;step&quot;:0.5,&quot;unit&quot;:&quot;$/case/wk&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Rules&quot;}}">
@@ -1382,7 +1376,6 @@ class Component extends DCLogic {
       cardHover: { background: "#F4F5F4" },
       stepHover: { background: "#C5E0D2", borderColor: "#6AAF8E" },
       leaveHover: { background: "rgba(255,255,255,0.18)" },
-      footerRules: "Holding $" + this.HOLD.toFixed(2) + " / case / week · Backlog $" + this.SHORT.toFixed(2) + " / case / week · 2-week order and shipping delays",
       headerStatus: sess
         ? (isCoordinator ? "Coordinator · code " + st.code : st.myName + " · code " + st.code + (team ? " · " + team.name : ""))
         : ({
