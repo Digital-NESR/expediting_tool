@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProcureGuardUser } from '@/lib/auth';
 import laptopProcurementPool from '@/lib/db-laptop';
+import { attachmentContentDisposition } from '@/lib/contentDisposition';
 import { canViewLaptopRequest } from '@/app/actions/laptopProcurement';
 
 const MIME_MAP: Record<string, string> = {
@@ -72,12 +73,12 @@ export async function GET(
       fileBuffer = str.startsWith('\\x') ? Buffer.from(str.slice(2), 'hex') : Buffer.from(str, 'binary');
     }
 
-    const dlFilename = (doc.original_name || doc.document_name).replace(/"/g, '_');
+    const dlFilename = doc.original_name || doc.document_name;
     return new Response(new Uint8Array(fileBuffer), {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': 'attachment; filename="' + dlFilename + '"',
+        'Content-Disposition': attachmentContentDisposition(dlFilename),
         'Content-Length': String(fileBuffer.byteLength),
         'Cache-Control': 'private, no-cache',
       },
