@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Circle, Clock, ExternalLink, ClipboardCheck } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, ExternalLink, ClipboardCheck, Lock } from 'lucide-react';
 import LearningHubSidebar from '../../components/LearningHubSidebar';
 import LearningHubLogo from '../../components/LearningHubLogo';
 import LearningHubHero from '../../components/LearningHubHero';
 import LearningHubHomeButton from '../../components/LearningHubHomeButton';
+import LearningHubBackButton from '../../components/LearningHubBackButton';
 import { formatDuration } from '@/lib/learning-hub-utils';
 import type { CourseDetailData } from '@/types/learning-hub';
 
@@ -17,6 +18,8 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
 
   // First not-yet-completed lesson across the whole course, for a "Resume" CTA.
   const nextLesson = modules.flatMap((m) => m.lessons).find((l) => !l.completed);
+  // A course with a single module is shown as a flat lesson list, no "Module" header.
+  const flat = modules.length === 1;
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
@@ -25,6 +28,7 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
         <button onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
+        <LearningHubBackButton href={`/learning-hub/${track.key}`} />
         <LearningHubHomeButton />
         <LearningHubLogo size="sm" />
         <Link href={`/learning-hub/${track.key}`} className="text-sm font-medium text-slate-400 hover:text-slate-600">{track.name}</Link>
@@ -58,13 +62,20 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
           </div>
         </div>
 
+        {/* Learner-facing label note: a `learning_modules` row (level 3) is shown
+            to learners as a "Track". The display hierarchy is Modules (tracks) ›
+            Courses › Tracks (modules) › Lessons; DB table names are intentionally
+            left as-is, so table `learning_tracks` is level 1 and `learning_modules`
+            is level 3. The admin CMS still calls level 3 "Module" (matches the table). */}
         <div className="space-y-5">
           {modules.map((mod, modIdx) => (
             <div key={mod.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Module {modIdx + 1}</p>
-                <h2 className="text-sm font-bold text-slate-900">{mod.title}</h2>
-              </div>
+              {!flat && (
+                <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Track {modIdx + 1}</p>
+                  <h2 className="text-sm font-bold text-slate-900">{mod.title}</h2>
+                </div>
+              )}
               {mod.resource_label && mod.resource_url && (
                 <a
                   href={mod.resource_url}
@@ -77,33 +88,53 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
                     <ExternalLink className="h-4 w-4" style={{ color }} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>Module resource</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>Track resource</p>
                     <p className="truncate text-sm font-semibold text-slate-800">{mod.resource_label}</p>
                   </div>
                   <span className="shrink-0 text-xs font-semibold" style={{ color }}>Open →</span>
                 </a>
               )}
               <div className="divide-y divide-slate-100">
-                {mod.lessons.map((lesson) => (
-                  <Link
-                    key={lesson.id}
-                    href={`/learning-hub/${track.key}/${course.id}/${lesson.id}`}
-                    className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50"
-                  >
-                    {lesson.completed ? (
-                      <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color }} />
-                    ) : (
-                      <Circle className="h-5 w-5 shrink-0 text-slate-300" />
-                    )}
-                    <span className={`flex-1 text-sm ${lesson.completed ? 'text-slate-500 line-through decoration-slate-300' : 'font-medium text-slate-800'}`}>
-                      {lesson.title}
-                    </span>
-                    <span className="flex shrink-0 items-center gap-1 text-xs text-slate-400">
-                      <Clock className="h-3.5 w-3.5" />
-                      {formatDuration(lesson.duration_minutes)}
-                    </span>
-                  </Link>
-                ))}
+                {mod.lessons.map((lesson) => {
+                  const inner = (
+                    <>
+                      {lesson.locked ? (
+                        <Lock className="h-5 w-5 shrink-0 text-slate-300" />
+                      ) : lesson.completed ? (
+                        <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color }} />
+                      ) : (
+                        <Circle className="h-5 w-5 shrink-0 text-slate-300" />
+                      )}
+                      <span className={`flex-1 text-sm ${lesson.locked ? 'text-slate-400' : lesson.completed ? 'text-slate-500 line-through decoration-slate-300' : 'font-medium text-slate-800'}`}>
+                        {lesson.title}
+                      </span>
+                      {lesson.has_quiz && (
+                        <span className="hidden shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:inline-flex">
+                          <ClipboardCheck className="h-3 w-3" /> Quiz
+                        </span>
+                      )}
+                      {lesson.duration_minutes != null && (
+                        <span className="flex shrink-0 items-center gap-1 text-xs text-slate-400">
+                          <Clock className="h-3.5 w-3.5" />
+                          {formatDuration(lesson.duration_minutes)}
+                        </span>
+                      )}
+                    </>
+                  );
+                  return lesson.locked ? (
+                    <div key={lesson.id} className="flex cursor-not-allowed items-center gap-3 px-5 py-3.5 opacity-70" title="Pass the previous quiz to unlock">
+                      {inner}
+                    </div>
+                  ) : (
+                    <Link
+                      key={lesson.id}
+                      href={`/learning-hub/${track.key}/${course.id}/${lesson.id}`}
+                      className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50"
+                    >
+                      {inner}
+                    </Link>
+                  );
+                })}
               </div>
               {mod.has_quiz && (
                 <Link

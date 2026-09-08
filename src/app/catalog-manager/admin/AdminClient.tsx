@@ -9,6 +9,7 @@ import BulkImportPanel from '../catalog/import/BulkImportPanel';
 import {
   toggleCountryStatus, toggleCategoryStatus, addUom, setUserRole,
   addCountryApprover, removeCountryApprover, setApprovalThreshold, removeApprovalThreshold,
+  deleteDemoCatalogData,
 } from '@/app/actions/catalog-manager';
 import type {
   AppUserRow, ApprovalThresholdRule, CatalogAnalyticsData, CatalogEntry, CountryApproverRow, CountryRow, CurrencyRow, SupplierRow, UomRow, CatalogRole,
@@ -73,6 +74,20 @@ export default function AdminClient({
   const [caCategory, setCaCategory] = useState<number | ''>('');
 
   const refresh = (fn: () => Promise<void>) => startTransition(async () => { await fn(); router.refresh(); });
+
+  const [demoCleanupMsg, setDemoCleanupMsg] = useState<string | null>(null);
+  const runDemoCleanup = () => {
+    if (!confirm('Remove all sample/demo catalog entries and their placeholder suppliers? This cannot be undone.')) return;
+    startTransition(async () => {
+      const res = await deleteDemoCatalogData();
+      setDemoCleanupMsg(
+        res.deletedEntries === 0
+          ? 'No sample data found — already clean.'
+          : `Removed ${res.deletedEntries} sample entr${res.deletedEntries === 1 ? 'y' : 'ies'} and ${res.deletedSuppliers} placeholder supplier${res.deletedSuppliers === 1 ? '' : 's'}.`,
+      );
+      router.refresh();
+    });
+  };
 
   return (
     <CatalogManagerShell title="Administration" roleLabel={roleLabel} canApprove canAdmin pendingCount={pendingCount} showScope={false}>
@@ -246,7 +261,23 @@ export default function AdminClient({
             </div>
           )}
 
-          {tab === 'Catalog migration' && <BulkImportPanel />}
+          {tab === 'Catalog migration' && (
+            <div className="space-y-5">
+              <Card className="p-5">
+                <CardHeader className="mb-3" title="Sample data cleanup" sub="Remove the fabricated demo catalog entries seeded before real data existed." />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={runDemoCleanup}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-red-600 hover:bg-red-50"
+                  >
+                    <Icon name="x" className="h-3.5 w-3.5" /> Remove sample data
+                  </button>
+                  {demoCleanupMsg && <span className="text-[12.5px] text-slate-500">{demoCleanupMsg}</span>}
+                </div>
+              </Card>
+              <BulkImportPanel />
+            </div>
+          )}
 
           {tab === 'Service activities' && (
             <div>

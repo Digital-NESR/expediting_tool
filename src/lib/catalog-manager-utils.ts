@@ -256,14 +256,14 @@ export function getPermissionProfile(role: CatalogRole): PermissionProfile {
   return PERMISSION_PROFILES[role] ?? PERMISSION_PROFILES.Viewer;
 }
 
-/** The three spend-type classifications, in display order. */
-export const SPEND_TYPE_OPTIONS: SpendType[] = ['Materials & Assets', 'Consumables', 'Services'];
+/** The spend-type classifications, in display order. */
+export const SPEND_TYPE_OPTIONS: SpendType[] = ['Direct', 'Indirect'];
 
 /** Chip tone for a spend type (used on chips/pills). */
 export function spendTypeTone(type: string | null): 'green' | 'amber' | 'neutral' {
-  if (type === 'Materials & Assets') return 'green';
-  if (type === 'Consumables') return 'amber';
-  return 'neutral'; // Services
+  if (type === 'Direct') return 'green';
+  if (type === 'Indirect') return 'amber';
+  return 'neutral';
 }
 
 /** Build a Sirion CLM contract URL from a contract id like "SIR-CN-204815". */

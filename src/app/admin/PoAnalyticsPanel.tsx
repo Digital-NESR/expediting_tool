@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import Image from 'next/image';
-import { signOut } from 'next-auth/react';
 import DetailModal from '@/components/DetailModal';
 import { DS_DESCRIPTIONS } from '@/lib/constants';
 import {
@@ -17,24 +15,6 @@ import {
 } from '@/app/actions/adminAnalytics';
 import { getTeamAnalyticsData, getFilterOptions } from '@/app/actions/teamAnalytics';
 import type { TeamAnalyticsFilters, TeamAnalyticsData, FilterOptions } from '@/app/actions/teamAnalytics';
-import AccessApprovalsClient from './AccessApprovalsClient';
-import TiteMigrationClient from './TiteMigrationClient';
-import TiteAccessApprovalsClient from './TiteAccessApprovalsClient';
-import TiteDefaultNotifiersClient from './TiteDefaultNotifiersClient';
-import TiteAnalyticsClient from './TiteAnalyticsClient';
-import ProcureGuardAccessApprovalsClient from './ProcureGuardAccessApprovalsClient';
-import ProcureGuardAdminPanelClient from '../procure-guard/admin/AdminPanelClient';
-import ProcureGuardAnalyticsClient from '../procure-guard/analytics/AnalyticsClient';
-import ProcureGuardAdminAnalyticsClient from '../procure-guard/admin-analytics/AdminAnalyticsClient';
-import { SourceGuideAccessApprovalsClient, SourceGuideGuidesClient, SourceGuideAnalyticsClient, SourceGuideChampionsClient } from './SourceGuideAdmin';
-import { CatalogAccessApprovalsClient, CatalogAdminPanelClient, CatalogSyncHealthClient } from './CatalogRepoAdmin';
-import LaptopAdminClient from '../laptop-procurement/admin/LaptopAdminClient';
-import LaptopAnalyticsClient from '../laptop-procurement/analytics/LaptopAnalyticsClient';
-import LaptopApproverMatrixClient from './LaptopApproverMatrixClient';
-import LaptopAccessApprovalsClient from './LaptopAccessApprovalsClient';
-import type { Shipment } from '@/types/tite';
-import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
-import type { LaptopAdminData, LaptopAnalyticsData } from '@/types/laptopProcurement';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
@@ -49,23 +29,8 @@ import type {
 
 /* ─── Props ──────────────────────────────────────────────────── */
 
-interface AdminClientProps {
+interface PoAnalyticsPanelProps {
   analytics: ExpeditingAnalytics;
-  userEmail: string;
-  userName: string;
-  pendingCount: number;
-  titePendingCount: number;
-  titeShipments: Shipment[] | null;
-  procureGuardPendingCount: number;
-  procureGuardAdminData: ProcureGuardAdminData | null;
-  procureGuardAnalyticsData: ProcureGuardAnalyticsData | null;
-  procureGuardAdminAnalyticsData: ProcureGuardAdminAnalyticsData | null;
-  sourceGuidePendingCount?: number;
-  catalogPendingCount?: number;
-  laptopAdminData: LaptopAdminData | null;
-  laptopAnalyticsData: LaptopAnalyticsData | null;
-  laptopPendingAccessCount?: number;
-  initialTool?: string;
 }
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -1343,43 +1308,19 @@ function AdminMultiSelect({ label, options, selected, onChange, searchable = fal
   );
 }
 
-/* ─── Main AdminClient ────────────────────────────────────────── */
+/* ─── PoAnalyticsPanel ────────────────────────────────────────── */
 
-export default function AdminClient({
-  analytics: initialAnalytics,
-  userEmail,
-  userName,
-  pendingCount,
-  titePendingCount,
-  titeShipments,
-  procureGuardPendingCount,
-  procureGuardAdminData,
-  procureGuardAnalyticsData,
-  procureGuardAdminAnalyticsData,
-  sourceGuidePendingCount = 0,
-  catalogPendingCount = 0,
-  laptopAdminData,
-  laptopAnalyticsData,
-  laptopPendingAccessCount = 0,
-  initialTool = 'po-expediting',
-}: AdminClientProps) {
-  const [selectedTool, setSelectedTool]       = useState<string>(initialTool);
-  const [liveAnalytics, setLiveAnalytics]     = useState<ExpeditingAnalytics>(initialAnalytics);
-  const [isRefreshing, setIsRefreshing]       = useState(false);
-  const [lastRefreshed, setLastRefreshed]     = useState<Date>(() => new Date());
-  const [livePendingCount, setLivePendingCount]       = useState(pendingCount);
-  const [liveTitePendingCount, setLiveTitePendingCount] = useState(titePendingCount);
-  const [liveProcureGuardPendingCount, setLiveProcureGuardPendingCount] = useState(procureGuardPendingCount);
-  const [liveSourceGuidePendingCount, setLiveSourceGuidePendingCount] = useState(sourceGuidePendingCount);
-  const [liveCatalogPendingCount, setLiveCatalogPendingCount] = useState(catalogPendingCount);
-  const [liveLaptopPendingAccessCount, setLiveLaptopPendingAccessCount] = useState(laptopPendingAccessCount);
+export default function PoAnalyticsPanel({ analytics: initialAnalytics }: PoAnalyticsPanelProps) {
+  const [liveAnalytics, setLiveAnalytics] = useState<ExpeditingAnalytics>(initialAnalytics);
+  const [isRefreshing, setIsRefreshing]   = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(() => new Date());
 
   // Modal state
-  const [buyerModal, setBuyerModal]             = useState<BuyerRow | null>(null);
+  const [buyerModal, setBuyerModal]               = useState<BuyerRow | null>(null);
   const [supplierModalName, setSupplierModalName] = useState<string | null>(null);
   const [sessionModal, setSessionModal]           = useState<RecentSession | null>(null);
 
-  // PO Expediting filter state
+  // Filter state
   const [poFilterOpts, setPoFilterOpts] = useState<FilterOptions | null>(null);
   const [poDateFrom, setPoDateFrom]     = useState('');
   const [poDateTo, setPoDateTo]         = useState('');
@@ -1389,24 +1330,10 @@ export default function AdminClient({
   const [poSuppliers, setPoSuppliers]   = useState<string[]>([]);
   const [poTeamData, setPoTeamData]     = useState<TeamAnalyticsData | null>(null);
 
-  // Reset PO filters on tab switch away
+  // Load filter options on mount
   useEffect(() => {
-    if (selectedTool !== 'po-expediting') {
-      setPoDateFrom('');
-      setPoDateTo('');
-      setPoBuyers([]);
-      setPoCountries([]);
-      setPoSegments([]);
-      setPoSuppliers([]);
-    }
-  }, [selectedTool]);
-
-  // Load filter options when PO tab is first selected
-  useEffect(() => {
-    if (selectedTool === 'po-expediting' && !poFilterOpts) {
-      getFilterOptions().then(setPoFilterOpts);
-    }
-  }, [selectedTool, poFilterOpts]);
+    getFilterOptions().then(setPoFilterOpts);
+  }, []);
 
   const poHasActiveFilters = !!poDateFrom || !!poDateTo || poBuyers.length > 0 || poCountries.length > 0 || poSegments.length > 0 || poSuppliers.length > 0;
 
@@ -1419,31 +1346,7 @@ export default function AdminClient({
     setPoSuppliers([]);
   }
 
-  // Dynamic document title per tab
-  useEffect(() => {
-    const titles: Record<string, string> = {
-      'po-expediting':          'Analytics — PO Expediting | Admin | SC Agents',
-      'access-approvals':       'Access Approvals | Admin | SC Agents',
-      'tite-migration':           'Migration — TI-TE | Admin | SC Agents',
-      'tite-default-notifiers':  'Default Notifiers — TI-TE | Admin | SC Agents',
-      'tite-analytics':          'Analytics — TI-TE | Admin | SC Agents',
-      'tite-access-approvals':   'TI-TE Access Approvals | Admin | SC Agents',
-      'procureguard-admin':     'ProcureGuard Admin | Admin | SC Agents',
-      'procureguard-analytics': 'ProcureGuard Analytics | Admin | SC Agents',
-      'procureguard-usage':     'ProcureGuard Usage Analytics | Admin | SC Agents',
-      'procureguard-access':    'ProcureGuard Access Approvals | Admin | SC Agents',
-      'sourceguide-guides':     'Source Guides — SourceGuide | Admin | SC Agents',
-      'sourceguide-champions':  'Champions — SourceGuide | Admin | SC Agents',
-      'sourceguide-analytics':  'Analytics — SourceGuide | Admin | SC Agents',
-      'sourceguide-access':     'SourceGuide Access Approvals | Admin | SC Agents',
-      'laptop-procurement-admin': 'Admin Panel — Laptop Procurement | Admin | SC Agents',
-      'laptop-procurement-analytics': 'Analytics — Laptop Procurement | Admin | SC Agents',
-      'laptop-procurement-access': 'Approval Access — Laptop Procurement | Admin | SC Agents',
-    };
-    document.title = titles[selectedTool] ?? 'Admin — SC Agents';
-  }, [selectedTool]);
-
-  // Stable ref for current PO filter values
+  // Stable ref for current filter values
   const poFiltersRef = useRef<TeamAnalyticsFilters>({});
   poFiltersRef.current = {
     dateFrom: poDateFrom || undefined,
@@ -1483,656 +1386,74 @@ export default function AdminClient({
     }
   }, [poHasActiveFilters, poTeamData]);
 
-  // Debounce PO filter changes
+  // Debounce filter changes
   const poFilterInitialDone = useRef(false);
   const poDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (selectedTool !== 'po-expediting') return;
     if (!poFilterInitialDone.current) { poFilterInitialDone.current = true; return; }
     if (poDebounceRef.current) clearTimeout(poDebounceRef.current);
     poDebounceRef.current = setTimeout(() => fetchAnalytics(), 500);
     return () => { if (poDebounceRef.current) clearTimeout(poDebounceRef.current); };
-  }, [poDateFrom, poDateTo, poBuyers, poCountries, poSegments, poSuppliers, selectedTool]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const navItemBase: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: 6,
-    fontSize: 14,
-    fontWeight: 500,
-    textAlign: 'left',
-  };
+  }, [poDateFrom, poDateTo, poBuyers, poCountries, poSegments, poSuppliers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900 flex flex-col">
-
-      {/* ── Slim header ── */}
-      <header className="h-14 bg-white/90 backdrop-blur-md border-b border-slate-100 sticky top-0 z-10 px-6 lg:px-8 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <Image
-            src="/nesr-logo-circle.png"
-            alt="NESR"
-            width={28}
-            height={28}
-            className="rounded-full"
-          />
-          <span className="text-sm font-semibold text-slate-900 tracking-tight">NESR</span>
-          <span className="text-slate-300 select-none">·</span>
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Admin</span>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <span className="text-xs text-slate-500 hidden sm:block truncate max-w-[220px]">
-            {userName !== userEmail ? `${userName} · ` : ''}{userEmail}
-          </span>
-          <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Sign Out
-          </button>
-        </div>
-      </header>
-
-      {/* ── Body: sidebar + main ── */}
-      <div className="flex flex-1">
-
-        {/* ── Sidebar ── */}
-        <aside
-          className="shrink-0 bg-white"
-          style={{ width: 240, borderRight: '1px solid #e5e7eb', padding: '24px 16px' }}
-        >
-          {/* TOOLS section label */}
-          <p style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>
-            Tools
+    <>
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight">PO Expediting Analytics</h2>
+          <p className="text-[12px] text-gray-400 mt-0.5">
+            Last updated: {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </p>
+        </div>
+        <button
+          onClick={fetchAnalytics}
+          disabled={isRefreshing}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium text-gray-600 bg-transparent border border-[#e5e7eb] rounded-md hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+        >
+          <svg
+            className={`w-3.5 h-3.5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {isRefreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
 
-          {/* PO Expediting group label */}
-          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
-            PO Expediting
+      {/* Filter bar */}
+      <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 mb-6">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="min-w-[160px]">
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date From</label>
+            <input type="date" value={poDateFrom} onChange={e => setPoDateFrom(e.target.value)} className="w-full text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors" />
           </div>
-
-          {/* Analytics sub-item */}
-          <button
-            onClick={() => setSelectedTool('po-expediting')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'po-expediting' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'po-expediting' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'po-expediting' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Analytics
-          </button>
-
-          {/* Access Approvals sub-item */}
-          <button
-            onClick={() => setSelectedTool('access-approvals')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'access-approvals' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'access-approvals' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'access-approvals' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            <span>Access Approvals</span>
-            {livePendingCount > 0 && (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: 18,
-                height: 18,
-                padding: '0 5px',
-                borderRadius: 9999,
-                fontSize: 10,
-                fontWeight: 700,
-                background: '#fef3c7',
-                color: '#b45309',
-                border: '1px solid #fde68a',
-              }}>
-                {livePendingCount}
-              </span>
-            )}
-          </button>
-
-          <div style={{ margin: '8px 0' }} />
-
-          {/* TI-TE group label */}
-          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
-            TI-TE
+          <div className="min-w-[160px]">
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date To</label>
+            <input type="date" value={poDateTo} onChange={e => setPoDateTo(e.target.value)} className="w-full text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors" />
           </div>
-
-          {/* TI-TE Migration — active */}
-          <button
-            onClick={() => setSelectedTool('tite-migration')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'tite-migration' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'tite-migration' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'tite-migration' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Migration
-          </button>
-
-          {/* TI-TE Default Notifiers */}
-          <button
-            onClick={() => setSelectedTool('tite-default-notifiers')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'tite-default-notifiers' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'tite-default-notifiers' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'tite-default-notifiers' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Default Notifiers
-          </button>
-
-          {/* TI-TE Analytics */}
-          <button
-            onClick={() => setSelectedTool('tite-analytics')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'tite-analytics' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'tite-analytics' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'tite-analytics' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Analytics
-          </button>
-
-          {/* TI-TE Access Approvals — active */}
-          <button
-            onClick={() => setSelectedTool('tite-access-approvals')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'tite-access-approvals' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'tite-access-approvals' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'tite-access-approvals' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            <span>Access Approvals</span>
-            {liveTitePendingCount > 0 && (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: 18,
-                height: 18,
-                padding: '0 5px',
-                borderRadius: 9999,
-                fontSize: 10,
-                fontWeight: 700,
-                background: '#fef3c7',
-                color: '#b45309',
-                border: '1px solid #fde68a',
-              }}>
-                {liveTitePendingCount}
-              </span>
-            )}
-          </button>
-
-          <div style={{ margin: '8px 0' }} />
-
-          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
-            ProcureGuard
-          </div>
-
-          <button
-            onClick={() => setSelectedTool('procureguard-admin')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'procureguard-admin' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'procureguard-admin' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'procureguard-admin' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Admin Panel
-          </button>
-
-          <button
-            onClick={() => setSelectedTool('procureguard-analytics')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'procureguard-analytics' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'procureguard-analytics' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'procureguard-analytics' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Payment Analytics
-          </button>
-
-          <button
-            onClick={() => setSelectedTool('procureguard-usage')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'procureguard-usage' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'procureguard-usage' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'procureguard-usage' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Usage Analytics
-          </button>
-
-          <button
-            onClick={() => setSelectedTool('procureguard-access')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'procureguard-access' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'procureguard-access' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'procureguard-access' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            <span>Access Approvals</span>
-            {liveProcureGuardPendingCount > 0 && (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: 18,
-                height: 18,
-                padding: '0 5px',
-                borderRadius: 9999,
-                fontSize: 10,
-                fontWeight: 700,
-                background: '#fef3c7',
-                color: '#b45309',
-                border: '1px solid #fde68a',
-              }}>
-                {liveProcureGuardPendingCount}
-              </span>
-            )}
-          </button>
-
-          <div style={{ margin: '8px 0' }} />
-
-          {/* SourceGuide group label */}
-          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
-            SourceGuide
-          </div>
-
-          <button
-            onClick={() => setSelectedTool('sourceguide-guides')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'sourceguide-guides' ? '3px solid #2A7E4F' : '3px solid transparent',
-              background: selectedTool === 'sourceguide-guides' ? '#eaf4ef' : 'transparent',
-              color: selectedTool === 'sourceguide-guides' ? '#1f5d3a' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Source Guides
-          </button>
-
-          <button
-            onClick={() => setSelectedTool('sourceguide-champions')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'sourceguide-champions' ? '3px solid #2A7E4F' : '3px solid transparent',
-              background: selectedTool === 'sourceguide-champions' ? '#eaf4ef' : 'transparent',
-              color: selectedTool === 'sourceguide-champions' ? '#1f5d3a' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Champions
-          </button>
-
-          <button
-            onClick={() => setSelectedTool('sourceguide-analytics')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'sourceguide-analytics' ? '3px solid #2A7E4F' : '3px solid transparent',
-              background: selectedTool === 'sourceguide-analytics' ? '#eaf4ef' : 'transparent',
-              color: selectedTool === 'sourceguide-analytics' ? '#1f5d3a' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Analytics
-          </button>
-
-          <button
-            onClick={() => setSelectedTool('sourceguide-access')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'sourceguide-access' ? '3px solid #2A7E4F' : '3px solid transparent',
-              background: selectedTool === 'sourceguide-access' ? '#eaf4ef' : 'transparent',
-              color: selectedTool === 'sourceguide-access' ? '#1f5d3a' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            <span>Access Approvals</span>
-            {liveSourceGuidePendingCount > 0 && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999,
-                fontSize: 10, fontWeight: 700, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a',
-              }}>
-                {liveSourceGuidePendingCount}
-              </span>
-            )}
-          </button>
-
-          <div style={{ margin: '8px 0' }} />
-
-          {/* Catalog Repo group label */}
-          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
-            Catalog Repo
-          </div>
-
-          <button
-            onClick={() => setSelectedTool('catalog-admin')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'catalog-admin' ? '3px solid #307c4c' : '3px solid transparent',
-              background: selectedTool === 'catalog-admin' ? '#eaf4ef' : 'transparent',
-              color: selectedTool === 'catalog-admin' ? '#1d4f31' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Admin Panel
-          </button>
-
-          <button
-            onClick={() => setSelectedTool('catalog-sync')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'catalog-sync' ? '3px solid #307c4c' : '3px solid transparent',
-              background: selectedTool === 'catalog-sync' ? '#eaf4ef' : 'transparent',
-              color: selectedTool === 'catalog-sync' ? '#1d4f31' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Sync Health
-          </button>
-
-          <button
-            onClick={() => setSelectedTool('catalog-access')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'catalog-access' ? '3px solid #307c4c' : '3px solid transparent',
-              background: selectedTool === 'catalog-access' ? '#eaf4ef' : 'transparent',
-              color: selectedTool === 'catalog-access' ? '#1d4f31' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            <span>Access Approvals</span>
-            {liveCatalogPendingCount > 0 && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999,
-                fontSize: 10, fontWeight: 700, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a',
-              }}>
-                {liveCatalogPendingCount}
-              </span>
-            )}
-          </button>
-
-          <div style={{ margin: '8px 0' }} />
-
-          {/* Laptop Procurement group label */}
-          <div style={{ padding: '6px 12px 2px', fontSize: 13, fontWeight: 600, color: '#374151' }}>
-            Laptop Procurement
-          </div>
-
-          <button
-            onClick={() => setSelectedTool('laptop-procurement-admin')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'laptop-procurement-admin' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'laptop-procurement-admin' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'laptop-procurement-admin' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Admin Panel
-          </button>
-
-          <button
-            onClick={() => setSelectedTool('laptop-procurement-analytics')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'laptop-procurement-analytics' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'laptop-procurement-analytics' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'laptop-procurement-analytics' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            Analytics
-          </button>
-
-          <button
-            onClick={() => setSelectedTool('laptop-procurement-access')}
-            style={{
-              ...navItemBase,
-              paddingLeft: 24,
-              borderLeft: selectedTool === 'laptop-procurement-access' ? '3px solid #059669' : '3px solid transparent',
-              background: selectedTool === 'laptop-procurement-access' ? '#f0fdf4' : 'transparent',
-              color: selectedTool === 'laptop-procurement-access' ? '#059669' : '#6b7280',
-              cursor: 'pointer',
-            }}
-          >
-            <span>Approval Access</span>
-            {liveLaptopPendingAccessCount > 0 && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999,
-                fontSize: 10, fontWeight: 700, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a',
-              }}>
-                {liveLaptopPendingAccessCount}
-              </span>
-            )}
-          </button>
-
-          <div style={{ margin: '8px 0' }} />
-
-          {/* Coming-soon tools */}
-          <div
-            style={{
-              ...navItemBase,
-              borderLeft: '3px solid transparent',
-              color: '#d1d5db',
-              cursor: 'not-allowed',
-            }}
-          >
-            <span>GRN & Invoice Reconciliation</span>
-            <span style={{ background: '#f3f4f6', color: '#9ca3af', fontSize: 10, padding: '2px 6px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
-              Soon
-            </span>
-          </div>
-
-          <div
-            style={{
-              ...navItemBase,
-              borderLeft: '3px solid transparent',
-              color: '#d1d5db',
-              cursor: 'not-allowed',
-            }}
-          >
-            <span>Supply Chain Analytics</span>
-            <span style={{ background: '#f3f4f6', color: '#9ca3af', fontSize: 10, padding: '2px 6px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
-              Soon
-            </span>
-          </div>
-        </aside>
-
-        {/* ── Main content ── */}
-        <main className="flex-1 overflow-auto" style={{ padding: 32 }}>
-          {selectedTool === 'access-approvals' && (
-            <AccessApprovalsClient onPendingCountChange={setLivePendingCount} />
-          )}
-          {selectedTool === 'tite-migration' && (
-            <TiteMigrationClient userEmail={userEmail} />
-          )}
-          {selectedTool === 'tite-default-notifiers' && (
-            <TiteDefaultNotifiersClient userEmail={userEmail} />
-          )}
-          {selectedTool === 'tite-access-approvals' && (
-            <TiteAccessApprovalsClient
-              userEmail={userEmail}
-              onPendingCountChange={setLiveTitePendingCount}
-            />
-          )}
-          {selectedTool === 'tite-analytics' && (
-            <TiteAnalyticsClient shipments={titeShipments} />
-          )}
-          {selectedTool === 'procureguard-admin' && (
-            <ProcureGuardAdminPanelClient data={procureGuardAdminData} embedded />
-          )}
-          {selectedTool === 'procureguard-analytics' && (
-            <ProcureGuardAnalyticsClient data={procureGuardAnalyticsData} embedded />
-          )}
-          {selectedTool === 'procureguard-usage' && (
-            <ProcureGuardAdminAnalyticsClient data={procureGuardAdminAnalyticsData} embedded />
-          )}
-          {selectedTool === 'procureguard-access' && (
-            <ProcureGuardAccessApprovalsClient
-              userEmail={userEmail}
-              onPendingCountChange={setLiveProcureGuardPendingCount}
-            />
-          )}
-          {selectedTool === 'sourceguide-guides' && (
-            <SourceGuideGuidesClient />
-          )}
-          {selectedTool === 'sourceguide-champions' && (
-            <SourceGuideChampionsClient />
-          )}
-          {selectedTool === 'sourceguide-analytics' && (
-            <SourceGuideAnalyticsClient />
-          )}
-          {selectedTool === 'sourceguide-access' && (
-            <SourceGuideAccessApprovalsClient
-              userEmail={userEmail}
-              onPendingCountChange={setLiveSourceGuidePendingCount}
-            />
-          )}
-          {selectedTool === 'catalog-admin' && (
-            <CatalogAdminPanelClient />
-          )}
-          {selectedTool === 'catalog-sync' && (
-            <CatalogSyncHealthClient />
-          )}
-          {selectedTool === 'catalog-access' && (
-            <CatalogAccessApprovalsClient
-              userEmail={userEmail}
-              onPendingCountChange={setLiveCatalogPendingCount}
-            />
-          )}
-          {selectedTool === 'laptop-procurement-admin' && (
-            <LaptopAdminClient data={laptopAdminData} embedded />
-          )}
-          {selectedTool === 'laptop-procurement-analytics' && (
-            <LaptopAnalyticsClient data={laptopAnalyticsData} embedded />
-          )}
-          {selectedTool === 'laptop-procurement-access' && (
-            <div className="space-y-8">
-              <LaptopAccessApprovalsClient
-                userEmail={userEmail}
-                onPendingCountChange={setLiveLaptopPendingAccessCount}
-              />
-              <div className="border-t border-slate-200 pt-8">
-                <LaptopApproverMatrixClient />
-              </div>
-            </div>
-          )}
-          {selectedTool === 'po-expediting' && (
+          {poFilterOpts && (
             <>
-              <div className="flex items-start justify-between gap-4 mb-6">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900 tracking-tight">PO Expediting Analytics</h2>
-                  <p className="text-[12px] text-gray-400 mt-0.5">
-                    Last updated: {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </p>
-                </div>
-                <button
-                  onClick={fetchAnalytics}
-                  disabled={isRefreshing}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium text-gray-600 bg-transparent border border-[#e5e7eb] rounded-md hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
-                >
-                  <svg
-                    className={`w-3.5 h-3.5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`}
-                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  {isRefreshing ? 'Refreshing…' : 'Refresh'}
-                </button>
-              </div>
-
-              {/* Filter bar */}
-              <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 mb-6">
-                <div className="flex flex-wrap gap-3 items-end">
-                  <div className="min-w-[160px]">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date From</label>
-                    <input type="date" value={poDateFrom} onChange={e => setPoDateFrom(e.target.value)} className="w-full text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors" />
-                  </div>
-                  <div className="min-w-[160px]">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date To</label>
-                    <input type="date" value={poDateTo} onChange={e => setPoDateTo(e.target.value)} className="w-full text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors" />
-                  </div>
-                  {poFilterOpts && (
-                    <>
-                      <AdminMultiSelect label="Expeditor" options={poFilterOpts.buyers} selected={poBuyers} onChange={setPoBuyers} searchable />
-                      <AdminMultiSelect label="Country" options={poFilterOpts.countries.map(c => ({ value: c, label: c }))} selected={poCountries} onChange={setPoCountries} />
-                      <AdminMultiSelect label="P Group" options={poFilterOpts.segments.map(s => ({ value: s, label: s }))} selected={poSegments} onChange={setPoSegments} searchable />
-                      <AdminMultiSelect label="Supplier" options={poFilterOpts.suppliers.map(s => ({ value: s, label: s }))} selected={poSuppliers} onChange={setPoSuppliers} searchable />
-                    </>
-                  )}
-                  {poHasActiveFilters && (
-                    <button onClick={clearPoFilters} className="text-xs font-medium text-slate-500 hover:text-red-600 transition-colors pb-2">
-                      Clear All
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className={`transition-opacity ${isRefreshing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-                <AnalyticsSection
-                  analytics={liveAnalytics}
-                  onBuyerClick={setBuyerModal}
-                  onSupplierClick={setSupplierModalName}
-                  onSessionClick={setSessionModal}
-                />
-              </div>
+              <AdminMultiSelect label="Expeditor" options={poFilterOpts.buyers} selected={poBuyers} onChange={setPoBuyers} searchable />
+              <AdminMultiSelect label="Country" options={poFilterOpts.countries.map(c => ({ value: c, label: c }))} selected={poCountries} onChange={setPoCountries} />
+              <AdminMultiSelect label="P Group" options={poFilterOpts.segments.map(s => ({ value: s, label: s }))} selected={poSegments} onChange={setPoSegments} searchable />
+              <AdminMultiSelect label="Supplier" options={poFilterOpts.suppliers.map(s => ({ value: s, label: s }))} selected={poSuppliers} onChange={setPoSuppliers} searchable />
             </>
           )}
-        </main>
+          {poHasActiveFilters && (
+            <button onClick={clearPoFilters} className="text-xs font-medium text-slate-500 hover:text-red-600 transition-colors pb-2">
+              Clear All
+            </button>
+          )}
+        </div>
+      </div>
 
+      <div className={`transition-opacity ${isRefreshing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+        <AnalyticsSection
+          analytics={liveAnalytics}
+          onBuyerClick={setBuyerModal}
+          onSupplierClick={setSupplierModalName}
+          onSessionClick={setSessionModal}
+        />
       </div>
 
       {/* ── Modals ── */}
@@ -2155,6 +1476,6 @@ export default function AdminClient({
           onClose={() => setSessionModal(null)}
         />
       )}
-    </div>
+    </>
   );
 }

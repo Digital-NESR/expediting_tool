@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
-import { LayoutGrid, Boxes, Building2, ListChecks, ShieldCheck } from 'lucide-react';
+import { LayoutGrid, Boxes, Building2, ListChecks } from 'lucide-react';
 
 const NAV = [
   { href: '/learning-hub', label: 'Dashboard', icon: LayoutGrid },
@@ -11,7 +11,6 @@ const NAV = [
   { href: '/learning-hub/sap', label: 'SAP', icon: LayoutGrid },
   { href: '/learning-hub/nesr_supply_chain', label: 'NESR Supply Chain', icon: Building2 },
   { href: '/learning-hub/my-work', label: 'My Work', icon: ListChecks },
-  { href: '/learning-hub/admin', label: 'Admin', icon: ShieldCheck },
 ];
 
 export default function LearningHubSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {

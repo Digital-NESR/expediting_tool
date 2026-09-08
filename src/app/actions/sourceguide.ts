@@ -1448,6 +1448,12 @@ export async function submitSourceGuideAccessRequest(input: {
 }): Promise<{ success: boolean; error?: string }> {
   if (!input.userEmail) return { success: false, error: 'Not signed in.' };
   try {
+    // Never demote an already-approved user (e.g. a mis-click before the session finished loading).
+    const adminList = (`${process.env.ADMIN_EMAILS ?? ''},${process.env.SOURCEGUIDE_ADMIN_EMAILS ?? ''}`).split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    if (adminList.includes(input.userEmail.trim().toLowerCase())) return { success: true };
+    const existing = await sourceGuidePool.query<{ status: string }>(`SELECT status FROM access_requests WHERE user_email = $1`, [input.userEmail]);
+    if (existing.rows[0]?.status === 'Approved') return { success: true };
+
     await sourceGuidePool.query(
       `INSERT INTO access_requests (user_email, display_name, job_title, department, status, requested_countries, requested_at)
        VALUES ($1, $2, $3, $4, 'Pending', '{}', NOW())

@@ -3,14 +3,14 @@
 import { useState, useMemo, useTransition, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
 import { submitSourceGuideAccessRequest } from '@/app/actions/sourceguide';
-import { Laptop, Gavel, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3, GraduationCap } from 'lucide-react';
+import { submitLearningHubAccessRequest } from '@/app/actions/learning-hub';
+import { Laptop, Gavel, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3, GraduationCap, Receipt, ShieldCheck } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
-type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | null;
+type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | 'lh-request' | 'lh-pending' | null;
 
 /* ─── TI-TE static country list ─────────────────────────────── */
 
@@ -496,6 +496,35 @@ function AccessBadge({ status, isAdmin }: { status: ToolStatus; isAdmin: boolean
   return null;
 }
 
+/* ─── Tool-card logo ─────────────────────────────────────────────
+   The card body opens the tool in a NEW tab; clicking the logo tile
+   opens it in the SAME tab. stopPropagation keeps the logo click from
+   also triggering the card's new-tab handler. */
+function ToolCardLogo({
+  onSameTab,
+  className,
+  style,
+  children,
+}: {
+  onSameTab: () => void;
+  className: string;
+  style?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={className}
+      style={style}
+      role="button"
+      tabIndex={-1}
+      title="Open in this tab"
+      onClick={e => { e.stopPropagation(); onSameTab(); }}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* ─── PO Expediting Card ─────────────────────────────────────── */
 
 function POExpeditingCard({
@@ -505,21 +534,21 @@ function POExpeditingCard({
 }: {
   status: ToolStatus;
   isAdmin: boolean;
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
 }) {
   const canOpen = isAdmin || status === 'approved';
   const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
 
   return (
     <button
-      onClick={onClick}
+      onClick={() => onClick(true)}
       className="relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 transition-all duration-200 text-left w-full cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10 group"
     >
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
+      <ToolCardLogo onSameTab={() => onClick(false)} className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
         <svg className="w-6 h-6 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11" />
         </svg>
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-slate-900">PO Expediting</h3>
@@ -557,7 +586,7 @@ function TITECard({
 }: {
   status: ToolStatus;
   isAdmin: boolean;
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
 }) {
   const canOpen = isAdmin || status === 'approved';
   const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
@@ -565,7 +594,7 @@ function TITECard({
 
   return (
     <button
-      onClick={onClick}
+      onClick={() => onClick(true)}
       className="relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 transition-all duration-200 text-left w-full cursor-pointer hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10 group"
     >
       {/* Help icon — top right, stops card click propagation */}
@@ -578,11 +607,11 @@ function TITECard({
         <HelpCircle className="w-4 h-4" />
       </a>
 
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: '#006B0C18' }}>
+      <ToolCardLogo onSameTab={() => onClick(false)} className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: '#006B0C18' }}>
         <svg className="w-6 h-6" style={{ color: TITE_GREEN }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-slate-900">TI-TE</h3>
@@ -677,18 +706,18 @@ function SourceGuideCard({
 }: {
   status: ToolStatus;
   isAdmin: boolean;
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
 }) {
   const canOpen = isAdmin || status === 'approved';
   const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
   return (
     <button
-      onClick={onClick}
+      onClick={() => onClick(true)}
       className="group relative flex w-full cursor-pointer flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10"
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#2A7E4F18' }}>
+      <ToolCardLogo onSameTab={() => onClick(false)} className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#2A7E4F18' }}>
         <Building2 className="h-6 w-6" style={{ color: '#2A7E4F' }} />
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-slate-900">SourceGuide</h3>
@@ -712,6 +741,49 @@ function SourceGuideCard({
   );
 }
 
+/* ─── Learning Hub modal + card ──────────────────────────────── */
+
+function LearningHubAccessRequestModal({
+  userEmail, displayName, jobTitle, department, onClose, onSubmitted,
+}: {
+  userEmail: string; displayName: string; jobTitle?: string; department?: string;
+  onClose: () => void; onSubmitted: () => Promise<void>;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  function handleSubmit() {
+    setError(null);
+    startTransition(async () => {
+      const res = await submitLearningHubAccessRequest({ userEmail, displayName, jobTitle: jobTitle ?? null, department: department ?? null });
+      if (res.success) await onSubmitted();
+      else setError(res.error ?? 'Something went wrong.');
+    });
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#307c4c18' }}>
+          <GraduationCap className="h-6 w-6" style={{ color: '#307c4c' }} />
+        </div>
+        <h2 className="mt-4 text-base font-bold text-slate-900">Request Access - Learning Hub</h2>
+        <p className="mt-1 text-sm leading-relaxed text-slate-500">
+          The Learning Hub has self-paced training across SAP, Supply Chain, and NESR-specific tracks. An admin will review your request and grant access.
+        </p>
+        {error && <p className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        <div className="mt-5 flex items-center gap-2">
+          <button onClick={handleSubmit} disabled={isPending}
+            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:opacity-60"
+            style={{ background: '#307c4c' }}>
+            {isPending ? 'Submitting…' : 'Request Access'}
+          </button>
+          <button onClick={onClose} disabled={isPending} className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Catalog Repo Card (Admin Preview) ───────────────────── */
 
 function CatalogManagerCard({
@@ -719,12 +791,12 @@ function CatalogManagerCard({
   onClick,
 }: {
   canOpen: boolean;
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => onClick(true)}
       disabled={!canOpen}
       className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
         canOpen
@@ -732,11 +804,11 @@ function CatalogManagerCard({
           : 'opacity-50 cursor-default select-none'
       }`}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+      <ToolCardLogo onSameTab={() => onClick(false)} className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
         <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-gray-500">Catalog Repo</h3>
@@ -785,12 +857,12 @@ function ProcureGuardCard({
 }: {
   canOpen: boolean;
   accessType: 'requester' | 'approver' | 'viewer' | 'admin';
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => onClick(true)}
       disabled={!canOpen}
       className={`group relative rounded-xl border border-gray-200 bg-white p-8 flex flex-col gap-4 text-left w-full transition-all duration-200 ${
         canOpen
@@ -807,11 +879,11 @@ function ProcureGuardCard({
         <HelpCircle className="w-4 h-4" />
       </a>
 
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
+      <ToolCardLogo onSameTab={() => onClick(false)} className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
         <svg className="w-6 h-6 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
         </svg>
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-slate-900">ProcureGuard</h3>
@@ -833,11 +905,11 @@ function ProcureGuardCard({
   );
 }
 
-function LaptopProcurementCard({ onClick }: { onClick: () => void }) {
+function LaptopProcurementCard({ onClick }: { onClick: (newTab: boolean) => void }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => onClick(true)}
       className="group relative rounded-xl border border-gray-200 bg-white p-8 flex flex-col gap-4 text-left w-full cursor-pointer transition-all duration-200 hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
     >
       <a
@@ -849,9 +921,9 @@ function LaptopProcurementCard({ onClick }: { onClick: () => void }) {
         <HelpCircle className="w-4 h-4" />
       </a>
 
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
+      <ToolCardLogo onSameTab={() => onClick(false)} className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
         <Laptop className="w-6 h-6 text-[#307c4c]" />
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-slate-900">Laptop Procurement</h3>
@@ -897,7 +969,7 @@ function AdminPreviewCard({
   description: string;
   icon: React.ReactNode;
   canOpen: boolean;
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
   /** Override the default "Admin Preview"/"Coming Soon" badge copy. */
   badgeLabel?: string;
   /** Override the default "Open preview →" link copy. */
@@ -908,7 +980,7 @@ function AdminPreviewCard({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => onClick(true)}
       disabled={!canOpen}
       className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
         canOpen
@@ -927,9 +999,9 @@ function AdminPreviewCard({
         </a>
       )}
 
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+      <ToolCardLogo onSameTab={() => onClick(false)} className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
         {icon}
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-gray-500">{name}</h3>
@@ -976,11 +1048,69 @@ function ComingSoonCard({
   );
 }
 
+/* ─── Learning Hub Card (access-gated, kept grey) ───
+   Mirrors the SourceGuide access-request card and its Request Access
+   flow is live, but it is deliberately rendered in a grey palette (no
+   brand colour) rather than the live green card. Admins keep preview
+   access; everyone else can request access and see their status. */
+function LearningHubCard({
+  status,
+  isAdmin,
+  onClick,
+}: {
+  status: ToolStatus;
+  isAdmin: boolean;
+  onClick: (newTab: boolean) => void;
+}) {
+  const canOpen = isAdmin || status === 'approved';
+  const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
+
+  const badge =
+    isAdmin              ? 'Admin Preview'   :
+    status === 'approved'? 'Access Granted'  :
+    status === 'pending' ? 'Pending Approval':
+    isDenied             ? 'Access Denied'   : 'Access Required';
+
+  const cta =
+    isAdmin              ? 'Open preview →' :
+    canOpen              ? 'Open →'         :
+    status === 'pending' ? 'View status →'  :
+    isDenied             ? 'Reapply →'      : 'Request Access →';
+
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(true)}
+      className="group relative flex w-full cursor-pointer flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left opacity-75 transition-all duration-200 hover:border-gray-300 hover:shadow-md hover:shadow-gray-200/60"
+    >
+      <ToolCardLogo onSameTab={() => onClick(false)} className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+        <GraduationCap className="h-6 w-6 text-gray-400" />
+      </ToolCardLogo>
+
+      <div className="flex-1">
+        <h3 className="text-[18px] font-semibold text-gray-500">Learning Hub</h3>
+        <p className="mt-0.5 text-[13px] font-medium text-slate-400">SAP, Supply Chain &amp; NESR Training</p>
+        <p className="mt-2 text-sm leading-relaxed text-gray-500">
+          Self-paced courses across three tracks: SAP, general Supply Chain fundamentals, and NESR-specific supply chain practice.
+        </p>
+      </div>
+
+      <div className="mt-auto flex items-center justify-between">
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
+          {badge}
+        </span>
+        <span className="text-sm font-semibold text-gray-500 group-hover:underline">
+          {cta}
+        </span>
+      </div>
+    </button>
+  );
+}
+
 /* ─── Page ───────────────────────────────────────────────────── */
 
 export default function HomePage() {
-  const { data: session, update } = useSession();
-  const router = useRouter();
+  const { data: session, status: sessionStatus, update } = useSession();
 
   const [modal, setModal] = useState<ModalType>(null);
   const [appSearch, setAppSearch] = useState('');
@@ -996,55 +1126,78 @@ export default function HomePage() {
   const isAdmin = session?.user?.isAdmin ?? false;
   const poStatus: ToolStatus   = session?.user?.toolAccess?.po_expediting?.status ?? 'new';
   const titeStatus: ToolStatus = session?.user?.toolAccess?.tite?.status          ?? 'new';
-  const procureGuardStatus: ToolStatus = session?.user?.toolAccess?.procure_guard?.status ?? 'new';
   const procureGuardAccessType = session?.user?.toolAccess?.procure_guard?.accessType ?? 'requester';
-  const canOpenProcureGuard = isAdmin || procureGuardStatus === 'approved';
+  // ProcureGuard is open-access: any signed-in NESR user can open it (the layout enforces sign-in only).
+  const canOpenProcureGuard = true;
   const sourceGuideStatus: ToolStatus = session?.user?.toolAccess?.sourceguide?.status ?? 'new';
+  const learningHubStatus: ToolStatus = session?.user?.toolAccess?.learning_hub?.status ?? 'new';
   const canOpenCatalogManager = isAdmin;
+  const snsStatus: ToolStatus = session?.user?.toolAccess?.sns_registry?.status ?? 'new';
 
-  function handlePOClick() {
+  function openTool(url: string, newTab = true) {
+    // Clicking a card opens the tool in a new browser tab; clicking the
+    // tool's logo (newTab=false) opens it in the current tab instead.
+    if (newTab) window.open(url, '_blank', 'noopener,noreferrer');
+    else window.location.href = url;
+  }
+
+  function handlePOClick(newTab = true) {
     if (isAdmin || poStatus === 'approved') {
-      router.push('/po-expediting');
+      openTool('/po-expediting', newTab);
       return;
     }
     if (poStatus === 'pending') { setModal('po-pending'); return; }
     setModal('po-request');
   }
 
-  function handleTiteClick() {
+  function handleTiteClick(newTab = true) {
     if (isAdmin || titeStatus === 'approved') {
-      router.push('/ti-te');
+      openTool('/ti-te', newTab);
       return;
     }
     if (titeStatus === 'pending') { setModal('tite-pending'); return; }
     setModal('tite-request');
   }
 
-  function handleProcureGuardClick() {
-    if (canOpenProcureGuard) {
-      router.push('/procure-guard');
-    }
+  function handleProcureGuardClick(newTab = true) {
+    // Open-access: no gate, just open. The layout enforces sign-in.
+    openTool('/procure-guard', newTab);
   }
 
-  function handleSourceGuideClick() {
-    if (isAdmin || sourceGuideStatus === 'approved') { router.push('/sourceguide'); return; }
+  function handleSourceGuideClick(newTab = true) {
+    if (isAdmin || sourceGuideStatus === 'approved') { openTool('/sourceguide', newTab); return; }
     if (sourceGuideStatus === 'pending') { setModal('sg-pending'); return; }
     setModal('sg-request');
   }
 
-  function handleCatalogManagerClick() {
-    if (canOpenCatalogManager) router.push('/catalog-manager');
+  function handleCatalogManagerClick(newTab = true) {
+    if (canOpenCatalogManager) openTool('/catalog-manager', newTab);
   }
 
-  function handleLaptopClick() {
+  function handleSnsClick(newTab = true) {
+    // Admin-preview card: only opens for admins (or an approved user, if re-enabled).
+    if (isAdmin || snsStatus === 'approved') openTool('/sns-registry', newTab);
+  }
+
+  function handleLaptopClick(newTab = true) {
     // Real access (admin, granted permission, or delegation) is enforced
     // server-side in the laptop-procurement layout; unauthorized users are
     // bounced straight back here.
-    router.push('/laptop-procurement');
+    openTool('/laptop-procurement', newTab);
   }
 
-  function handleLearningHubClick() {
-    if (isAdmin) router.push('/learning-hub');
+  function handleLearningHubClick(newTab = true) {
+    if (isAdmin || learningHubStatus === 'approved') { openTool('/learning-hub', newTab); return; }
+    if (learningHubStatus === 'pending') { setModal('lh-pending'); return; }
+    setModal('lh-request');
+  }
+
+  function handleSoaConsolidationClick(newTab = true) {
+    if (isAdmin) openTool('/soa-consolidation', newTab);
+  }
+
+  function handleSupplyChainAnalyticsClick(newTab = true) {
+    if (isAdmin) openTool('/supply-chain-analytics', newTab);
   }
 
   async function handleRefreshStatus() {
@@ -1161,147 +1314,206 @@ export default function HomePage() {
           <div className="flex gap-6 items-stretch">
 
             {/* ── Tool cards ── */}
-            <div className="flex-1 grid grid-cols-3 gap-6 content-start">
+            <div className="relative flex-1 flex flex-col gap-6">
 
-              {/* ── Available ── */}
-
-              {show('catalog manager supplier service indirect item rates price catalog spend') && (
-                <CatalogManagerCard
-                  canOpen={canOpenCatalogManager}
-                  onClick={handleCatalogManagerClick}
-                />
-              )}
-
-              {show('po expediting purchase orders monitor expedite supplier delivery') && (
-                <POExpeditingCard
-                  status={poStatus}
-                  isAdmin={isAdmin}
-                  onClick={handlePOClick}
-                />
-              )}
-
-              {show('procureguard payment request approvals procurement') && (
-                <ProcureGuardCard
-                  canOpen={canOpenProcureGuard}
-                  accessType={procureGuardAccessType}
-                  onClick={handleProcureGuardClick}
-                />
-              )}
-
-              {show('rfx officer rfx rfq rfp bidding tendering quotation award negotiation') && (
-                isAdmin ? (
-                  <a
-                    href="https://rfxofficer.nesr.com"
-                    className="group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
-                  >
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]">
-                      <Gavel className="w-6 h-6 text-[#307c4c]" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-[18px] font-semibold text-gray-900">RFx Officer</h3>
-                      <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                        AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
-                      </p>
-                    </div>
-                    <div className="mt-auto flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        Portal Access
-                      </span>
-                      <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">Open preview →</span>
-                    </div>
-                  </a>
-                ) : (
-                  <div className="group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left opacity-75 cursor-default select-none">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
-                      <Gavel className="w-6 h-6 text-gray-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-[18px] font-semibold text-gray-500">RFx Officer</h3>
-                      <p className="mt-2 text-sm leading-relaxed text-gray-400">
-                        AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
-                      </p>
-                    </div>
-                    <div className="mt-auto flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        Portal Access
-                      </span>
-                    </div>
+              {/* While the session (and per-tool access) is still loading, cover the cards so nobody
+                  mis-clicks "Request Access" before their real access has resolved. */}
+              {sessionStatus === 'loading' && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
+                  <div className="flex items-center gap-2.5 text-sm font-medium text-slate-500">
+                    <svg className="h-5 w-5 animate-spin text-[#307c4c]" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Checking your access...
                   </div>
-                )
+                </div>
               )}
 
-              {show('sourceguide sourcing intelligence suppliers commodity') && (
-                <SourceGuideCard
-                  status={sourceGuideStatus}
-                  isAdmin={isAdmin}
-                  onClick={handleSourceGuideClick}
-                />
-              )}
+              {/* ── Available (launched) — alphabetical ── */}
+              <div className="grid grid-cols-3 gap-6 content-start">
 
-              {show('ti-te tite temporary import export customs shipments') && (
-                <TITECard
-                  status={titeStatus}
-                  isAdmin={isAdmin}
-                  onClick={handleTiteClick}
-                />
-              )}
+                {show('laptop procurement asset request device approvals') && (
+                  <LaptopProcurementCard onClick={handleLaptopClick} />
+                )}
 
-              {/* ── Preview / Coming Soon ── */}
+                {show('po expediting purchase orders monitor expedite supplier delivery') && (
+                  <POExpeditingCard
+                    status={poStatus}
+                    isAdmin={isAdmin}
+                    onClick={handlePOClick}
+                  />
+                )}
 
-              {show('laptop procurement asset request device approvals') && (
-                <LaptopProcurementCard onClick={handleLaptopClick} />
-              )}
+                {show('procureguard payment request approvals procurement') && (
+                  <ProcureGuardCard
+                    canOpen={canOpenProcureGuard}
+                    accessType={procureGuardAccessType}
+                    onClick={handleProcureGuardClick}
+                  />
+                )}
 
-              {show('learning hub training courses sap supply chain academy lms') && (
-                <AdminPreviewCard
-                  name="Learning Hub"
-                  subtitle="SAP, Supply Chain & NESR Training"
-                  description="Self-paced courses across three tracks: SAP, general Supply Chain fundamentals, and NESR-specific supply chain practice."
-                  icon={<GraduationCap className="w-6 h-6 text-gray-400" />}
-                  canOpen={isAdmin}
-                  onClick={handleLearningHubClick}
-                />
-              )}
+                {show('rfx officer rfx rfq rfp bidding tendering quotation award negotiation') && (
+                  <div className="relative">
+                    {/* Help icon — sibling of the card (not nested) so anchors don't nest */}
+                    <a
+                      href="/help/rfx-officer"
+                      title="View Help & Training"
+                      className="absolute top-3 right-3 z-20 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </a>
 
-              {show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management') && (
-                <button
-                  type="button"
-                  onClick={() => { if (isAdmin) router.push('/supply-chain-analytics'); }}
-                  disabled={!isAdmin}
-                  className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
-                    isAdmin
-                      ? 'opacity-75 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10'
-                      : 'opacity-50 cursor-default select-none'
-                  }`}
-                >
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
-                    <BarChart3 className="w-6 h-6 text-gray-400" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-[18px] font-semibold text-gray-500">Supply Chain Analytics</h3>
-                    <p className="mt-0.5 text-[13px] font-medium text-slate-400">Power BI Dashboards</p>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                      Repository of all Supply Chain Power BI dashboards covering sourcing, procurement, logistics, inventory, and materials management.
-                    </p>
-                  </div>
-                  <div className="mt-auto flex items-center justify-between">
-                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
-                      {isAdmin ? 'Admin Preview' : 'Coming Soon'}
-                    </span>
-                    {isAdmin && (
-                      <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open preview →</span>
+                    {isAdmin ? (
+                      <a
+                        href="https://rfxofficer.nesr.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group relative flex h-full w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
+                      >
+                        <div
+                          className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]"
+                          role="button"
+                          tabIndex={-1}
+                          title="Open in this tab"
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); window.location.href = 'https://rfxofficer.nesr.com'; }}
+                        >
+                          <Gavel className="w-6 h-6 text-[#307c4c]" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-[18px] font-semibold text-gray-900">RFx Officer</h3>
+                          <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                            AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
+                          </p>
+                        </div>
+                        <div className="mt-auto flex items-center justify-between">
+                          <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                            Portal Access
+                          </span>
+                          <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">Open preview →</span>
+                        </div>
+                      </a>
+                    ) : (
+                      <div className="group relative flex h-full w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left opacity-75 cursor-default select-none">
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
+                          <Gavel className="w-6 h-6 text-gray-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-[18px] font-semibold text-gray-500">RFx Officer</h3>
+                          <p className="mt-2 text-sm leading-relaxed text-gray-400">
+                            AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.
+                          </p>
+                        </div>
+                        <div className="mt-auto flex items-center justify-between">
+                          <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                            Portal Access
+                          </span>
+                        </div>
+                      </div>
                     )}
                   </div>
-                </button>
-              )}
-              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('rfx officer') && !show('supply chain analytics') && !show('catalog') && !show('learning hub') && (
-                <div className="col-span-3 py-12 text-center">
+                )}
+
+                {show('sourceguide sourcing intelligence suppliers commodity') && (
+                  <SourceGuideCard
+                    status={sourceGuideStatus}
+                    isAdmin={isAdmin}
+                    onClick={handleSourceGuideClick}
+                  />
+                )}
+
+                {show('ti-te tite temporary import export customs shipments') && (
+                  <TITECard
+                    status={titeStatus}
+                    isAdmin={isAdmin}
+                    onClick={handleTiteClick}
+                  />
+                )}
+
+              </div>
+
+              {/* ── Coming Soon / under development — alphabetical ── */}
+              <div className="grid grid-cols-3 gap-6 content-start">
+
+                {show('catalog manager supplier service indirect item rates price catalog spend') && (
+                  <CatalogManagerCard
+                    canOpen={canOpenCatalogManager}
+                    onClick={handleCatalogManagerClick}
+                  />
+                )}
+
+                {show('learning hub training courses sap supply chain academy lms') && (
+                  <LearningHubCard
+                    status={learningHubStatus}
+                    isAdmin={isAdmin}
+                    onClick={handleLearningHubClick}
+                  />
+                )}
+
+                {show('s&s sns registry single sole source compliance single-quotation exception waiver') && (
+                  <AdminPreviewCard
+                    name={"S&S Registry"}
+                    subtitle={"Single & Sole Source Compliance"}
+                    description="System of record for single-quotation compliance: register single and sole source cases, route them through two-level validation, and keep an audit trail against the 12-month expiry."
+                    icon={<ShieldCheck className="w-6 h-6 text-gray-400" />}
+                    canOpen={isAdmin}
+                    onClick={handleSnsClick}
+                  />
+                )}
+
+                {show('soa consolidation statement of account reconciliation vendor balance confirmation finance champion corporate rollup') && (
+                  <AdminPreviewCard
+                    name="SOA Consolidation"
+                    subtitle="Vendor Statement Reconciliation"
+                    description="Coordinate country finance champions through vendor outreach, SOA collection, and consolidated handoff to corporate finance for quarterly account reconciliation."
+                    icon={<Receipt className="w-6 h-6 text-gray-400" />}
+                    canOpen={isAdmin}
+                    onClick={handleSoaConsolidationClick}
+                  />
+                )}
+
+                {show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management') && (
+                  <button
+                    type="button"
+                    onClick={() => handleSupplyChainAnalyticsClick(true)}
+                    disabled={!isAdmin}
+                    className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
+                      isAdmin
+                        ? 'opacity-75 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10'
+                        : 'opacity-50 cursor-default select-none'
+                    }`}
+                  >
+                    <ToolCardLogo onSameTab={() => handleSupplyChainAnalyticsClick(false)} className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
+                      <BarChart3 className="w-6 h-6 text-gray-400" />
+                    </ToolCardLogo>
+                    <div className="flex-1">
+                      <h3 className="text-[18px] font-semibold text-gray-500">Supply Chain Analytics</h3>
+                      <p className="mt-0.5 text-[13px] font-medium text-slate-400">Power BI Dashboards</p>
+                      <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                        Repository of all Supply Chain Power BI dashboards covering sourcing, procurement, logistics, inventory, and materials management.
+                      </p>
+                    </div>
+                    <div className="mt-auto flex items-center justify-between">
+                      <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
+                        {isAdmin ? 'Admin Preview' : 'Coming Soon'}
+                      </span>
+                      {isAdmin && (
+                        <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open preview →</span>
+                      )}
+                    </div>
+                  </button>
+                )}
+
+              </div>
+
+              {q && !show('po expediting') && !show('ti-te tite') && !show('procureguard') && !show('sourceguide') && !show('laptop') && !show('rfx officer') && !show('supply chain analytics') && !show('catalog') && !show('learning hub') && !show('soa') && !show('s&s sns registry single sole source') && (
+                <div className="py-12 text-center">
                   <p className="text-sm text-slate-400">No applications match &ldquo;{appSearch}&rdquo;</p>
                 </div>
               )}
@@ -1320,12 +1532,20 @@ export default function HomePage() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-900 leading-tight">SCAI</h2>
+                  <div
+                    role="button"
+                    tabIndex={-1}
+                    title="Open in this tab"
+                    onClick={() => { window.location.href = 'https://scai.nesr.com'; }}
+                    className="group cursor-pointer"
+                  >
+                    <h2 className="text-2xl font-bold text-slate-900 leading-tight group-hover:underline">SCAI</h2>
                     <p className="text-sm text-slate-500 mt-0.5">Supply Chain AI</p>
                   </div>
                   <a
                     href="https://scai.nesr.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="bg-[#307c4c] hover:bg-[#276041] text-white text-xs font-semibold px-4 py-2 rounded-xl text-center transition-colors whitespace-nowrap"
                   >
                     Launch SCAI
@@ -1461,6 +1681,22 @@ export default function HomePage() {
         />
       )}
       {modal === 'sg-pending' && (
+        <PendingModal
+          onClose={() => setModal(null)}
+          onRefresh={handleRefreshStatus}
+        />
+      )}
+      {modal === 'lh-request' && (
+        <LearningHubAccessRequestModal
+          userEmail={userEmail}
+          displayName={displayName}
+          jobTitle={jobTitle}
+          department={department}
+          onClose={() => setModal(null)}
+          onSubmitted={handleAccessSubmitted}
+        />
+      )}
+      {modal === 'lh-pending' && (
         <PendingModal
           onClose={() => setModal(null)}
           onRefresh={handleRefreshStatus}

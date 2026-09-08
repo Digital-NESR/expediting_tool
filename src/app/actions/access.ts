@@ -95,6 +95,18 @@ export async function submitAccessRequest(
     return { success: false, error: 'Please select at least one country.' };
   }
   try {
+    // Never overwrite existing access: a stray "request access" (e.g. a mis-click before the
+    // session finished loading and the card still showed "Request Access") must not demote an
+    // already-approved user back to Pending. Admins and approved users are no-ops.
+    const normalizedEmail = userEmail.trim().toLowerCase();
+    const adminList = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    if (adminList.includes(normalizedEmail)) return { success: true };
+    const existing = await pool.query<{ status: string }>(
+      `SELECT status FROM access_requests WHERE user_email = $1`,
+      [userEmail],
+    );
+    if (existing.rows[0]?.status === 'Approved') return { success: true };
+
     const session = await getServerSession(authOptions);
     const jobTitle   = session?.user?.jobTitle   ?? null;
     const department = session?.user?.department ?? null;

@@ -1,4013 +1,2299 @@
-// NESR spend taxonomy — ported from the Catalog Repo design (real NESR taxonomy).
+// NESR spend taxonomy — sourced from the authoritative NESR/SourceGuide taxonomy workbook
+// (SourceGuide-Taxonomy.xlsx, "Taxonomy" tab: Spend Type / Category / Sub-Category / Family / Commodity).
 // Drives the cascading Category → Sub-category → Commodity selects on the entry form,
 // and seeds the spend_category / spend_subcategory master-data tables.
-// spend_type classifies each category as Materials & Assets, Consumables, or Services.
+// spend_type classifies each category as Direct or Indirect spend.
 
-export type SpendTypeName = "Materials & Assets" | "Consumables" | "Services";
+export type SpendTypeName = "Direct" | "Indirect";
 export interface TaxCommodity { n: string; f: string; code: string; desc: string; kw: string[] }
 export interface TaxSubcategory { name: string; commodities: TaxCommodity[] }
 export interface TaxCategory { type: SpendTypeName; name: string; subs: TaxSubcategory[] }
 
-export const SPEND_TYPES = ["Materials & Assets", "Consumables", "Services"] as const;
+export const SPEND_TYPES = ["Direct", "Indirect"] as const;
 
 export const SPEND_TAXONOMY: TaxCategory[] = [
   {
-    "type": "Services",
-    "name": "Professional Services",
+    "type": "Direct",
+    "name": "Cement",
     "subs": [
       {
-        "name": "Insurance",
+        "name": "Commodities Chemicals",
         "commodities": [
           {
-            "n": "Building & Contents Insurance",
-            "f": "Property Insurance",
-            "code": "84131501",
-            "desc": "Insurance for structures and property contents",
-            "kw": [
-              "asset protection",
-              "building contents insurance",
-              "building insurance",
-              "contents insurance",
-              "coverage"
-            ]
+            "n": "Class G Cement",
+            "f": "Cement",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Equipment & Machinery Insurance",
-            "f": "Property Insurance",
-            "code": "84131512",
-            "desc": "Coverage for industrial equipment and machinery",
-            "kw": [
-              "asset cover",
-              "coverage",
-              "equipment insurance",
-              "insurance",
-              "machinery breakdown"
-            ]
-          },
-          {
-            "n": "Business Interruption Insurance",
-            "f": "Property Insurance",
-            "code": "84131507",
-            "desc": "Coverage for lost income during disruptions",
-            "kw": [
-              "BI insurance",
-              "coverage",
-              "insurance",
-              "loss of income",
-              "revenue protection"
-            ]
-          },
-          {
-            "n": "General Liability Insurance",
-            "f": "Liability Insurance",
-            "code": "84131601",
-            "desc": "Public and general liability coverage",
-            "kw": [
-              "coverage",
-              "insurance",
-              "public liability",
-              "risk management",
-              "third party liability"
-            ]
-          },
-          {
-            "n": "Professional Indemnity Insurance",
-            "f": "Liability Insurance",
-            "code": "84131601",
-            "desc": "Professional liability and errors coverage",
-            "kw": [
-              "E&O insurance",
-              "PI insurance",
-              "coverage",
-              "errors and omissions",
-              "insurance"
-            ]
-          },
-          {
-            "n": "Directors & Officers Insurance",
-            "f": "Liability Insurance",
-            "code": "84131602",
-            "desc": "D&O liability coverage",
-            "kw": [
-              "D&O insurance",
-              "coverage",
-              "directors liability",
-              "insurance",
-              "officers insurance"
-            ]
-          },
-          {
-            "n": "Workers Compensation Insurance",
-            "f": "Employee Insurance",
-            "code": "84131701",
-            "desc": "Employee injury and illness coverage",
-            "kw": [
-              "coverage",
-              "employee injury coverage",
-              "insurance",
-              "risk management",
-              "workers compensation"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Treasury",
-        "commodities": [
-          {
-            "n": "Cash Pooling Services",
-            "f": "Cash Management",
-            "code": "84121501",
-            "desc": "Centralized cash management services",
-            "kw": [
-              "cash management",
-              "cash pooling",
-              "finance",
-              "liquidity management",
-              "notional pooling"
-            ]
-          },
-          {
-            "n": "Payment Processing Services",
-            "f": "Cash Management",
-            "code": "84121501",
-            "desc": "Electronic payment processing",
-            "kw": [
-              "EFT",
-              "cash management",
-              "electronic payments",
-              "finance",
-              "payment processing"
-            ]
-          },
-          {
-            "n": "Bank Account Management",
-            "f": "Cash Management",
-            "code": "84121502",
-            "desc": "Banking relationship management",
-            "kw": [
-              "account management",
-              "banking services",
-              "cash management",
-              "finance",
-              "treasury"
-            ]
-          },
-          {
-            "n": "FX Trading Services",
-            "f": "Foreign Exchange",
-            "code": "84121603",
-            "desc": "Currency exchange and trading",
-            "kw": [
-              "FX trading",
-              "cash management",
-              "currency exchange",
-              "finance",
-              "foreign exchange"
-            ]
-          },
-          {
-            "n": "FX Hedging Services",
-            "f": "Foreign Exchange",
-            "code": "84121601",
-            "desc": "Currency risk management",
-            "kw": [
-              "FX hedging",
-              "cash management",
-              "currency hedging",
-              "derivatives",
-              "finance"
-            ]
-          },
-          {
-            "n": "Short-term Investment Services",
-            "f": "Investment Management",
-            "code": "84121701",
-            "desc": "Money market and short-term investments",
-            "kw": [
-              "cash management",
-              "finance",
-              "money market",
-              "short term investment",
-              "treasury"
-            ]
-          },
-          {
-            "n": "Treasury Advisory Services",
-            "f": "Investment Management",
-            "code": "84121701",
-            "desc": "Treasury consulting and advisory",
-            "kw": [
-              "cash management",
-              "cash strategy",
-              "finance",
-              "treasury",
-              "treasury advisory"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Finance",
-        "commodities": [
-          {
-            "n": "External Audit Services",
-            "f": "Financial Audit",
-            "code": "84111501",
-            "desc": "Independent financial statement audit",
-            "kw": [
-              "Big Four",
-              "external audit",
-              "finance",
-              "financial services",
-              "financial statement audit"
-            ]
-          },
-          {
-            "n": "Internal Audit Services",
-            "f": "Financial Audit",
-            "code": "84111501",
-            "desc": "Internal control and compliance audit",
-            "kw": [
-              "compliance audit",
-              "finance",
-              "financial services",
-              "internal audit",
-              "internal controls"
-            ]
-          },
-          {
-            "n": "Bookkeeping Services",
-            "f": "Accounting Services",
-            "code": "84111601",
-            "desc": "Financial record keeping services",
-            "kw": [
-              "accounting services",
-              "accounts maintenance",
-              "bookkeeping",
-              "finance",
-              "financial records"
-            ]
-          },
-          {
-            "n": "Financial Reporting Services",
-            "f": "Accounting Services",
-            "code": "84111601",
-            "desc": "Financial statement preparation",
-            "kw": [
-              "IFRS",
-              "finance",
-              "financial reporting",
-              "financial services",
-              "financial statements"
-            ]
-          },
-          {
-            "n": "Tax Advisory Services",
-            "f": "Tax Services",
-            "code": "84111701",
-            "desc": "Tax planning and consultation",
-            "kw": [
-              "finance",
-              "financial services",
-              "tax advisory",
-              "tax consulting",
-              "tax planning"
-            ]
-          },
-          {
-            "n": "Tax Preparation Services",
-            "f": "Tax Services",
-            "code": "84111701",
-            "desc": "Tax return preparation and filing",
-            "kw": [
-              "corporate tax return",
-              "finance",
-              "financial services",
-              "tax filing",
-              "tax preparation"
-            ]
-          },
-          {
-            "n": "Transfer Pricing Services",
-            "f": "Tax Services",
-            "code": "84111702",
-            "desc": "Intercompany pricing advisory",
-            "kw": [
-              "TP advisory",
-              "finance",
-              "financial services",
-              "intercompany pricing",
-              "related party transactions"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Legal",
-        "commodities": [
-          {
-            "n": "Corporate Governance Services",
-            "f": "Corporate Legal",
-            "code": "80121501",
-            "desc": "Corporate legal advisory",
-            "kw": [
-              "board advisory",
-              "company secretarial",
-              "corporate governance",
-              "law firm",
-              "legal counsel"
-            ]
-          },
-          {
-            "n": "M&A Legal Services",
-            "f": "Corporate Legal",
-            "code": "80121501",
-            "desc": "Mergers and acquisitions legal support",
-            "kw": [
-              "M&A legal",
-              "deal legal advisory",
-              "law firm",
-              "legal counsel",
-              "legal services"
-            ]
-          },
-          {
-            "n": "Contract Drafting & Review",
-            "f": "Corporate Legal",
-            "code": "80121502",
-            "desc": "Legal contract services",
-            "kw": [
-              "agreement review",
-              "contract drafting",
-              "contract review",
-              "law firm",
-              "legal contracts"
-            ]
-          },
-          {
-            "n": "Commercial Litigation Services",
-            "f": "Litigation",
-            "code": "80121601",
-            "desc": "Business dispute resolution",
-            "kw": [
-              "commercial dispute",
-              "court proceedings",
-              "law firm",
-              "legal counsel",
-              "legal services"
-            ]
-          },
-          {
-            "n": "Arbitration & Mediation Services",
-            "f": "Litigation",
-            "code": "80121601",
-            "desc": "Alternative dispute resolution",
-            "kw": [
-              "ADR",
-              "arbitration",
-              "dispute resolution",
-              "law firm",
-              "legal counsel"
-            ]
-          },
-          {
-            "n": "Regulatory Compliance Services",
-            "f": "Regulatory & Compliance",
-            "code": "80121701",
-            "desc": "Regulatory advisory and compliance",
-            "kw": [
-              "compliance advisory",
-              "law firm",
-              "legal counsel",
-              "legal services",
-              "regulatory advisory"
-            ]
-          },
-          {
-            "n": "Intellectual Property Services",
-            "f": "Regulatory & Compliance",
-            "code": "80121701",
-            "desc": "IP protection and advisory",
-            "kw": [
-              "IP services",
-              "copyright",
-              "intellectual property",
-              "law firm",
-              "legal counsel"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Marketing",
-        "commodities": [
-          {
-            "n": "Advertising Agency Services",
-            "f": "Advertising",
-            "code": "80141501",
-            "desc": "Full-service advertising agency",
-            "kw": [
-              "ad agency",
-              "advertising agency",
-              "communications",
-              "creative agency",
-              "marketing"
-            ]
-          },
-          {
-            "n": "Media Buying Services",
-            "f": "Advertising",
-            "code": "80141501",
-            "desc": "Advertising media placement",
-            "kw": [
-              "advertising spend",
-              "communications",
-              "marketing",
-              "media buying",
-              "media placement"
-            ]
-          },
-          {
-            "n": "Digital Marketing Services",
-            "f": "Advertising",
-            "code": "80141502",
-            "desc": "Online and social media marketing",
-            "kw": [
-              "SEO",
-              "communications",
-              "digital advertising",
-              "digital marketing",
-              "marketing"
-            ]
-          },
-          {
-            "n": "Graphic Design Services",
-            "f": "Creative Services",
-            "code": "82141501",
-            "desc": "Visual design and artwork",
-            "kw": [
-              "branding",
-              "communications",
-              "creative design",
-              "graphic design",
-              "marketing"
-            ]
-          },
-          {
-            "n": "Video Production Services",
-            "f": "Creative Services",
-            "code": "82141501",
-            "desc": "Corporate video and multimedia",
-            "kw": [
-              "communications",
-              "corporate video",
-              "marketing",
-              "multimedia production",
-              "video production"
-            ]
-          },
-          {
-            "n": "Printing Services",
-            "f": "Print & Publications",
-            "code": "82121501",
-            "desc": "Commercial printing services",
-            "kw": [
-              "commercial printing",
-              "communications",
-              "marketing",
-              "print production"
-            ]
-          },
-          {
-            "n": "Publications & Subscriptions",
-            "f": "Print & Publications",
-            "code": "82121501",
-            "desc": "Industry publications and media",
-            "kw": [
-              "communications",
-              "industry journals",
-              "marketing",
-              "media subscriptions",
-              "publications"
-            ]
+            "n": "Oil Well Lightweight Cement",
+            "f": "Cement",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       }
     ]
   },
   {
-    "type": "Services",
-    "name": "Facility",
+    "type": "Direct",
+    "name": "Chemicals",
     "subs": [
       {
-        "name": "Engineering & Construction",
+        "name": "Chemicals",
         "commodities": [
           {
-            "n": "Architectural Design",
-            "f": "Design Services",
-            "code": "81101501",
-            "desc": "Building architectural design services",
-            "kw": [
-              "architecture services",
-              "building design",
-              "construction",
-              "engineering"
-            ]
-          },
-          {
-            "n": "Structural Engineering Design",
-            "f": "Design Services",
-            "code": "81101501",
-            "desc": "Structural design services",
-            "kw": [
-              "civil structural",
-              "construction",
-              "engineering",
-              "structural design",
-              "structural engineering"
-            ]
-          },
-          {
-            "n": "MEP Design Services",
-            "f": "Design Services",
-            "code": "81101502",
-            "desc": "Mechanical, electrical, plumbing design",
-            "kw": [
-              "M&E",
-              "MEP",
-              "building services",
-              "construction",
-              "engineering"
-            ]
-          },
-          {
-            "n": "Civil Engineering Design",
-            "f": "Design Services",
-            "code": "81101503",
-            "desc": "Civil infrastructure design",
-            "kw": [
-              "civil construction",
-              "civil engineering",
-              "construction",
-              "engineering",
-              "infrastructure design"
-            ]
-          },
-          {
-            "n": "General Contracting",
-            "f": "Construction Services",
-            "code": "72101501",
-            "desc": "General construction contractor",
-            "kw": [
-              "construction",
-              "construction management",
-              "engineering",
-              "general contractor",
-              "main contractor"
-            ]
-          },
-          {
-            "n": "Civil Works Construction",
-            "f": "Construction Services",
-            "code": "72101501",
-            "desc": "Site preparation and civil construction",
-            "kw": [
-              "civil construction",
-              "civil engineering",
-              "construction",
-              "engineering",
-              "infrastructure design"
-            ]
-          },
-          {
-            "n": "Structural Construction",
-            "f": "Construction Services",
-            "code": "81101505",
-            "desc": "Building structural works",
-            "kw": [
-              "civil structural",
-              "construction",
-              "engineering",
-              "structural design",
-              "structural engineering"
-            ]
+            "n": "Chemicals",
+            "f": "Chemicals",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
       {
-        "name": "Operations & Maintenance",
+        "name": "Base Fluids & Brines",
         "commodities": [
           {
-            "n": "Preventive Maintenance Services",
-            "f": "Building Maintenance",
-            "code": "72151501",
-            "desc": "Scheduled building maintenance",
-            "kw": [
-              "PPM",
-              "facility management",
-              "maintenance",
-              "operations",
-              "preventive maintenance"
-            ]
+            "n": "Base Fluids & Brines",
+            "f": "Base Fluids & Brines",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Corrective Maintenance Services",
-            "f": "Building Maintenance",
-            "code": "72151501",
-            "desc": "Reactive repairs and maintenance",
-            "kw": [
-              "breakdown repairs",
-              "corrective maintenance",
-              "facility management",
-              "maintenance",
-              "operations"
-            ]
-          },
-          {
-            "n": "Building Exterior Maintenance",
-            "f": "Building Maintenance",
-            "code": "72151502",
-            "desc": "Roof, facade, and exterior maintenance",
-            "kw": [
-              "facade maintenance",
-              "facility management",
-              "maintenance",
-              "operations",
-              "roof maintenance"
-            ]
-          },
-          {
-            "n": "HVAC Maintenance Services",
-            "f": "Technical Maintenance",
-            "code": "72151501",
-            "desc": "Heating and cooling system maintenance",
-            "kw": [
-              "AC servicing",
-              "HVAC maintenance",
-              "cooling maintenance",
-              "facility management",
-              "maintenance"
-            ]
-          },
-          {
-            "n": "Electrical Maintenance Services",
-            "f": "Technical Maintenance",
-            "code": "72151508",
-            "desc": "Electrical system maintenance",
-            "kw": [
-              "electrical maintenance",
-              "electrical repairs",
-              "electrical services",
-              "facility management",
-              "maintenance"
-            ]
-          },
-          {
-            "n": "Plumbing Maintenance Services",
-            "f": "Technical Maintenance",
-            "code": "72151602",
-            "desc": "Plumbing system maintenance",
-            "kw": [
-              "drainage maintenance",
-              "facility management",
-              "maintenance",
-              "operations",
-              "pipe repairs"
-            ]
-          },
-          {
-            "n": "Elevator Maintenance Services",
-            "f": "Technical Maintenance",
-            "code": "72151603",
-            "desc": "Lift and escalator maintenance",
-            "kw": [
-              "elevator maintenance",
-              "escalator maintenance",
-              "facility management",
-              "lift servicing",
-              "maintenance"
-            ]
+            "n": "Monovalent brines",
+            "f": "Completion fluids",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
       {
-        "name": "Property Management",
+        "name": "Commodities Chemicals",
         "commodities": [
           {
-            "n": "Office Space Lease",
-            "f": "Lease Management",
-            "code": "80131501",
-            "desc": "Commercial office space rental",
-            "kw": [
-              "commercial office",
-              "facility",
-              "office lease",
-              "property management",
-              "real estate"
-            ]
+            "n": "Commodities Chemicals",
+            "f": "Commodities Chemicals",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Warehouse Space Lease",
-            "f": "Lease Management",
-            "code": "80131501",
-            "desc": "Industrial warehouse rental",
-            "kw": [
-              "facility",
-              "industrial rental",
-              "property management",
-              "real estate",
-              "storage facility"
-            ]
+            "n": "Methanol",
+            "f": "Commodities Chemicals",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Land Lease",
-            "f": "Lease Management",
-            "code": "80131502",
-            "desc": "Land and site rental",
-            "kw": [
-              "facility",
-              "land rental",
-              "property management",
-              "real estate",
-              "site rental"
-            ]
+            "n": "Hydrochloric acid",
+            "f": "Acid",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Real Estate Brokerage",
-            "f": "Real Estate Services",
-            "code": "80131601",
-            "desc": "Property acquisition services",
-            "kw": [
-              "facility",
-              "property acquisition",
-              "property agent",
-              "property management",
-              "real estate"
-            ]
+            "n": "Class G Cement",
+            "f": "Cement",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Property Valuation Services",
-            "f": "Real Estate Services",
-            "code": "80131601",
-            "desc": "Real estate appraisal services",
-            "kw": [
-              "asset valuation",
-              "facility",
-              "property management",
-              "property valuation",
-              "real estate"
-            ]
+            "n": "Oil Well Lightweight Cement",
+            "f": "Cement",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Building & Land Taxation",
-            "f": "Property Taxes",
-            "code": "80131701",
-            "desc": "Property tax management",
-            "kw": [
-              "building tax",
-              "facility",
-              "land tax",
-              "municipality fees",
-              "property management"
-            ]
+            "n": "Oil well standard fine type III cement",
+            "f": "Cement",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Fixed Crew Housing (Staff House Rental)",
-            "f": "Buildings & Land",
-            "code": "80131801",
-            "desc": "Fixed crew housing and staff house rental",
-            "kw": [
-              "crew housing",
-              "facility",
-              "fixed employee accommodation",
-              "property management",
-              "real estate"
-            ]
+            "n": "Cement Extenders",
+            "f": "Cement Extenders",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drilling mud and materials",
+            "f": "Drilling mud and materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mud weighting Agent",
+            "f": "Drilling mud and materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Acetylene",
+            "f": "Gases",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Carbon Dioxide",
+            "f": "Gases",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Nitrogen",
+            "f": "Gases",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Ammonium sulphate",
+            "f": "Inorganic compounds",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Inorganic acids",
+            "f": "Inorganic compounds",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Inorganic metal salts",
+            "f": "Inorganic compounds",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sodium hydroxide",
+            "f": "Inorganic compounds",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Liquid Nitrogen",
+            "f": "Nitrogen",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wetting Agents",
+            "f": "Wetting Agents",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
       {
-        "name": "Catering Services",
+        "name": "Minerals",
         "commodities": [
           {
-            "n": "Cafeteria Services",
-            "f": "On-Site Catering",
-            "code": "90101501",
-            "desc": "Staff canteen and cafeteria operation",
-            "kw": [
-              "catering",
-              "employee meals",
-              "food services",
-              "on-site catering",
-              "staff canteen"
-            ]
+            "n": "Minerals",
+            "f": "Minerals",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Crew Catering Services",
-            "f": "On-Site Catering",
-            "code": "90101501",
-            "desc": "Field crew meal services",
-            "kw": [
-              "camp meal services",
-              "catering",
-              "crew catering",
-              "field catering",
-              "food services"
-            ]
-          },
-          {
-            "n": "Rig Catering Services",
-            "f": "On-Site Catering",
-            "code": "90101502",
-            "desc": "Offshore and rig catering",
-            "kw": [
-              "catering",
-              "food services",
-              "offshore catering",
-              "rig catering",
-              "rig food services"
-            ]
-          },
-          {
-            "n": "Pantry Supplies",
-            "f": "Pantry & Vending",
-            "code": "90101601",
-            "desc": "Coffee, tea, and pantry items",
-            "kw": [
-              "catering",
-              "food services",
-              "office coffee",
-              "pantry consumables",
-              "tea supplies"
-            ]
-          },
-          {
-            "n": "Vending Machine Services",
-            "f": "Pantry & Vending",
-            "code": "90101601",
-            "desc": "Vending machine supply and maintenance",
-            "kw": [
-              "catering",
-              "drinks machine",
-              "food services",
-              "snack machine"
-            ]
-          },
-          {
-            "n": "Drinking Water Supply",
-            "f": "Pantry & Vending",
-            "code": "90101602",
-            "desc": "Bottled and filtered water supply",
-            "kw": [
-              "bottled water",
-              "catering",
-              "food services",
-              "water dispenser"
-            ]
-          },
-          {
-            "n": "Meeting & Event Catering",
-            "f": "Event Catering",
-            "code": "90101701",
-            "desc": "Corporate event food services",
-            "kw": [
-              "catering",
-              "corporate catering",
-              "event catering",
-              "food services",
-              "meeting catering"
-            ]
+            "n": "Barium Ba",
+            "f": "Barite",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
       {
-        "name": "Security",
+        "name": "Proppant",
         "commodities": [
           {
-            "n": "Manned Security Services",
-            "f": "Guarding Services",
-            "code": "92121504",
-            "desc": "Security personnel and guards",
-            "kw": [
-              "guarding services",
-              "manned security",
-              "safety and security",
-              "security guards",
-              "security services"
-            ]
+            "n": "Cement expanding agents",
+            "f": "Cement expanding agents",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Armed Security Services",
-            "f": "Guarding Services",
-            "code": "92121504",
-            "desc": "Armed security personnel",
-            "kw": [
-              "armed guards",
-              "armed personnel",
-              "armed security",
-              "safety and security",
-              "security services"
-            ]
+            "n": "Ceramic proppants",
+            "f": "Ceramic proppants",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Reception & Concierge Security",
-            "f": "Guarding Services",
-            "code": "92121502",
-            "desc": "Front desk security services",
-            "kw": [
-              "concierge security",
-              "front desk security",
-              "reception security",
-              "safety and security",
-              "security services"
-            ]
+            "n": "Resin Coated Ceramics",
+            "f": "Resin Coated Ceramics",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "CCTV Systems & Monitoring",
-            "f": "Electronic Security",
-            "code": "92121601",
-            "desc": "Video surveillance services",
-            "kw": [
-              "CCTV",
-              "IP cameras",
-              "safety and security",
-              "security monitoring",
-              "security services"
-            ]
-          },
-          {
-            "n": "Access Control Systems",
-            "f": "Electronic Security",
-            "code": "92121601",
-            "desc": "Electronic access control",
-            "kw": [
-              "access control",
-              "biometric systems",
-              "door control",
-              "electronic access",
-              "safety and security"
-            ]
-          },
-          {
-            "n": "Alarm & Intrusion Detection",
-            "f": "Electronic Security",
-            "code": "92121602",
-            "desc": "Security alarm systems",
-            "kw": [
-              "alarm system",
-              "burglar alarm",
-              "intrusion detection",
-              "safety and security",
-              "security alarm"
-            ]
-          },
-          {
-            "n": "Security Risk Assessment",
-            "f": "Security Consulting",
-            "code": "92121701",
-            "desc": "Security audit and risk analysis",
-            "kw": [
-              "safety and security",
-              "security audit",
-              "security services",
-              "threat assessment"
-            ]
+            "n": "Fracturing Sands",
+            "f": "Well fracturing proppants",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
       {
-        "name": "Staff House",
+        "name": "Specialty Chemicals",
         "commodities": [
           {
-            "n": "Staff House Rental",
-            "f": "Crew Accommodation",
-            "code": "80131504",
-            "desc": "Employee housing rental",
-            "kw": [
-              "accommodation",
-              "accommodation rental",
-              "camp services",
-              "crew housing",
-              "employee housing"
-            ]
+            "n": "Specialty Chemicals",
+            "f": "Specialty Chemicals",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Crew Camp Services",
-            "f": "Crew Accommodation",
-            "code": "80131801",
-            "desc": "Turnkey camp accommodation",
-            "kw": [
-              "accommodation",
-              "camp accommodation",
-              "camp services",
-              "crew housing",
-              "turnkey camp"
-            ]
+            "n": "Acidic polymer breakers",
+            "f": "Acidic polymer breakers",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Hotel Crew Accommodation",
-            "f": "Crew Accommodation",
-            "code": "80131801",
-            "desc": "Hotel-based crew lodging",
-            "kw": [
-              "accommodation",
-              "camp services",
-              "crew hotel booking",
-              "crew housing",
-              "hotel lodging"
-            ]
+            "n": "Anionic Friction Reducer",
+            "f": "Anionic Friction Reducer",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Camp Management Services",
-            "f": "Camp Management",
-            "code": "90101604",
-            "desc": "Camp operations management",
-            "kw": [
-              "accommodation",
-              "camp facilities management",
-              "camp management",
-              "camp operations",
-              "camp services"
-            ]
+            "n": "Bactericide",
+            "f": "Bactericide",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Camp Housekeeping Services",
-            "f": "Camp Management",
-            "code": "76111501",
-            "desc": "Camp cleaning and laundry",
-            "kw": [
-              "accommodation",
-              "camp housekeeping",
-              "camp services",
-              "cleaning services",
-              "crew housing"
-            ]
+            "n": "Organic polymer breakers",
+            "f": "Breakers",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Camp Recreation Services",
-            "f": "Camp Management",
-            "code": "90101601",
-            "desc": "Camp recreation facilities",
-            "kw": [
-              "accommodation",
-              "camp recreation",
-              "camp services",
-              "crew housing",
-              "crew welfare"
-            ]
+            "n": "Acid buffers",
+            "f": "Buffer",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Integrated Camp Management Services",
-            "f": "Camp Services",
-            "code": "76111501",
-            "desc": "Integrated camp management and operations services",
-            "kw": [
-              "EPCM camp",
-              "accommodation",
-              "camp facilities management",
-              "camp management",
-              "camp operations"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Waste Disposal",
-        "commodities": [
-          {
-            "n": "Municipal Waste Collection",
-            "f": "General Waste",
-            "code": "76121501",
-            "desc": "General waste collection services",
-            "kw": [
-              "disposal",
-              "environmental services",
-              "general waste",
-              "refuse collection",
-              "skip hire"
-            ]
+            "n": "Basic buffers",
+            "f": "Buffer",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Recycling Services",
-            "f": "General Waste",
-            "code": "76121501",
-            "desc": "Recyclable material collection",
-            "kw": [
-              "disposal",
-              "environmental services",
-              "recyclable materials",
-              "sustainability",
-              "waste management"
-            ]
+            "n": "Neutral buffers",
+            "f": "Buffer",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Hazardous Waste Disposal",
-            "f": "Hazardous Waste",
-            "code": "76121601",
-            "desc": "Hazardous material disposal",
-            "kw": [
-              "COSHH waste",
-              "dangerous waste",
-              "disposal",
-              "environmental services",
-              "special waste"
-            ]
+            "n": "Cationic friction reducers",
+            "f": "Cationic friction reducers",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Industrial Waste Incineration",
-            "f": "Hazardous Waste",
-            "code": "76121601",
-            "desc": "Industrial waste treatment",
-            "kw": [
-              "disposal",
-              "environmental services",
-              "incineration",
-              "industrial waste disposal",
-              "thermal treatment"
-            ]
+            "n": "Cement Defoamer: Silicone/PDMS-based",
+            "f": "Cement Defoamer: Silicone/PDMS-based",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Chemical Waste Disposal",
-            "f": "Hazardous Waste",
-            "code": "76121602",
-            "desc": "Chemical waste handling and disposal",
-            "kw": [
-              "disposal",
-              "environmental services",
-              "lab waste management",
-              "solvent disposal",
-              "waste management"
-            ]
+            "n": "Cement expanding agents",
+            "f": "Cement Expander",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Wastewater Treatment Services",
-            "f": "Wastewater",
-            "code": "76121701",
-            "desc": "Effluent treatment and disposal",
-            "kw": [
-              "disposal",
-              "effluent treatment",
-              "environmental services",
-              "sewage treatment",
-              "waste management"
-            ]
+            "n": "Cement Extenders",
+            "f": "Cement Extenders",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Drainage Services",
-            "f": "Wastewater",
-            "code": "76121701",
-            "desc": "Drainage cleaning and maintenance",
-            "kw": [
-              "disposal",
-              "drain cleaning",
-              "environmental services",
-              "sewer maintenance",
-              "waste management"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Utility",
-        "commodities": [
-          {
-            "n": "Electricity Supply",
-            "f": "Electricity",
-            "code": "83101501",
-            "desc": "Electric power supply",
-            "kw": [
-              "electric utility",
-              "electricity",
-              "energy management",
-              "grid power",
-              "power supply"
-            ]
+            "n": "Organic clay stabilizers",
+            "f": "Clay Stabilizer & Fluid reduce control",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Renewable Energy Supply",
-            "f": "Electricity",
-            "code": "83101501",
-            "desc": "Solar, wind, and renewable power",
-            "kw": [
-              "energy management",
-              "green energy",
-              "renewable energy",
-              "solar power",
-              "utilities"
-            ]
+            "n": "Corrosion Inhibitors",
+            "f": "Corrosion Inhibitors",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Natural Gas Supply",
-            "f": "Natural Gas",
-            "code": "83101601",
-            "desc": "Natural gas utility supply",
-            "kw": [
-              "energy management",
-              "gas utility",
-              "pipeline gas",
-              "utilities"
-            ]
+            "n": "Crosslinker",
+            "f": "Crosslinker",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Water Supply Services",
-            "f": "Water",
-            "code": "83101601",
-            "desc": "Municipal water supply",
-            "kw": [
-              "energy management",
-              "municipal water",
-              "utilities",
-              "water supply",
-              "water utility"
-            ]
+            "n": "Cement Accelerator",
+            "f": "Curing agents",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Industrial Water Supply",
-            "f": "Water",
-            "code": "83101601",
-            "desc": "Process water supply",
-            "kw": [
-              "energy management",
-              "municipal water",
-              "utilities",
-              "water supply",
-              "water utility"
-            ]
+            "n": "Cement Retarders",
+            "f": "Curing agents",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Generator Fuel Supply",
-            "f": "Fuel",
-            "code": "83101801",
-            "desc": "Diesel and generator fuel",
-            "kw": [
-              "diesel fuel supply",
-              "energy management",
-              "fuel management",
-              "generator fuel",
-              "utilities"
-            ]
+            "n": "Detergent Surfactants",
+            "f": "Detergent Surfactants",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Energy Audit Services",
-            "f": "Energy Management",
-            "code": "83101601",
-            "desc": "Energy consumption analysis",
-            "kw": [
-              "energy assessment",
-              "energy audit",
-              "energy consumption analysis",
-              "energy management",
-              "utilities"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Furniture",
-        "commodities": [
-          {
-            "n": "Office Desks & Workstations",
-            "f": "Office Furniture",
-            "code": "56101504",
-            "desc": "Office desk and workstation furniture",
-            "kw": [
-              "furniture",
-              "office desk",
-              "office furniture",
-              "sit-stand desk",
-              "workstation"
-            ]
+            "n": "Drilling mud and materials",
+            "f": "Drilling mud and materials",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Office Chairs & Seating",
-            "f": "Office Furniture",
-            "code": "56101501",
-            "desc": "Office seating solutions",
-            "kw": [
-              "desk chair",
-              "ergonomic seating",
-              "furniture",
-              "office chair",
-              "office furniture"
-            ]
+            "n": "Fluid spacers",
+            "f": "Drilling mud and materials",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Meeting Room Furniture",
-            "f": "Office Furniture",
-            "code": "56101502",
-            "desc": "Conference tables and chairs",
-            "kw": [
-              "boardroom furniture",
-              "conference table",
-              "furniture",
-              "office furniture"
-            ]
+            "n": "General drilling chemical",
+            "f": "Drilling mud and materials",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Filing Cabinets & Storage",
-            "f": "Storage Furniture",
-            "code": "56101601",
-            "desc": "Office storage solutions",
-            "kw": [
-              "document storage cabinet",
-              "filing cabinet",
-              "furniture",
-              "office furniture",
-              "office storage"
-            ]
+            "n": "Lost Circulation Material & Bridging",
+            "f": "Drilling mud and materials",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Shelving Systems",
-            "f": "Storage Furniture",
-            "code": "56101601",
-            "desc": "Storage shelving units",
-            "kw": [
-              "furniture",
-              "office furniture",
-              "shelf rack",
-              "storage rack"
-            ]
+            "n": "Fluid Loss Additives",
+            "f": "Fluid Loss Additives",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Office Appliances",
-            "f": "Appliances",
-            "code": "56101701",
-            "desc": "Refrigerators, microwaves, etc.",
-            "kw": [
-              "coffee machine",
-              "furniture",
-              "microwave",
-              "office furniture"
-            ]
+            "n": "Modified polymer fluid loss additives",
+            "f": "Fluid Loss Additives",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Kitchen Appliances",
-            "f": "Appliances",
-            "code": "56101701",
-            "desc": "Commercial kitchen appliances",
-            "kw": [
-              "dishwasher",
-              "furniture",
-              "office furniture",
-              "refrigerator"
-            ]
+            "n": "Other Fluid Loss Additives Fluid Loss Additives",
+            "f": "Fluid Loss Additives",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Anionic friction reducers",
+            "f": "Friction Reducer",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Anti gas migration additives",
+            "f": "Gas Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Canthaxanthin",
+            "f": "Gelling Agent",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hydrochloric acid",
+            "f": "Hydrochloric acid",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Diverting agents",
+            "f": "Indicators and Reagents",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Inorganic Clay Stabilizers",
+            "f": "Inorganic Clay Stabilizers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Inorganic metal salts",
+            "f": "Inorganic compounds",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Inorganic metal Salts",
+            "f": "Inorganic metal Salts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Iron Control Agent",
+            "f": "Iron Control Agent",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Monovalent brines",
+            "f": "Monovalent brines",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Natural gelling agents",
+            "f": "Natural gelling agents",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Oxygenated solvents",
+            "f": "Oxygenated solvents",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Scale Inhibitor",
+            "f": "Scale Inhibitor",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "H2S absorbent",
+            "f": "Scavengers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Production oil treatment chemicals",
+            "f": "Scavengers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Scavengers",
+            "f": "Scavengers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hydrocarbonated solvents",
+            "f": "Solvents",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Inorganic clay stabilizers",
+            "f": "Stabilizers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Anti-Foam",
+            "f": "Surfactants",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Anti-Sludge Agent",
+            "f": "Surfactants",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Detergent surfactants",
+            "f": "Surfactants",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Dispersant",
+            "f": "Surfactants",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Foaming Agent",
+            "f": "Surfactants",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Suspending Agent",
+            "f": "Suspending Agent",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Synthetic gelling agents Polymer base",
+            "f": "Visocosifier",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wetting Agents",
+            "f": "Wetting Agents",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       }
     ]
   },
   {
-    "type": "Services",
-    "name": "IT",
-    "subs": [
-      {
-        "name": "Hardware",
-        "commodities": [
-          {
-            "n": "Desktop Computers",
-            "f": "Computers",
-            "code": "43211507",
-            "desc": "Desktop PC and workstations",
-            "kw": [
-              "IT hardware",
-              "PC",
-              "desktop computer",
-              "technology equipment",
-              "workstation computer"
-            ]
-          },
-          {
-            "n": "Laptop Computers",
-            "f": "Computers",
-            "code": "43211501",
-            "desc": "Portable computers and notebooks",
-            "kw": [
-              "IT hardware",
-              "laptop",
-              "notebook computer",
-              "portable PC",
-              "technology equipment"
-            ]
-          },
-          {
-            "n": "Tablets",
-            "f": "Computers",
-            "code": "43211502",
-            "desc": "Tablet computers and devices",
-            "kw": [
-              "IT hardware",
-              "iPad",
-              "mobile tablet",
-              "tablet computer",
-              "technology equipment"
-            ]
-          },
-          {
-            "n": "Enterprise Servers",
-            "f": "Servers",
-            "code": "43211601",
-            "desc": "Data center server hardware",
-            "kw": [
-              "IT hardware",
-              "blade server",
-              "enterprise server",
-              "rack server",
-              "technology equipment"
-            ]
-          },
-          {
-            "n": "Server Accessories & Parts",
-            "f": "Servers",
-            "code": "43211601",
-            "desc": "Server components and spares",
-            "kw": [
-              "IT hardware",
-              "rack accessories",
-              "server accessories",
-              "server parts",
-              "technology equipment"
-            ]
-          },
-          {
-            "n": "Data Storage Systems",
-            "f": "Storage",
-            "code": "43211706",
-            "desc": "SAN, NAS, and storage arrays",
-            "kw": [
-              "IT hardware",
-              "NAS",
-              "SAN",
-              "data storage system",
-              "storage array"
-            ]
-          },
-          {
-            "n": "Storage Media",
-            "f": "Storage",
-            "code": "43211701",
-            "desc": "Tapes, drives, and backup media",
-            "kw": [
-              "IT hardware",
-              "NAS",
-              "SAN",
-              "SSD",
-              "USB drive"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Software",
-        "commodities": [
-          {
-            "n": "Enterprise Applications",
-            "f": "Application Software",
-            "code": "43231501",
-            "desc": "ERP, CRM, and business software",
-            "kw": [
-              "ERP",
-              "IT software",
-              "SAP",
-              "business applications",
-              "enterprise software"
-            ]
-          },
-          {
-            "n": "Productivity Software",
-            "f": "Application Software",
-            "code": "43231501",
-            "desc": "Office and productivity tools",
-            "kw": [
-              "IT software",
-              "M365",
-              "Microsoft Office",
-              "Office 365",
-              "software"
-            ]
-          },
-          {
-            "n": "Specialized Applications",
-            "f": "Application Software",
-            "code": "43231602",
-            "desc": "Industry-specific software",
-            "kw": [
-              "IT software",
-              "industry software",
-              "niche applications",
-              "software",
-              "specialized software"
-            ]
-          },
-          {
-            "n": "Server Operating Systems",
-            "f": "Operating Systems",
-            "code": "43231601",
-            "desc": "Server OS licenses",
-            "kw": [
-              "IT software",
-              "Linux OS",
-              "Windows Server",
-              "server OS",
-              "software"
-            ]
-          },
-          {
-            "n": "Desktop Operating Systems",
-            "f": "Operating Systems",
-            "code": "43231601",
-            "desc": "Desktop OS licenses",
-            "kw": [
-              "IT software",
-              "Windows",
-              "desktop OS",
-              "macOS",
-              "software"
-            ]
-          },
-          {
-            "n": "Database Management Systems",
-            "f": "Database Software",
-            "code": "43231601",
-            "desc": "DBMS licenses",
-            "kw": [
-              "DBMS",
-              "IT software",
-              "Oracle DB",
-              "SQL",
-              "database software"
-            ]
-          },
-          {
-            "n": "Antivirus & Endpoint Security",
-            "f": "Security Software",
-            "code": "43233205",
-            "desc": "Security software licenses",
-            "kw": [
-              "EDR",
-              "IT software",
-              "antivirus",
-              "endpoint security",
-              "malware protection"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Infrastructure",
-        "commodities": [
-          {
-            "n": "Network Switches & Routers",
-            "f": "Network Infrastructure",
-            "code": "43222501",
-            "desc": "Network hardware equipment",
-            "kw": [
-              "IT infrastructure",
-              "LAN",
-              "WAN",
-              "network services",
-              "network switch"
-            ]
-          },
-          {
-            "n": "Firewalls & Security Appliances",
-            "f": "Network Infrastructure",
-            "code": "43222501",
-            "desc": "Network security hardware",
-            "kw": [
-              "IT infrastructure",
-              "UTM",
-              "firewall",
-              "network services",
-              "next-gen firewall"
-            ]
-          },
-          {
-            "n": "Wireless Infrastructure",
-            "f": "Network Infrastructure",
-            "code": "43222502",
-            "desc": "WiFi and wireless equipment",
-            "kw": [
-              "IT infrastructure",
-              "WLAN",
-              "WiFi",
-              "access points",
-              "network services"
-            ]
-          },
-          {
-            "n": "PBX & Phone Systems",
-            "f": "Telecommunications",
-            "code": "43222805",
-            "desc": "Voice communication systems",
-            "kw": [
-              "IP telephony",
-              "IT infrastructure",
-              "PABX",
-              "PBX system",
-              "network services"
-            ]
-          },
-          {
-            "n": "Video Conferencing Systems",
-            "f": "Telecommunications",
-            "code": "43222605",
-            "desc": "VC equipment and systems",
-            "kw": [
-              "AV systems",
-              "IT infrastructure",
-              "VC room system",
-              "network services",
-              "video conferencing system"
-            ]
-          },
-          {
-            "n": "Satellite Communication",
-            "f": "Telecommunications",
-            "code": "43222602",
-            "desc": "Satellite equipment and services",
-            "kw": [
-              "IT infrastructure",
-              "VSAT",
-              "network services",
-              "satellite internet"
-            ]
-          },
-          {
-            "n": "Data Center Hosting Services",
-            "f": "Data Center",
-            "code": "81112201",
-            "desc": "Colocation and hosting",
-            "kw": [
-              "DC hosting",
-              "IT infrastructure",
-              "data center",
-              "network services",
-              "server hosting"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Licenses",
-        "commodities": [
-          {
-            "n": "Perpetual Software Licenses",
-            "f": "Software Licenses",
-            "code": "43232101",
-            "desc": "One-time software purchases",
-            "kw": [
-              "IT licenses",
-              "one-time purchase",
-              "perpetual software license",
-              "subscriptions",
-              "telecom services"
-            ]
-          },
-          {
-            "n": "Subscription Software Licenses",
-            "f": "Software Licenses",
-            "code": "43232101",
-            "desc": "SaaS and subscription licenses",
-            "kw": [
-              "IT licenses",
-              "SaaS",
-              "recurring license",
-              "subscription license",
-              "subscriptions"
-            ]
-          },
-          {
-            "n": "Software Maintenance & Support",
-            "f": "Software Licenses",
-            "code": "43232102",
-            "desc": "Software support contracts",
-            "kw": [
-              "IT licenses",
-              "M&S contract",
-              "annual maintenance",
-              "software support",
-              "subscriptions"
-            ]
-          },
-          {
-            "n": "Fixed Line Services",
-            "f": "Telecommunications",
-            "code": "81112301",
-            "desc": "Landline and fixed voice",
-            "kw": [
-              "IT licenses",
-              "PSTN contract",
-              "landline billing",
-              "subscriptions",
-              "telecom services"
-            ]
-          },
-          {
-            "n": "Mobile Voice & Data Services",
-            "f": "Telecommunications",
-            "code": "81112301",
-            "desc": "Cellular service plans",
-            "kw": [
-              "IT licenses",
-              "SIM services",
-              "corporate mobile plan",
-              "data plan",
-              "mobile telecom"
-            ]
-          },
-          {
-            "n": "Internet Services",
-            "f": "Telecommunications",
-            "code": "81112302",
-            "desc": "ISP and internet connectivity",
-            "kw": [
-              "ISP",
-              "IT licenses",
-              "broadband",
-              "internet connectivity",
-              "subscriptions"
-            ]
-          },
-          {
-            "n": "Satellite Services",
-            "f": "Telecommunications",
-            "code": "81112303",
-            "desc": "Satellite communication services",
-            "kw": [
-              "IT licenses",
-              "VSAT subscription",
-              "satellite lease",
-              "subscriptions",
-              "telecom services"
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "type": "Services",
-    "name": "Logistics",
-    "subs": [
-      {
-        "name": "Shipping Services",
-        "commodities": [
-          {
-            "n": "Container Shipping",
-            "f": "Ocean Freight",
-            "code": "78141501",
-            "desc": "Ocean container transport",
-            "kw": [
-              "FCL",
-              "freight",
-              "full container load",
-              "logistics",
-              "sea freight"
-            ]
-          },
-          {
-            "n": "Break Bulk Shipping",
-            "f": "Ocean Freight",
-            "code": "78141501",
-            "desc": "Non-containerized ocean cargo",
-            "kw": [
-              "break bulk",
-              "bulk shipping",
-              "freight",
-              "logistics",
-              "ocean cargo"
-            ]
-          },
-          {
-            "n": "Air Cargo Services",
-            "f": "Air Freight",
-            "code": "78141601",
-            "desc": "Air freight transport",
-            "kw": [
-              "air cargo",
-              "air shipment",
-              "airfreight",
-              "freight",
-              "logistics"
-            ]
-          },
-          {
-            "n": "Express Air Services",
-            "f": "Air Freight",
-            "code": "78141601",
-            "desc": "Expedited air delivery",
-            "kw": [
-              "air express",
-              "express air freight",
-              "freight",
-              "logistics",
-              "shipping"
-            ]
-          },
-          {
-            "n": "Full Truckload (FTL)",
-            "f": "Road Freight",
-            "code": "78141701",
-            "desc": "Dedicated truck transport",
-            "kw": [
-              "FTL",
-              "freight",
-              "full truckload",
-              "logistics",
-              "road freight"
-            ]
-          },
-          {
-            "n": "Less Than Truckload (LTL)",
-            "f": "Road Freight",
-            "code": "78141701",
-            "desc": "Shared truck transport",
-            "kw": [
-              "LTL",
-              "freight",
-              "less than truckload",
-              "logistics",
-              "partial load"
-            ]
-          },
-          {
-            "n": "Tanker Transport",
-            "f": "Road Freight",
-            "code": "78141702",
-            "desc": "Liquid cargo road transport",
-            "kw": [
-              "freight",
-              "liquid transport",
-              "logistics",
-              "shipping",
-              "tanker truck"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Custom Clearance Services",
-        "commodities": [
-          {
-            "n": "Import Customs Clearance",
-            "f": "Import Services",
-            "code": "78131501",
-            "desc": "Import declaration processing",
-            "kw": [
-              "customs broker",
-              "customs clearance",
-              "import clearance",
-              "import export",
-              "trade compliance"
-            ]
-          },
-          {
-            "n": "Import Documentation",
-            "f": "Import Services",
-            "code": "78131501",
-            "desc": "Import paperwork services",
-            "kw": [
-              "customs clearance",
-              "customs documentation",
-              "import documents",
-              "import export",
-              "import paperwork"
-            ]
-          },
-          {
-            "n": "Export Customs Clearance",
-            "f": "Export Services",
-            "code": "78131601",
-            "desc": "Export declaration processing",
-            "kw": [
-              "customs clearance",
-              "export broker",
-              "export clearance",
-              "import export",
-              "trade compliance"
-            ]
-          },
-          {
-            "n": "Export Documentation",
-            "f": "Export Services",
-            "code": "78131601",
-            "desc": "Export paperwork services",
-            "kw": [
-              "certificate of origin",
-              "customs clearance",
-              "export documents",
-              "export paperwork",
-              "import export"
-            ]
-          },
-          {
-            "n": "Customs Duties Payment",
-            "f": "Duties & Taxes",
-            "code": "78131701",
-            "desc": "Import duty management",
-            "kw": [
-              "customs clearance",
-              "customs duties",
-              "import duty payment",
-              "import export",
-              "tariffs"
-            ]
-          },
-          {
-            "n": "Trade Compliance Services",
-            "f": "Duties & Taxes",
-            "code": "78131701",
-            "desc": "Customs compliance advisory",
-            "kw": [
-              "customs clearance",
-              "export controls",
-              "import export",
-              "import regulations",
-              "sanctions"
-            ]
-          },
-          {
-            "n": "Customs Clearance Fees",
-            "f": "Customs Clearance Agent Fees",
-            "code": "78141502",
-            "desc": "Customs clearance agent fees",
-            "kw": [
-              "customs clearance",
-              "import export",
-              "trade compliance"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Freight Forwarding Services",
-        "commodities": [
-          {
-            "n": "Sea Freight Forwarding",
-            "f": "International Forwarding",
-            "code": "78141901",
-            "desc": "Ocean freight coordination",
-            "kw": [
-              "forwarder",
-              "freight forwarding",
-              "logistics provider",
-              "ocean forwarding"
-            ]
-          },
-          {
-            "n": "Air Freight Forwarding",
-            "f": "International Forwarding",
-            "code": "78141901",
-            "desc": "Air freight coordination",
-            "kw": [
-              "airfreight agent",
-              "forwarder",
-              "freight forwarding",
-              "logistics provider"
-            ]
-          },
-          {
-            "n": "Multimodal Forwarding",
-            "f": "International Forwarding",
-            "code": "78141902",
-            "desc": "Combined transport coordination",
-            "kw": [
-              "door-to-door",
-              "forwarder",
-              "freight forwarding",
-              "intermodal logistics",
-              "logistics provider"
-            ]
-          },
-          {
-            "n": "Domestic Distribution",
-            "f": "Domestic Forwarding",
-            "code": "78142001",
-            "desc": "Local freight coordination",
-            "kw": [
-              "domestic freight",
-              "forwarder",
-              "freight forwarding",
-              "inland distribution",
-              "local delivery"
-            ]
-          },
-          {
-            "n": "Cargo Insurance",
-            "f": "Value Added Services",
-            "code": "78142101",
-            "desc": "Freight insurance services",
-            "kw": [
-              "coverage",
-              "forwarder",
-              "freight forwarding",
-              "goods in transit insurance",
-              "insurance"
-            ]
-          },
-          {
-            "n": "Cargo Tracking",
-            "f": "Value Added Services",
-            "code": "78142101",
-            "desc": "Shipment visibility services",
-            "kw": [
-              "forwarder",
-              "freight forwarding",
-              "logistics provider",
-              "shipment tracking",
-              "supply chain visibility"
-            ]
-          },
-          {
-            "n": "Parcel - Domestic Shipment",
-            "f": "Parcel",
-            "code": "78102201",
-            "desc": "Domestic parcel and courier delivery",
-            "kw": [
-              "domestic courier",
-              "forwarder",
-              "freight forwarding",
-              "last mile delivery",
-              "logistics provider"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Crew Transportation",
-        "commodities": [
-          {
-            "n": "Helicopter Charter Services",
-            "f": "Air Transport",
-            "code": "78111803",
-            "desc": "Helicopter crew transport",
-            "kw": [
-              "aviation services",
-              "crew transport",
-              "helicopter charter",
-              "mobilization",
-              "offshore helicopter"
-            ]
-          },
-          {
-            "n": "Fixed Wing Charter",
-            "f": "Air Transport",
-            "code": "78111803",
-            "desc": "Aircraft crew transport",
-            "kw": [
-              "aircraft charter",
-              "crew transport",
-              "mobilization",
-              "personnel transport",
-              "private flight"
-            ]
-          },
-          {
-            "n": "Crew Bus Services",
-            "f": "Ground Transport",
-            "code": "78111901",
-            "desc": "Ground crew shuttle services",
-            "kw": [
-              "crew transport",
-              "mobilization",
-              "personnel shuttle",
-              "personnel transport",
-              "shuttle bus"
-            ]
-          },
-          {
-            "n": "Crew Van Services",
-            "f": "Ground Transport",
-            "code": "78111901",
-            "desc": "Small vehicle crew transport",
-            "kw": [
-              "crew transport",
-              "minibus transport",
-              "mobilization",
-              "personnel transport",
-              "staff van"
-            ]
-          },
-          {
-            "n": "Crew Boat Services",
-            "f": "Marine Transport",
-            "code": "78112001",
-            "desc": "Marine crew transfer",
-            "kw": [
-              "crew transport",
-              "crew vessel",
-              "mobilization",
-              "offshore crew transfer",
-              "personnel transport"
-            ]
-          },
-          {
-            "n": "Fast Supply Vessel Crew Transfer",
-            "f": "Marine Transport",
-            "code": "78112001",
-            "desc": "Offshore crew transport",
-            "kw": [
-              "FSV",
-              "crew transport",
-              "fast supply vessel",
-              "mobilization",
-              "offshore crew transfer vessel"
-            ]
-          },
-          {
-            "n": "Crew Land Shuttle to & from Jobsite",
-            "f": "Crew Shuttle Land",
-            "code": "78111803",
-            "desc": "Crew land shuttle services to and from jobsite",
-            "kw": [
-              "crew bus services",
-              "crew transport",
-              "mobilization",
-              "personnel shuttle",
-              "personnel transport"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Warehouse Services",
-        "commodities": [
-          {
-            "n": "General Warehousing",
-            "f": "Storage Services",
-            "code": "78121501",
-            "desc": "Standard storage facilities",
-            "kw": [
-              "3PL storage",
-              "inventory management",
-              "storage",
-              "storage facility",
-              "warehousing"
-            ]
-          },
-          {
-            "n": "Temperature Controlled Storage",
-            "f": "Storage Services",
-            "code": "78121501",
-            "desc": "Climate controlled warehousing",
-            "kw": [
-              "cold storage",
-              "inventory management",
-              "refrigerated storage",
-              "storage",
-              "temperature controlled warehouse"
-            ]
-          },
-          {
-            "n": "Hazardous Materials Storage",
-            "f": "Storage Services",
-            "code": "78121502",
-            "desc": "Dangerous goods storage",
-            "kw": [
-              "COSHH storage",
-              "dangerous goods warehouse",
-              "hazardous storage",
-              "inventory management",
-              "storage"
-            ]
-          },
-          {
-            "n": "Inventory Management",
-            "f": "Handling Services",
-            "code": "78121601",
-            "desc": "Stock control services",
-            "kw": [
-              "WMS",
-              "stock management",
-              "storage",
-              "warehouse management system",
-              "warehousing"
-            ]
-          },
-          {
-            "n": "Pick & Pack Services",
-            "f": "Handling Services",
-            "code": "78121601",
-            "desc": "Order fulfillment services",
-            "kw": [
-              "fulfillment services",
-              "inventory management",
-              "order picking",
-              "pick and pack",
-              "storage"
-            ]
-          },
-          {
-            "n": "Cross-docking Services",
-            "f": "Handling Services",
-            "code": "78121602",
-            "desc": "Transit storage services",
-            "kw": [
-              "cross-docking",
-              "direct loading",
-              "inventory management",
-              "storage",
-              "transshipment"
-            ]
-          },
-          {
-            "n": "Disposal Services",
-            "f": "Warehousing Services",
-            "code": "76121501",
-            "desc": "Warehouse disposal services",
-            "kw": [
-              "asset disposal",
-              "inventory management",
-              "scrap disposal",
-              "stock disposal",
-              "storage"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Heavy Trucks and Parts",
-        "commodities": [
-          {
-            "n": "Heavy Duty Trucks",
-            "f": "Heavy Vehicles",
-            "code": "25101501",
-            "desc": "Commercial trucks and lorries",
-            "kw": [
-              "HGV",
-              "flatbed truck",
-              "fleet",
-              "heavy duty truck",
-              "heavy vehicles"
-            ]
-          },
-          {
-            "n": "Specialized Heavy Vehicles",
-            "f": "Heavy Vehicles",
-            "code": "25101501",
-            "desc": "Tankers, flatbeds, lowboys",
-            "kw": [
-              "fleet",
-              "heavy vehicles",
-              "special purpose truck",
-              "specialized vehicle",
-              "trucks"
-            ]
-          },
-          {
-            "n": "Heavy Vehicle Spare Parts",
-            "f": "Parts & Maintenance",
-            "code": "25101601",
-            "desc": "Truck parts and components",
-            "kw": [
-              "OEM spare parts",
-              "facility management",
-              "fleet",
-              "heavy vehicles",
-              "maintenance"
-            ]
-          },
-          {
-            "n": "Heavy Vehicle Maintenance",
-            "f": "Parts & Maintenance",
-            "code": "25101601",
-            "desc": "Truck repair and servicing",
-            "kw": [
-              "HGV maintenance",
-              "facility management",
-              "fleet",
-              "fleet service",
-              "heavy vehicles"
-            ]
-          },
-          {
-            "n": "Tire Services",
-            "f": "Parts & Maintenance",
-            "code": "25101602",
-            "desc": "Commercial tire supply and service",
-            "kw": [
-              "facility management",
-              "fleet",
-              "heavy vehicles",
-              "maintenance",
-              "operations"
-            ]
-          },
-          {
-            "n": "Domestic - Hotshot",
-            "f": "Call Out Truck",
-            "code": "78111803",
-            "desc": "Domestic hotshot urgent delivery",
-            "kw": [
-              "call-out truck",
-              "domestic urgent freight",
-              "fleet",
-              "heavy vehicles",
-              "hotshot delivery"
-            ]
-          },
-          {
-            "n": "Domestic - Bulk Cargo",
-            "f": "Call Out Truck",
-            "code": "78141501",
-            "desc": "Domestic bulk cargo trucking",
-            "kw": [
-              "bulk cargo truck",
-              "domestic bulk transport",
-              "fleet",
-              "heavy vehicles",
-              "trucks"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Light Vehicles for Operation",
-        "commodities": [
-          {
-            "n": "Pickup Trucks",
-            "f": "Light Vehicles",
-            "code": "25101702",
-            "desc": "Light duty pickup trucks",
-            "kw": [
-              "fleet management",
-              "light vehicles",
-              "pick-up",
-              "pickup truck",
-              "utility vehicle"
-            ]
-          },
-          {
-            "n": "SUVs & 4x4 Vehicles",
-            "f": "Light Vehicles",
-            "code": "25101507",
-            "desc": "Sport utility and off-road vehicles",
-            "kw": [
-              "4x4",
-              "SUV",
-              "field vehicle",
-              "fleet management",
-              "light vehicles"
-            ]
-          },
-          {
-            "n": "Vans & Utility Vehicles",
-            "f": "Light Vehicles",
-            "code": "25101702",
-            "desc": "Commercial vans and utilities",
-            "kw": [
-              "cargo van",
-              "fleet management",
-              "light vehicles",
-              "utility van",
-              "van"
-            ]
-          },
-          {
-            "n": "Light Vehicle Maintenance",
-            "f": "Vehicle Services",
-            "code": "25101801",
-            "desc": "Light vehicle repair services",
-            "kw": [
-              "car servicing",
-              "fleet maintenance",
-              "fleet management",
-              "light vehicles",
-              "vehicle maintenance"
-            ]
-          },
-          {
-            "n": "Light Vehicle Lease & Rental",
-            "f": "Vehicle Services",
-            "code": "25101801",
-            "desc": "Vehicle rental services",
-            "kw": [
-              "car rental",
-              "fleet leasing",
-              "fleet management",
-              "light vehicles",
-              "vehicle lease"
-            ]
-          },
-          {
-            "n": "Fuel Cards & Management",
-            "f": "Vehicle Services",
-            "code": "25101802",
-            "desc": "Fleet fuel management",
-            "kw": [
-              "fleet fuel management",
-              "fleet management",
-              "fuel card",
-              "light vehicles",
-              "petrol card"
-            ]
-          },
-          {
-            "n": "Material Handling Rental Rigsite - Excl Crane Services",
-            "f": "Lease & Rent",
-            "code": "78121604",
-            "desc": "Material handling equipment rental at rigsite",
-            "kw": [
-              "car rental",
-              "fleet leasing",
-              "fleet management",
-              "light vehicles",
-              "vehicle lease"
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "type": "Services",
-    "name": "Manpower",
-    "subs": [
-      {
-        "name": "Manpower",
-        "commodities": [
-          {
-            "n": "Technical Contract Staff",
-            "f": "Contract Labor",
-            "code": "80111501",
-            "desc": "Technical contractor services",
-            "kw": [
-              "contract engineers",
-              "manpower",
-              "staffing",
-              "technical contractors",
-              "technical staff"
-            ]
-          },
-          {
-            "n": "Administrative Contract Staff",
-            "f": "Contract Labor",
-            "code": "80111501",
-            "desc": "Admin contractor services",
-            "kw": [
-              "admin contractors",
-              "admin staff",
-              "back office contractors",
-              "manpower",
-              "staffing"
-            ]
-          },
-          {
-            "n": "Field Operations Contract Staff",
-            "f": "Contract Labor",
-            "code": "80111502",
-            "desc": "Field contractor services",
-            "kw": [
-              "field contractors",
-              "manpower",
-              "oilfield manpower",
-              "operational staff",
-              "rig crew"
-            ]
-          },
-          {
-            "n": "Managed Service Provider",
-            "f": "Managed Services",
-            "code": "80111601",
-            "desc": "Outsourced workforce management",
-            "kw": [
-              "MSP",
-              "VMS",
-              "manpower",
-              "staffing",
-              "workforce"
-            ]
-          },
-          {
-            "n": "Statement of Work Services",
-            "f": "Managed Services",
-            "code": "80111601",
-            "desc": "Project-based contracted work",
-            "kw": [
-              "SOW services",
-              "deliverable-based work",
-              "manpower",
-              "project-based services",
-              "staffing"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Staffing",
-        "commodities": [
-          {
-            "n": "Temporary Labor Agencies",
-            "f": "Temporary Staffing",
-            "code": "80111701",
-            "desc": "Temp staff placement services",
-            "kw": [
-              "agency workers",
-              "manpower",
-              "staffing",
-              "temp workers",
-              "temporary staff"
-            ]
-          },
-          {
-            "n": "Seasonal Staff Services",
-            "f": "Temporary Staffing",
-            "code": "80111701",
-            "desc": "Short-term staff solutions",
-            "kw": [
-              "manpower",
-              "seasonal staffing",
-              "seasonal workers",
-              "staffing",
-              "workforce"
-            ]
-          },
-          {
-            "n": "Executive Search Services",
-            "f": "Permanent Placement",
-            "code": "80111701",
-            "desc": "Senior executive recruitment",
-            "kw": [
-              "C-suite search",
-              "executive search",
-              "headhunting",
-              "manpower",
-              "staffing"
-            ]
-          },
-          {
-            "n": "Direct Hire Recruitment",
-            "f": "Permanent Placement",
-            "code": "80111701",
-            "desc": "Permanent staff placement",
-            "kw": [
-              "direct hire",
-              "manpower",
-              "permanent placement",
-              "permanent recruitment",
-              "staffing"
-            ]
-          },
-          {
-            "n": "Job Boards & Advertising",
-            "f": "Recruitment Support",
-            "code": "80141501",
-            "desc": "Recruitment advertising",
-            "kw": [
-              "job boards",
-              "job posting",
-              "manpower",
-              "recruitment advertising",
-              "staffing"
-            ]
-          },
-          {
-            "n": "Background Screening Services",
-            "f": "Recruitment Support",
-            "code": "80111702",
-            "desc": "Pre-employment verification",
-            "kw": [
-              "background check",
-              "employee screening",
-              "manpower",
-              "staffing",
-              "vetting services"
-            ]
-          },
-          {
-            "n": "Contractor Cost Business Delivery",
-            "f": "Contingent Workforce",
-            "code": "80111501",
-            "desc": "Contractor costs for business delivery",
-            "kw": [
-              "business delivery contractors",
-              "contingent workforce",
-              "manpower",
-              "staff augmentation",
-              "staffing"
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "type": "Services",
-    "name": "Travel & Entertainment",
-    "subs": [
-      {
-        "name": "Hotel",
-        "commodities": [
-          {
-            "n": "Business Hotels",
-            "f": "Transient Accommodation",
-            "code": "90111501",
-            "desc": "Business travel hotel stays",
-            "kw": [
-              "T&E",
-              "accommodation",
-              "business hotel",
-              "corporate hotel",
-              "hotel booking"
-            ]
-          },
-          {
-            "n": "Extended Stay Hotels",
-            "f": "Transient Accommodation",
-            "code": "90111501",
-            "desc": "Long-term accommodation",
-            "kw": [
-              "T&E",
-              "extended stay hotel",
-              "long-stay accommodation",
-              "serviced apartment",
-              "travel"
-            ]
-          },
-          {
-            "n": "Hotel Corporate Rates",
-            "f": "Corporate Programs",
-            "code": "90111601",
-            "desc": "Negotiated hotel programs",
-            "kw": [
-              "T&E",
-              "corporate hotel rates",
-              "negotiated hotel rates",
-              "preferred hotels",
-              "travel"
-            ]
-          },
-          {
-            "n": "Hotel Booking Services",
-            "f": "Corporate Programs",
-            "code": "90111601",
-            "desc": "Hotel reservation services",
-            "kw": [
-              "T&E",
-              "online booking tool",
-              "reservation services",
-              "travel"
-            ]
-          },
-          {
-            "n": "Short-Term Vehicle Rental",
-            "f": "Ground Transport",
-            "code": "78181503",
-            "desc": "Short-term business travel vehicle rental",
-            "kw": [
-              "T&E",
-              "car rental",
-              "short-term rental",
-              "travel",
-              "vehicle hire"
-            ]
-          },
-          {
-            "n": "Shuttle Services (T&E)",
-            "f": "Ground Transport",
-            "code": "78111901",
-            "desc": "Business travel shuttle services",
-            "kw": [
-              "T&E",
-              "airport transfer",
-              "hotel shuttle",
-              "shuttle service",
-              "travel"
-            ]
-          },
-          {
-            "n": "Taxi & Limo Services",
-            "f": "Ground Transport",
-            "code": "78111804",
-            "desc": "Taxi and limousine services for business travel",
-            "kw": [
-              "T&E",
-              "ground transport",
-              "limousine",
-              "ride-hailing",
-              "taxi services"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Entertainment",
-        "commodities": [
-          {
-            "n": "Client Meals & Dining",
-            "f": "Client Entertainment",
-            "code": "90151501",
-            "desc": "Business dining expenses",
-            "kw": [
-              "T&E",
-              "business meals",
-              "client dining",
-              "restaurant entertainment",
-              "travel"
-            ]
-          },
-          {
-            "n": "Client Events & Hospitality",
-            "f": "Client Entertainment",
-            "code": "90151501",
-            "desc": "Client entertainment events",
-            "kw": [
-              "T&E",
-              "client entertainment events",
-              "client hospitality",
-              "corporate hospitality",
-              "travel"
-            ]
-          },
-          {
-            "n": "Employee Social Events",
-            "f": "Employee Events",
-            "code": "90151601",
-            "desc": "Staff parties and celebrations",
-            "kw": [
-              "T&E",
-              "employee events",
-              "staff social events",
-              "team activities",
-              "travel"
-            ]
-          },
-          {
-            "n": "Team Building Events",
-            "f": "Employee Events",
-            "code": "90151601",
-            "desc": "Corporate team activities",
-            "kw": [
-              "T&E",
-              "corporate team activities",
-              "group engagement",
-              "travel"
-            ]
-          },
-          {
-            "n": "Business Gifts",
-            "f": "Gifts",
-            "code": "90151701",
-            "desc": "Corporate gift items",
-            "kw": [
-              "T&E",
-              "client gifts",
-              "corporate gifts",
-              "gift giving",
-              "travel"
-            ]
-          },
-          {
-            "n": "Internal Meetings",
-            "f": "Meetings & Events",
-            "code": "80141601",
-            "desc": "Internal corporate meeting expenses",
-            "kw": [
-              "T&E",
-              "meeting services",
-              "offsite meetings",
-              "travel"
-            ]
-          },
-          {
-            "n": "Non-Facility Catering (training/meeting related)",
-            "f": "Meetings & Events",
-            "code": "90101701",
-            "desc": "Catering for business meetings and training",
-            "kw": [
-              "T&E",
-              "meeting catering",
-              "non-facility food services",
-              "off-site catering",
-              "travel"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Air Tickets",
-        "commodities": [
-          {
-            "n": "Domestic Air Tickets",
-            "f": "Commercial Air",
-            "code": "90121501",
-            "desc": "Domestic flight tickets",
-            "kw": [
-              "T&E",
-              "airline tickets domestic",
-              "domestic flights",
-              "internal air travel",
-              "travel"
-            ]
-          },
-          {
-            "n": "International Air Tickets",
-            "f": "Commercial Air",
-            "code": "90121501",
-            "desc": "International flight tickets",
-            "kw": [
-              "T&E",
-              "international flights",
-              "long-haul flights",
-              "overseas air travel",
-              "travel"
-            ]
-          },
-          {
-            "n": "Travel Agency Services",
-            "f": "Travel Management",
-            "code": "90121601",
-            "desc": "Travel booking and management",
-            "kw": [
-              "T&E",
-              "TMC",
-              "travel",
-              "travel agency",
-              "travel management company"
-            ]
-          },
-          {
-            "n": "Corporate Travel Programs",
-            "f": "Travel Management",
-            "code": "90121601",
-            "desc": "Managed travel services",
-            "kw": [
-              "T&E",
-              "business travel management",
-              "corporate travel program",
-              "travel",
-              "travel policy"
-            ]
-          },
-          {
-            "n": "Baggage & Seat Fees",
-            "f": "Ancillary Services",
-            "code": "90121701",
-            "desc": "Airline ancillary charges",
-            "kw": [
-              "T&E",
-              "ancillary air fees",
-              "baggage fees",
-              "seat selection",
-              "travel"
-            ]
-          },
-          {
-            "n": "Airport Lounge Access",
-            "f": "Ancillary Services",
-            "code": "90121701",
-            "desc": "Premium travel services",
-            "kw": [
-              "T&E",
-              "executive lounge",
-              "priority pass",
-              "travel"
-            ]
-          },
-          {
-            "n": "Passport/Visa/Global Entry & Travel Related Admin Fees",
-            "f": "Travel Administration",
-            "code": "93151501",
-            "desc": "Visa, passport and travel document services",
-            "kw": [
-              "T&E",
-              "immigration fees",
-              "passport services",
-              "travel",
-              "travel administration"
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "type": "Consumables",
-    "name": "Safety",
-    "subs": [
-      {
-        "name": "Life Safety (PPE)",
-        "commodities": [
-          {
-            "n": "Safety Helmets & Hard Hats",
-            "f": "Head Protection",
-            "code": "46181501",
-            "desc": "Head protection equipment",
-            "kw": [
-              "PPE",
-              "hard hat",
-              "head protection",
-              "personal protective equipment",
-              "safety"
-            ]
-          },
-          {
-            "n": "Face Shields & Visors",
-            "f": "Head Protection",
-            "code": "46181501",
-            "desc": "Face protection equipment",
-            "kw": [
-              "PPE",
-              "face protection",
-              "face shield",
-              "personal protective equipment",
-              "safety"
-            ]
-          },
-          {
-            "n": "Safety Glasses & Goggles",
-            "f": "Eye & Ear Protection",
-            "code": "46181601",
-            "desc": "Eye protection equipment",
-            "kw": [
-              "PPE",
-              "eye protection",
-              "goggles",
-              "personal protective equipment",
-              "safety"
-            ]
-          },
-          {
-            "n": "Hearing Protection",
-            "f": "Eye & Ear Protection",
-            "code": "46181601",
-            "desc": "Ear protection equipment",
-            "kw": [
-              "PPE",
-              "ear defenders",
-              "earplugs",
-              "noise protection",
-              "personal protective equipment"
-            ]
-          },
-          {
-            "n": "Safety Coveralls",
-            "f": "Body Protection",
-            "code": "46181701",
-            "desc": "Protective workwear",
-            "kw": [
-              "PPE",
-              "coverall",
-              "overalls",
-              "personal protective equipment",
-              "safety"
-            ]
-          },
-          {
-            "n": "Hi-Visibility Clothing",
-            "f": "Body Protection",
-            "code": "46181701",
-            "desc": "High visibility apparel",
-            "kw": [
-              "PPE",
-              "hi-vis clothing",
-              "high-visibility vest",
-              "personal protective equipment",
-              "reflective clothing"
-            ]
-          },
-          {
-            "n": "Safety Gloves",
-            "f": "Hand & Foot Protection",
-            "code": "46181702",
-            "desc": "Hand protection equipment",
-            "kw": [
-              "PPE",
-              "hand protection",
-              "personal protective equipment",
-              "safety",
-              "work gloves"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Safety Equipment",
-        "commodities": [
-          {
-            "n": "Fire Extinguishers",
-            "f": "Fire Safety Equipment",
-            "code": "46191501",
-            "desc": "Portable fire suppression",
-            "kw": [
-              "CO2 extinguisher",
-              "PPE",
-              "dry powder extinguisher",
-              "fire extinguisher",
-              "fire fighting"
-            ]
-          },
-          {
-            "n": "Fire Blankets & Kits",
-            "f": "Fire Safety Equipment",
-            "code": "46191501",
-            "desc": "Fire safety accessories",
-            "kw": [
-              "PPE",
-              "emergency fire supplies",
-              "fire blanket",
-              "fire kit",
-              "personal protective equipment"
-            ]
-          },
-          {
-            "n": "First Aid Kits",
-            "f": "First Aid",
-            "code": "46191601",
-            "desc": "Emergency medical kits",
-            "kw": [
-              "PPE",
-              "emergency medical kit",
-              "first aid box",
-              "first aid kit",
-              "personal protective equipment"
-            ]
-          },
-          {
-            "n": "AED Defibrillators",
-            "f": "First Aid",
-            "code": "46191601",
-            "desc": "Automated external defibrillators",
-            "kw": [
-              "AED",
-              "PPE",
-              "cardiac emergency device",
-              "defibrillator",
-              "personal protective equipment"
-            ]
-          },
-          {
-            "n": "Eye Wash Stations",
-            "f": "First Aid",
-            "code": "46191602",
-            "desc": "Emergency eye wash equipment",
-            "kw": [
-              "PPE",
-              "emergency eye wash",
-              "eyewash station",
-              "personal protective equipment",
-              "safety"
-            ]
-          },
-          {
-            "n": "Gas Detectors",
-            "f": "Detection Equipment",
-            "code": "46191504",
-            "desc": "Gas monitoring equipment",
-            "kw": [
-              "H2S detector",
-              "LEL detector",
-              "PPE",
-              "gas detector",
-              "gas monitor"
-            ]
-          },
-          {
-            "n": "Smoke & Heat Detectors",
-            "f": "Detection Equipment",
-            "code": "46191501",
-            "desc": "Fire detection equipment",
-            "kw": [
-              "PPE",
-              "fire alarm sensor",
-              "heat detector",
-              "personal protective equipment",
-              "safety"
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "type": "Services",
-    "name": "HR",
-    "subs": [
-      {
-        "name": "Light Vehicles",
-        "commodities": [
-          {
-            "n": "Company Car Lease",
-            "f": "Employee Vehicles",
-            "code": "78181501",
-            "desc": "Employee vehicle lease",
-            "kw": [
-              "HR",
-              "company car",
-              "employee car",
-              "fleet car lease",
-              "fleet management"
-            ]
-          },
-          {
-            "n": "Car Allowance Programs",
-            "f": "Employee Vehicles",
-            "code": "78181501",
-            "desc": "Vehicle allowance management",
-            "kw": [
-              "HR",
-              "car allowance",
-              "fleet management",
-              "human resources",
-              "light vehicles"
-            ]
-          },
-          {
-            "n": "Pool Vehicle Services",
-            "f": "Employee Vehicles",
-            "code": "78181502",
-            "desc": "Shared vehicle fleet",
-            "kw": [
-              "HR",
-              "company pool car",
-              "fleet management",
-              "human resources",
-              "light vehicles"
-            ]
-          },
-          {
-            "n": "Vehicle Insurance",
-            "f": "Vehicle Administration",
-            "code": "78181601",
-            "desc": "Employee vehicle insurance",
-            "kw": [
-              "HR",
-              "car insurance",
-              "coverage",
-              "fleet insurance",
-              "fleet management"
-            ]
-          },
-          {
-            "n": "Fleet Management Services",
-            "f": "Vehicle Administration",
-            "code": "78141503",
-            "desc": "Fleet administration",
-            "kw": [
-              "HR",
-              "fleet management",
-              "fleet tracking",
-              "human resources",
-              "light vehicles"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Training",
-        "commodities": [
-          {
-            "n": "Technical Skills Training",
-            "f": "Technical Training",
-            "code": "86132001",
-            "desc": "Job-specific technical training",
-            "kw": [
-              "HR",
-              "human resources",
-              "people management",
-              "skills development",
-              "technical skills"
-            ]
-          },
-          {
-            "n": "Safety & Compliance Training",
-            "f": "Technical Training",
-            "code": "86132001",
-            "desc": "HSE and regulatory training",
-            "kw": [
-              "HR",
-              "HSE training",
-              "compliance training",
-              "human resources",
-              "people management"
-            ]
-          },
-          {
-            "n": "IT Skills Training",
-            "f": "Technical Training",
-            "code": "86132101",
-            "desc": "Computer and software training",
-            "kw": [
-              "HR",
-              "IT training",
-              "human resources",
-              "people management",
-              "software training"
-            ]
-          },
-          {
-            "n": "Leadership Training",
-            "f": "Professional Development",
-            "code": "86132001",
-            "desc": "Management development programs",
-            "kw": [
-              "HR",
-              "human resources",
-              "leadership program",
-              "management development",
-              "people management"
-            ]
-          },
-          {
-            "n": "Soft Skills Training",
-            "f": "Professional Development",
-            "code": "86132101",
-            "desc": "Communication and interpersonal skills",
-            "kw": [
-              "HR",
-              "communication training",
-              "human resources",
-              "interpersonal skills",
-              "people management"
-            ]
-          },
-          {
-            "n": "Conferences & Seminars",
-            "f": "External Training",
-            "code": "86132102",
-            "desc": "Industry events and conferences",
-            "kw": [
-              "HR",
-              "conferences",
-              "external training events",
-              "human resources",
-              "people management"
-            ]
-          },
-          {
-            "n": "Professional Certifications",
-            "f": "External Training",
-            "code": "86132102",
-            "desc": "Certification programs",
-            "kw": [
-              "CPD",
-              "HR",
-              "accreditation",
-              "human resources",
-              "people management"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Medical Checkup",
-        "commodities": [
-          {
-            "n": "Pre-Employment Screening",
-            "f": "Pre-Employment Medical",
-            "code": "85121801",
-            "desc": "New hire medical examination",
-            "kw": [
-              "HR",
-              "health screening",
-              "human resources",
-              "people management",
-              "pre-employment medical"
-            ]
-          },
-          {
-            "n": "Drug & Alcohol Testing",
-            "f": "Pre-Employment Medical",
-            "code": "85121801",
-            "desc": "Substance screening services",
-            "kw": [
-              "D&A testing",
-              "HR",
-              "alcohol testing",
-              "drug testing",
-              "human resources"
-            ]
-          },
-          {
-            "n": "Annual Health Checkups",
-            "f": "Periodic Medical",
-            "code": "85121901",
-            "desc": "Regular employee health exams",
-            "kw": [
-              "HR",
-              "annual health checkup",
-              "human resources",
-              "people management",
-              "periodic medical"
-            ]
-          },
-          {
-            "n": "Occupational Health Assessments",
-            "f": "Periodic Medical",
-            "code": "85121901",
-            "desc": "Work-related health monitoring",
-            "kw": [
-              "HR",
-              "OH services",
-              "human resources",
-              "occupational health",
-              "people management"
-            ]
-          },
-          {
-            "n": "Vision & Hearing Tests",
-            "f": "Specialty Assessments",
-            "code": "85122001",
-            "desc": "Sensory health assessments",
-            "kw": [
-              "HR",
-              "audiometry",
-              "eye examination",
-              "hearing test",
-              "human resources"
-            ]
-          },
-          {
-            "n": "Fitness for Duty Assessments",
-            "f": "Specialty Assessments",
-            "code": "85122001",
-            "desc": "Work capability evaluations",
-            "kw": [
-              "FFD",
-              "HR",
-              "fitness for duty assessment",
-              "human resources",
-              "medical fitness"
-            ]
-          },
-          {
-            "n": "Industrial Hygiene",
-            "f": "Environment",
-            "code": "77101502",
-            "desc": "Industrial hygiene assessment and monitoring",
-            "kw": [
-              "HR",
-              "IH monitoring",
-              "human resources",
-              "occupational hygiene",
-              "people management"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Medical Insurance",
-        "commodities": [
-          {
-            "n": "Group Medical Insurance",
-            "f": "Health Insurance",
-            "code": "84131901",
-            "desc": "Employee health coverage",
-            "kw": [
-              "HR",
-              "coverage",
-              "employee health insurance",
-              "human resources",
-              "insurance"
-            ]
-          },
-          {
-            "n": "Dental Insurance",
-            "f": "Health Insurance",
-            "code": "84131901",
-            "desc": "Employee dental coverage",
-            "kw": [
-              "HR",
-              "coverage",
-              "dental benefits",
-              "dental coverage",
-              "human resources"
-            ]
-          },
-          {
-            "n": "Vision Insurance",
-            "f": "Health Insurance",
-            "code": "84131902",
-            "desc": "Employee vision coverage",
-            "kw": [
-              "HR",
-              "coverage",
-              "eye care insurance",
-              "human resources",
-              "insurance"
-            ]
-          },
-          {
-            "n": "Group Life Insurance",
-            "f": "Life & Disability",
-            "code": "84131601",
-            "desc": "Employee life coverage",
-            "kw": [
-              "HR",
-              "coverage",
-              "death benefit",
-              "employee death benefit",
-              "employee life coverage"
-            ]
-          },
-          {
-            "n": "Disability Insurance",
-            "f": "Life & Disability",
-            "code": "84131604",
-            "desc": "Short and long-term disability",
-            "kw": [
-              "HR",
-              "coverage",
-              "disability coverage",
-              "human resources",
-              "income protection"
-            ]
-          },
-          {
-            "n": "EAP Services",
-            "f": "Employee Assistance",
-            "code": "84131602",
-            "desc": "Employee assistance programs",
-            "kw": [
-              "EAP",
-              "HR",
-              "counseling services",
-              "employee assistance program",
-              "human resources"
-            ]
-          },
-          {
-            "n": "Mental Health Services",
-            "f": "Employee Assistance",
-            "code": "84131602",
-            "desc": "Counseling and support services",
-            "kw": [
-              "HR",
-              "human resources",
-              "people management",
-              "psychological support",
-              "wellbeing services"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Recruitment",
-        "commodities": [
-          {
-            "n": "Executive Search Firms",
-            "f": "Agency Recruitment",
-            "code": "80111701",
-            "desc": "Senior executive headhunting",
-            "kw": [
-              "HR",
-              "executive search firm",
-              "headhunter",
-              "human resources",
-              "people management"
-            ]
-          },
-          {
-            "n": "Recruitment Agencies",
-            "f": "Agency Recruitment",
-            "code": "80111701",
-            "desc": "General recruitment agencies",
-            "kw": [
-              "HR",
-              "human resources",
-              "people management",
-              "recruitment agency",
-              "staffing agency"
-            ]
-          },
-          {
-            "n": "Technical Recruitment Specialists",
-            "f": "Agency Recruitment",
-            "code": "80111701",
-            "desc": "Specialized technical recruiters",
-            "kw": [
-              "HR",
-              "engineering recruiter",
-              "human resources",
-              "people management",
-              "specialist recruiter"
-            ]
-          },
-          {
-            "n": "Job Posting Services",
-            "f": "Direct Sourcing",
-            "code": "80141501",
-            "desc": "Job board advertising",
-            "kw": [
-              "HR",
-              "careers page",
-              "human resources",
-              "job boards",
-              "job posting"
-            ]
-          },
-          {
-            "n": "Recruitment Marketing",
-            "f": "Direct Sourcing",
-            "code": "80111702",
-            "desc": "Employer branding services",
-            "kw": [
-              "HR",
-              "employer branding",
-              "human resources",
-              "people management",
-              "talent marketing"
-            ]
-          },
-          {
-            "n": "Assessment & Testing Services",
-            "f": "Assessment Services",
-            "code": "80111703",
-            "desc": "Candidate evaluation services",
-            "kw": [
-              "HR",
-              "aptitude test",
-              "candidate assessment",
-              "human resources",
-              "people management"
-            ]
-          },
-          {
-            "n": "Background Verification",
-            "f": "Assessment Services",
-            "code": "80111702",
-            "desc": "Reference and background checks",
-            "kw": [
-              "HR",
-              "employee vetting",
-              "human resources",
-              "people management",
-              "reference check"
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "type": "Materials & Assets",
-    "name": "Lifting Equipment",
-    "subs": [
-      {
-        "name": "Forklift",
-        "commodities": [
-          {
-            "n": "Material Handling Equipment (Forklifts, Pallet Trucks)",
-            "f": "Material Handling",
-            "code": "24101603",
-            "desc": "Material handling equipment purchase",
-            "kw": [
-              "Material Handling Equipment (Forklifts",
-              "Pallet Trucks)",
-              "cranes",
-              "hand pallet jack",
-              "lifting equipment"
-            ]
-          },
-          {
-            "n": "Lifting Equipment & Accessories",
-            "f": "Material Handling",
-            "code": "31151703",
-            "desc": "Lifting equipment and accessories purchase",
-            "kw": [
-              "cranes",
-              "lifting equipment",
-              "material handling"
-            ]
-          },
-          {
-            "n": "Lifting Equipment & Accessories Rental",
-            "f": "Material Handling",
-            "code": "72154503",
-            "desc": "Lifting equipment and accessories rental",
-            "kw": [
-              "cranes",
-              "lifting equipment",
-              "material handling"
-            ]
-          },
-          {
-            "n": "Lifting Equipment & Accessories Maintenance & Certification",
-            "f": "Material Handling",
-            "code": "81101703",
-            "desc": "Lifting equipment maintenance and certification",
-            "kw": [
-              "cranes",
-              "lifting equipment",
-              "material handling"
-            ]
-          },
-          {
-            "n": "Electric Forklifts",
-            "f": "Counterbalance Forklifts",
-            "code": "24101505",
-            "desc": "Electric counterbalance forklifts",
-            "kw": [
-              "battery forklift",
-              "cranes",
-              "downhole",
-              "electric forklift",
-              "indoor forklift"
-            ]
-          },
-          {
-            "n": "Diesel/LPG Forklifts",
-            "f": "Counterbalance Forklifts",
-            "code": "24101505",
-            "desc": "IC engine forklifts",
-            "kw": [
-              "LPG forklift",
-              "counterbalance forklift",
-              "cranes",
-              "diesel forklift",
-              "downhole"
-            ]
-          },
-          {
-            "n": "Reach Trucks",
-            "f": "Warehouse Forklifts",
-            "code": "24101505",
-            "desc": "Warehouse reach trucks",
-            "kw": [
-              "cranes",
-              "downhole",
-              "lifting equipment",
-              "material handling",
-              "narrow aisle forklift"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Crains",
-        "commodities": [
-          {
-            "n": "Truck Mounted Cranes",
-            "f": "Mobile Cranes",
-            "code": "23101501",
-            "desc": "Truck mounted crane equipment",
-            "kw": [
-              "cranes",
-              "downhole",
-              "lifting equipment",
-              "material handling",
-              "mobile crane"
-            ]
-          },
-          {
-            "n": "Crawler Cranes",
-            "f": "Mobile Cranes",
-            "code": "23101501",
-            "desc": "Crawler crane equipment",
-            "kw": [
-              "cranes",
-              "crawler crane",
-              "downhole",
-              "heavy lift crawler",
-              "lattice boom crane"
-            ]
-          },
-          {
-            "n": "All Terrain Cranes",
-            "f": "Mobile Cranes",
-            "code": "23101502",
-            "desc": "All terrain crane systems",
-            "kw": [
-              "AT crane",
-              "all terrain crane",
-              "cranes",
-              "downhole",
-              "lifting equipment"
-            ]
-          },
-          {
-            "n": "Tower Cranes",
-            "f": "Static Cranes",
-            "code": "24101623",
-            "desc": "Tower crane systems",
-            "kw": [
-              "construction tower crane",
-              "cranes",
-              "downhole",
-              "hammerhead crane",
-              "lifting equipment"
-            ]
-          },
-          {
-            "n": "Overhead Cranes",
-            "f": "Static Cranes",
-            "code": "24101653",
-            "desc": "Overhead bridge cranes",
-            "kw": [
-              "EOT crane",
-              "bridge crane",
-              "cranes",
-              "downhole",
-              "lifting equipment"
-            ]
-          },
-          {
-            "n": "Gantry Cranes",
-            "f": "Static Cranes",
-            "code": "24101654",
-            "desc": "Gantry crane systems",
-            "kw": [
-              "cranes",
-              "downhole",
-              "gantry crane",
-              "lifting equipment",
-              "material handling"
-            ]
-          },
-          {
-            "n": "Pedestal Cranes",
-            "f": "Offshore Cranes",
-            "code": "24101664",
-            "desc": "Offshore pedestal cranes",
-            "kw": [
-              "cranes",
-              "downhole",
-              "lifting equipment",
-              "material handling",
-              "offshore pedestal crane"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Riggers",
-        "commodities": [
-          {
-            "n": "Certified Riggers",
-            "f": "Rigging Personnel",
-            "code": "80111601",
-            "desc": "Certified rigging personnel services",
-            "kw": [
-              "banksman",
-              "certified rigger",
-              "cranes",
-              "downhole",
-              "lift supervisor"
-            ]
-          },
-          {
-            "n": "Rigging Supervisors",
-            "f": "Rigging Personnel",
-            "code": "80111601",
-            "desc": "Rigging supervisor services",
-            "kw": [
-              "banksman",
-              "certified rigger",
-              "cranes",
-              "downhole",
-              "lift supervisor"
-            ]
-          },
-          {
-            "n": "Lift Planning Services",
-            "f": "Rigging Services",
-            "code": "72151801",
-            "desc": "Engineered lift planning",
-            "kw": [
-              "cranes",
-              "critical lift",
-              "downhole",
-              "lift plan",
-              "lifting equipment"
-            ]
-          },
-          {
-            "n": "Heavy Lift Services",
-            "f": "Rigging Services",
-            "code": "72151801",
-            "desc": "Heavy lift rigging services",
-            "kw": [
-              "abnormal lift",
-              "cranes",
-              "downhole",
-              "engineered lift",
-              "lifting equipment"
-            ]
-          },
-          {
-            "n": "Rigging Hardware",
-            "f": "Rigging Equipment",
-            "code": "31151703",
-            "desc": "Rigging hardware and accessories",
-            "kw": [
-              "cranes",
-              "downhole",
-              "lifting equipment",
-              "material handling",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Spreader Bars & Lifting Beams",
-            "f": "Rigging Equipment",
-            "code": "31162001",
-            "desc": "Spreader bars and lifting beams",
-            "kw": [
-              "below hook device",
-              "cranes",
-              "downhole",
-              "lifting beam",
-              "lifting equipment"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Slings & Wire Rope",
-        "commodities": [
-          {
-            "n": "Steel Wire Rope",
-            "f": "Wire Rope",
-            "code": "31151505",
-            "desc": "Steel wire rope products",
-            "kw": [
-              "cranes",
-              "downhole",
-              "lifting equipment",
-              "material handling",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Wire Rope Slings",
-            "f": "Wire Rope",
-            "code": "31151505",
-            "desc": "Wire rope sling assemblies",
-            "kw": [
-              "cranes",
-              "downhole",
-              "lifting equipment",
-              "material handling",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Wire Rope Fittings",
-            "f": "Wire Rope",
-            "code": "31151522",
-            "desc": "Wire rope fittings and accessories",
-            "kw": [
-              "cranes",
-              "downhole",
-              "lifting equipment",
-              "material handling",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Polyester Round Slings",
-            "f": "Synthetic Slings",
-            "code": "31151601",
-            "desc": "Polyester round sling products",
-            "kw": [
-              "cranes",
-              "downhole",
-              "lifting equipment",
-              "material handling",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Webbing Slings",
-            "f": "Synthetic Slings",
-            "code": "31151601",
-            "desc": "Webbing sling products",
-            "kw": [
-              "cranes",
-              "downhole",
-              "lifting equipment",
-              "material handling",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Grade 80 Chain Slings",
-            "f": "Chain Slings",
-            "code": "31151703",
-            "desc": "Grade 80 lifting chain slings",
-            "kw": [
-              "cranes",
-              "downhole",
-              "lifting equipment",
-              "material handling",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Grade 100 Chain Slings",
-            "f": "Chain Slings",
-            "code": "31151703",
-            "desc": "Grade 100 lifting chain slings",
-            "kw": [
-              "cranes",
-              "downhole",
-              "lifting equipment",
-              "material handling",
-              "oilfield services"
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "type": "Services",
+    "type": "Direct",
     "name": "Field Technical Equipment & Services",
     "subs": [
+      {
+        "name": "Cabins, Camps & Cargo",
+        "commodities": [
+          {
+            "n": "CC&C GPS Tracking - Hardware",
+            "f": "General CC&C",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "CC&C GPS Tracking - Software / Services",
+            "f": "General CC&C",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Engineering & Design CC&C (DNV)",
+            "f": "General CC&C",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Engineering & Design CC&C (Non-DNV)",
+            "f": "General CC&C",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Camp Accommodation Units",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Land Cabins - Manufacture (e.g. Offices, Labs)",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Land Cabins - Rental (e.g. Offices, Labs)",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Land Cabins - Repair & Maintenance",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Land Cabins - Spare Parts",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mobile Land Camps - Manufacture (e.g. Accommodations)",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mobile Land Camps - Rentals (e.g. Accommodations)",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mobile Land Camps - Repair & Maintenance",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mobile Land Camps - Spare Parts",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Office Containers",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Portable Buildings - Purchase",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Portable Buildings - Rental",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Welfare Units",
+            "f": "Land Cabins & Camps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Offshore Accommodation Modules",
+            "f": "Offshore Cabins",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Offshore Office Modules",
+            "f": "Offshore Cabins",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Equipment Leasing Services",
+            "f": "Operational Leasing",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Baskets & Skips",
+            "f": "Portable Cargo",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cargo Carrying Units - Bins / Waste Skips",
+            "f": "Portable Cargo",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cargo Carrying Units (CCU)",
+            "f": "Portable Cargo",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cargo Carrying Units - Drill Cuttings / Mud Skips",
+            "f": "Portable Cargo",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hazmat (Explosive, Radioactive) Transport Units - Purchase",
+            "f": "Portable Cargo",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hazmat (Explosive, Radioactive) Transport Units - Rental",
+            "f": "Portable Cargo",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Offshore Containers",
+            "f": "Portable Cargo",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tank Containers",
+            "f": "Portable Cargo",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
       {
         "name": "Completion Tools",
         "commodities": [
           {
             "n": "Cross Coupling Cable Protectors",
             "f": "Cable Protectors",
-            "code": "20121801",
-            "desc": "Cable protection equipment for downhole applications",
-            "kw": [
-              "ESP cable protection",
-              "cable protectors",
-              "completion tools",
-              "downhole",
-              "downhole cable protection"
-            ]
-          },
-          {
-            "n": "Permanent Downhole Cable (PDC)",
-            "f": "Cables",
-            "code": "26121601",
-            "desc": "Permanent downhole communication cables",
-            "kw": [
-              "ESP cable",
-              "PDC cable",
-              "completion tools",
-              "downhole",
-              "downhole wire"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Hybrid PDC",
             "f": "Cables",
-            "code": "26121601",
-            "desc": "Hybrid permanent downhole cables",
-            "kw": [
-              "ESP cable",
-              "PDC cable",
-              "completion tools",
-              "downhole",
-              "downhole wire"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Permanent Downhole Cable (PDC)",
+            "f": "Cables",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Twisted Pair PDC",
             "f": "Cables",
-            "code": "26121602",
-            "desc": "Twisted pair downhole cables",
-            "kw": [
-              "ESP cable",
-              "PDC cable",
-              "completion tools",
-              "downhole",
-              "downhole wire"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Casing Baskets",
             "f": "Casing Accessories",
-            "code": "20121501",
-            "desc": "Casing basket equipment",
-            "kw": [
-              "casing basket",
-              "centralizer basket",
-              "completion tools",
-              "downhole",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Casing Cleaners",
             "f": "Casing Accessories",
-            "code": "20121501",
-            "desc": "Casing cleaning equipment",
-            "kw": [
-              "bore cleaner",
-              "casing cleaner",
-              "completion tools",
-              "downhole",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Centralizers & Turbolizers",
             "f": "Casing Hardware",
-            "code": "20121601",
-            "desc": "Centralization equipment for casing",
-            "kw": [
-              "bow spring centralizer",
-              "casing centralizer",
-              "completion tools",
-              "downhole",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Float Equipment (Collar, Shoe)",
+            "f": "Casing Hardware",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Plugs (Top, Bottom)",
+            "f": "Casing Hardware",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Stage Equipment (Mechanical, Hydraulic)",
+            "f": "Casing Hardware",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Adjustable Joints",
+            "f": "Completion Tubular Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Expansion Joints",
+            "f": "Completion Tubular Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "No-Go Nipples & Locks",
+            "f": "Completion Tubular Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "On-Off Units",
+            "f": "Completion Tubular Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sliding Sleeves",
+            "f": "Completion Tubular Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tubing Plugs",
+            "f": "Completion Tubular Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Seamless Control Line",
+            "f": "Control Line",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Welded Control Line",
+            "f": "Control Line",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (Adjustable Joints)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (Elastomeric Sliding Sleeves)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (Expansion Joints)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (No-Go Locks)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (No-Go Nipples)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (Non-Elastomeric Sliding Sleeves)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (On-Off Units)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (Other Tubular)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (Pump Out Plugs/Subs)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (Receptacle Sub)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (Stinger)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (Swivels)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Tubular ACCS (Tubing Plugs)",
+            "f": "Core Completions Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Downhole Lubricator Valve (SFIV)",
+            "f": "Downhole Flow Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Flow Control Valves",
+            "f": "Downhole Flow Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Formation Isolation Valve",
+            "f": "Downhole Flow Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Landing Nipples",
+            "f": "Downhole Flow Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Downhole Well Testing Test Tools",
+            "f": "Downhole Well Testing Test Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "3 Way Sub",
+            "f": "Dumb Iron Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Blast Joints",
+            "f": "Dumb Iron Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Bull Plugs",
+            "f": "Dumb Iron Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Completion Crossovers",
+            "f": "Dumb Iron Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Flow Couplings",
+            "f": "Dumb Iron Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Multiple Joint Lifting Plugs",
+            "f": "Dumb Iron Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Perforated Pup Joints",
+            "f": "Dumb Iron Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pipe Plug",
+            "f": "Dumb Iron Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Production Tubing Pup Joints - Purchase",
+            "f": "Dumb Iron Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Single Joint Lifting Plugs",
+            "f": "Dumb Iron Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wireline Entry Guide",
+            "f": "Dumb Iron Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Annulus Gas Vent Valve",
+            "f": "ESP Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Gas Vent Valve with SSD",
+            "f": "ESP Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Penetrator",
+            "f": "ESP Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Penetrator Retainer",
+            "f": "ESP Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Vent Valve",
+            "f": "ESP Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Liner Hanger Running Tools",
+            "f": "Liner Hangers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Liner Hanger Systems",
+            "f": "Liner Hangers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Blanking Plug",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Equalizing Check Valve",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Equalizing Plug",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Equalizing Prong",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Equalizing Sub",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Instrument Hanger",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Lock",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Locking Collet",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Locking Dog",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Lock Mandrel Redress Kit",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Lock Mandrel Running Kit",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Lock Ring",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Plug Redress Kit",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Prong Plug",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pulling Prong",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Running Prong",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Standing Valve",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tubing Hanger Lock",
+            "f": "Lock & Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Multilateral Casing",
+            "f": "Multilateral Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Multilateral Junctions",
+            "f": "Multilateral Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Multilateral Packer Parts & Accessories",
+            "f": "Multilateral Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Multilateral Packers",
+            "f": "Multilateral Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Anchor Latch",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cement Retainer Settling Tool",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Crossover Seal Unit",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Locator",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Locator Seal Assembly/Seal Unit",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mandrel Seal Unit",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Millout Seal Unit",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Polished Bore Receptacle",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Seal Assembly",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Seal Bore Extension",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Seal Unit",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Spacer Seal Assembly",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wireline Adapter Kit",
+            "f": "Packers Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Bridge Plugs",
+            "f": "Packers & Bridge Plugs",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cement Retainers",
+            "f": "Packers & Bridge Plugs",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Packer Accessories",
+            "f": "Packers & Bridge Plugs",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Production Packers",
+            "f": "Packers & Bridge Plugs",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Perforating Accessories",
+            "f": "Perforating Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Perforating Guns",
+            "f": "Perforating Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Shaped Charges",
+            "f": "Perforating Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "RMC - Splice Sub",
+            "f": "RMC",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "RMC - Splice Sub RDK",
+            "f": "RMC",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "RMC - Wellhead Outlet",
+            "f": "RMC",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Gravel Pack Equipment",
+            "f": "Sand Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Inflow Control Devices (ICD)",
+            "f": "Sand Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sand Screens",
+            "f": "Sand Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "O-Ring Seal Sub & Slick Joints",
+            "f": "Sandface Completions",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "SSSV Accessories Communication Tool",
+            "f": "SSSV Flow Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "SSSV Accessories Communication Tool RDK",
+            "f": "SSSV Flow Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "SSSV Accessories Flow Tubes",
+            "f": "SSSV Flow Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "SSSV Accessories Lockout Tool",
+            "f": "SSSV Flow Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "SSSV Accessories Lockout Tool RDK",
+            "f": "SSSV Flow Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "HPHT, Subsea or Downhole Connectors",
+            "f": "Subsea Downhole Connectors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "SSSV Accessories",
+            "f": "Subsurface Safety Valves",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "SSSV Systems",
+            "f": "Subsurface Safety Valves",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Blast Joints & Flow Couplings",
+            "f": "Tubing Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tubing Anchors",
+            "f": "Tubing Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tubing Hangers",
+            "f": "Tubing Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Compressors & Generators",
+        "commodities": [
+          {
+            "n": "Pneumatic, Hydraulic, Electric & Others",
+            "f": "Actuators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air & Steam Accessories - Purchase",
+            "f": "Air & Steam Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air & Steam Accessories - Rental",
+            "f": "Air & Steam Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Assembly Design & Engineering Services",
+            "f": "Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Oilfield Equipment Mounted on Truck/Trailer - Purchase",
+            "f": "Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Oilfield Equipment Mounted on Truck/Trailer - Rental",
+            "f": "Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pump Skid, Instrumentation, Controls",
+            "f": "Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pump Skids",
+            "f": "Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Bulk Compressor Maintenance",
+            "f": "Bulk Compressors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Bulk Compressors - Purchase",
+            "f": "Bulk Compressors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Bulk Compressors - Rental",
+            "f": "Bulk Compressors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air Cooler, Centrifuge, Filtration Components",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air Dryers - Power Building",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air Receivers - Power Building",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air System Components - Power Building",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fuel System - Power Building",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hardware - Power Building",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hydraulic Installations - Power Building",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Motors - All Types (Hydraulic, Electric, Pneumatic)",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Power Generation (Hydraulic, Pneumatic & Electric)",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Radiators - Power Building",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Regulators - All Types",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Silencer - Power Building",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Spare Parts",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Valves",
+            "f": "Components",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Compressor - Operating Services",
+            "f": "Compressors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Compressor - Purchase",
+            "f": "Compressors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Compressor - Rental",
+            "f": "Compressors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Compressor - Repair & Maintenance",
+            "f": "Compressors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "All KVA Rating",
+            "f": "Generators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heat Exchangers (A&S Testing Applications) - Product",
+            "f": "Heat Exchangers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heat Exchangers (A&S Testing Applications) - Rental",
+            "f": "Heat Exchangers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Brake System",
+            "f": "Mechanical",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Gearbox",
+            "f": "Mechanical",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Other Rotating Equipment",
+            "f": "Other Rotating Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Other Rotating Equipment - Spare Parts",
+            "f": "Other Rotating Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Doghouse",
+            "f": "Performance Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Performance Materials - Other",
+            "f": "Performance Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Riser Buoyancy",
+            "f": "Performance Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Stiffener",
+            "f": "Performance Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Strake",
+            "f": "Performance Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Thermal Insulation",
+            "f": "Performance Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Diesel Generators - Purchase",
+            "f": "Power Generators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Diesel Generators - Rental",
+            "f": "Power Generators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Gas Turbine Generators",
+            "f": "Power Generators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Generator Maintenance",
+            "f": "Power Generators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Engine Accessories (Radiators, Exhaust & Cooling Systems)",
+            "f": "Powertrain",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Engine Replacement Parts",
+            "f": "Powertrain",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Engines < 750 hp",
+            "f": "Powertrain",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Engines > 751 hp",
+            "f": "Powertrain",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Engines Rental",
+            "f": "Powertrain",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Engines Repair",
+            "f": "Powertrain",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Planned/Routine Maintenance",
+            "f": "Powertrain",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Transmission Parts",
+            "f": "Powertrain",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Transmissions",
+            "f": "Powertrain",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Unplanned Maintenance",
+            "f": "Powertrain",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Centrifugal Pumps - Pump",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Centrifugal Pumps - Repair",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Centrifugal Pumps - Spare Parts",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cryogenic Pumps - Pump",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cryogenic Pumps - Repair",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cryogenic Pumps - Spare Parts",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Plunger Pumps - Fluid End Repair",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Plunger Pumps - Power End",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Plunger Pumps - Power End Repair",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Plunger Pumps - Pump 1000-2200 HP",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Plunger Pumps - Pump >= 2250 HP",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Plunger Pumps - Pump <= 600HP",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Progressive Cavity Pumps - Pump",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Progressive Cavity Pumps - Repair",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Progressive Cavity Pumps - Spare Parts",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sucker Rod Pumping System - Pump",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sucker Rod Pumping System - Repair",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sucker Rod Pumping System - Spare Parts",
+            "f": "Pumps",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rig Cooling - Maintenance",
+            "f": "Rig Cooling",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rig Cooling - Operating Services",
+            "f": "Rig Cooling",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rig Cooling - Rental",
+            "f": "Rig Cooling",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sand Filters - Purchase",
+            "f": "Sand Filters",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sand Filters - Rental",
+            "f": "Sand Filters",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Steam Generators - Maintenance",
+            "f": "Steam Generators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Steam Generators - Operating Services",
+            "f": "Steam Generators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Steam Generators - Purchase",
+            "f": "Steam Generators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Steam Generators - Rental",
+            "f": "Steam Generators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subsea Flow Meter, Multi-Phase",
+            "f": "Subsea Meters",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subsea Flow Meter, Single-Phase",
+            "f": "Subsea Meters",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subsea Wet Gas Meter",
+            "f": "Subsea Meters",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subsea Buoyancy Equipment or Module",
+            "f": "Subsea Pipeline Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subsea Fitting",
+            "f": "Subsea Pipeline Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subsea Flange",
+            "f": "Subsea Pipeline Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subsea Manifold",
+            "f": "Subsea Project Installation Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subsea Running Tool",
+            "f": "Subsea Project Installation Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subsea Production Monitoring Equipment",
+            "f": "Subsea Well Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Well Test Compressor Services",
+            "f": "Well Testing Compressors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Well Test Compressors - Purchase",
+            "f": "Well Testing Compressors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Well Test Compressors - Rental",
+            "f": "Well Testing Compressors",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
@@ -4017,93 +2303,175 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
           {
             "n": "Conventional Gyro Services",
             "f": "Downhole Data Acquisition",
-            "code": "20121901",
-            "desc": "Conventional gyroscopic survey services",
-            "kw": [
-              "data acquisition",
-              "directional survey",
-              "downhole",
-              "downhole survey",
-              "gyro services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Gravity/Magnetic Field Surveys",
             "f": "Downhole Data Acquisition",
-            "code": "20121903",
-            "desc": "Gravity and magnetic field-based surveys",
-            "kw": [
-              "data acquisition",
-              "downhole",
-              "downhole survey",
-              "field survey",
-              "gravity survey"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Mud Pulse Telemetry",
             "f": "Downhole Data Acquisition",
-            "code": "20121802",
-            "desc": "MWD mud pulse telemetry systems",
-            "kw": [
-              "MWD telemetry",
-              "data acquisition",
-              "downhole",
-              "downhole communication",
-              "downhole survey"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Wireless Data Transmission",
             "f": "Downhole Data Acquisition",
-            "code": "20121901",
-            "desc": "Wireless downhole data acquisition",
-            "kw": [
-              "EM telemetry",
-              "acoustic telemetry",
-              "data acquisition",
-              "downhole",
-              "downhole survey"
-            ]
-          },
-          {
-            "n": "GWD Systems",
-            "f": "Gyro While Drilling (GWD)",
-            "code": "20121803",
-            "desc": "Gyro while drilling systems",
-            "kw": [
-              "GWD",
-              "azimuthal gyro MWD",
-              "data acquisition",
-              "downhole",
-              "downhole drilling tools"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "GWD Services",
             "f": "Gyro While Drilling (GWD)",
-            "code": "20121803",
-            "desc": "Gyro while drilling services",
-            "kw": [
-              "GWD",
-              "azimuthal gyro MWD",
-              "data acquisition",
-              "downhole",
-              "downhole drilling tools"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "GWD Systems",
+            "f": "Gyro While Drilling (GWD)",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Seismic Processing Services",
+            "f": "Seismic Data Acquisition",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Seismic Survey Equipment",
+            "f": "Seismic Data Acquisition",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Real-time Data Transmission",
+            "f": "Surface Data Acquisition",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Surface Data Logging",
             "f": "Surface Data Acquisition",
-            "code": "20121901",
-            "desc": "Surface data logging systems",
-            "kw": [
-              "data acquisition",
-              "downhole",
-              "downhole survey",
-              "formation evaluation logging",
-              "mud logging"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "DHT",
+        "commodities": [
+          {
+            "n": "Gas Lift Equipment",
+            "f": "Artificial Lift",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Progressive Cavity Pumps",
+            "f": "Artificial Lift",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rod Pumps & Sucker Rods",
+            "f": "Artificial Lift",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "CT Bottomhole Assemblies",
+            "f": "Coiled Tubing Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "CT Clean Out Tools",
+            "f": "Coiled Tubing Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "CT Milling Tools",
+            "f": "Coiled Tubing Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Electric Submersible Pumps",
+            "f": "ESP Systems",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "ESP Accessories",
+            "f": "ESP Systems",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "ESP Motors & Cables",
+            "f": "ESP Systems",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Bailers & Dump Valves",
+            "f": "Slickline Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Gauge Cutters & Swabs",
+            "f": "Slickline Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pulling & Running Tools",
+            "f": "Slickline Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wireline Punchers & Cutters",
+            "f": "Wireline Conveyed Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wireline Setting Tools",
+            "f": "Wireline Conveyed Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
@@ -4111,95 +2479,732 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
         "name": "Drilling Product & Services",
         "commodities": [
           {
-            "n": "PDC Bits - Purchase",
-            "f": "Drilling Bits",
-            "code": "20141501",
-            "desc": "PDC drill bits for purchase",
-            "kw": [
-              "PDC bit",
-              "downhole",
-              "downhole drilling tools",
-              "drill bit",
-              "drilling"
-            ]
+            "n": "Casing Running & Tubing Equipment Rental",
+            "f": "Casing Running & Tubing Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "PDC Bits - Rental",
-            "f": "Drilling Bits",
-            "code": "20141501",
-            "desc": "PDC drill bits for rental",
-            "kw": [
-              "PDC bit",
-              "downhole",
-              "downhole drilling tools",
-              "drill bit",
-              "drilling"
-            ]
+            "n": "Casing Running & Tubing Service Offshore - Conventional",
+            "f": "Casing Running & Tubing Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Roller Cone Bits - Milltooth",
-            "f": "Drilling Bits",
-            "code": "20141502",
-            "desc": "Milltooth roller cone bits",
-            "kw": [
-              "TCI bit",
-              "casing cutter",
-              "downhole",
-              "downhole drilling tools",
-              "drill bit"
-            ]
+            "n": "Casing Running & Tubing Service Offshore - CRT",
+            "f": "Casing Running & Tubing Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Roller Cone Bits - TCI",
-            "f": "Drilling Bits",
-            "code": "20141503",
-            "desc": "Tungsten carbide insert roller cone bits",
-            "kw": [
-              "TCI bit",
-              "downhole",
-              "downhole drilling tools",
-              "drill bit",
-              "drilling"
-            ]
+            "n": "Casing Running & Tubing Service Onshore - Conventional",
+            "f": "Casing Running & Tubing Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Positive Displacement Motors",
-            "f": "Downhole Motors",
-            "code": "20141601",
-            "desc": "Positive displacement drilling motors",
-            "kw": [
-              "PDM",
-              "downhole",
-              "downhole drilling tools",
-              "drill bit",
-              "drilling"
-            ]
+            "n": "Casing Running & Tubing Service Onshore - CRT",
+            "f": "Casing Running & Tubing Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Turbine Motors",
-            "f": "Downhole Motors",
-            "code": "20141601",
-            "desc": "Turbine drilling motors",
-            "kw": [
-              "downhole",
-              "downhole drilling tools",
-              "drill bit",
-              "drilling",
-              "drilling turbine"
-            ]
+            "n": "Hydraulic Catwalk",
+            "f": "Casing Running & Tubing Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drilling Spear",
+            "f": "Casing While Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drilling Spear Parts & Accessories",
+            "f": "Casing While Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drill Shoe",
+            "f": "Casing While Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drill Shoe Parts & Accessories",
+            "f": "Casing While Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Casing Scraper Parts & Accessories",
+            "f": "Conventional Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Casing Scrapers",
+            "f": "Conventional Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Coring Equipment",
+            "f": "Conventional Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drill Pipe Thread Protectors",
+            "f": "Conventional Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Gauge Rings",
+            "f": "Conventional Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hole Openers (Downhole Drilling Applications)",
+            "f": "Conventional Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rotating Control Head (Downhole Drilling Applications)",
+            "f": "Conventional Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rotating Control Head Parts & Accessories",
+            "f": "Conventional Drilling Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Conventional Gyro Services - LIH Insurance",
+            "f": "Conventional Gyro",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Conventional Gyro Services - Lost in Hole (LIH)",
+            "f": "Conventional Gyro",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Coring Services Offshore",
+            "f": "Coring Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Coring Services Onshore",
+            "f": "Coring Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Downhole Casing Inspection Tool & Accessories",
+            "f": "Data Acquisition - Downhole",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Logging - Downhole Camera",
+            "f": "Data Acquisition - Downhole",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Other Downhole Data Acquisition (MWD/LWD/DD/Ranging)",
+            "f": "Data Acquisition - Downhole",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Downhole Drilling Mud/Fluid Analysis",
+            "f": "Data Acquisition - Off Site/Lab",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Other Off-Site Laboratory Downhole Data Acquisition",
+            "f": "Data Acquisition - Off Site/Lab",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Motor Accessories & Parts",
             "f": "Downhole Motors",
-            "code": "20121802",
-            "desc": "Downhole motor accessories",
-            "kw": [
-              "PDM parts",
-              "downhole",
-              "downhole drilling tools",
-              "drill bit",
-              "drilling"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mud Motor - Lost in Hole (LIH)",
+            "f": "Downhole Motors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mud Motor - Lost in Hole (LIH) Insurance",
+            "f": "Downhole Motors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mud Motor - Relines",
+            "f": "Downhole Motors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mud Motor - Rotors, Stators, Power-Sections",
+            "f": "Downhole Motors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Positive Displacement Motors",
+            "f": "Downhole Motors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Turbine Motors",
+            "f": "Downhole Motors",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "PDC Bits - Purchase",
+            "f": "Drilling Bits",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "PDC Bits - Rental",
+            "f": "Drilling Bits",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Roller Cone Bits - Milltooth",
+            "f": "Drilling Bits",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Roller Cone Bits - TCI",
+            "f": "Drilling Bits",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Circulating Tools (Bypass Subs) - Purchase",
+            "f": "Drilling Products",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Circulating Tools (Bypass Subs) - Rental",
+            "f": "Drilling Products",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Debris Recovery Tools - Rental",
+            "f": "Drilling Products",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drilling Products - Lost in Hole (LIH) Insurance",
+            "f": "Drilling Products",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Reamers & Underreamers - Purchase",
+            "f": "Drilling Products",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Reamers & Underreamers - Rental",
+            "f": "Drilling Products",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fishing Jars",
+            "f": "Fishing Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fishing Tools - Lost in Hole (LIH) Insurance",
+            "f": "Fishing Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Magnets & Junk Baskets",
+            "f": "Fishing Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mills & Cutters",
+            "f": "Fishing Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Overshots & Spears",
+            "f": "Fishing Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Coating Services",
+            "f": "Machine Shop Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Threading Services",
+            "f": "Machine Shop Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Welding Services",
+            "f": "Machine Shop Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Downhole Casing",
+            "f": "Oil Country Tubular Goods",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drill Pipe - Purchase",
+            "f": "Oil Country Tubular Goods",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drill Pipe - Rental",
+            "f": "Oil Country Tubular Goods",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heavy Weight Drill Pipe (HWDP) - Purchase",
+            "f": "Oil Country Tubular Goods",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heavy Weight Drill Pipe (HWDP) - Rental",
+            "f": "Oil Country Tubular Goods",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Line Pipe",
+            "f": "Oil Country Tubular Goods",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Production Tubing",
+            "f": "Oil Country Tubular Goods",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Camp & Catering at Rig Site",
+            "f": "Other Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Equipment Rental - Rig Site",
+            "f": "Other Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Other Rig Site Services",
+            "f": "Other Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rig Mud Cleaning Services",
+            "f": "Other Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wellsite Construction Services",
+            "f": "Other Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wellsite Construction Services - Sub-Contracted Services",
+            "f": "Other Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "WSV - Well Cementing Services (Alliance)",
+            "f": "Rig Cementing System",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "DROPS Survey",
+            "f": "Rig Inspection Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Human Competence Inspection",
+            "f": "Rig Inspection Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Management System Inspection",
+            "f": "Rig Inspection Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Other Rig Inspection Services",
+            "f": "Rig Inspection Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rig Acceptance Inspection",
+            "f": "Rig Inspection Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Offshore Drilling Rig Rentals",
+            "f": "Rig Rentals",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Offshore Workover Rig Rentals",
+            "f": "Rig Rentals",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Onshore Drilling Rig Rentals",
+            "f": "Rig Rentals",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Onshore Workover Rig Rentals",
+            "f": "Rig Rentals",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rig Move Services",
+            "f": "Rig Rentals",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "WSV - Multistage Acid Fracturing",
+            "f": "Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "WSV - Multistage CO2 Fracturing",
+            "f": "Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "WSV - Multistage Hydraulic Proppant Fracturing",
+            "f": "Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "WSV - Single Stage Acid Fracturing",
+            "f": "Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "WSV - Single Stage CO2 Fracturing",
+            "f": "Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "WSV - Single Stage Hydraulic Proppant Fracturing",
+            "f": "Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "WSV - Well Cementing Services",
+            "f": "Rig Site Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rig Waste Offshore - Disposal Facility",
+            "f": "Rig Waste Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rig Waste Offshore - Trucking",
+            "f": "Rig Waste Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rig Waste Onshore - Disposal Facility",
+            "f": "Rig Waste Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rig Waste Onshore - Trucking",
+            "f": "Rig Waste Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Thru Tubing Mills",
+            "f": "Thru Tubing Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Thru Tubing Whipstocks",
+            "f": "Thru Tubing Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Casing & Tubing",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drill Collars",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drilling Tubular Pup Joints - Purchase",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drilling Tubular Pup Joints - Rental",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drill Pipe",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drillstring Crossovers & Subs - Purchase",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drillstring Crossovers & Subs - Rental",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heavy Weight Drill Pipe",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Stabilizer - Purchase",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Stabilizer - Rental",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tubulars - Lost in Hole (LIH)",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tubulars - Lost in Hole (LIH) Insurance",
+            "f": "Tubulars",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "While Drilling Gyro",
+            "f": "While Drilling Gyro",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "While Drilling Gyro - LIH Insurance",
+            "f": "While Drilling Gyro",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "While Drilling Gyro - Lost in Hole (LIH)",
+            "f": "While Drilling Gyro",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
@@ -4207,575 +3212,102 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
         "name": "Electronics",
         "commodities": [
           {
-            "n": "Power Distribution Equipment",
-            "f": "Electrical Equipment",
-            "code": "26111503",
-            "desc": "Electrical power distribution systems",
-            "kw": [
-              "MCC",
-              "downhole",
-              "downhole electronics",
-              "electronics",
-              "oilfield electronics"
-            ]
-          },
-          {
             "n": "Motor Control Centers",
             "f": "Electrical Equipment",
-            "code": "26111601",
-            "desc": "Motor control center assemblies",
-            "kw": [
-              "MCC",
-              "VSD controls",
-              "downhole",
-              "downhole electronics",
-              "electronics"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Power Distribution Equipment",
+            "f": "Electrical Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Variable Frequency Drives",
             "f": "Electrical Equipment",
-            "code": "26111601",
-            "desc": "VFD motor control systems",
-            "kw": [
-              "VFD",
-              "VSD",
-              "downhole",
-              "downhole electronics",
-              "electronics"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Actuators & Solenoids",
+            "f": "Electro-Mechanical Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Control Systems",
+            "f": "Electro-Mechanical Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Circuit Boards & PCBs",
             "f": "Electronic Components",
-            "code": "32101502",
-            "desc": "Electronic circuit boards",
-            "kw": [
-              "PCB",
-              "downhole",
-              "downhole electronics",
-              "electronics",
-              "electronics board"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Integrated Circuits",
             "f": "Electronic Components",
-            "code": "43211507",
-            "desc": "Integrated circuit components",
-            "kw": [
-              "IC",
-              "downhole",
-              "downhole electronics",
-              "electronics",
-              "integrated circuit"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Resistors & Capacitors",
             "f": "Electronic Components",
-            "code": "32101502",
-            "desc": "Passive electronic components",
-            "kw": [
-              "capacitors",
-              "downhole",
-              "downhole electronics",
-              "electronic components",
-              "electronics"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Accelerometers",
+            "f": "Sensors & Transducers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Magnetometers",
+            "f": "Sensors & Transducers",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Pressure Transducers",
             "f": "Sensors & Transducers",
-            "code": "41111501",
-            "desc": "Pressure sensing transducers",
-            "kw": [
-              "downhole",
-              "downhole electronics",
-              "downhole pressure gauge",
-              "electronics",
-              "oilfield electronics"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Regulated Materials",
-        "commodities": [
-          {
-            "n": "Shaped Charges",
-            "f": "Explosives",
-            "code": "20122103",
-            "desc": "Perforating shaped charges",
-            "kw": [
-              "downhole",
-              "explosive charge",
-              "oilfield explosives",
-              "oilfield services",
-              "perforating charge"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Explosive Powder",
-            "f": "Explosives",
-            "code": "20122103",
-            "desc": "Explosive powder materials",
-            "kw": [
-              "RDX",
-              "downhole",
-              "oilfield explosives",
-              "oilfield services",
-              "propellant"
-            ]
+            "n": "Temperature Sensors",
+            "f": "Sensors & Transducers",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Detonators & Boosters",
-            "f": "Explosives",
-            "code": "20122103",
-            "desc": "Detonators and booster assemblies",
-            "kw": [
-              "booster",
-              "detonator",
-              "downhole",
-              "firing system",
-              "initiator"
-            ]
+            "n": "Connectors & Harnesses",
+            "f": "Wire, Cable & Connectors",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Explosive Accessories",
-            "f": "Explosives",
-            "code": "20122103",
-            "desc": "Explosive handling accessories",
-            "kw": [
-              "downhole",
-              "oilfield explosives",
-              "oilfield services",
-              "perforating hardware",
-              "radioactive materials"
-            ]
-          },
-          {
-            "n": "Logging Sources",
-            "f": "Radioactive Sources",
-            "code": "20122103",
-            "desc": "Radioactive logging sources",
-            "kw": [
-              "Cs-137",
-              "downhole",
-              "logging source",
-              "nuclear source",
-              "oilfield explosives"
-            ]
-          },
-          {
-            "n": "Source Handling Equipment",
-            "f": "Radioactive Sources",
-            "code": "20121902",
-            "desc": "Radioactive source handling equipment",
-            "kw": [
-              "downhole",
-              "oilfield explosives",
-              "oilfield services",
-              "radioactive handling",
-              "radioactive materials"
-            ]
-          },
-          {
-            "n": "Pulse Neutron Generators (PNG)",
-            "f": "Nuclear Materials",
-            "code": "20121901",
-            "desc": "Pulse neutron generator systems",
-            "kw": [
-              "PNG",
-              "active neutron source",
-              "downhole",
-              "neutron tool",
-              "oilfield explosives"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Compressors & Generators",
-        "commodities": [
-          {
-            "n": "Bulk Compressors - Purchase",
-            "f": "Bulk Compressors",
-            "code": "26111701",
-            "desc": "Bulk air compressor systems",
-            "kw": [
-              "air compressor",
-              "bulk compressor",
-              "compressor services",
-              "downhole",
-              "gas compressor"
-            ]
-          },
-          {
-            "n": "Bulk Compressors - Rental",
-            "f": "Bulk Compressors",
-            "code": "26111701",
-            "desc": "Bulk compressor rental services",
-            "kw": [
-              "air compressor",
-              "bulk compressor",
-              "compressor services",
-              "downhole",
-              "gas compressor"
-            ]
-          },
-          {
-            "n": "Bulk Compressor Maintenance",
-            "f": "Bulk Compressors",
-            "code": "26111702",
-            "desc": "Bulk compressor maintenance services",
-            "kw": [
-              "bulk compressor",
-              "downhole",
-              "nitrogen compressor",
-              "oilfield equipment",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Well Test Compressors - Purchase",
-            "f": "Well Testing Compressors",
-            "code": "26111801",
-            "desc": "Well testing compressor systems",
-            "kw": [
-              "air compressor",
-              "compressor services",
-              "downhole",
-              "gas compressor",
-              "oilfield equipment"
-            ]
-          },
-          {
-            "n": "Well Test Compressors - Rental",
-            "f": "Well Testing Compressors",
-            "code": "26111801",
-            "desc": "Well test compressor rental",
-            "kw": [
-              "air compressor",
-              "compressor services",
-              "downhole",
-              "gas compressor",
-              "oilfield equipment"
-            ]
-          },
-          {
-            "n": "Well Test Compressor Services",
-            "f": "Well Testing Compressors",
-            "code": "26111802",
-            "desc": "Well test compressor operating services",
-            "kw": [
-              "downhole",
-              "oilfield equipment",
-              "oilfield services",
-              "production testing compressor",
-              "rotating equipment"
-            ]
-          },
-          {
-            "n": "Diesel Generators - Purchase",
-            "f": "Power Generators",
-            "code": "26111901",
-            "desc": "Diesel generator sets",
-            "kw": [
-              "diesel generator",
-              "downhole",
-              "genset",
-              "oilfield equipment",
-              "oilfield services"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Cabins, Camps & Cargo",
-        "commodities": [
-          {
-            "n": "Portable Buildings - Purchase",
-            "f": "Land Cabins & Camps",
-            "code": "30161501",
-            "desc": "Portable building structures",
-            "kw": [
-              "cargo containers",
-              "downhole",
-              "field accommodation",
-              "modular building",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Portable Buildings - Rental",
-            "f": "Land Cabins & Camps",
-            "code": "30161501",
-            "desc": "Portable building rental",
-            "kw": [
-              "cargo containers",
-              "downhole",
-              "field accommodation",
-              "modular building",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Camp Accommodation Units",
-            "f": "Land Cabins & Camps",
-            "code": "30161502",
-            "desc": "Camp accommodation modules",
-            "kw": [
-              "camp accommodation unit",
-              "cargo containers",
-              "crew quarters",
-              "downhole",
-              "field accommodation"
-            ]
-          },
-          {
-            "n": "Office Containers",
-            "f": "Land Cabins & Camps",
-            "code": "30161503",
-            "desc": "Containerized office units",
-            "kw": [
-              "cargo containers",
-              "containerized office",
-              "downhole",
-              "field accommodation",
-              "office container"
-            ]
-          },
-          {
-            "n": "Welfare Units",
-            "f": "Land Cabins & Camps",
-            "code": "30161504",
-            "desc": "Welfare and sanitary units",
-            "kw": [
-              "cargo containers",
-              "downhole",
-              "field accommodation",
-              "oilfield services",
-              "portable structures"
-            ]
-          },
-          {
-            "n": "Offshore Accommodation Modules",
-            "f": "Offshore Cabins",
-            "code": "30161601",
-            "desc": "Offshore living quarter modules",
-            "kw": [
-              "LQ module",
-              "cargo containers",
-              "downhole",
-              "field accommodation",
-              "living quarters offshore"
-            ]
-          },
-          {
-            "n": "Offshore Office Modules",
-            "f": "Offshore Cabins",
-            "code": "30161601",
-            "desc": "Offshore office containers",
-            "kw": [
-              "cargo containers",
-              "downhole",
-              "field accommodation",
-              "offshore container module",
-              "offshore office module"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Power Driven Integration",
-        "commodities": [
-          {
-            "n": "Skid Unit - Purchase",
-            "f": "Assembly",
-            "code": "20142302",
-            "desc": "Skid-mounted equipment assemblies",
-            "kw": [
-              "downhole",
-              "engineered skid",
-              "integrated oilfield equipment",
-              "oilfield equipment",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Skid Unit - Rental",
-            "f": "Assembly",
-            "code": "20142302",
-            "desc": "Skid unit rental services",
-            "kw": [
-              "downhole",
-              "engineered skid",
-              "integrated oilfield equipment",
-              "oilfield equipment",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Trailer/Truck Unit - Purchase",
-            "f": "Assembly",
-            "code": "20142301",
-            "desc": "Trailer-mounted equipment units",
-            "kw": [
-              "downhole",
-              "integrated oilfield equipment",
-              "mobile trailer unit",
-              "oilfield equipment",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Trailer/Truck Unit - Rental",
-            "f": "Assembly",
-            "code": "78181502",
-            "desc": "Trailer unit rental services",
-            "kw": [
-              "downhole",
-              "integrated oilfield equipment",
-              "mobile trailer unit",
-              "oilfield equipment",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Design & Engineering Services",
-            "f": "Assembly",
-            "code": "81101501",
-            "desc": "Power integration design services",
-            "kw": [
-              "custom design",
-              "downhole",
-              "engineering design services",
-              "integrated oilfield equipment",
-              "oilfield equipment"
-            ]
-          },
-          {
-            "n": "Skid Unit Refurbishment",
-            "f": "Refurbishment",
-            "code": "73152101",
-            "desc": "Skid unit refurbishment services",
-            "kw": [
-              "downhole",
-              "equipment overhaul",
-              "integrated oilfield equipment",
-              "oilfield services",
-              "power driven integration"
-            ]
-          },
-          {
-            "n": "Trailer Unit Refurbishment",
-            "f": "Refurbishment",
-            "code": "73152101",
-            "desc": "Trailer unit refurbishment services",
-            "kw": [
-              "downhole",
-              "integrated oilfield equipment",
-              "mobile equipment overhaul",
-              "oilfield services",
-              "power driven integration"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Pressure Containment Equipment",
-        "commodities": [
-          {
-            "n": "Flexible Hoses",
-            "f": "High Pressure Hoses",
-            "code": "40141719",
-            "desc": "High pressure flexible hoses",
-            "kw": [
-              "HP hose",
-              "downhole",
-              "flexible hose",
-              "high pressure equipment",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Flexible Steel Hoses (Coflexip)",
-            "f": "High Pressure Hoses",
-            "code": "40142020",
-            "desc": "Coflexip flexible steel hoses",
-            "kw": [
-              "coflexip hose",
-              "downhole",
-              "flexible steel hose",
-              "high pressure equipment",
-              "kill line hose"
-            ]
-          },
-          {
-            "n": "High Pressure Hoses - Rental",
-            "f": "High Pressure Hoses",
-            "code": "40142020",
-            "desc": "High pressure hose rental",
-            "kw": [
-              "HP hose rental",
-              "downhole",
-              "high pressure equipment",
-              "oilfield services",
-              "pressure containment"
-            ]
-          },
-          {
-            "n": "Chokes & Choke Manifolds",
-            "f": "Valves & Piping",
-            "code": "40141604",
-            "desc": "Choke manifold assemblies",
-            "kw": [
-              "adjustable choke",
-              "choke manifold",
-              "downhole",
-              "high pressure equipment",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Flow Control Valves (Gate, Globe, Ball)",
-            "f": "Valves & Piping",
-            "code": "40141605",
-            "desc": "High pressure flow control valves",
-            "kw": [
-              "Flow Control Valves (Gate",
-              "Globe",
-              "Ball)",
-              "ball valve",
-              "downhole"
-            ]
-          },
-          {
-            "n": "Flowback Iron (Piping, Elbows)",
-            "f": "Valves & Piping",
-            "code": "40141605",
-            "desc": "Well testing flowback iron",
-            "kw": [
-              "Flowback Iron (Piping",
-              "Elbows)",
-              "downhole",
-              "flowback iron",
-              "hammer union"
-            ]
-          },
-          {
-            "n": "Treating Iron Equipment",
-            "f": "Valves & Piping",
-            "code": "40141719",
-            "desc": "Stimulation treating iron",
-            "kw": [
-              "downhole",
-              "frac iron",
-              "high pressure equipment",
-              "high pressure manifold",
-              "oilfield services"
-            ]
+            "n": "Downhole Cables",
+            "f": "Wire, Cable & Connectors",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
@@ -4785,93 +3317,58 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
           {
             "n": "Routine Core Analysis",
             "f": "Core Analysis",
-            "code": "77101601",
-            "desc": "Routine core analysis services",
-            "kw": [
-              "RCA",
-              "core porosity",
-              "downhole",
-              "laboratory services",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Special Core Analysis (SCAL)",
             "f": "Core Analysis",
-            "code": "77101601",
-            "desc": "Special core analysis services",
-            "kw": [
-              "SCAL",
-              "capillary pressure",
-              "downhole",
-              "laboratory services",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Mud Analysis Services",
             "f": "Fluid Analysis",
-            "code": "77101701",
-            "desc": "Drilling mud analysis",
-            "kw": [
-              "downhole",
-              "drilling fluid testing",
-              "laboratory services",
-              "mud analysis",
-              "mud rheology"
-            ]
-          },
-          {
-            "n": "Water Analysis Services",
-            "f": "Fluid Analysis",
-            "code": "77101701",
-            "desc": "Formation water analysis",
-            "kw": [
-              "downhole",
-              "laboratory services",
-              "oilfield services",
-              "produced water analysis",
-              "reservoir analysis"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Oil & Gas PVT Analysis",
             "f": "Fluid Analysis",
-            "code": "77101702",
-            "desc": "PVT fluid analysis services",
-            "kw": [
-              "EOS modeling",
-              "PVT analysis",
-              "downhole",
-              "fluid properties analysis",
-              "laboratory services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Metallurgical Testing",
-            "f": "Material Testing",
-            "code": "77101801",
-            "desc": "Metallurgical testing services",
-            "kw": [
-              "corrosion testing",
-              "downhole",
-              "hardness testing",
-              "laboratory services",
-              "material testing"
-            ]
+            "n": "Water Analysis Services",
+            "f": "Fluid Analysis",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Chemical Analysis",
             "f": "Material Testing",
-            "code": "77101801",
-            "desc": "Chemical composition analysis",
-            "kw": [
-              "chromatography",
-              "downhole",
-              "laboratory services",
-              "oilfield services",
-              "reservoir analysis"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Metallurgical Testing",
+            "f": "Material Testing",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Non-Destructive Testing (NDT)",
+            "f": "Material Testing",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
@@ -4879,254 +3376,793 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
         "name": "Logging tools",
         "commodities": [
           {
-            "n": "Open Hole Logging Tools",
-            "f": "Wireline Logging",
-            "code": "20122901",
-            "desc": "Open hole wireline logging tools",
-            "kw": [
-              "downhole",
-              "downhole measurement",
-              "formation evaluation",
-              "logging tools",
-              "oilfield services"
-            ]
+            "n": "Acoustic/Sonic Tools",
+            "f": "Formation Evaluation",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Cased Hole Logging Tools",
-            "f": "Wireline Logging",
-            "code": "20122901",
-            "desc": "Cased hole wireline logging tools",
-            "kw": [
-              "cased hole logging",
-              "cement bond log",
-              "downhole",
-              "downhole measurement",
-              "logging tools"
-            ]
+            "n": "Nuclear Magnetic Resonance (NMR)",
+            "f": "Formation Evaluation",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Production Logging Tools",
-            "f": "Wireline Logging",
-            "code": "20122902",
-            "desc": "Production logging equipment",
-            "kw": [
-              "PLT",
-              "downhole",
-              "downhole measurement",
-              "flow profiling",
-              "logging tools"
-            ]
-          },
-          {
-            "n": "Logging While Drilling (LWD) Tools",
-            "f": "LWD/MWD Tools",
-            "code": "20131003",
-            "desc": "LWD measurement tools",
-            "kw": [
-              "LWD",
-              "downhole",
-              "downhole measurement",
-              "formation evaluation LWD",
-              "logging tools"
-            ]
-          },
-          {
-            "n": "Measurement While Drilling (MWD) Tools",
-            "f": "LWD/MWD Tools",
-            "code": "20131003",
-            "desc": "MWD directional tools",
-            "kw": [
-              "MWD",
-              "directional MWD",
-              "downhole",
-              "downhole measurement",
-              "logging tools"
-            ]
-          },
-          {
-            "n": "Rotary Steerable Systems",
-            "f": "LWD/MWD Tools",
-            "code": "20131003",
-            "desc": "Rotary steerable drilling systems",
-            "kw": [
-              "RSS",
-              "directional drilling RSS",
-              "downhole",
-              "downhole measurement",
-              "logging tools"
-            ]
+            "n": "Porosity Tools (Neutron, Density)",
+            "f": "Formation Evaluation",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Resistivity Tools",
             "f": "Formation Evaluation",
-            "code": "20122901",
-            "desc": "Resistivity logging tools",
-            "kw": [
-              "downhole",
-              "downhole measurement",
-              "induction log",
-              "laterolog",
-              "logging tools"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Borehole Imaging Tools",
+            "f": "Imaging Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Formation Micro-Imaging",
+            "f": "Imaging Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Logging While Drilling (LWD) Tools",
+            "f": "LWD/MWD Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Measurement While Drilling (MWD) Tools",
+            "f": "LWD/MWD Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rotary Steerable Systems",
+            "f": "LWD/MWD Tools",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cased Hole Logging Tools",
+            "f": "Wireline Logging",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Open Hole Logging Tools",
+            "f": "Wireline Logging",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Production Logging Tools",
+            "f": "Wireline Logging",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
       {
-        "name": "DHT",
+        "name": "Power Driven Integration",
         "commodities": [
           {
-            "n": "Pulling & Running Tools",
-            "f": "Slickline Tools",
-            "code": "20122339",
-            "desc": "Slickline pulling and running tools",
-            "kw": [
-              "DHT",
-              "downhole",
-              "downhole tools",
-              "oilfield services",
-              "pulling tool"
-            ]
+            "n": "Design & Engineering Services",
+            "f": "Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Gauge Cutters & Swabs",
-            "f": "Slickline Tools",
-            "code": "20122358",
-            "desc": "Slickline gauge cutters and swabs",
-            "kw": [
-              "DHT",
-              "downhole",
-              "downhole tools",
-              "gauge cutter",
-              "oilfield services"
-            ]
+            "n": "Skid Unit - Purchase",
+            "f": "Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Bailers & Dump Valves",
-            "f": "Slickline Tools",
-            "code": "20122307",
-            "desc": "Slickline bailers and dump valves",
-            "kw": [
-              "DHT",
-              "bailer",
-              "downhole",
-              "downhole tools",
-              "dump valve"
-            ]
+            "n": "Skid Unit - Rental",
+            "f": "Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Wireline Setting Tools",
-            "f": "Wireline Conveyed Tools",
-            "code": "20122308",
-            "desc": "Wireline setting tools",
-            "kw": [
-              "DHT",
-              "downhole",
-              "downhole tools",
-              "electric line setting",
-              "oilfield services"
-            ]
+            "n": "Trailer/Truck Unit - Purchase",
+            "f": "Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Wireline Punchers & Cutters",
-            "f": "Wireline Conveyed Tools",
-            "code": "20122308",
-            "desc": "Wireline pipe cutters",
-            "kw": [
-              "DHT",
-              "downhole",
-              "downhole tools",
-              "oilfield services",
-              "well intervention"
-            ]
+            "n": "Trailer/Truck Unit - Rental",
+            "f": "Assembly",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "CT Bottomhole Assemblies",
-            "f": "Coiled Tubing Tools",
-            "code": "20122516",
-            "desc": "Coiled tubing BHA tools",
-            "kw": [
-              "DHT",
-              "downhole",
-              "downhole tools",
-              "oilfield services",
-              "well intervention"
-            ]
+            "n": "Skid Unit Refurbishment",
+            "f": "Refurbishment",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "CT Milling Tools",
-            "f": "Coiled Tubing Tools",
-            "code": "20122501",
-            "desc": "Coiled tubing milling tools",
-            "kw": [
-              "CT milling",
-              "DHT",
-              "coiled tubing milling tools",
-              "downhole",
-              "downhole tools"
-            ]
+            "n": "Trailer Unit Refurbishment",
+            "f": "Refurbishment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Pressure Containment Equipment",
+        "commodities": [
+          {
+            "n": "Coiled Tubing Pipe Purchase",
+            "f": "Coiled Tubing Pipe",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Coiled Tubing Pipe Services",
+            "f": "Coiled Tubing Pipe",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Flexible Hoses Services",
+            "f": "Flow Control - Flexible Hoses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "High Pressure Flexible Hoses Purchase (Coflexip)",
+            "f": "Flow Control - Flexible Hoses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "High Pressure Flexible Hoses Rental (Coflexip)",
+            "f": "Flow Control - Flexible Hoses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Low Pressure Flexible Hoses Purchase",
+            "f": "Flow Control - Flexible Hoses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Low Pressure Flexible Hoses Rental",
+            "f": "Flow Control - Flexible Hoses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Surface Crossover, Adapters & Flanges",
+            "f": "Flow Control - Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Treating Iron Accessories, Spare Parts & Consumables",
+            "f": "Flow Control - Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Treating Iron Piping Purchase (Straight Joint, Swivel, Tee)",
+            "f": "Flow Control - Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Treating Iron Rental",
+            "f": "Flow Control - Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Treating Iron Services (Inspection, Certification, Repair)",
+            "f": "Flow Control - Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Treating Iron Valves Purchase (Plug, Check, Relief Valves)",
+            "f": "Flow Control - Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Well Testing Piping, Flowback Iron (Piping, Elbow, Tee)",
+            "f": "Flow Control - Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Flexible Hoses",
+            "f": "High Pressure Hoses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Flexible Steel Hoses (Coflexip)",
+            "f": "High Pressure Hoses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "High Pressure Hoses - Rental",
+            "f": "High Pressure Hoses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Flow Control Recertification",
+            "f": "Recertification Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wellhead Maintenance & Recertification",
+            "f": "Recertification Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Chokes & Choke Manifolds",
+            "f": "Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Flowback Iron (Piping, Elbows)",
+            "f": "Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Flow Control Valves (Gate, Globe, Ball)",
+            "f": "Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pressure Relief & Safety Valves",
+            "f": "Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Treating Iron Equipment",
+            "f": "Valves & Piping",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cement Heads & Accessories",
+            "f": "Wellhead Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Coiled Tubing WPCE",
+            "f": "Wellhead Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drilling BOP",
+            "f": "Wellhead Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Frac Head Equipment",
+            "f": "Wellhead Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subsea Wellhead Equipment",
+            "f": "Wellhead Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Surface Wellhead & Xmas Tree",
+            "f": "Wellhead Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wireline/Slickline WPCE",
+            "f": "Wellhead Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Coiled Tubing WPCE Accessories, Spare Parts & Consumables",
+            "f": "Wellhead Equipment - Coiled Tubing WPCE",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Coiled Tubing WPCE Purchase",
+            "f": "Wellhead Equipment - Coiled Tubing WPCE",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Coiled Tubing WPCE Rental",
+            "f": "Wellhead Equipment - Coiled Tubing WPCE",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Coiled Tubing WPCE Services",
+            "f": "Wellhead Equipment - Coiled Tubing WPCE",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Surface Wellhead Purchase (Frac Head, Flowhead, Cement Head)",
+            "f": "Wellhead Equipment - Surface Wellhead",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Surface Wellhead Rental (Frac Head, Flowhead, Cement Head)",
+            "f": "Wellhead Equipment - Surface Wellhead",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Surface Wellhead Services (Frac Head, Flowhead, Cement Head)",
+            "f": "Wellhead Equipment - Surface Wellhead",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Treesaver Tool Accessories, Spare Parts & Consumables",
+            "f": "Wellhead Equipment - Treesaver",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Treesaver Tool Purchase (Wellhead Isolation Tool)",
+            "f": "Wellhead Equipment - Treesaver",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Treesaver Tool Rental (Wellhead Isolation Tool)",
+            "f": "Wellhead Equipment - Treesaver",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Treesaver Tool Services (Wellhead Isolation Tool)",
+            "f": "Wellhead Equipment - Treesaver",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wireline/Slickline WPCE Accessories, Spare Parts & Consumables",
+            "f": "Wellhead Equipment - Wireline/Slickline WPCE",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wireline/Slickline WPCE Purchase",
+            "f": "Wellhead Equipment - Wireline/Slickline WPCE",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wireline/Slickline WPCE Rental",
+            "f": "Wellhead Equipment - Wireline/Slickline WPCE",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wireline/Slickline WPCE Services",
+            "f": "Wellhead Equipment - Wireline/Slickline WPCE",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Regulated Materials",
+        "commodities": [
+          {
+            "n": "Detonators & Boosters",
+            "f": "Explosives",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Explosive Accessories",
+            "f": "Explosives",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Explosive Powder",
+            "f": "Explosives",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Shaped Charges",
+            "f": "Explosives",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Neutron Sources",
+            "f": "Nuclear Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pulse Neutron Generators (PNG)",
+            "f": "Nuclear Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Logging Sources",
+            "f": "Radioactive Sources",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Source Handling Equipment",
+            "f": "Radioactive Sources",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       }
     ]
   },
   {
-    "type": "Services",
+    "type": "Direct",
+    "name": "Fuel, Lubricants and Gases",
+    "subs": [
+      {
+        "name": "Diesel",
+        "commodities": [
+          {
+            "n": "Diesel Exhaust Fluid (DEF) for On-Site Fueling",
+            "f": "Bulk & Onsite",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Diesel - Off-Road (Red/Dyed) Bulk Transport/Inventory Fuel",
+            "f": "Bulk & Onsite",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Diesel - Off-Road (Red/Dyed) On-Site Fueling",
+            "f": "Bulk & Onsite",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Diesel - On-Road (Green/Clear) Bulk Transport/Inventory Fuel",
+            "f": "Bulk & Onsite",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Diesel - On-Road (Green/Clear) On-Site Fueling",
+            "f": "Bulk & Onsite",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Diesel - Off-Road Fuel Card/Petrol Station",
+            "f": "Retail & Alternative",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Diesel - On-Road Fuel Card/Petrol Station",
+            "f": "Retail & Alternative",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Gases",
+        "commodities": [
+          {
+            "n": "Compressed Natural Gas (CNG)",
+            "f": "Alternative Fuels",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Ethanol",
+            "f": "Alternative Fuels",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Ethanol Based Fuel",
+            "f": "Alternative Fuels",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Kerosene",
+            "f": "Alternative Fuels",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Liquefied Natural Gas (LNG)",
+            "f": "Alternative Fuels",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Methane",
+            "f": "Alternative Fuels",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Unleaded Gasoline for Bulk Transport/Inventory Fuel",
+            "f": "Alternative Fuels",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Unleaded Gasoline for Fuel Card/Petrol Station",
+            "f": "Alternative Fuels",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Unleaded Gasoline for On-Site Fueling",
+            "f": "Alternative Fuels",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Urea/Diesel Exhaust Fluid (DEF)",
+            "f": "Alternative Fuels",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Vehicle Propane",
+            "f": "Alternative Fuels",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Argon",
+            "f": "Industrial Gases",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Carbon Dioxide (CO2)",
+            "f": "Industrial Gases",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Helium",
+            "f": "Industrial Gases",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Industrial Nitrogen",
+            "f": "Industrial Gases",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Industrial Oxygen",
+            "f": "Industrial Gases",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mixed & Specialty Gases",
+            "f": "Industrial Gases",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Lubricants",
+        "commodities": [
+          {
+            "n": "Antifreeze",
+            "f": "Lubricants",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Engine Oil",
+            "f": "Lubricants",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hydraulic Fluid",
+            "f": "Lubricants",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Industrial Grease",
+            "f": "Lubricants",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Transmission Fluid for Land Based Lubricants",
+            "f": "Lubricants",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Direct",
     "name": "Inspection & Certification",
     "subs": [
       {
         "name": "Calibration Services",
         "commodities": [
           {
+            "n": "Flow Meter Calibration",
+            "f": "Calibration Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
             "n": "Instrument Calibration",
             "f": "Calibration Services",
-            "code": "81101701",
-            "desc": "Precision instrument calibration",
-            "kw": [
-              "calibration services",
-              "certification",
-              "downhole",
-              "inspection services",
-              "metrology"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Pressure Gauge Calibration",
             "f": "Calibration Services",
-            "code": "81101701",
-            "desc": "Pressure gauge calibration services",
-            "kw": [
-              "certification",
-              "downhole",
-              "gauge calibration",
-              "inspection services",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Temperature Calibration",
             "f": "Calibration Services",
-            "code": "81101702",
-            "desc": "Temperature sensor calibration",
-            "kw": [
-              "certification",
-              "downhole",
-              "inspection services",
-              "oilfield services",
-              "quality assurance"
-            ]
-          },
-          {
-            "n": "Flow Meter Calibration",
-            "f": "Calibration Services",
-            "code": "81101703",
-            "desc": "Flow meter calibration services",
-            "kw": [
-              "certification",
-              "downhole",
-              "flow measurement calibration",
-              "inspection services",
-              "meter proving"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
@@ -5136,54 +4172,30 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
           {
             "n": "Equipment Certification",
             "f": "Certification Services",
-            "code": "81101801",
-            "desc": "Equipment certification services",
-            "kw": [
-              "CE marking",
-              "certification",
-              "downhole",
-              "inspection services",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Material Certification",
             "f": "Certification Services",
-            "code": "81101801",
-            "desc": "Material test certificates",
-            "kw": [
-              "MTR",
-              "certification",
-              "downhole",
-              "inspection services",
-              "material traceability"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Personnel Certification",
             "f": "Certification Services",
-            "code": "81101802",
-            "desc": "Personnel competency certification",
-            "kw": [
-              "IWCF",
-              "OPITO",
-              "certification",
-              "competence assessment",
-              "downhole"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "System Certification",
             "f": "Certification Services",
-            "code": "81101803",
-            "desc": "Management system certification",
-            "kw": [
-              "ISO certification",
-              "QMS certification",
-              "certification",
-              "downhole",
-              "inspection services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
@@ -5191,406 +4203,440 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
         "name": "Inspections & Quality Assurance",
         "commodities": [
           {
-            "n": "Inspection Services",
-            "f": "Technical Assurance",
-            "code": "81101902",
-            "desc": "Technical inspection services",
-            "kw": [
-              "TPI",
-              "certification",
-              "downhole",
-              "oilfield services",
-              "quality assurance"
-            ]
-          },
-          {
-            "n": "Testing Services",
-            "f": "Technical Assurance",
-            "code": "81101703",
-            "desc": "Technical testing services",
-            "kw": [
-              "FAT",
-              "certification",
-              "downhole",
-              "factory acceptance test",
-              "inspection services"
-            ]
-          },
-          {
-            "n": "NDT Inspection Services",
-            "f": "Technical Assurance",
-            "code": "81101902",
-            "desc": "Non-destructive testing services",
-            "kw": [
-              "NDT services",
-              "RT",
-              "TPI",
-              "UT",
-              "certification"
-            ]
-          },
-          {
             "n": "Internal Audits",
             "f": "Audits",
-            "code": "81102001",
-            "desc": "Internal audit services",
-            "kw": [
-              "QMS audit",
-              "certification",
-              "downhole",
-              "inspection services",
-              "internal audit"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Third Party Audits",
             "f": "Audits",
-            "code": "81102001",
-            "desc": "Third party audit services",
-            "kw": [
-              "certification",
-              "downhole",
-              "external audit",
-              "inspection services",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Class Services - Marine Assurance",
+            "f": "Class Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Class Services - Offshore Classification",
+            "f": "Class Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Marine Classification",
             "f": "Class Services",
-            "code": "78141703",
-            "desc": "Marine classification services",
-            "kw": [
-              "ABS certification",
-              "DNV",
-              "Lloyds Register",
-              "certification",
-              "downhole"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Offshore Classification",
             "f": "Class Services",
-            "code": "78141703",
-            "desc": "Offshore equipment classification",
-            "kw": [
-              "MODU class",
-              "certification",
-              "downhole",
-              "inspection services",
-              "offshore survey certificate"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "QHSE Training",
+            "f": "Consulting Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Risk Management Advisory",
+            "f": "Consulting Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Technical Support Services",
+            "f": "Consulting Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Consulting Services - Technical Support",
+            "f": "Consulting Services (Inspection & Quality)",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Inspection Services",
+            "f": "Technical Assurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "NDT Inspection Services",
+            "f": "Technical Assurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Testing Services",
+            "f": "Technical Assurance",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       }
     ]
   },
   {
-    "type": "Materials & Assets",
-    "name": "Operation Rental",
+    "type": "Direct",
+    "name": "Lifting Equipment",
     "subs": [
       {
-        "name": "Non-Field Technical rental equipment",
+        "name": "Crains",
         "commodities": [
           {
-            "n": "IT Equipment Rental",
-            "f": "Office Equipment Rental",
-            "code": "80131601",
-            "desc": "Computer and IT equipment rental",
-            "kw": [
-              "computer hire",
-              "downhole",
-              "equipment rental",
-              "hire",
-              "oilfield services"
-            ]
+            "n": "Crane Maintenance Services",
+            "f": "Crane Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Office Furniture Rental",
-            "f": "Office Equipment Rental",
-            "code": "80131601",
-            "desc": "Office furniture rental services",
-            "kw": [
-              "downhole",
-              "equipment rental",
-              "furniture rental",
-              "hire",
-              "office equipment rental"
-            ]
+            "n": "Crane Operator Services",
+            "f": "Crane Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Communication Equipment Rental",
-            "f": "Office Equipment Rental",
-            "code": "80131602",
-            "desc": "Communication equipment rental",
-            "kw": [
-              "comms rental",
-              "downhole",
-              "equipment rental",
-              "hire",
-              "oilfield services"
-            ]
+            "n": "Crane Rental Services",
+            "f": "Crane Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Power Tools Rental",
-            "f": "General Equipment Rental",
-            "code": "80131701",
-            "desc": "Power tool rental services",
-            "kw": [
-              "downhole",
-              "equipment hire",
-              "equipment rental",
-              "hire",
-              "oilfield services"
-            ]
+            "n": "All Terrain Cranes",
+            "f": "Mobile Cranes",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "HVAC Equipment Rental",
-            "f": "General Equipment Rental",
-            "code": "80131701",
-            "desc": "HVAC equipment rental",
-            "kw": [
-              "HVAC rental",
-              "downhole",
-              "equipment rental",
-              "hire",
-              "oilfield services"
-            ]
+            "n": "Crawler Cranes",
+            "f": "Mobile Cranes",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Lighting Equipment Rental",
-            "f": "General Equipment Rental",
-            "code": "80131702",
-            "desc": "Temporary lighting rental",
-            "kw": [
-              "downhole",
-              "equipment rental",
-              "hire",
-              "light tower hire",
-              "lighting rental"
-            ]
+            "n": "Truck Mounted Cranes",
+            "f": "Mobile Cranes",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Knuckle Boom Cranes",
+            "f": "Offshore Cranes",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pedestal Cranes",
+            "f": "Offshore Cranes",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Gantry Cranes",
+            "f": "Static Cranes",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Overhead Cranes",
+            "f": "Static Cranes",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tower Cranes",
+            "f": "Static Cranes",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
       {
-        "name": "Technical Rental equipment",
+        "name": "Forklift",
         "commodities": [
           {
-            "n": "Rig Rentals",
-            "f": "Drilling Equipment Rental",
-            "code": "20122803",
-            "desc": "Drilling rig rental services",
-            "kw": [
-              "downhole",
-              "downhole drilling tools",
-              "drill bit",
-              "drilling",
-              "drilling rig rental"
-            ]
+            "n": "Diesel/LPG Forklifts",
+            "f": "Counterbalance Forklifts",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Mud Systems Rental",
-            "f": "Drilling Equipment Rental",
-            "code": "20122801",
-            "desc": "Mud system equipment rental",
-            "kw": [
-              "centrifuge rental",
-              "downhole",
-              "downhole drilling tools",
-              "drill bit",
-              "drilling"
-            ]
+            "n": "Electric Forklifts",
+            "f": "Counterbalance Forklifts",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Solids Control Rental",
-            "f": "Drilling Equipment Rental",
-            "code": "20122801",
-            "desc": "Solids control equipment rental",
-            "kw": [
-              "centrifuge rental",
-              "downhole",
-              "downhole drilling tools",
-              "drill bit",
-              "drilling"
-            ]
+            "n": "Forklift Maintenance",
+            "f": "Forklift Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Coiled Tubing Units Rental",
-            "f": "Well Service Equipment Rental",
-            "code": "20122503",
-            "desc": "Coiled tubing unit rental",
-            "kw": [
-              "CT unit rental",
-              "CTU rental",
-              "coiled tubing unit",
-              "downhole",
-              "equipment rental"
-            ]
+            "n": "Forklift Rental",
+            "f": "Forklift Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Wireline Units Rental",
-            "f": "Well Service Equipment Rental",
-            "code": "20122341",
-            "desc": "Wireline unit rental",
-            "kw": [
-              "downhole",
-              "e-line unit",
-              "equipment rental",
-              "hire",
-              "oilfield services"
-            ]
+            "n": "Rough Terrain Forklifts",
+            "f": "Heavy Duty Forklifts",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Nitrogen Equipment Rental",
-            "f": "Well Service Equipment Rental",
-            "code": "20122801",
-            "desc": "Nitrogen pumping equipment rental",
-            "kw": [
-              "N2 services",
-              "downhole",
-              "equipment rental",
-              "hire",
-              "nitrogen pump rental"
-            ]
+            "n": "Telehandlers",
+            "f": "Heavy Duty Forklifts",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Wellhead Equipment Rental",
-            "f": "Completion Equipment Rental",
-            "code": "78181503",
-            "desc": "Wellhead equipment rental",
-            "kw": [
-              "Xmas tree rental",
-              "downhole",
-              "equipment rental",
-              "hire",
-              "oilfield services"
-            ]
+            "n": "Pallet Trucks",
+            "f": "Warehouse Forklifts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Reach Trucks",
+            "f": "Warehouse Forklifts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Lifting Equipment & Accessories",
+            "f": "Material Handling",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Lifting Equipment & Accessories Maintenance & Certification",
+            "f": "Material Handling",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Lifting Equipment & Accessories Rental",
+            "f": "Material Handling",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Material Handling Equipment (Forklifts, Pallet Trucks)",
+            "f": "Material Handling",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Riggers",
+        "commodities": [
+          {
+            "n": "Rigging Hardware",
+            "f": "Rigging Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Spreader Bars & Lifting Beams",
+            "f": "Rigging Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Certified Riggers",
+            "f": "Rigging Personnel",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rigging Supervisors",
+            "f": "Rigging Personnel",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heavy Lift Services",
+            "f": "Rigging Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Lift Planning Services",
+            "f": "Rigging Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Slings & Wire Rope",
+        "commodities": [
+          {
+            "n": "Grade 100 Chain Slings",
+            "f": "Chain Slings",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Grade 80 Chain Slings",
+            "f": "Chain Slings",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Lifting Equipment Inspection",
+            "f": "Inspection Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Load Testing Services",
+            "f": "Inspection Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Eyebolts & Pad Eyes",
+            "f": "Lifting Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hooks & Links",
+            "f": "Lifting Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Shackles",
+            "f": "Lifting Accessories",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Polyester Round Slings",
+            "f": "Synthetic Slings",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Webbing Slings",
+            "f": "Synthetic Slings",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Steel Wire Rope",
+            "f": "Wire Rope",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wire Rope Fittings",
+            "f": "Wire Rope",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wire Rope Slings",
+            "f": "Wire Rope",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       }
     ]
   },
   {
-    "type": "Services",
+    "type": "Direct",
     "name": "Maintenance & Repair Operations",
     "subs": [
       {
-        "name": "Machine Shop",
+        "name": "DHT",
         "commodities": [
           {
-            "n": "Adhesives & Sealants",
-            "f": "MRO or Distributor Services",
-            "code": "31201601",
-            "desc": "Industrial adhesives and sealants",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Downhole Tool Cleaning Services",
+            "f": "Downhole Tool MRO",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Fasteners & Hardware",
-            "f": "MRO or Distributor Services",
-            "code": "31161501",
-            "desc": "Industrial fasteners and hardware",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Downhole Tool Repair & Reconditioning",
+            "f": "Downhole Tool MRO",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Kevlar, Optical Fiber, Yarn, Other Fabrics",
-            "f": "MRO or Distributor Services",
-            "code": "11151601",
-            "desc": "Kevlar optical fiber and technical fabrics",
-            "kw": [
-              "Kevlar",
-              "Optical Fiber",
-              "Yarn",
-              "Other Fabrics",
-              "downhole"
-            ]
-          },
-          {
-            "n": "Laboratory & Testing - Lab Instruments (Non-Chemical)",
-            "f": "MRO or Distributor Services",
-            "code": "41111601",
-            "desc": "Laboratory instruments non-chemical",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Laboratory & Testing - Calibration & Repair Services",
-            "f": "MRO or Distributor Services",
-            "code": "81101706",
-            "desc": "Laboratory instrument calibration and repair",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Measuring & Inspection",
-            "f": "MRO or Distributor Services",
-            "code": "41111601",
-            "desc": "Measuring and inspection instruments",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Tools & Metal Cutting Accessories",
-            "f": "MRO or Distributor Services",
-            "code": "27111601",
-            "desc": "Industrial tools and metal cutting accessories",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Filters",
-        "commodities": [
-          {
-            "n": "Filtration & Rubber Accessories",
-            "f": "MRO or Distributor Services",
-            "code": "40161501",
-            "desc": "Filtration equipment and rubber accessories",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Hydraulic",
-        "commodities": [
-          {
-            "n": "Hydraulic or Pneumatic Pump & Related Spares",
-            "f": "MRO or Distributor Services",
-            "code": "40151701",
-            "desc": "Hydraulic and pneumatic pump spares",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Pipes or Hoses, Valves & Fittings (Commercial Items)",
-            "f": "MRO or Distributor Services",
-            "code": "40141719",
-            "desc": "Commercial pipes hoses valves and fittings",
-            "kw": [
-              "Pipes or Hoses",
-              "Valves & Fittings (Commercial Items)",
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Downhole Tool Spare Parts",
+            "f": "Downhole Tool MRO",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
@@ -5600,48 +4646,174 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
           {
             "n": "Manufacturing Machinery (CNC, Lathe, Grinding, Welding)",
             "f": "MRO or Distributor Services",
-            "code": "23151501",
-            "desc": "Manufacturing machinery CNC lathe grinding",
-            "kw": [
-              "Manufacturing Machinery (CNC",
-              "Lathe",
-              "Grinding",
-              "Welding)",
-              "downhole"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Manufacturing Machinery Servicing",
             "f": "MRO or Distributor Services",
-            "code": "73101601",
-            "desc": "Manufacturing machinery servicing",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Paints (Bulk, Bucket, etc.)",
             "f": "MRO or Distributor Services",
-            "code": "31201701",
-            "desc": "Industrial paints and coatings",
-            "kw": [
-              "Paints (Bulk",
-              "Bucket",
-              "etc.)",
-              "downhole",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Paint Service",
             "f": "MRO or Distributor Services",
-            "code": "73151501",
-            "desc": "Industrial painting services",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Field Technical Equipment & Services",
+        "commodities": [
+          {
+            "n": "Field Equipment Calibration Services",
+            "f": "Field Equipment MRO",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Field Equipment Repair & Overhaul",
+            "f": "Field Equipment MRO",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Field Equipment Spare Parts & Components",
+            "f": "Field Equipment MRO",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Filters",
+        "commodities": [
+          {
+            "n": "Filtration & Rubber Accessories",
+            "f": "MRO or Distributor Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Hydraulic",
+        "commodities": [
+          {
+            "n": "Hydraulic or Pneumatic Pump & Related Spares",
+            "f": "MRO or Distributor Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pipes or Hoses, Valves & Fittings (Commercial Items)",
+            "f": "MRO or Distributor Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Insulation",
+        "commodities": [
+          {
+            "n": "Acoustic Insulation Materials",
+            "f": "Insulation Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Insulation Installation Services",
+            "f": "Insulation Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Thermal Insulation Materials",
+            "f": "Insulation Materials",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Machine Shop",
+        "commodities": [
+          {
+            "n": "Adhesives & Sealants",
+            "f": "MRO or Distributor Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fasteners & Hardware",
+            "f": "MRO or Distributor Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Kevlar, Optical Fiber, Yarn, Other Fabrics",
+            "f": "MRO or Distributor Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Laboratory & Testing - Calibration & Repair Services",
+            "f": "MRO or Distributor Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Laboratory & Testing - Lab Instruments (Non-Chemical)",
+            "f": "MRO or Distributor Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Measuring & Inspection",
+            "f": "MRO or Distributor Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mechanical Drive & Accessories",
+            "f": "MRO or Distributor Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tools & Metal Cutting Accessories",
+            "f": "MRO or Distributor Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
@@ -5651,186 +4823,9 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
           {
             "n": "Material Handling & Securing",
             "f": "MRO or Distributor Services",
-            "code": "24101629",
-            "desc": "Material handling and securing equipment",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Radiators",
-        "commodities": [
-          {
-            "n": "Radiator Cores & Assemblies",
-            "f": "Radiators",
-            "code": "40151601",
-            "desc": "Radiator core and assembly components",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Radiator Repair & Maintenance",
-            "f": "Radiators",
-            "code": "73152101",
-            "desc": "Radiator repair and maintenance services",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Radiator Spare Parts",
-            "f": "Radiators",
-            "code": "40151601",
-            "desc": "Radiator spare parts and components",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Field Technical Equipment & Services",
-        "commodities": [
-          {
-            "n": "Field Equipment Repair & Overhaul",
-            "f": "Field Equipment MRO",
-            "code": "73152101",
-            "desc": "Field technical equipment repair and overhaul",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Field Equipment Spare Parts & Components",
-            "f": "Field Equipment MRO",
-            "code": "31162001",
-            "desc": "Field technical equipment spare parts",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Field Equipment Calibration Services",
-            "f": "Field Equipment MRO",
-            "code": "81101707",
-            "desc": "Field technical equipment calibration",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Insulation",
-        "commodities": [
-          {
-            "n": "Thermal Insulation Materials",
-            "f": "Insulation Materials",
-            "code": "30111501",
-            "desc": "Thermal insulation materials for equipment",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Acoustic Insulation Materials",
-            "f": "Insulation Materials",
-            "code": "30111501",
-            "desc": "Acoustic insulation materials",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Insulation Installation Services",
-            "f": "Insulation Materials",
-            "code": "72151905",
-            "desc": "Insulation installation services",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "DHT",
-        "commodities": [
-          {
-            "n": "Downhole Tool Repair & Reconditioning",
-            "f": "Downhole Tool MRO",
-            "code": "73152101",
-            "desc": "Downhole tool repair and reconditioning",
-            "kw": [
-              "DHT",
-              "downhole",
-              "downhole tools",
-              "oilfield services",
-              "well intervention"
-            ]
-          },
-          {
-            "n": "Downhole Tool Spare Parts",
-            "f": "Downhole Tool MRO",
-            "code": "31162001",
-            "desc": "Downhole tool spare parts and components",
-            "kw": [
-              "DHT",
-              "downhole",
-              "downhole tools",
-              "oilfield services",
-              "well intervention"
-            ]
-          },
-          {
-            "n": "Downhole Tool Cleaning Services",
-            "f": "Downhole Tool MRO",
-            "code": "76111801",
-            "desc": "Downhole tool cleaning and decontamination",
-            "kw": [
-              "DHT",
-              "downhole",
-              "downhole tools",
-              "oilfield services",
-              "well intervention"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "Sling and Shackles",
-        "commodities": [
-          {
-            "n": "Rigging Equipment Inspection & Recertification",
-            "f": "Rigging MRO",
-            "code": "81101703",
-            "desc": "Rigging equipment inspection and recertification",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
-          },
-          {
-            "n": "Sling & Shackle Replacement Parts",
-            "f": "Rigging MRO",
-            "code": "31151501",
-            "desc": "Sling and shackle replacement components",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
@@ -5840,249 +4835,4253 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
           {
             "n": "Mechanical Seal Assemblies",
             "f": "Mechanical Seals",
-            "code": "40141719",
-            "desc": "Mechanical seal assemblies",
-            "kw": [
-              "downhole",
-              "oilfield equipment",
-              "oilfield services",
-              "rotating equipment"
-            ]
-          },
-          {
-            "n": "Mechanical Seal Spare Parts & Kits",
-            "f": "Mechanical Seals",
-            "code": "40141719",
-            "desc": "Mechanical seal spare parts and kits",
-            "kw": [
-              "downhole",
-              "oilfield equipment",
-              "oilfield services",
-              "rotating equipment"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
             "n": "Mechanical Seal Repair Services",
             "f": "Mechanical Seals",
-            "code": "73152101",
-            "desc": "Mechanical seal repair services",
-            "kw": [
-              "downhole",
-              "oilfield equipment",
-              "oilfield services",
-              "rotating equipment"
-            ]
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mechanical Seal Spare Parts & Kits",
+            "f": "Mechanical Seals",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Radiators",
+        "commodities": [
+          {
+            "n": "Radiator Cores & Assemblies",
+            "f": "Radiators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Radiator Repair & Maintenance",
+            "f": "Radiators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Radiator Spare Parts",
+            "f": "Radiators",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Sling and Shackles",
+        "commodities": [
+          {
+            "n": "Rigging Equipment Inspection & Recertification",
+            "f": "Rigging MRO",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sling & Shackle Replacement Parts",
+            "f": "Rigging MRO",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       }
     ]
   },
   {
-    "type": "Consumables",
-    "name": "Fuel, Lubricants and Gases",
+    "type": "Direct",
+    "name": "Natural Sand",
     "subs": [
       {
-        "name": "Diesel",
+        "name": "Proppant",
         "commodities": [
           {
-            "n": "Diesel - Off-Road (Red/Dyed) Bulk Transport/Inventory Fuel",
-            "f": "Bulk & Onsite",
-            "code": "15101505",
-            "desc": "Off-road diesel bulk transport and inventory fuel",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Fracturing Sands",
+            "f": "Well fracturing proppants",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Direct",
+    "name": "Nitrogen",
+    "subs": [
+      {
+        "name": "Commodities Chemicals",
+        "commodities": [
+          {
+            "n": "Helium",
+            "f": "Gases",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Diesel - Off-Road (Red/Dyed) On-Site Fueling",
-            "f": "Bulk & Onsite",
-            "code": "15101505",
-            "desc": "Off-road diesel on-site fueling",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Liquid Nitrogen",
+            "f": "Nitrogen",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Direct",
+    "name": "Operation Rental",
+    "subs": [
+      {
+        "name": "Non-Field Technical rental equipment",
+        "commodities": [
+          {
+            "n": "HVAC Equipment Rental",
+            "f": "General Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Diesel - On-Road (Green/Clear) Bulk Transport/Inventory Fuel",
-            "f": "Bulk & Onsite",
-            "code": "15101505",
-            "desc": "On-road diesel bulk transport and inventory fuel",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Lighting Equipment Rental",
+            "f": "General Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Diesel - On-Road (Green/Clear) On-Site Fueling",
-            "f": "Bulk & Onsite",
-            "code": "15101505",
-            "desc": "On-road diesel on-site fueling",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Power Tools Rental",
+            "f": "General Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Diesel Exhaust Fluid (DEF) for On-Site Fueling",
-            "f": "Bulk & Onsite",
-            "code": "15101505",
-            "desc": "Diesel exhaust fluid DEF on-site",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Communication Equipment Rental",
+            "f": "Office Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Diesel - Off-Road Fuel Card/Petrol Station",
-            "f": "Retail & Alternative",
-            "code": "15101505",
-            "desc": "Off-road diesel via fuel card or petrol station",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "IT Equipment Rental",
+            "f": "Office Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Diesel - On-Road Fuel Card/Petrol Station",
-            "f": "Retail & Alternative",
-            "code": "15101505",
-            "desc": "On-road diesel via fuel card or petrol station",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Office Furniture Rental",
+            "f": "Office Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
       {
-        "name": "Lubricants",
+        "name": "Technical Rental equipment",
         "commodities": [
           {
-            "n": "Engine Oil",
-            "f": "Lubricants",
-            "code": "15121501",
-            "desc": "Engine lubricating oil",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Flowback Equipment Rental",
+            "f": "Completion Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Hydraulic Fluid",
-            "f": "Lubricants",
-            "code": "15121502",
-            "desc": "Hydraulic system fluid",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Wellhead Equipment Rental",
+            "f": "Completion Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Industrial Grease",
-            "f": "Lubricants",
-            "code": "15121503",
-            "desc": "Industrial lubricating grease",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Well Testing Equipment Rental",
+            "f": "Completion Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Antifreeze",
-            "f": "Lubricants",
-            "code": "15121504",
-            "desc": "Engine antifreeze and coolant",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Mud Systems Rental",
+            "f": "Drilling Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Transmission Fluid for Land Based Lubricants",
-            "f": "Lubricants",
-            "code": "15121508",
-            "desc": "Transmission lubricating fluid for land vehicles",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Rig Rentals",
+            "f": "Drilling Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Solids Control Rental",
+            "f": "Drilling Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Coiled Tubing Units Rental",
+            "f": "Well Service Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Nitrogen Equipment Rental",
+            "f": "Well Service Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wireline Units Rental",
+            "f": "Well Service Equipment Rental",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Indirect",
+    "name": "Facility",
+    "subs": [
+      {
+        "name": "Catering Services",
+        "commodities": [
+          {
+            "n": "Catering Services",
+            "f": "Catering Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Banquet Services",
+            "f": "Event Catering",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Meeting & Event Catering",
+            "f": "Event Catering",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Kitchen Equipment Maintenance",
+            "f": "Kitchen Operations",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Kitchen Equipment Supply",
+            "f": "Kitchen Operations",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cafeteria Services",
+            "f": "On-Site Catering",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Crew Catering Services",
+            "f": "On-Site Catering",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Rig Catering Services",
+            "f": "On-Site Catering",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drinking Water Supply",
+            "f": "Pantry & Vending",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pantry Supplies",
+            "f": "Pantry & Vending",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Vending Machine Services",
+            "f": "Pantry & Vending",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       },
       {
-        "name": "Gases",
+        "name": "Engineering & Construction",
         "commodities": [
           {
-            "n": "Unleaded Gasoline for Bulk Transport/Inventory Fuel",
-            "f": "Alternative Fuels",
-            "code": "15101506",
-            "desc": "Unleaded gasoline bulk transport and inventory fuel",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Engineering & Construction",
+            "f": "Engineering & Construction",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Unleaded Gasoline for On-Site Fueling",
-            "f": "Alternative Fuels",
-            "code": "15101506",
-            "desc": "Unleaded gasoline on-site fueling",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Professional Fees & Commissioning Services",
+            "f": "Closing Process - Commissioning Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Unleaded Gasoline for Fuel Card/Petrol Station",
-            "f": "Alternative Fuels",
-            "code": "15101506",
-            "desc": "Unleaded gasoline via fuel card",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Civil Works Construction",
+            "f": "Construction Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Liquefied Natural Gas (LNG)",
-            "f": "Alternative Fuels",
-            "code": "15101512",
-            "desc": "Liquefied natural gas fuel",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Electrical Construction",
+            "f": "Construction Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Compressed Natural Gas (CNG)",
-            "f": "Alternative Fuels",
-            "code": "15101512",
-            "desc": "Compressed natural gas fuel",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "General Contracting",
+            "f": "Construction Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Kerosene",
-            "f": "Alternative Fuels",
-            "code": "15101502",
-            "desc": "Kerosene fuel",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "HVAC Installation",
+            "f": "Construction Services",
+            "code": "",
+            "desc": "",
+            "kw": []
           },
           {
-            "n": "Ethanol",
-            "f": "Alternative Fuels",
-            "code": "15101506",
-            "desc": "Ethanol fuel",
-            "kw": [
-              "downhole",
-              "oilfield services"
-            ]
+            "n": "Plumbing Construction",
+            "f": "Construction Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Structural Construction",
+            "f": "Construction Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Architectural Design",
+            "f": "Design Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Civil Engineering Design",
+            "f": "Design Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "MEP Design Services",
+            "f": "Design Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Structural Engineering Design",
+            "f": "Design Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Architectural, Civil & Structural Works",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Construction Consultancy & Professional Services",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Construction Materials & Equipment",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Energy Conservation & Energy Saving Features Installation",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fit Out & Site Renovation Products",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fit Out & Site Renovation Services",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "General Contractor Management & Preliminaries",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "IT, Communications, Security, Safety & Access Equipment",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "IT, Communications, Security, Safety & Access Installation",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Landscape Architecture",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mechanical, Electrical & Plumbing (MEP)",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Non Rig-site Non-Facility Construction (Clients Contracts)",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pre-Fabricated Structures",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Site Preparation & Exterior Works",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Site Supervision & Project Management",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Site Utilities & Services Network",
+            "f": "Execution Process - Construction Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "All Disciplines Construction Contractor Design",
+            "f": "Execution Process - Design Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Architectural, Interior Design & Professional Services",
+            "f": "Execution Process - Design Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Civil Engineering Discipline",
+            "f": "Execution Process - Design Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "HVAC Design Discipline",
+            "f": "Execution Process - Design Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mechanical & Electrical Engineering Discipline",
+            "f": "Execution Process - Design Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Plumbing & Drainage Engineering Discipline",
+            "f": "Execution Process - Design Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Quantity Surveying & Cost Estimation",
+            "f": "Execution Process - Design Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Structural & Geotechnical Engineering Disciplines",
+            "f": "Execution Process - Design Phase",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Consulting to Improve Operational Flow within Facility",
+            "f": "Planning Process - Feasibility",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Environmental & Legal Assessment & Permits",
+            "f": "Planning Process - Feasibility",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Site Assessment, Surveys & Investigations",
+            "f": "Planning Process - Feasibility",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Construction Management Services",
+            "f": "Project Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Project Commissioning Services",
+            "f": "Project Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fire Protection Systems",
+            "f": "Specialty Construction",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Landscaping Construction",
+            "f": "Specialty Construction",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Security Systems Installation",
+            "f": "Specialty Construction",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Furniture",
+        "commodities": [
+          {
+            "n": "Furniture",
+            "f": "Furniture",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Kitchen Appliances",
+            "f": "Appliances",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Office Appliances",
+            "f": "Appliances",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Meeting Room Furniture",
+            "f": "Office Furniture",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Office Chairs & Seating",
+            "f": "Office Furniture",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Office Desks & Workstations",
+            "f": "Office Furniture",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Filing Cabinets & Storage",
+            "f": "Storage Furniture",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Shelving Systems",
+            "f": "Storage Furniture",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Operations & Maintenance",
+        "commodities": [
+          {
+            "n": "Operations & Maintenance",
+            "f": "Operations & Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Archiving & Document Storage",
+            "f": "Archiving & Document Storage",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Shredding Services",
+            "f": "Archiving & Document Storage",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Building Exterior Maintenance",
+            "f": "Building Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Corrective Maintenance Services",
+            "f": "Building Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Preventive Maintenance Services",
+            "f": "Building Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Deep Cleaning Services",
+            "f": "Cleaning Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Janitorial Services",
+            "f": "Cleaning Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Window Cleaning Services",
+            "f": "Cleaning Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fire & Life Safety Equipment",
+            "f": "Fire & Life Safety Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fire & Life Safety Services",
+            "f": "Fire & Life Safety Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Landscaping Services",
+            "f": "Grounds Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Roads & Pavement Maintenance",
+            "f": "Grounds Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Facility - Skilled Temp Labor (Handy Man, Electrician)",
+            "f": "Hard Services - Temp Labor",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Facility - Laundry Services",
+            "f": "Laundry Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mailing Room Services",
+            "f": "Mailing Room Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "At Facility Medic & Nurses Services",
+            "f": "Medical Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Non-Facility Medic & Nurses Services",
+            "f": "Medical Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Medicines & First Aid Supplies",
+            "f": "Medicines & First Aid",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Supplies for Log Printing",
+            "f": "Non-Facility Supplies",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Office Assistance (Receptionist, Admins)",
+            "f": "Office Assistance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Office Moving (Move, Add & Changes)",
+            "f": "Office Moving",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Office Supplies (Excluding IT & Operation Supplies)",
+            "f": "Office Supplies",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pest Control Services",
+            "f": "Pest Control",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "HSE Certification/Inspection for Statutory & Safety",
+            "f": "Statutory Safety Inspection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Electrical Maintenance Services",
+            "f": "Technical Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Elevator Maintenance Services",
+            "f": "Technical Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Generator & UPS Maintenance",
+            "f": "Technical Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "HVAC Maintenance Services",
+            "f": "Technical Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Plumbing Maintenance Services",
+            "f": "Technical Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Facility - Non-Skilled (Helper, Cleaner)",
+            "f": "Temp Labor - Facility",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Facility - Skilled (Handy Man, Electrician, Fork-Driver)",
+            "f": "Temp Labor - Facility",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Property Management",
+        "commodities": [
+          {
+            "n": "Property Management",
+            "f": "Property Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Building & Land Tax and Municipality Fees",
+            "f": "Buildings & Land",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fixed Crew Housing (Staff House Rental)",
+            "f": "Buildings & Land",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Lease & Rent Property (excluding Employee Housing)",
+            "f": "Buildings & Land",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Real Estate Broker Services (excluding Employee Housing)",
+            "f": "Buildings & Land",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Site Selection & Appraisal Services",
+            "f": "Buildings & Land",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Temporary Crew Accommodation (Travel to Job)",
+            "f": "Buildings & Land",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Turnkey Fixed Camp Rental including Hospitality Services",
+            "f": "Camp Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Land Lease",
+            "f": "Lease Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Office Space Lease",
+            "f": "Lease Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Warehouse Space Lease",
+            "f": "Lease Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Building & Land Taxation",
+            "f": "Property Taxes",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Property Valuation Services",
+            "f": "Real Estate Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Real Estate Brokerage",
+            "f": "Real Estate Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Security",
+        "commodities": [
+          {
+            "n": "Security",
+            "f": "Security",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Access Control Systems",
+            "f": "Electronic Security",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Alarm & Intrusion Detection",
+            "f": "Electronic Security",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "CCTV Systems & Monitoring",
+            "f": "Electronic Security",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Armed Security Services",
+            "f": "Guarding Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Manned Security Services",
+            "f": "Guarding Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Reception & Concierge Security",
+            "f": "Guarding Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Security Risk Assessment",
+            "f": "Security Consulting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Security System Design",
+            "f": "Security Consulting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Staff House",
+        "commodities": [
+          {
+            "n": "Staff House",
+            "f": "Staff House",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Camp Housekeeping Services",
+            "f": "Camp Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Camp Management Services",
+            "f": "Camp Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Camp Recreation Services",
+            "f": "Camp Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Integrated Camp Management Services",
+            "f": "Camp Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Crew Camp Services",
+            "f": "Crew Accommodation",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hotel Crew Accommodation",
+            "f": "Crew Accommodation",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Staff House Rental",
+            "f": "Crew Accommodation",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Utility",
+        "commodities": [
+          {
+            "n": "Utility",
+            "f": "Utility",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Electricity Supply",
+            "f": "Electricity",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Renewable Energy Supply",
+            "f": "Electricity",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Energy Audit Services",
+            "f": "Energy Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Energy Conservation Services",
+            "f": "Energy Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Generator Fuel Supply",
+            "f": "Fuel",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Natural Gas Supply",
+            "f": "Natural Gas",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Industrial Water Supply",
+            "f": "Water",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Water Supply Services",
+            "f": "Water",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Waste Disposal",
+        "commodities": [
+          {
+            "n": "Waste Disposal",
+            "f": "Waste Disposal",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Environmental Baseline Audits and Survey",
+            "f": "Environmental Consulting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Environmental Management & Protection Services",
+            "f": "Environmental Consulting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Environmental Remediation",
+            "f": "Environmental Consulting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hazardous & Industrial Waste Containers & Accessories (Buy)",
+            "f": "Facility Containment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hazardous & Industrial Waste Containers & Accessories - Rental",
+            "f": "Facility Containment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pollutants Tracking, Monitoring, Rehabilitation Services",
+            "f": "Facility Waste Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Municipal Waste Collection",
+            "f": "General Waste",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Recycling Services",
+            "f": "General Waste",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Chemical Waste Disposal",
+            "f": "Hazardous Waste",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hazardous Waste Disposal",
+            "f": "Hazardous Waste",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Industrial Waste Incineration",
+            "f": "Hazardous Waste",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Spill Cleanup Services",
+            "f": "Spill Response",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drainage Services",
+            "f": "Wastewater",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wastewater Treatment Services",
+            "f": "Wastewater",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Indirect",
+    "name": "HR",
+    "subs": [
+      {
+        "name": "Light vehicles",
+        "commodities": [
+          {
+            "n": "Light vehicles",
+            "f": "Light vehicles",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Light Vehicles",
+        "commodities": [
+          {
+            "n": "Car Allowance Programs",
+            "f": "Employee Vehicles",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Company Car Lease",
+            "f": "Employee Vehicles",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pool Vehicle Services",
+            "f": "Employee Vehicles",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fleet Management Services",
+            "f": "Vehicle Administration",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Vehicle Insurance",
+            "f": "Vehicle Administration",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Medical Checkup",
+        "commodities": [
+          {
+            "n": "Medical Checkup",
+            "f": "Medical Checkup",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Industrial Hygiene",
+            "f": "Environment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Annual Health Checkups",
+            "f": "Periodic Medical",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Occupational Health Assessments",
+            "f": "Periodic Medical",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Drug & Alcohol Testing",
+            "f": "Pre-Employment Medical",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pre-Employment Screening",
+            "f": "Pre-Employment Medical",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Regulatory Compliance",
+            "f": "Safety",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Risk Management Providers",
+            "f": "Safety",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fitness for Duty Assessments",
+            "f": "Specialty Assessments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Vision & Hearing Tests",
+            "f": "Specialty Assessments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Medical Insurance",
+        "commodities": [
+          {
+            "n": "Medical Insurance",
+            "f": "Medical Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Employee Seniority Awards and Recognition",
+            "f": "Awards & Recognition",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Life Insurance and AD&D providers & Plan administrators",
+            "f": "Deferred & Insured Benefits",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Retirement Plans (Pension, Savings, Provident Funds)",
+            "f": "Deferred & Insured Benefits",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "EAP Services",
+            "f": "Employee Assistance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mental Health Services",
+            "f": "Employee Assistance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Medical Check Up",
+            "f": "Employee Benefits",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Schooling (For Employee Dependents Only)",
+            "f": "Employee Benefits",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Housing Business Delivery (not crew related)",
+            "f": "Fringe & Mobility Benefits",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Housing Business Enablement (not crew related)",
+            "f": "Fringe & Mobility Benefits",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Recreational Membership & Discount Programs",
+            "f": "Fringe & Mobility Benefits",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Dental Insurance",
+            "f": "Health Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Group Medical Insurance",
+            "f": "Health Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Vision Insurance",
+            "f": "Health Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Disability Insurance",
+            "f": "Life & Disability",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Group Life Insurance",
+            "f": "Life & Disability",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Recruitment",
+        "commodities": [
+          {
+            "n": "Recruitment",
+            "f": "Recruitment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Executive Search Firms",
+            "f": "Agency Recruitment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Recruitment Agencies",
+            "f": "Agency Recruitment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Technical Recruitment Specialists",
+            "f": "Agency Recruitment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Assessment & Testing Services",
+            "f": "Assessment Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Background Verification",
+            "f": "Assessment Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Direct Hire Recruiting or Headhunting Firm",
+            "f": "Direct Hire Recruiting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Job Boards & Social Media",
+            "f": "Direct Hire Recruiting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Recruiting Process Outsourcing",
+            "f": "Direct Hire Recruiting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Job Posting Services",
+            "f": "Direct Sourcing",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Recruitment Marketing",
+            "f": "Direct Sourcing",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Relocation Services",
+            "f": "Onboarding",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Visa & Immigration Services",
+            "f": "Onboarding",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Relocation Management Companies",
+            "f": "Relocation Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Household Good Shipments, Packing, Storage",
+            "f": "Relocation Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Relocation Services - Destination Services",
+            "f": "Relocation Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Training",
+        "commodities": [
+          {
+            "n": "Training",
+            "f": "Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Business Delivery Training",
+            "f": "Continued Education & Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Business Enablement Training",
+            "f": "Continued Education & Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "HSE Services Training",
+            "f": "Continued Education & Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "IT Training",
+            "f": "Continued Education & Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Leadership Development Training",
+            "f": "Continued Education & Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "NExT Training",
+            "f": "Continued Education & Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Professional Certifications & Memberships",
+            "f": "Continued Education & Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Custom E-Learning Development",
+            "f": "E-Learning",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Online Learning Platforms",
+            "f": "E-Learning",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Conferences & Seminars",
+            "f": "External Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Professional Certifications",
+            "f": "External Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Leadership Training",
+            "f": "Professional Development",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Soft Skills Training",
+            "f": "Professional Development",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "IT Skills Training",
+            "f": "Technical Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Safety & Compliance Training",
+            "f": "Technical Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Technical Skills Training",
+            "f": "Technical Training",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Indirect",
+    "name": "IT",
+    "subs": [
+      {
+        "name": "Hardware",
+        "commodities": [
+          {
+            "n": "Hardware",
+            "f": "Hardware",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Computers, PCs, Tablet - Rental",
+            "f": "Computers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Desktop Computers",
+            "f": "Computers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Handheld Computer Scanners",
+            "f": "Computers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Laptop Computers",
+            "f": "Computers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tablets",
+            "f": "Computers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Uninterrupted Power Supplies (UPS)",
+            "f": "Critical Power for DC",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Data Storage, Tape Library",
+            "f": "Maintenance & Repairs, Spare Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Data Storage, Tape Library - Data Processing",
+            "f": "Maintenance & Repairs, Spare Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Maintenance & Repairs, Spare Parts for Computer",
+            "f": "Maintenance & Repairs, Spare Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Maintenance & Repairs, Spare Parts for Servers",
+            "f": "Maintenance & Repairs, Spare Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Maintenance & Repairs, Spare Parts for Telecom Equipment",
+            "f": "Maintenance & Repairs, Spare Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mobile Accessories",
+            "f": "Mobile Devices",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mobile Phones",
+            "f": "Mobile Devices",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Input Devices",
+            "f": "Peripherals",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Monitors & Displays",
+            "f": "Peripherals",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Printers & MFDs",
+            "f": "Peripherals",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Visual Display Units (Large Format Displays - Not Desktop)",
+            "f": "Peripherals",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Facility - Managed Printers Services - Lease",
+            "f": "Printers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Printer Supplies, Spare Parts, Maintenance (not paper)",
+            "f": "Printers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Specialized Label Printers",
+            "f": "Printers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Enterprise Servers & Mid-Range - Lease",
+            "f": "Server",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Server Support & Extension",
+            "f": "Server",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Enterprise Servers",
+            "f": "Servers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Server Accessories & Parts",
+            "f": "Servers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Data Storage Systems",
+            "f": "Storage",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Storage Media",
+            "f": "Storage",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Storage Media (Tapes & Library) - Data Processing",
+            "f": "Storage",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Storage Systems High End - Datacenter - Lease",
+            "f": "Storage",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Storage System Support & Extension",
+            "f": "Storage",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fixed phones & PBX (Legacy or IP)",
+            "f": "Telecom Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Satellite Equipment",
+            "f": "Telecom Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Telecom Infrastructure Hardware",
+            "f": "Telecom Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Video-Conferencing Equipment",
+            "f": "Telecom Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Hardware/ Software",
+        "commodities": [
+          {
+            "n": "Hardware/ Software",
+            "f": "Hardware/ Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Infrastructure",
+        "commodities": [
+          {
+            "n": "Infrastructure",
+            "f": "Infrastructure",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fiber Optic Infrastructure",
+            "f": "Cabling",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Structured Cabling",
+            "f": "Cabling",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Conferencing Services - Audio & Web",
+            "f": "Conferencing",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cloud Infrastructure Services",
+            "f": "Data Center",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Data Center Hosting Services",
+            "f": "Data Center",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Data Network Services (Terrestrial)",
+            "f": "Data Networks",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "IPT Management Services (IP Telephony)",
+            "f": "Fixed Voice",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Voice Services - Fixed Line, Fax, & Toll",
+            "f": "Fixed Voice",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mobile Services - Cellular Voice, 3G Data, & Pagers",
+            "f": "Mobile Voice & Data",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Firewalls & Security Appliances",
+            "f": "Network Infrastructure",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Network Switches & Routers",
+            "f": "Network Infrastructure",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Wireless Infrastructure",
+            "f": "Network Infrastructure",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Satellite Communications Services (VSAT, L-Band, M2M)",
+            "f": "Satellite Networks",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Management for Telecom Device & Services",
+            "f": "Telecom Expenses Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "PBX & Phone Systems",
+            "f": "Telecommunications",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Satellite Communication",
+            "f": "Telecommunications",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Video Conferencing Systems",
+            "f": "Telecommunications",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Licenses",
+        "commodities": [
+          {
+            "n": "Licenses",
+            "f": "Licenses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Perpetual Software Licenses",
+            "f": "Software Licenses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Software Maintenance & Support",
+            "f": "Software Licenses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subscription Software Licenses",
+            "f": "Software Licenses",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fixed Line Services",
+            "f": "Telecommunications",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Internet Services",
+            "f": "Telecommunications",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Mobile Voice & Data Services",
+            "f": "Telecommunications",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Satellite Services",
+            "f": "Telecommunications",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Software",
+        "commodities": [
+          {
+            "n": "Software",
+            "f": "Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Application Development, Systems Integration & Sustaining",
+            "f": "Application Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Consulting & Research Services Related To IT",
+            "f": "Application Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Enterprise Applications",
+            "f": "Application Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Productivity Software",
+            "f": "Application Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Software as a Service (SaaS)",
+            "f": "Application Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Software (Maintenance & Support)",
+            "f": "Application Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Software (Perpetual License)",
+            "f": "Application Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Software (Termed Licenses)",
+            "f": "Application Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Specialized Applications",
+            "f": "Application Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Database Management Systems",
+            "f": "Database Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hosting Co-location Services",
+            "f": "Data Center Hosting Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hosting Infrastructure-as-a-Service (IaaS)",
+            "f": "Data Center Hosting Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "On-premise Data Center Hosting Services",
+            "f": "Data Center Hosting Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Data & Record Migration, Storage, Digitization",
+            "f": "Data Record Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "IT Strategy",
+            "f": "IT Strategy Consulting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Desktop Operating Systems",
+            "f": "Operating Systems",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Server Operating Systems",
+            "f": "Operating Systems",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Antivirus & Endpoint Security",
+            "f": "Security Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Firewall & Network Security",
+            "f": "Security Software",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Indirect",
+    "name": "Logistics",
+    "subs": [
+      {
+        "name": "Crew Transportation",
+        "commodities": [
+          {
+            "n": "Crew Transportation",
+            "f": "Crew Transportation",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fixed Wing Charter",
+            "f": "Air Transport",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Helicopter Charter Services",
+            "f": "Air Transport",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Crew Land Shuttle to & from Jobsite",
+            "f": "Crew Shuttle Land",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Charter - Helicopters - People Movers",
+            "f": "Crew Shuttle Other",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Crew Bus Services",
+            "f": "Ground Transport",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Crew Van Services",
+            "f": "Ground Transport",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Crew Boat Services",
+            "f": "Marine Transport",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fast Supply Vessel Crew Transfer",
+            "f": "Marine Transport",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Custom Clearance Services",
+        "commodities": [
+          {
+            "n": "Custom Clearance Services",
+            "f": "Custom Clearance Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Bonded Transit Document Fee",
+            "f": "Customs Clearance Agent Fees",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Customs Clearance Fees",
+            "f": "Customs Clearance Agent Fees",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Customs Fines and Penalties",
+            "f": "Customs Clearance Agent Fees",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Customs Duties",
+            "f": "Customs Duties",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Customs Duties Payment",
+            "f": "Duties & Taxes",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Trade Compliance Services",
+            "f": "Duties & Taxes",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Export Customs Clearance",
+            "f": "Export Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Export Documentation",
+            "f": "Export Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Import Customs Clearance",
+            "f": "Import Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Import Documentation",
+            "f": "Import Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Freight Forwarding Services",
+        "commodities": [
+          {
+            "n": "Freight Forwarding Services",
+            "f": "Freight Forwarding Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air Charter",
+            "f": "Charter Brokers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Ocean Charter",
+            "f": "Charter Brokers",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Domestic Distribution",
+            "f": "Domestic Forwarding",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Freight Payment System - Auditor Fees",
+            "f": "Freight Payment System",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Freight Payment System - Passthrough Charges",
+            "f": "Freight Payment System",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air Freight Forwarding",
+            "f": "International Forwarding",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Multimodal Forwarding",
+            "f": "International Forwarding",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sea Freight Forwarding",
+            "f": "International Forwarding",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Parcel - Domestic Shipment",
+            "f": "Parcel",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Parcel - International Shipment",
+            "f": "Parcel",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Postage",
+            "f": "Postage & Courier",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cargo Insurance",
+            "f": "Value Added Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cargo Tracking",
+            "f": "Value Added Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Heavy Trucks and Parts",
+        "commodities": [
+          {
+            "n": "Heavy Trucks and Parts",
+            "f": "Heavy Trucks and Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Domestic - Bulk Cargo",
+            "f": "Call Out Truck",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Domestic - Hotshot",
+            "f": "Call Out Truck",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "International - Bulk Cargo",
+            "f": "Call Out Truck",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "International - Full Truckload (FTL)",
+            "f": "Call Out Truck",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "International - Hotshot",
+            "f": "Call Out Truck",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "International - Less Than Truckload (LTL)",
+            "f": "Call Out Truck",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Demurrage & Detention (Trucking)",
+            "f": "Demurrage & Detention (Trucking)",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Trucks/Trailers - Rental/Lease",
+            "f": "Fleet Rental Truck",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heavy Duty Vehicle - Purchase (Body, Chassis, Truck, Tractor)",
+            "f": "Heavy Trucks & Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heavy Duty Vehicle - Purchase (Maintenance Parts & Spares)",
+            "f": "Heavy Trucks & Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Powertrain Planned/Routine Maintenance - Heavy Vehicles",
+            "f": "Heavy Trucks & Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Standard Trailers - Purchase (Tanker Trailers, Flatbeds)",
+            "f": "Heavy Trucks & Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heavy Duty Trucks",
+            "f": "Heavy Vehicles",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Specialized Heavy Vehicles",
+            "f": "Heavy Vehicles",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heavy Vehicle Maintenance",
+            "f": "Parts & Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heavy Vehicle Spare Parts",
+            "f": "Parts & Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tire Services",
+            "f": "Parts & Maintenance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Domestic - Tank Truck",
+            "f": "Tank Truck",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "International - Tank Truck",
+            "f": "Tank Truck",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Light Vehicles for Operation",
+        "commodities": [
+          {
+            "n": "Light Vehicles for Operation",
+            "f": "Light Vehicles for Operation",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Material Handling Rental Rigsite - Excl Crane Services",
+            "f": "Lease & Rent",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pickup Trucks",
+            "f": "Light Vehicles",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "SUVs & 4x4 Vehicles",
+            "f": "Light Vehicles",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Vans & Utility Vehicles",
+            "f": "Light Vehicles",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Light Duty Vehicle Maintenance Parts & Spares",
+            "f": "Light Vehicles & Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Light Duty Vehicle - Purchase",
+            "f": "Light Vehicles & Parts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Driving Monitors (Hardware & Related Charges)",
+            "f": "Safety Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "RDMD, DIM Installation & Services",
+            "f": "Safety Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Subscription Costs Related to Driving Monitors",
+            "f": "Safety Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fuel Cards & Management",
+            "f": "Vehicle Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Light Vehicle Lease & Rental",
+            "f": "Vehicle Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Light Vehicle Maintenance",
+            "f": "Vehicle Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Shipping Services",
+        "commodities": [
+          {
+            "n": "Shipping Services",
+            "f": "Shipping Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air Cargo Services",
+            "f": "Air Freight",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Express Air Services",
+            "f": "Air Freight",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air Shipment - Dangerous Goods",
+            "f": "Air Shipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air Shipment - Express",
+            "f": "Air Shipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air Shipment - Standard",
+            "f": "Air Shipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Barges",
+            "f": "Barge",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Air & Ocean Demurrage, Detention & Storage",
+            "f": "Demurrage & Detention (Freight Shipping)",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Ocean Break Bulk",
+            "f": "Ocean Bulk Shipments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Ocean Dry Bulk",
+            "f": "Ocean Bulk Shipments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Ocean Liquid Bulk",
+            "f": "Ocean Bulk Shipments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Ocean FCL",
+            "f": "Ocean Container Shipments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Ocean FCL - Dangerous Goods",
+            "f": "Ocean Container Shipments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Ocean LCL",
+            "f": "Ocean Container Shipments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Ocean LCL - Dangerous Goods",
+            "f": "Ocean Container Shipments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Break Bulk Shipping",
+            "f": "Ocean Freight",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Container Shipping",
+            "f": "Ocean Freight",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Port Terminal Services",
+            "f": "Port Terminal Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Full Truckload (FTL)",
+            "f": "Road Freight",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Less Than Truckload (LTL)",
+            "f": "Road Freight",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tanker Transport",
+            "f": "Road Freight",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hazardous Materials Transport",
+            "f": "Specialized Transport",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Heavy Lift Transport",
+            "f": "Specialized Transport",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Warehouse Services",
+        "commodities": [
+          {
+            "n": "Cross-docking Services",
+            "f": "Handling Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Inventory Management",
+            "f": "Handling Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Pick & Pack Services",
+            "f": "Handling Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "General Warehousing",
+            "f": "Storage Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hazardous Materials Storage",
+            "f": "Storage Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Temperature Controlled Storage",
+            "f": "Storage Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Disposal Services",
+            "f": "Warehousing Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Handling In/Out",
+            "f": "Warehousing Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Packing",
+            "f": "Warehousing Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sampling",
+            "f": "Warehousing Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Indirect",
+    "name": "Manpower",
+    "subs": [
+      {
+        "name": "Manpower",
+        "commodities": [
+          {
+            "n": "Manpower",
+            "f": "Manpower",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Administrative Contract Staff",
+            "f": "Contract Labor",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Field Operations Contract Staff",
+            "f": "Contract Labor",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Technical Contract Staff",
+            "f": "Contract Labor",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Managed Service Provider",
+            "f": "Managed Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Statement of Work Services",
+            "f": "Managed Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Staffing",
+        "commodities": [
+          {
+            "n": "Contractor Cost Business Delivery",
+            "f": "Contingent Workforce",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Contractor Cost Business Enablement",
+            "f": "Contingent Workforce",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Payroll Service Providers",
+            "f": "Contingent Workforce",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Vendor Management System & Managed Service Providers",
+            "f": "Contingent Workforce",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Direct Hire Recruitment",
+            "f": "Permanent Placement",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Executive Search Services",
+            "f": "Permanent Placement",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Background Screening Services",
+            "f": "Recruitment Support",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Job Boards & Advertising",
+            "f": "Recruitment Support",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Seasonal Staff Services",
+            "f": "Temporary Staffing",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Temporary Labor Agencies",
+            "f": "Temporary Staffing",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Indirect",
+    "name": "Professional Services",
+    "subs": [
+      {
+        "name": "Finance",
+        "commodities": [
+          {
+            "n": "Finance",
+            "f": "Finance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Bookkeeping Services",
+            "f": "Accounting Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Financial Reporting Services",
+            "f": "Accounting Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Bank Charges",
+            "f": "Banking",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Insurance (Including Building & Building Contents Insurance)",
+            "f": "Banking",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Payroll Provider / Pension Administration",
+            "f": "Banking",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Business Process Outsourcing Services (excluding IT & HR)",
+            "f": "BPO Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Client Entertainment",
+            "f": "Entertainment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Gifts & Giveaways",
+            "f": "Entertainment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Internal Entertainment",
+            "f": "Entertainment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Social Club Dues & Memberships",
+            "f": "Entertainment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Regulatory Agencies (Fees, Surcharges, Permits & Penalties)",
+            "f": "Federal & State Payments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Financial Investment Consulting",
+            "f": "Financial",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "External Audit Services",
+            "f": "Financial Audit",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Internal Audit Services",
+            "f": "Financial Audit",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Payments for Customs Related Tax or Duties Collections",
+            "f": "Government Payments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Regulatory Agencies (Fees, Surcharges, Permits, & Penalties)",
+            "f": "Government Payments",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "HR Consulting & Research Services",
+            "f": "HR Consulting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Management Consulting Services (excluding IT & HR)",
+            "f": "Management Consulting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Automobile Licenses & Taxes",
+            "f": "Taxes & Fees",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Franchise Taxes",
+            "f": "Taxes & Fees",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Local Taxes, Municipality Taxes, & Tax Authorities",
+            "f": "Taxes & Fees",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Miscellaneous (Taxes & Fees)",
+            "f": "Taxes & Fees",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Stamp Duties & Taxes",
+            "f": "Taxes & Fees",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tax Advisory Services",
+            "f": "Tax Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Tax Preparation Services",
+            "f": "Tax Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Transfer Pricing Services",
+            "f": "Tax Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Technical Consulting Services (excl. Field, Facilities, IT)",
+            "f": "Technical Consulting",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Insurance",
+        "commodities": [
+          {
+            "n": "Insurance",
+            "f": "Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Group Life Insurance",
+            "f": "Employee Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Workers Compensation Insurance",
+            "f": "Employee Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Directors & Officers Insurance",
+            "f": "Liability Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "General Liability Insurance",
+            "f": "Liability Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Professional Indemnity Insurance",
+            "f": "Liability Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Building & Contents Insurance",
+            "f": "Property Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Business Interruption Insurance",
+            "f": "Property Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Equipment & Machinery Insurance",
+            "f": "Property Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cyber Insurance",
+            "f": "Specialty Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Environmental Liability Insurance",
+            "f": "Specialty Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Marine Cargo Insurance",
+            "f": "Specialty Insurance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Legal",
+        "commodities": [
+          {
+            "n": "Legal",
+            "f": "Legal",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Contract Drafting & Review",
+            "f": "Corporate Legal",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Corporate Governance Services",
+            "f": "Corporate Legal",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "M&A Legal Services",
+            "f": "Corporate Legal",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Arbitration & Mediation Services",
+            "f": "Litigation",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Commercial Litigation Services",
+            "f": "Litigation",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Employment Law Services",
+            "f": "Regulatory & Compliance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Intellectual Property Services",
+            "f": "Regulatory & Compliance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Regulatory Compliance Services",
+            "f": "Regulatory & Compliance",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Marketing",
+        "commodities": [
+          {
+            "n": "Marketing",
+            "f": "Marketing",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Advertising Agency Services",
+            "f": "Advertising",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Digital Marketing Services",
+            "f": "Advertising",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Media Buying Services",
+            "f": "Advertising",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Graphic Design Services",
+            "f": "Creative Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Video Production Services",
+            "f": "Creative Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Donations / Sponsors",
+            "f": "CSR & Donations",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Non-Deductible Donations",
+            "f": "CSR & Donations",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "SEED Donations",
+            "f": "CSR & Donations",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Student Organizations",
+            "f": "CSR & Donations",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Event Management Services",
+            "f": "Events & Promotions",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Promotional Items & Merchandise",
+            "f": "Events & Promotions",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Sponsorships",
+            "f": "Events & Promotions",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Market & Industry Research & Memberships",
+            "f": "MarCom",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Translation & Interpretation Services",
+            "f": "MarCom",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Printing Services",
+            "f": "Print & Publications",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Publications & Subscriptions",
+            "f": "Print & Publications",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Treasury",
+        "commodities": [
+          {
+            "n": "Treasury",
+            "f": "Treasury",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Bank Account Management",
+            "f": "Cash Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Cash Pooling Services",
+            "f": "Cash Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Payment Processing Services",
+            "f": "Cash Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "FX Hedging Services",
+            "f": "Foreign Exchange",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "FX Trading Services",
+            "f": "Foreign Exchange",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Short-term Investment Services",
+            "f": "Investment Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Treasury Advisory Services",
+            "f": "Investment Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Indirect",
+    "name": "Safety",
+    "subs": [
+      {
+        "name": "Safety",
+        "commodities": [
+          {
+            "n": "Safety",
+            "f": "Safety",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Life Safety (PPE)",
+        "commodities": [
+          {
+            "n": "Life Safety (PPE)",
+            "f": "Life Safety (PPE)",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hi-Visibility Clothing",
+            "f": "Body Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Safety Coveralls",
+            "f": "Body Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hearing Protection",
+            "f": "Eye & Ear Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Safety Glasses & Goggles",
+            "f": "Eye & Ear Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Lanyards & Lifelines",
+            "f": "Fall Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Safety Harnesses",
+            "f": "Fall Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Safety Footwear",
+            "f": "Hand & Foot Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Safety Gloves",
+            "f": "Hand & Foot Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Face Shields & Visors",
+            "f": "Head Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Safety Helmets & Hard Hats",
+            "f": "Head Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Respirators & Masks",
+            "f": "Respiratory Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Self-Contained Breathing Apparatus",
+            "f": "Respiratory Protection",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Safety Equipment",
+        "commodities": [
+          {
+            "n": "Safety Equipment",
+            "f": "Safety Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Gas Detectors",
+            "f": "Detection Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Smoke & Heat Detectors",
+            "f": "Detection Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Emergency Showers",
+            "f": "Emergency Response",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Spill Kits",
+            "f": "Emergency Response",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fire Blankets & Kits",
+            "f": "Fire Safety Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Fire Extinguishers",
+            "f": "Fire Safety Equipment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "AED Defibrillators",
+            "f": "First Aid",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Eye Wash Stations",
+            "f": "First Aid",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "First Aid Kits",
+            "f": "First Aid",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Safety Barriers & Cones",
+            "f": "Safety Signage",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Safety Signs & Labels",
+            "f": "Safety Signage",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Indirect",
+    "name": "Travel & Entertainment",
+    "subs": [
+      {
+        "name": "Air Tickets",
+        "commodities": [
+          {
+            "n": "Air Tickets",
+            "f": "Air Tickets",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Charter - Private Aircraft",
+            "f": "Air Charter",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Airport Lounge Access",
+            "f": "Ancillary Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Baggage & Seat Fees",
+            "f": "Ancillary Services",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Domestic Air Tickets",
+            "f": "Commercial Air",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "International Air Tickets",
+            "f": "Commercial Air",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Passport/Visa/Global Entry & Travel Related Admin Fees",
+            "f": "Travel Administration",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Corporate Travel Programs",
+            "f": "Travel Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Travel Agency Services",
+            "f": "Travel Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Travel Agency Transaction Fees",
+            "f": "Travel Management",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Entertainment",
+        "commodities": [
+          {
+            "n": "Entertainment",
+            "f": "Entertainment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Client Events & Hospitality",
+            "f": "Client Entertainment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Client Meals & Dining",
+            "f": "Client Entertainment",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Employee Social Events",
+            "f": "Employee Events",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Team Building Events",
+            "f": "Employee Events",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Business Gifts",
+            "f": "Gifts",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Internal Meetings",
+            "f": "Meetings & Events",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Non-Facility Catering (training/meeting related)",
+            "f": "Meetings & Events",
+            "code": "",
+            "desc": "",
+            "kw": []
+          }
+        ]
+      },
+      {
+        "name": "Hotel",
+        "commodities": [
+          {
+            "n": "Hotel",
+            "f": "Hotel",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hotel Booking Services",
+            "f": "Corporate Programs",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Hotel Corporate Rates",
+            "f": "Corporate Programs",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Short-Term Vehicle Rental",
+            "f": "Ground Transport",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Shuttle Services (T&E)",
+            "f": "Ground Transport",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Taxi & Limo Services",
+            "f": "Ground Transport",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Employee Meals (not crew)",
+            "f": "Meals",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Business Hotels",
+            "f": "Transient Accommodation",
+            "code": "",
+            "desc": "",
+            "kw": []
+          },
+          {
+            "n": "Extended Stay Hotels",
+            "f": "Transient Accommodation",
+            "code": "",
+            "desc": "",
+            "kw": []
           }
         ]
       }

@@ -129,7 +129,7 @@ export default function TiteDashboardClient({
   if (shipments.length === 0) return <EmptyState viewOnly={viewOnly} />;
 
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const open = shipments.filter(s => s.status !== 'Closed' && s.status !== 'Closed - Refund Recovered');
+  const open = shipments.filter(s => s.status === 'Open' || s.status === 'Open - Extended');
 
   const activeCount = open.length;
   const urgentCount = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
@@ -152,12 +152,8 @@ export default function TiteDashboardClient({
   });
   const segments = Object.entries(segMap).sort((a, b) => b[1].count - a[1].count);
 
-  const actionQueue = shipments
-    .filter(s =>
-      ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level) &&
-      s.status !== 'Closed' &&
-      s.status !== 'Closed - Refund Recovered',
-    )
+  const actionQueue = open
+    .filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level))
     .slice(0, 8);
 
   return (

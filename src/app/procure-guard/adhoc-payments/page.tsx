@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation';
 import { getAdhocPaymentsData, getProcureGuardActor } from '@/app/actions/procureGuard';
 import { canUseProcureGuardOperationalPages } from '@/lib/procureGuard-utils';
 import AdhocPaymentsStatusClient from './AdhocPaymentsStatusClient';
+import RefreshOnView from '../components/RefreshOnView';
 
 export const metadata: Metadata = { title: 'NESR | Adhoc PO Status - ProcureGuard' };
+export const dynamic = 'force-dynamic';
 
 export default async function AdhocPaymentsStatusPage() {
   const actor = await getProcureGuardActor();
@@ -13,5 +15,5 @@ export default async function AdhocPaymentsStatusPage() {
     redirect('/procure-guard/analytics');
   }
   const data = await getAdhocPaymentsData();
-  return <AdhocPaymentsStatusClient data={data} />;
+  return <><RefreshOnView /><AdhocPaymentsStatusClient data={data} /></>;
 }

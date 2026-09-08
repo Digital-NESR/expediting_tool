@@ -29,6 +29,33 @@ const MOVEMENT_OPTIONS = [
   { value: 'Temporary Export',  label: 'Temporary Export' },
 ];
 
+const ALERT_FILTER_OPTIONS = [
+  { key: 'overdue', label: 'Overdue',    color: '#ef4444' },
+  { key: 'urgent',  label: '≤ 7 days',   color: '#f97316' },
+  { key: 'action',  label: '8–14 days',  color: '#f59e0b' },
+  { key: 'plan',    label: '15–30 days', color: '#3b82f6' },
+  { key: 'info',    label: '31–60 days', color: '#06b6d4' },
+  { key: 'ok',      label: '60+ days',   color: '#059669' },
+];
+
+/* Client-side alert level derived from effective expiry, not the stored column */
+function calcClientAlertLevel(s: Shipment): string {
+  if (s.status === 'Closed' || s.status === 'Closed - Refund Recovered') return 'closed';
+  const effective = s.extended_date || s.expiry_date;
+  if (!effective) return 'info';
+  const today = new Date();
+  const todayUtc  = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const [ey, em, ed] = effective.split('-').map(Number);
+  const expiryUtc = Date.UTC(ey, em - 1, ed);
+  const days = (expiryUtc - todayUtc) / 86400000;
+  if (days < 0)   return 'overdue';
+  if (days <= 7)  return 'urgent';
+  if (days <= 14) return 'action';
+  if (days <= 30) return 'plan';
+  if (days <= 60) return 'info';
+  return 'ok';
+}
+
 /* ─── Report definitions ─────────────────────────────────────────── */
 interface ColDef { key: string; label: string; }
 interface ReportDef {
@@ -200,12 +227,13 @@ function last12(): string[] {
   }
   return r;
 }
-function buildFilterSummary(fc: string, fs: string, fm: string, fst: string, fdf: string, fdt: string): string {
+function buildFilterSummary(fc: string, fs: string, fm: string, fst: string, fdf: string, fdt: string, fal: string): string {
   const parts: string[] = [];
   if (fc) parts.push(`Country: ${fc}`);
   if (fs) parts.push(`Segment: ${fs}`);
   if (fm) parts.push(`Movement: ${fm}`);
   if (fst) parts.push(`Status: ${fst}`);
+  if (fal) parts.push(`Alert: ${fal}`);
   if (fdf || fdt) parts.push(`Import date: ${fdf || '…'} → ${fdt || '…'}`);
   return parts.length ? parts.join(' | ') : 'None';
 }
@@ -229,12 +257,12 @@ const NoData = () => (
 /* ─── Export helpers ─────────────────────────────────────────────── */
 async function exportToPDF(
   report: ReportDef, rows: Shipment[],
-  fc: string, fs: string, fm: string, fst: string, fdf: string, fdt: string,
+  fc: string, fs: string, fm: string, fst: string, fdf: string, fdt: string, fal: string,
 ) {
   const { jsPDF }           = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  const summary = buildFilterSummary(fc, fs, fm, fst, fdf, fdt);
+  const summary = buildFilterSummary(fc, fs, fm, fst, fdf, fdt, fal);
 
   try {
     const resp = await fetch('/nesr-logo-circle.png');
@@ -267,10 +295,10 @@ async function exportToPDF(
 
 async function exportToExcel(
   report: ReportDef, rows: Shipment[],
-  fc: string, fs: string, fm: string, fst: string, fdf: string, fdt: string,
+  fc: string, fs: string, fm: string, fst: string, fdf: string, fdt: string, fal: string,
 ) {
   const XLSX    = await import('xlsx');
-  const summary = buildFilterSummary(fc, fs, fm, fst, fdf, fdt);
+  const summary = buildFilterSummary(fc, fs, fm, fst, fdf, fdt, fal);
   const wsData  = [
     [`Report: ${report.title}`],
     [`Generated: ${new Date().toLocaleDateString('en-GB')}`],
@@ -291,9 +319,10 @@ export default function TiteAnalyticsClient({ shipments }: { shipments: Shipment
   const [filterSegment,  setFilterSegment]  = useState('');
   const [filterMovement, setFilterMovement] = useState('');
   const [filterStatus,   setFilterStatus]   = useState('');
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo,   setFilterDateTo]   = useState('');
-  const [expanded,       setExpanded]       = useState<Set<number>>(new Set());
+  const [filterDateFrom,     setFilterDateFrom]     = useState('');
+  const [filterDateTo,       setFilterDateTo]       = useState('');
+  const [filterAlertLevels,  setFilterAlertLevels]  = useState<Set<string>>(new Set());
+  const [expanded,           setExpanded]           = useState<Set<number>>(new Set());
 
   /* Dynamic dropdown options */
   const countries = useMemo(() =>
@@ -310,25 +339,37 @@ export default function TiteAnalyticsClient({ shipments }: { shipments: Shipment
     if (filterSegment && !segments.includes(filterSegment)) setFilterSegment('');
   }, [segments, filterSegment]);
 
-  /* Client-side filtered dataset — all KPIs, charts, and report tables use this */
+  /* Client-side filtered dataset — all KPIs, charts, and report tables use this.
+     alert_level is recalculated from (extended_date ?? expiry_date) – today
+     so it stays fresh even if the stored column is stale. */
   const filtered = useMemo(() => {
     if (!shipments) return [];
-    return shipments.filter(s => {
-      if (filterCountry  && s.country       !== filterCountry)  return false;
-      if (filterSegment  && s.segment       !== filterSegment)  return false;
-      if (filterMovement && s.movement_type !== filterMovement) return false;
-      if (filterStatus   && s.status        !== filterStatus)   return false;
-      if (filterDateFrom && s.import_date   && s.import_date   < filterDateFrom) return false;
-      if (filterDateTo   && s.import_date   && s.import_date   > filterDateTo)   return false;
-      return true;
-    });
-  }, [shipments, filterCountry, filterSegment, filterMovement, filterStatus, filterDateFrom, filterDateTo]);
+    return shipments
+      .map(s => ({ ...s, alert_level: calcClientAlertLevel(s) }))
+      .filter(s => {
+        if (filterCountry  && s.country       !== filterCountry)  return false;
+        if (filterSegment  && s.segment       !== filterSegment)  return false;
+        if (filterMovement && s.movement_type !== filterMovement) return false;
+        if (filterStatus   && s.status        !== filterStatus)   return false;
+        if (filterAlertLevels.size > 0 && !filterAlertLevels.has(s.alert_level)) return false;
+        if (filterDateFrom && s.import_date   && s.import_date   < filterDateFrom) return false;
+        if (filterDateTo   && s.import_date   && s.import_date   > filterDateTo)   return false;
+        return true;
+      });
+  }, [shipments, filterCountry, filterSegment, filterMovement, filterStatus, filterAlertLevels, filterDateFrom, filterDateTo]);
 
-  const isFiltered = !!(filterCountry || filterSegment || filterMovement || filterStatus || filterDateFrom || filterDateTo);
+  const isFiltered = !!(filterCountry || filterSegment || filterMovement || filterStatus || filterAlertLevels.size || filterDateFrom || filterDateTo);
 
   function resetFilters() {
     setFilterCountry(''); setFilterSegment(''); setFilterMovement('');
-    setFilterStatus('');  setFilterDateFrom(''); setFilterDateTo('');
+    setFilterStatus('');  setFilterAlertLevels(new Set()); setFilterDateFrom(''); setFilterDateTo('');
+  }
+  function toggleAlertLevel(key: string) {
+    setFilterAlertLevels(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
   }
   function toggleReport(id: number) {
     setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -435,6 +476,9 @@ export default function TiteAnalyticsClient({ shipments }: { shipments: Shipment
   const inputCls  = 'text-[12px] text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-[#006B0C]/20 focus:border-[#006B0C]/50 transition-colors';
   const selStyle  = { backgroundImage: SELECT_ARROW, backgroundRepeat: 'no-repeat' as const, backgroundPosition: 'right 8px center' };
   const fc = filterCountry, fs = filterSegment, fm = filterMovement, fst = filterStatus, fdf = filterDateFrom, fdt = filterDateTo;
+  const fal = filterAlertLevels.size > 0
+    ? [...filterAlertLevels].map(k => ALERT_FILTER_OPTIONS.find(o => o.key === k)?.label ?? k).join(', ')
+    : '';
   const barH = (n: number) => Math.max(160, n * 34 + 20);
 
   return (
@@ -490,6 +534,39 @@ export default function TiteAnalyticsClient({ shipments }: { shipments: Shipment
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={selectCls} style={selStyle}>
               {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
+          </div>
+
+          <div className="w-px h-5 bg-slate-200 shrink-0" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Alert</span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setFilterAlertLevels(new Set())}
+                className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors border ${
+                  filterAlertLevels.size === 0
+                    ? 'bg-slate-800 text-white border-slate-800'
+                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                }`}
+              >All</button>
+              {ALERT_FILTER_OPTIONS.map(opt => {
+                const active = filterAlertLevels.has(opt.key);
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => toggleAlertLevel(opt.key)}
+                    className="px-2 py-1 rounded-md text-[11px] font-medium transition-colors border flex items-center gap-1"
+                    style={active
+                      ? { backgroundColor: opt.color + '18', color: opt.color, borderColor: opt.color + '40' }
+                      : { backgroundColor: 'white', color: '#64748b', borderColor: '#e2e8f0' }
+                    }
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: opt.color }} />
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="w-px h-5 bg-slate-200 shrink-0" />
@@ -666,14 +743,14 @@ export default function TiteAnalyticsClient({ shipments }: { shipments: Shipment
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />{r.owner}
                   </span>
                   <button
-                    onClick={e => { e.stopPropagation(); exportToPDF(r, reportRows, fc, fs, fm, fst, fdf, fdt); }}
+                    onClick={e => { e.stopPropagation(); exportToPDF(r, reportRows, fc, fs, fm, fst, fdf, fdt, fal); }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors whitespace-nowrap"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     PDF
                   </button>
                   <button
-                    onClick={e => { e.stopPropagation(); exportToExcel(r, reportRows, fc, fs, fm, fst, fdf, fdt); }}
+                    onClick={e => { e.stopPropagation(); exportToExcel(r, reportRows, fc, fs, fm, fst, fdf, fdt, fal); }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors whitespace-nowrap"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>

@@ -1,14 +1,15 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getProcureGuardUser } from '@/lib/auth';
-import { getLessonDetail } from '@/app/actions/learning-hub';
+import { getLessonDetail, getLessonTitle } from '@/app/actions/learning-hub';
 import LessonViewerClient from './LessonViewerClient';
 
 type PageProps = { params: Promise<{ track: string; courseId: string; lessonId: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { lessonId } = await params;
-  return { title: `Lesson ${lessonId} | Learning Hub | NESR` };
+  const title = await getLessonTitle(Number(lessonId));
+  return { title: title ?? 'Lesson' };
 }
 
 export default async function LessonViewerPage({ params }: PageProps) {

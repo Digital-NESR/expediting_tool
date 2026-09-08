@@ -5,8 +5,30 @@ import pool from "@/lib/db";
 import titePool from "@/lib/db-tite";
 import sourceGuidePool from "@/lib/db-sourceguide";
 import procureGuardPool from "@/lib/db-procureguard";
+import snsPool from "@/lib/db-sns";
+import learningHubPool from "@/lib/db-learning-hub";
 import { getPermissionProfile } from "@/lib/procureGuard-utils";
 import type { ProcureGuardPermissionRole } from "@/types/procureGuard";
+
+/* ── Per-user access memo ─────────────────────────────────────────
+   The jwt callback below resolves per-tool access with 7 DB queries
+   across 6 pools. Because getServerSession() invokes the jwt callback
+   on EVERY server render, without this memo every page navigation
+   would re-run all 7 queries — the main cause of the laggy feel.
+   We re-resolve at most once per TTL per user; sign-in and an explicit
+   session update() (the "Refresh Status" button) bypass it so access
+   changes still take effect immediately for the affected user. The TTL
+   is short so any access change a user does not force-refresh still
+   propagates within a few seconds. */
+const TOOL_ACCESS_TTL_MS = 20_000;
+interface CachedToolAccess {
+  isAdmin: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toolAccess: any;
+  titeViewOnly: boolean;
+  expiresAt: number;
+}
+const toolAccessCache = new Map<string, CachedToolAccess>();
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -48,7 +70,7 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, account }) {
+    async jwt({ token, account, trigger }) {
       if (account?.provider === "azure-ad" && account.access_token) {
         // Fetch additional profile fields from Microsoft Graph
         try {
@@ -92,14 +114,23 @@ export const authOptions: NextAuthOptions = {
         token.picture = null;
       }
 
-      // Always refresh per-tool access status from DB on every token evaluation
+      // Resolve per-tool access from the DB, memoized per user for TTL.
       if (token.email) {
+        const email = (token.email as string).toLowerCase();
+        const forceRefresh = trigger === 'update' || account != null;
+        const cached = toolAccessCache.get(email);
+        if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
+          token.isAdmin = cached.isAdmin;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (token as any).toolAccess = cached.toolAccess;
+          token.titeViewOnly = cached.titeViewOnly;
+          return token;
+        }
         try {
           const adminEmails = (process.env.ADMIN_EMAILS || '')
             .split(',')
             .map(e => e.trim().toLowerCase())
             .filter(Boolean);
-          const email = (token.email as string).toLowerCase();
 
           token.isAdmin = adminEmails.includes(email);
 
@@ -109,7 +140,7 @@ export const authOptions: NextAuthOptions = {
             .filter(Boolean);
 
           // Query each tool's access table in parallel
-          const [poResult, titeResult, sgChampResult, sgAccessResult, pgPermResult] = await Promise.all([
+          const [poResult, titeResult, sgChampResult, sgAccessResult, pgPermResult, snsResult, lhResult] = await Promise.all([
             pool.query(
               `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
               [token.email]
@@ -130,6 +161,14 @@ export const authOptions: NextAuthOptions = {
               `SELECT role FROM procure_guard_permissions WHERE LOWER(email) = LOWER($1) LIMIT 1`,
               [token.email]
             ).catch(() => ({ rows: [] as { role: string }[] })),
+            snsPool.query(
+              `SELECT status, approved_role, approved_countries FROM sns_access_requests WHERE LOWER(user_email) = LOWER($1)`,
+              [token.email]
+            ).catch(() => ({ rows: [] as { status: string; approved_role: string | null; approved_countries: string[] }[] })),
+            learningHubPool.query(
+              `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
+              [token.email]
+            ).catch(() => ({ rows: [] as { status: string; approved_countries: string[] }[] })),
           ]);
 
           // PO Expediting access
@@ -211,14 +250,62 @@ export const authOptions: NextAuthOptions = {
             sgCountries = [];
           }
 
+          // S&S Registry access: env admins bypass the queue entirely; everyone
+          // else needs an Approved row in sns_access_requests. `accessType` carries
+          // the granted role so the home card can label it.
+          let snsStatus: string;
+          let snsCountries: string[];
+          let snsRole: string | undefined;
+          if (token.isAdmin) {
+            snsStatus = 'approved';
+            snsCountries = [];
+            snsRole = 'admin';
+          } else if (snsResult.rows.length > 0) {
+            const sr = snsResult.rows[0];
+            const st = String(sr.status).toLowerCase();
+            snsStatus =
+              st === 'pending'  ? 'pending'  :
+              st === 'approved' ? 'approved' :
+              st === 'revoked'  ? 'revoked'  :
+              st === 'rejected' ? 'rejected' : 'denied';
+            snsCountries = snsStatus === 'approved' ? (sr.approved_countries || []) : [];
+            snsRole = sr.approved_role ?? undefined;
+          } else {
+            snsStatus = 'new';
+            snsCountries = [];
+          }
+
+          // Learning Hub access: env admins bypass (see isAdmin); everyone else needs an Approved row.
+          let lhStatus: string;
+          if (lhResult.rows.length > 0) {
+            const ls = String(lhResult.rows[0].status).toLowerCase();
+            lhStatus =
+              ls === 'pending'  ? 'pending'  :
+              ls === 'approved' ? 'approved' :
+              ls === 'revoked'  ? 'revoked'  :
+              ls === 'rejected' ? 'rejected' : 'denied';
+          } else {
+            lhStatus = 'new';
+          }
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (token as any).toolAccess = {
             po_expediting: { status: poStatus,   approvedCountries: poCountries   },
             tite:          { status: titeStatus, approvedCountries: titeCountries },
             procure_guard: { status: procureGuardStatus, approvedCountries: [], accessType: procureGuardAccessType },
             sourceguide:   { status: sgStatus, approvedCountries: sgCountries },
+            sns_registry:  { status: snsStatus, approvedCountries: snsCountries, snsRole },
+            learning_hub:  { status: lhStatus, approvedCountries: [] },
           };
           token.titeViewOnly = titeViewOnly;
+
+          toolAccessCache.set(email, {
+            isAdmin: token.isAdmin as boolean,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            toolAccess: (token as any).toolAccess,
+            titeViewOnly,
+            expiresAt: Date.now() + TOOL_ACCESS_TTL_MS,
+          });
         } catch (err) {
           console.error('JWT access check failed:', err);
           if (!token.toolAccess) {
@@ -227,6 +314,8 @@ export const authOptions: NextAuthOptions = {
               tite:          { status: 'new', approvedCountries: [] },
               procure_guard: { status: 'new', approvedCountries: [] },
               sourceguide:   { status: 'new', approvedCountries: [] },
+              sns_registry:  { status: 'new', approvedCountries: [] },
+              learning_hub:  { status: 'new', approvedCountries: [] },
             };
           }
         }
@@ -248,6 +337,8 @@ export const authOptions: NextAuthOptions = {
           tite?:          { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
           procure_guard?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[]; accessType?: 'requester' | 'approver' | 'viewer' | 'admin' };
           sourceguide?:   { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
+          sns_registry?:  { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[]; snsRole?: string };
+          learning_hub?:  { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
         } | undefined;
         session.user.titeViewOnly = token.titeViewOnly as boolean | undefined;
       }

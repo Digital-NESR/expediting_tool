@@ -1,6 +1,9 @@
 'use server';
 
 import type { QueryResultRow } from 'pg';
+import { createHash } from 'crypto';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import learningHubPool from '@/lib/db-learning-hub';
 import { SEED_TRACKS, type SeedTrack } from '@/lib/learning-hub-seed-content';
 import type {
@@ -27,6 +30,8 @@ import type {
   ModuleQuizPageData,
   QuizAnswerInput,
   QuizAttemptResult,
+  LessonQuiz,
+  LessonQuizAttemptResult,
 } from '@/types/learning-hub';
 
 /* ── Query helpers (house pattern: ? -> $n, sql() for SELECT, exec() for writes) ── */
@@ -76,9 +81,11 @@ async function ensureLearningHubSchema(): Promise<void> {
     icon TEXT,
     color TEXT,
     order_index INT NOT NULL DEFAULT 0,
+    seed_version TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
+  await execSchema(`ALTER TABLE learning_tracks ADD COLUMN IF NOT EXISTS seed_version TEXT`);
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_courses (
     id SERIAL PRIMARY KEY,
@@ -112,12 +119,15 @@ async function ensureLearningHubSchema(): Promise<void> {
     title TEXT NOT NULL,
     body TEXT NOT NULL,
     video_url TEXT,
-    duration_minutes INT NOT NULL DEFAULT 10,
+    duration_minutes INT,
     order_index INT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
   await execSchema(`ALTER TABLE learning_lessons ADD COLUMN IF NOT EXISTS video_url TEXT`);
+  // No fabricated default: a lesson only shows a duration if someone actually set one.
+  await execSchema(`ALTER TABLE learning_lessons ALTER COLUMN duration_minutes DROP NOT NULL`);
+  await execSchema(`ALTER TABLE learning_lessons ALTER COLUMN duration_minutes DROP DEFAULT`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_lessons_module ON learning_lessons(module_id)`);
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_lesson_progress (
@@ -158,10 +168,41 @@ async function ensureLearningHubSchema(): Promise<void> {
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
   await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_quiz_options_question ON learning_quiz_options(question_id)`);
+
+  // Lesson-level quizzes (attach a quiz to a lesson/video) + per-user pass tracking for gating.
+  await execSchema(`ALTER TABLE learning_quizzes ALTER COLUMN module_id DROP NOT NULL`);
+  await execSchema(`ALTER TABLE learning_quizzes ADD COLUMN IF NOT EXISTS lesson_id INT REFERENCES learning_lessons(id) ON DELETE CASCADE`);
+  await execSchema(`ALTER TABLE learning_quizzes ADD COLUMN IF NOT EXISTS pass_pct INT NOT NULL DEFAULT 70`);
+  await execSchema(`CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_quizzes_lesson ON learning_quizzes(lesson_id) WHERE lesson_id IS NOT NULL`);
+  await execSchema(`CREATE TABLE IF NOT EXISTS learning_quiz_results (
+    id SERIAL PRIMARY KEY,
+    user_email TEXT NOT NULL,
+    quiz_id INT NOT NULL REFERENCES learning_quizzes(id) ON DELETE CASCADE,
+    best_pct INT NOT NULL DEFAULT 0,
+    passed BOOLEAN NOT NULL DEFAULT false,
+    attempts INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_email, quiz_id)
+  )`);
+
+  // Access requests: request -> admin approves (mirrors the other tools). One row per user.
+  await execSchema(`CREATE TABLE IF NOT EXISTS access_requests (
+    user_email TEXT PRIMARY KEY,
+    display_name TEXT,
+    job_title TEXT,
+    department TEXT,
+    status TEXT NOT NULL DEFAULT 'Pending',
+    requested_countries TEXT[] DEFAULT '{}',
+    approved_countries TEXT[] DEFAULT '{}',
+    requested_at TIMESTAMPTZ DEFAULT NOW(),
+    reviewed_at TIMESTAMPTZ,
+    reviewed_by TEXT,
+    notes TEXT
+  )`);
 }
 
 // Inserts a track's courses/modules/lessons breadth-first (siblings in parallel, not one deep serial
-// chain) — a cold-start seed of dozens of sequential round trips risks exceeding the serverless
+// chain), a cold-start seed of dozens of sequential round trips risks exceeding the serverless
 // function's execution timeout. Each level only depends on its parent's id, so siblings are independent.
 // Shared by the one-time empty-DB seed and the admin "reset track to defaults" action.
 async function insertTrackCourses(trackId: number, track: SeedTrack): Promise<void> {
@@ -181,7 +222,7 @@ async function insertTrackCourses(trackId: number, track: SeedTrack): Promise<vo
             mod.lessons.map((lesson, lessonIdx) =>
               exec(
                 `INSERT INTO learning_lessons (module_id, title, body, video_url, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-                [moduleResult.insertId, lesson.title, lesson.body, lesson.videoUrl ?? null, lesson.duration_minutes, lessonIdx],
+                [moduleResult.insertId, lesson.title, lesson.body, lesson.videoUrl ?? null, lesson.duration_minutes ?? null, lessonIdx],
               ),
             ),
           );
@@ -191,58 +232,77 @@ async function insertTrackCourses(trackId: number, track: SeedTrack): Promise<vo
   );
 }
 
-async function seedLearningHubDefaultsIfEmpty(): Promise<void> {
-  const existing = await sql<QueryResultRow[]>(`SELECT COUNT(*)::int AS count FROM learning_tracks`);
-  if (Number(existing[0]?.count ?? 0) > 0) return;
-
-  await Promise.all(
-    SEED_TRACKS.map(async (track, trackIdx) => {
-      const trackResult = await exec(
-        `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-        [track.key, track.name, track.description, track.icon, track.color, trackIdx],
-      );
-      await insertTrackCourses(trackResult.insertId, track);
-    }),
-  );
+// A stable fingerprint of a track's code-defined content. Stored per-track as seed_version so we can
+// tell whether SEED_TRACKS changed since the last sync, without diffing every field by hand.
+function hashSeedTrack(track: SeedTrack): string {
+  return createHash('sha256').update(JSON.stringify(track)).digest('hex');
 }
 
-// Admin-only escape hatch: the empty-DB seed above only ever runs once. If an earlier broken deploy
-// left partial or stale content behind, later edits to the seed content are otherwise silently ignored
-// forever. This resets one track's courses (and their modules/lessons/progress, via cascade) back to
-// whatever is currently defined in code for that track key.
+async function insertNewSeedTrack(track: SeedTrack, orderIndex: number, version: string): Promise<number> {
+  const result = await exec(
+    `INSERT INTO learning_tracks (key, name, description, icon, color, order_index, seed_version) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [track.key, track.name, track.description, track.icon, track.color, orderIndex, version],
+  );
+  await insertTrackCourses(result.insertId, track);
+  return result.insertId;
+}
+
+async function applySeedTrackToExisting(trackId: number, track: SeedTrack, version: string): Promise<void> {
+  await exec(
+    `UPDATE learning_tracks SET name = ?, description = ?, icon = ?, color = ?, seed_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [track.name, track.description, track.icon, track.color, version, trackId],
+  );
+  await exec(`DELETE FROM learning_courses WHERE track_id = ?`, [trackId]);
+  await insertTrackCourses(trackId, track);
+}
+
+// Runs on every cold start (cheap once synced, just one SELECT + hash comparison per track).
+// A track whose code content hasn't changed since the last sync (seed_version matches) is left
+// completely alone, so admin edits made through the CMS survive unrelated deploys. A track whose
+// code content DID change (this is how a content push like the SAP video rebuild reaches production)
+// gets its courses replaced with what's now in SEED_TRACKS automatically, no manual "reset" needed.
+async function syncSeedTracks(): Promise<void> {
+  const existingTracks = await sql<QueryResultRow[]>(`SELECT id, key, seed_version FROM learning_tracks`);
+  const existingByKey = new Map(existingTracks.map((t) => [String(t.key), t]));
+
+  for (let trackIdx = 0; trackIdx < SEED_TRACKS.length; trackIdx++) {
+    const track = SEED_TRACKS[trackIdx];
+    const version = hashSeedTrack(track);
+    const existing = existingByKey.get(track.key);
+
+    if (!existing) {
+      await insertNewSeedTrack(track, trackIdx, version);
+      continue;
+    }
+    if (String(existing.seed_version ?? '') === version) continue;
+    await applySeedTrackToExisting(Number(existing.id), track, version);
+  }
+}
+
+// Admin escape hatch: force one track back to its current code-defined content right now, even if
+// the auto-sync above already considers it up to date (e.g. to discard manual CMS edits deliberately).
 export async function resyncTrackFromSeed(trackKey: string): Promise<{ success: boolean; message: string }> {
   await ensureLearningHubSchema();
   const seedTrack = SEED_TRACKS.find((t) => t.key === trackKey);
   if (!seedTrack) return { success: false, message: `No seed content defined for track "${trackKey}".` };
+  const version = hashSeedTrack(seedTrack);
 
   const existingTrack = await sql<QueryResultRow[]>(`SELECT id FROM learning_tracks WHERE key = ?`, [trackKey]);
-  let trackId: number;
   if (existingTrack[0]) {
-    trackId = Number(existingTrack[0].id);
-    await exec(
-      `UPDATE learning_tracks SET name = ?, description = ?, icon = ?, color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [seedTrack.name, seedTrack.description, seedTrack.icon, seedTrack.color, trackId],
-    );
-    await exec(`DELETE FROM learning_courses WHERE track_id = ?`, [trackId]);
+    await applySeedTrackToExisting(Number(existingTrack[0].id), seedTrack, version);
   } else {
     const trackIdx = SEED_TRACKS.indexOf(seedTrack);
-    const result = await exec(
-      `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-      [seedTrack.key, seedTrack.name, seedTrack.description, seedTrack.icon, seedTrack.color, trackIdx],
-    );
-    trackId = result.insertId;
+    await insertNewSeedTrack(seedTrack, trackIdx, version);
   }
-
-  await insertTrackCourses(trackId, seedTrack);
   return { success: true, message: `Reset "${seedTrack.name}" to its default seed content.` };
 }
 
 async function ensureLearningHubReady(): Promise<void> {
   if (!readyPromise) {
     readyPromise = ensureLearningHubSchema()
-      .then(() => seedLearningHubDefaultsIfEmpty())
+      .then(() => syncSeedTracks())
       .catch((err) => {
-        // Don't let a failed cold-start attempt permanently wedge a warm serverless instance —
+        // Don't let a failed cold-start attempt permanently wedge a warm serverless instance -
         // clear the cache so the next request gets a fresh try instead of the same cached rejection.
         readyPromise = null;
         throw err;
@@ -256,6 +316,156 @@ async function ensureLearningHubReady(): Promise<void> {
 interface CountRow extends QueryResultRow {
   lesson_count: number;
   completed_count: number;
+}
+
+/* ── Lightweight title lookups (for page <title> metadata) ───────────────── */
+
+export async function getTrackName(key: string): Promise<string | null> {
+  try {
+    await ensureLearningHubReady();
+    const rows = await sql<QueryResultRow[]>(`SELECT name FROM learning_tracks WHERE key = ?`, [key]);
+    return (rows[0]?.name as string) ?? null;
+  } catch { return null; }
+}
+export async function getCourseTitle(id: number): Promise<string | null> {
+  try {
+    await ensureLearningHubReady();
+    const rows = await sql<QueryResultRow[]>(`SELECT title FROM learning_courses WHERE id = ?`, [id]);
+    return (rows[0]?.title as string) ?? null;
+  } catch { return null; }
+}
+// Browser-tab label. The Supply Chain track uses the short level form ("SC lvl 1") in the
+// tight tab space, even though the card/page shows the full course title.
+export async function getCourseTabTitle(trackKey: string, id: number): Promise<string | null> {
+  try {
+    await ensureLearningHubReady();
+    const rows = await sql<QueryResultRow[]>(`SELECT title, order_index FROM learning_courses WHERE id = ?`, [id]);
+    if (!rows[0]) return null;
+    if (trackKey === 'supply_chain') return `SC lvl ${Number(rows[0].order_index ?? 0) + 1}`;
+    return (rows[0].title as string) ?? null;
+  } catch { return null; }
+}
+export async function getLessonTitle(id: number): Promise<string | null> {
+  try {
+    await ensureLearningHubReady();
+    const rows = await sql<QueryResultRow[]>(`SELECT title FROM learning_lessons WHERE id = ?`, [id]);
+    return (rows[0]?.title as string) ?? null;
+  } catch { return null; }
+}
+
+/* ── Access requests (request -> admin approve; mirrors the other tools) ────── */
+
+async function getLearningHubActor(): Promise<{ email: string; name: string; isAdmin: boolean } | null> {
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email?.trim().toLowerCase();
+  if (!email) return null;
+  const adminEmails = (process.env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return { email, name: session?.user?.name?.trim() || email.split('@')[0], isAdmin: adminEmails.includes(email) };
+}
+
+export interface LearningHubAccessRequest {
+  user_email: string;
+  display_name: string | null;
+  job_title: string | null;
+  status: string;
+  requested_at: string | null;
+  reviewed_at: string | null;
+}
+
+function isoOrNull(v: unknown): string | null {
+  if (!v) return null;
+  try { return new Date(v as string).toISOString(); } catch { return null; }
+}
+
+function mapAccessRow(r: QueryResultRow): LearningHubAccessRequest {
+  return {
+    user_email: r.user_email as string,
+    display_name: (r.display_name as string) ?? null,
+    job_title: (r.job_title as string) ?? null,
+    status: r.status as string,
+    requested_at: isoOrNull(r.requested_at),
+    reviewed_at: isoOrNull(r.reviewed_at),
+  };
+}
+
+export async function getLearningHubAccessRequest(userEmail: string): Promise<LearningHubAccessRequest | null> {
+  try {
+    await ensureLearningHubReady();
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT user_email, display_name, job_title, status, requested_at, reviewed_at FROM access_requests WHERE user_email = ?`,
+      [userEmail.toLowerCase()],
+    );
+    return rows[0] ? mapAccessRow(rows[0]) : null;
+  } catch (err) { console.error('[lh.getLearningHubAccessRequest]', err); return null; }
+}
+
+export async function submitLearningHubAccessRequest(input: {
+  userEmail: string; displayName: string; jobTitle?: string | null; department?: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  if (!input.userEmail) return { success: false, error: 'Not signed in.' };
+  try {
+    await ensureLearningHubReady();
+    // Never demote an already-approved user (e.g. a mis-click before the session finished loading).
+    const adminList = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    if (adminList.includes(input.userEmail.trim().toLowerCase())) return { success: true };
+    const existing = await sql<QueryResultRow[]>(`SELECT status FROM access_requests WHERE user_email = ?`, [input.userEmail.toLowerCase()]);
+    if (String(existing[0]?.status ?? '') === 'Approved') return { success: true };
+
+    await exec(
+      `INSERT INTO access_requests (user_email, display_name, job_title, department, status, requested_countries, requested_at)
+       VALUES (?, ?, ?, ?, 'Pending', '{}', NOW())
+       ON CONFLICT (user_email) DO UPDATE SET
+         display_name = EXCLUDED.display_name, job_title = EXCLUDED.job_title,
+         status = 'Pending', requested_at = NOW(), reviewed_at = NULL, reviewed_by = NULL, notes = NULL, approved_countries = NULL`,
+      [input.userEmail.toLowerCase(), input.displayName, input.jobTitle ?? null, input.department ?? null],
+    );
+    return { success: true };
+  } catch (err) { console.error('[lh.submitLearningHubAccessRequest]', err); return { success: false, error: 'Failed to submit request. Please try again.' }; }
+}
+
+export async function getLearningHubAccessRequests(): Promise<LearningHubAccessRequest[]> {
+  try {
+    const actor = await getLearningHubActor();
+    if (!actor?.isAdmin) return [];
+    await ensureLearningHubReady();
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT user_email, display_name, job_title, status, requested_at, reviewed_at FROM access_requests
+       ORDER BY CASE status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END, requested_at DESC`,
+    );
+    return rows.map(mapAccessRow);
+  } catch (err) { console.error('[lh.getLearningHubAccessRequests]', err); return []; }
+}
+
+export async function getLearningHubPendingCount(): Promise<number> {
+  try {
+    await ensureLearningHubReady();
+    const rows = await sql<QueryResultRow[]>(`SELECT COUNT(*)::int AS cnt FROM access_requests WHERE status = 'Pending'`);
+    return Number(rows[0]?.cnt ?? 0);
+  } catch (err) { console.error('[lh.getLearningHubPendingCount]', err); return 0; }
+}
+
+async function setLearningHubAccessStatus(userEmail: string, status: 'Approved' | 'Rejected' | 'Revoked'): Promise<{ success: boolean; error?: string }> {
+  const actor = await getLearningHubActor();
+  if (!actor?.isAdmin) return { success: false, error: 'Admins only.' };
+  try {
+    await ensureLearningHubReady();
+    await exec(`UPDATE access_requests SET status = ?, reviewed_at = NOW(), reviewed_by = ? WHERE user_email = ?`, [status, actor.name, userEmail.toLowerCase()]);
+    return { success: true };
+  } catch (err) { console.error('[lh.setLearningHubAccessStatus]', err); return { success: false, error: 'Action failed.' }; }
+}
+
+export async function approveLearningHubAccessRequest(userEmail: string) { return setLearningHubAccessStatus(userEmail, 'Approved'); }
+export async function rejectLearningHubAccessRequest(userEmail: string) { return setLearningHubAccessStatus(userEmail, 'Rejected'); }
+export async function revokeLearningHubAccess(userEmail: string) { return setLearningHubAccessStatus(userEmail, 'Revoked'); }
+
+export async function deleteLearningHubAccessRequest(userEmail: string): Promise<{ success: boolean; error?: string }> {
+  const actor = await getLearningHubActor();
+  if (!actor?.isAdmin) return { success: false, error: 'Admins only.' };
+  try {
+    await ensureLearningHubReady();
+    await exec(`DELETE FROM access_requests WHERE user_email = ?`, [userEmail.toLowerCase()]);
+    return { success: true };
+  } catch (err) { console.error('[lh.deleteLearningHubAccessRequest]', err); return { success: false, error: 'Failed to delete request.' }; }
 }
 
 /* ── Dashboard ────────────────────────────────────────────────────────── */
@@ -369,6 +579,63 @@ export async function getTrackDetail(trackKey: string, userEmail: string): Promi
   return { track, courses: coursesWithProgress };
 }
 
+/* ── Quiz gating (lesson-level quizzes; must pass one to unlock the next lesson) ── */
+
+interface LessonGate { hasQuiz: boolean; quizId: number | null; passPct: number; quizPassed: boolean; locked: boolean }
+
+// For a course's lessons in order: a lesson is `locked` when any EARLIER lesson that has a quiz
+// has not been passed. The lesson holding the first unpassed quiz is itself unlocked (you take it);
+// everything after it is locked until it passes.
+async function getCourseGating(courseId: number, userEmail: string): Promise<Map<number, LessonGate>> {
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT l.id AS lesson_id, z.id AS quiz_id, z.pass_pct, (r.passed IS TRUE) AS passed
+     FROM learning_lessons l
+     JOIN learning_modules m ON m.id = l.module_id
+     LEFT JOIN learning_quizzes z ON z.lesson_id = l.id
+     LEFT JOIN learning_quiz_results r ON r.quiz_id = z.id AND r.user_email = ?
+     WHERE m.course_id = ?
+     ORDER BY m.order_index ASC, m.id ASC, l.order_index ASC, l.id ASC`,
+    [userEmail, courseId],
+  );
+  const map = new Map<number, LessonGate>();
+  let blocked = false;
+  for (const r of rows) {
+    const quizId = r.quiz_id != null ? Number(r.quiz_id) : null;
+    const hasQuiz = quizId != null;
+    const quizPassed = r.passed === true;
+    map.set(Number(r.lesson_id), { hasQuiz, quizId, passPct: Number(r.pass_pct ?? 70), quizPassed, locked: blocked });
+    if (hasQuiz && !quizPassed) blocked = true;
+  }
+  return map;
+}
+
+// The learner-facing quiz (no answer key).
+async function loadLessonQuiz(quizId: number): Promise<LessonQuiz | null> {
+  const quizRows = await sql<QueryResultRow[]>(`SELECT id, title, pass_pct FROM learning_quizzes WHERE id = ?`, [quizId]);
+  if (!quizRows[0]) return null;
+  const questions = await sql<QueryResultRow[]>(
+    `SELECT id, question_text FROM learning_quiz_questions WHERE quiz_id = ? ORDER BY order_index ASC, id ASC`, [quizId],
+  );
+  const qIds = questions.map((q) => Number(q.id));
+  const options = qIds.length
+    ? await sql<QueryResultRow[]>(
+        `SELECT id, question_id, option_text FROM learning_quiz_options WHERE question_id = ANY(?) ORDER BY order_index ASC, id ASC`, [qIds],
+      )
+    : [];
+  const optsByQ = new Map<number, { id: number; text: string }[]>();
+  for (const o of options) {
+    const arr = optsByQ.get(Number(o.question_id)) ?? [];
+    arr.push({ id: Number(o.id), text: String(o.option_text) });
+    optsByQ.set(Number(o.question_id), arr);
+  }
+  return {
+    id: Number(quizRows[0].id),
+    title: String(quizRows[0].title),
+    pass_pct: Number(quizRows[0].pass_pct ?? 70),
+    questions: questions.map((q) => ({ id: Number(q.id), text: String(q.question_text), options: optsByQ.get(Number(q.id)) ?? [] })),
+  };
+}
+
 /* ── Course detail (modules + lessons outline) ───────────────────────── */
 
 export async function getCourseDetail(
@@ -403,6 +670,7 @@ export async function getCourseDetail(
     [course.id, userEmail],
   );
   const completedIds = new Set(completedRows.map((r) => Number(r.lesson_id)));
+  const gating = await getCourseGating(course.id, userEmail);
 
   const moduleIds = modules.map((m) => m.id);
   const quizRows = moduleIds.length
@@ -418,7 +686,11 @@ export async function getCourseDetail(
       `SELECT * FROM learning_lessons WHERE module_id = ? ORDER BY order_index ASC, id ASC`,
       [mod.id],
     );
-    const lessonsWithCompletion = lessons.map((l) => ({ ...l, completed: completedIds.has(l.id) }));
+    const lessonsWithCompletion = lessons.map((l) => {
+      const g = gating.get(l.id);
+      const completed = g?.hasQuiz ? !!g.quizPassed : completedIds.has(l.id);
+      return { ...l, completed, has_quiz: !!g?.hasQuiz, quiz_passed: !!g?.quizPassed, locked: !!g?.locked };
+    });
     lessonCount += lessons.length;
     completedCount += lessonsWithCompletion.filter((l) => l.completed).length;
     moduleOutlines.push({ ...mod, lessons: lessonsWithCompletion, has_quiz: quizModuleIds.has(mod.id) });
@@ -475,13 +747,28 @@ export async function getLessonDetail(
   const prevRow = idx > 0 ? lessons[idx - 1] : null;
   const nextRow = idx < lessons.length - 1 ? lessons[idx + 1] : null;
 
+  const gating = await getCourseGating(course.id, userEmail);
+  const g = gating.get(lessonId);
+  const locked = !!g?.locked;
+  const quizPassed = !!g?.quizPassed;
+  const passPct = g?.passPct ?? 70;
+  const quiz = g?.hasQuiz && g.quizId != null && !locked ? await loadLessonQuiz(g.quizId) : null;
+  const nextLocked = nextRow ? !!gating.get(Number(nextRow.id))?.locked : false;
+  // Don't ship a locked lesson's body/video to the client.
+  const visibleLesson = locked ? { ...lesson, body: '', video_url: null } : lesson;
+
   return {
     track,
     course,
-    lesson,
-    completed: completedRows.length > 0,
+    lesson: visibleLesson,
+    completed: g?.hasQuiz ? quizPassed : completedRows.length > 0,
     prev: prevRow ? { lesson_id: Number(prevRow.id), course_id: course.id, title: String(prevRow.title) } : null,
     next: nextRow ? { lesson_id: Number(nextRow.id), course_id: course.id, title: String(nextRow.title) } : null,
+    locked,
+    quiz,
+    quiz_passed: quizPassed,
+    pass_pct: passPct,
+    next_locked: nextLocked,
   };
 }
 
@@ -501,6 +788,65 @@ export async function markLessonIncomplete(lessonId: number, userEmail: string):
   await ensureLearningHubReady();
   await exec(`DELETE FROM learning_lesson_progress WHERE user_email = ? AND lesson_id = ?`, [userEmail, lessonId]);
   return { success: true };
+}
+
+// Grade a lesson quiz server-side (answer key never ships to the client), persist the best
+// result, and on a pass (>= pass_pct) mark the lesson complete so the next one unlocks.
+export async function submitLessonQuiz(quizId: number, answers: QuizAnswerInput[]): Promise<LessonQuizAttemptResult | null> {
+  try {
+    const actor = await getLearningHubActor();
+    if (!actor) return null;
+    await ensureLearningHubReady();
+
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT q.id AS question_id, o.id AS option_id, o.is_correct
+       FROM learning_quiz_questions q JOIN learning_quiz_options o ON o.question_id = q.id
+       WHERE q.quiz_id = ?`,
+      [quizId],
+    );
+    const correctByQ = new Map<number, number>();
+    for (const r of rows) if (r.is_correct) correctByQ.set(Number(r.question_id), Number(r.option_id));
+    const total = correctByQ.size;
+    if (total === 0) return null;
+
+    const answerMap = new Map<number, number | null>();
+    for (const a of answers) answerMap.set(Number(a.questionId), a.optionId != null ? Number(a.optionId) : null);
+
+    let correctCount = 0;
+    const results = [...correctByQ.entries()].map(([questionId, correctOptionId]) => {
+      const selectedOptionId = answerMap.get(questionId) ?? null;
+      const correct = selectedOptionId === correctOptionId;
+      if (correct) correctCount++;
+      return { questionId, selectedOptionId, correctOptionId, correct };
+    });
+    const scorePct = Math.round((correctCount / total) * 100);
+
+    const meta = await sql<QueryResultRow[]>(`SELECT pass_pct, lesson_id FROM learning_quizzes WHERE id = ?`, [quizId]);
+    const passPct = Number(meta[0]?.pass_pct ?? 70);
+    const lessonId = meta[0]?.lesson_id != null ? Number(meta[0].lesson_id) : null;
+    const passed = scorePct >= passPct;
+
+    await exec(
+      `INSERT INTO learning_quiz_results (user_email, quiz_id, best_pct, passed, attempts)
+       VALUES (?, ?, ?, ?, 1)
+       ON CONFLICT (user_email, quiz_id) DO UPDATE SET
+         best_pct = GREATEST(learning_quiz_results.best_pct, EXCLUDED.best_pct),
+         passed = learning_quiz_results.passed OR EXCLUDED.passed,
+         attempts = learning_quiz_results.attempts + 1,
+         updated_at = NOW()`,
+      [actor.email, quizId, scorePct, passed],
+    );
+    if (passed && lessonId != null) {
+      await exec(
+        `INSERT INTO learning_lesson_progress (user_email, lesson_id) VALUES (?, ?) ON CONFLICT (user_email, lesson_id) DO NOTHING`,
+        [actor.email, lessonId],
+      );
+    }
+    return { total, correctCount, scorePct, passed, pass_pct: passPct, results };
+  } catch (err) {
+    console.error('[lh.submitLessonQuiz]', err);
+    return null;
+  }
 }
 
 /* ── My Work (cross-track progress) ──────────────────────────────────── */
@@ -642,7 +988,7 @@ export async function createLesson(
   moduleId: number,
   title: string,
   body: string,
-  durationMinutes: number,
+  durationMinutes: number | null,
   videoUrl?: string | null,
 ): Promise<{ id: number }> {
   await ensureLearningHubReady();
@@ -657,7 +1003,7 @@ export async function createLesson(
 
 export async function updateLesson(
   id: number,
-  fields: { title: string; body: string; video_url: string | null; duration_minutes: number },
+  fields: { title: string; body: string; video_url: string | null; duration_minutes: number | null },
 ): Promise<void> {
   await ensureLearningHubReady();
   await exec(

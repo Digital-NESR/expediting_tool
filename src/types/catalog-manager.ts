@@ -5,7 +5,7 @@
 
 export type CatalogStatus = 'Draft' | 'Pending Approval' | 'Active' | 'Expired' | 'Rejected';
 export type CatalogRole = 'Viewer' | 'Contributor' | 'Approver' | 'Admin';
-export type SpendType = 'Materials & Assets' | 'Consumables' | 'Services';
+export type SpendType = 'Direct' | 'Indirect';
 
 /* ---------- master data ---------- */
 export interface CountryRow {

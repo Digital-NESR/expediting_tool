@@ -432,7 +432,7 @@ export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSe
         ae.supplier_comments,
         ae.buyer_comments,
         ae.expedite_token,
-        s.supplier_name,
+        COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name, 'Unknown Supplier') AS supplier_name,
         s.item_description,
         s.sap_mat_id,
         s.open_qty,
@@ -440,10 +440,10 @@ export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSe
         s.delivery_date  AS original_delivery_date,
         s.delivery_code  AS sap_delivery_code
       FROM active_expediting ae
-      JOIN sap_open_po_master s
+      LEFT JOIN sap_open_po_master s
         ON ae.po_number = s.po_number AND ae.po_line = s.po_line
       WHERE ae.session_ref = $1::uuid
-      ORDER BY s.supplier_name, ae.po_number, ae.po_line
+      ORDER BY COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name, 'Unknown Supplier'), ae.po_number, ae.po_line
     `, [sessionRef]);
 
     return res.rows.map(r => ({

@@ -404,6 +404,12 @@ export async function submitTiteAccessRequest(params: {
     return { success: false, error: 'Please select at least one country.' };
   }
   try {
+    // Never demote an already-approved user (e.g. a mis-click before the session finished loading).
+    const adminList = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    if (adminList.includes(userEmail.trim().toLowerCase())) return { success: true };
+    const existing = await titePool.query<{ status: string }>(`SELECT status FROM access_requests WHERE user_email = $1`, [userEmail]);
+    if (existing.rows[0]?.status === 'Approved') return { success: true };
+
     await titePool.query(
       `INSERT INTO access_requests
          (user_email, display_name, job_title, department, status, requested_countries, requested_at)

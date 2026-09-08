@@ -52,6 +52,17 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  // /learning-hub/* → tool-level access: admin, or approved for 'learning_hub'
+  if (pathname.startsWith('/learning-hub')) {
+    const isAdmin = token.isAdmin as boolean | undefined;
+    const toolAccess = token.toolAccess as { learning_hub?: { status: string } } | undefined;
+    const status = toolAccess?.learning_hub?.status;
+
+    if (!isAdmin && status !== 'approved') {
+      return NextResponse.redirect(new URL('/home', req.url));
+    }
+  }
+
   return NextResponse.next();
 }
 
