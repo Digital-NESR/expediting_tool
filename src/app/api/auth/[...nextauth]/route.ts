@@ -17,8 +17,10 @@ import type { ProcureGuardPermissionRole } from "@/types/procureGuard";
    would re-run all 7 queries — the main cause of the laggy feel.
    We re-resolve at most once per TTL per user; sign-in and an explicit
    session update() (the "Refresh Status" button) bypass it so access
-   changes still take effect immediately for the affected user. */
-const TOOL_ACCESS_TTL_MS = 60_000;
+   changes still take effect immediately for the affected user. The TTL
+   is short so any access change a user does not force-refresh still
+   propagates within a few seconds. */
+const TOOL_ACCESS_TTL_MS = 20_000;
 interface CachedToolAccess {
   isAdmin: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
