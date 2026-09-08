@@ -87,7 +87,7 @@ export const ADMIN_APPS: AdminApp[] = [
     sections: [
       { id: 'admin', label: 'Admin Panel' },
       { id: 'analytics', label: 'Analytics' },
-      { id: 'access', label: 'Access Approval', countKey: 'laptop' },
+      { id: 'access', label: 'Approval Access', countKey: 'laptop' },
     ],
   },
   {
