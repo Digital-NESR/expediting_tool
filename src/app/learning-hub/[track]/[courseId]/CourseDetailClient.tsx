@@ -62,12 +62,17 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
           </div>
         </div>
 
+        {/* Learner-facing label note: a `learning_modules` row (level 3) is shown
+            to learners as a "Track". The display hierarchy is Modules (tracks) ›
+            Courses › Tracks (modules) › Lessons; DB table names are intentionally
+            left as-is, so table `learning_tracks` is level 1 and `learning_modules`
+            is level 3. The admin CMS still calls level 3 "Module" (matches the table). */}
         <div className="space-y-5">
           {modules.map((mod, modIdx) => (
             <div key={mod.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               {!flat && (
                 <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Module {modIdx + 1}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Track {modIdx + 1}</p>
                   <h2 className="text-sm font-bold text-slate-900">{mod.title}</h2>
                 </div>
               )}
@@ -83,7 +88,7 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
                     <ExternalLink className="h-4 w-4" style={{ color }} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>Module resource</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>Track resource</p>
                     <p className="truncate text-sm font-semibold text-slate-800">{mod.resource_label}</p>
                   </div>
                   <span className="shrink-0 text-xs font-semibold" style={{ color }}>Open →</span>
