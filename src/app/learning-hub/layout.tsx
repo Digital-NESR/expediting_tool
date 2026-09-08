@@ -12,11 +12,6 @@ export default async function LearningHubLayout({ children }: { children: React.
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect('/login');
 
-  // Tool-level gate: env admins, or users approved for 'learning_hub'. Non-approved users are
-  // bounced to the tool picker, where the home card offers "Request access".
-  const isAdmin = session.user.isAdmin ?? false;
-  const status = session.user.toolAccess?.learning_hub?.status;
-  if (!isAdmin && status !== 'approved') redirect('/home');
-
+  // Learning Hub is open to every signed-in user - no access request needed.
   return <>{children}</>;
 }

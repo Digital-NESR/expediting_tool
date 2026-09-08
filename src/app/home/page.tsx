@@ -1048,35 +1048,15 @@ function ComingSoonCard({
   );
 }
 
-/* ─── Learning Hub Card (access-gated, kept grey) ───
-   Mirrors the SourceGuide access-request card and its Request Access
-   flow is live, but it is deliberately rendered in a grey palette (no
-   brand colour) rather than the live green card. Admins keep preview
-   access; everyone else can request access and see their status. */
+/* ─── Learning Hub Card (open access, kept grey) ───
+   Learning Hub is open to every signed-in user (no access request).
+   Rendered in a grey palette rather than the live green card, but fully
+   clickable for everyone. */
 function LearningHubCard({
-  status,
-  isAdmin,
   onClick,
 }: {
-  status: ToolStatus;
-  isAdmin: boolean;
   onClick: (newTab: boolean) => void;
 }) {
-  const canOpen = isAdmin || status === 'approved';
-  const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
-
-  const badge =
-    isAdmin              ? 'Admin Preview'   :
-    status === 'approved'? 'Access Granted'  :
-    status === 'pending' ? 'Pending Approval':
-    isDenied             ? 'Access Denied'   : 'Access Required';
-
-  const cta =
-    isAdmin              ? 'Open preview →' :
-    canOpen              ? 'Open →'         :
-    status === 'pending' ? 'View status →'  :
-    isDenied             ? 'Reapply →'      : 'Request Access →';
-
   return (
     <button
       type="button"
@@ -1096,12 +1076,8 @@ function LearningHubCard({
       </div>
 
       <div className="mt-auto flex items-center justify-between">
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
-          {badge}
-        </span>
-        <span className="text-sm font-semibold text-gray-500 group-hover:underline">
-          {cta}
-        </span>
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">Open to all</span>
+        <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open →</span>
       </div>
     </button>
   );
@@ -1130,7 +1106,6 @@ export default function HomePage() {
   // ProcureGuard is open-access: any signed-in NESR user can open it (the layout enforces sign-in only).
   const canOpenProcureGuard = true;
   const sourceGuideStatus: ToolStatus = session?.user?.toolAccess?.sourceguide?.status ?? 'new';
-  const learningHubStatus: ToolStatus = session?.user?.toolAccess?.learning_hub?.status ?? 'new';
   const canOpenCatalogManager = isAdmin;
   const snsStatus: ToolStatus = session?.user?.toolAccess?.sns_registry?.status ?? 'new';
 
@@ -1187,9 +1162,8 @@ export default function HomePage() {
   }
 
   function handleLearningHubClick(newTab = true) {
-    if (isAdmin || learningHubStatus === 'approved') { openTool('/learning-hub', newTab); return; }
-    if (learningHubStatus === 'pending') { setModal('lh-pending'); return; }
-    setModal('lh-request');
+    // Learning Hub is open to everyone signed in - no access request.
+    openTool('/learning-hub', newTab);
   }
 
   function handleSoaConsolidationClick(newTab = true) {
@@ -1450,8 +1424,6 @@ export default function HomePage() {
 
                 {show('learning hub training courses sap supply chain academy lms') && (
                   <LearningHubCard
-                    status={learningHubStatus}
-                    isAdmin={isAdmin}
                     onClick={handleLearningHubClick}
                   />
                 )}
