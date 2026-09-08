@@ -408,23 +408,6 @@ export interface LaptopApproverMatrixRow {
   updated_at: string;
 }
 
-export interface UpdateLaptopApproverMatrixInput {
-  id: number;
-  it_manager_name?: string;
-  it_manager_email?: string;
-  it_manager_2_name?: string;
-  it_manager_2_email?: string;
-  it_manager_3_name?: string;
-  it_manager_3_email?: string;
-  cm_name?: string;
-  cm_email?: string;
-  itd_name?: string;
-  itd_email?: string;
-  scd_name?: string;
-  scd_email?: string;
-  is_active: boolean;
-}
-
 export interface LaptopDocument {
   id: number;
   request_id: number;

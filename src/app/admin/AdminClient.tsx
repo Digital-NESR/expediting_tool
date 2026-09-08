@@ -1438,7 +1438,7 @@ export default function AdminClient({
       'sourceguide-access':     'SourceGuide Access Approvals | Admin | SC Agents',
       'laptop-procurement-admin': 'Admin Panel — Laptop Procurement | Admin | SC Agents',
       'laptop-procurement-analytics': 'Analytics — Laptop Procurement | Admin | SC Agents',
-      'laptop-procurement-access': 'Access Approval — Laptop Procurement | Admin | SC Agents',
+      'laptop-procurement-access': 'Approval Access — Laptop Procurement | Admin | SC Agents',
     };
     document.title = titles[selectedTool] ?? 'Admin — SC Agents';
   }, [selectedTool]);
@@ -1947,7 +1947,7 @@ export default function AdminClient({
               cursor: 'pointer',
             }}
           >
-            <span>Access Approval</span>
+            <span>Approval Access</span>
             {liveLaptopPendingAccessCount > 0 && (
               <span style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',

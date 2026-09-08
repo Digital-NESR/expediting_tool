@@ -61,7 +61,6 @@ import type {
   LaptopRequestStatus,
   LaptopWorkQueueData,
   SubmitProcureNewDetailsInput,
-  UpdateLaptopApproverMatrixInput,
   UpdateLaptopDeviceInput,
   UpdateLaptopExistingDeviceInput,
   UpdateLaptopPermissionInput,
@@ -2451,42 +2450,72 @@ export async function getLaptopApproverMatrix(): Promise<LaptopApproverMatrixRow
   }
 }
 
-export async function updateLaptopApproverMatrix(input: UpdateLaptopApproverMatrixInput): Promise<ActionResult> {
+/**
+ * Sets — or clears — exactly one approver cell: one country, one stage+slot.
+ *
+ * Writes only that column pair, so two admins editing different cells of the same
+ * country can't overwrite each other the way resending the whole row does. Pass a blank
+ * email to clear the slot. Creates the country's matrix row if it doesn't exist yet, and
+ * otherwise leaves is_active alone (that's setLaptopApproverCountryActive's job).
+ */
+export async function setLaptopApproverCell(input: {
+  country: string;
+  role: LaptopApprovalStage;
+  slot?: number;
+  email?: string | null;
+  displayName?: string | null;
+}): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
     if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    const country = requireText(input.country, 'Country');
+    const cols = getMatrixColumns(input.role, input.slot ?? 1);
+    if (!cols) return { success: false, error: 'Unknown approver role.' };
 
-    const unknown = await findUnknownDirectoryEmails([
-      input.it_manager_email, input.it_manager_2_email, input.it_manager_3_email,
-      input.cm_email, input.itd_email, input.scd_email,
-    ]);
-    if (unknown.length) return { success: false, error: unknownDirectoryEmailError(unknown) };
+    const email = (input.email ?? '').trim().toLowerCase() || null;
+    // A cleared slot drops the cached display name with it, so the two never disagree.
+    const name = email ? blankToNull(input.displayName) : null;
+    if (email) {
+      const unknown = await findUnknownDirectoryEmails([email]);
+      if (unknown.length) return { success: false, error: unknownDirectoryEmailError(unknown) };
+    }
 
+    await ensureLaptopApproverMatrixColumns();
+    const existing = await sql<QueryResultRow[]>(`SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`, [country]);
+    if (existing[0]) {
+      await exec(
+        `UPDATE laptop_approver_matrix SET ${cols.emailCol} = ?, ${cols.nameCol} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [email, name, existing[0].id],
+      );
+    } else {
+      await exec(
+        `INSERT INTO laptop_approver_matrix (country, ${cols.emailCol}, ${cols.nameCol}, is_active) VALUES (?, ?, ?, TRUE)`,
+        [country, email, name],
+      );
+    }
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err) {
+    console.error('[setLaptopApproverCell]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update approver.' };
+  }
+}
+
+/** Switches one country's approver row on or off, leaving every approver cell on it untouched. */
+export async function setLaptopApproverCountryActive(input: { country: string; isActive: boolean }): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    const country = requireText(input.country, 'Country');
     await exec(
-      `UPDATE laptop_approver_matrix SET
-         it_manager_name = ?, it_manager_email = ?,
-         it_manager_2_name = ?, it_manager_2_email = ?,
-         it_manager_3_name = ?, it_manager_3_email = ?,
-         cm_name = ?, cm_email = ?,
-         itd_name = ?, itd_email = ?,
-         scd_name = ?, scd_email = ?,
-         is_active = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [
-        blankToNull(input.it_manager_name), blankToNull(input.it_manager_email),
-        blankToNull(input.it_manager_2_name), blankToNull(input.it_manager_2_email),
-        blankToNull(input.it_manager_3_name), blankToNull(input.it_manager_3_email),
-        blankToNull(input.cm_name), blankToNull(input.cm_email),
-        blankToNull(input.itd_name), blankToNull(input.itd_email),
-        blankToNull(input.scd_name), blankToNull(input.scd_email),
-        input.is_active, input.id,
-      ],
+      `UPDATE laptop_approver_matrix SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE country = ?`,
+      [input.isActive, country],
     );
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[updateLaptopApproverMatrix]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update approver matrix.' };
+    console.error('[setLaptopApproverCountryActive]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update country status.' };
   }
 }
 
@@ -2575,6 +2604,44 @@ export async function saveApproverMatrixRole(input: {
   } catch (err) {
     console.error('[saveApproverMatrixRole]', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to save approver.' };
+  }
+}
+
+/**
+ * Sets one approver stage+slot to the same person for EVERY country at once — the
+ * column-header assign in the Approvers by Country & Role matrix, for stages like IT
+ * Director / Supply Chain Director that are usually the same person region-wide.
+ *
+ * Touches only that one column pair, so every other stage on every row is left alone,
+ * and unlike saveApproverMatrixRole it never flips is_active — a country deliberately
+ * switched off stays off.
+ */
+export async function setLaptopApproverColumn(input: {
+  role: LaptopApprovalStage;
+  slot?: number;
+  email: string;
+  displayName?: string | null;
+}): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    const cols = getMatrixColumns(input.role, input.slot ?? 1);
+    if (!cols) return { success: false, error: 'Unknown approver role.' };
+    const email = requireText(input.email, 'Email').toLowerCase();
+
+    const unknown = await findUnknownDirectoryEmails([email]);
+    if (unknown.length) return { success: false, error: unknownDirectoryEmailError(unknown) };
+
+    await ensureLaptopApproverMatrixColumns();
+    await exec(
+      `UPDATE laptop_approver_matrix SET ${cols.emailCol} = ?, ${cols.nameCol} = ?, updated_at = CURRENT_TIMESTAMP`,
+      [email, blankToNull(input.displayName)],
+    );
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err) {
+    console.error('[setLaptopApproverColumn]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update this role for every country.' };
   }
 }
 
