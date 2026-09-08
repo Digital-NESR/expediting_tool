@@ -28,7 +28,6 @@ import LaptopAnalyticsClient from '../../laptop-procurement/analytics/LaptopAnal
 import LaptopApproverMatrixClient from '../LaptopApproverMatrixClient';
 import LaptopAccessApprovalsClient from '../LaptopAccessApprovalsClient';
 import LearningHubAdminClient from '../../learning-hub/admin/AdminClient';
-import LearningHubAccessApprovalsClient from '../LearningHubAccessApprovals';
 import type { Shipment } from '@/types/tite';
 import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
 import type { LaptopAdminData, LaptopAnalyticsData } from '@/types/laptopProcurement';
@@ -126,8 +125,6 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     /* ── Learning Hub ── */
     case 'learning-hub/admin':
       return <LearningHubAdminClient data={props.learningHubAdminData!} embedded />;
-    case 'learning-hub/access':
-      return <LearningHubAccessApprovalsClient onPendingCountChange={noop} />;
 
     default:
       return (

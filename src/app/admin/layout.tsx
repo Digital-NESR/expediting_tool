@@ -9,7 +9,6 @@ import { getSourceGuidePendingCount } from '@/app/actions/sourceguide';
 import { getCatalogAccessPendingCount } from '@/app/actions/catalog-manager';
 import { getSnsPendingAccessCount } from '@/app/actions/sns';
 import { getLaptopPendingAccessCount } from '@/app/actions/laptopProcurement';
-import { getLearningHubPendingCount } from '@/app/actions/learning-hub';
 
 export const metadata = { title: 'NESR | Admin' };
 
@@ -58,14 +57,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   /* Lightweight badge counts (COUNT queries), fetched once for the
      whole session. ProcureGuard is open-access → no pending badge. */
-  const [po, tite, sourceguide, catalog, sns, laptop, learningHub] = await Promise.all([
+  const [po, tite, sourceguide, catalog, sns, laptop] = await Promise.all([
     getPendingAccessCount(),
     getTitePendingCount(),
     getSourceGuidePendingCount(),
     getCatalogAccessPendingCount(),
     getSnsPendingAccessCount(),
     getLaptopPendingAccessCount(),
-    getLearningHubPendingCount(),
   ]);
 
   const counts: AdminCounts = {
@@ -75,7 +73,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     catalog,
     sns,
     laptop,
-    'learning-hub': learningHub,
   };
 
   return (

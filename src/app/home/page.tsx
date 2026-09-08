@@ -6,11 +6,10 @@ import Image from 'next/image';
 import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
 import { submitSourceGuideAccessRequest } from '@/app/actions/sourceguide';
-import { submitLearningHubAccessRequest } from '@/app/actions/learning-hub';
 import { Laptop, Gavel, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3, GraduationCap, Receipt, ShieldCheck } from 'lucide-react';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
-type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | 'lh-request' | 'lh-pending' | null;
+type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | null;
 
 /* ─── TI-TE static country list ─────────────────────────────── */
 
@@ -738,49 +737,6 @@ function SourceGuideCard({
         ) : null}
       </div>
     </button>
-  );
-}
-
-/* ─── Learning Hub modal + card ──────────────────────────────── */
-
-function LearningHubAccessRequestModal({
-  userEmail, displayName, jobTitle, department, onClose, onSubmitted,
-}: {
-  userEmail: string; displayName: string; jobTitle?: string; department?: string;
-  onClose: () => void; onSubmitted: () => Promise<void>;
-}) {
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  function handleSubmit() {
-    setError(null);
-    startTransition(async () => {
-      const res = await submitLearningHubAccessRequest({ userEmail, displayName, jobTitle: jobTitle ?? null, department: department ?? null });
-      if (res.success) await onSubmitted();
-      else setError(res.error ?? 'Something went wrong.');
-    });
-  }
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#307c4c18' }}>
-          <GraduationCap className="h-6 w-6" style={{ color: '#307c4c' }} />
-        </div>
-        <h2 className="mt-4 text-base font-bold text-slate-900">Request Access - Learning Hub</h2>
-        <p className="mt-1 text-sm leading-relaxed text-slate-500">
-          The Learning Hub has self-paced training across SAP, Supply Chain, and NESR-specific tracks. An admin will review your request and grant access.
-        </p>
-        {error && <p className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-        <div className="mt-5 flex items-center gap-2">
-          <button onClick={handleSubmit} disabled={isPending}
-            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:opacity-60"
-            style={{ background: '#307c4c' }}>
-            {isPending ? 'Submitting…' : 'Request Access'}
-          </button>
-          <button onClick={onClose} disabled={isPending} className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -1660,22 +1616,6 @@ export default function HomePage() {
         />
       )}
       {modal === 'sg-pending' && (
-        <PendingModal
-          onClose={() => setModal(null)}
-          onRefresh={handleRefreshStatus}
-        />
-      )}
-      {modal === 'lh-request' && (
-        <LearningHubAccessRequestModal
-          userEmail={userEmail}
-          displayName={displayName}
-          jobTitle={jobTitle}
-          department={department}
-          onClose={() => setModal(null)}
-          onSubmitted={handleAccessSubmitted}
-        />
-      )}
-      {modal === 'lh-pending' && (
         <PendingModal
           onClose={() => setModal(null)}
           onRefresh={handleRefreshStatus}

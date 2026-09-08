@@ -353,7 +353,7 @@ export async function getLessonTitle(id: number): Promise<string | null> {
   } catch { return null; }
 }
 
-/* ── Access requests (request -> admin approve; mirrors the other tools) ────── */
+/* ── Admin actor (shared admin-gate for the CMS actions below) ──────────── */
 
 async function getLearningHubActor(): Promise<{ email: string; name: string; isAdmin: boolean } | null> {
   const session = await getServerSession(authOptions);
@@ -361,111 +361,6 @@ async function getLearningHubActor(): Promise<{ email: string; name: string; isA
   if (!email) return null;
   const adminEmails = (process.env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
   return { email, name: session?.user?.name?.trim() || email.split('@')[0], isAdmin: adminEmails.includes(email) };
-}
-
-export interface LearningHubAccessRequest {
-  user_email: string;
-  display_name: string | null;
-  job_title: string | null;
-  status: string;
-  requested_at: string | null;
-  reviewed_at: string | null;
-}
-
-function isoOrNull(v: unknown): string | null {
-  if (!v) return null;
-  try { return new Date(v as string).toISOString(); } catch { return null; }
-}
-
-function mapAccessRow(r: QueryResultRow): LearningHubAccessRequest {
-  return {
-    user_email: r.user_email as string,
-    display_name: (r.display_name as string) ?? null,
-    job_title: (r.job_title as string) ?? null,
-    status: r.status as string,
-    requested_at: isoOrNull(r.requested_at),
-    reviewed_at: isoOrNull(r.reviewed_at),
-  };
-}
-
-export async function getLearningHubAccessRequest(userEmail: string): Promise<LearningHubAccessRequest | null> {
-  try {
-    await ensureLearningHubReady();
-    const rows = await sql<QueryResultRow[]>(
-      `SELECT user_email, display_name, job_title, status, requested_at, reviewed_at FROM access_requests WHERE user_email = ?`,
-      [userEmail.toLowerCase()],
-    );
-    return rows[0] ? mapAccessRow(rows[0]) : null;
-  } catch (err) { console.error('[lh.getLearningHubAccessRequest]', err); return null; }
-}
-
-export async function submitLearningHubAccessRequest(input: {
-  userEmail: string; displayName: string; jobTitle?: string | null; department?: string | null;
-}): Promise<{ success: boolean; error?: string }> {
-  if (!input.userEmail) return { success: false, error: 'Not signed in.' };
-  try {
-    await ensureLearningHubReady();
-    // Never demote an already-approved user (e.g. a mis-click before the session finished loading).
-    const adminList = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-    if (adminList.includes(input.userEmail.trim().toLowerCase())) return { success: true };
-    const existing = await sql<QueryResultRow[]>(`SELECT status FROM access_requests WHERE user_email = ?`, [input.userEmail.toLowerCase()]);
-    if (String(existing[0]?.status ?? '') === 'Approved') return { success: true };
-
-    await exec(
-      `INSERT INTO access_requests (user_email, display_name, job_title, department, status, requested_countries, requested_at)
-       VALUES (?, ?, ?, ?, 'Pending', '{}', NOW())
-       ON CONFLICT (user_email) DO UPDATE SET
-         display_name = EXCLUDED.display_name, job_title = EXCLUDED.job_title,
-         status = 'Pending', requested_at = NOW(), reviewed_at = NULL, reviewed_by = NULL, notes = NULL, approved_countries = NULL`,
-      [input.userEmail.toLowerCase(), input.displayName, input.jobTitle ?? null, input.department ?? null],
-    );
-    return { success: true };
-  } catch (err) { console.error('[lh.submitLearningHubAccessRequest]', err); return { success: false, error: 'Failed to submit request. Please try again.' }; }
-}
-
-export async function getLearningHubAccessRequests(): Promise<LearningHubAccessRequest[]> {
-  try {
-    const actor = await getLearningHubActor();
-    if (!actor?.isAdmin) return [];
-    await ensureLearningHubReady();
-    const rows = await sql<QueryResultRow[]>(
-      `SELECT user_email, display_name, job_title, status, requested_at, reviewed_at FROM access_requests
-       ORDER BY CASE status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END, requested_at DESC`,
-    );
-    return rows.map(mapAccessRow);
-  } catch (err) { console.error('[lh.getLearningHubAccessRequests]', err); return []; }
-}
-
-export async function getLearningHubPendingCount(): Promise<number> {
-  try {
-    await ensureLearningHubReady();
-    const rows = await sql<QueryResultRow[]>(`SELECT COUNT(*)::int AS cnt FROM access_requests WHERE status = 'Pending'`);
-    return Number(rows[0]?.cnt ?? 0);
-  } catch (err) { console.error('[lh.getLearningHubPendingCount]', err); return 0; }
-}
-
-async function setLearningHubAccessStatus(userEmail: string, status: 'Approved' | 'Rejected' | 'Revoked'): Promise<{ success: boolean; error?: string }> {
-  const actor = await getLearningHubActor();
-  if (!actor?.isAdmin) return { success: false, error: 'Admins only.' };
-  try {
-    await ensureLearningHubReady();
-    await exec(`UPDATE access_requests SET status = ?, reviewed_at = NOW(), reviewed_by = ? WHERE user_email = ?`, [status, actor.name, userEmail.toLowerCase()]);
-    return { success: true };
-  } catch (err) { console.error('[lh.setLearningHubAccessStatus]', err); return { success: false, error: 'Action failed.' }; }
-}
-
-export async function approveLearningHubAccessRequest(userEmail: string) { return setLearningHubAccessStatus(userEmail, 'Approved'); }
-export async function rejectLearningHubAccessRequest(userEmail: string) { return setLearningHubAccessStatus(userEmail, 'Rejected'); }
-export async function revokeLearningHubAccess(userEmail: string) { return setLearningHubAccessStatus(userEmail, 'Revoked'); }
-
-export async function deleteLearningHubAccessRequest(userEmail: string): Promise<{ success: boolean; error?: string }> {
-  const actor = await getLearningHubActor();
-  if (!actor?.isAdmin) return { success: false, error: 'Admins only.' };
-  try {
-    await ensureLearningHubReady();
-    await exec(`DELETE FROM access_requests WHERE user_email = ?`, [userEmail.toLowerCase()]);
-    return { success: true };
-  } catch (err) { console.error('[lh.deleteLearningHubAccessRequest]', err); return { success: false, error: 'Failed to delete request.' }; }
 }
 
 /* ── Dashboard ────────────────────────────────────────────────────────── */
