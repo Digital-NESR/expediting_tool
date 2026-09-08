@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import titePool from '@/lib/db-tite';
+import { attachmentContentDisposition } from '@/lib/contentDisposition';
 
 const MIME_MAP: Record<string, string> = {
   pdf:  'application/pdf',
@@ -79,13 +80,13 @@ export async function GET(
     }
 
     /* ── Build response ── */
-    const dlFilename = (doc.original_name || doc.document_name).replace(/"/g, '_');
+    const dlFilename = doc.original_name || doc.document_name;
 
     return new Response(new Uint8Array(fileBuffer), {
       status: 200,
       headers: {
         'Content-Type':        contentType,
-        'Content-Disposition': `attachment; filename="${dlFilename}"`,
+        'Content-Disposition': attachmentContentDisposition(dlFilename),
         'Content-Length':      String(fileBuffer.byteLength),
         'Cache-Control':       'private, no-cache',
       },
