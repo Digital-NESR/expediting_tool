@@ -1048,10 +1048,9 @@ function ComingSoonCard({
   );
 }
 
-/* ─── Learning Hub Card (open access, kept grey) ───
-   Learning Hub is open to every signed-in user (no access request).
-   Rendered in a grey palette rather than the live green card, but fully
-   clickable for everyone. */
+/* ─── Learning Hub Card (open access, live) ───
+   Learning Hub is open to every signed-in user (no access request), so
+   it renders as a live green tool card, clickable for everyone. */
 function LearningHubCard({
   onClick,
 }: {
@@ -1061,14 +1060,14 @@ function LearningHubCard({
     <button
       type="button"
       onClick={() => onClick(true)}
-      className="group relative flex w-full cursor-pointer flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left opacity-75 transition-all duration-200 hover:border-gray-300 hover:shadow-md hover:shadow-gray-200/60"
+      className="group relative flex w-full cursor-pointer flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
     >
-      <ToolCardLogo onSameTab={() => onClick(false)} className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
-        <GraduationCap className="h-6 w-6 text-gray-400" />
+      <ToolCardLogo onSameTab={() => onClick(false)} className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#307c4c]/10">
+        <GraduationCap className="h-6 w-6 text-[#307c4c]" />
       </ToolCardLogo>
 
       <div className="flex-1">
-        <h3 className="text-[18px] font-semibold text-gray-500">Learning Hub</h3>
+        <h3 className="text-[18px] font-semibold text-slate-900">Learning Hub</h3>
         <p className="mt-0.5 text-[13px] font-medium text-slate-400">SAP, Supply Chain &amp; NESR Training</p>
         <p className="mt-2 text-sm leading-relaxed text-gray-500">
           Self-paced courses across three tracks: SAP, general Supply Chain fundamentals, and NESR-specific supply chain practice.
@@ -1076,8 +1075,16 @@ function LearningHubCard({
       </div>
 
       <div className="mt-auto flex items-center justify-between">
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">Open to all</span>
-        <span className="text-sm font-semibold text-gray-500 group-hover:underline">Open →</span>
+        <span
+          className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+          style={{ border: '1px solid #bbf7d0' }}
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+          </svg>
+          Open Access
+        </span>
+        <span className="text-sm font-semibold text-[#307c4c] group-hover:underline">Open →</span>
       </div>
     </button>
   );
