@@ -10,6 +10,24 @@ import learningHubPool from "@/lib/db-learning-hub";
 import { getPermissionProfile } from "@/lib/procureGuard-utils";
 import type { ProcureGuardPermissionRole } from "@/types/procureGuard";
 
+/* ── Per-user access memo ─────────────────────────────────────────
+   The jwt callback below resolves per-tool access with 7 DB queries
+   across 6 pools. Because getServerSession() invokes the jwt callback
+   on EVERY server render, without this memo every page navigation
+   would re-run all 7 queries — the main cause of the laggy feel.
+   We re-resolve at most once per TTL per user; sign-in and an explicit
+   session update() (the "Refresh Status" button) bypass it so access
+   changes still take effect immediately for the affected user. */
+const TOOL_ACCESS_TTL_MS = 60_000;
+interface CachedToolAccess {
+  isAdmin: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toolAccess: any;
+  titeViewOnly: boolean;
+  expiresAt: number;
+}
+const toolAccessCache = new Map<string, CachedToolAccess>();
+
 export const authOptions: NextAuthOptions = {
   providers: [
     AzureADProvider({
@@ -50,7 +68,7 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, account }) {
+    async jwt({ token, account, trigger }) {
       if (account?.provider === "azure-ad" && account.access_token) {
         // Fetch additional profile fields from Microsoft Graph
         try {
@@ -94,14 +112,23 @@ export const authOptions: NextAuthOptions = {
         token.picture = null;
       }
 
-      // Always refresh per-tool access status from DB on every token evaluation
+      // Resolve per-tool access from the DB, memoized per user for TTL.
       if (token.email) {
+        const email = (token.email as string).toLowerCase();
+        const forceRefresh = trigger === 'update' || account != null;
+        const cached = toolAccessCache.get(email);
+        if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
+          token.isAdmin = cached.isAdmin;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (token as any).toolAccess = cached.toolAccess;
+          token.titeViewOnly = cached.titeViewOnly;
+          return token;
+        }
         try {
           const adminEmails = (process.env.ADMIN_EMAILS || '')
             .split(',')
             .map(e => e.trim().toLowerCase())
             .filter(Boolean);
-          const email = (token.email as string).toLowerCase();
 
           token.isAdmin = adminEmails.includes(email);
 
@@ -269,6 +296,14 @@ export const authOptions: NextAuthOptions = {
             learning_hub:  { status: lhStatus, approvedCountries: [] },
           };
           token.titeViewOnly = titeViewOnly;
+
+          toolAccessCache.set(email, {
+            isAdmin: token.isAdmin as boolean,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            toolAccess: (token as any).toolAccess,
+            titeViewOnly,
+            expiresAt: Date.now() + TOOL_ACCESS_TTL_MS,
+          });
         } catch (err) {
           console.error('JWT access check failed:', err);
           if (!token.toolAccess) {

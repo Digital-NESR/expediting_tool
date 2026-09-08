@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getCachedSession } from '@/lib/session';
 import AdminShell from './AdminShell';
 import type { AdminCounts } from './adminNav';
 import { getPendingAccessCount } from '@/app/actions/adminAccess';
@@ -25,7 +24,7 @@ export const dynamic = 'force-dynamic';
    shell mounted while the [app] route swaps beneath it — so the
    heavy, per-application data now loads one app at a time. */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession(authOptions);
+  const session = await getCachedSession();
 
   if (!session?.user?.email) {
     redirect('/login');
