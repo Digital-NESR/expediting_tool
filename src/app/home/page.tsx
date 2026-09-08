@@ -496,6 +496,35 @@ function AccessBadge({ status, isAdmin }: { status: ToolStatus; isAdmin: boolean
   return null;
 }
 
+/* ─── Tool-card logo ─────────────────────────────────────────────
+   The card body opens the tool in a NEW tab; clicking the logo tile
+   opens it in the SAME tab. stopPropagation keeps the logo click from
+   also triggering the card's new-tab handler. */
+function ToolCardLogo({
+  onSameTab,
+  className,
+  style,
+  children,
+}: {
+  onSameTab: () => void;
+  className: string;
+  style?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={className}
+      style={style}
+      role="button"
+      tabIndex={-1}
+      title="Open in this tab"
+      onClick={e => { e.stopPropagation(); onSameTab(); }}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* ─── PO Expediting Card ─────────────────────────────────────── */
 
 function POExpeditingCard({
@@ -505,21 +534,21 @@ function POExpeditingCard({
 }: {
   status: ToolStatus;
   isAdmin: boolean;
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
 }) {
   const canOpen = isAdmin || status === 'approved';
   const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
 
   return (
     <button
-      onClick={onClick}
+      onClick={() => onClick(true)}
       className="relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 transition-all duration-200 text-left w-full cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10 group"
     >
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
+      <ToolCardLogo onSameTab={() => onClick(false)} className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
         <svg className="w-6 h-6 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11" />
         </svg>
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-slate-900">PO Expediting</h3>
@@ -557,7 +586,7 @@ function TITECard({
 }: {
   status: ToolStatus;
   isAdmin: boolean;
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
 }) {
   const canOpen = isAdmin || status === 'approved';
   const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
@@ -565,7 +594,7 @@ function TITECard({
 
   return (
     <button
-      onClick={onClick}
+      onClick={() => onClick(true)}
       className="relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 transition-all duration-200 text-left w-full cursor-pointer hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10 group"
     >
       {/* Help icon — top right, stops card click propagation */}
@@ -578,11 +607,11 @@ function TITECard({
         <HelpCircle className="w-4 h-4" />
       </a>
 
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: '#006B0C18' }}>
+      <ToolCardLogo onSameTab={() => onClick(false)} className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: '#006B0C18' }}>
         <svg className="w-6 h-6" style={{ color: TITE_GREEN }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-slate-900">TI-TE</h3>
@@ -677,18 +706,18 @@ function SourceGuideCard({
 }: {
   status: ToolStatus;
   isAdmin: boolean;
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
 }) {
   const canOpen = isAdmin || status === 'approved';
   const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
   return (
     <button
-      onClick={onClick}
+      onClick={() => onClick(true)}
       className="group relative flex w-full cursor-pointer flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10"
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#2A7E4F18' }}>
+      <ToolCardLogo onSameTab={() => onClick(false)} className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: '#2A7E4F18' }}>
         <Building2 className="h-6 w-6" style={{ color: '#2A7E4F' }} />
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-slate-900">SourceGuide</h3>
@@ -762,12 +791,12 @@ function CatalogManagerCard({
   onClick,
 }: {
   canOpen: boolean;
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => onClick(true)}
       disabled={!canOpen}
       className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
         canOpen
@@ -775,11 +804,11 @@ function CatalogManagerCard({
           : 'opacity-50 cursor-default select-none'
       }`}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+      <ToolCardLogo onSameTab={() => onClick(false)} className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
         <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-gray-500">Catalog Repo</h3>
@@ -828,12 +857,12 @@ function ProcureGuardCard({
 }: {
   canOpen: boolean;
   accessType: 'requester' | 'approver' | 'viewer' | 'admin';
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => onClick(true)}
       disabled={!canOpen}
       className={`group relative rounded-xl border border-gray-200 bg-white p-8 flex flex-col gap-4 text-left w-full transition-all duration-200 ${
         canOpen
@@ -850,11 +879,11 @@ function ProcureGuardCard({
         <HelpCircle className="w-4 h-4" />
       </a>
 
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
+      <ToolCardLogo onSameTab={() => onClick(false)} className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
         <svg className="w-6 h-6 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
         </svg>
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-slate-900">ProcureGuard</h3>
@@ -876,11 +905,11 @@ function ProcureGuardCard({
   );
 }
 
-function LaptopProcurementCard({ onClick }: { onClick: () => void }) {
+function LaptopProcurementCard({ onClick }: { onClick: (newTab: boolean) => void }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => onClick(true)}
       className="group relative rounded-xl border border-gray-200 bg-white p-8 flex flex-col gap-4 text-left w-full cursor-pointer transition-all duration-200 hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
     >
       <a
@@ -892,9 +921,9 @@ function LaptopProcurementCard({ onClick }: { onClick: () => void }) {
         <HelpCircle className="w-4 h-4" />
       </a>
 
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
+      <ToolCardLogo onSameTab={() => onClick(false)} className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
         <Laptop className="w-6 h-6 text-[#307c4c]" />
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-slate-900">Laptop Procurement</h3>
@@ -940,7 +969,7 @@ function AdminPreviewCard({
   description: string;
   icon: React.ReactNode;
   canOpen: boolean;
-  onClick: () => void;
+  onClick: (newTab: boolean) => void;
   /** Override the default "Admin Preview"/"Coming Soon" badge copy. */
   badgeLabel?: string;
   /** Override the default "Open preview →" link copy. */
@@ -951,7 +980,7 @@ function AdminPreviewCard({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => onClick(true)}
       disabled={!canOpen}
       className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
         canOpen
@@ -970,9 +999,9 @@ function AdminPreviewCard({
         </a>
       )}
 
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+      <ToolCardLogo onSameTab={() => onClick(false)} className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
         {icon}
-      </div>
+      </ToolCardLogo>
 
       <div className="flex-1">
         <h3 className="text-[18px] font-semibold text-gray-500">{name}</h3>
@@ -1046,63 +1075,69 @@ export default function HomePage() {
   const canOpenCatalogManager = isAdmin;
   const snsStatus: ToolStatus = session?.user?.toolAccess?.sns_registry?.status ?? 'new';
 
-  function openTool(url: string) {
-    // Every tool opens in a new browser tab.
-    window.open(url, '_blank', 'noopener,noreferrer');
+  function openTool(url: string, newTab = true) {
+    // Clicking a card opens the tool in a new browser tab; clicking the
+    // tool's logo (newTab=false) opens it in the current tab instead.
+    if (newTab) window.open(url, '_blank', 'noopener,noreferrer');
+    else window.location.href = url;
   }
 
-  function handlePOClick() {
+  function handlePOClick(newTab = true) {
     if (isAdmin || poStatus === 'approved') {
-      openTool('/po-expediting');
+      openTool('/po-expediting', newTab);
       return;
     }
     if (poStatus === 'pending') { setModal('po-pending'); return; }
     setModal('po-request');
   }
 
-  function handleTiteClick() {
+  function handleTiteClick(newTab = true) {
     if (isAdmin || titeStatus === 'approved') {
-      openTool('/ti-te');
+      openTool('/ti-te', newTab);
       return;
     }
     if (titeStatus === 'pending') { setModal('tite-pending'); return; }
     setModal('tite-request');
   }
 
-  function handleProcureGuardClick() {
+  function handleProcureGuardClick(newTab = true) {
     // Open-access: no gate, just open. The layout enforces sign-in.
-    openTool('/procure-guard');
+    openTool('/procure-guard', newTab);
   }
 
-  function handleSourceGuideClick() {
-    if (isAdmin || sourceGuideStatus === 'approved') { openTool('/sourceguide'); return; }
+  function handleSourceGuideClick(newTab = true) {
+    if (isAdmin || sourceGuideStatus === 'approved') { openTool('/sourceguide', newTab); return; }
     if (sourceGuideStatus === 'pending') { setModal('sg-pending'); return; }
     setModal('sg-request');
   }
 
-  function handleCatalogManagerClick() {
-    if (canOpenCatalogManager) openTool('/catalog-manager');
+  function handleCatalogManagerClick(newTab = true) {
+    if (canOpenCatalogManager) openTool('/catalog-manager', newTab);
   }
 
-  function handleSnsClick() {
+  function handleSnsClick(newTab = true) {
     // Admin-preview card: only opens for admins (or an approved user, if re-enabled).
-    if (isAdmin || snsStatus === 'approved') openTool('/sns-registry');
+    if (isAdmin || snsStatus === 'approved') openTool('/sns-registry', newTab);
   }
 
-  function handleLaptopClick() {
+  function handleLaptopClick(newTab = true) {
     // Real access (admin, granted permission, or delegation) is enforced
     // server-side in the laptop-procurement layout; unauthorized users are
     // bounced straight back here.
-    openTool('/laptop-procurement');
+    openTool('/laptop-procurement', newTab);
   }
 
-  function handleLearningHubClick() {
+  function handleLearningHubClick(newTab = true) {
     // Admin-preview card: only opens for admins (or an approved user, if re-enabled).
-    if (isAdmin || learningHubStatus === 'approved') openTool('/learning-hub');
+    if (isAdmin || learningHubStatus === 'approved') openTool('/learning-hub', newTab);
   }
 
-  function handleSoaConsolidationClick() {
-    if (isAdmin) openTool('/soa-consolidation');
+  function handleSoaConsolidationClick(newTab = true) {
+    if (isAdmin) openTool('/soa-consolidation', newTab);
+  }
+
+  function handleSupplyChainAnalyticsClick(newTab = true) {
+    if (isAdmin) openTool('/supply-chain-analytics', newTab);
   }
 
   async function handleRefreshStatus() {
@@ -1276,7 +1311,13 @@ export default function HomePage() {
                         rel="noopener noreferrer"
                         className="group relative flex h-full w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
                       >
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]">
+                        <div
+                          className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#f0f9f4]"
+                          role="button"
+                          tabIndex={-1}
+                          title="Open in this tab"
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); window.location.href = 'https://rfxofficer.nesr.com'; }}
+                        >
                           <Gavel className="w-6 h-6 text-[#307c4c]" />
                         </div>
                         <div className="flex-1">
@@ -1383,7 +1424,7 @@ export default function HomePage() {
                 {show('supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management') && (
                   <button
                     type="button"
-                    onClick={() => { if (isAdmin) openTool('/supply-chain-analytics'); }}
+                    onClick={() => handleSupplyChainAnalyticsClick(true)}
                     disabled={!isAdmin}
                     className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
                       isAdmin
@@ -1391,9 +1432,9 @@ export default function HomePage() {
                         : 'opacity-50 cursor-default select-none'
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
+                    <ToolCardLogo onSameTab={() => handleSupplyChainAnalyticsClick(false)} className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
                       <BarChart3 className="w-6 h-6 text-gray-400" />
-                    </div>
+                    </ToolCardLogo>
                     <div className="flex-1">
                       <h3 className="text-[18px] font-semibold text-gray-500">Supply Chain Analytics</h3>
                       <p className="mt-0.5 text-[13px] font-medium text-slate-400">Power BI Dashboards</p>
@@ -1434,8 +1475,14 @@ export default function HomePage() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-900 leading-tight">SCAI</h2>
+                  <div
+                    role="button"
+                    tabIndex={-1}
+                    title="Open in this tab"
+                    onClick={() => { window.location.href = 'https://scai.nesr.com'; }}
+                    className="group cursor-pointer"
+                  >
+                    <h2 className="text-2xl font-bold text-slate-900 leading-tight group-hover:underline">SCAI</h2>
                     <p className="text-sm text-slate-500 mt-0.5">Supply Chain AI</p>
                   </div>
                   <a
