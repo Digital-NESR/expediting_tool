@@ -1048,32 +1048,42 @@ function ComingSoonCard({
   );
 }
 
-/* ─── Learning Hub Card (access-gated, kept greyed / not live) ───
-   Mirrors the SourceGuide access-request card (subtitle + status badge
-   + "Request Access" CTA) but rendered greyed-out and dormant: the
-   request affordance is shown but disabled, so the gate is visible
-   without being live. Admins keep click-through preview access, exactly
-   as the previous Admin-Preview card allowed. */
+/* ─── Learning Hub Card (access-gated, kept grey) ───
+   Mirrors the SourceGuide access-request card and its Request Access
+   flow is live, but it is deliberately rendered in a grey palette (no
+   brand colour) rather than the live green card. Admins keep preview
+   access; everyone else can request access and see their status. */
 function LearningHubCard({
+  status,
   isAdmin,
   onClick,
 }: {
+  status: ToolStatus;
   isAdmin: boolean;
   onClick: (newTab: boolean) => void;
 }) {
-  const canOpen = isAdmin;
+  const canOpen = isAdmin || status === 'approved';
+  const isDenied = status === 'denied' || status === 'revoked' || status === 'rejected';
+
+  const badge =
+    isAdmin              ? 'Admin Preview'   :
+    status === 'approved'? 'Access Granted'  :
+    status === 'pending' ? 'Pending Approval':
+    isDenied             ? 'Access Denied'   : 'Access Required';
+
+  const cta =
+    isAdmin              ? 'Open preview →' :
+    canOpen              ? 'Open →'         :
+    status === 'pending' ? 'View status →'  :
+    isDenied             ? 'Reapply →'      : 'Request Access →';
+
   return (
     <button
       type="button"
       onClick={() => onClick(true)}
-      disabled={!canOpen}
-      className={`group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200 ${
-        canOpen
-          ? 'opacity-75 cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10'
-          : 'opacity-50 cursor-default select-none'
-      }`}
+      className="group relative flex w-full cursor-pointer flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left opacity-75 transition-all duration-200 hover:border-gray-300 hover:shadow-md hover:shadow-gray-200/60"
     >
-      <ToolCardLogo onSameTab={() => { if (canOpen) onClick(false); }} className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+      <ToolCardLogo onSameTab={() => onClick(false)} className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
         <GraduationCap className="h-6 w-6 text-gray-400" />
       </ToolCardLogo>
 
@@ -1087,10 +1097,10 @@ function LearningHubCard({
 
       <div className="mt-auto flex items-center justify-between">
         <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
-          {canOpen ? 'Admin Preview' : 'Coming Soon'}
+          {badge}
         </span>
-        <span className="text-sm font-semibold text-gray-400 group-hover:underline">
-          {canOpen ? 'Open preview →' : 'Request Access →'}
+        <span className="text-sm font-semibold text-gray-500 group-hover:underline">
+          {cta}
         </span>
       </div>
     </button>
@@ -1177,8 +1187,9 @@ export default function HomePage() {
   }
 
   function handleLearningHubClick(newTab = true) {
-    // Admin-preview card: only opens for admins (or an approved user, if re-enabled).
-    if (isAdmin || learningHubStatus === 'approved') openTool('/learning-hub', newTab);
+    if (isAdmin || learningHubStatus === 'approved') { openTool('/learning-hub', newTab); return; }
+    if (learningHubStatus === 'pending') { setModal('lh-pending'); return; }
+    setModal('lh-request');
   }
 
   function handleSoaConsolidationClick(newTab = true) {
@@ -1439,6 +1450,7 @@ export default function HomePage() {
 
                 {show('learning hub training courses sap supply chain academy lms') && (
                   <LearningHubCard
+                    status={learningHubStatus}
                     isAdmin={isAdmin}
                     onClick={handleLearningHubClick}
                   />
