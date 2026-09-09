@@ -22,7 +22,15 @@ import {
 const VIDEO_EMBED_URL = 'https://nesrcorp-my.sharepoint.com/personal/mfarhan1_nesr_com/_layouts/15/embed.aspx?UniqueId=793971d1-3475-4c69-8c1f-382878b94142&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
 // Fallback "open in SharePoint" link — the plain share URL opens the full Stream page.
 const VIDEO_SHARE_URL = 'https://nesrcorp-my.sharepoint.com/:v:/g/personal/mfarhan1_nesr_com/IQDRcTl5dTRpTIwfOCh4uUFCAUJ0EWXTUU_V7YUUqBI1ocY';
+// Supplier-facing training video (RFx officer - Supplier Guide.mp4), SharePoint "Embed" URL.
+const SUPPLIER_EMBED_URL = 'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=6c8641fa-4747-460f-9b0a-1eeb7cff1d68&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
 const GREEN = '#307c4c';
+
+// The two training videos shown under the "Training Videos" tab.
+const VIDEO_GUIDES: { key: 'full' | 'supplier'; label: string; title: string; blurb: string; embed: string; share: string | null }[] = [
+  { key: 'full', label: 'Full Guide', title: 'Full Training', blurb: 'A walkthrough of the RFx Officer RFQ lifecycle.', embed: VIDEO_EMBED_URL, share: VIDEO_SHARE_URL },
+  { key: 'supplier', label: 'Supplier Guide', title: 'Supplier Guide', blurb: 'For suppliers: how to open the RFQ invitation, review the request, and submit a quote through the vendor portal.', embed: SUPPLIER_EMBED_URL, share: null },
+];
 
 /* ── small building blocks ─────────────────────────────────────── */
 
@@ -380,6 +388,8 @@ function RFQFlow() {
 
 export default function RFxOfficerHelpPage() {
   const [tab, setTab] = useState<'video' | 'docs'>('video');
+  const [guide, setGuide] = useState<'full' | 'supplier'>('full');
+  const g = VIDEO_GUIDES.find(x => x.key === guide) ?? VIDEO_GUIDES[0];
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -402,13 +412,13 @@ export default function RFxOfficerHelpPage() {
             <p className="text-xs text-slate-400">RFx Officer / Help</p>
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Help &amp; Training</h1>
-          <p className="text-sm text-slate-500 mt-1">Watch the training video, then read the full RFQ flow walkthrough.</p>
+          <p className="text-sm text-slate-500 mt-1">Watch the training videos, then read the full RFQ flow walkthrough.</p>
         </div>
 
         {/* Tabs */}
         <div className="flex gap-0.5 border-b border-slate-200 mb-6">
           {([
-            { key: 'video', label: 'Training Video' },
+            { key: 'video', label: 'Training Videos' },
             { key: 'docs', label: 'RFQ Flow' },
           ] as const).map(({ key, label }) => (
             <button
@@ -424,31 +434,50 @@ export default function RFxOfficerHelpPage() {
 
         {tab === 'video' && (
           <Card className="shadow-sm overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-slate-100">
-              <h2 className="text-sm font-bold text-slate-900">Training Video</h2>
-              <p className="text-xs text-slate-400 mt-0.5">A walkthrough of the RFx Officer RFQ lifecycle.</p>
+            <div className="px-5 py-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">{g.title}</h2>
+                <p className="text-xs text-slate-400 mt-0.5">{g.blurb}</p>
+              </div>
+              <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
+                {VIDEO_GUIDES.map(x => (
+                  <button
+                    key={x.key}
+                    onClick={() => setGuide(x.key)}
+                    className="px-3 py-1.5 rounded-md text-[13px] font-semibold transition-colors"
+                    style={guide === x.key ? { background: '#ffffff', color: GREEN, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' } : { color: '#64748b' }}
+                  >
+                    {x.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="p-5 space-y-3">
               <iframe
-                src={VIDEO_EMBED_URL}
+                key={g.key}
+                src={g.embed}
                 width="100%"
                 height="520"
                 frameBorder="0"
                 scrolling="no"
                 allowFullScreen
-                title="RFx Officer Training Video"
+                title={`RFx Officer ${g.label}`}
                 className="rounded-lg bg-slate-100"
               />
-              <a
-                href={VIDEO_SHARE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-                style={{ background: GREEN }}
-              >
-                <Play className="w-4 h-4" /> Open video in SharePoint
-              </a>
-              <p className="text-xs text-slate-400">If the video doesn&apos;t play inline, use the button above to open it in SharePoint.</p>
+              {g.share && (
+                <a
+                  href={g.share}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+                  style={{ background: GREEN }}
+                >
+                  <Play className="w-4 h-4" /> Open video in SharePoint
+                </a>
+              )}
+              <p className="text-xs text-slate-400">
+                If the video doesn&apos;t play inline, {g.share ? 'use the button above to open it in SharePoint' : 'open it directly in SharePoint / Stream'}.
+              </p>
             </div>
           </Card>
         )}
