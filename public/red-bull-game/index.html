@@ -47,7 +47,7 @@
           </div>
         </div>
         <div style="font-size:14px; color:#58595B; max-width:700px; line-height:1.6; margin-top:10px;">
-          Four stages move cases of energy drink from the plant to the shelf: retailer, wholesaler, distributor, factory. Orders take two weeks to travel up the chain and shipments take two weeks to come back down. Holding stock costs money, running out costs more. Nobody sees the whole picture.
+          Four stages move cases of energy drink from the plant to the shelf: retailer, wholesaler, distributor, factory. Orders take time to travel up the chain and shipments take time to come back down, a lead time you set per stage (one week by default). Holding stock costs money, running out costs more. Nobody sees the whole picture.
         </div>
 
         <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; margin-top:30px;">
@@ -146,6 +146,22 @@
               </sc-for>
             </div>
             <div style="font-size:11px; color:#58595B; margin-top:10px; max-width:300px; line-height:1.5;">{{ policyNote }}</div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:#58595B; letter-spacing:0.5px; margin-bottom:8px; font-weight:bold;">LEAD TIME PER STAGE (WEEKS)</div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <sc-for list="{{ leadStages }}" as="s" hint-placeholder-count="4">
+                <div style="display:flex; flex-direction:column; gap:5px; align-items:center;">
+                  <div style="font-size:10px; color:#58595B; font-weight:bold;">{{ s.name }}</div>
+                  <div style="display:flex; align-items:center; border:1px solid #D1D3D4;">
+                    <div onClick="{{ s.dec }}" style="cursor:pointer; padding:6px 11px; font-weight:bold; color:#307c4c; font-size:15px;">-</div>
+                    <div style="min-width:24px; text-align:center; font-size:14px; font-weight:bold;">{{ s.value }}</div>
+                    <div onClick="{{ s.inc }}" style="cursor:pointer; padding:6px 11px; font-weight:bold; color:#307c4c; font-size:15px;">+</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:11px; color:#58595B; margin-top:10px; max-width:360px; line-height:1.5;">{{ leadNote }}</div>
           </div>
         </div>
 
@@ -295,7 +311,7 @@
               </sc-if>
             </sc-for>
           </div>
-          <div style="font-size:12px; color:#58595B; margin-top:10px;">Green arrow: cases moving down the chain. Gray arrow: orders moving up. Both take two weeks.</div>
+          <div style="font-size:12px; color:#58595B; margin-top:10px;">Green arrow: cases moving down the chain. Gray arrow: orders moving up. Both take the lead time set for each stage.</div>
         </div>
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
@@ -455,12 +471,11 @@
                       <div style="font-size:9px; font-weight:bold; letter-spacing:0.6px;">{{ n.inboundLabel }}</div>
                     </div>
                     <div style="padding:8px 10px; display:flex; flex-direction:column; gap:5px;">
-                      <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:#58595B;">
-                        <div>{{ n.in1Label }}</div><div style="font-weight:bold; color:#307c4c;">{{ n.in1 }}</div>
-                      </div>
-                      <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:#58595B;">
-                        <div>{{ n.in2Label }}</div><div style="font-weight:bold; color:#307c4c;">{{ n.in2 }}</div>
-                      </div>
+                      <sc-for list="{{ n.inbound }}" as="q" hint-placeholder-count="2">
+                        <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:#58595B;">
+                          <div>{{ q.label }}</div><div style="font-weight:bold; color:#307c4c;">{{ q.qty }}</div>
+                        </div>
+                      </sc-for>
                     </div>
                   </div>
                   <div style="border:1px solid #D1D3D4; background:#FFFFFF;">
@@ -812,14 +827,24 @@ function demandAt(pattern, week) {
   return Math.max(0, Math.round(4 + x * 9));
 }
 
-function makeSim() {
+// Per-stage lead time (weeks): how many weeks orders + shipments take to reach
+// each stage. Clamped to 1..4; default 1. Governs the pipeline (queue) depth.
+function normLead(lead) {
+  const base = Array.isArray(lead) ? lead : [];
+  return [0, 1, 2, 3].map(i => Math.max(1, Math.min(4, Math.round(Number(base[i]) || 1))));
+}
+
+function makeSim(lead) {
+  const L = normLead(lead);
+  const fill = n => Array.from({ length: n }, () => 4);
   return {
     week: 1,
     inv: [12, 12, 12, 12], back: [0, 0, 0, 0], cost: [0, 0, 0, 0],
-    shipQ: [[4, 4], [4, 4], [4, 4], [4, 4]],
-    ordQ: [[0, 0], [4, 4], [4, 4], [4, 4]],
+    shipQ: [fill(L[0]), fill(L[1]), fill(L[2]), fill(L[3])],
+    ordQ: [[0], fill(L[1]), fill(L[2]), fill(L[3])],
     forecast: [4, 4, 4, 4], lastOrder: [4, 4, 4, 4],
     lastDemand: [4, 4, 4, 4], lastShipped: [4, 4, 4, 4],
+    lead: L,
     history: []
   };
 }
@@ -856,7 +881,7 @@ function stepSim(sim, orders, cfg) {
   ordQ[0].push(0); ordQ[0].shift();
 
   return {
-    week: sim.week + 1, inv, back, cost, shipQ, ordQ, forecast,
+    week: sim.week + 1, inv, back, cost, shipQ, ordQ, forecast, lead: sim.lead,
     lastOrder: orders.slice(), lastDemand: demand, lastShipped: shipped,
     history: sim.history.concat([{
       week: sim.week, custDemand: cust, demand, orders: orders.slice(),
@@ -865,15 +890,15 @@ function stepSim(sim, orders, cfg) {
   };
 }
 
-function makeTeam(n) {
-  return { id: uid(), name: "Team " + n, seats: [null, null, null, null], pending: {}, sim: makeSim(), done: false };
+function makeTeam(n, lead) {
+  return { id: uid(), name: "Team " + n, seats: [null, null, null, null], pending: {}, sim: makeSim(lead), done: false };
 }
 
 class Component extends DCLogic {
   state = {
     screen: "home", myId: uid(), myName: PREFILL_NAME, nameInput: PREFILL_NAME, codeInput: PREFILL_CODE,
     error: "", mode: "solo", role: 0, pattern: "step", weeks: 30, policy: "standard",
-    teamSize: 4, visibility: "own", sim: null, code: "", session: null, orderInput: 4, selected: null, tick: 0
+    teamSize: 4, visibility: "own", leadTimes: [1, 1, 1, 1], sim: null, code: "", session: null, orderInput: 4, selected: null, tick: 0
   };
 
   componentDidMount() {
@@ -886,7 +911,7 @@ class Component extends DCLogic {
     clearInterval(this.poll);
   }
 
-  cfg(s) { return { pattern: s.pattern, weeks: s.weeks, holding: this.HOLD, shortage: this.SHORT, policy: s.policy, visibility: s.visibility }; }
+  cfg(s) { return { pattern: s.pattern, weeks: s.weeks, holding: this.HOLD, shortage: this.SHORT, policy: s.policy, visibility: s.visibility, lead: normLead(s.leadTimes) }; }
   get HOLD() { return this.props.holdingCost ?? 0.5; }
   get SHORT() { return this.props.shortageCost ?? 1.0; }
 
@@ -965,7 +990,7 @@ class Component extends DCLogic {
     const sess = {
       code, mode, phase: "lobby", hostId: st.myId, hostName: name,
       cfg: this.cfg(st), assign: mode === "trainer" ? "self" : "self",
-      players: [{ id: st.myId, name }], teams: [makeTeam(1)]
+      players: [{ id: st.myId, name }], teams: [makeTeam(1, this.cfg(st).lead)]
     };
     if (mode === "team") sess.teams[0].name = "Your Chain";
     this.createRemote(sess);
@@ -1005,7 +1030,7 @@ class Component extends DCLogic {
       const size = Math.max(2, Math.min(4, s.cfg.teamSize || 4));
       const count = Math.max(1, Math.ceil(pool.length / size));
       s.teams = [];
-      for (let i = 0; i < count; i++) s.teams.push(makeTeam(i + 1));
+      for (let i = 0; i < count; i++) s.teams.push(makeTeam(i + 1, s.cfg.lead));
       if (s.mode === "team") s.teams[0].name = "Your Chain";
       pool.forEach((p, i) => {
         const t = s.teams[i % count];
@@ -1023,10 +1048,10 @@ class Component extends DCLogic {
         !s.teams.some(t => t.seats.some(x => x && x.id === p.id)));
       unseated.forEach(p => {
         let t = s.teams.find(x => x.seats.some(y => !y));
-        if (!t) { t = makeTeam(s.teams.length + 1); s.teams.push(t); }
+        if (!t) { t = makeTeam(s.teams.length + 1, s.cfg.lead); s.teams.push(t); }
         t.seats[t.seats.findIndex(y => !y)] = { id: p.id, name: p.name };
       });
-      s.teams.forEach(t => { t.sim = makeSim(); t.pending = {}; t.done = false; });
+      s.teams.forEach(t => { t.sim = makeSim(s.cfg.lead); t.pending = {}; t.done = false; });
       s.phase = "running";
     });
   };
@@ -1144,14 +1169,14 @@ class Component extends DCLogic {
   }
 
   idealRun(cfg) {
-    const key = [cfg.pattern, cfg.weeks, cfg.holding, cfg.shortage].join("|");
+    const key = [cfg.pattern, cfg.weeks, cfg.holding, cfg.shortage, normLead(cfg.lead).join(",")].join("|");
     this._ideal = this._ideal || {};
     if (this._ideal[key]) return this._ideal[key];
     // Perfect-information base-stock benchmark: hold inventory position at
     // lead-time demand + a safety buffer, with the buffer tuned by search.
     let best = null;
     for (let safety = 0; safety <= 14; safety += 2) {
-      let sim = makeSim();
+      let sim = makeSim(cfg.lead);
       for (let w = 1; w <= cfg.weeks; w++) {
         const d = demandAt(cfg.pattern, w);
         const orders = [0, 1, 2, 3].map(i => {
@@ -1223,13 +1248,9 @@ class Component extends DCLogic {
         demandIn: i === 0 ? demandAt(cfg.pattern, Math.max(1, s.week - 1)) : s.lastDemand[i],
         shippedOut: s.lastShipped[i],
         inboundLabel: i === 3 ? "IN PRODUCTION - COMING TO YOU" : "INBOUND - CASES COMING TO YOU",
-        in1Label: i === 3 ? "Off the line next week" : "Arriving next week",
-        in2Label: i === 3 ? "Off the line in 2 weeks" : "Arriving in 2 weeks",
-        in1: s.shipQ[i][0] || 0,
-        in2: s.shipQ[i][1] || 0,
         placedLabel: i === 3 ? "Production you started" : "Order you placed",
         orderPlaced: s.lastOrder[i],
-        inbound: s.shipQ[i].map(q => ({ qty: q })),
+        inbound: s.shipQ[i].map((q, k) => ({ qty: q, label: (i === 3 ? "Off the line" : "Arriving") + (k === 0 ? " next week" : " in " + (k + 1) + " weeks") })),
         cost: money(s.cost[i])
       };
     });
@@ -1315,10 +1336,10 @@ class Component extends DCLogic {
       bullwhipNote: s.history.length < 3
         ? "Only your own three lines. How the rest of the chain reacted is revealed on the scorecard."
         : "Your orders peaked at " + peakOrder + " cases. Whether that was an over-reaction is something you find out at the debrief.",
-      orderHint: "Last week you " + (role === 3 ? "started " : "ordered ") + s.lastOrder[role] + " cases. Inbound: " + (s.shipQ[role][0] || 0) + " next week, " + (s.shipQ[role][1] || 0) + " the week after.",
+      orderHint: "Last week you " + (role === 3 ? "started " : "ordered ") + s.lastOrder[role] + " cases. " + s.shipQ[role].reduce((a, b) => a + b, 0) + " cases in transit, arriving over the next " + s.shipQ[role].length + (s.shipQ[role].length === 1 ? " week." : " weeks."),
       decisionPrompt: role === 3
-        ? "How many cases do you can this week? Production takes two weeks to reach your yard."
-        : "How many cases do you order from your " + ROLES[role + 1].toLowerCase() + " this week? Two weeks for them to see it, two more for the cases to arrive."
+        ? "How many cases do you can this week? Production takes " + s.shipQ[3].length + (s.shipQ[3].length === 1 ? " week" : " weeks") + " to reach your yard."
+        : "How many cases do you order from your " + ROLES[role + 1].toLowerCase() + " this week? " + s.ordQ[role + 1].length + " wk for them to see it, " + s.shipQ[role].length + " more for the cases to come back."
     };
   }
 
@@ -1365,11 +1386,11 @@ class Component extends DCLogic {
         { isStage: true, name: "Customers", note: "Demand starts here" }
       ],
       howSteps: [
-        { n: "1", title: "Cases arrive", text: "Whatever your supplier shipped two weeks ago lands in your yard and is added to stock." },
-        { n: "2", title: "An order comes in", text: "The stage below you placed it two weeks ago. The retailer instead gets real customer demand." },
+        { n: "1", title: "Cases arrive", text: "Whatever your supplier shipped a lead time ago lands in your yard and is added to stock." },
+        { n: "2", title: "An order comes in", text: "The stage below you placed it a lead time ago. The retailer instead gets real customer demand." },
         { n: "3", title: "You ship what you can", text: "Fill the order plus anything you already owe. Short of stock? The rest becomes backlog and stays owed." },
         { n: "4", title: "Costs are booked", text: "You pay for stock sitting in the yard and, at double the rate, for every case you still owe." },
-        { n: "5", title: "You place your order", text: "The only decision you make. It reaches your supplier in two weeks; cases come back two weeks after that, a four-week round trip." }
+        { n: "5", title: "You place your order", text: "The only decision you make. It reaches your supplier after the order lead time; cases come back after the shipping lead time. Short lead times keep the chain snappy, longer ones amplify the swings." }
       ],
       howCosts: [
         { item: "Stock on hand", rate: "$" + this.HOLD.toFixed(2) + " / case / week", note: "Cases sitting in your yard", style: { background: "#FFFFFF" } },
@@ -1383,7 +1404,7 @@ class Component extends DCLogic {
       ],
       howTips: [
         { text: "Ordering twice for the same shortage. Your order is already on its way, check what is inbound before you add more." },
-        { text: "Reacting to one week's number. A single spike is noise; the four-week delay means you feel your own reaction long after you forgot making it." },
+        { text: "Reacting to one week's number. A single spike is noise; the lead-time delay means you feel your own reaction long after you forgot making it." },
         { text: "Forgetting the supply line. Stock in your yard plus stock in transit is what you actually own." },
         { text: "Cutting to zero after a glut. That is how the chain whips back the other way and how the stage above you gets whipsawed." }
       ],
@@ -1439,6 +1460,13 @@ class Component extends DCLogic {
         hoverStyle: id === st.policy ? activeStyle : this.hover(false)
       })),
       policyNote: POLICY_NOTE[st.policy],
+      leadStages: ROLES.map((name, i) => ({
+        name,
+        value: normLead(st.leadTimes)[i],
+        dec: () => { const l = normLead(st.leadTimes); l[i] = Math.max(1, l[i] - 1); this.setState({ leadTimes: l }); },
+        inc: () => { const l = normLead(st.leadTimes); l[i] = Math.min(4, l[i] + 1); this.setState({ leadTimes: l }); }
+      })).reverse(),
+      leadNote: "Weeks for orders and shipments to reach each stage. 1 is the default (a snappy chain); higher means longer pipelines and wilder swings.",
       visOptions: [["own", "Your stage only"], ["chain", "Whole chain"], ["full", "Everything"]].map(([id, label]) => ({
         label, pick: () => this.setState({ visibility: id }),
         chipStyle: chip(id === st.visibility),
@@ -1483,7 +1511,7 @@ class Component extends DCLogic {
       setupCta: screen === "solo-setup" ? "START WEEK 1 →" : "CREATE GAME & GET CODE →",
       setupGo: () => {
         if (screen === "solo-setup") {
-          this.setState({ sim: makeSim(), session: null, code: "", screen: "solo-play", orderInput: 4 });
+          this.setState({ sim: makeSim(this.state.leadTimes), session: null, code: "", screen: "solo-play", orderInput: 4 });
         } else {
           const st2 = this.state;
           const sess2 = { ...this.cfg(st2), teamSize: st2.teamSize };
@@ -1530,7 +1558,7 @@ class Component extends DCLogic {
           manual: "Click a player in the room, then click Put Selected Player Here on a team."
         }[sess.assign],
         shuffle: this.shuffleTeams,
-        addTeam: () => this.mutate(s => s.teams.push(makeTeam(s.teams.length + 1))),
+        addTeam: () => this.mutate(s => s.teams.push(makeTeam(s.teams.length + 1, s.cfg.lead))),
         clearTeams: () => this.mutate(s => s.teams.forEach(t => { t.seats = [null, null, null, null]; })),
         addDemo: () => this.mutate(s => s.players.push({ id: uid(), name: "Test Player " + (s.players.length) })),
         startRun: this.startRun,
@@ -1613,12 +1641,13 @@ class Component extends DCLogic {
       const humans = this.humanSeats(team);
       const submitted = team.pending[seat] !== undefined;
       const waitingOn = humans.filter(i => team.pending[i] === undefined).map(i => team.seats[i].name);
+      const myLead = (sim.lead || [1, 1, 1, 1])[seat] || 1;
       return {
         ...common,
         ...b,
         week: sim.week, roleName: ROLES[seat],
         boardTitle: team.name + " - Week " + Math.min(sim.week, sess.cfg.weeks),
-        boardSub: "Cases flow left to right · orders travel right to left · both take two weeks",
+        boardSub: "Cases flow left to right · orders travel right to left · your lead time: " + myLead + (myLead === 1 ? " week" : " weeks"),
         orderInput: st.orderInput,
         onOrderChange: e => this.setState({ orderInput: e.target.value }),
         inc: () => this.setState({ orderInput: (Number(st.orderInput) || 0) + 1 }),
@@ -1635,14 +1664,15 @@ class Component extends DCLogic {
 
     // solo play / solo over / session score
     if (screen === "solo-play") {
-      const sim = st.sim || makeSim();
+      const sim = st.sim || makeSim(st.leadTimes);
       const seatNames = ROLES.map((r, i) => (i === st.role ? "YOU" : "AI"));
       const b = this.boardVals(sim, st.role, cfg, seatNames);
+      const myLead = (sim.lead || [1, 1, 1, 1])[st.role] || 1;
       return {
         ...common, ...b,
         week: sim.week, roleName: ROLES[st.role],
         boardTitle: "Your Chain - Week " + Math.min(sim.week, st.weeks),
-        boardSub: "Cases flow left to right · orders travel right to left · AI seats on the " + st.policy + " preset",
+        boardSub: "Cases flow left to right · orders travel right to left · your lead time: " + myLead + (myLead === 1 ? " week" : " weeks") + " · AI on " + st.policy,
         orderInput: st.orderInput,
         onOrderChange: e => this.setState({ orderInput: e.target.value }),
         inc: () => this.setState({ orderInput: (Number(st.orderInput) || 0) + 1 }),
@@ -1685,7 +1715,7 @@ class Component extends DCLogic {
           money(ranked[ranked.length - 1].s.chain - ranked[0].s.chain) + "."
         : "One chain, " + sess.cfg.weeks + " weeks, " + money(winner.s.chain) + " spent keeping the shelves stocked.";
     } else {
-      const sim = st.sim || makeSim();
+      const sim = st.sim || makeSim(st.leadTimes);
       const chain = sim.cost.reduce((a, b) => a + b, 0);
       const peakCust = Math.max(1, ...sim.history.map(h => h.custDemand));
       const peak = Math.max(0, ...sim.history.map(h => h.orders[st.role]));
@@ -1716,7 +1746,7 @@ class Component extends DCLogic {
       scoreCols, scoreTeams, finalHeadline: headline, finalSub: sub,
       lessons: [
         { text: "Orders grow as they travel up the chain. Every stage reacts to the stage below it rather than to the customer, so a small change at the shelf becomes a swing at the plant, the bullwhip effect." },
-        { text: "Most of the cost comes from swinging between empty shelves and full yards. The four-week round trip hides the effect of your own orders, so it is easy to order twice for the same shortage." },
+        { text: "Most of the cost comes from swinging between empty shelves and full yards. The round-trip lead time hides the effect of your own orders, so it is easy to order twice for the same shortage." },
         { text: "The fix is structural: shorter delays, shared demand information, and ordering to a target stock position instead of reacting to the last order you saw." }
       ]
     };
@@ -1730,7 +1760,7 @@ class Component extends DCLogic {
       code, mode, phase: "lobby", hostId: st.myId, hostName: name,
       cfg: cfgObj, assign: "self",
       players: [{ id: st.myId, name }],
-      teams: [makeTeam(1)]
+      teams: [makeTeam(1, cfgObj.lead)]
     };
     if (mode === "team") sess.teams[0].name = "Your Chain";
     this.createRemote(sess);
