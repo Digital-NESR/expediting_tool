@@ -1055,6 +1055,13 @@ function requireText(value: unknown, label: string): string {
   return value.trim();
 }
 
+// laptop_requests was emptied and restarted, so PLP00001–PLP00034 have been issued twice:
+// once to the requests that were cleared out, and again to the current ones. Those older
+// numbers are already quoted in sent emails and IT tickets, so rather than renumber live
+// requests, new references start clear of the reused range. Everything at or below the floor
+// keeps whatever number it already has.
+const LAPTOP_REFERENCE_FLOOR = 1500;
+
 async function makeReference(): Promise<string> {
   const rows = await sql<QueryResultRow[]>(
     `SELECT reference_number FROM laptop_requests
@@ -1064,8 +1071,8 @@ async function makeReference(): Promise<string> {
   );
   const last = rows[0]?.reference_number as string | undefined;
   const lastNum = last ? Number(last.slice(3)) : 0;
-  const next = (Number.isFinite(lastNum) ? lastNum : 0) + 1;
-  return `PLP${String(next).padStart(5, '0')}`;
+  const highest = Math.max(Number.isFinite(lastNum) ? lastNum : 0, LAPTOP_REFERENCE_FLOOR - 1);
+  return `PLP${String(highest + 1).padStart(5, '0')}`;
 }
 
 async function writeActivity(input: {
