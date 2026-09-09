@@ -387,9 +387,8 @@ function RFQFlow() {
 /* ── Page ──────────────────────────────────────────────────────── */
 
 export default function RFxOfficerHelpPage() {
-  const [tab, setTab] = useState<'video' | 'docs'>('video');
-  const [guide, setGuide] = useState<'full' | 'supplier'>('full');
-  const g = VIDEO_GUIDES.find(x => x.key === guide) ?? VIDEO_GUIDES[0];
+  const [tab, setTab] = useState<'full' | 'supplier' | 'docs'>('full');
+  const g = VIDEO_GUIDES.find(x => x.key === tab); // set for the two video tabs; undefined for 'docs'
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -418,7 +417,8 @@ export default function RFxOfficerHelpPage() {
         {/* Tabs */}
         <div className="flex gap-0.5 border-b border-slate-200 mb-6">
           {([
-            { key: 'video', label: 'Training Videos' },
+            { key: 'full', label: 'Full Guide' },
+            { key: 'supplier', label: 'Supplier Guide' },
             { key: 'docs', label: 'RFQ Flow' },
           ] as const).map(({ key, label }) => (
             <button
@@ -432,25 +432,11 @@ export default function RFxOfficerHelpPage() {
           ))}
         </div>
 
-        {tab === 'video' && (
+        {g && (
           <Card className="shadow-sm overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900">{g.title}</h2>
-                <p className="text-xs text-slate-400 mt-0.5">{g.blurb}</p>
-              </div>
-              <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
-                {VIDEO_GUIDES.map(x => (
-                  <button
-                    key={x.key}
-                    onClick={() => setGuide(x.key)}
-                    className="px-3 py-1.5 rounded-md text-[13px] font-semibold transition-colors"
-                    style={guide === x.key ? { background: '#ffffff', color: GREEN, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' } : { color: '#64748b' }}
-                  >
-                    {x.label}
-                  </button>
-                ))}
-              </div>
+            <div className="px-5 py-3.5 border-b border-slate-100">
+              <h2 className="text-sm font-bold text-slate-900">{g.title}</h2>
+              <p className="text-xs text-slate-400 mt-0.5">{g.blurb}</p>
             </div>
             <div className="p-5 space-y-3">
               <iframe

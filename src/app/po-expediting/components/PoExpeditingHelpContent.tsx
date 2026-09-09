@@ -75,18 +75,15 @@ export default function PoExpeditingHelpContent() {
       </div>
 
       {/* Guide tabs */}
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="mb-5 flex gap-0.5 border-b border-slate-200">
         {GUIDES.map((g) => {
           const active = g.key === key;
           return (
             <button
               key={g.key}
               onClick={() => setKey(g.key)}
-              className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
-                active
-                  ? 'border-[#307c4c] bg-[#307c4c]/10 text-[#307c4c]'
-                  : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700'
-              }`}
+              className="border-b-2 -mb-px px-4 py-2.5 text-[13.5px] font-semibold transition-colors"
+              style={active ? { color: '#307c4c', borderColor: '#307c4c' } : { color: '#94a3b8', borderColor: 'transparent' }}
             >
               {g.label}
             </button>

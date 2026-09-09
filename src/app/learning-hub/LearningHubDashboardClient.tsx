@@ -127,6 +127,7 @@ export default function LearningHubDashboardClient({ data }: { data: LearningHub
         <LearningHubHero
           title="Learning Hub"
           subtitle="Build your NESR supply chain knowledge across SAP, General Supply Chain fundamentals, and NESR-specific practice, at your own pace."
+          badge={<span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">Under Development</span>}
         />
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

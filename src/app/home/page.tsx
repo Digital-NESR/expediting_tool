@@ -1033,7 +1033,12 @@ function LearningHubCard({
       </ToolCardLogo>
 
       <div className="flex-1">
-        <h3 className="text-[18px] font-semibold text-slate-900">Learning Hub</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-[18px] font-semibold text-slate-900">Learning Hub</h3>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200">
+            Under Development
+          </span>
+        </div>
         <p className="mt-0.5 text-[13px] font-medium text-slate-400">SAP, Supply Chain &amp; NESR Training</p>
         <p className="mt-2 text-sm leading-relaxed text-gray-500">
           Self-paced courses across three tracks: SAP, general Supply Chain fundamentals, and NESR-specific supply chain practice.
@@ -1284,6 +1289,12 @@ export default function HomePage() {
                   <LaptopProcurementCard onClick={handleLaptopClick} />
                 )}
 
+                {show('learning hub training courses sap supply chain academy lms') && (
+                  <LearningHubCard
+                    onClick={handleLearningHubClick}
+                  />
+                )}
+
                 {show('po expediting purchase orders monitor expedite supplier delivery') && (
                   <POExpeditingCard
                     status={poStatus}
@@ -1392,12 +1403,6 @@ export default function HomePage() {
                   <CatalogManagerCard
                     canOpen={canOpenCatalogManager}
                     onClick={handleCatalogManagerClick}
-                  />
-                )}
-
-                {show('learning hub training courses sap supply chain academy lms') && (
-                  <LearningHubCard
-                    onClick={handleLearningHubClick}
                   />
                 )}
 
