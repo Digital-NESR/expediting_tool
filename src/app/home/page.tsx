@@ -543,6 +543,16 @@ function POExpeditingCard({
       onClick={() => onClick(true)}
       className="relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 transition-all duration-200 text-left w-full cursor-pointer hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10 group"
     >
+      {/* Help icon — top right, stops card click propagation */}
+      <a
+        href="/help/po-expediting"
+        title="View Help & Training"
+        onClick={e => e.stopPropagation()}
+        className="absolute top-3 right-3 z-10 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+      >
+        <HelpCircle className="w-4 h-4" />
+      </a>
+
       <ToolCardLogo onSameTab={() => onClick(false)} className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#307c4c]/10">
         <svg className="w-6 h-6 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11" />
