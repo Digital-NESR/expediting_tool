@@ -1289,12 +1289,6 @@ export default function HomePage() {
                   <LaptopProcurementCard onClick={handleLaptopClick} />
                 )}
 
-                {show('learning hub training courses sap supply chain academy lms') && (
-                  <LearningHubCard
-                    onClick={handleLearningHubClick}
-                  />
-                )}
-
                 {show('po expediting purchase orders monitor expedite supplier delivery') && (
                   <POExpeditingCard
                     status={poStatus}
@@ -1403,6 +1397,12 @@ export default function HomePage() {
                   <CatalogManagerCard
                     canOpen={canOpenCatalogManager}
                     onClick={handleCatalogManagerClick}
+                  />
+                )}
+
+                {show('learning hub training courses sap supply chain academy lms') && (
+                  <LearningHubCard
+                    onClick={handleLearningHubClick}
                   />
                 )}
 
