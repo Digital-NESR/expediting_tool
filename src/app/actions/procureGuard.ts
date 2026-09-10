@@ -4247,7 +4247,7 @@ const PROCURE_GUARD_CSV_ROLE_COUNTRIES: Record<string, Partial<Record<ProcureGua
   [normalisePersonName('Zied Fehri')]: { 'SCM Manager': ['United Arab Emirates (UAE)'] },
   [normalisePersonName('Ahmed Mouhoub')]: { 'Country Controller': ['Algeria'] },
   [normalisePersonName('Mohamed Merghani')]: { 'Country Controller': ['Bahrain', 'Saudi Arabia (KSA)'] },
-  [normalisePersonName('Muhammad Khan')]: { 'Country Controller': ['EOS'] },
+  [normalisePersonName('Muhammad Khan')]: { 'Country Controller': ['EOS', 'Chad', 'Congo'] },
   [normalisePersonName('Mahmoud El-Nady')]: { 'Country Controller': ['Egypt'] },
   [normalisePersonName('Ahmed Malik')]: { 'Country Controller': ['HQ Dubai'] },
   [normalisePersonName('Ali Bohra')]: { 'Country Controller': ['India'] },
