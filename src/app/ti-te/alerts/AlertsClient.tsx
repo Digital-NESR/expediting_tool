@@ -98,7 +98,7 @@ export default function AlertsClient({ shipments }: { shipments: Shipment[] | nu
                         const days = calcDays(s);
                         return (
                           <tr key={s.id} onClick={() => router.push(`/ti-te/shipments/${s.id}`)} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors">
-                            <td className="px-4 py-2.5 font-mono text-[12px] text-slate-400 w-16">#{String(s.id).padStart(3, '0')}</td>
+                            <td className="px-4 py-2.5 font-mono text-[12px] text-slate-500 whitespace-nowrap">{s.reference_number || `#${String(s.id).padStart(3, '0')}`}</td>
                             <td className="px-3 py-2.5">
                               <div className="font-semibold text-slate-900 text-[13px]">{(s.description || '').slice(0, 50)}{(s.description || '').length > 50 ? '…' : ''}</div>
                               <div className="text-[11.5px] text-slate-400">{s.segment || '—'} · Owner: {s.created_by || '—'}</div>
