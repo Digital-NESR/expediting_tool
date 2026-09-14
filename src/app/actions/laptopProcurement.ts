@@ -1,11 +1,12 @@
 'use server';
 
-import type { QueryResultRow } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
 import { request as httpRequest } from 'http';
 import { request as httpsRequest } from 'https';
 import { revalidatePath } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
 import laptopProcurementPool from '@/lib/db-laptop';
+import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import empDirectoryPool from '@/lib/db-emp-directory';
 import {
   ADMIN_REQUESTS_PAGE_SIZE,
@@ -121,6 +122,25 @@ async function sql<T extends QueryResultRow[]>(statement: string, params: QueryP
 
 async function exec(statement: string, params: QueryParams = []): Promise<ExecResult> {
   const result = await laptopProcurementPool.query(toPostgresQuery(statement), normaliseParams(params));
+  const rawId = result.rows[0]?.id;
+  const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
+  return {
+    rowCount: result.rowCount ?? 0,
+    insertId: Number.isFinite(insertId) ? insertId : 0,
+  };
+}
+
+// Same `?`-placeholder contract as sql()/exec() above, but bound to one transaction's
+// client. Everything inside a withTransaction callback has to go through these —
+// sql()/exec() reach for the pool, so they'd run on a different connection, outside
+// the transaction, and would not roll back with it.
+async function sqlTx<T extends QueryResultRow[]>(client: PoolClient, statement: string, params: QueryParams = []): Promise<T> {
+  const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
+  return serialise<T>(result.rows);
+}
+
+async function execTx(client: PoolClient, statement: string, params: QueryParams = []): Promise<ExecResult> {
+  const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
   const rawId = result.rows[0]?.id;
   const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
   return {
@@ -1083,8 +1103,15 @@ function requireText(value: unknown, label: string): string {
 // keeps whatever number it already has.
 const LAPTOP_REFERENCE_FLOOR = 1500;
 
-async function makeReference(): Promise<string> {
-  const rows = await sql<QueryResultRow[]>(
+// Reads the highest reference and hands out the next one. Read-then-insert, so it only
+// holds up under concurrency because the caller runs it inside a transaction that has
+// already taken LAPTOP_REFERENCE_LOCK_KEY — without that, two submissions landing at the
+// same moment both read the same maximum and are handed the same PLP number. Same shape
+// as TI-TE's createShipment. The client is mandatory for exactly that reason: on the pool
+// it would run outside the locked transaction.
+async function makeReference(client: PoolClient): Promise<string> {
+  const rows = await sqlTx<QueryResultRow[]>(
+    client,
     `SELECT reference_number FROM laptop_requests
      WHERE reference_number ~ '^PLP[0-9]+$'
      ORDER BY (substring(reference_number from 4))::int DESC
@@ -1096,18 +1123,65 @@ async function makeReference(): Promise<string> {
   return `PLP${String(highest + 1).padStart(5, '0')}`;
 }
 
+// Advisory-lock key serialising reference allocation across serverless invocations.
+const LAPTOP_REFERENCE_LOCK_KEY = 'laptop_reference';
+
+/**
+ * Backstop unique index on reference_number, so even a writer that skips the advisory
+ * lock (an older instance mid-deploy, a hand-run INSERT) cannot land a duplicate.
+ *
+ * Created only once the existing data is verified clean: references were reused once
+ * historically (see LAPTOP_REFERENCE_FLOOR), so a leftover duplicate from that era is
+ * reported for manual repair rather than allowed to fail here on every cold start.
+ * Purely hardening — a failure never blocks a submission.
+ */
+let laptopReferenceIndexEnsured: Promise<void> | null = null;
+async function ensureLaptopReferenceUniqueIndex(): Promise<void> {
+  if (laptopReferenceIndexEnsured) return laptopReferenceIndexEnsured;
+  laptopReferenceIndexEnsured = (async () => {
+    const existing = await sql<QueryResultRow[]>(
+      `SELECT 1 FROM pg_indexes
+       WHERE tablename = 'laptop_requests' AND indexdef ILIKE '%UNIQUE%' AND indexdef ILIKE '%(reference_number)%'
+       LIMIT 1`,
+    );
+    if (existing[0]) return;
+    const duplicates = await sql<QueryResultRow[]>(
+      `SELECT reference_number, COUNT(*) AS copies FROM laptop_requests
+       WHERE reference_number IS NOT NULL
+       GROUP BY reference_number HAVING COUNT(*) > 1
+       ORDER BY reference_number`,
+    );
+    if (duplicates.length) {
+      console.error(
+        '[ensureLaptopReferenceUniqueIndex] reference_number is not unique — index skipped. Duplicates:',
+        duplicates.map(d => `${d.reference_number} x${d.copies}`).join(', '),
+      );
+      return;
+    }
+    await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_laptop_requests_reference_number ON laptop_requests (reference_number)`);
+  })().catch((err) => {
+    // Not retried: the advisory lock is what actually prevents collisions, this is
+    // only the belt-and-braces. Never fail a request creation over it.
+    console.warn('[ensureLaptopReferenceUniqueIndex]', err);
+  });
+  return laptopReferenceIndexEnsured;
+}
+
 async function writeActivity(input: {
   requestId: number;
   referenceNumber: string;
   action: string;
   actor: LaptopActor;
   notes?: string | null;
+  // Set when the log row belongs to a transaction: it has to go through that
+  // transaction's client, or it survives a rollback of the change it describes.
+  client?: PoolClient;
 }): Promise<void> {
-  await exec(
-    `INSERT INTO laptop_activity_log (request_id, reference_number, action, actor_name, actor_email, notes)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [input.requestId, input.referenceNumber, input.action, input.actor.name, input.actor.email, input.notes ?? null],
-  );
+  const statement = `INSERT INTO laptop_activity_log (request_id, reference_number, action, actor_name, actor_email, notes)
+     VALUES (?, ?, ?, ?, ?, ?)`;
+  const params: QueryParams = [input.requestId, input.referenceNumber, input.action, input.actor.name, input.actor.email, input.notes ?? null];
+  if (input.client) await execTx(input.client, statement, params);
+  else await exec(statement, params);
 }
 
 // pending_review means "awaiting THIS actor's decision" (same filter My Work uses),
@@ -1729,6 +1803,9 @@ function validateCreateInput(input: CreateLaptopRequestInput) {
 }
 
 async function insertRequest(input: CreateLaptopRequestInput & Partial<UpdateLaptopExistingDeviceInput>, opts: {
+  // The reference was allocated under the advisory lock on this same client — the
+  // insert has to stay on it so the two are one atomic step.
+  client: PoolClient;
   reference: string;
   status: LaptopRequestStatus;
   requestedByName: string;
@@ -1739,7 +1816,8 @@ async function insertRequest(input: CreateLaptopRequestInput & Partial<UpdateLap
   // Existing Device fields are only ever set by an admin backfilling a request
   // (AdminCreateLaptopRequestInput) — the normal requester flow never collects
   // them; the IT Manager fills them in once the request reaches that stage.
-  const result = await exec(
+  const result = await execTx(
+    opts.client,
     `INSERT INTO laptop_requests
       (reference_number, employee_id, status, priority, request_type, indirect_request, pending_with, country,
        requested_by_name, requested_by_email, computer_for, computer_for_employee_id, department,
@@ -1782,15 +1860,25 @@ export async function createLaptopRequest(input: CreateLaptopRequestInput): Prom
     requireOperationalAccess(actor);
     if (!actor.permissions.canCreateRequests) throw new Error('Request creation access is required.');
     const validated = validateCreateInput(input);
-    const reference = await makeReference();
-    const id = await insertRequest(input, {
-      reference,
-      status: 'Submitted',
-      requestedByName: actor.name,
-      requestedByEmail: actor.email,
-      validated,
+    await ensureLaptopReferenceUniqueIndex();
+    // Reference allocation, the request row and its first log line are one unit: the
+    // lock keeps two concurrent submissions off the same PLP number, and the
+    // transaction means a failed insert doesn't leave a log line for a request that
+    // isn't there.
+    const { id, reference } = await withTransaction(laptopProcurementPool, async (client) => {
+      await lockForTransaction(client, LAPTOP_REFERENCE_LOCK_KEY);
+      const reference = await makeReference(client);
+      const id = await insertRequest(input, {
+        client,
+        reference,
+        status: 'Submitted',
+        requestedByName: actor.name,
+        requestedByEmail: actor.email,
+        validated,
+      });
+      await writeActivity({ requestId: id, referenceNumber: reference, action: 'Request submitted', actor, client });
+      return { id, reference };
     });
-    await writeActivity({ requestId: id, referenceNumber: reference, action: 'Request submitted', actor });
     revalidateLaptopPaths();
     await notifyNewLaptopRequest(id);
     return { success: true, data: { id }, reference_number: reference };
@@ -1826,23 +1914,26 @@ export async function updateLaptopRequest(id: number, input: CreateLaptopRequest
     }
 
     const v = validateCreateInput(input);
-    await exec(
-      `UPDATE laptop_requests SET
-         employee_id = ?, priority = ?, request_type = ?, country = ?, computer_for = ?, computer_for_employee_id = ?,
-         department = ?, company_code = ?, company_name = ?, cost_center = ?,
-         type_of_device = ?, requested_model = ?, special_requirements = ?,
-         updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [
-        blankToNull(input.employee_id), input.priority || 'Normal', v.requestType, v.country,
-        blankToNull(input.computer_for), blankToNull(input.computer_for_employee_id), blankToNull(input.department),
-        v.companyCode, v.companyName, v.costCenter,
-        // Requested model isn't collected on this form — preserve whatever the IT Team may
-        // have already filled in via submitProcureNewDetails rather than blanking it out.
-        v.typeOfDevice, v.requestedModel ?? row.requested_model, v.reason, id,
-      ],
-    );
-    await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Request updated', actor });
+    await withTransaction(laptopProcurementPool, async (client) => {
+      await execTx(
+        client,
+        `UPDATE laptop_requests SET
+           employee_id = ?, priority = ?, request_type = ?, country = ?, computer_for = ?, computer_for_employee_id = ?,
+           department = ?, company_code = ?, company_name = ?, cost_center = ?,
+           type_of_device = ?, requested_model = ?, special_requirements = ?,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          blankToNull(input.employee_id), input.priority || 'Normal', v.requestType, v.country,
+          blankToNull(input.computer_for), blankToNull(input.computer_for_employee_id), blankToNull(input.department),
+          v.companyCode, v.companyName, v.costCenter,
+          // Requested model isn't collected on this form — preserve whatever the IT Team may
+          // have already filled in via submitProcureNewDetails rather than blanking it out.
+          v.typeOfDevice, v.requestedModel ?? row.requested_model, v.reason, id,
+        ],
+      );
+      await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Request updated', actor, client });
+    });
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
     return { success: true, data: { id }, reference_number: row.reference_number };
@@ -1877,17 +1968,20 @@ export async function updateLaptopExistingDevice(id: number, input: UpdateLaptop
       return { success: false, error: 'IT Manager access is required to edit Existing Device details.' };
     }
 
-    await exec(
-      `UPDATE laptop_requests SET
-         unit_id = ?, current_brand = ?, current_model = ?, serial_no = ?, age_years = ?, sap_number = ?,
-         updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [
-        blankToNull(input.unit_id), blankToNull(input.current_brand), blankToNull(input.current_model),
-        blankToNull(input.serial_no), blankToNull(input.age_years), blankToNull(input.sap_number), id,
-      ],
-    );
-    await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Existing Device details updated', actor });
+    await withTransaction(laptopProcurementPool, async (client) => {
+      await execTx(
+        client,
+        `UPDATE laptop_requests SET
+           unit_id = ?, current_brand = ?, current_model = ?, serial_no = ?, age_years = ?, sap_number = ?,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          blankToNull(input.unit_id), blankToNull(input.current_brand), blankToNull(input.current_model),
+          blankToNull(input.serial_no), blankToNull(input.age_years), blankToNull(input.sap_number), id,
+        ],
+      );
+      await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Existing Device details updated', actor, client });
+    });
     revalidatePath(`/laptop-procurement/requests/${id}`);
     return { success: true };
   } catch (err) {
@@ -1901,15 +1995,21 @@ export async function createAdminLaptopRequest(input: AdminCreateLaptopRequestIn
     const actor = await requireAdminActor();
     if (!actor.permissions.canManageData) return { success: false, error: 'Data management access is required.' };
     const validated = validateCreateInput(input);
-    const reference = await makeReference();
-    const id = await insertRequest(input, {
-      reference,
-      status: input.status ?? 'Submitted',
-      requestedByName: input.requested_by_name?.trim() || actor.name,
-      requestedByEmail: input.requested_by_email?.trim() || actor.email,
-      validated,
+    await ensureLaptopReferenceUniqueIndex();
+    const { id, reference } = await withTransaction(laptopProcurementPool, async (client) => {
+      await lockForTransaction(client, LAPTOP_REFERENCE_LOCK_KEY);
+      const reference = await makeReference(client);
+      const id = await insertRequest(input, {
+        client,
+        reference,
+        status: input.status ?? 'Submitted',
+        requestedByName: input.requested_by_name?.trim() || actor.name,
+        requestedByEmail: input.requested_by_email?.trim() || actor.email,
+        validated,
+      });
+      await writeActivity({ requestId: id, referenceNumber: reference, action: 'Request created by admin', actor, client });
+      return { id, reference };
     });
-    await writeActivity({ requestId: id, referenceNumber: reference, action: 'Request created by admin', actor });
     revalidateLaptopPaths();
     await notifyNewLaptopRequest(id);
     return { success: true, data: { id }, reference_number: reference };
@@ -2007,13 +2107,16 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     if (stageDecisionColumn) { sets.push(`${stageDecisionColumn} = ?`); params.push('Rejected'); }
     params.push(id);
 
-    await exec(`UPDATE laptop_requests SET ${sets.join(', ')} WHERE id = ?`, params);
-    await writeActivity({
-      requestId: id,
-      referenceNumber: row.reference_number,
-      action: `Rejected by ${stageLabel} — returned to IT Manager`,
-      actor,
-      notes: trimmedReason,
+    await withTransaction(laptopProcurementPool, async (client) => {
+      await execTx(client, `UPDATE laptop_requests SET ${sets.join(', ')} WHERE id = ?`, params);
+      await writeActivity({
+        requestId: id,
+        referenceNumber: row.reference_number,
+        action: `Rejected by ${stageLabel} — returned to IT Manager`,
+        actor,
+        notes: trimmedReason,
+        client,
+      });
     });
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
@@ -2201,30 +2304,34 @@ export async function updateLaptopRequestStatus(
     if (procureNewDetailsAssignment) params.push(procureNewTypeOfDevice, procureNewModel);
     params.push(id);
 
-    await exec(
-      `UPDATE laptop_requests SET
-         status = ?,
-         pending_with = ?,
-         reviewed_by_name = ?,
-         reviewed_by_email = ?,
-         reviewed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
-         rejection_reason = ?,
-         review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${stageDecisionAssignment}${assignedLaptopAssignment}${procureNewFlagAssignment}${procureNewDetailsAssignment},
-         updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      params,
-    );
-
     const activityNotes = [comment || null, onBehalfOf ? `On behalf of ${onBehalfOf}` : null]
       .filter(Boolean)
       .join(' — ') || null;
 
-    await writeActivity({
-      requestId: id,
-      referenceNumber: row.reference_number,
-      action: `Status updated to ${status}`,
-      actor,
-      notes: activityNotes,
+    await withTransaction(laptopProcurementPool, async (client) => {
+      await execTx(
+        client,
+        `UPDATE laptop_requests SET
+           status = ?,
+           pending_with = ?,
+           reviewed_by_name = ?,
+           reviewed_by_email = ?,
+           reviewed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE reviewed_at END,
+           rejection_reason = ?,
+           review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${stageDecisionAssignment}${assignedLaptopAssignment}${procureNewFlagAssignment}${procureNewDetailsAssignment},
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        params,
+      );
+
+      await writeActivity({
+        requestId: id,
+        referenceNumber: row.reference_number,
+        action: `Status updated to ${status}`,
+        actor,
+        notes: activityNotes,
+        client,
+      });
     });
 
     revalidateLaptopPaths();
@@ -2279,13 +2386,16 @@ export async function submitProcureNewDetails(id: number, input: SubmitProcureNe
     const model = requireText(input.model, 'Model');
     const nextStatus: LaptopRequestStatus = 'CM Confirm Device';
 
-    await exec(
-      `UPDATE laptop_requests SET
-         type_of_device = ?, requested_model = ?, status = ?, pending_with = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [typeOfDevice, model, nextStatus, getPendingWithLabel(nextStatus), id],
-    );
-    await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Device details submitted, sent to Country Manager for confirmation', actor });
+    await withTransaction(laptopProcurementPool, async (client) => {
+      await execTx(
+        client,
+        `UPDATE laptop_requests SET
+           type_of_device = ?, requested_model = ?, status = ?, pending_with = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [typeOfDevice, model, nextStatus, getPendingWithLabel(nextStatus), id],
+      );
+      await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Device details submitted, sent to Country Manager for confirmation', actor, client });
+    });
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
     const confirmedRequest = serialise<LaptopRequest>({ ...row, status: nextStatus, type_of_device: typeOfDevice, requested_model: model });
@@ -2317,9 +2427,14 @@ export async function deleteLaptopRecord(recordType: 'request' | 'activity', id:
 
     const rows = await sql<QueryResultRow[]>(`SELECT reference_number FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
     if (!rows[0]) return { success: false, error: 'Record not found.' };
-    await exec(`DELETE FROM laptop_requests WHERE id = ?`, [id]);
-    await exec(`DELETE FROM laptop_documents WHERE request_id = ?`, [id]);
-    await exec(`DELETE FROM laptop_activity_log WHERE request_id = ?`, [id]);
+    // There are no FKs between these tables, so the three deletes have to succeed or
+    // fail together — otherwise a failure after the first one leaves attachments and
+    // log rows pointing at a request that no longer exists.
+    await withTransaction(laptopProcurementPool, async (client) => {
+      await execTx(client, `DELETE FROM laptop_requests WHERE id = ?`, [id]);
+      await execTx(client, `DELETE FROM laptop_documents WHERE request_id = ?`, [id]);
+      await execTx(client, `DELETE FROM laptop_activity_log WHERE request_id = ?`, [id]);
+    });
     revalidateLaptopPaths();
     return { success: true };
   } catch (err) {
@@ -2373,24 +2488,29 @@ export async function uploadLaptopDocument(formData: FormData): Promise<{ succes
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const insert = await exec(
-      `INSERT INTO laptop_documents
-         (request_id, document_name, original_name, document_type, file_type, file_size, file_content, uploaded_by_name, uploaded_by_email)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-      [
-        requestId, customName, file.name !== customName ? file.name : null, documentType,
-        detectMime(file), file.size, buffer, actor.name, actor.email,
-      ],
-    );
+    const docs = await withTransaction(laptopProcurementPool, async (client) => {
+      const insert = await execTx(
+        client,
+        `INSERT INTO laptop_documents
+           (request_id, document_name, original_name, document_type, file_type, file_size, file_content, uploaded_by_name, uploaded_by_email)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        [
+          requestId, customName, file.name !== customName ? file.name : null, documentType,
+          detectMime(file), file.size, buffer, actor.name, actor.email,
+        ],
+      );
 
-    const docs = await sql<QueryResultRow[]>(
-      `SELECT id, request_id, document_name, original_name, document_type, file_type, file_size,
-              uploaded_by_name, uploaded_by_email, uploaded_at
-       FROM laptop_documents WHERE id = ? LIMIT 1`,
-      [insert.insertId],
-    );
+      const rows = await sqlTx<QueryResultRow[]>(
+        client,
+        `SELECT id, request_id, document_name, original_name, document_type, file_type, file_size,
+                uploaded_by_name, uploaded_by_email, uploaded_at
+         FROM laptop_documents WHERE id = ? LIMIT 1`,
+        [insert.insertId],
+      );
 
-    await writeActivity({ requestId, referenceNumber: requestRows[0].reference_number, action: 'Attachment uploaded', actor, notes: file.name });
+      await writeActivity({ requestId, referenceNumber: requestRows[0].reference_number, action: 'Attachment uploaded', actor, notes: file.name, client });
+      return rows;
+    });
     revalidatePath(`/laptop-procurement/requests/${requestId}`);
     return { success: true, document: serialise<LaptopDocument>(docs[0]) };
   } catch (err) {
@@ -2419,8 +2539,10 @@ export async function deleteLaptopDocument(documentId: number): Promise<ActionRe
     if (!actor.permissions.canManageData && !ownsAttachment) {
       return { success: false, error: 'You cannot remove this attachment.' };
     }
-    await exec(`DELETE FROM laptop_documents WHERE id = ?`, [documentId]);
-    await writeActivity({ requestId: doc.request_id, referenceNumber: doc.reference_number, action: 'Attachment removed', actor });
+    await withTransaction(laptopProcurementPool, async (client) => {
+      await execTx(client, `DELETE FROM laptop_documents WHERE id = ?`, [documentId]);
+      await writeActivity({ requestId: doc.request_id, referenceNumber: doc.reference_number, action: 'Attachment removed', actor, client });
+    });
     revalidatePath(`/laptop-procurement/requests/${doc.request_id}`);
     return { success: true };
   } catch (err) {
@@ -2546,18 +2668,24 @@ export async function setLaptopApproverCell(input: {
     }
 
     await ensureLaptopApproverMatrixColumns();
-    const existing = await sql<QueryResultRow[]>(`SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`, [country]);
-    if (existing[0]) {
-      await exec(
-        `UPDATE laptop_approver_matrix SET ${cols.emailCol} = ?, ${cols.nameCol} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [email, name, existing[0].id],
-      );
-    } else {
-      await exec(
-        `INSERT INTO laptop_approver_matrix (country, ${cols.emailCol}, ${cols.nameCol}, is_active) VALUES (?, ?, ?, TRUE)`,
-        [country, email, name],
-      );
-    }
+    // Look-then-insert: without the transaction two admins adding the first approver
+    // for the same country can both miss the row and both insert one.
+    await withTransaction(laptopProcurementPool, async (client) => {
+      const existing = await sqlTx<QueryResultRow[]>(client, `SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`, [country]);
+      if (existing[0]) {
+        await execTx(
+          client,
+          `UPDATE laptop_approver_matrix SET ${cols.emailCol} = ?, ${cols.nameCol} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          [email, name, existing[0].id],
+        );
+      } else {
+        await execTx(
+          client,
+          `INSERT INTO laptop_approver_matrix (country, ${cols.emailCol}, ${cols.nameCol}, is_active) VALUES (?, ?, ?, TRUE)`,
+          [country, email, name],
+        );
+      }
+    });
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
@@ -2605,10 +2733,12 @@ function getMatrixColumns(role: LaptopApprovalStage, slot: number): { emailCol: 
 
 // Clears `email` out of exactly the given role+slot's column pair across every matrix
 // row — shared by removeApproverMatrixRole and saveApproverMatrixRole's edit path.
-async function clearApproverMatrixRoleForEmail(email: string, role: LaptopApprovalStage, slot: number): Promise<void> {
+async function clearApproverMatrixRoleForEmail(email: string, role: LaptopApprovalStage, slot: number, client?: PoolClient): Promise<void> {
   const cols = getMatrixColumns(role, slot);
   if (!cols) return;
-  await exec(`UPDATE laptop_approver_matrix SET ${cols.emailCol} = NULL, ${cols.nameCol} = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(${cols.emailCol}) = ?`, [email]);
+  const statement = `UPDATE laptop_approver_matrix SET ${cols.emailCol} = NULL, ${cols.nameCol} = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(${cols.emailCol}) = ?`;
+  if (client) await execTx(client, statement, [email]);
+  else await exec(statement, [email]);
 }
 
 /**
@@ -2646,24 +2776,31 @@ export async function saveApproverMatrixRole(input: {
     const unknown = await findUnknownDirectoryEmails([email]);
     if (unknown.length) return { success: false, error: unknownDirectoryEmailError(unknown) };
 
-    if (input.originalEmail?.trim()) {
-      await clearApproverMatrixRoleForEmail(input.originalEmail.trim().toLowerCase(), input.role, slot);
-    }
-
-    for (const country of countries) {
-      const rows = await sql<QueryResultRow[]>(`SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`, [country]);
-      if (rows[0]) {
-        await exec(
-          `UPDATE laptop_approver_matrix SET ${cols.emailCol} = ?, ${cols.nameCol} = ?, is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-          [email, blankToNull(input.name), rows[0].id],
-        );
-      } else {
-        await exec(
-          `INSERT INTO laptop_approver_matrix (country, ${cols.emailCol}, ${cols.nameCol}, is_active) VALUES (?, ?, ?, TRUE)`,
-          [country, email, blankToNull(input.name)],
-        );
+    // The clear and the per-country writes are one edit: a failure part-way through
+    // would otherwise leave the person stripped from their old countries without being
+    // installed on the new ones — i.e. a stage with no approver at all.
+    await withTransaction(laptopProcurementPool, async (client) => {
+      if (input.originalEmail?.trim()) {
+        await clearApproverMatrixRoleForEmail(input.originalEmail.trim().toLowerCase(), input.role, slot, client);
       }
-    }
+
+      for (const country of countries) {
+        const rows = await sqlTx<QueryResultRow[]>(client, `SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`, [country]);
+        if (rows[0]) {
+          await execTx(
+            client,
+            `UPDATE laptop_approver_matrix SET ${cols.emailCol} = ?, ${cols.nameCol} = ?, is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            [email, blankToNull(input.name), rows[0].id],
+          );
+        } else {
+          await execTx(
+            client,
+            `INSERT INTO laptop_approver_matrix (country, ${cols.emailCol}, ${cols.nameCol}, is_active) VALUES (?, ?, ?, TRUE)`,
+            [country, email, blankToNull(input.name)],
+          );
+        }
+      }
+    });
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
@@ -2864,29 +3001,38 @@ export async function approveLaptopAccess(input: {
     const email = requireText(input.userEmail, 'Email').toLowerCase();
     const role = requireText(input.approvedRole, 'Role') as LaptopPermissionRole;
 
-    await exec(
-      `INSERT INTO laptop_access_requests
-         (user_email, display_name, status, requested_role, approved_role, country, segment, requested_at, reviewed_at, reviewed_by, notes)
-       VALUES (?, ?, 'Approved', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
-       ON CONFLICT (user_email) DO UPDATE SET
-         status = 'Approved',
-         approved_role = EXCLUDED.approved_role,
-         country = EXCLUDED.country,
-         segment = EXCLUDED.segment,
-         reviewed_at = CURRENT_TIMESTAMP,
-         reviewed_by = EXCLUDED.reviewed_by,
-         notes = EXCLUDED.notes`,
-      [email, email, role, role, blankToNull(input.country), blankToNull(input.segment), actor.email, blankToNull(input.notes)],
-    );
-
+    // DDL, so it stays outside the transaction below.
     await ensureLaptopPermissionsRoleConstraint();
-    await exec(
-      `INSERT INTO laptop_permissions (email, name, role, country, segment)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT (email) DO UPDATE SET
-         role = EXCLUDED.role, country = EXCLUDED.country, segment = EXCLUDED.segment, updated_at = CURRENT_TIMESTAMP`,
-      [email, null, role, blankToNull(input.country), blankToNull(input.segment)],
-    );
+
+    // The access record and the permission row that actually grants access have to
+    // land together — a failure between them either logs an approval that grants
+    // nothing, or grants access with no record of who approved it.
+    await withTransaction(laptopProcurementPool, async (client) => {
+      await execTx(
+        client,
+        `INSERT INTO laptop_access_requests
+           (user_email, display_name, status, requested_role, approved_role, country, segment, requested_at, reviewed_at, reviewed_by, notes)
+         VALUES (?, ?, 'Approved', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
+         ON CONFLICT (user_email) DO UPDATE SET
+           status = 'Approved',
+           approved_role = EXCLUDED.approved_role,
+           country = EXCLUDED.country,
+           segment = EXCLUDED.segment,
+           reviewed_at = CURRENT_TIMESTAMP,
+           reviewed_by = EXCLUDED.reviewed_by,
+           notes = EXCLUDED.notes`,
+        [email, email, role, role, blankToNull(input.country), blankToNull(input.segment), actor.email, blankToNull(input.notes)],
+      );
+
+      await execTx(
+        client,
+        `INSERT INTO laptop_permissions (email, name, role, country, segment)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (email) DO UPDATE SET
+           role = EXCLUDED.role, country = EXCLUDED.country, segment = EXCLUDED.segment, updated_at = CURRENT_TIMESTAMP`,
+        [email, null, role, blankToNull(input.country), blankToNull(input.segment)],
+      );
+    });
 
     revalidatePath('/admin');
     return { success: true };
@@ -2911,15 +3057,18 @@ export async function rejectLaptopAccess(userEmail: string): Promise<ActionResul
     if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
     await ensureLaptopAccessRequestTable();
     const email = requireText(userEmail, 'Email').toLowerCase();
-    await exec(
-      `UPDATE laptop_access_requests
-       SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
-       WHERE user_email = ?`,
-      [actor.email, email],
-    );
-    if (!adminEmails().includes(email)) {
-      await exec(`DELETE FROM laptop_permissions WHERE email = ?`, [email]);
-    }
+    await withTransaction(laptopProcurementPool, async (client) => {
+      await execTx(
+        client,
+        `UPDATE laptop_access_requests
+         SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
+         WHERE user_email = ?`,
+        [actor.email, email],
+      );
+      if (!adminEmails().includes(email)) {
+        await execTx(client, `DELETE FROM laptop_permissions WHERE email = ?`, [email]);
+      }
+    });
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
@@ -2934,17 +3083,20 @@ export async function revokeLaptopAccess(userEmail: string): Promise<ActionResul
     if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
     await ensureLaptopAccessRequestTable();
     const email = requireText(userEmail, 'Email').toLowerCase();
-    await exec(
-      `INSERT INTO laptop_access_requests
-         (user_email, display_name, status, requested_role, requested_at, reviewed_at, reviewed_by)
-       VALUES (?, ?, 'Revoked', 'Requester', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-       ON CONFLICT (user_email) DO UPDATE SET
-         status = 'Revoked', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = EXCLUDED.reviewed_by`,
-      [email, email, actor.email],
-    );
-    if (!adminEmails().includes(email)) {
-      await exec(`DELETE FROM laptop_permissions WHERE email = ?`, [email]);
-    }
+    await withTransaction(laptopProcurementPool, async (client) => {
+      await execTx(
+        client,
+        `INSERT INTO laptop_access_requests
+           (user_email, display_name, status, requested_role, requested_at, reviewed_at, reviewed_by)
+         VALUES (?, ?, 'Revoked', 'Requester', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+         ON CONFLICT (user_email) DO UPDATE SET
+           status = 'Revoked', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = EXCLUDED.reviewed_by`,
+        [email, email, actor.email],
+      );
+      if (!adminEmails().includes(email)) {
+        await execTx(client, `DELETE FROM laptop_permissions WHERE email = ?`, [email]);
+      }
+    });
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
@@ -2959,10 +3111,12 @@ export async function deleteLaptopAccessRequest(userEmail: string): Promise<Acti
     if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
     await ensureLaptopAccessRequestTable();
     const email = requireText(userEmail, 'Email').toLowerCase();
-    await exec(`DELETE FROM laptop_access_requests WHERE user_email = ?`, [email]);
-    if (!adminEmails().includes(email)) {
-      await exec(`DELETE FROM laptop_permissions WHERE email = ?`, [email]);
-    }
+    await withTransaction(laptopProcurementPool, async (client) => {
+      await execTx(client, `DELETE FROM laptop_access_requests WHERE user_email = ?`, [email]);
+      if (!adminEmails().includes(email)) {
+        await execTx(client, `DELETE FROM laptop_permissions WHERE email = ?`, [email]);
+      }
+    });
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
@@ -3035,19 +3189,26 @@ export async function grantLaptopDelegation(input: {
       return { success: false, error: 'End date must be after the start date.' };
     }
 
-    for (const r of input.roles) {
-      // Replace any existing active delegation of this exact role to the same person.
-      await exec(
-        `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-         WHERE LOWER(delegator_email) = ? AND LOWER(delegate_email) = ? AND stage = ? AND LOWER(country) = ? AND is_active = TRUE`,
-        [actor.email.toLowerCase(), delegateEmail, r.stage, r.country.toLowerCase()],
-      );
-      await exec(
-        `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, stage, country, starts_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [actor.email.toLowerCase(), actor.name, delegateEmail, blankToNull(input.delegateName), r.stage, r.country, startsAt, expiresAt],
-      );
-    }
+    // Deactivate-then-insert, per role: without the transaction a failure between the
+    // two leaves the old delegation revoked and no replacement in its place, so the
+    // stage silently loses its delegate.
+    await withTransaction(laptopProcurementPool, async (client) => {
+      for (const r of input.roles) {
+        // Replace any existing active delegation of this exact role to the same person.
+        await execTx(
+          client,
+          `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+           WHERE LOWER(delegator_email) = ? AND LOWER(delegate_email) = ? AND stage = ? AND LOWER(country) = ? AND is_active = TRUE`,
+          [actor.email.toLowerCase(), delegateEmail, r.stage, r.country.toLowerCase()],
+        );
+        await execTx(
+          client,
+          `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, stage, country, starts_at, expires_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [actor.email.toLowerCase(), actor.name, delegateEmail, blankToNull(input.delegateName), r.stage, r.country, startsAt, expiresAt],
+        );
+      }
+    });
     revalidatePath('/laptop-procurement/delegate');
     await sendLaptopDelegationNotification('granted', {
       delegatorEmail: actor.email,
@@ -3141,19 +3302,23 @@ export async function adminGrantLaptopDelegation(input: {
       return { success: false, error: 'End date must be after the start date.' };
     }
 
-    for (const r of input.roles) {
-      // Replace any existing active delegation of this exact role for this same pair.
-      await exec(
-        `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-         WHERE LOWER(delegator_email) = ? AND LOWER(delegate_email) = ? AND stage = ? AND LOWER(country) = ? AND is_active = TRUE`,
-        [delegatorEmail, delegateEmail, r.stage, r.country.toLowerCase()],
-      );
-      await exec(
-        `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, stage, country, starts_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [delegatorEmail, delegatorName, delegateEmail, blankToNull(input.delegateName), r.stage, r.country, startsAt, expiresAt],
-      );
-    }
+    await withTransaction(laptopProcurementPool, async (client) => {
+      for (const r of input.roles) {
+        // Replace any existing active delegation of this exact role for this same pair.
+        await execTx(
+          client,
+          `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+           WHERE LOWER(delegator_email) = ? AND LOWER(delegate_email) = ? AND stage = ? AND LOWER(country) = ? AND is_active = TRUE`,
+          [delegatorEmail, delegateEmail, r.stage, r.country.toLowerCase()],
+        );
+        await execTx(
+          client,
+          `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, stage, country, starts_at, expires_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [delegatorEmail, delegatorName, delegateEmail, blankToNull(input.delegateName), r.stage, r.country, startsAt, expiresAt],
+        );
+      }
+    });
     revalidatePath('/admin');
     revalidatePath('/laptop-procurement/delegate');
     await sendLaptopDelegationNotification('granted', {

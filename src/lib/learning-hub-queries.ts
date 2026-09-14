@@ -12,9 +12,10 @@
  * Azure AD hands back.
  */
 
-import type { QueryResultRow } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
 import { createHash } from 'crypto';
 import learningHubPool from '@/lib/db-learning-hub';
+import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import { currentActor, normalizeEmail } from '@/lib/require-access';
 import { SEED_TRACKS, type SeedTrack } from '@/lib/learning-hub-seed-content';
 import type {
@@ -56,6 +57,29 @@ export async function sql<T extends QueryResultRow[]>(statement: string, params:
 }
 export async function exec(statement: string, params: QueryParams = []): Promise<{ rowCount: number; insertId: number }> {
   const result = await learningHubPool.query(toPostgresQuery(statement), normaliseParams(params));
+  const rawId = result.rows[0]?.id;
+  const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
+  return { rowCount: result.rowCount ?? 0, insertId: Number.isFinite(insertId) ? insertId : 0 };
+}
+
+/* Transaction-bound twins of sql()/exec(). A multi-statement write must run every
+   statement on the client withTransaction() supplied: anything going through the
+   pool helpers above lands on a different connection, outside the transaction, and
+   will not roll back with it. */
+export async function sqlOn<T extends QueryResultRow[]>(
+  client: PoolClient,
+  statement: string,
+  params: QueryParams = [],
+): Promise<T> {
+  const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
+  return serialise<T>(result.rows);
+}
+export async function execOn(
+  client: PoolClient,
+  statement: string,
+  params: QueryParams = [],
+): Promise<{ rowCount: number; insertId: number }> {
+  const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
   const rawId = result.rows[0]?.id;
   const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
   return { rowCount: result.rowCount ?? 0, insertId: Number.isFinite(insertId) ? insertId : 0 };
@@ -219,34 +243,74 @@ async function ensureLearningHubSchema(): Promise<void> {
   )`);
 }
 
-// Inserts a track's courses/modules/lessons breadth-first (siblings in parallel, not one deep serial
-// chain), a cold-start seed of dozens of sequential round trips risks exceeding the serverless
-// function's execution timeout. Each level only depends on its parent's id, so siblings are independent.
+// Inserts a track's courses/modules/lessons one multi-row INSERT per level: three round trips for the
+// whole track instead of one per row. The previous breadth-first Promise.all fanned the inserts across
+// pool connections to stay inside the serverless execution timeout; every statement now shares the one
+// transaction client, where parallel calls would just queue, so batching is what keeps it fast (and the
+// transaction short). Each level is matched back to its parent through order_index — which is unique
+// within a parent here — rather than through the row order of RETURNING, which is not guaranteed.
 // Shared by the one-time empty-DB seed and the admin "reset track to defaults" action.
-async function insertTrackCourses(trackId: number, track: SeedTrack): Promise<void> {
-  await Promise.all(
-    track.courses.map(async (course, courseIdx) => {
-      const courseResult = await exec(
-        `INSERT INTO learning_courses (track_id, title, description, order_index, status) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-        [trackId, course.title, course.description, courseIdx, course.status],
-      );
-      await Promise.all(
-        course.modules.map(async (mod, moduleIdx) => {
-          const moduleResult = await exec(
-            `INSERT INTO learning_modules (course_id, title, order_index, resource_label, resource_url) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-            [courseResult.insertId, mod.title, moduleIdx, mod.resourceLabel ?? null, mod.resourceUrl ?? null],
-          );
-          await Promise.all(
-            mod.lessons.map((lesson, lessonIdx) =>
-              exec(
-                `INSERT INTO learning_lessons (module_id, title, body, video_url, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-                [moduleResult.insertId, lesson.title, lesson.body, lesson.videoUrl ?? null, lesson.duration_minutes ?? null, lessonIdx],
-              ),
-            ),
-          );
-        }),
-      );
-    }),
+async function insertTrackCourses(client: PoolClient, trackId: number, track: SeedTrack): Promise<void> {
+  if (track.courses.length === 0) return;
+
+  const courseParams: QueryParams = [];
+  const courseRowsSql = track.courses.map((course, courseIdx) => {
+    courseParams.push(trackId, course.title, course.description, courseIdx, course.status);
+    return `(?, ?, ?, ?, ?)`;
+  });
+  const insertedCourses = await sqlOn<QueryResultRow[]>(
+    client,
+    `INSERT INTO learning_courses (track_id, title, description, order_index, status)
+     VALUES ${courseRowsSql.join(', ')} RETURNING id, order_index`,
+    courseParams,
+  );
+  const courseIdByOrder = new Map(insertedCourses.map((r) => [Number(r.order_index), Number(r.id)]));
+
+  const moduleParams: QueryParams = [];
+  const moduleRowsSql: string[] = [];
+  track.courses.forEach((course, courseIdx) => {
+    const courseId = courseIdByOrder.get(courseIdx)!;
+    course.modules.forEach((mod, moduleIdx) => {
+      moduleParams.push(courseId, mod.title, moduleIdx, mod.resourceLabel ?? null, mod.resourceUrl ?? null);
+      moduleRowsSql.push(`(?, ?, ?, ?, ?)`);
+    });
+  });
+  if (moduleRowsSql.length === 0) return;
+  const insertedModules = await sqlOn<QueryResultRow[]>(
+    client,
+    `INSERT INTO learning_modules (course_id, title, order_index, resource_label, resource_url)
+     VALUES ${moduleRowsSql.join(', ')} RETURNING id, course_id, order_index`,
+    moduleParams,
+  );
+  const moduleIdByCourseAndOrder = new Map(
+    insertedModules.map((r) => [`${Number(r.course_id)}:${Number(r.order_index)}`, Number(r.id)]),
+  );
+
+  const lessonParams: QueryParams = [];
+  const lessonRowsSql: string[] = [];
+  track.courses.forEach((course, courseIdx) => {
+    const courseId = courseIdByOrder.get(courseIdx)!;
+    course.modules.forEach((mod, moduleIdx) => {
+      const moduleId = moduleIdByCourseAndOrder.get(`${courseId}:${moduleIdx}`)!;
+      mod.lessons.forEach((lesson, lessonIdx) => {
+        lessonParams.push(
+          moduleId,
+          lesson.title,
+          lesson.body,
+          lesson.videoUrl ?? null,
+          lesson.duration_minutes ?? null,
+          lessonIdx,
+        );
+        lessonRowsSql.push(`(?, ?, ?, ?, ?, ?)`);
+      });
+    });
+  });
+  if (lessonRowsSql.length === 0) return;
+  await execOn(
+    client,
+    `INSERT INTO learning_lessons (module_id, title, body, video_url, duration_minutes, order_index)
+     VALUES ${lessonRowsSql.join(', ')}`,
+    lessonParams,
   );
 }
 
@@ -256,22 +320,67 @@ export function hashSeedTrack(track: SeedTrack): string {
   return createHash('sha256').update(JSON.stringify(track)).digest('hex');
 }
 
-export async function insertNewSeedTrack(track: SeedTrack, orderIndex: number, version: string): Promise<number> {
-  const result = await exec(
-    `INSERT INTO learning_tracks (key, name, description, icon, color, order_index, seed_version) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-    [track.key, track.name, track.description, track.icon, track.color, orderIndex, version],
-  );
-  await insertTrackCourses(result.insertId, track);
-  return result.insertId;
-}
+/**
+ * Rebuild one track from its code-defined seed content, atomically.
+ *
+ * Replacing a track's content deletes its courses, which cascades all the way down to
+ * `learning_lesson_progress` — so a half-finished run is not a cosmetic problem, it is a
+ * track left permanently empty with every learner's progress already gone. Three things
+ * make that unreachable:
+ *
+ *  - the whole replacement runs in ONE transaction, so a crash mid-rebuild rolls the delete
+ *    back and the old content stays live;
+ *  - an advisory lock on the track key serialises it, so two serverless cold starts landing
+ *    on the same deploy cannot both delete-and-reinsert the same track and interleave into
+ *    duplicated courses;
+ *  - `seed_version` is written LAST. If anything fails the stamp is never applied, so the
+ *    track still looks un-synced and the next request retries — the opposite of the old
+ *    order, which stamped "done" before the content it claimed was there existed.
+ *
+ * `force` is the admin "reset to defaults" path: rebuild even when the stamp already matches.
+ * Returns false when an up-to-date track was left alone.
+ */
+export async function applySeedTrack(track: SeedTrack, orderIndex: number, force = false): Promise<boolean> {
+  const version = hashSeedTrack(track);
 
-export async function applySeedTrackToExisting(trackId: number, track: SeedTrack, version: string): Promise<void> {
-  await exec(
-    `UPDATE learning_tracks SET name = ?, description = ?, icon = ?, color = ?, seed_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-    [track.name, track.description, track.icon, track.color, version, trackId],
-  );
-  await exec(`DELETE FROM learning_courses WHERE track_id = ?`, [trackId]);
-  await insertTrackCourses(trackId, track);
+  return withTransaction(learningHubPool, async (client) => {
+    await lockForTransaction(client, `learning-hub:seed-track:${track.key}`);
+
+    // Re-read under the lock: a concurrent cold start may have finished the rebuild while we
+    // were queued on it, in which case there is nothing left to do.
+    const existingRows = await sqlOn<QueryResultRow[]>(
+      client,
+      `SELECT id, seed_version FROM learning_tracks WHERE key = ?`,
+      [track.key],
+    );
+    const existing = existingRows[0];
+    if (existing && !force && String(existing.seed_version ?? '') === version) return false;
+
+    let trackId: number;
+    if (existing) {
+      trackId = Number(existing.id);
+      // seed_version deliberately NOT set here — see the final UPDATE below.
+      await execOn(
+        client,
+        `UPDATE learning_tracks SET name = ?, description = ?, icon = ?, color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [track.name, track.description, track.icon, track.color, trackId],
+      );
+      await execOn(client, `DELETE FROM learning_courses WHERE track_id = ?`, [trackId]);
+    } else {
+      const inserted = await execOn(
+        client,
+        `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+        [track.key, track.name, track.description, track.icon, track.color, orderIndex],
+      );
+      trackId = inserted.insertId;
+    }
+
+    await insertTrackCourses(client, trackId, track);
+
+    // Last statement: the stamp only exists if everything above it does.
+    await execOn(client, `UPDATE learning_tracks SET seed_version = ? WHERE id = ?`, [version, trackId]);
+    return true;
+  });
 }
 
 // Runs on every cold start (cheap once synced, just one SELECT + hash comparison per track).
@@ -279,21 +388,16 @@ export async function applySeedTrackToExisting(trackId: number, track: SeedTrack
 // completely alone, so admin edits made through the CMS survive unrelated deploys. A track whose
 // code content DID change (this is how a content push like the SAP video rebuild reaches production)
 // gets its courses replaced with what's now in SEED_TRACKS automatically, no manual "reset" needed.
+// The batch SELECT here is only a fast path that keeps the steady state to a single query; the
+// authoritative comparison happens again inside applySeedTrack(), under the lock.
 async function syncSeedTracks(): Promise<void> {
-  const existingTracks = await sql<QueryResultRow[]>(`SELECT id, key, seed_version FROM learning_tracks`);
-  const existingByKey = new Map(existingTracks.map((t) => [String(t.key), t]));
+  const existingTracks = await sql<QueryResultRow[]>(`SELECT key, seed_version FROM learning_tracks`);
+  const versionByKey = new Map(existingTracks.map((t) => [String(t.key), String(t.seed_version ?? '')]));
 
   for (let trackIdx = 0; trackIdx < SEED_TRACKS.length; trackIdx++) {
     const track = SEED_TRACKS[trackIdx];
-    const version = hashSeedTrack(track);
-    const existing = existingByKey.get(track.key);
-
-    if (!existing) {
-      await insertNewSeedTrack(track, trackIdx, version);
-      continue;
-    }
-    if (String(existing.seed_version ?? '') === version) continue;
-    await applySeedTrackToExisting(Number(existing.id), track, version);
+    if (versionByKey.get(track.key) === hashSeedTrack(track)) continue;
+    await applySeedTrack(track, trackIdx);
   }
 }
 

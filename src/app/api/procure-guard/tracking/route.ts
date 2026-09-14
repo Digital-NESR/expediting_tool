@@ -19,7 +19,24 @@ type TrackingPayload = {
   metadata?: unknown;
 };
 
+// Memoized so the five idempotent DDL statements run once per process instead of on every tracked
+// click and page view — this is the hottest endpoint in the app, and the DDL was costing five extra
+// round-trips plus repeated catalog locks before each insert. The in-flight promise is cached (not
+// just its result) so concurrent requests share one execution, and it is cleared on failure so a
+// transient error does not poison the process. A fresh deploy starts a new process, so genuinely new
+// schema still gets applied.
+let usageTableEnsured: Promise<void> | null = null;
+
 async function ensureUsageTable(): Promise<void> {
+  if (usageTableEnsured) return usageTableEnsured;
+  usageTableEnsured = runEnsureUsageTable().catch(err => {
+    usageTableEnsured = null; // allow a retry on the next request if it genuinely failed
+    throw err;
+  });
+  return usageTableEnsured;
+}
+
+async function runEnsureUsageTable(): Promise<void> {
   async function querySchema(statement: string) {
     try {
       await procureGuardPool.query(statement);

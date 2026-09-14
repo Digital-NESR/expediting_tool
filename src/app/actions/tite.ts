@@ -1,7 +1,9 @@
 'use server';
 
 import titePool from '@/lib/db-tite';
+import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import { titeCountryCode, formatTiteReference } from '@/lib/tite-constants';
+import { getNextStatusOptions } from '@/lib/tite-stage-config';
 import {
   requireTiteUser,
   currentTiteUser,
@@ -259,11 +261,15 @@ export async function createShipment(
        callers cannot compute the same sequence and trip the unique index. */
     const countryCode = titeCountryCode(input.country);
 
-    const client = await titePool.connect();
-    let rows: { id: number }[];
-    try {
-      await client.query('BEGIN');
-      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`tite_ref_${countryCode}`]);
+    /* Read on the pool before the transaction opens: this carries its own access
+       check, and nothing about a read needs to roll back. */
+    const stakeholders = input.country ? await getCountryStakeholders(input.country) : [];
+
+    /* The shipment row, its notification contacts and its creation log entry all
+       commit together — a shipment with no recipients would be silently missed by
+       the expiry alerts. */
+    const shipmentId = await withTransaction(titePool, async (client) => {
+      await lockForTransaction(client, `tite_ref_${countryCode}`);
 
       const { rows: seqRows } = await client.query<{ next_no: number }>(
         `SELECT COALESCE(MAX((regexp_replace(reference_number, '^[A-Z]+-', ''))::int), 0) + 1 AS next_no
@@ -273,7 +279,7 @@ export async function createShipment(
       );
       const reference_number = formatTiteReference(countryCode, Number(seqRows[0].next_no));
 
-      ({ rows } = await client.query<{ id: number }>(
+      const { rows } = await client.query<{ id: number }>(
       `INSERT INTO shipments (
         reference_number, segment, from_country, to_country,
         invoice_number, invoice_value_usd, customs_reference_number, description,
@@ -313,18 +319,10 @@ export async function createShipment(
         input.country           ?? null,
         createdBy,
       ],
-      ));
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK').catch(() => {});
-      throw err;
-    } finally {
-      client.release();
-    }
-    const shipmentId = rows[0].id;
+      );
+      const newId = rows[0].id;
 
-    /* ─── Insert notification contacts ─── */
-    try {
+      /* ─── Insert notification contacts ─── */
       const allTrue = [true, true, true, true, true, true, true, true];
       const insertContact = (
         email: string | null,
@@ -332,22 +330,19 @@ export async function createShipment(
         role:  string | null,
         prefs?: boolean[],
       ) =>
-        titePool.query(
+        client.query(
           `INSERT INTO shipment_notification_contacts
              (shipment_id, email, name, role,
               notify_60_days, notify_30_days, notify_14_days, notify_7_days,
               notify_2_days, notify_1_day, notify_0_day, notify_overdue)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
            ON CONFLICT DO NOTHING`,
-          [shipmentId, email, name, role, ...(prefs ?? allTrue)],
+          [newId, email, name, role, ...(prefs ?? allTrue)],
         );
 
       // 1. Country stakeholders
-      if (input.country) {
-        const stakeholders = await getCountryStakeholders(input.country);
-        for (const s of stakeholders) {
-          await insertContact(s.email, s.name, s.role);
-        }
+      for (const s of stakeholders) {
+        await insertContact(s.email, s.name, s.role);
       }
 
       // 2. Creator — identity comes from the session, never from the payload.
@@ -368,19 +363,15 @@ export async function createShipment(
         ];
         await insertContact(c.email, c.name || null, c.role || null, prefs);
       }
-    } catch (contactErr) {
-      console.warn('[TI-TE] createShipment: could not insert contacts:', contactErr);
-    }
 
-    try {
-      await titePool.query(
+      await client.query(
         `INSERT INTO shipment_activity_log (shipment_id, action, details, performed_by)
          VALUES ($1, 'created', 'Shipment created via portal', $2)`,
-        [shipmentId, createdBy],
+        [newId, createdBy],
       );
-    } catch (logErr) {
-      console.warn('[TI-TE] createShipment: could not insert activity log:', logErr);
-    }
+
+      return newId;
+    });
 
     return { id: shipmentId };
   } catch (err) {
@@ -931,6 +922,18 @@ export async function updateShipmentStatus(params: {
     if (denied) return forbidden(denied);
     const performer = user.name;
 
+    /* The modal only offers the transitions in STATUS_TRANSITIONS; the same map is
+       enforced here so a hand-crafted POST cannot skip a step (re-opening a closed
+       file, or jumping straight to a refund). */
+    const { rows: currentRows } = await titePool.query<{ status: string | null }>(
+      `SELECT status FROM shipments WHERE id = $1`,
+      [params.shipmentId],
+    );
+    if (!currentRows[0]) return { success: false, error: 'Shipment not found.' };
+    if (!getNextStatusOptions(currentRows[0].status ?? '').includes(params.newStatus)) {
+      return { success: false, error: 'Invalid status transition.' };
+    }
+
     const fields: Record<string, unknown> = {
       status:          params.newStatus,
       last_updated_by: performer,
@@ -1177,39 +1180,44 @@ export async function saveNotificationContacts(params: {
     if (denied) return forbidden(denied);
     const performer = user.name;
 
-    await titePool.query(
-      `DELETE FROM shipment_notification_contacts WHERE shipment_id = $1`,
-      [params.shipmentId],
-    );
-
-    for (const c of params.contacts) {
-      if (!c.email) continue;
-      await titePool.query(
-        `INSERT INTO shipment_notification_contacts
-           (shipment_id, email, name, role,
-            notify_60_days, notify_30_days, notify_14_days, notify_7_days,
-            notify_2_days, notify_1_day, notify_0_day, notify_overdue)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-         ON CONFLICT DO NOTHING`,
-        [
-          params.shipmentId, c.email, c.name || null, c.role || null,
-          c.notify_60_days ?? true,
-          c.notify_30_days ?? true,
-          c.notify_14_days ?? true,
-          c.notify_7_days  ?? true,
-          c.notify_2_days  ?? true,
-          c.notify_1_day   ?? true,
-          c.notify_0_day   ?? true,
-          c.notify_overdue ?? true,
-        ],
+    /* Delete-then-insert: outside a transaction a failure between the two would
+       leave the shipment with NO recipients, so nobody is alerted before the
+       customs deadline. */
+    await withTransaction(titePool, async (client) => {
+      await client.query(
+        `DELETE FROM shipment_notification_contacts WHERE shipment_id = $1`,
+        [params.shipmentId],
       );
-    }
 
-    await dbInsertActivityLog({
-      shipment_id:  params.shipmentId,
-      action:       'Notification Contacts Updated',
-      details:      `Updated ${params.contacts.length} recipient${params.contacts.length !== 1 ? 's' : ''}`,
-      performed_by: performer,
+      for (const c of params.contacts) {
+        if (!c.email) continue;
+        await client.query(
+          `INSERT INTO shipment_notification_contacts
+             (shipment_id, email, name, role,
+              notify_60_days, notify_30_days, notify_14_days, notify_7_days,
+              notify_2_days, notify_1_day, notify_0_day, notify_overdue)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+           ON CONFLICT DO NOTHING`,
+          [
+            params.shipmentId, c.email, c.name || null, c.role || null,
+            c.notify_60_days ?? true,
+            c.notify_30_days ?? true,
+            c.notify_14_days ?? true,
+            c.notify_7_days  ?? true,
+            c.notify_2_days  ?? true,
+            c.notify_1_day   ?? true,
+            c.notify_0_day   ?? true,
+            c.notify_overdue ?? true,
+          ],
+        );
+      }
+
+      await dbInsertActivityLog({
+        shipment_id:  params.shipmentId,
+        action:       'Notification Contacts Updated',
+        details:      `Updated ${params.contacts.length} recipient${params.contacts.length !== 1 ? 's' : ''}`,
+        performed_by: performer,
+      }, client);
     });
 
     return { success: true };

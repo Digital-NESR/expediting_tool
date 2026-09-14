@@ -1,9 +1,10 @@
 'use server';
 
-import type { QueryResultRow } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
 import { unstable_cache } from 'next/cache';
 import ExcelJS from 'exceljs';
 import catalogManagerPool from '@/lib/db-catalog-manager';
+import { withTransaction } from '@/lib/db/tx';
 import { getProcureGuardUser } from '@/lib/auth';
 import { AccessError, normalizeEmail } from '@/lib/require-access';
 import { getDelegatorsForApp } from '@/app/actions/delegation';
@@ -78,6 +79,35 @@ async function exec(statement: string, params: QueryParams = []): Promise<{ rowC
   const rawId = result.rows[0]?.id;
   const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
   return { rowCount: result.rowCount ?? 0, insertId: Number.isFinite(insertId) ? insertId : 0 };
+}
+
+/**
+ * The sql()/exec() pair a piece of work runs its statements through. Defaults to the pool-bound
+ * helpers above; inside withTransaction() every statement must instead go through the pair bound
+ * to the supplied client (see dbOn) — anything reaching for the pool lands on a DIFFERENT
+ * connection, outside the transaction, and will not roll back with it.
+ */
+interface CatalogDb {
+  sql: <T extends QueryResultRow[]>(statement: string, params?: QueryParams) => Promise<T>;
+  exec: (statement: string, params?: QueryParams) => Promise<{ rowCount: number; insertId: number }>;
+}
+
+const poolDb: CatalogDb = { sql, exec };
+
+/** Transaction-bound twins of sql()/exec() — same `?` → `$n` rewrite, same param/row handling. */
+function dbOn(client: PoolClient): CatalogDb {
+  return {
+    sql: async <T extends QueryResultRow[]>(statement: string, params: QueryParams = []): Promise<T> => {
+      const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
+      return serialise<T>(result.rows);
+    },
+    exec: async (statement: string, params: QueryParams = []) => {
+      const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
+      const rawId = result.rows[0]?.id;
+      const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
+      return { rowCount: result.rowCount ?? 0, insertId: Number.isFinite(insertId) ? insertId : 0 };
+    },
+  };
 }
 
 /**
@@ -212,6 +242,19 @@ async function initCatalogManagerSchema(): Promise<void> {
     modified_by TEXT,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
+
+  // Entry codes (CAT-nnnn) come from a sequence, not SELECT MAX(...)+1: two concurrent creates (or
+  // two people importing at once) used to read the same max and mint the same code, and one request
+  // died on the unique key. nextval is atomic and never hands the same number out twice.
+  execSchema(`CREATE SEQUENCE IF NOT EXISTS catalog_entry_code_seq START WITH 1040`);
+  // Park the sequence above the highest code already in the table. Safe to re-run on every boot:
+  // it takes the GREATEST of (highest existing code, where the sequence already is, the 1039 floor),
+  // so it can only ever move forwards — never back onto a number that has already been handed out.
+  execSchema(`SELECT setval('catalog_entry_code_seq', GREATEST(
+      (SELECT COALESCE(MAX(CAST(SUBSTRING(code FROM 5) AS INTEGER)), 0) FROM catalog_entry WHERE code ~ '^CAT-[0-9]+$'),
+      (SELECT CASE WHEN is_called THEN last_value ELSE last_value - 1 END FROM catalog_entry_code_seq),
+      1039
+    ), TRUE)`);
 
   execSchema(`CREATE TABLE IF NOT EXISTS rate_version (
     id SERIAL PRIMARY KEY,
@@ -573,8 +616,8 @@ async function seedDemoData(): Promise<void> {
   }
 }
 
-async function upsertSupplier(name: string, vendor: string, manager: string | null): Promise<number> {
-  const ins = await exec(
+async function upsertSupplier(name: string, vendor: string, manager: string | null, db: CatalogDb = poolDb): Promise<number> {
+  const ins = await db.exec(
     `INSERT INTO supplier (vendor_code, name, accountable_manager) VALUES (?, ?, ?)
      ON CONFLICT (vendor_code) DO UPDATE SET name = EXCLUDED.name,
        accountable_manager = COALESCE(EXCLUDED.accountable_manager, supplier.accountable_manager)
@@ -734,10 +777,10 @@ interface ApproverScope {
 }
 
 /** Load every authority row for the given emails in one query. */
-async function loadApproverScopes(emails: (string | null | undefined)[]): Promise<ApproverScope[]> {
+async function loadApproverScopes(emails: (string | null | undefined)[], db: CatalogDb = poolDb): Promise<ApproverScope[]> {
   const list = [...new Set(emails.map(normalizeEmail).filter(Boolean))];
   if (!list.length) return [];
-  const rows = await sql<QueryResultRow[]>(
+  const rows = await db.sql<QueryResultRow[]>(
     `SELECT LOWER(au.email) AS email, au.role, ca.country_code, ca.spend_category_id
      FROM app_user au
      LEFT JOIN country_approver ca ON ca.user_id = au.id AND ca.is_active = TRUE
@@ -779,11 +822,12 @@ async function catalogActingIdentity(
   countryCode: string,
   categoryId: number | null,
   preloaded?: ApproverScope[],
+  db: CatalogDb = poolDb,
 ): Promise<{ allowed: boolean; label: string }> {
   if (actor.role === 'Admin') return { allowed: true, label: actor.name };
 
   const delegators = actor.delegatedFrom ?? [];
-  const scopes = preloaded ?? (await loadApproverScopes([actor.email, ...delegators.map((d) => d.email)]));
+  const scopes = preloaded ?? (await loadApproverScopes([actor.email, ...delegators.map((d) => d.email)], db));
 
   if (actor.canApproveOwn === true && scopeCovers(scopes, actor.email, countryCode, categoryId)) {
     return { allowed: true, label: actor.name };
@@ -1287,16 +1331,15 @@ export interface CatalogEntryInput {
   lead_time_days: number | null;
 }
 
-async function nextEntryCode(): Promise<string> {
-  const rows = await sql<{ n: number }[]>(
-    `SELECT COALESCE(MAX(CAST(SUBSTRING(code FROM 5) AS INTEGER)), 1039) AS n
-     FROM catalog_entry WHERE code ~ '^CAT-[0-9]+$'`,
-  );
-  return `CAT-${Number(rows[0]?.n ?? 1039) + 1}`;
-}
+/**
+ * The entry code is minted by the database, not by the app: `nextval` is atomic, so two concurrent
+ * creates (or two people importing at once) can never be handed the same CAT-nnnn. Interpolated
+ * into the `code` column of every catalog_entry INSERT; the sequence is set up in the schema init.
+ */
+const CODE_NEXTVAL = `('CAT-' || nextval('catalog_entry_code_seq'))`;
 
-async function loadThresholdRules(): Promise<ThresholdRule[]> {
-  const rows = await sql<{ country_code: string | null; spend_category_id: number | null; threshold_usd: string | number }[]>(
+async function loadThresholdRules(db: CatalogDb = poolDb): Promise<ThresholdRule[]> {
+  const rows = await db.sql<{ country_code: string | null; spend_category_id: number | null; threshold_usd: string | number }[]>(
     `SELECT country_code, spend_category_id, threshold_usd FROM approval_threshold`,
   );
   return rows.map((r) => ({
@@ -1306,53 +1349,67 @@ async function loadThresholdRules(): Promise<ThresholdRule[]> {
   }));
 }
 
-async function resolveRefs(input: CatalogEntryInput) {
-  const cat = await sql<{ id: number; type: string }[]>(`SELECT id, type FROM spend_category WHERE name = ?`, [input.category_name]);
+async function resolveRefs(input: CatalogEntryInput, db: CatalogDb = poolDb) {
+  const cat = await db.sql<{ id: number; type: string }[]>(`SELECT id, type FROM spend_category WHERE name = ?`, [input.category_name]);
   const categoryId = cat[0]?.id ?? null;
   const spendType = (input.spend_type ?? (cat[0]?.type as SpendType)) ?? 'Indirect';
   let subId: number | null = null;
   if (categoryId && input.subcategory_name) {
-    const sub = await sql<{ id: number }[]>(`SELECT id FROM spend_subcategory WHERE category_id = ? AND name = ?`, [categoryId, input.subcategory_name]);
+    const sub = await db.sql<{ id: number }[]>(`SELECT id FROM spend_subcategory WHERE category_id = ? AND name = ?`, [categoryId, input.subcategory_name]);
     subId = sub[0]?.id ?? null;
   }
-  const uom = await sql<{ id: number }[]>(`SELECT id FROM unit_of_measure WHERE name = ?`, [input.uom_name]);
+  const uom = await db.sql<{ id: number }[]>(`SELECT id FROM unit_of_measure WHERE name = ?`, [input.uom_name]);
   return { categoryId, spendType, subId, uomId: uom[0]?.id ?? null };
 }
 
-/** Create a new entry. mode 'draft' keeps it Draft; 'submit' sends for approval (or auto-activates Tier 1). */
-export async function createCatalogEntry(input: CatalogEntryInput, mode: 'draft' | 'submit'): Promise<{ id: number; code: string; status: CatalogStatus }> {
-  const actor = await requireCatalogActor('Contributor');
-
-  const supplierId = await upsertSupplier(input.supplier_name, input.supplier_code, input.manager);
-  const { categoryId, spendType, subId, uomId } = await resolveRefs(input);
+/**
+ * The body of createCatalogEntry, already inside a transaction. The entry, its first rate version
+ * and the audit row are one unit of work: a failure between them used to leave an entry with no
+ * version (or an orphan version whose number collided with the next edit).
+ */
+async function insertCatalogEntry(
+  db: CatalogDb,
+  actor: CatalogActor,
+  input: CatalogEntryInput,
+  mode: 'draft' | 'submit',
+): Promise<{ id: number; code: string; status: CatalogStatus }> {
+  const supplierId = await upsertSupplier(input.supplier_name, input.supplier_code, input.manager, db);
+  const { categoryId, spendType, subId, uomId } = await resolveRefs(input, db);
   const usd = toUsd(input.unit_price, input.currency_code);
-  const threshold = effectiveThresholdUsd(await loadThresholdRules(), input.country_code, categoryId);
+  const threshold = effectiveThresholdUsd(await loadThresholdRules(db), input.country_code, categoryId);
   const tier = approvalTier(usd, threshold);
   const status: CatalogStatus = mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
-  const code = await nextEntryCode();
   const approver = status === 'Pending Approval' ? (input.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
 
-  const ins = await exec(
+  const ins = await db.sql<{ id: number; code: string }[]>(
     `INSERT INTO catalog_entry
       (code, country_code, supplier_id, category_id, subcategory_id, uom_id, spend_type, family, commodity,
        unspsc_code, item_name, description, sirion_contract_id, sirion_url, notes, incoterms, incoterms_location, lead_time_days,
        status, tier_label, current_version_no, manager, approver_name, created_by, modified_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`,
+     VALUES (${CODE_NEXTVAL}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id, code`,
     [
-      code, input.country_code, supplierId, categoryId, subId, uomId, spendType, input.family, input.commodity,
+      input.country_code, supplierId, categoryId, subId, uomId, spendType, input.family, input.commodity,
       input.unspsc_code, input.item_name, input.description, input.sirion_contract_id, input.sirion_url, input.notes,
       input.incoterms, input.incoterms_location, input.lead_time_days,
       status, tier.label, input.manager, approver, actor.name, actor.name,
     ],
   );
-  await exec(
+  const id = Number(ins[0]?.id);
+  const code = String(ins[0]?.code);
+  await db.exec(
     `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
      VALUES (?, 1, ?, ?, ?, ?, 'Initial agreed rate', ?)`,
-    [ins.insertId, input.unit_price, input.currency_code, input.effective_date, input.expiry_date, actor.name],
+    [id, input.unit_price, input.currency_code, input.effective_date, input.expiry_date, actor.name],
   );
   await writeAudit('Create', code, actor.name, actor.email,
-    mode === 'draft' ? 'Saved new draft entry' : status === 'Active' ? 'New entry created & activated' : 'New entry submitted for approval');
-  return { id: ins.insertId, code, status };
+    mode === 'draft' ? 'Saved new draft entry' : status === 'Active' ? 'New entry created & activated' : 'New entry submitted for approval', db);
+  return { id, code, status };
+}
+
+/** Create a new entry. mode 'draft' keeps it Draft; 'submit' sends for approval (or auto-activates Tier 1). */
+export async function createCatalogEntry(input: CatalogEntryInput, mode: 'draft' | 'submit'): Promise<{ id: number; code: string; status: CatalogStatus }> {
+  const actor = await requireCatalogActor('Contributor');
+  return withTransaction(catalogManagerPool, (client) => insertCatalogEntry(dbOn(client), actor, input, mode));
 }
 
 export type CatalogEntryLine = Omit<CatalogEntryInput, 'id' | 'supplier_name' | 'supplier_code' | 'manager' | 'country_code'>;
@@ -1363,111 +1420,133 @@ export async function createCatalogEntriesBatch(
   lines: CatalogEntryLine[],
   mode: 'draft' | 'submit',
 ): Promise<{ created: number; firstId: number | null }> {
-  await requireCatalogActor('Contributor');
+  const actor = await requireCatalogActor('Contributor');
   if (!lines.length) throw new Error('Add at least one line item.');
 
-  let firstId: number | null = null;
-  let created = 0;
-  for (const line of lines) {
-    const res = await createCatalogEntry({ ...line, ...shared }, mode);
-    if (firstId === null) firstId = res.id;
-    created++;
-  }
-  return { created, firstId };
+  // ONE transaction for the whole set of lines: a failure on line 3 used to leave lines 1-2 saved
+  // and still throw, so the caller saw an error over a half-created group.
+  return withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    let firstId: number | null = null;
+    let created = 0;
+    for (const line of lines) {
+      const res = await insertCatalogEntry(db, actor, { ...line, ...shared }, mode);
+      if (firstId === null) firstId = res.id;
+      created++;
+    }
+    return { created, firstId };
+  });
 }
 
 /** Edit an entry — retains the prior version and bumps the version number. */
 export async function updateCatalogEntry(input: CatalogEntryInput, mode: 'draft' | 'submit'): Promise<{ id: number; status: CatalogStatus }> {
   const actor = await requireCatalogActor('Contributor');
   if (!input.id) throw new Error('Missing entry id.');
+  const entryId = input.id;
 
-  const current = await sql<{ code: string; current_version_no: number }[]>(
-    `SELECT code, current_version_no FROM catalog_entry WHERE id = ?`,
-    [input.id],
-  );
-  if (!current[0]) throw new Error('Entry not found.');
-  const nextVersion = Number(current[0].current_version_no) + 1;
+  // The entry row and its new rate version are one unit of work. Previously the version went in
+  // FIRST and on its own: a failure before the UPDATE left an orphan version whose number then
+  // collided with the next edit's, making the entry permanently un-editable.
+  return withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
 
-  const supplierId = await upsertSupplier(input.supplier_name, input.supplier_code, input.manager);
-  const { categoryId, spendType, subId, uomId } = await resolveRefs(input);
-  const usd = toUsd(input.unit_price, input.currency_code);
-  const threshold = effectiveThresholdUsd(await loadThresholdRules(), input.country_code, categoryId);
-  const tier = approvalTier(usd, threshold);
-  const status: CatalogStatus = mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
-  const approver = status === 'Pending Approval' ? (input.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
+    const current = await db.sql<{ code: string; current_version_no: number }[]>(
+      `SELECT code, current_version_no FROM catalog_entry WHERE id = ?`,
+      [entryId],
+    );
+    if (!current[0]) throw new Error('Entry not found.');
+    const nextVersion = Number(current[0].current_version_no) + 1;
 
-  await exec(
-    `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
-     VALUES (?, ?, ?, ?, ?, ?, 'Edited — new version saved', ?)`,
-    [input.id, nextVersion, input.unit_price, input.currency_code, input.effective_date, input.expiry_date, actor.name],
-  );
-  await exec(
-    `UPDATE catalog_entry SET
-      country_code = ?, supplier_id = ?, category_id = ?, subcategory_id = ?, uom_id = ?, spend_type = ?,
-      family = ?, commodity = ?, unspsc_code = ?, item_name = ?, description = ?,
-      sirion_contract_id = ?, sirion_url = ?, notes = ?, incoterms = ?, incoterms_location = ?, lead_time_days = ?, manager = ?,
-      status = ?, tier_label = ?, current_version_no = ?, approver_name = ?,
-      modified_by = ?, modified_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-    [
-      input.country_code, supplierId, categoryId, subId, uomId, spendType,
-      input.family, input.commodity, input.unspsc_code, input.item_name, input.description,
-      input.sirion_contract_id, input.sirion_url, input.notes, input.incoterms, input.incoterms_location, input.lead_time_days, input.manager,
-      status, tier.label, nextVersion, approver, actor.name, input.id,
-    ],
-  );
-  await writeAudit('Edit', current[0].code, actor.name, actor.email, `Edited entry — version ${nextVersion} saved`);
-  return { id: input.id, status };
+    const supplierId = await upsertSupplier(input.supplier_name, input.supplier_code, input.manager, db);
+    const { categoryId, spendType, subId, uomId } = await resolveRefs(input, db);
+    const usd = toUsd(input.unit_price, input.currency_code);
+    const threshold = effectiveThresholdUsd(await loadThresholdRules(db), input.country_code, categoryId);
+    const tier = approvalTier(usd, threshold);
+    const status: CatalogStatus = mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
+    const approver = status === 'Pending Approval' ? (input.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
+
+    await db.exec(
+      `UPDATE catalog_entry SET
+        country_code = ?, supplier_id = ?, category_id = ?, subcategory_id = ?, uom_id = ?, spend_type = ?,
+        family = ?, commodity = ?, unspsc_code = ?, item_name = ?, description = ?,
+        sirion_contract_id = ?, sirion_url = ?, notes = ?, incoterms = ?, incoterms_location = ?, lead_time_days = ?, manager = ?,
+        status = ?, tier_label = ?, current_version_no = ?, approver_name = ?,
+        modified_by = ?, modified_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        input.country_code, supplierId, categoryId, subId, uomId, spendType,
+        input.family, input.commodity, input.unspsc_code, input.item_name, input.description,
+        input.sirion_contract_id, input.sirion_url, input.notes, input.incoterms, input.incoterms_location, input.lead_time_days, input.manager,
+        status, tier.label, nextVersion, approver, actor.name, entryId,
+      ],
+    );
+    await db.exec(
+      `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
+       VALUES (?, ?, ?, ?, ?, ?, 'Edited — new version saved', ?)`,
+      [entryId, nextVersion, input.unit_price, input.currency_code, input.effective_date, input.expiry_date, actor.name],
+    );
+    await writeAudit('Edit', current[0].code, actor.name, actor.email, `Edited entry — version ${nextVersion} saved`, db);
+    return { id: entryId, status };
+  });
 }
 
 export async function submitForApproval(entryId: number): Promise<void> {
   const actor = await requireCatalogActor('Contributor');
-  const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
-  if (!rows[0]) throw new Error('Entry not found.');
-  const e = mapEntry(rows[0]);
-  const threshold = effectiveThresholdUsd(await loadThresholdRules(), e.country_code, e.category_id);
-  const tier = approvalTier(e.usd_equivalent, threshold);
-  const next: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
-  const approver = next === 'Pending Approval' ? (e.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
-  await exec(`UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
-    [next, approver, actor.name, entryId]);
-  await writeAudit('Status change', e.code, actor.name, actor.email, `${e.status} → ${next}`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
+    if (!rows[0]) throw new Error('Entry not found.');
+    const e = mapEntry(rows[0]);
+    const threshold = effectiveThresholdUsd(await loadThresholdRules(db), e.country_code, e.category_id);
+    const tier = approvalTier(e.usd_equivalent, threshold);
+    const next: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
+    const approver = next === 'Pending Approval' ? (e.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
+    await db.exec(`UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [next, approver, actor.name, entryId]);
+    await writeAudit('Status change', e.code, actor.name, actor.email, `${e.status} → ${next}`, db);
+  });
 }
 
 export async function decideCatalogEntry(entryId: number, decision: 'approve' | 'reject' | 'revise', comment: string): Promise<void> {
   const actor = await requireCatalogActor('Approver');
   if (!comment.trim()) throw new Error('A comment is required to record this decision.');
 
-  const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
-  if (!rows[0]) throw new Error('Entry not found.');
-  const e = mapEntry(rows[0]);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
+    if (!rows[0]) throw new Error('Entry not found.');
+    const e = mapEntry(rows[0]);
 
-  const acting = await catalogActingIdentity(actor, e.country_code, e.category_id);
-  if (!acting.allowed) {
-    throw new Error(`You are not an approver for ${e.country_name}${e.category_name ? ` / ${e.category_name}` : ''}.`);
-  }
+    const acting = await catalogActingIdentity(actor, e.country_code, e.category_id, undefined, db);
+    if (!acting.allowed) {
+      throw new Error(`You are not an approver for ${e.country_name}${e.category_name ? ` / ${e.category_name}` : ''}.`);
+    }
 
-  const next: CatalogStatus = decision === 'approve' ? 'Active' : decision === 'revise' ? 'Draft' : 'Rejected';
-  const decisionLabel = decision === 'approve' ? 'Approved' : decision === 'revise' ? 'Revision' : 'Rejected';
+    const next: CatalogStatus = decision === 'approve' ? 'Active' : decision === 'revise' ? 'Draft' : 'Rejected';
+    const decisionLabel = decision === 'approve' ? 'Approved' : decision === 'revise' ? 'Revision' : 'Rejected';
 
-  await exec(
-    `UPDATE catalog_entry SET status = ?, approver_name = ?, approval_comment = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
-    [next, acting.label, comment.trim(), acting.label, entryId],
-  );
-  await exec(
-    `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES (?, ?, ?, ?, 2, ?)`,
-    [entryId, e.version_no, acting.label, decisionLabel, comment.trim()],
-  );
-  await writeAudit(decision === 'approve' ? 'Approve' : 'Reject', e.code, acting.label, actor.email,
-    `${decision === 'approve' ? 'Approved' : decision === 'revise' ? 'Revision requested' : 'Rejected'} — "${comment.trim().slice(0, 48)}"`);
+    await db.exec(
+      `UPDATE catalog_entry SET status = ?, approver_name = ?, approval_comment = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [next, acting.label, comment.trim(), acting.label, entryId],
+    );
+    await db.exec(
+      `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES (?, ?, ?, ?, 2, ?)`,
+      [entryId, e.version_no, acting.label, decisionLabel, comment.trim()],
+    );
+    await writeAudit(decision === 'approve' ? 'Approve' : 'Reject', e.code, acting.label, actor.email,
+      `${decision === 'approve' ? 'Approved' : decision === 'revise' ? 'Revision requested' : 'Rejected'} — "${comment.trim().slice(0, 48)}"`, db);
+  });
 }
 
 export async function deactivateCatalogEntry(entryId: number): Promise<void> {
   const actor = await requireCatalogActor('Contributor');
-  const rows = await sql<{ code: string; status: string }[]>(`SELECT code, status FROM catalog_entry WHERE id = ?`, [entryId]);
-  if (!rows[0]) throw new Error('Entry not found.');
-  await exec(`UPDATE catalog_entry SET status = 'Expired', modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [actor.name, entryId]);
-  await writeAudit('Status change', rows[0].code, actor.name, actor.email, `${rows[0].status} → Deactivated`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const rows = await db.sql<{ code: string; status: string }[]>(`SELECT code, status FROM catalog_entry WHERE id = ?`, [entryId]);
+    if (!rows[0]) throw new Error('Entry not found.');
+    await db.exec(`UPDATE catalog_entry SET status = 'Expired', modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [actor.name, entryId]);
+    await writeAudit('Status change', rows[0].code, actor.name, actor.email, `${rows[0].status} → Deactivated`, db);
+  });
 }
 
 /* ============================================================================
@@ -1523,29 +1602,33 @@ function normalizeImportDate(raw: string | null): string | null {
 export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]; filename: string }): Promise<CatalogImportResult> {
   const actor = await requireCatalogActor('Contributor');
 
+  // One transaction for the whole import, with a SAVEPOINT around each row's writes so a bad row
+  // still only rolls back its own statements — the per-row log keeps reporting exactly as before,
+  // but a row can no longer leave a half-written entry (entry with no rate version) behind.
+  return withTransaction(catalogManagerPool, async (client) => {
+  const db = dbOn(client);
+  const ROW_SAVEPOINT = 'catalog_import_row';
+
   // reference lookups (resolved once per call)
-  const countries = await sql<{ code: string; name: string }[]>(`SELECT code, name FROM country`);
+  const countries = await db.sql<{ code: string; name: string }[]>(`SELECT code, name FROM country`);
   const countryByCode = new Map(countries.map((c) => [c.code.toUpperCase(), c.code]));
   const countryByName = new Map(countries.map((c) => [c.name.toLowerCase(), c.code]));
-  const ccyRows = await sql<{ code: string }[]>(`SELECT code FROM currency`);
+  const ccyRows = await db.sql<{ code: string }[]>(`SELECT code FROM currency`);
   const ccySet = new Set(ccyRows.map((c) => c.code.toUpperCase()));
-  const uomRows = await sql<{ id: number; name: string }[]>(`SELECT id, name FROM unit_of_measure`);
+  const uomRows = await db.sql<{ id: number; name: string }[]>(`SELECT id, name FROM unit_of_measure`);
   const uomByName = new Map(uomRows.map((u) => [u.name.toLowerCase(), u]));
-  const catRows = await sql<{ id: number; name: string; type: string }[]>(`SELECT id, name, type FROM spend_category`);
+  const catRows = await db.sql<{ id: number; name: string; type: string }[]>(`SELECT id, name, type FROM spend_category`);
   const catByName = new Map(catRows.map((c) => [c.name.toLowerCase(), c]));
-  const subRows = await sql<{ id: number; category_id: number; name: string }[]>(`SELECT id, category_id, name FROM spend_subcategory`);
+  const subRows = await db.sql<{ id: number; category_id: number; name: string }[]>(`SELECT id, category_id, name FROM spend_subcategory`);
   const incotermSet = new Set(INCOTERM_CODES);
 
-  const maxRows = await sql<{ n: number }[]>(
-    `SELECT COALESCE(MAX(CAST(SUBSTRING(code FROM 5) AS INTEGER)), 1039) AS n FROM catalog_entry WHERE code ~ '^CAT-[0-9]+$'`,
-  );
-  let codeSeq = Number(maxRows[0]?.n ?? 1039);
-
-  const thresholdRules = await loadThresholdRules();
+  const thresholdRules = await loadThresholdRules(db);
   let inserted = 0, skipped = 0, errors = 0;
   const log: string[] = [];
 
   for (const r of input.rows) {
+    // Turns true only once this row starts touching the database — the validation below is pure JS.
+    let rowSavepoint = false;
     try {
       const missing: string[] = [];
       if (!r.supplier?.trim()) missing.push('supplier');
@@ -1633,50 +1716,65 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
         if (!exp) { errors++; log.push(`❌ Row ${r.rowIndex}: invalid expiry date "${r.expiry_date}"`); continue; }
       }
 
-      const dup = await sql<{ code: string }[]>(
+      await client.query(`SAVEPOINT ${ROW_SAVEPOINT}`);
+      rowSavepoint = true;
+
+      const dup = await db.sql<{ code: string }[]>(
         `SELECT e.code FROM catalog_entry e JOIN supplier s ON s.id = e.supplier_id
          WHERE s.vendor_code = ? AND e.country_code = ? AND LOWER(e.item_name) = LOWER(?) AND e.status = 'Active' LIMIT 1`,
         [supplierCode, countryCode, itemName],
       );
-      if (dup[0]) { skipped++; log.push(`⚠️ Row ${r.rowIndex}: looks like a duplicate of active ${dup[0].code} — skipped`); continue; }
+      if (dup[0]) {
+        await client.query(`RELEASE SAVEPOINT ${ROW_SAVEPOINT}`);
+        rowSavepoint = false;
+        skipped++; log.push(`⚠️ Row ${r.rowIndex}: looks like a duplicate of active ${dup[0].code} — skipped`); continue;
+      }
 
-      const supplierId = await upsertSupplier(supplier, supplierCode, manager);
+      const supplierId = await upsertSupplier(supplier, supplierCode, manager, db);
       const usd = toUsd(r.unit_price, ccy);
       const tier = approvalTier(usd, effectiveThresholdUsd(thresholdRules, countryCode, categoryId));
       const status: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
       const approver = status === 'Pending Approval' ? (countryCode === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
-      const code = `CAT-${++codeSeq}`;
       const sirionUrl = sirionUrlFor(sirion);
 
-      const ins = await exec(
+      const ins = await db.sql<{ id: number; code: string }[]>(
         `INSERT INTO catalog_entry
           (code, country_code, supplier_id, category_id, subcategory_id, uom_id, spend_type, commodity,
            item_name, description, sirion_contract_id, sirion_url, notes, incoterms, incoterms_location, lead_time_days, status, tier_label,
            current_version_no, manager, approver_name, created_by, modified_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id`,
+         VALUES (${CODE_NEXTVAL}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id, code`,
         [
-          code, countryCode, supplierId, categoryId, subId, uom.id, spendType, commodity,
+          countryCode, supplierId, categoryId, subId, uom.id, spendType, commodity,
           itemName, description, sirion, sirionUrl, notes,
           incoterms, incotermsLocation, leadTime, status, tier.label, manager, approver, actor.name, actor.name,
         ],
       );
-      await exec(
+      const code = String(ins[0]?.code);
+      await db.exec(
         `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
          VALUES (?, 1, ?, ?, ?, ?, 'Imported via bulk upload', ?)`,
-        [ins.insertId, r.unit_price, ccy, eff, exp, actor.name],
+        [Number(ins[0]?.id), r.unit_price, ccy, eff, exp, actor.name],
       );
+      await client.query(`RELEASE SAVEPOINT ${ROW_SAVEPOINT}`);
+      rowSavepoint = false;
       inserted++;
       log.push(`✅ Row ${r.rowIndex}: ${code} — ${r.supplier.trim()} (${status})`);
     } catch (err) {
+      // Undo just this row, leaving the transaction usable for the rows that follow.
+      if (rowSavepoint) {
+        await client.query(`ROLLBACK TO SAVEPOINT ${ROW_SAVEPOINT}`);
+        await client.query(`RELEASE SAVEPOINT ${ROW_SAVEPOINT}`);
+      }
       errors++;
       log.push(`❌ Row ${r.rowIndex}: ${err instanceof Error ? err.message : 'unexpected error'}`);
     }
   }
 
   if (inserted > 0) {
-    await writeAudit('Import', `Catalog — ${input.filename}`, actor.name, actor.email, `Bulk imported ${inserted} entries (${skipped} skipped, ${errors} errors)`);
+    await writeAudit('Import', `Catalog — ${input.filename}`, actor.name, actor.email, `Bulk imported ${inserted} entries (${skipped} skipped, ${errors} errors)`, db);
   }
   return { inserted, skipped, errors, log };
+  });
 }
 
 /* ============================================================================
@@ -1753,30 +1851,33 @@ export async function bulkDecideEntries(entryIds: number[], comment: string): Pr
   const actor = await requireCatalogActor('Approver');
   if (!comment.trim()) throw new Error('A comment is required to record this decision.');
 
-  // Load the actor's (and their delegators') authority rows once for the whole batch.
-  const scopes = await loadApproverScopes([actor.email, ...(actor.delegatedFrom ?? []).map((d) => d.email)]);
+  return withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    // Load the actor's (and their delegators') authority rows once for the whole batch.
+    const scopes = await loadApproverScopes([actor.email, ...(actor.delegatedFrom ?? []).map((d) => d.email)], db);
 
-  let approved = 0;
-  for (const id of entryIds) {
-    const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [id]);
-    if (!rows[0]) continue;
-    const e = mapEntry(rows[0]);
-    if (e.status !== 'Pending Approval') continue;
-    const acting = await catalogActingIdentity(actor, e.country_code, e.category_id, scopes);
-    if (!acting.allowed) continue;
+    let approved = 0;
+    for (const id of entryIds) {
+      const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [id]);
+      if (!rows[0]) continue;
+      const e = mapEntry(rows[0]);
+      if (e.status !== 'Pending Approval') continue;
+      const acting = await catalogActingIdentity(actor, e.country_code, e.category_id, scopes, db);
+      if (!acting.allowed) continue;
 
-    await exec(
-      `UPDATE catalog_entry SET status = 'Active', approver_name = ?, approval_comment = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [acting.label, comment.trim(), acting.label, id],
-    );
-    await exec(
-      `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES (?, ?, ?, 'Approved', 2, ?)`,
-      [id, e.version_no, acting.label, comment.trim()],
-    );
-    await writeAudit('Approve', e.code, acting.label, actor.email, `Approved (bulk) — "${comment.trim().slice(0, 48)}"`);
-    approved++;
-  }
-  return { approved };
+      await db.exec(
+        `UPDATE catalog_entry SET status = 'Active', approver_name = ?, approval_comment = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [acting.label, comment.trim(), acting.label, id],
+      );
+      await db.exec(
+        `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES (?, ?, ?, 'Approved', 2, ?)`,
+        [id, e.version_no, acting.label, comment.trim()],
+      );
+      await writeAudit('Approve', e.code, acting.label, actor.email, `Approved (bulk) — "${comment.trim().slice(0, 48)}"`, db);
+      approved++;
+    }
+    return { approved };
+  });
 }
 
 /* ============================================================================
@@ -1847,27 +1948,36 @@ export async function getCountryApprovers(): Promise<CountryApproverRow[]> {
 
 export async function addCountryApprover(userId: number, countryCode: string, spendCategoryId: number | null, tier = 2): Promise<void> {
   const actor = await requireCatalogActor('Admin');
-  await exec(
-    `INSERT INTO country_approver (user_id, country_code, spend_category_id, tier, is_active)
-     VALUES (?, ?, ?, ?, TRUE)
-     ON CONFLICT (user_id, country_code, COALESCE(spend_category_id, 0)) DO UPDATE SET is_active = TRUE, tier = EXCLUDED.tier`,
-    [userId, countryCode, spendCategoryId, tier],
-  );
-  const u = await sql<{ full_name: string }[]>(`SELECT full_name FROM app_user WHERE id = ?`, [userId]);
-  await writeAudit('Master data', 'Country approvers', actor.name, actor.email, `Assigned ${u[0]?.full_name ?? 'user'} as approver for ${countryCode}`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(
+      `INSERT INTO country_approver (user_id, country_code, spend_category_id, tier, is_active)
+       VALUES (?, ?, ?, ?, TRUE)
+       ON CONFLICT (user_id, country_code, COALESCE(spend_category_id, 0)) DO UPDATE SET is_active = TRUE, tier = EXCLUDED.tier`,
+      [userId, countryCode, spendCategoryId, tier],
+    );
+    const u = await db.sql<{ full_name: string }[]>(`SELECT full_name FROM app_user WHERE id = ?`, [userId]);
+    await writeAudit('Master data', 'Country approvers', actor.name, actor.email, `Assigned ${u[0]?.full_name ?? 'user'} as approver for ${countryCode}`, db);
+  });
 }
 
 export async function removeCountryApprover(id: number): Promise<void> {
   const actor = await requireCatalogActor('Admin');
-  await exec(`DELETE FROM country_approver WHERE id = ?`, [id]);
-  await writeAudit('Master data', 'Country approvers', actor.name, actor.email, `Removed a country-approver assignment`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(`DELETE FROM country_approver WHERE id = ?`, [id]);
+    await writeAudit('Master data', 'Country approvers', actor.name, actor.email, `Removed a country-approver assignment`, db);
+  });
 }
 
 export async function setUserRole(userId: number, role: CatalogRole): Promise<void> {
   const actor = await requireCatalogActor('Admin');
-  const u = await sql<{ full_name: string }[]>(`SELECT full_name FROM app_user WHERE id = ?`, [userId]);
-  await exec(`UPDATE app_user SET role = ? WHERE id = ?`, [role, userId]);
-  await writeAudit('Master data', 'Users & roles', actor.name, actor.email, `Changed ${u[0]?.full_name ?? 'user'} role → ${role}`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const u = await db.sql<{ full_name: string }[]>(`SELECT full_name FROM app_user WHERE id = ?`, [userId]);
+    await db.exec(`UPDATE app_user SET role = ? WHERE id = ?`, [role, userId]);
+    await writeAudit('Master data', 'Users & roles', actor.name, actor.email, `Changed ${u[0]?.full_name ?? 'user'} role → ${role}`, db);
+  });
 }
 
 /* ============================================================================
@@ -1966,23 +2076,28 @@ export async function approveCatalogAccessRequest(input: {
   if (!actor) return { success: false, error: 'Admin only.' };
   const email = normalizeEmail(input.userEmail);
 
-  const existing = await sql<QueryResultRow[]>(`SELECT display_name, country_code FROM catalog_access_requests WHERE LOWER(user_email) = ?`, [email]);
-  const displayName = existing[0]?.display_name ?? email;
-  const countryCode = input.countryCode || existing[0]?.country_code || null;
+  // Marking the request Approved and actually granting the role on app_user must land together —
+  // a failure between them used to leave a request that reads "Approved" with no role granted.
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const existing = await db.sql<QueryResultRow[]>(`SELECT display_name, country_code FROM catalog_access_requests WHERE LOWER(user_email) = ?`, [email]);
+    const displayName = existing[0]?.display_name ?? email;
+    const countryCode = input.countryCode || existing[0]?.country_code || null;
 
-  await exec(
-    `UPDATE catalog_access_requests
-     SET status = 'Approved', approved_role = ?, country_code = COALESCE(?, country_code), reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
-     WHERE LOWER(user_email) = ?`,
-    [input.approvedRole, countryCode, actor.email, email],
-  );
-  await exec(
-    `INSERT INTO app_user (full_name, email, country_code, role)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, country_code = COALESCE(app_user.country_code, EXCLUDED.country_code)`,
-    [displayName, email, countryCode, input.approvedRole],
-  );
-  await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Approved ${email} → ${input.approvedRole}`);
+    await db.exec(
+      `UPDATE catalog_access_requests
+       SET status = 'Approved', approved_role = ?, country_code = COALESCE(?, country_code), reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
+       WHERE LOWER(user_email) = ?`,
+      [input.approvedRole, countryCode, actor.email, email],
+    );
+    await db.exec(
+      `INSERT INTO app_user (full_name, email, country_code, role)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, country_code = COALESCE(app_user.country_code, EXCLUDED.country_code)`,
+      [displayName, email, countryCode, input.approvedRole],
+    );
+    await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Approved ${email} → ${input.approvedRole}`, db);
+  });
   return { success: true };
 }
 
@@ -1990,11 +2105,14 @@ export async function rejectCatalogAccessRequest(userEmail: string): Promise<{ s
   const actor = await optionalCatalogActor('Admin');
   if (!actor) return { success: false };
   const email = normalizeEmail(userEmail);
-  await exec(
-    `UPDATE catalog_access_requests SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE LOWER(user_email) = ?`,
-    [actor.email, email],
-  );
-  await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Rejected access request from ${email}`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(
+      `UPDATE catalog_access_requests SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE LOWER(user_email) = ?`,
+      [actor.email, email],
+    );
+    await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Rejected access request from ${email}`, db);
+  });
   return { success: true };
 }
 
@@ -2003,12 +2121,17 @@ export async function revokeCatalogAccessRequest(userEmail: string): Promise<{ s
   const actor = await optionalCatalogActor('Admin');
   if (!actor) return { success: false };
   const email = normalizeEmail(userEmail);
-  await exec(
-    `UPDATE catalog_access_requests SET status = 'Revoked', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE LOWER(user_email) = ?`,
-    [actor.email, email],
-  );
-  await exec(`UPDATE app_user SET role = 'Viewer' WHERE LOWER(email) = ?`, [email]);
-  await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Revoked access for ${email} (reset to Viewer)`);
+  // Revoking the request and demoting app_user back to Viewer is one unit of work — a failure
+  // between them used to leave the request Revoked while the elevated role was still in force.
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(
+      `UPDATE catalog_access_requests SET status = 'Revoked', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE LOWER(user_email) = ?`,
+      [actor.email, email],
+    );
+    await db.exec(`UPDATE app_user SET role = 'Viewer' WHERE LOWER(email) = ?`, [email]);
+    await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Revoked access for ${email} (reset to Viewer)`, db);
+  });
   return { success: true };
 }
 
@@ -2016,8 +2139,11 @@ export async function deleteCatalogAccessRequest(userEmail: string): Promise<{ s
   const actor = await optionalCatalogActor('Admin');
   if (!actor) return { success: false };
   const email = normalizeEmail(userEmail);
-  await exec(`DELETE FROM catalog_access_requests WHERE LOWER(user_email) = ?`, [email]);
-  await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Deleted the access request from ${email}`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(`DELETE FROM catalog_access_requests WHERE LOWER(user_email) = ?`, [email]);
+    await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Deleted the access request from ${email}`, db);
+  });
   return { success: true };
 }
 
@@ -2093,14 +2219,20 @@ export async function getPirSyncHealth(): Promise<PirSyncHealth> {
 
 export async function toggleCountryStatus(code: string): Promise<void> {
   const actor = await requireCatalogActor('Admin');
-  await exec(`UPDATE country SET status = CASE WHEN status = 'Active' THEN 'Inactive' ELSE 'Active' END WHERE code = ?`, [code]);
-  await writeAudit('Master data', 'Countries', actor.name, actor.email, `Toggled country ${code} status`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(`UPDATE country SET status = CASE WHEN status = 'Active' THEN 'Inactive' ELSE 'Active' END WHERE code = ?`, [code]);
+    await writeAudit('Master data', 'Countries', actor.name, actor.email, `Toggled country ${code} status`, db);
+  });
 }
 
 export async function toggleCategoryStatus(id: number): Promise<void> {
   const actor = await requireCatalogActor('Admin');
-  await exec(`UPDATE spend_category SET status = CASE WHEN status = 'Active' THEN 'Inactive' ELSE 'Active' END WHERE id = ?`, [id]);
-  await writeAudit('Master data', 'Spend categories', actor.name, actor.email, `Toggled a spend category status`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(`UPDATE spend_category SET status = CASE WHEN status = 'Active' THEN 'Inactive' ELSE 'Active' END WHERE id = ?`, [id]);
+    await writeAudit('Master data', 'Spend categories', actor.name, actor.email, `Toggled a spend category status`, db);
+  });
 }
 
 // The fixed set of vendor codes the fabricated demo catalog entries used to be seeded under
@@ -2114,25 +2246,31 @@ const DEMO_SUPPLIER_VENDOR_CODES = [
 export async function deleteDemoCatalogData(): Promise<{ deletedEntries: number; deletedSuppliers: number }> {
   const actor = await requireCatalogActor('Admin');
 
-  const entryResult = await exec(
-    `DELETE FROM catalog_entry WHERE supplier_id IN (SELECT id FROM supplier WHERE vendor_code = ANY(?))`,
-    [DEMO_SUPPLIER_VENDOR_CODES],
-  );
-  // Only drop suppliers that are now unreferenced — never touch one a real import happens to reuse.
-  const supplierResult = await exec(
-    `DELETE FROM supplier WHERE vendor_code = ANY(?)
-     AND id NOT IN (SELECT DISTINCT supplier_id FROM catalog_entry WHERE supplier_id IS NOT NULL)`,
-    [DEMO_SUPPLIER_VENDOR_CODES],
-  );
+  return withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const entryResult = await db.exec(
+      `DELETE FROM catalog_entry WHERE supplier_id IN (SELECT id FROM supplier WHERE vendor_code = ANY(?))`,
+      [DEMO_SUPPLIER_VENDOR_CODES],
+    );
+    // Only drop suppliers that are now unreferenced — never touch one a real import happens to reuse.
+    const supplierResult = await db.exec(
+      `DELETE FROM supplier WHERE vendor_code = ANY(?)
+       AND id NOT IN (SELECT DISTINCT supplier_id FROM catalog_entry WHERE supplier_id IS NOT NULL)`,
+      [DEMO_SUPPLIER_VENDOR_CODES],
+    );
 
-  await writeAudit('Master data', 'Catalog', actor.name, actor.email, `Removed ${entryResult.rowCount} sample/demo catalog entries and ${supplierResult.rowCount} demo suppliers`);
-  return { deletedEntries: entryResult.rowCount, deletedSuppliers: supplierResult.rowCount };
+    await writeAudit('Master data', 'Catalog', actor.name, actor.email, `Removed ${entryResult.rowCount} sample/demo catalog entries and ${supplierResult.rowCount} demo suppliers`, db);
+    return { deletedEntries: entryResult.rowCount, deletedSuppliers: supplierResult.rowCount };
+  });
 }
 
 export async function addUom(name: string): Promise<void> {
   const actor = await requireCatalogActor('Admin');
-  await exec(`INSERT INTO unit_of_measure (name, status) VALUES (?, 'Active') ON CONFLICT (name) DO NOTHING`, [name]);
-  await writeAudit('Master data', 'Units of measure', actor.name, actor.email, `Added UOM ${name}`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(`INSERT INTO unit_of_measure (name, status) VALUES (?, 'Active') ON CONFLICT (name) DO NOTHING`, [name]);
+    await writeAudit('Master data', 'Units of measure', actor.name, actor.email, `Added UOM ${name}`, db);
+  });
 }
 
 /* ============================================================================
@@ -2143,8 +2281,8 @@ export async function addUom(name: string): Promise<void> {
  * `userName` is a display label (and may read "X on behalf of Y"), so it is not an identity.
  * `userEmail` is the AUTHENTICATED actor's address and is what the trail is keyed on.
  */
-async function writeAudit(action: string, target: string, userName: string, userEmail: string | null, detail: string): Promise<void> {
-  await exec(
+async function writeAudit(action: string, target: string, userName: string, userEmail: string | null, detail: string, db: CatalogDb = poolDb): Promise<void> {
+  await db.exec(
     `INSERT INTO audit_log (action, target, user_name, user_email, detail) VALUES (?, ?, ?, ?, ?)`,
     [action, target, userName, normalizeEmail(userEmail) || null, detail],
   );
@@ -2187,18 +2325,23 @@ export async function addEntryDocument(
   if (!input.dataUrl) throw new Error('No file content received.');
   if (input.dataUrl.length > MAX_DOC_DATAURL_LEN) throw new Error('File is too large — max ~5 MB.');
 
-  await exec(
-    `INSERT INTO entry_document (entry_id, file_name, doc_type, size_label, data_url, uploaded_by)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [entryId, input.fileName, input.docType, input.sizeLabel, input.dataUrl, actor.name],
-  );
-  const code = await sql<{ code: string }[]>(`SELECT code FROM catalog_entry WHERE id = ?`, [entryId]);
-  await writeAudit('Document', code[0]?.code ?? String(entryId), actor.name, actor.email, `Attached ${input.docType || 'document'}: ${input.fileName}`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(
+      `INSERT INTO entry_document (entry_id, file_name, doc_type, size_label, data_url, uploaded_by)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [entryId, input.fileName, input.docType, input.sizeLabel, input.dataUrl, actor.name],
+    );
+    const code = await db.sql<{ code: string }[]>(`SELECT code FROM catalog_entry WHERE id = ?`, [entryId]);
+    await writeAudit('Document', code[0]?.code ?? String(entryId), actor.name, actor.email, `Attached ${input.docType || 'document'}: ${input.fileName}`, db);
+  });
 }
 
 export async function deleteEntryDocument(docId: number, entryId: number): Promise<void> {
   await requireCatalogActor('Contributor');
-  await exec(`DELETE FROM entry_document WHERE id = ? AND entry_id = ?`, [docId, entryId]);
+  await withTransaction(catalogManagerPool, async (client) => {
+    await dbOn(client).exec(`DELETE FROM entry_document WHERE id = ? AND entry_id = ?`, [docId, entryId]);
+  });
 }
 
 /**
@@ -2336,26 +2479,32 @@ export async function getApprovalThresholds(): Promise<ApprovalThresholdRule[]> 
 export async function setApprovalThreshold(input: { country_code: string | null; spend_category_id: number | null; threshold_usd: number }): Promise<void> {
   const actor = await requireCatalogActor('Admin');
   if (!Number.isFinite(input.threshold_usd) || input.threshold_usd < 0) throw new Error('Enter a valid threshold amount.');
-  await exec(
-    `INSERT INTO approval_threshold (country_code, spend_category_id, threshold_usd, updated_by)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT (COALESCE(country_code, ''), COALESCE(spend_category_id, 0))
-       DO UPDATE SET threshold_usd = EXCLUDED.threshold_usd, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP`,
-    [input.country_code, input.spend_category_id, input.threshold_usd, actor.name],
-  );
-  await writeAudit('Master data', 'Thresholds', actor.name, actor.email, `Set ${input.country_code ?? 'Any country'}${input.spend_category_id != null ? ' (category)' : ''} threshold to $${input.threshold_usd.toLocaleString()}`);
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(
+      `INSERT INTO approval_threshold (country_code, spend_category_id, threshold_usd, updated_by)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT (COALESCE(country_code, ''), COALESCE(spend_category_id, 0))
+         DO UPDATE SET threshold_usd = EXCLUDED.threshold_usd, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP`,
+      [input.country_code, input.spend_category_id, input.threshold_usd, actor.name],
+    );
+    await writeAudit('Master data', 'Thresholds', actor.name, actor.email, `Set ${input.country_code ?? 'Any country'}${input.spend_category_id != null ? ' (category)' : ''} threshold to $${input.threshold_usd.toLocaleString()}`, db);
+  });
 }
 
 export async function removeApprovalThreshold(id: number): Promise<void> {
   const actor = await requireCatalogActor('Admin');
-  const rows = await sql<{ country_code: string | null; spend_category_id: number | null }[]>(
-    `SELECT country_code, spend_category_id FROM approval_threshold WHERE id = ?`, [id],
-  );
-  if (rows[0] && rows[0].country_code == null && rows[0].spend_category_id == null) {
-    throw new Error('The global default threshold cannot be removed — edit its value instead.');
-  }
-  await exec(`DELETE FROM approval_threshold WHERE id = ?`, [id]);
-  await writeAudit('Master data', 'Thresholds', actor.name, actor.email, 'Removed a threshold override');
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const rows = await db.sql<{ country_code: string | null; spend_category_id: number | null }[]>(
+      `SELECT country_code, spend_category_id FROM approval_threshold WHERE id = ?`, [id],
+    );
+    if (rows[0] && rows[0].country_code == null && rows[0].spend_category_id == null) {
+      throw new Error('The global default threshold cannot be removed — edit its value instead.');
+    }
+    await db.exec(`DELETE FROM approval_threshold WHERE id = ?`, [id]);
+    await writeAudit('Master data', 'Thresholds', actor.name, actor.email, 'Removed a threshold override', db);
+  });
 }
 
 /* ============================================================================
@@ -2442,34 +2591,40 @@ export async function getSupplierProfile(supplierId: number): Promise<SupplierPr
 
 export async function bulkDeactivateEntries(entryIds: number[]): Promise<{ count: number }> {
   const actor = await requireCatalogActor('Contributor');
-  let count = 0;
-  for (const id of entryIds) {
-    const rows = await sql<{ code: string; status: string }[]>(`SELECT code, status FROM catalog_entry WHERE id = ?`, [id]);
-    if (!rows[0] || rows[0].status === 'Expired') continue;
-    await exec(`UPDATE catalog_entry SET status = 'Expired', modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [actor.name, id]);
-    await writeAudit('Status change', rows[0].code, actor.name, actor.email, `${rows[0].status} → Deactivated (bulk)`);
-    count++;
-  }
-  return { count };
+  return withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    let count = 0;
+    for (const id of entryIds) {
+      const rows = await db.sql<{ code: string; status: string }[]>(`SELECT code, status FROM catalog_entry WHERE id = ?`, [id]);
+      if (!rows[0] || rows[0].status === 'Expired') continue;
+      await db.exec(`UPDATE catalog_entry SET status = 'Expired', modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [actor.name, id]);
+      await writeAudit('Status change', rows[0].code, actor.name, actor.email, `${rows[0].status} → Deactivated (bulk)`, db);
+      count++;
+    }
+    return { count };
+  });
 }
 
 export async function bulkSubmitEntries(entryIds: number[]): Promise<{ count: number }> {
   const actor = await requireCatalogActor('Contributor');
-  const rules = await loadThresholdRules();
-  let count = 0;
-  for (const id of entryIds) {
-    const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [id]);
-    if (!rows[0]) continue;
-    const e = mapEntry(rows[0]);
-    if (e.status !== 'Draft' && e.status !== 'Rejected') continue;
-    const tier = approvalTier(e.usd_equivalent, effectiveThresholdUsd(rules, e.country_code, e.category_id));
-    const next: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
-    const approver = next === 'Pending Approval' ? (e.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
-    await exec(`UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [next, approver, actor.name, id]);
-    await writeAudit('Status change', e.code, actor.name, actor.email, `${e.status} → ${next} (bulk)`);
-    count++;
-  }
-  return { count };
+  return withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const rules = await loadThresholdRules(db);
+    let count = 0;
+    for (const id of entryIds) {
+      const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [id]);
+      if (!rows[0]) continue;
+      const e = mapEntry(rows[0]);
+      if (e.status !== 'Draft' && e.status !== 'Rejected') continue;
+      const tier = approvalTier(e.usd_equivalent, effectiveThresholdUsd(rules, e.country_code, e.category_id));
+      const next: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
+      const approver = next === 'Pending Approval' ? (e.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
+      await db.exec(`UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [next, approver, actor.name, id]);
+      await writeAudit('Status change', e.code, actor.name, actor.email, `${e.status} → ${next} (bulk)`, db);
+      count++;
+    }
+    return { count };
+  });
 }
 
 /* ============================================================================

@@ -1,4 +1,6 @@
+import type { PoolClient } from 'pg';
 import titePool from '@/lib/db-tite';
+import { withTransaction } from '@/lib/db/tx';
 import type { ShipmentDocument, ActivityLogRow } from '@/types/tite';
 
 /* ─── Document helpers ──────────────────────────────────────────── */
@@ -74,13 +76,18 @@ export async function dbGetDocumentFile(id: number): Promise<{
 
 /* ─── Activity log helpers ──────────────────────────────────────── */
 
+/**
+ * Append an activity-log row. Pass the `client` of a surrounding transaction so
+ * the log entry commits with the change it describes; without one it runs on
+ * the pool, on its own connection.
+ */
 export async function dbInsertActivityLog(params: {
   shipment_id: number;
   action: string;
   details: string | null;
   performed_by: string | null;
-}): Promise<void> {
-  await titePool.query(
+}, client?: PoolClient): Promise<void> {
+  await (client ?? titePool).query(
     `INSERT INTO shipment_activity_log (shipment_id, action, details, performed_by)
      VALUES ($1, $2, $3, $4)`,
     [params.shipment_id, params.action, params.details, params.performed_by],
@@ -112,15 +119,18 @@ export async function dbUpdateShipmentWithLog(params: {
   const values = Object.values(params.fields);
   const setClauses = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
 
-  await titePool.query(
-    `UPDATE shipments SET ${setClauses}, updated_at = NOW() WHERE id = $1`,
-    [params.shipment_id, ...values],
-  );
+  // The row and the log entry describing it land together or not at all.
+  await withTransaction(titePool, async (client) => {
+    await client.query(
+      `UPDATE shipments SET ${setClauses}, updated_at = NOW() WHERE id = $1`,
+      [params.shipment_id, ...values],
+    );
 
-  await dbInsertActivityLog({
-    shipment_id:  params.shipment_id,
-    action:       params.action,
-    details:      params.details,
-    performed_by: params.performed_by,
+    await dbInsertActivityLog({
+      shipment_id:  params.shipment_id,
+      action:       params.action,
+      details:      params.details,
+      performed_by: params.performed_by,
+    }, client);
   });
 }

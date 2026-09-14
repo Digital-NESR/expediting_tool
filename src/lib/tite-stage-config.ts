@@ -50,6 +50,23 @@ export const DOCUMENT_STAGES: Record<string, StageConfig> = {
   },
 };
 
+/* ─── Status transitions ───────────────────────────────────────────────
+   The statuses a shipment may move to from its current one. The update-status
+   modal builds its dropdown from this, and `updateShipmentStatus` validates
+   against it server-side so a hand-crafted POST cannot skip a step.
+   ────────────────────────────────────────────────────────────────────── */
+
+export const STATUS_TRANSITIONS: Record<string, string[]> = {
+  'Open':                     ['Open - Extended', 'Closed'],
+  'Open - Extended':          ['Open - Extended', 'Closed', 'Closed - Refund Recovered'],
+  'Closed':                   ['Closed - Refund Recovered'],
+};
+
+/** The statuses reachable from `currentStatus`; empty when it is terminal. */
+export function getNextStatusOptions(currentStatus: string): string[] {
+  return STATUS_TRANSITIONS[currentStatus] ?? [];
+}
+
 export type DocumentStage = 'creation' | 'extension' | 'closure' | 'refund';
 
 export interface PendingUpload {

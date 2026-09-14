@@ -3116,7 +3116,12 @@ async function updateStatusCommon(input: {
   const rejectionReason = input.status === 'Rejected' ? blankToNull(comment) : null;
   const reviewComments = shouldSetReviewer ? blankToNull(comment) : row.review_comments;
 
-  await exec(
+  // Optimistic lock: the transition above was validated against `row.status`, so only write if the
+  // row is still in that status. Without this, two concurrent approvals (or a cancel racing an
+  // approval) both pass validation and both write — duplicate activity rows, duplicate n8n webhooks
+  // and emails, and a last-write-wins status. A lost race must produce NO side effects, so the
+  // activity log and the webhook below only run when this UPDATE actually matched a row.
+  const updateResult = await exec(
     `UPDATE ${input.table}
      SET status = ?,
          reviewed_by_name = ?,
@@ -3127,7 +3132,7 @@ async function updateStatusCommon(input: {
          reminder_7d_sent_at = NULL,
          reminder_14d_sent_at = NULL,
          updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
+     WHERE id = ? AND status = ?`,
     [
       input.status,
       shouldSetReviewer ? actor.name : row.reviewed_by_name,
@@ -3136,8 +3141,13 @@ async function updateStatusCommon(input: {
       rejectionReason,
       reviewComments,
       input.id,
+      row.status,
     ],
   );
+
+  if (updateResult.rowCount === 0) {
+    return { success: false, error: 'This request was updated by someone else. Refresh and try again.' };
+  }
 
   await writeActivity({
     requestType: input.requestType,

@@ -8,7 +8,7 @@ import NotificationRecipientsCard from '@/components/tite/NotificationRecipients
 import {
   ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, calcDays, getStatusBadge,
 } from '@/lib/tite-utils';
-import { DOCUMENT_STAGES } from '@/lib/tite-stage-config';
+import { DOCUMENT_STAGES, getNextStatusOptions } from '@/lib/tite-stage-config';
 import { updateShipmentStatus } from '@/app/actions/tite';
 import type { NotificationLogRow } from '@/app/actions/tite';
 import type { Shipment, ShipmentDocument, ActivityLogRow, NotificationContact } from '@/types/tite';
@@ -157,19 +157,6 @@ const ACTION_DOT: Record<string, string> = {
 };
 
 /* ─── Update Status Modal ────────────────────────────────────── */
-
-function getNextStatusOptions(currentStatus: string): string[] {
-  if (currentStatus === 'Open') {
-    return ['Open - Extended', 'Closed'];
-  }
-  if (currentStatus === 'Open - Extended') {
-    return ['Open - Extended', 'Closed', 'Closed - Refund Recovered'];
-  }
-  if (currentStatus === 'Closed') {
-    return ['Closed - Refund Recovered'];
-  }
-  return [];
-}
 
 function UpdateStatusModal({
   shipment,

@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import https from 'https';
 import { getServerSession } from 'next-auth';
 import pool from '@/lib/db';
+import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import { authOptions } from '@/lib/auth';
 import { normalizeEmail } from '@/lib/require-access';
 import type { PurchaseOrder } from '@/types/po';
@@ -349,111 +350,223 @@ export async function prepareAllExpediteDispatches(
     }
   }
 
-  /* ── Phase 1: DB inserts for every supplier group ── */
-  for (const params of groupsIn) {
-    const { supplierId, supplierName } = params;
-    const token = randomUUID();
+  /* The (po_number, po_line) pairs the caller is actually allowed to write —
+     used below to find which earlier sessions currently own these lines. */
+  const verifiedPoNumbers: string[] = [];
+  const verifiedPoLines: string[] = [];
+  for (const row of masterByKey.values()) {
+    verifiedPoNumbers.push(row.po_number);
+    verifiedPoLines.push(row.po_line ?? '');
+  }
 
-    /* Recipients / template: validated and capped, never used raw. */
-    const toEmails = sanitizeRecipients(params?.toEmails);
-    const ccEmails = sanitizeRecipients(params?.ccEmails);
-    const subject = String(params?.subject ?? '').slice(0, MAX_SUBJECT_LEN);
-    const emailBodyTemplate = String(params?.emailBodyTemplate ?? '').slice(0, MAX_BODY_LEN);
+  /* ── Phase 1: every DB write for this dispatch, in ONE transaction ──
+     The line rows and the expediting_sessions row that counts them must commit
+     together: previously the session row was inserted on the pool after the
+     lines, so a failure in between left lines with no session (or, if the line
+     inserts partly failed, a session whose counters described rows that were
+     never written). Per-supplier failures still degrade to a per-supplier error
+     via SAVEPOINT, exactly as the per-group try/catch did before. ── */
+  await withTransaction(pool, async (client) => {
+    /* Read-then-write: we record which sessions own these lines, move the lines
+       to the new session, then recompute the old sessions' counters. Two
+       dispatches racing over the same line would each miss the other's session
+       and re-orphan its counters, so serialise dispatches for the transaction. */
+    await lockForTransaction(client, 'po-expediting:dispatch');
 
-    /* Only lines the caller is actually allowed to see, de-duplicated. */
-    const serverLines = new Map<string, MasterLine>();
-    for (const item of Array.isArray(params?.items) ? params.items : []) {
-      const row = masterByKey.get(lineKey(item?.['PO Number'], item?.['PO Line'] ?? ''));
-      if (row) serverLines.set(lineKey(row.po_number, row.po_line ?? ''), row);
-    }
-    const items = [...serverLines.values()];
+    /* Sessions that currently own any of these lines. Once the lines move to
+       sessionRef these sessions' stored counters no longer describe the lines
+       they still own, so they are recomputed after the inserts. */
+    const priorRefs = verifiedPoNumbers.length === 0
+      ? []
+      : (await client.query<{ session_ref: string }>(
+          `SELECT DISTINCT ae.session_ref
+             FROM active_expediting ae
+             JOIN unnest($1::text[], $2::text[]) AS req(po_number, po_line)
+               ON ae.po_number = req.po_number
+              AND COALESCE(ae.po_line, '') = req.po_line
+            WHERE ae.session_ref IS NOT NULL`,
+          [verifiedPoNumbers, verifiedPoLines]
+        )).rows.map((r) => r.session_ref);
 
-    if (toEmails.length === 0) {
-      results.push({ supplierName, success: false, error: 'No valid recipient email address.' });
-      continue;
-    }
-    if (items.length === 0) {
-      results.push({
-        supplierName,
-        success: false,
-        error: 'No PO lines available for this supplier within your approved countries.',
-      });
-      continue;
-    }
+    for (const params of groupsIn) {
+      const { supplierId, supplierName } = params;
+      const token = randomUUID();
 
-    try {
-      for (const item of items) {
-        await pool.query(
-          `INSERT INTO active_expediting
-             (po_number, po_line, expedite_token, workflow_state,
-              current_status, dispatched_by, dispatched_at,
-              session_ref, supplier_name, supplier_id, created_at, updated_at)
-           VALUES ($1, $2, $3, 'Email Sent', 'Pending Supplier Response',
-                   $4, NOW(), $5, $6, $7, NOW(), NOW())
-           ON CONFLICT (po_number, po_line)
-           DO UPDATE SET
-             expedite_token    = EXCLUDED.expedite_token,
-             workflow_state    = 'Email Sent',
-             current_status    = 'Pending Supplier Response',
-             new_delivery_date = NULL,
-             supplier_comments = NULL,
-             buyer_comments    = NULL,
-             dispatched_by     = EXCLUDED.dispatched_by,
-             dispatched_at     = NOW(),
-             session_ref       = EXCLUDED.session_ref,
-             supplier_name     = EXCLUDED.supplier_name,
-             supplier_id       = EXCLUDED.supplier_id,
-             updated_at        = NOW()`,
-          [item.po_number, item.po_line ?? '', token, userEmail, sessionRef,
-           item.supplier_name ?? (supplierName || null),
-           item.supplier_id ?? (supplierId || null)]
-        );
+      /* Recipients / template: validated and capped, never used raw. */
+      const toEmails = sanitizeRecipients(params?.toEmails);
+      const ccEmails = sanitizeRecipients(params?.ccEmails);
+      const subject = String(params?.subject ?? '').slice(0, MAX_SUBJECT_LEN);
+      const emailBodyTemplate = String(params?.emailBodyTemplate ?? '').slice(0, MAX_BODY_LEN);
+
+      /* Only lines the caller is actually allowed to see, de-duplicated. */
+      const serverLines = new Map<string, MasterLine>();
+      for (const item of Array.isArray(params?.items) ? params.items : []) {
+        const row = masterByKey.get(lineKey(item?.['PO Number'], item?.['PO Line'] ?? ''));
+        if (row) serverLines.set(lineKey(row.po_number, row.po_line ?? ''), row);
+      }
+      const items = [...serverLines.values()];
+
+      if (toEmails.length === 0) {
+        results.push({ supplierName, success: false, error: 'No valid recipient email address.' });
+        continue;
+      }
+      if (items.length === 0) {
+        results.push({
+          supplierName,
+          success: false,
+          error: 'No PO lines available for this supplier within your approved countries.',
+        });
+        continue;
       }
 
-      preparedGroups.push({
-        supplierName,
-        supplierId,
-        toEmails,
-        ccEmails,
-        subject,
-        emailBody: emailBodyTemplate,
-        expediteToken: token,
-        poLines: items.map((i) => ({
-          po_number: i.po_number,
-          po_line: i.po_line ?? '',
-          item_description: i.item_description ?? '',
-          open_qty: Number(i.open_qty ?? 0),
-          open_po_value_usd: Number(i.open_po_value_usd ?? 0),
-          delivery_date: isoDate(i.delivery_date),
-          po_release_date: i.po_release_date == null ? null : isoDate(i.po_release_date),
-        })),
-      });
+      /* One supplier's inserts fail on their own without aborting the batch —
+         a plain try/catch cannot do that inside a transaction, because the
+         first error poisons every later statement until a rollback. */
+      await client.query('SAVEPOINT dispatch_group');
+      try {
+        for (const item of items) {
+          await client.query(
+            `INSERT INTO active_expediting
+               (po_number, po_line, expedite_token, workflow_state,
+                current_status, dispatched_by, dispatched_at,
+                session_ref, supplier_name, supplier_id, created_at, updated_at)
+             VALUES ($1, $2, $3, 'Email Sent', 'Pending Supplier Response',
+                     $4, NOW(), $5, $6, $7, NOW(), NOW())
+             ON CONFLICT (po_number, po_line)
+             DO UPDATE SET
+               expedite_token    = EXCLUDED.expedite_token,
+               workflow_state    = 'Email Sent',
+               current_status    = 'Pending Supplier Response',
+               new_delivery_date = NULL,
+               supplier_comments = NULL,
+               buyer_comments    = NULL,
+               dispatched_by     = EXCLUDED.dispatched_by,
+               dispatched_at     = NOW(),
+               session_ref       = EXCLUDED.session_ref,
+               supplier_name     = EXCLUDED.supplier_name,
+               supplier_id       = EXCLUDED.supplier_id,
+               updated_at        = NOW()`,
+            [item.po_number, item.po_line ?? '', token, userEmail, sessionRef,
+             item.supplier_name ?? (supplierName || null),
+             item.supplier_id ?? (supplierId || null)]
+          );
+        }
+        await client.query('RELEASE SAVEPOINT dispatch_group');
 
-      results.push({ supplierName, success: true });
-    } catch (err) {
-      console.error('[prepareAllExpediteDispatches] DB error for', supplierName, err);
-      results.push({
-        supplierName,
-        success: false,
-        error: err instanceof Error ? err.message : String(err),
-      });
+        preparedGroups.push({
+          supplierName,
+          supplierId,
+          toEmails,
+          ccEmails,
+          subject,
+          emailBody: emailBodyTemplate,
+          expediteToken: token,
+          poLines: items.map((i) => ({
+            po_number: i.po_number,
+            po_line: i.po_line ?? '',
+            item_description: i.item_description ?? '',
+            open_qty: Number(i.open_qty ?? 0),
+            open_po_value_usd: Number(i.open_po_value_usd ?? 0),
+            delivery_date: isoDate(i.delivery_date),
+            po_release_date: i.po_release_date == null ? null : isoDate(i.po_release_date),
+          })),
+        });
+
+        results.push({ supplierName, success: true });
+      } catch (err) {
+        await client.query('ROLLBACK TO SAVEPOINT dispatch_group');
+        await client.query('RELEASE SAVEPOINT dispatch_group');
+        console.error('[prepareAllExpediteDispatches] DB error for', supplierName, err);
+        results.push({
+          supplierName,
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
-  }
 
-  /* ── Record the dispatch session ── */
-  if (preparedGroups.length > 0) {
-    const totalPoLines = preparedGroups.reduce((sum, g) => sum + g.poLines.length, 0);
-    const totalEmailsSent = preparedGroups.reduce((sum, g) => sum + g.toEmails.length, 0);
-    await pool.query(
-      `INSERT INTO expediting_sessions
-         (session_ref, dispatched_by, dispatched_at,
-          total_suppliers, total_po_lines, total_emails_sent)
-       VALUES ($1, $2, NOW(), $3, $4, $5)`,
-      [sessionRef, userEmail, preparedGroups.length, totalPoLines, totalEmailsSent]
-    );
-  }
+    /* ── Record the dispatch session ── */
+    if (preparedGroups.length > 0) {
+      /* Distinct lines, not the sum of group sizes: active_expediting holds one
+         row per (po_number, po_line), so a line listed under two suppliers in
+         the same batch produces one row. Counting it twice would give this
+         session a denominator its own lines can never reach. */
+      const dispatchedLines = new Set<string>();
+      for (const g of preparedGroups) {
+        for (const l of g.poLines) dispatchedLines.add(lineKey(l.po_number, l.po_line));
+      }
+      const totalPoLines = dispatchedLines.size;
+      const totalEmailsSent = preparedGroups.reduce((sum, g) => sum + g.toEmails.length, 0);
+      await client.query(
+        `INSERT INTO expediting_sessions
+           (session_ref, dispatched_by, dispatched_at,
+            total_suppliers, total_po_lines, total_emails_sent)
+         VALUES ($1, $2, NOW(), $3, $4, $5)`,
+        [sessionRef, userEmail, preparedGroups.length, totalPoLines, totalEmailsSent]
+      );
+    }
 
-  /* ── Phase 2: single AWAITED webhook after all DB inserts ── */
+    /* ── Re-point the counters of the sessions we just took lines from ──
+       total_po_lines was frozen at their dispatch time, but lines_responded is
+       derived from whatever active_expediting still carries their session_ref.
+       Once a line is re-dispatched the old session loses it, so its response
+       rate can never reach 100% and fully_closed never flips — the dashboard
+       shows it as open work forever. Recompute the total from the lines it
+       still owns, and re-derive the response columns with supplierPortal's own
+       formula so both writers agree.
+
+       The response columns are only re-derived once the session has a response
+       recorded (or has no lines left at all): NULL there means "no response
+       yet", and AVG(response_rate_pct) in the analytics pages relies on that —
+       writing 0.00 into an untouched session would quietly drag those averages
+       down. A session that has lost every line has no outstanding work, so it
+       closes. */
+    const staleRefs = priorRefs.filter((ref) => ref !== sessionRef);
+    if (staleRefs.length > 0) {
+      await client.query(
+        `WITH refs AS (SELECT unnest($1::text[]) AS session_ref),
+              stats AS (
+                SELECT r.session_ref,
+                       COUNT(ae.id)                                                AS total_lines,
+                       COUNT(ae.id) FILTER (WHERE ae.workflow_state = 'Submitted') AS lines_responded,
+                       COUNT(DISTINCT ae.expedite_token)
+                         FILTER (WHERE ae.workflow_state = 'Submitted')            AS suppliers_responded
+                  FROM refs r
+                  LEFT JOIN active_expediting ae ON ae.session_ref = r.session_ref
+                 GROUP BY r.session_ref
+              ),
+              recalc AS (
+                SELECT s.*,
+                       (s.lines_responded > 0
+                        OR es.lines_responded IS NOT NULL
+                        OR s.total_lines = 0) AS derive
+                  FROM stats s
+                  JOIN expediting_sessions es ON es.session_ref = s.session_ref
+              )
+         UPDATE expediting_sessions es SET
+           total_po_lines      = r.total_lines,
+           suppliers_responded = CASE WHEN r.derive THEN r.suppliers_responded ELSE es.suppliers_responded END,
+           lines_responded     = CASE WHEN r.derive THEN r.lines_responded     ELSE es.lines_responded END,
+           response_rate_pct   = CASE WHEN r.derive
+             THEN ROUND(r.lines_responded * 100.0 / NULLIF(r.total_lines, 0), 2)
+             ELSE es.response_rate_pct END,
+           fully_closed        = CASE WHEN r.derive
+             THEN r.lines_responded >= r.total_lines
+             ELSE es.fully_closed END,
+           closed_at           = CASE
+             WHEN r.derive AND r.lines_responded >= r.total_lines THEN COALESCE(es.closed_at, NOW())
+             WHEN r.derive THEN NULL
+             ELSE es.closed_at END
+         FROM recalc r
+         WHERE es.session_ref = r.session_ref`,
+        [staleRefs]
+      );
+    }
+  });
+
+  /* ── Phase 2: single AWAITED webhook, after the transaction has COMMITTED ──
+     Deliberately outside the transaction: a sent email cannot be rolled back,
+     so the rows must be durable before n8n is asked to mail anyone. ── */
   let webhook: WebhookStatus = {
     triggered: false, ok: false, payloadSizeKB: 0, suppliers: preparedGroups.length,
     message: 'No suppliers to notify.',

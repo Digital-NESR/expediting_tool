@@ -4,13 +4,15 @@ import type { QueryResultRow } from 'pg';
 import { AccessError, currentActor, normalizeEmail } from '@/lib/require-access';
 import { getRedBullGameStats, type RedBullGameStats } from './learning-game';
 import { SEED_TRACKS } from '@/lib/learning-hub-seed-content';
+import learningHubPool from '@/lib/db-learning-hub';
+import { withTransaction } from '@/lib/db/tx';
 import {
   sql,
   exec,
+  sqlOn,
+  execOn,
   ensureLearningHubReady,
-  hashSeedTrack,
-  insertNewSeedTrack,
-  applySeedTrackToExisting,
+  applySeedTrack,
   loadModuleQuizRaw,
 } from '@/lib/learning-hub-queries';
 import type {
@@ -352,21 +354,16 @@ export async function getLearningHubAdminData(): Promise<LearningHubAdminData> {
 
 // Admin escape hatch: force one track back to its current code-defined content right now, even if
 // the auto-sync already considers it up to date (e.g. to discard manual CMS edits deliberately).
-// Destructive: it deletes the track's courses, which cascades to learner progress.
+// Destructive: it deletes the track's courses, which cascades to learner progress. applySeedTrack
+// runs the whole replacement in one locked transaction, so a failure here leaves the track as it was
+// rather than emptied, and it cannot interleave with a cold-start sync of the same track.
 export async function resyncTrackFromSeed(trackKey: string): Promise<{ success: boolean; message: string }> {
   await requireLearningHubAdmin();
   await ensureLearningHubReady();
   const seedTrack = SEED_TRACKS.find((t) => t.key === trackKey);
   if (!seedTrack) return { success: false, message: `No seed content defined for track "${trackKey}".` };
-  const version = hashSeedTrack(seedTrack);
 
-  const existingTrack = await sql<QueryResultRow[]>(`SELECT id FROM learning_tracks WHERE key = ?`, [trackKey]);
-  if (existingTrack[0]) {
-    await applySeedTrackToExisting(Number(existingTrack[0].id), seedTrack, version);
-  } else {
-    const trackIdx = SEED_TRACKS.indexOf(seedTrack);
-    await insertNewSeedTrack(seedTrack, trackIdx, version);
-  }
+  await applySeedTrack(seedTrack, SEED_TRACKS.indexOf(seedTrack), true);
   return { success: true, message: `Reset "${seedTrack.name}" to its default seed content.` };
 }
 
@@ -481,20 +478,27 @@ const PARENT_COLUMN: Record<ReorderTable, string> = {
   learning_lessons: 'module_id',
 };
 
+// A reorder is read-then-swap: the two UPDATEs must land together or not at all, or the pair ends up
+// sharing one order_index and the list silently reorders itself. The SELECT takes FOR UPDATE so two
+// admins reordering the same parent queue up instead of both swapping against the same stale read.
+// Callers are the move* actions below, which run requireLearningHubAdmin() before getting here.
 async function moveOrderIndex(table: ReorderTable, parentId: number, id: number, direction: 'up' | 'down'): Promise<void> {
   const parentColumn = PARENT_COLUMN[table];
-  const rows = await sql<QueryResultRow[]>(
-    `SELECT id, order_index FROM ${table} WHERE ${parentColumn} = ? ORDER BY order_index ASC, id ASC`,
-    [parentId],
-  );
-  const idx = rows.findIndex((r) => Number(r.id) === id);
-  if (idx < 0) return;
-  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-  if (swapIdx < 0 || swapIdx >= rows.length) return;
-  const a = rows[idx];
-  const b = rows[swapIdx];
-  await exec(`UPDATE ${table} SET order_index = ? WHERE id = ?`, [Number(b.order_index), Number(a.id)]);
-  await exec(`UPDATE ${table} SET order_index = ? WHERE id = ?`, [Number(a.order_index), Number(b.id)]);
+  await withTransaction(learningHubPool, async (client) => {
+    const rows = await sqlOn<QueryResultRow[]>(
+      client,
+      `SELECT id, order_index FROM ${table} WHERE ${parentColumn} = ? ORDER BY order_index ASC, id ASC FOR UPDATE`,
+      [parentId],
+    );
+    const idx = rows.findIndex((r) => Number(r.id) === id);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= rows.length) return;
+    const a = rows[idx];
+    const b = rows[swapIdx];
+    await execOn(client, `UPDATE ${table} SET order_index = ? WHERE id = ?`, [Number(b.order_index), Number(a.id)]);
+    await execOn(client, `UPDATE ${table} SET order_index = ? WHERE id = ?`, [Number(a.order_index), Number(b.id)]);
+  });
 }
 
 export async function moveCourse(trackId: number, id: number, direction: 'up' | 'down'): Promise<void> {
@@ -549,35 +553,41 @@ export async function saveModuleQuiz(
   title: string,
   questions: { question_text: string; options: { option_text: string; is_correct: boolean }[] }[],
 ): Promise<void> {
+  // Guard first, transaction second: a denied caller never opens one.
   await requireLearningHubAdmin();
   await ensureLearningHubReady();
-  const existing = await sql<QueryResultRow[]>(`SELECT id FROM learning_quizzes WHERE module_id = ?`, [moduleId]);
-  let quizId: number;
-  if (existing[0]) {
-    quizId = Number(existing[0].id);
-    await exec(`UPDATE learning_quizzes SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [title, quizId]);
-    await exec(`DELETE FROM learning_quiz_questions WHERE quiz_id = ?`, [quizId]);
-  } else {
-    const result = await exec(`INSERT INTO learning_quizzes (module_id, title) VALUES (?, ?) RETURNING id`, [moduleId, title]);
-    quizId = result.insertId;
-  }
+  // Saving a quiz deletes the old questions before writing the new ones, so a failure part-way
+  // through used to leave the module with a half-saved quiz (or none at all, with the title row
+  // still claiming there is one). All of it now commits together or not at all.
+  await withTransaction(learningHubPool, async (client) => {
+    const existing = await sqlOn<QueryResultRow[]>(client, `SELECT id FROM learning_quizzes WHERE module_id = ?`, [moduleId]);
+    let quizId: number;
+    if (existing[0]) {
+      quizId = Number(existing[0].id);
+      await execOn(client, `UPDATE learning_quizzes SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [title, quizId]);
+      await execOn(client, `DELETE FROM learning_quiz_questions WHERE quiz_id = ?`, [quizId]);
+    } else {
+      const result = await execOn(client, `INSERT INTO learning_quizzes (module_id, title) VALUES (?, ?) RETURNING id`, [moduleId, title]);
+      quizId = result.insertId;
+    }
 
-  await Promise.all(
-    questions.map(async (q, qIdx) => {
-      const qResult = await exec(
+    // Sequential, not Promise.all: every statement shares the one transaction client, where
+    // concurrent calls would only queue behind each other anyway.
+    for (const [qIdx, q] of questions.entries()) {
+      const qResult = await execOn(
+        client,
         `INSERT INTO learning_quiz_questions (quiz_id, question_text, order_index) VALUES (?, ?, ?) RETURNING id`,
         [quizId, q.question_text, qIdx],
       );
-      await Promise.all(
-        q.options.map((o, oIdx) =>
-          exec(
-            `INSERT INTO learning_quiz_options (question_id, option_text, is_correct, order_index) VALUES (?, ?, ?, ?) RETURNING id`,
-            [qResult.insertId, o.option_text, o.is_correct, oIdx],
-          ),
-        ),
-      );
-    }),
-  );
+      for (const [oIdx, o] of q.options.entries()) {
+        await execOn(
+          client,
+          `INSERT INTO learning_quiz_options (question_id, option_text, is_correct, order_index) VALUES (?, ?, ?, ?) RETURNING id`,
+          [qResult.insertId, o.option_text, o.is_correct, oIdx],
+        );
+      }
+    }
+  });
 }
 
 export async function deleteModuleQuiz(moduleId: number): Promise<void> {
