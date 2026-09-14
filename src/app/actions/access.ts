@@ -4,6 +4,7 @@ import https from 'https';
 import pool from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { normalizeEmail } from '@/lib/require-access';
 
 /* ─── httpsPost (fire-and-forget, mirrors expediteDispatch) ──── */
 
@@ -66,8 +67,8 @@ export async function getCurrentAccessRequest(
       `SELECT user_email, status, requested_countries, approved_countries,
               requested_at
          FROM access_requests
-        WHERE user_email = $1`,
-      [userEmail],
+        WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail)],
     );
     if (rows.length === 0) return null;
     const r = rows[0];
@@ -98,12 +99,12 @@ export async function submitAccessRequest(
     // Never overwrite existing access: a stray "request access" (e.g. a mis-click before the
     // session finished loading and the card still showed "Request Access") must not demote an
     // already-approved user back to Pending. Admins and approved users are no-ops.
-    const normalizedEmail = userEmail.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(userEmail);
     const adminList = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
     if (adminList.includes(normalizedEmail)) return { success: true };
     const existing = await pool.query<{ status: string }>(
-      `SELECT status FROM access_requests WHERE user_email = $1`,
-      [userEmail],
+      `SELECT status FROM access_requests WHERE LOWER(user_email) = $1`,
+      [normalizedEmail],
     );
     if (existing.rows[0]?.status === 'Approved') return { success: true };
 
@@ -123,7 +124,7 @@ export async function submitAccessRequest(
          reviewed_by         = NULL,
          notes               = NULL,
          approved_countries  = NULL`,
-      [userEmail, countries, displayName, jobTitle, department],
+      [normalizedEmail, countries, displayName, jobTitle, department],
     );
     // Fire-and-forget admin notification email
     sendAdminNotificationEmail(displayName, userEmail, jobTitle, countries)

@@ -68,13 +68,13 @@ export default function AdminAppContent(props: AdminAppContentProps) {
 
     /* ── TI-TE ── */
     case 'tite/migration':
-      return <TiteMigrationClient userEmail={props.userEmail} />;
+      return <TiteMigrationClient />;
     case 'tite/default-notifiers':
-      return <TiteDefaultNotifiersClient userEmail={props.userEmail} />;
+      return <TiteDefaultNotifiersClient />;
     case 'tite/analytics':
       return <TiteAnalyticsClient shipments={props.titeShipments ?? null} />;
     case 'tite/access-approvals':
-      return <TiteAccessApprovalsClient userEmail={props.userEmail} onPendingCountChange={noop} />;
+      return <TiteAccessApprovalsClient onPendingCountChange={noop} />;
 
     /* ── ProcureGuard ── */
     case 'procureguard/admin':
@@ -102,7 +102,7 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     case 'catalog/sync':
       return <CatalogSyncHealthClient />;
     case 'catalog/access':
-      return <CatalogAccessApprovalsClient userEmail={props.userEmail} onPendingCountChange={noop} />;
+      return <CatalogAccessApprovalsClient onPendingCountChange={noop} />;
 
     /* ── S&S Registry ── */
     case 'sns/access':
@@ -118,7 +118,7 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     case 'laptop/access':
       return (
         <div className="space-y-8">
-          <LaptopAccessApprovalsClient userEmail={props.userEmail} onPendingCountChange={noop} />
+          <LaptopAccessApprovalsClient onPendingCountChange={noop} />
           <div className="border-t border-slate-200 pt-8">
             <LaptopApproverMatrixClient />
           </div>

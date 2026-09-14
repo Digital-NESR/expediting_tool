@@ -10,7 +10,6 @@ export const metadata: Metadata = { title: 'NESR | TI-TE' };
 export default async function TiteDashboardPage() {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email ?? '';
-  const userName = session?.user?.name ?? '';
   const adminEmails = (process.env.ADMIN_EMAILS ?? '')
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   const isAdmin = adminEmails.includes(email.toLowerCase());
@@ -26,7 +25,7 @@ export default async function TiteDashboardPage() {
 
   const [shipments, recentActivity] = await Promise.all([
     getAllShipments(approvedCountries),
-    getRecentActivity(userName, 7),
+    getRecentActivity(7),
   ]);
 
   // Derive stats from the same shipments array so KPI cards and the compliance

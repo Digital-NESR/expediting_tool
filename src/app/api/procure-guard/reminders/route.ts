@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
-import { sendProcureGuardOpenRequestReminders } from '@/app/actions/procureGuard';
+// Imported from a plain module, not from the `'use server'` actions file: an action export would
+// also be a public POST endpoint, letting any signed-in user trigger the mass send below without
+// the CRON_SECRET check.
+import { sendProcureGuardOpenRequestReminders } from '@/lib/procure-guard/reminders';
 
 export const dynamic = 'force-dynamic';
 // Reminders can iterate many requests + send webhooks; give it room beyond the default.

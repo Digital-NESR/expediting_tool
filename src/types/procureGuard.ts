@@ -242,7 +242,8 @@ export interface CreateAdhocPaymentInput {
   due_date?: string;
   expense_category?: string;
   spend_category: string;
-  spend_value_usd?: number;
+  // spend_value_usd is NOT accepted from the client: it decides which approvers are required,
+  // so the server always derives it from amount + currency.
   payment_method?: string;
   payment_reason: string;
   justification: string;
@@ -277,7 +278,8 @@ export interface CreateAdvancePaymentInput {
   contract_value?: number;
   advance_percentage?: number;
   spend_category: string;
-  spend_value_usd?: number;
+  // spend_value_usd is NOT accepted from the client: it decides which approvers are required,
+  // so the server always derives it from amount + currency.
   current_payment_terms_days: number;
   current_credit_limit_usd: number;
   expected_invoice_date?: string;

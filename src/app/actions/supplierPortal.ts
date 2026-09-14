@@ -1,6 +1,7 @@
 'use server';
 
 import pool from '@/lib/db';
+import { DS_DESCRIPTIONS } from '@/lib/constants';
 
 /* ─── Types ──────────────────────────────────────────────── */
 
@@ -99,41 +100,128 @@ export async function getExpediteByToken(token: string): Promise<GetTokenResult>
 
 /* ─── submitSupplierUpdates ──────────────────────────────── */
 
+/** Longest supplier comment we persist. Anything longer is rejected outright. */
+const MAX_SUPPLIER_COMMENT_LEN = 2000;
+
+/** Generic message handed to the supplier — never leaks database detail. */
+const GENERIC_SUBMIT_ERROR =
+  'We could not save your updates. Please try again, or contact your NESR buyer.';
+
+/**
+ * Normalise a supplier-supplied date. Returns `null` for "not provided",
+ * the ISO `YYYY-MM-DD` form when it parses, and `undefined` when the value is
+ * not a date at all (caller rejects the whole submission).
+ */
+function normalizeSupplierDate(value: string | null): string | null | undefined {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (raw.length > 40) return undefined;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.valueOf())) return undefined;
+  return parsed.toISOString().slice(0, 10);
+}
+
+/**
+ * DELIBERATELY PUBLIC AND UNAUTHENTICATED: suppliers reach this through a
+ * tokenised link and have no NESR account. The bearer token is the only
+ * credential, so everything else must be validated here — the token is
+ * re-checked as still open inside the transaction, the status code must be a
+ * known DS code, free text is capped, and database errors never reach the
+ * supplier.
+ */
 export async function submitSupplierUpdates(
   token: string,
   updates: LineUpdate[]
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; expired?: boolean }> {
+  /* ── Validate the payload before opening a transaction ── */
+  if (typeof token !== 'string' || !token.trim() || token.length > 200) {
+    return { success: false, error: GENERIC_SUBMIT_ERROR };
+  }
+  if (!Array.isArray(updates) || updates.length === 0 || updates.length > 5000) {
+    return { success: false, error: GENERIC_SUBMIT_ERROR };
+  }
+
+  const validCodes = new Set(Object.keys(DS_DESCRIPTIONS));
+  const cleaned: LineUpdate[] = [];
+
+  for (const u of updates) {
+    const code = String(u?.delivery_status_code ?? '').trim();
+    if (!validCodes.has(code)) {
+      return { success: false, error: 'Please choose a valid delivery status for every line.' };
+    }
+
+    const date = normalizeSupplierDate(u?.new_delivery_date ?? null);
+    if (date === undefined) {
+      return { success: false, error: 'Please enter a valid delivery date.' };
+    }
+
+    const comments = String(u?.supplier_comments ?? '').trim();
+    if (comments.length > MAX_SUPPLIER_COMMENT_LEN) {
+      return {
+        success: false,
+        error: `Comments must be ${MAX_SUPPLIER_COMMENT_LEN} characters or fewer.`,
+      };
+    }
+
+    cleaned.push({
+      po_number: String(u?.po_number ?? '').slice(0, 100),
+      po_line: String(u?.po_line ?? '').slice(0, 100),
+      delivery_status_code: code,
+      new_delivery_date: date,
+      supplier_comments: comments,
+    });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    for (const u of updates) {
-      /* Get the row id */
-      const idResult = await client.query<{ id: number }>(
-        `SELECT id FROM active_expediting
-         WHERE expedite_token = $1 AND po_number = $2 AND po_line = $3`,
-        [token, u.po_number, u.po_line]
-      );
+    /* The link is single-use: re-check inside the transaction (and lock the
+       rows) so a replayed or concurrent submit cannot overwrite a response. */
+    const open = await client.query(
+      `SELECT id FROM active_expediting
+       WHERE expedite_token = $1 AND workflow_state <> 'Submitted'
+       FOR UPDATE`,
+      [token]
+    );
 
-      if (idResult.rows.length === 0) continue;
-      const activeExpId = idResult.rows[0].id;
+    if (open.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return {
+        success: false,
+        expired: true,
+        error: 'This link has already been used. Please contact your NESR buyer for changes.',
+      };
+    }
 
-      /* Update active_expediting — sets workflow_state = 'Submitted' (expires the link) */
-      await client.query(
+    for (const u of cleaned) {
+      /* Update active_expediting — sets workflow_state = 'Submitted' (expires the link).
+         Scoped to the token AND still-open rows so a stale line can never be rewritten. */
+      const updated = await client.query<{ id: number }>(
         `UPDATE active_expediting SET
            current_status     = $1,
            new_delivery_date  = $2,
            supplier_comments  = $3,
            workflow_state     = 'Submitted',
            updated_at         = NOW()
-         WHERE id = $4`,
+         WHERE expedite_token = $4
+           AND po_number      = $5
+           AND po_line        = $6
+           AND workflow_state <> 'Submitted'
+         RETURNING id`,
         [
           u.delivery_status_code,
           u.new_delivery_date || null,
           u.supplier_comments || null,
-          activeExpId,
+          token,
+          u.po_number,
+          u.po_line,
         ]
       );
+
+      if (updated.rows.length === 0) continue;
+      const activeExpId = updated.rows[0].id;
 
       /* Insert audit log */
       await client.query(
@@ -189,11 +277,9 @@ export async function submitSupplierUpdates(
     return { success: true };
   } catch (err) {
     await client.query('ROLLBACK');
+    /* Real cause stays server-side; the supplier only sees a generic message. */
     console.error('[submitSupplierUpdates]', err);
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
+    return { success: false, error: GENERIC_SUBMIT_ERROR };
   } finally {
     client.release();
   }

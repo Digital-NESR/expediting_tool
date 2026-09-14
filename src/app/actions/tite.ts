@@ -2,8 +2,16 @@
 
 import titePool from '@/lib/db-tite';
 import { titeCountryCode, formatTiteReference } from '@/lib/tite-constants';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import {
+  requireTiteUser,
+  currentTiteUser,
+  isTiteApproved,
+  titeReadScope,
+  canViewTiteCountry,
+  canEditTiteCountry,
+  type TiteUser,
+} from '@/lib/tite-auth';
+import { AccessError, requireAdmin, forbidden, normalizeEmail, isAdminActor } from '@/lib/require-access';
 import type { Shipment, ShipmentStats, ShipmentStatus, ShipmentDocument, ActivityLogRow, NotificationContact, CountryStakeholder, CountryStakeholderFull } from '@/types/tite';
 import {
   dbInsertDocument,
@@ -36,7 +44,6 @@ export interface CreateShipmentInput {
   comments?: string;
   customs_docs_location?: string;
   status?: ShipmentStatus;
-  created_by_email?: string;
   additionalContacts?: Array<{
     name: string;
     email: string;
@@ -94,6 +101,46 @@ function calcAlertLevel(
 
 const VIEW_ALL_COUNTRIES = 'All Countries - View Only';
 
+/* ─── Shipment-level scope guards ─────────────────────────────── */
+
+/**
+ * Intersect a caller-supplied country filter with the scope the SESSION allows.
+ * The parameter may only narrow the result — never widen it — so a hand-crafted
+ * POST cannot read a country the user was not approved for.
+ */
+function effectiveCountryScope(user: TiteUser, requested?: string[]): string[] | null {
+  const allowed = titeReadScope(user); // null → every country
+  const narrow = requested?.includes(VIEW_ALL_COUNTRIES) ? undefined : requested;
+  if (allowed === null) return narrow != null && narrow.length > 0 ? narrow : null;
+  if (narrow == null || narrow.length === 0) return allowed;
+  const lower = new Set(allowed.map(c => c.trim().toLowerCase()));
+  return narrow.filter(c => lower.has(c.trim().toLowerCase()));
+}
+
+/** The country a shipment belongs to, or undefined when the row does not exist. */
+async function shipmentCountry(shipmentId: number): Promise<string | null | undefined> {
+  const { rows } = await titePool.query<{ country: string | null }>(
+    `SELECT country FROM shipments WHERE id = $1`,
+    [shipmentId],
+  );
+  return rows.length ? rows[0].country : undefined;
+}
+
+/** Null when the user may mutate this shipment, otherwise the failure message. */
+async function denyShipmentEdit(user: TiteUser, shipmentId: number): Promise<string | null> {
+  const country = await shipmentCountry(shipmentId);
+  if (country === undefined) return 'Shipment not found.';
+  if (!canEditTiteCountry(user, country)) return 'You cannot edit shipments for this country.';
+  return null;
+}
+
+/** True when the user may read this shipment and anything hanging off it. */
+async function canReadShipment(user: TiteUser, shipmentId: number): Promise<boolean> {
+  const country = await shipmentCountry(shipmentId);
+  if (country === undefined) return false;
+  return canViewTiteCountry(user, country);
+}
+
 /* ─── SELECT columns ──────────────────────────────────────────── */
 
 const SELECT_COLS = `
@@ -111,9 +158,11 @@ const SELECT_COLS = `
 /* ─── getAllShipments ─────────────────────────────────────────── */
 
 export async function getAllShipments(approvedCountries?: string[]): Promise<Shipment[] | null> {
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user)) return null;
   try {
-    const isViewAll = approvedCountries?.includes(VIEW_ALL_COUNTRIES);
-    const filtered  = !isViewAll && approvedCountries != null && approvedCountries.length > 0;
+    const scope     = effectiveCountryScope(user, approvedCountries);
+    const filtered  = scope !== null;
     const { rows } = await titePool.query<Shipment>(
       `SELECT ${SELECT_COLS}
        FROM shipments
@@ -130,7 +179,7 @@ export async function getAllShipments(approvedCountries?: string[]): Promise<Shi
            ELSE 8
          END,
          COALESCE(extended_date, expiry_date) ASC NULLS LAST`,
-      filtered ? [approvedCountries] : [],
+      filtered ? [scope] : [],
     );
     // Recalculate alert_level from the effective date rather than trusting the
     // stored column, which only updates on create/extend/close and goes stale.
@@ -164,6 +213,8 @@ export async function getAllShipments(approvedCountries?: string[]): Promise<Shi
 /* ─── getShipmentById ─────────────────────────────────────────── */
 
 export async function getShipmentById(id: number): Promise<Shipment | null> {
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user)) return null;
   try {
     const { rows } = await titePool.query<Shipment>(
       `SELECT ${SELECT_COLS} FROM shipments WHERE id = $1`,
@@ -171,6 +222,8 @@ export async function getShipmentById(id: number): Promise<Shipment | null> {
     );
     if (!rows[0]) return null;
     const r = rows[0];
+    // Country scope: an out-of-scope row is indistinguishable from a missing one.
+    if (!canViewTiteCountry(user, r.country)) return null;
     return {
       ...r,
       alert_level: calcAlertLevel(
@@ -190,9 +243,13 @@ export async function getShipmentById(id: number): Promise<Shipment | null> {
 export async function createShipment(
   input: CreateShipmentInput,
 ): Promise<{ id: number } | null> {
+  const user = await requireTiteUser();
+  // The country decides who may create the row, so it is validated before any work.
+  if (!canEditTiteCountry(user, input.country)) {
+    throw new AccessError('You cannot create shipments for this country.');
+  }
   try {
-    const session = await getServerSession(authOptions);
-    const createdBy = session?.user?.name ?? null;
+    const createdBy = user.name;
 
     const status: ShipmentStatus = 'Open';
     const alert_level = calcAlertLevel(input.expiry_date, input.extended_date, status);
@@ -293,10 +350,8 @@ export async function createShipment(
         }
       }
 
-      // 2. Creator
-      if (input.created_by_email || createdBy) {
-        await insertContact(input.created_by_email || null, createdBy, 'Creator');
-      }
+      // 2. Creator — identity comes from the session, never from the payload.
+      await insertContact(user.email, createdBy, 'Creator');
 
       // 3. Additional contacts (use per-contact prefs if provided, else default all true)
       for (const c of (input.additionalContacts ?? [])) {
@@ -337,9 +392,11 @@ export async function createShipment(
 /* ─── getShipmentStats ────────────────────────────────────────── */
 
 export async function getShipmentStats(approvedCountries?: string[]): Promise<ShipmentStats | null> {
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user)) return null;
   try {
-    const isViewAll = approvedCountries?.includes(VIEW_ALL_COUNTRIES);
-    const filtered  = !isViewAll && approvedCountries != null && approvedCountries.length > 0;
+    const scope    = effectiveCountryScope(user, approvedCountries);
+    const filtered = scope !== null;
     const { rows } = await titePool.query(
       `SELECT
         COUNT(*)                    FILTER (WHERE status NOT IN ('Closed', 'Closed - Refund Recovered'))                               AS active_count,
@@ -351,7 +408,7 @@ export async function getShipmentStats(approvedCountries?: string[]): Promise<Sh
         COUNT(*)                    FILTER (WHERE movement_type ILIKE '%export%' AND status NOT IN ('Closed', 'Closed - Refund Recovered')) AS export_count
        FROM shipments
        ${filtered ? 'WHERE country = ANY($1::text[])' : ''}`,
-      filtered ? [approvedCountries] : [],
+      filtered ? [scope] : [],
     );
     const r = rows[0];
     return {
@@ -372,9 +429,16 @@ export async function getShipmentStats(approvedCountries?: string[]): Promise<Sh
 /* ─── getAllTiteCountries ─────────────────────────────────────── */
 
 export async function getAllTiteCountries(): Promise<string[]> {
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user)) return [];
   try {
+    const scope = titeReadScope(user);
     const { rows } = await titePool.query(
-      `SELECT DISTINCT country FROM shipments WHERE country IS NOT NULL ORDER BY country`,
+      `SELECT DISTINCT country FROM shipments
+        WHERE country IS NOT NULL
+        ${scope === null ? '' : 'AND country = ANY($1::text[])'}
+        ORDER BY country`,
+      scope === null ? [] : [scope],
     );
     return rows.map(r => String(r.country));
   } catch (err) {
@@ -389,10 +453,15 @@ export async function getTiteUserAccess(userEmail: string): Promise<{
   status: 'new' | 'pending' | 'approved' | 'rejected' | 'revoked';
   approvedCountries: string[];
 }> {
+  // A user may look up their own access; anyone else's is admin-only.
+  const actor = await currentTiteUser();
+  const target = normalizeEmail(userEmail);
+  if (!actor || !target) return { status: 'new', approvedCountries: [] };
+  if (actor.email !== target && !actor.isAdmin) return { status: 'new', approvedCountries: [] };
   try {
     const { rows } = await titePool.query(
-      `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
-      [userEmail],
+      `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
+      [target],
     );
     if (rows.length === 0) return { status: 'new', approvedCountries: [] };
     const r = rows[0];
@@ -421,15 +490,22 @@ export async function submitTiteAccessRequest(params: {
   department: string | null;
   requestedCountries: string[];
 }): Promise<{ success: boolean; error?: string }> {
-  const { userEmail, displayName, jobTitle, department, requestedCountries } = params;
+  // A user may only request access for themselves — the payload email is checked
+  // against the session rather than trusted.
+  const actor = await currentTiteUser();
+  if (!actor) return forbidden('Sign in required.');
+  const { displayName, jobTitle, department, requestedCountries } = params;
+  const userEmail = actor.email;
+  if (normalizeEmail(params.userEmail) !== userEmail) {
+    return forbidden('You can only request access for your own account.');
+  }
   if (!requestedCountries.length) {
     return { success: false, error: 'Please select at least one country.' };
   }
   try {
     // Never demote an already-approved user (e.g. a mis-click before the session finished loading).
-    const adminList = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-    if (adminList.includes(userEmail.trim().toLowerCase())) return { success: true };
-    const existing = await titePool.query<{ status: string }>(`SELECT status FROM access_requests WHERE user_email = $1`, [userEmail]);
+    if (actor.isAdmin) return { success: true };
+    const existing = await titePool.query<{ status: string }>(`SELECT status FROM access_requests WHERE LOWER(user_email) = $1`, [userEmail]);
     if (existing.rows[0]?.status === 'Approved') return { success: true };
 
     await titePool.query(
@@ -457,10 +533,11 @@ export async function submitTiteAccessRequest(params: {
 export async function approveTiteAccess(params: {
   userEmail: string;
   approvedCountries: string[];
-  reviewedBy: string;
   notes: string | null;
 }): Promise<{ success: boolean; error?: string }> {
-  const { userEmail, approvedCountries, reviewedBy, notes } = params;
+  const admin = await requireAdmin();
+  const { userEmail, approvedCountries, notes } = params;
+  const reviewedBy = admin.email;
   if (!approvedCountries.length) {
     return { success: false, error: 'Please select at least one country to approve.' };
   }
@@ -472,8 +549,8 @@ export async function approveTiteAccess(params: {
               reviewed_at        = NOW(),
               reviewed_by        = $3,
               notes              = $4
-        WHERE user_email = $1`,
-      [userEmail, approvedCountries, reviewedBy, notes],
+        WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail), approvedCountries, reviewedBy, notes],
     );
     return { success: true };
   } catch (err) {
@@ -486,8 +563,9 @@ export async function approveTiteAccess(params: {
 
 export async function rejectTiteAccess(
   userEmail: string,
-  reviewedBy: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const admin = await requireAdmin();
+  const reviewedBy = admin.email;
   try {
     await titePool.query(
       `UPDATE access_requests
@@ -495,8 +573,8 @@ export async function rejectTiteAccess(
               approved_countries = '{}',
               reviewed_at        = NOW(),
               reviewed_by        = $2
-        WHERE user_email = $1`,
-      [userEmail, reviewedBy],
+        WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail), reviewedBy],
     );
     return { success: true };
   } catch (err) {
@@ -510,10 +588,11 @@ export async function rejectTiteAccess(
 export async function deleteTiteAccessRequest(
   userEmail: string,
 ): Promise<{ success: boolean; error?: string }> {
+  await requireAdmin();
   try {
     await titePool.query(
-      `DELETE FROM access_requests WHERE user_email = $1`,
-      [userEmail],
+      `DELETE FROM access_requests WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail)],
     );
     return { success: true };
   } catch (err) {
@@ -526,8 +605,9 @@ export async function deleteTiteAccessRequest(
 
 export async function revokeTiteAccess(
   userEmail: string,
-  reviewedBy: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const admin = await requireAdmin();
+  const reviewedBy = admin.email;
   try {
     await titePool.query(
       `UPDATE access_requests
@@ -535,8 +615,8 @@ export async function revokeTiteAccess(
               approved_countries = '{}',
               reviewed_at        = NOW(),
               reviewed_by        = $2
-        WHERE user_email = $1`,
-      [userEmail, reviewedBy],
+        WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail), reviewedBy],
     );
     return { success: true };
   } catch (err) {
@@ -550,8 +630,9 @@ export async function revokeTiteAccess(
 export async function editTiteAccess(
   userEmail: string,
   approvedCountries: string[],
-  reviewedBy: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const admin = await requireAdmin();
+  const reviewedBy = admin.email;
   if (!approvedCountries.length) {
     return { success: false, error: 'Please select at least one country.' };
   }
@@ -561,8 +642,8 @@ export async function editTiteAccess(
           SET approved_countries = $2,
               reviewed_at        = NOW(),
               reviewed_by        = $3
-        WHERE user_email = $1`,
-      [userEmail, approvedCountries, reviewedBy],
+        WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail), approvedCountries, reviewedBy],
     );
     return { success: true };
   } catch (err) {
@@ -574,6 +655,8 @@ export async function editTiteAccess(
 /* ─── getTiteAccessRequests ───────────────────────────────────── */
 
 export async function getTiteAccessRequests(): Promise<TiteAccessRequestRow[]> {
+  // Read the admin panel renders: degrade to an empty table, never crash.
+  if (!(await isAdminActor())) return [];
   try {
     const { rows } = await titePool.query(`
       SELECT
@@ -606,6 +689,7 @@ export async function getTiteAccessRequests(): Promise<TiteAccessRequestRow[]> {
 /* ─── getTitePendingCount ─────────────────────────────────────── */
 
 export async function getTitePendingCount(): Promise<number> {
+  if (!(await isAdminActor())) return 0;
   try {
     const { rows } = await titePool.query(
       `SELECT COUNT(*) AS cnt FROM access_requests WHERE status = 'Pending'`,
@@ -622,7 +706,10 @@ export async function getTitePendingCount(): Promise<number> {
 export async function getShipmentDocuments(
   shipmentId: number,
 ): Promise<ShipmentDocument[]> {
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user)) return [];
   try {
+    if (!(await canReadShipment(user, shipmentId))) return [];
     return await dbGetDocuments(shipmentId);
   } catch (err) {
     console.error('[TI-TE] getShipmentDocuments error:', err);
@@ -635,18 +722,21 @@ export async function getShipmentDocuments(
 export async function uploadShipmentDocument(
   formData: FormData,
 ): Promise<{ success: boolean; document?: ShipmentDocument; error?: string }> {
+  const user = await requireTiteUser();
   try {
-    const session      = await getServerSession(authOptions);
-    const uploadedBy   = session?.user?.name ?? null;
+    const uploadedBy   = user.name;
     const shipmentId   = Number(formData.get('shipment_id'));
     const stage        = (formData.get('stage') as string) || 'creation';
     const file         = formData.get('file') as File | null;
     const customName   = ((formData.get('custom_name') as string) || '').trim() || file?.name || 'Untitled';
     const docType      = (formData.get('document_type') as string | null) || null;
 
-    if (!file || !shipmentId) {
+    if (!file || !shipmentId || !Number.isFinite(shipmentId)) {
       return { success: false, error: 'Missing required fields.' };
     }
+
+    const denied = await denyShipmentEdit(user, shipmentId);
+    if (denied) return forbidden(denied);
 
     /* Detect MIME from extension — more reliable than browser-reported file.type */
     const MIME_MAP: Record<string, string> = {
@@ -695,7 +785,17 @@ export async function uploadShipmentDocument(
 export async function deleteShipmentDocument(
   documentId: number,
 ): Promise<{ success: boolean; error?: string }> {
+  const user = await requireTiteUser();
   try {
+    // Scope is carried by the parent shipment, so resolve it before deleting.
+    const { rows } = await titePool.query<{ shipment_id: number }>(
+      `SELECT shipment_id FROM shipment_documents WHERE id = $1`,
+      [documentId],
+    );
+    if (!rows[0]) return { success: false, error: 'Document not found.' };
+    const denied = await denyShipmentEdit(user, rows[0].shipment_id);
+    if (denied) return forbidden(denied);
+
     await dbDeleteDocument(documentId);
     return { success: true };
   } catch (err) {
@@ -709,7 +809,10 @@ export async function deleteShipmentDocument(
 export async function getShipmentActivityLog(
   shipmentId: number,
 ): Promise<ActivityLogRow[]> {
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user)) return [];
   try {
+    if (!(await canReadShipment(user, shipmentId))) return [];
     return await dbGetActivityLog(shipmentId);
   } catch (err) {
     console.error('[TI-TE] getShipmentActivityLog error:', err);
@@ -724,9 +827,11 @@ export async function extendShipment(params: {
   extendedDate: string;
   notes: string;
 }): Promise<{ success: boolean; error?: string }> {
+  const user = await requireTiteUser();
   try {
-    const session    = await getServerSession(authOptions);
-    const performer  = session?.user?.name ?? null;
+    const denied = await denyShipmentEdit(user, params.shipmentId);
+    if (denied) return forbidden(denied);
+    const performer = user.name;
 
     const newAlertLevel = calcAlertLevel(undefined, params.extendedDate, 'Open - Extended');
 
@@ -754,9 +859,11 @@ export async function closeShipment(params: {
   shipmentId: number;
   notes: string;
 }): Promise<{ success: boolean; error?: string }> {
+  const user = await requireTiteUser();
   try {
-    const session    = await getServerSession(authOptions);
-    const performer  = session?.user?.name ?? null;
+    const denied = await denyShipmentEdit(user, params.shipmentId);
+    if (denied) return forbidden(denied);
+    const performer = user.name;
 
     await dbUpdateShipmentWithLog({
       shipment_id: params.shipmentId,
@@ -781,9 +888,11 @@ export async function markRefundReceived(params: {
   shipmentId: number;
   notes: string;
 }): Promise<{ success: boolean; error?: string }> {
+  const user = await requireTiteUser();
   try {
-    const session    = await getServerSession(authOptions);
-    const performer  = session?.user?.name ?? null;
+    const denied = await denyShipmentEdit(user, params.shipmentId);
+    if (denied) return forbidden(denied);
+    const performer = user.name;
 
     await dbUpdateShipmentWithLog({
       shipment_id: params.shipmentId,
@@ -816,9 +925,11 @@ export async function updateShipmentStatus(params: {
   depositUsd?:      number | null;
   justification?:   string | null;
 }): Promise<{ success: boolean; error?: string }> {
+  const user = await requireTiteUser();
   try {
-    const session   = await getServerSession(authOptions);
-    const performer = session?.user?.name ?? null;
+    const denied = await denyShipmentEdit(user, params.shipmentId);
+    if (denied) return forbidden(denied);
+    const performer = user.name;
 
     const fields: Record<string, unknown> = {
       status:          params.newStatus,
@@ -870,6 +981,8 @@ export async function updateShipmentStatus(params: {
 export async function getCountryStakeholders(
   country: string,
 ): Promise<CountryStakeholder[]> {
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user) || !canViewTiteCountry(user, country)) return [];
   try {
     const { rows } = await titePool.query<CountryStakeholder>(
       `SELECT id, role, name, email
@@ -888,6 +1001,8 @@ export async function getCountryStakeholders(
 /* ─── Admin: getAllStakeholders ─────────────────────────────── */
 
 export async function getAllStakeholders(): Promise<CountryStakeholderFull[]> {
+  // Read the admin panel renders: degrade to an empty table, never crash.
+  if (!(await isAdminActor())) return [];
   try {
     const { rows } = await titePool.query<CountryStakeholderFull>(
       `SELECT id, country, role, name, email, active
@@ -908,8 +1023,8 @@ export async function addStakeholder(params: {
   role: string;
   name: string;
   email: string;
-  addedBy: string;
 }): Promise<{ success: boolean; stakeholder?: CountryStakeholderFull; error?: string }> {
+  await requireAdmin();
   try {
     const { rows } = await titePool.query<CountryStakeholderFull>(
       `INSERT INTO country_stakeholders (country, role, name, email, active)
@@ -934,6 +1049,7 @@ export async function updateStakeholder(params: {
   email: string;
   active: boolean;
 }): Promise<{ success: boolean; stakeholder?: CountryStakeholderFull; error?: string }> {
+  await requireAdmin();
   try {
     const { rows } = await titePool.query<CountryStakeholderFull>(
       `UPDATE country_stakeholders SET
@@ -953,6 +1069,7 @@ export async function updateStakeholder(params: {
 /* ─── Admin: deleteStakeholder ─────────────────────────────── */
 
 export async function deleteStakeholder(id: number): Promise<{ success: boolean; error?: string }> {
+  await requireAdmin();
   try {
     await titePool.query(`DELETE FROM country_stakeholders WHERE id = $1`, [id]);
     return { success: true };
@@ -968,6 +1085,7 @@ export async function toggleStakeholderActive(
   id: number,
   active: boolean,
 ): Promise<{ success: boolean; error?: string }> {
+  await requireAdmin();
   try {
     await titePool.query(
       `UPDATE country_stakeholders SET active = $1 WHERE id = $2`,
@@ -993,7 +1111,10 @@ export interface NotificationLogRow {
 export async function getShipmentNotificationStatus(
   shipmentId: number,
 ): Promise<NotificationLogRow[]> {
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user)) return [];
   try {
+    if (!(await canReadShipment(user, shipmentId))) return [];
     const { rows } = await titePool.query<NotificationLogRow>(
       `SELECT id, shipment_id, days_before_expiry, status, sent_at
        FROM notification_log
@@ -1012,7 +1133,10 @@ export async function getShipmentNotificationStatus(
 export async function getShipmentNotificationContacts(
   shipmentId: number,
 ): Promise<NotificationContact[]> {
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user)) return [];
   try {
+    if (!(await canReadShipment(user, shipmentId))) return [];
     const { rows } = await titePool.query<NotificationContact>(
       `SELECT id, shipment_id, name, email, role,
               notify_60_days, notify_30_days, notify_14_days, notify_7_days,
@@ -1047,9 +1171,11 @@ export async function saveNotificationContacts(params: {
     notify_overdue?: boolean;
   }>;
 }): Promise<{ success: boolean; error?: string }> {
+  const user = await requireTiteUser();
   try {
-    const session   = await getServerSession(authOptions);
-    const performer = session?.user?.name ?? null;
+    const denied = await denyShipmentEdit(user, params.shipmentId);
+    if (denied) return forbidden(denied);
+    const performer = user.name;
 
     await titePool.query(
       `DELETE FROM shipment_notification_contacts WHERE shipment_id = $1`,
@@ -1107,11 +1233,15 @@ export interface RecentActivityRow {
   country: string | null;
 }
 
+/** The caller's own recent activity. The identity is the session's, not a parameter. */
 export async function getRecentActivity(
-  userName: string,
   days: number = 7,
 ): Promise<RecentActivityRow[]> {
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user)) return [];
   try {
+    const userName = user.name;
+    const scope    = titeReadScope(user);
     const { rows } = await titePool.query<RecentActivityRow>(
       `SELECT
          sal.id,
@@ -1127,9 +1257,10 @@ export async function getRecentActivity(
        JOIN shipments s ON s.id = sal.shipment_id
        WHERE sal.performed_by = $1
          AND sal.performed_at >= NOW() - ($2 || ' days')::INTERVAL
+         ${scope === null ? '' : 'AND s.country = ANY($3::text[])'}
        ORDER BY sal.performed_at DESC
        LIMIT 20`,
-      [userName, days],
+      scope === null ? [userName, days] : [userName, days, scope],
     );
     return rows;
   } catch (err) {

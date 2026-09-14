@@ -1,7 +1,27 @@
 'use server';
 
 import pool from '@/lib/db';
+import { getCachedSession } from '@/lib/session';
+import { isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
 import type { BuyerRow, SupplierRow, RecentSession, WeeklyRateRow, SupplierResponseTimeRow } from './adminAnalytics';
+
+/* ─── Access ─────────────────────────────────────────────────── */
+
+/**
+ * Cross-buyer PO reads: platform admins, plus users with approved
+ * `po_expediting` access. `/po-expediting/team-analytics` ("All Analytics") is
+ * linked in the PO sidebar for every approved buyer, so `requireAdmin()` alone
+ * would break that page; this still shuts out signed-in users of other tools,
+ * who could previously dump every buyer's activity through these actions.
+ * Reads degrade to an empty shape so panels render an empty state.
+ */
+async function hasPoTeamAccess(): Promise<boolean> {
+  const session = await getCachedSession();
+  const email = normalizeEmail(session?.user?.email);
+  if (!email) return false;
+  if (isPlatformAdminEmail(email) || session?.user?.isAdmin) return true;
+  return session?.user?.toolAccess?.po_expediting?.status === 'approved';
+}
 
 /* ─── Re-export shared types ────────────────────────────────── */
 
@@ -144,6 +164,22 @@ export async function getTeamAnalyticsData(
     if (v instanceof Date) return v.toISOString();
     return String(v);
   };
+
+  const empty: TeamAnalyticsData = {
+    totalBatches: 0,
+    totalLinesExpedited: 0,
+    totalSuppliersContacted: 0,
+    totalActiveBuyers: 0,
+    totalEmailsSent: 0,
+    overallResponseRate: null,
+    buyerBreakdown: [],
+    supplierBreakdown: [],
+    recentSessions: [],
+    weeklyRateData: [],
+    supplierResponseTime: [],
+  };
+
+  if (!(await hasPoTeamAccess())) return empty;
 
   try {
     /* Build filter clauses for the different query shapes */
@@ -355,25 +391,18 @@ export async function getTeamAnalyticsData(
     };
   } catch (err) {
     console.error('[getTeamAnalyticsData]', err);
-    return {
-      totalBatches: 0,
-      totalLinesExpedited: 0,
-      totalSuppliersContacted: 0,
-      totalActiveBuyers: 0,
-      totalEmailsSent: 0,
-      overallResponseRate: null,
-      buyerBreakdown: [],
-      supplierBreakdown: [],
-      recentSessions: [],
-      weeklyRateData: [],
-      supplierResponseTime: [],
-    };
+    return empty;
   }
 }
 
 /* ─── getFilterOptions ──────────────────────────────────────── */
 
 export async function getFilterOptions(): Promise<FilterOptions> {
+  const empty: FilterOptions = { buyers: [], countries: [], segments: [], suppliers: [] };
+
+  // The buyer list is a roster of colleagues' names and emails — same gate as the data.
+  if (!(await hasPoTeamAccess())) return empty;
+
   try {
     const [buyersRes, countriesRes, segmentsRes, suppliersRes] = await Promise.all([
       pool.query(`
@@ -420,11 +449,6 @@ export async function getFilterOptions(): Promise<FilterOptions> {
     };
   } catch (err) {
     console.error('[getFilterOptions]', err);
-    return {
-      buyers: [],
-      countries: [],
-      segments: [],
-      suppliers: [],
-    };
+    return empty;
   }
 }

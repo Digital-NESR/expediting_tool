@@ -3,6 +3,7 @@
 import sourceGuidePool from '@/lib/db-sourceguide';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { AccessError, isToolAdminEmail, normalizeEmail, withAccessFallback } from '@/lib/require-access';
 import { matchScore, MATCH_THRESHOLD, norm } from '@/lib/sg-fuzzy';
 import type {
   SgCountry, SgCommodity, SgSupplier, SgMapping, SgCategory, SgStats,
@@ -20,29 +21,67 @@ interface SgUser {
   email: string;
   name: string;
   isAdmin: boolean;
+  /** SourceGuide access status from the session ('approved' = champion or approved user). */
+  status: string;
   approvedCountries: string[];
   viewOnly: boolean;
 }
 
 async function getSgUser(): Promise<SgUser | null> {
   const session = await getServerSession(authOptions);
-  const email = session?.user?.email;
-  if (!email) return null;
+  const user = session?.user;
+  const email = normalizeEmail(user?.email);
+  if (!user || !email) return null;
 
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = adminEmails.includes(email.toLowerCase());
-  const sg = session.user.toolAccess?.sourceguide;
+  const isAdmin = isToolAdminEmail(email, process.env.SOURCEGUIDE_ADMIN_EMAILS);
+  const sg = user.toolAccess?.sourceguide;
   const approvedCountries = sg?.approvedCountries ?? [];
   const viewOnly = approvedCountries.includes('All Countries - View Only');
 
   return {
     email,
-    name: session.user.name ?? email,
+    name: user.name ?? email,
     isAdmin,
+    status: sg?.status ?? 'new',
     approvedCountries,
     viewOnly,
   };
+}
+
+/* ─── access guards ──────────────────────────────────────────────
+ * Every export in this file is a public POST endpoint: any signed-in
+ * employee can invoke it directly, so the UI access overlay is not a
+ * security control. Reads must be gated here.                        */
+
+/** Approved SourceGuide access (approved user or champion) or an admin. Throws {@link AccessError}. */
+async function requireSgReader(): Promise<SgUser> {
+  const user = await getSgUser();
+  if (!user) throw new AccessError('Sign in required.', 401);
+  if (!user.isAdmin && user.status !== 'approved') throw new AccessError('SourceGuide access required.');
+  return user;
+}
+
+/** SourceGuide admin (ADMIN_EMAILS + SOURCEGUIDE_ADMIN_EMAILS). Throws {@link AccessError}. */
+async function requireSgAdmin(): Promise<SgUser> {
+  const user = await getSgUser();
+  if (!user) throw new AccessError('Sign in required.', 401);
+  if (!user.isAdmin) throw new AccessError('Admins only.');
+  return user;
+}
+
+/**
+ * Read gate for actions a server page renders. The SourceGuide layout shows the
+ * access overlay for a pending/rejected user while the page body renders in
+ * parallel, so a denied read must degrade to an empty result rather than throw —
+ * otherwise the overlay the user is supposed to see never reaches them.
+ */
+async function canRead(): Promise<boolean> {
+  return withAccessFallback(async () => { await requireSgReader(); return true; }, false);
+}
+
+/** Same, for the admin-only reads (analytics, audit, access requests). */
+async function canReadAdmin(): Promise<boolean> {
+  return withAccessFallback(async () => { await requireSgAdmin(); return true; }, false);
 }
 
 function buildPath(c: { category: string; subCategory: string | null; family: string | null; name: string }): string[] {
@@ -67,6 +106,7 @@ function rowToCommodity(r: CommodityRow): SgCommodity {
 /* ─── reference data ─────────────────────────────────────────── */
 
 export async function getCountries(): Promise<SgCountry[]> {
+  if (!(await canRead())) return [];
   try {
     // champion display is driven by the assigned champions (sg_champions)
     const { rows } = await sourceGuidePool.query(
@@ -85,6 +125,7 @@ export async function getCountries(): Promise<SgCountry[]> {
 }
 
 export async function getStats(): Promise<SgStats> {
+  if (!(await canRead())) return { commodities: 0, suppliers: 0, mappings: 0, countries: 0, categories: 0 };
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT
@@ -106,6 +147,7 @@ export async function getStats(): Promise<SgStats> {
 }
 
 export async function getCategories(): Promise<SgCategory[]> {
+  if (!(await canRead())) return [];
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT category_id, category,
@@ -128,6 +170,7 @@ export async function getCategories(): Promise<SgCategory[]> {
 
 /** counts used by the search filter sidebar */
 export async function getSearchFacets(): Promise<SgFacets> {
+  if (!(await canRead())) return { countries: [], spendTypes: [], tiers: [] };
   try {
     const [countryRes, spendRes, tierRes] = await Promise.all([
       sourceGuidePool.query(`
@@ -152,6 +195,7 @@ export async function getSearchFacets(): Promise<SgFacets> {
 }
 
 export async function getSpendTypes(): Promise<string[]> {
+  if (!(await canRead())) return [];
   try {
     const { rows } = await sourceGuidePool.query(
       `SELECT DISTINCT spend_type FROM sg_commodities WHERE spend_type IS NOT NULL ORDER BY spend_type`,
@@ -223,6 +267,7 @@ export async function searchCommodities(
   filters: SgSearchFilters = {},
   limit = 60,
 ): Promise<SgCommodityResult[]> {
+  if (!(await canRead())) return [];
   try {
     const q = (query || '').trim();
     const nq = norm(q);
@@ -316,6 +361,7 @@ export interface SgGlobalResults {
 }
 
 export async function globalSearch(query: string): Promise<SgGlobalResults> {
+  if (!(await canRead())) return { commodities: [], suppliers: [], categories: [], countries: [] };
   const q = (query || '').trim();
   if (!q) return { commodities: [], suppliers: [], categories: [], countries: [] };
   try {
@@ -361,12 +407,14 @@ export async function globalSearch(query: string): Promise<SgGlobalResults> {
 }
 
 export async function countSearch(query: string, filters: SgSearchFilters = {}): Promise<number> {
+  if (!(await canRead())) return 0;
   // lightweight: reuse searchCommodities with a high limit then count
   const res = await searchCommodities(query, filters, 100000);
   return res.length;
 }
 
 export async function searchSuppliers(query: string, limit = 6): Promise<SgSupplier[]> {
+  if (!(await canRead())) return [];
   try {
     const q = (query || '').trim();
     if (q.length < 2) return [];
@@ -387,6 +435,7 @@ export async function searchSuppliers(query: string, limit = 6): Promise<SgSuppl
 /* ─── commodity detail ───────────────────────────────────────── */
 
 export async function getCommodityDetail(commodityId: number): Promise<SgCommodityDetail | null> {
+  if (!(await canRead())) return null;
   try {
     const comRes = await sourceGuidePool.query(
       `SELECT id, code, name, category, category_id, sub_category, family, spend_type, description
@@ -429,6 +478,7 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
 /* ─── supplier profile ───────────────────────────────────────── */
 
 export async function getSupplierProfile(supplierCode: string): Promise<SgSupplierProfile | null> {
+  if (!(await canRead())) return null;
   try {
     const sRes = await sourceGuidePool.query(
       `SELECT supplier_code, name, email FROM supplier_avl WHERE supplier_code = $1`,
@@ -472,6 +522,7 @@ export async function getSupplierProfile(supplierCode: string): Promise<SgSuppli
 
 /** lookup commodity names for a set of ids (used by supplier profile UI) */
 export async function getCommoditiesByIds(ids: number[]): Promise<SgCommodity[]> {
+  if (!(await canRead())) return [];
   if (!ids.length) return [];
   try {
     const { rows } = await sourceGuidePool.query(
@@ -507,6 +558,7 @@ export interface SgCatalogRow {
 export type SgTaxonomyRow = [string, string, string, string, string];
 
 export async function getTaxonomyFacts(): Promise<SgTaxonomyRow[]> {
+  if (!(await canRead())) return [];
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT spend_type, category,
@@ -523,6 +575,7 @@ export async function getTaxonomyFacts(): Promise<SgTaxonomyRow[]> {
 }
 
 export async function getCommodityCatalog(): Promise<SgCatalogRow[]> {
+  if (!(await canRead())) return [];
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT c.id, c.name, c.code, c.spend_type, c.category, c.category_id,
@@ -556,6 +609,7 @@ export interface SgTaxonomySub { name: string; count: number; families: SgTaxono
 export interface SgTaxonomyCategory { id: string; name: string; count: number; subs: SgTaxonomySub[]; }
 
 export async function getTaxonomy(): Promise<SgTaxonomyCategory[]> {
+  if (!(await canRead())) return [];
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT c.id, c.code, c.name, c.category, c.category_id,
@@ -591,6 +645,7 @@ export async function getTaxonomy(): Promise<SgTaxonomyCategory[]> {
 /* ─── mapping workspace (champion / admin) ───────────────────── */
 
 export async function getCountryMappingSummary(country: string): Promise<{ mappings: number; commodities: number }> {
+  if (!(await canRead())) return { mappings: 0, commodities: 0 };
   try {
     const { rows } = await sourceGuidePool.query(
       `SELECT COUNT(*)::int AS mappings, COUNT(DISTINCT commodity_id)::int AS commodities
@@ -615,6 +670,7 @@ export async function getMappingEditList(
   limit = 30,
   mode: GapMode = 'mapped',
 ): Promise<{ commodity: SgCommodity; mappings: SgMapping[] }[]> {
+  if (!(await canRead())) return [];
   try {
     const q = (query || '').trim();
     const params: unknown[] = [];
@@ -690,6 +746,7 @@ export interface SgCoverageGap {
 
 /** Per-country coverage gaps, measured against the full commodity taxonomy. */
 export async function getCoverageGapsSummary(): Promise<SgCoverageGap[]> {
+  if (!(await canRead())) return [];
   try {
     const { rows } = await sourceGuidePool.query(`
       WITH catalogue_total AS (
@@ -742,6 +799,7 @@ export interface SgGuideRow {
 }
 
 export async function getCountryGuideRows(code: string): Promise<SgGuideRow[]> {
+  if (!(await canRead())) return [];
   try {
     const { rows } = await sourceGuidePool.query(
       `SELECT c.spend_type, c.category, COALESCE(c.sub_category,'') AS sub_category,
@@ -767,6 +825,7 @@ export async function getCountryGuideRows(code: string): Promise<SgGuideRow[]> {
 
 /** Approved-vendor picker for the mapping workspace — fuzzy over the full AVL. */
 export async function supplierOptions(country: string, prefix: string, limit = 8): Promise<SgSupplier[]> {
+  if (!(await canRead())) return [];
   try {
     const p = (prefix || '').trim();
     if (!p) return [];
@@ -848,6 +907,7 @@ async function logUsage(
 
 /** Record a committed search from the search UI. Fire-and-forget from the client. */
 export async function recordSearch(query: string): Promise<void> {
+  if (!(await canRead())) return;
   const q = (query || '').trim();
   if (!q) return;
   await logUsage('search', 'search', q.slice(0, 200), null);
@@ -947,6 +1007,7 @@ export async function changeTier(mapId: number, tier: Tier): Promise<{ success: 
 }
 
 export async function getActivityLog(country: string | null, limit = 20): Promise<SgActivityEntry[]> {
+  if (!(await canRead())) return [];
   try {
     const sql = country
       ? `SELECT * FROM sg_activity_log WHERE country_code=$1 ORDER BY performed_at DESC LIMIT $2`
@@ -967,6 +1028,7 @@ export async function getActivityLog(country: string | null, limit = 20): Promis
 /* ─── admin: source guides + analytics ───────────────────────── */
 
 export async function getGuides(): Promise<SgGuide[]> {
+  if (!(await canReadAdmin())) return [];
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT c.code, c.name, c.tone,
@@ -1016,6 +1078,7 @@ export interface SgCountryDashboard {
 }
 
 export async function getCountryDashboard(code: string): Promise<SgCountryDashboard | null> {
+  if (!(await canRead())) return null;
   try {
     const cRes = await sourceGuidePool.query(
       `SELECT c.code, c.name, c.tone,
@@ -1069,7 +1132,13 @@ export interface SgAnalytics {
   spendTypeBreakdown: { spendType: string; count: number }[];
 }
 
+const EMPTY_ANALYTICS: SgAnalytics = {
+  stats: { commodities: 0, suppliers: 0, mappings: 0, countries: 0, categories: 0 },
+  perCountry: [], topSuppliers: [], spendTypeBreakdown: [],
+};
+
 export async function getSourceGuideAnalytics(): Promise<SgAnalytics> {
+  if (!(await canReadAdmin())) return EMPTY_ANALYTICS;
   try {
     const [stats, perCountryRes, topSuppliersRes, spendRes] = await Promise.all([
       getStats(),
@@ -1112,7 +1181,7 @@ export async function getSourceGuideAnalytics(): Promise<SgAnalytics> {
     };
   } catch (err) {
     console.error('[sg.getSourceGuideAnalytics]', err);
-    return { stats: { commodities: 0, suppliers: 0, mappings: 0, countries: 0, categories: 0 }, perCountry: [], topSuppliers: [], spendTypeBreakdown: [] };
+    return EMPTY_ANALYTICS;
   }
 }
 
@@ -1140,8 +1209,7 @@ const EMPTY_INSIGHTS: SgInsights = {
 };
 
 export async function getSourceGuideInsights(): Promise<SgInsights> {
-  const user = await getSgUser();
-  if (!user?.isAdmin) return EMPTY_INSIGHTS;
+  if (!(await canReadAdmin())) return EMPTY_INSIGHTS;
   try {
     const [tierRes, avlRes, covRes, pairRes, champRes, catRes, multiRes, actRes, multiCountRes] = await Promise.all([
       sourceGuidePool.query(`SELECT tier, COUNT(*)::int AS n FROM sg_mappings WHERE status='Active' GROUP BY tier`),
@@ -1225,8 +1293,7 @@ export interface SgAuditEntry {
 }
 
 export async function getSourceGuideAuditLog(limit = 500): Promise<SgAuditEntry[]> {
-  const user = await getSgUser();
-  if (!user?.isAdmin) return [];
+  if (!(await canReadAdmin())) return [];
   try {
     const { rows } = await sourceGuidePool.query(
       `SELECT l.id, l.action, l.details, l.country_code, l.commodity_id, l.performed_by, l.performed_at,
@@ -1264,8 +1331,7 @@ export interface SgUserActivity {
 }
 
 export async function getUserActivity(): Promise<SgUserActivity[]> {
-  const user = await getSgUser();
-  if (!user?.isAdmin) return [];
+  if (!(await canReadAdmin())) return [];
   try {
     // Key both sides by a stable identity: the actor email where known, else the display name (lowercased).
     // This keeps one human as one row across a display-name change or case/whitespace drift.
@@ -1327,6 +1393,7 @@ export interface SgChampion { id: number; countryCode: string; name: string; ema
 export interface SgCountryChampions { country: string; name: string; tone: string | null; champions: SgChampion[]; }
 
 export async function getChampionsByCountry(): Promise<SgCountryChampions[]> {
+  if (!(await canReadAdmin())) return [];
   try {
     const [countries, champs] = await Promise.all([
       sourceGuidePool.query(`SELECT code, name, tone FROM sg_countries ORDER BY sort_order, name`),
@@ -1349,7 +1416,7 @@ export async function addChampion(countryCode: string, name: string, email: stri
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   const n = (name || '').trim();
   if (!n) return { success: false, error: 'Name is required.' };
-  const e = (email || '').trim() || null;
+  const e = normalizeEmail(email) || null;
   try {
     if (e) {
       const dup = await sourceGuidePool.query(
@@ -1371,7 +1438,7 @@ export async function updateChampion(id: number, name: string, email: string | n
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   const n = (name || '').trim();
   if (!n) return { success: false, error: 'Name is required.' };
-  const e = (email || '').trim() || null;
+  const e = normalizeEmail(email) || null;
   try {
     const row = await sourceGuidePool.query(`SELECT country_code, name, email FROM sg_champions WHERE id=$1`, [id]);
     if (!row.rows.length) return { success: false, error: 'Champion not found.' };
@@ -1422,11 +1489,15 @@ export interface SgAccessRequest {
 }
 
 export async function getSourceGuideAccessRequest(userEmail: string): Promise<SgAccessRequest | null> {
+  // Own record only, unless an admin is asking — this row carries PII.
+  const caller = await getSgUser();
+  if (!caller) return null;
+  if (!caller.isAdmin && caller.email !== normalizeEmail(userEmail)) return null;
   try {
     const { rows } = await sourceGuidePool.query(
       `SELECT user_email, display_name, job_title, status, requested_countries, approved_countries, requested_at, reviewed_at
-       FROM access_requests WHERE user_email = $1`,
-      [userEmail],
+       FROM access_requests WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail)],
     );
     if (!rows.length) return null;
     const r = rows[0];
@@ -1447,11 +1518,11 @@ export async function submitSourceGuideAccessRequest(input: {
   userEmail: string; displayName: string; jobTitle?: string | null; department?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
   if (!input.userEmail) return { success: false, error: 'Not signed in.' };
+  const requesterEmail = normalizeEmail(input.userEmail);
   try {
     // Never demote an already-approved user (e.g. a mis-click before the session finished loading).
-    const adminList = (`${process.env.ADMIN_EMAILS ?? ''},${process.env.SOURCEGUIDE_ADMIN_EMAILS ?? ''}`).split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-    if (adminList.includes(input.userEmail.trim().toLowerCase())) return { success: true };
-    const existing = await sourceGuidePool.query<{ status: string }>(`SELECT status FROM access_requests WHERE user_email = $1`, [input.userEmail]);
+    if (isToolAdminEmail(input.userEmail, process.env.SOURCEGUIDE_ADMIN_EMAILS)) return { success: true };
+    const existing = await sourceGuidePool.query<{ status: string }>(`SELECT status FROM access_requests WHERE LOWER(user_email) = $1`, [requesterEmail]);
     if (existing.rows[0]?.status === 'Approved') return { success: true };
 
     await sourceGuidePool.query(
@@ -1461,7 +1532,7 @@ export async function submitSourceGuideAccessRequest(input: {
          display_name = EXCLUDED.display_name,
          status = 'Pending', requested_at = NOW(),
          reviewed_at = NULL, reviewed_by = NULL, notes = NULL, approved_countries = NULL`,
-      [input.userEmail, input.displayName, input.jobTitle ?? null, input.department ?? null],
+      [requesterEmail, input.displayName, input.jobTitle ?? null, input.department ?? null],
     );
     return { success: true };
   } catch (err) {
@@ -1471,6 +1542,7 @@ export async function submitSourceGuideAccessRequest(input: {
 }
 
 export async function getSourceGuideAccessRequests(): Promise<SgAccessRequest[]> {
+  if (!(await canReadAdmin())) return [];
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT user_email, display_name, job_title, status, requested_countries, approved_countries, requested_at, reviewed_at
@@ -1490,6 +1562,7 @@ export async function getSourceGuideAccessRequests(): Promise<SgAccessRequest[]>
 }
 
 export async function getSourceGuidePendingCount(): Promise<number> {
+  if (!(await canReadAdmin())) return 0;
   try {
     const { rows } = await sourceGuidePool.query(`SELECT COUNT(*) AS cnt FROM access_requests WHERE status='Pending'`);
     return Number(rows[0]?.cnt ?? 0);
@@ -1505,8 +1578,8 @@ export async function approveSourceGuideAccessRequest(userEmail: string): Promis
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   try {
     await sourceGuidePool.query(
-      `UPDATE access_requests SET status='Approved', approved_countries='{}', reviewed_at=NOW(), reviewed_by=$2 WHERE user_email=$1`,
-      [userEmail, user.name],
+      `UPDATE access_requests SET status='Approved', approved_countries='{}', reviewed_at=NOW(), reviewed_by=$2 WHERE LOWER(user_email)=$1`,
+      [normalizeEmail(userEmail), user.name],
     );
     await logSafe(null, null, 'Access approved', userEmail, user.name, user.email);
     return { success: true };
@@ -1521,8 +1594,8 @@ async function denyAccess(userEmail: string, action: 'Access denied' | 'Access r
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   try {
     await sourceGuidePool.query(
-      `UPDATE access_requests SET status='Denied', approved_countries='{}', reviewed_at=NOW(), reviewed_by=$2 WHERE user_email=$1`,
-      [userEmail, user.name],
+      `UPDATE access_requests SET status='Denied', approved_countries='{}', reviewed_at=NOW(), reviewed_by=$2 WHERE LOWER(user_email)=$1`,
+      [normalizeEmail(userEmail), user.name],
     );
     await logSafe(null, null, action, userEmail, user.name, user.email);
     return { success: true };
@@ -1546,8 +1619,8 @@ export async function editSourceGuideAccess(userEmail: string, countries: string
   if (!countries.length) return { success: false, error: 'Please select at least one country.' };
   try {
     await sourceGuidePool.query(
-      `UPDATE access_requests SET approved_countries=$2, reviewed_at=NOW() WHERE user_email=$1`,
-      [userEmail, countries],
+      `UPDATE access_requests SET approved_countries=$2, reviewed_at=NOW() WHERE LOWER(user_email)=$1`,
+      [normalizeEmail(userEmail), countries],
     );
     await logSafe(null, null, 'Access updated', `${userEmail}: ${countries.join(', ')}`, user.name, user.email);
     return { success: true };
@@ -1561,7 +1634,7 @@ export async function deleteSourceGuideAccessRequest(userEmail: string): Promise
   const user = await getSgUser();
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   try {
-    await sourceGuidePool.query(`DELETE FROM access_requests WHERE user_email=$1`, [userEmail]);
+    await sourceGuidePool.query(`DELETE FROM access_requests WHERE LOWER(user_email)=$1`, [normalizeEmail(userEmail)]);
     await logSafe(null, null, 'Access request deleted', userEmail, user.name, user.email);
     return { success: true };
   } catch (err) {

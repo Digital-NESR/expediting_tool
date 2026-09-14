@@ -408,11 +408,9 @@ function MyAvgResponseTimeBarChart({ data }: { data: MySupplierResponseTimeRow[]
 
 function SupplierDetailModal({
   supplierName,
-  userEmail,
   onClose,
 }: {
   supplierName: string;
-  userEmail: string;
   onClose: () => void;
 }) {
   const [lines, setLines]     = useState<SupplierDetailLine[]>([]);
@@ -421,7 +419,7 @@ function SupplierDetailModal({
 
   useEffect(() => {
     setLoading(true);
-    getSupplierDetail(supplierName, userEmail)
+    getSupplierDetail(supplierName)
       .then(data => {
         setLines(data);
         // Start all POs expanded
@@ -429,7 +427,7 @@ function SupplierDetailModal({
         setExpanded(pos);
       })
       .finally(() => setLoading(false));
-  }, [supplierName, userEmail]);
+  }, [supplierName]);
 
   // Group lines by PO number
   const groups = useMemo(() => {
@@ -560,11 +558,9 @@ function SupplierDetailModal({
 
 function SessionDetailModal({
   session,
-  userEmail,
   onClose,
 }: {
   session: MyRecentSession;
-  userEmail: string;
   onClose: () => void;
 }) {
   const [lines, setLines]       = useState<SessionDetailLine[]>([]);
@@ -573,7 +569,7 @@ function SessionDetailModal({
 
   useEffect(() => {
     setLoading(true);
-    getSessionDetail(session.session_ref, userEmail)
+    getSessionDetail(session.session_ref)
       .then(data => {
         setLines(data);
         // Start all supplier groups expanded
@@ -581,7 +577,7 @@ function SessionDetailModal({
         setExpanded(suppliers);
       })
       .finally(() => setLoading(false));
-  }, [session.session_ref, userEmail]);
+  }, [session.session_ref]);
 
   // Group lines by supplier_name
   const groups = useMemo(() => {
@@ -953,10 +949,8 @@ function LoadingSkeleton() {
 /* ─── Main AnalyticsClient ───────────────────────────────────── */
 
 export default function AnalyticsClient({
-  userEmail,
   userName,
 }: {
-  userEmail: string;
   userName: string;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -971,13 +965,13 @@ export default function AnalyticsClient({
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await getMyExpeditingAnalytics(userEmail);
+      const data = await getMyExpeditingAnalytics();
       setAnalytics(data);
       setLastRefreshed(new Date());
     } finally {
       setIsLoading(false);
     }
-  }, [userEmail]);
+  }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -1129,14 +1123,12 @@ export default function AnalyticsClient({
       {supplierModalName && (
         <SupplierDetailModal
           supplierName={supplierModalName}
-          userEmail={userEmail}
           onClose={() => setSupplierModalName(null)}
         />
       )}
       {sessionModal && (
         <SessionDetailModal
           session={sessionModal}
-          userEmail={userEmail}
           onClose={() => setSessionModal(null)}
         />
       )}

@@ -14,7 +14,6 @@ import {
   CURRENCY_OPTIONS,
   SEGMENT_OPTIONS,
   SPEND_CATEGORY_OPTIONS,
-  toUsd,
   usdEquivalentFmt,
 } from '@/lib/procureGuard-utils';
 import type { AdhocPaymentRequest, CreateAdhocPaymentInput, ProcureGuardAccessView, ProcureGuardNotificationContact } from '@/types/procureGuard';
@@ -287,7 +286,6 @@ export default function AdhocPaymentFormClient(_props: {
       country,
       segment,
       spend_category: spendCategory,
-      spend_value_usd: toUsd(amount, currency),
       expense_category: spendCategory,
       payment_method: 'Bank Transfer',
       payment_reason: reason,

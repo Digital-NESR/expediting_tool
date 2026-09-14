@@ -336,7 +336,8 @@ function handleDownloadTemplate() {
   document.body.removeChild(link);
 }
 
-export default function TiteMigrationClient({ userEmail }: { userEmail: string }) {
+/* The migrating admin is taken from the session inside importShipments. */
+export default function TiteMigrationClient() {
   /* form state */
   const [country, setCountry] = useState('');
   const [countrySearch, setCountrySearch] = useState('');
@@ -436,7 +437,6 @@ export default function TiteMigrationClient({ userEmail }: { userEmail: string }
         country,
         filename: file!.name,
         rows: batch,
-        userEmail,
       });
       inserted += res.inserted;
       skipped += res.skipped;

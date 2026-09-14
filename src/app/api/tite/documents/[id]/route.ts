@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { currentTiteUser, isTiteApproved, canViewTiteCountry } from '@/lib/tite-auth';
 import titePool from '@/lib/db-tite';
 import { attachmentContentDisposition } from '@/lib/contentDisposition';
 
@@ -31,21 +30,30 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
+  const user = await currentTiteUser();
+  if (!user) {
     return new NextResponse('Unauthorized', { status: 401 });
+  }
+  // A signed-in session is not TI-TE access: the request must also be approved.
+  if (!isTiteApproved(user)) {
+    return new NextResponse('Forbidden', { status: 403 });
   }
 
   const { id } = await params;
   const docId = Number(id);
-  if (isNaN(docId)) {
+  if (!Number.isFinite(docId)) {
     return new NextResponse('Invalid document ID', { status: 400 });
   }
 
   try {
+    /* Join the parent shipment so the row carries the country the caller is
+       scoped against — without it this is an IDOR on a numeric document id. */
     const { rows } = await titePool.query(
-      `SELECT document_name, original_name, file_content, file_type, file_size
-       FROM shipment_documents WHERE id = $1`,
+      `SELECT d.document_name, d.original_name, d.file_content, d.file_type, d.file_size,
+              s.country
+       FROM shipment_documents d
+       JOIN shipments s ON s.id = d.shipment_id
+       WHERE d.id = $1`,
       [docId],
     );
 
@@ -54,6 +62,10 @@ export async function GET(
     }
 
     const doc = rows[0];
+
+    if (!canViewTiteCountry(user, doc.country)) {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
 
     /* ── Determine content-type ── */
     /* Use stored file_type when it's a specific MIME; otherwise detect from extension */

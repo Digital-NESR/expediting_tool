@@ -78,7 +78,8 @@ function SkeletonRows() {
 
 /* ─── Component ─────────────────────────────────────────────── */
 
-export default function TiteDefaultNotifiersClient({ userEmail }: { userEmail: string }) {
+/* The acting admin is taken from the session inside each server action. */
+export default function TiteDefaultNotifiersClient() {
   const [stakeholders, setStakeholders] = useState<CountryStakeholderFull[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -164,7 +165,6 @@ export default function TiteDefaultNotifiersClient({ userEmail }: { userEmail: s
       role: addRole,
       name: addEmployee.name,
       email: addEmployee.email,
-      addedBy: userEmail,
     });
     setAddSaving(false);
     if (res.success) {

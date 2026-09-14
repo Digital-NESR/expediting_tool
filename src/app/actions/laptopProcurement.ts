@@ -1236,6 +1236,7 @@ function revalidateLaptopPaths(): void {
 
 export async function getLaptopDeviceOptions(): Promise<LaptopDeviceOption[]> {
   try {
+    await getActor();
     const rows = await sql<QueryResultRow[]>(
       `SELECT type_of_device, model FROM laptop_device_catalog WHERE active = TRUE ORDER BY type_of_device, model`,
     );
@@ -1877,6 +1878,7 @@ export async function updateLaptopExistingDevice(id: number, input: UpdateLaptop
 export async function createAdminLaptopRequest(input: AdminCreateLaptopRequestInput): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await requireAdminActor();
+    if (!actor.permissions.canManageData) return { success: false, error: 'Data management access is required.' };
     const validated = validateCreateInput(input);
     const reference = await makeReference();
     const id = await insertRequest(input, {
@@ -2307,10 +2309,22 @@ export async function deleteLaptopRecord(recordType: 'request' | 'activity', id:
 
 /* ── Documents ────────────────────────────────────────────────── */
 
+// document_type lands in a column the detail page groups on, so it's a closed
+// vocabulary, not free text — the request form is the only uploader and only ever
+// sends 'request_attachment'. Anything else is a hand-crafted POST; reject it
+// rather than store an arbitrary client string next to a 10 MB blob.
+const LAPTOP_DOCUMENT_TYPES = new Set(['request_attachment']);
+
 export async function uploadLaptopDocument(formData: FormData): Promise<{ success: boolean; document?: LaptopDocument; error?: string }> {
   try {
     const actor = await getActor();
     requireOperationalAccess(actor);
+    // Viewer is read-only oversight: it can see every request but must never attach
+    // anything to one. Uploading needs either create rights or reviewer authority
+    // (the latter can arrive via delegation, hence effectiveAccessView).
+    if (!actor.permissions.canCreateRequests && !canUseLaptopReviewerQueue(actor.effectiveAccessView)) {
+      return { success: false, error: 'Read-only access cannot upload attachments.' };
+    }
     const requestId = Number(formData.get('request_id'));
     const file = formData.get('file') as File | null;
     const customName = ((formData.get('custom_name') as string) || '').trim() || (file ? fileBaseName(file.name) : 'Attachment');
@@ -2318,6 +2332,9 @@ export async function uploadLaptopDocument(formData: FormData): Promise<{ succes
 
     if (!Number.isFinite(requestId) || requestId <= 0 || !file) {
       return { success: false, error: 'Missing required upload fields.' };
+    }
+    if (!LAPTOP_DOCUMENT_TYPES.has(documentType)) {
+      return { success: false, error: 'Unsupported attachment type.' };
     }
     if (file.size > MAX_LAPTOP_FILE_BYTES) {
       return { success: false, error: 'File is too large. Maximum size is 10 MB.' };
@@ -2365,14 +2382,20 @@ export async function deleteLaptopDocument(documentId: number): Promise<ActionRe
   try {
     const actor = await getActor();
     const docs = await sql<QueryResultRow[]>(
-      `SELECT d.id, d.request_id, r.reference_number, r.requested_by_email
+      `SELECT d.id, d.request_id, d.uploaded_by_email, r.reference_number, r.requested_by_email
        FROM laptop_documents d JOIN laptop_requests r ON d.request_id = r.id
        WHERE d.id = ? LIMIT 1`,
       [documentId],
     );
     const doc = docs[0];
     if (!doc) return { success: false, error: 'Attachment not found.' };
-    if (!actor.permissions.canManageData && doc.requested_by_email?.toLowerCase() !== actor.email.toLowerCase()) {
+    // The request's owner and whoever uploaded the file can both remove it — a
+    // reviewer who attached a quote to someone else's request would otherwise be
+    // unable to undo their own upload.
+    const actorEmail = actor.email.toLowerCase();
+    const ownsAttachment = doc.requested_by_email?.toLowerCase() === actorEmail
+      || doc.uploaded_by_email?.toLowerCase() === actorEmail;
+    if (!actor.permissions.canManageData && !ownsAttachment) {
       return { success: false, error: 'You cannot remove this attachment.' };
     }
     await exec(`DELETE FROM laptop_documents WHERE id = ?`, [documentId]);
@@ -2794,6 +2817,7 @@ export async function getLaptopAccessRequests(): Promise<LaptopAccessRequestRow[
 
 export async function getLaptopPendingAccessCount(): Promise<number> {
   try {
+    await requireAdminActor();
     await ensureLaptopAccessRequestTable();
     const rows = await sql<QueryResultRow[]>(`SELECT COUNT(*) AS cnt FROM laptop_access_requests WHERE status = 'Pending'`);
     return Number(rows[0]?.cnt ?? 0);
@@ -2803,10 +2827,11 @@ export async function getLaptopPendingAccessCount(): Promise<number> {
   }
 }
 
+// reviewed_by is an audit field: it records who made the decision, so it comes from
+// the authenticated actor, never from the caller's payload.
 export async function approveLaptopAccess(input: {
   userEmail: string;
   approvedRole: LaptopPermissionRole;
-  reviewedBy: string;
   country?: string | null;
   segment?: string | null;
   notes?: string | null;
@@ -2830,7 +2855,7 @@ export async function approveLaptopAccess(input: {
          reviewed_at = CURRENT_TIMESTAMP,
          reviewed_by = EXCLUDED.reviewed_by,
          notes = EXCLUDED.notes`,
-      [email, email, role, role, blankToNull(input.country), blankToNull(input.segment), input.reviewedBy, blankToNull(input.notes)],
+      [email, email, role, role, blankToNull(input.country), blankToNull(input.segment), actor.email, blankToNull(input.notes)],
     );
 
     await ensureLaptopPermissionsRoleConstraint();
@@ -2853,14 +2878,13 @@ export async function approveLaptopAccess(input: {
 export async function editLaptopAccess(input: {
   userEmail: string;
   approvedRole: LaptopPermissionRole;
-  reviewedBy: string;
   country?: string | null;
   segment?: string | null;
 }): Promise<ActionResult> {
   return approveLaptopAccess({ ...input, notes: 'Access edited by admin' });
 }
 
-export async function rejectLaptopAccess(userEmail: string, reviewedBy: string): Promise<ActionResult> {
+export async function rejectLaptopAccess(userEmail: string): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
     if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
@@ -2870,7 +2894,7 @@ export async function rejectLaptopAccess(userEmail: string, reviewedBy: string):
       `UPDATE laptop_access_requests
        SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
        WHERE user_email = ?`,
-      [reviewedBy, email],
+      [actor.email, email],
     );
     if (!adminEmails().includes(email)) {
       await exec(`DELETE FROM laptop_permissions WHERE email = ?`, [email]);
@@ -2883,7 +2907,7 @@ export async function rejectLaptopAccess(userEmail: string, reviewedBy: string):
   }
 }
 
-export async function revokeLaptopAccess(userEmail: string, reviewedBy: string): Promise<ActionResult> {
+export async function revokeLaptopAccess(userEmail: string): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
     if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
@@ -2895,7 +2919,7 @@ export async function revokeLaptopAccess(userEmail: string, reviewedBy: string):
        VALUES (?, ?, 'Revoked', 'Requester', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
        ON CONFLICT (user_email) DO UPDATE SET
          status = 'Revoked', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = EXCLUDED.reviewed_by`,
-      [email, email, reviewedBy],
+      [email, email, actor.email],
     );
     if (!adminEmails().includes(email)) {
       await exec(`DELETE FROM laptop_permissions WHERE email = ?`, [email]);

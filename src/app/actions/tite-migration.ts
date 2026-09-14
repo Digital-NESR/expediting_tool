@@ -2,6 +2,10 @@
 
 import titePool from '@/lib/db-tite';
 import { titeCountryCode, formatTiteReference } from '@/lib/tite-constants';
+import { requireAdmin, isAdminActor } from '@/lib/require-access';
+
+/** Hard ceiling on rows accepted per call — a bulk INSERT is not a free-for-all. */
+const MAX_IMPORT_ROWS = 5000;
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -173,15 +177,25 @@ export async function importShipments(params: {
   country: string;
   filename: string;
   rows: RawShipmentRow[];
-  userEmail: string;
 }): Promise<MigrationResult> {
-  const { country, filename, rows, userEmail } = params;
+  const admin = await requireAdmin();
+  const { country, filename, rows } = params;
+  const userEmail = admin.email;
   const countryCode = titeCountryCode(country);
 
   const log: string[] = [];
   let inserted = 0;
   let skipped = 0;
   let errors = 0;
+
+  if (rows.length > MAX_IMPORT_ROWS) {
+    return {
+      inserted: 0,
+      skipped: 0,
+      errors: rows.length,
+      log: [`❌ Too many rows in one call (${rows.length}). The limit is ${MAX_IMPORT_ROWS}; split the file into smaller batches.`],
+    };
+  }
 
   for (const row of rows) {
     // Skip rows with no reference number
@@ -328,6 +342,8 @@ export async function importShipments(params: {
 /* ─── Fetch migration log ────────────────────────────────────── */
 
 export async function getMigrationLog(): Promise<MigrationLogRow[]> {
+  // Read the admin panel renders: degrade to an empty history, never crash.
+  if (!(await isAdminActor())) return [];
   try {
     const { rows } = await titePool.query<MigrationLogRow>(
       `SELECT id, country, filename, rows_inserted, rows_skipped,

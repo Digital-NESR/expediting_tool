@@ -543,7 +543,7 @@ function SessionCard({
 
 /* ─── Main client component ──────────────────────────────────── */
 
-export default function ReconciliationClient({ userEmail, userName }: { userEmail: string; userName: string }) {
+export default function ReconciliationClient({ userName }: { userName: string }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // All three collapse sets start empty (everything collapsed)
@@ -566,7 +566,7 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
   const fetchSessions = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const data = await getMyExpeditingSessions(userEmail);
+      const data = await getMyExpeditingSessions();
       setSessions(data);
       setBuyerComments(() => {
         const map: Record<string, string> = {};
@@ -585,7 +585,7 @@ export default function ReconciliationClient({ userEmail, userName }: { userEmai
     } finally {
       setIsRefreshing(false);
     }
-  }, [userEmail, userName]);
+  }, [userName]);
 
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
 

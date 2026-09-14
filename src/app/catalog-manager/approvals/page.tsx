@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { listCatalogEntries, getCatalogActor, getCountries } from '@/app/actions/catalog-manager';
+import { listCatalogEntries, getCatalogActor, getCountries, getApprovableEntryIds } from '@/app/actions/catalog-manager';
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import ApprovalsClient from './ApprovalsClient';
 
@@ -18,6 +18,9 @@ export default async function ApprovalsPage({
     getCountries(),
   ]);
   const pending = entries.filter((e) => e.status === 'Pending Approval');
+  // Server-computed: which of these the caller actually holds authority over
+  // (country AND spend category). Never re-derived in the client.
+  const approvableIds = await getApprovableEntryIds(pending.map((e) => e.id));
 
   return (
     <ApprovalsClient
@@ -27,8 +30,7 @@ export default async function ApprovalsPage({
       roleLabel={getPermissionProfile(actor.role).description}
       canApprove={actor.canApprove}
       canAdmin={actor.canAdmin}
-      approverCountries={actor.approverCountries}
-      isAdmin={actor.role === 'Admin'}
+      approvableIds={approvableIds}
       delegatedFrom={actor.delegatedFrom ?? []}
     />
   );

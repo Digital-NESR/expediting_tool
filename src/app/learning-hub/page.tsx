@@ -1,12 +1,10 @@
 import type { Metadata } from 'next';
-import { getProcureGuardUser } from '@/lib/auth';
-import { getLearningHubDashboardData } from '@/app/actions/learning-hub';
+import { getLearningHubDashboardData } from '@/lib/learning-hub-queries';
 import LearningHubDashboardClient from './LearningHubDashboardClient';
 
 export const metadata: Metadata = { title: 'Learning Hub' };
 
 export default async function LearningHubDashboardPage() {
-  const user = await getProcureGuardUser();
-  const data = await getLearningHubDashboardData(user?.email ?? '');
+  const data = await getLearningHubDashboardData();
   return <LearningHubDashboardClient data={data} />;
 }

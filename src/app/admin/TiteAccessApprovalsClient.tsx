@@ -186,11 +186,11 @@ function SectionLoading() {
 
 /* ─── Main Component ─────────────────────────────────────────── */
 
+/* The reviewer identity is taken from the session inside each server action,
+   so this panel no longer passes (or needs) the signed-in user's email. */
 export default function TiteAccessApprovalsClient({
-  userEmail,
   onPendingCountChange,
 }: {
-  userEmail: string;
   onPendingCountChange?: (count: number) => void;
 }) {
   const [requests, setRequests]           = useState<TiteAccessRequestRow[]>([]);
@@ -242,7 +242,7 @@ export default function TiteAccessApprovalsClient({
   function handleApprove(email: string, selected: string[]) {
     setProcessingEmail(email);
     startTransition(async () => {
-      await approveTiteAccess({ userEmail: email, approvedCountries: selected, reviewedBy: userEmail, notes: null });
+      await approveTiteAccess({ userEmail: email, approvedCountries: selected, notes: null });
       await refreshData();
       setExpandedEmail(null);
       setExpandMode(null);
@@ -253,7 +253,7 @@ export default function TiteAccessApprovalsClient({
   function handleReject(email: string) {
     setProcessingEmail(email);
     startTransition(async () => {
-      await rejectTiteAccess(email, userEmail);
+      await rejectTiteAccess(email);
       await refreshData();
       setProcessingEmail(null);
     });
@@ -263,7 +263,7 @@ export default function TiteAccessApprovalsClient({
     if (!confirm(`Revoke TI-TE access for ${email}?`)) return;
     setProcessingEmail(email);
     startTransition(async () => {
-      await revokeTiteAccess(email, userEmail);
+      await revokeTiteAccess(email);
       await refreshData();
       setProcessingEmail(null);
     });
@@ -272,7 +272,7 @@ export default function TiteAccessApprovalsClient({
   function handleEditAccess(email: string, selected: string[]) {
     setProcessingEmail(email);
     startTransition(async () => {
-      await editTiteAccess(email, selected, userEmail);
+      await editTiteAccess(email, selected);
       await refreshData();
       setExpandedEmail(null);
       setExpandMode(null);

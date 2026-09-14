@@ -113,6 +113,14 @@ function actorFor(viewer: SnsViewer, kind: 'req' | 'l1' | 'l2', country: string)
 /** Taxonomy tree, countries, segments and reason codes for the wizard. */
 export async function getSnsReferenceData(): Promise<ReferenceData> {
   const empty: ReferenceData = { tax: [], countries: [], segments: [], reasons: { SGL: [], SOL: [] } };
+
+  /* A `'use server'` export is a public POST endpoint — any signed-in employee
+     can call it directly, so the layout redirect is not a control. Gate on the
+     S&S viewer, but degrade to the empty shape rather than throwing so the
+     pages that render this still paint. */
+  const viewer = await getSnsViewer();
+  if (!viewer) return empty;
+
   try {
     const [cats, subs, fams, coms, countries, segments, reasons] = await Promise.all([
       snsPool.query(`SELECT id, name, spend_type FROM sns_category WHERE active ORDER BY sort_order, name`),
@@ -167,6 +175,27 @@ export async function getSnsReferenceData(): Promise<ReferenceData> {
   }
 }
 
+/**
+ * Country names only, for the request-access form.
+ *
+ * That form is the one S&S screen a user reaches BEFORE they have a viewer, so
+ * it cannot read the (now gated) reference tree. This exposes nothing beyond
+ * the active country list, to signed-in users only.
+ */
+export async function getSnsCountryOptions(): Promise<string[]> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) return [];
+  try {
+    const { rows } = await snsPool.query(
+      `SELECT name FROM sns_country WHERE active ORDER BY sort_order, name`,
+    );
+    return rows.map((r) => String(r.name));
+  } catch (err) {
+    console.error('[getSnsCountryOptions]', err);
+    return [];
+  }
+}
+
 /* ═══ Records ════════════════════════════════════════════════════ */
 
 function isoOrNull(v: unknown): string | null {
@@ -176,6 +205,13 @@ function isoOrNull(v: unknown): string | null {
 
 /** Loads every record with its scope nodes, segments and audit trail. */
 export async function getSnsRecords(): Promise<RegistryRecord[]> {
+  /* Without this gate any signed-in employee could POST to this action and
+     dump the whole registry — supplier SAP IDs, spend, justification
+     narratives, requestor names and the audit trail. Degrade to an empty list
+     so the page renders an empty state instead of throwing. */
+  const viewer = await getSnsViewer();
+  if (!viewer) return [];
+
   try {
     const [recs, nodes, segs, hist] = await Promise.all([
       snsPool.query(`SELECT * FROM sns_record ORDER BY created_at DESC, rid DESC`),
@@ -648,6 +684,10 @@ export async function submitSnsAccessRequest(
 
 /** The full queue for the /admin console — Pending first, then most recent. */
 export async function getSnsAccessRequests(): Promise<SnsAccessRequestRow[]> {
+  /* The queue carries requester PII (name, job title, stated reason). Admins
+     only; everyone else gets an empty queue rather than an error. */
+  if (!(await requireAdmin())) return [];
+
   try {
     const { rows } = await snsPool.query(
       `SELECT * FROM sns_access_requests

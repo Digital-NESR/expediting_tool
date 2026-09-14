@@ -185,7 +185,7 @@ function QuizBlock({
   );
 }
 
-export default function LessonViewerClient({ data, userEmail }: { data: LessonDetailData; userEmail: string }) {
+export default function LessonViewerClient({ data }: { data: LessonDetailData }) {
   const [completed, setCompleted] = useState(data.completed);
   const [passed, setPassed] = useState(data.quiz_passed);
   const [isPending, startTransition] = useTransition();
@@ -199,15 +199,15 @@ export default function LessonViewerClient({ data, userEmail }: { data: LessonDe
     const nextVal = !completed;
     setCompleted(nextVal);
     startTransition(async () => {
-      if (nextVal) await markLessonComplete(lesson.id, userEmail);
-      else await markLessonIncomplete(lesson.id, userEmail);
+      if (nextVal) await markLessonComplete(lesson.id);
+      else await markLessonIncomplete(lesson.id);
       router.refresh();
     });
   }
   function goNext() {
     if (!hasQuiz && !completed) {
       setCompleted(true);
-      startTransition(async () => { await markLessonComplete(lesson.id, userEmail); router.refresh(); });
+      startTransition(async () => { await markLessonComplete(lesson.id); router.refresh(); });
     }
   }
   function onPassed() { setPassed(true); router.refresh(); }

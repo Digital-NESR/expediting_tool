@@ -1,16 +1,19 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getMySnsAccessRequest, getSnsReferenceData, getSnsViewer } from '@/app/actions/sns';
+import { getMySnsAccessRequest, getSnsCountryOptions, getSnsViewer } from '@/app/actions/sns';
 import RequestAccessClient from './RequestAccessClient';
 
 export const metadata: Metadata = { title: 'Request Access | NESR S&S Registry' };
 export const dynamic = 'force-dynamic';
 
 export default async function SnsRequestAccessPage() {
-  const [viewer, myRequest, reference] = await Promise.all([
+  /* The full reference tree is gated to approved S&S viewers, and a user on
+     this page by definition is not one yet — so the country list comes from
+     the narrow, signed-in-only action instead. */
+  const [viewer, myRequest, countries] = await Promise.all([
     getSnsViewer(),
     getMySnsAccessRequest(),
-    getSnsReferenceData(),
+    getSnsCountryOptions(),
   ]);
 
   // Already approved — nothing to request.
@@ -19,7 +22,7 @@ export default async function SnsRequestAccessPage() {
   return (
     <RequestAccessClient
       myRequest={myRequest}
-      countries={reference.countries.map((c) => c[0])}
+      countries={countries}
     />
   );
 }

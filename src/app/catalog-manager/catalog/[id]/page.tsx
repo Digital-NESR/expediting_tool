@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import {
+  getApprovableEntryIds,
   getCatalogActor,
   getCatalogEntry,
   getPendingApprovalCount,
@@ -25,8 +26,8 @@ export default async function CatalogEntryDetailPage({ params }: { params: Promi
   ]);
   if (!entry) notFound();
 
-  const canApproveThis =
-    actor.canApprove && (actor.role === 'Admin' || actor.approverCountries.length === 0 || actor.approverCountries.includes(entry.country_code));
+  // Server-computed (country AND spend category), same rule the decide action enforces.
+  const canApproveThis = (await getApprovableEntryIds([entry.id])).includes(entry.id);
 
   return (
     <CatalogEntryDetailClient

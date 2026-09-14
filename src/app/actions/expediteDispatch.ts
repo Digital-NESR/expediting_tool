@@ -5,6 +5,7 @@ import https from 'https';
 import { getServerSession } from 'next-auth';
 import pool from '@/lib/db';
 import { authOptions } from '@/lib/auth';
+import { normalizeEmail } from '@/lib/require-access';
 import type { PurchaseOrder } from '@/types/po';
 
 interface WebhookResult { ok: boolean; status?: number; error?: string }
@@ -189,20 +190,110 @@ export interface DispatchResponse {
   webhook: WebhookStatus;
 }
 
+/* ─── Server-side input limits ────────────────────────────────── */
+const MAX_RECIPIENTS_PER_FIELD = 50;
+const MAX_SUBJECT_LEN = 300;
+const MAX_BODY_LEN = 20000;
+/** Deliberately conservative: no display names, no commas/semicolons/angle brackets. */
+const EMAIL_RE = /^[^\s@,;:<>"]+@[^\s@,;:<>"]+\.[^\s@,;:<>"]{2,}$/;
+
+/**
+ * Drop anything that is not a plain, syntactically valid address, de-duplicate
+ * case-insensitively and cap the count. The dispatch UI lets a buyer type an
+ * arbitrary To/CC address (and CC always carries buyer + employee-search
+ * addresses), so recipients are validated for syntax rather than restricted to
+ * a fixed allow-list.
+ */
+function sanitizeRecipients(list: unknown): string[] {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of list) {
+    const email = String(raw ?? '').trim();
+    if (!email || email.length > 254 || !EMAIL_RE.test(email)) continue;
+    const key = email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(email);
+    if (out.length >= MAX_RECIPIENTS_PER_FIELD) break;
+  }
+  return out;
+}
+
+/** Row shape re-read from sap_open_po_master — the only trusted source of line data. */
+interface MasterLine {
+  po_number: string;
+  po_line: string | null;
+  item_description: string | null;
+  open_qty: string | number | null;
+  open_po_value_usd: string | number | null;
+  delivery_date: Date | string | null;
+  po_release_date: Date | string | null;
+  supplier_name: string | null;
+  supplier_id: string | null;
+}
+
+function lineKey(poNumber: unknown, poLine: unknown): string {
+  return `${String(poNumber ?? '')}\u0000${String(poLine ?? '')}`;
+}
+
+/** Match the ISO form the client previously sent (JSON-serialised Date). */
+function isoDate(value: Date | string | null | undefined): string {
+  if (value == null) return '';
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+function deniedResponse(
+  paramsList: SupplierDispatchParams[],
+  message: string
+): DispatchResponse {
+  const groups = Array.isArray(paramsList) ? paramsList : [];
+  return {
+    results: groups.map((p) => ({
+      supplierName: p?.supplierName ?? 'Unknown Supplier',
+      success: false,
+      error: message,
+    })),
+    webhook: {
+      triggered: false, ok: false, payloadSizeKB: 0, suppliers: 0, message,
+    },
+  };
+}
+
 /* ─────────────────────────────────────────────────────────────────
  * Bulk dispatch: DB-inserts ALL supplier groups, then fires a single
  * fire-and-forget webhook to n8n with the full payload array.
+ *
+ * This is a public POST endpoint that sends email, so nothing the client
+ * supplies is trusted: the caller must have approved PO Expediting access,
+ * every PO line is re-read from sap_open_po_master under the caller's own
+ * country scope (mirroring /api/pos), and recipients/subject/body are
+ * validated and capped server-side.
  * ──────────────────────────────────────────────────────────────── */
 export async function prepareAllExpediteDispatches(
   paramsList: SupplierDispatchParams[]
 ): Promise<DispatchResponse> {
+  /* ── Access gate: identity and country scope come from the session only ── */
+  const session = await getServerSession(authOptions);
+  const sessionEmail = normalizeEmail(session?.user?.email);
+  const isAdmin = session?.user?.isAdmin === true;
+  const poAccess = session?.user?.toolAccess?.po_expediting;
+  const approvedCountries = poAccess?.approvedCountries ?? [];
+
+  if (!sessionEmail) return deniedResponse(paramsList, 'Sign in required.');
+  if (!isAdmin && !(poAccess?.status === 'approved' && approvedCountries.length > 0)) {
+    return deniedResponse(paramsList, 'Access denied.');
+  }
+
+  const groupsIn = Array.isArray(paramsList) ? paramsList : [];
+  if (groupsIn.length === 0) return deniedResponse(groupsIn, 'No suppliers to notify.');
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
   const results: DispatchResult[] = [];
   const preparedGroups: PreparedGroup[] = [];
 
   /* ── Session / user identity ── */
-  const session = await getServerSession(authOptions);
-  const userEmail = session?.user?.email ?? 'unknown';
+  const userEmail = sessionEmail;
   const userName = session?.user?.name ?? 'Unknown';
   const userJobTitle = session?.user?.jobTitle ?? null;
   const userDepartment = session?.user?.department ?? null;
@@ -224,10 +315,71 @@ export async function prepareAllExpediteDispatches(
   /* ── Single UUID that ties every row in this batch together ── */
   const sessionRef = randomUUID();
 
+  /* ── Re-read every requested PO line from the master, under the caller's
+        country scope. Client-supplied line data is used only to name the
+        (po_number, po_line) pairs; everything written or emailed comes from
+        these rows, so a caller cannot email lines outside their countries or
+        forge descriptions, quantities and values. ── */
+  const requestedPoNumbers: string[] = [];
+  const requestedPoLines: string[] = [];
+  for (const params of groupsIn) {
+    for (const item of Array.isArray(params?.items) ? params.items : []) {
+      requestedPoNumbers.push(String(item?.['PO Number'] ?? ''));
+      requestedPoLines.push(String(item?.['PO Line'] ?? ''));
+    }
+  }
+
+  const masterByKey = new Map<string, MasterLine>();
+  if (requestedPoNumbers.length > 0) {
+    const masterRows = await pool.query<MasterLine>(
+      `SELECT s.po_number, s.po_line, s.item_description, s.open_qty,
+              s.open_po_value_usd, s.delivery_date, s.po_release_date,
+              s.supplier_name, s.supplier_id
+         FROM sap_open_po_master s
+         JOIN unnest($1::text[], $2::text[]) AS req(po_number, po_line)
+           ON s.po_number = req.po_number
+          AND COALESCE(s.po_line, '') = req.po_line
+        ${isAdmin ? '' : 'WHERE s.country = ANY($3)'}`,
+      isAdmin
+        ? [requestedPoNumbers, requestedPoLines]
+        : [requestedPoNumbers, requestedPoLines, approvedCountries]
+    );
+    for (const row of masterRows.rows) {
+      masterByKey.set(lineKey(row.po_number, row.po_line ?? ''), row);
+    }
+  }
+
   /* ── Phase 1: DB inserts for every supplier group ── */
-  for (const params of paramsList) {
-    const { supplierId, supplierName, toEmails, ccEmails, subject, emailBodyTemplate, items } = params;
+  for (const params of groupsIn) {
+    const { supplierId, supplierName } = params;
     const token = randomUUID();
+
+    /* Recipients / template: validated and capped, never used raw. */
+    const toEmails = sanitizeRecipients(params?.toEmails);
+    const ccEmails = sanitizeRecipients(params?.ccEmails);
+    const subject = String(params?.subject ?? '').slice(0, MAX_SUBJECT_LEN);
+    const emailBodyTemplate = String(params?.emailBodyTemplate ?? '').slice(0, MAX_BODY_LEN);
+
+    /* Only lines the caller is actually allowed to see, de-duplicated. */
+    const serverLines = new Map<string, MasterLine>();
+    for (const item of Array.isArray(params?.items) ? params.items : []) {
+      const row = masterByKey.get(lineKey(item?.['PO Number'], item?.['PO Line'] ?? ''));
+      if (row) serverLines.set(lineKey(row.po_number, row.po_line ?? ''), row);
+    }
+    const items = [...serverLines.values()];
+
+    if (toEmails.length === 0) {
+      results.push({ supplierName, success: false, error: 'No valid recipient email address.' });
+      continue;
+    }
+    if (items.length === 0) {
+      results.push({
+        supplierName,
+        success: false,
+        error: 'No PO lines available for this supplier within your approved countries.',
+      });
+      continue;
+    }
 
     try {
       for (const item of items) {
@@ -252,8 +404,9 @@ export async function prepareAllExpediteDispatches(
              supplier_name     = EXCLUDED.supplier_name,
              supplier_id       = EXCLUDED.supplier_id,
              updated_at        = NOW()`,
-          [item['PO Number'], item['PO Line'] ?? '', token, userEmail, sessionRef,
-           supplierName || null, supplierId || null]
+          [item.po_number, item.po_line ?? '', token, userEmail, sessionRef,
+           item.supplier_name ?? (supplierName || null),
+           item.supplier_id ?? (supplierId || null)]
         );
       }
 
@@ -266,13 +419,13 @@ export async function prepareAllExpediteDispatches(
         emailBody: emailBodyTemplate,
         expediteToken: token,
         poLines: items.map((i) => ({
-          po_number: i['PO Number'],
-          po_line: i['PO Line'] ?? '',
-          item_description: i['Item Description'],
-          open_qty: Number(i['Open QTY'] ?? 0),
-          open_po_value_usd: Number(i['Open PO Value USD'] ?? 0),
-          delivery_date: i['Delivery Date'] ?? '',
-          po_release_date: i['PO Release Date'] ?? null,
+          po_number: i.po_number,
+          po_line: i.po_line ?? '',
+          item_description: i.item_description ?? '',
+          open_qty: Number(i.open_qty ?? 0),
+          open_po_value_usd: Number(i.open_po_value_usd ?? 0),
+          delivery_date: isoDate(i.delivery_date),
+          po_release_date: i.po_release_date == null ? null : isoDate(i.po_release_date),
         })),
       });
 

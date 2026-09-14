@@ -1,13 +1,31 @@
 ﻿'use server';
 
-import { request as httpRequest } from 'http';
-import { request as httpsRequest } from 'https';
 import type { QueryResultRow } from 'pg';
 import { cache } from 'react';
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
-import procureGuardPool from '@/lib/db-procureguard';
-import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, formatProcureGuardStatusLabel, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getProcureGuardCountryScopeCountries, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, normalizeProcureGuardCountry, normalizeProcureGuardCountryScope, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, roleRequiresProcureGuardCountryScope, toUsd } from '@/lib/procureGuard-utils';
+import { normalizeEmail } from '@/lib/require-access';
+import {
+  countryRecipientKeys,
+  ensureProcureGuardDelegationTable,
+  ensureProcureGuardPaymentRequestColumns,
+  escapeHtml,
+  exec,
+  formatWebhookAmount,
+  getActiveDelegatesByDelegator,
+  getAppBaseUrl,
+  getProcureGuardNotificationRecipients,
+  getRecipientApprovalStatus,
+  getRequestDetailUrl,
+  postProcureGuardWebhook,
+  procureGuardRefRowsHtml,
+  procureGuardWebhookErrorMessage,
+  serialise,
+  sql,
+  stripEnvQuotes,
+} from '@/lib/procure-guard/internals';
+import type { ExecResult, ProcureGuardWebhookRequest } from '@/lib/procure-guard/internals';
+import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, CURRENCY_OPTIONS, formatProcureGuardStatusLabel, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getProcureGuardCountryScopeCountries, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, normalizeProcureGuardCountry, normalizeProcureGuardCountryScope, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, roleRequiresProcureGuardCountryScope, toUsd } from '@/lib/procureGuard-utils';
 import type { ProcureGuardAvailableActions } from '@/lib/procureGuard-utils';
 import type {
   ActionResult,
@@ -61,6 +79,10 @@ const PRIORITY_SORT_ORDER = ['Critical', 'High', 'Normal', 'Low'];
 const MEANINGFUL_ACTIVITY_WHERE = "request_id > 0 AND action NOT ILIKE '%seeded%'";
 
 const MAX_PROCURE_GUARD_FILE_BYTES = 10 * 1024 * 1024;
+// document_type lands in a column the detail page groups on, so it is a closed vocabulary, not
+// free text — the request forms are the only uploaders and only ever send 'request_attachment'.
+const PROCURE_GUARD_DOCUMENT_TYPES = new Set(['request_attachment']);
+const MAX_PROCURE_GUARD_DOCUMENT_NAME_CHARS = 200;
 const FILE_MIME_MAP: Record<string, string> = {
   pdf: 'application/pdf',
   doc: 'application/msword',
@@ -94,51 +116,6 @@ function normalisePermissionCountryForRole(role: ProcureGuardPermissionRole, cou
     throw new Error(`${role} access must be limited to at least one country. Choose a country scope before saving.`);
   }
   return normalizedCountry;
-}
-
-type QueryParam = string | number | boolean | null | Date | Buffer | number[] | string[] | undefined;
-type QueryParams = QueryParam[];
-type ExecResult = { rowCount: number; insertId: number };
-export type ProcureGuardAccessRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
-
-export interface ProcureGuardAccessRequestRow {
-  user_email: string;
-  display_name: string | null;
-  job_title: string | null;
-  department: string | null;
-  status: ProcureGuardAccessRequestStatus;
-  requested_role: ProcureGuardPermissionRole;
-  approved_role: ProcureGuardPermissionRole | null;
-  country: string | null;
-  segment: string | null;
-  requested_at: string;
-  reviewed_at: string | null;
-  reviewed_by: string | null;
-  notes: string | null;
-}
-
-function toPostgresQuery(statement: string): string {
-  let index = 0;
-  return statement.replace(/\?/g, () => `$${++index}`);
-}
-
-function normaliseParams(params: QueryParams): QueryParams {
-  return params.map(value => value === undefined ? null : value);
-}
-
-async function sql<T extends QueryResultRow[]>(statement: string, params: QueryParams = []): Promise<T> {
-  const result = await procureGuardPool.query(toPostgresQuery(statement), normaliseParams(params));
-  return serialise<T>(result.rows);
-}
-
-async function exec(statement: string, params: QueryParams = []): Promise<ExecResult> {
-  const result = await procureGuardPool.query(toPostgresQuery(statement), normaliseParams(params));
-  const rawId = result.rows[0]?.id;
-  const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
-  return {
-    rowCount: result.rowCount ?? 0,
-    insertId: Number.isFinite(insertId) ? insertId : 0,
-  };
 }
 
 async function ensureProcureGuardUsageTables(): Promise<void> {
@@ -215,58 +192,6 @@ async function ensureProcureGuardPermissionRoleValues(): Promise<void> {
   }
 }
 
-// Memoized so the ~11 idempotent schema statements run once per process (e.g. on a warm serverless
-// instance) instead of on every page load — that per-request DDL was the main ProcureGuard load lag.
-// A fresh deploy starts a new process, so genuinely new columns still get applied.
-let paymentRequestColumnsEnsured: Promise<void> | null = null;
-async function ensureProcureGuardPaymentRequestColumns(): Promise<void> {
-  if (paymentRequestColumnsEnsured) return paymentRequestColumnsEnsured;
-  paymentRequestColumnsEnsured = (async () => {
-  async function execSchema(statement: string) {
-    try {
-      await exec(statement);
-    } catch (err) {
-      const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
-      if (code !== '23505' && code !== '42P07' && code !== '42710' && code !== '42701') throw err;
-    }
-  }
-
-  // Add all columns per table in a single ALTER (one round-trip, one lock), and run the two tables
-  // in parallel — collapses the cold-start cost from ~8 sequential round-trips to ~1.
-  await Promise.all([
-    execSchema(`ALTER TABLE procure_guard_adhoc_payments
-      ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
-      ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE,
-      ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
-      ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB,
-      ADD COLUMN IF NOT EXISTS reminder_7d_sent_at TIMESTAMPTZ,
-      ADD COLUMN IF NOT EXISTS reminder_14d_sent_at TIMESTAMPTZ`),
-    execSchema(`ALTER TABLE procure_guard_advance_payments
-      ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
-      ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE,
-      ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
-      ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB,
-      ADD COLUMN IF NOT EXISTS reminder_7d_sent_at TIMESTAMPTZ,
-      ADD COLUMN IF NOT EXISTS reminder_14d_sent_at TIMESTAMPTZ`),
-    // Delegation attribution: when a delegate acts using someone else's authority, record who.
-    execSchema(`ALTER TABLE procure_guard_activity_log
-      ADD COLUMN IF NOT EXISTS on_behalf_of_name TEXT,
-      ADD COLUMN IF NOT EXISTS on_behalf_of_email TEXT`),
-  ]);
-  // Indexes after the columns exist (they depend on requester_notification_emails); both in parallel.
-  await Promise.all([
-    execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_adhoc_requester_notification_emails ON procure_guard_adhoc_payments USING GIN (requester_notification_emails)`),
-    execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_advance_requester_notification_emails ON procure_guard_advance_payments USING GIN (requester_notification_emails)`),
-  ]);
-  // Note: the reference_number UNIQUE index is ensured in the insert path
-  // (insertProcureGuardPaymentRequest), not here — read-only page loads don't need it.
-  })().catch(err => {
-    paymentRequestColumnsEnsured = null; // allow a retry on the next request if it genuinely failed
-    throw err;
-  });
-  return paymentRequestColumnsEnsured;
-}
-
 // Creates the UNIQUE indexes on reference_number and reports, once per process, whether
 // they are actually in place. If legacy duplicate references block an index, this logs a
 // warning with the offending values instead of failing — so the diagnostic never breaks a
@@ -320,9 +245,6 @@ async function ensureProcureGuardReferenceUniqueness(): Promise<void> {
   })();
   return referenceUniquenessChecked;
 }
-function serialise<T>(value: unknown): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
 
 function normalisePaymentCountry<T extends { country?: string | null }>(row: T): T {
   return { ...row, country: normalizeProcureGuardCountry(row.country) };
@@ -342,34 +264,6 @@ function requireCountryOption(value: string | null | undefined, label = 'Country
   return country;
 }
 
-function stripEnvQuotes(value: string): string {
-  const trimmed = value.trim();
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
-
-function isTlsCertificateError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err ?? '');
-  const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
-  return code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
-    || code === 'SELF_SIGNED_CERT_IN_CHAIN'
-    || code === 'DEPTH_ZERO_SELF_SIGNED_CERT'
-    || message.toLowerCase().includes('unable to verify')
-    || message.toLowerCase().includes('self-signed certificate');
-}
-
-function procureGuardWebhookErrorMessage(err: unknown): string {
-  if (isTlsCertificateError(err)) {
-    return 'TLS certificate verification failed for n8n even though ProcureGuard is configured to bypass TLS verification for webhook calls.';
-  }
-  return err instanceof Error ? err.message : 'ProcureGuard n8n webhook failed.';
-}
-
 function adminEmails(): string[] {
   return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.PROCURE_GUARD_ADMIN_EMAILS ?? ''}`)
     .split(',')
@@ -384,11 +278,14 @@ function testerEmails(): string[] {
     .filter(Boolean);
 }
 
+// Matched case-insensitively: Azure AD can hand back a mixed-case `mail` claim while every writer
+// lowercases the stored email. A case-sensitive lookup silently downgraded such an approver to
+// Requester in every action.
 async function getPermissionRowForEmail(email: string): Promise<ProcureGuardPermissionRow | null> {
   try {
     const rows = await sql<QueryResultRow[]>(
-      `SELECT * FROM procure_guard_permissions WHERE email = ? LIMIT 1`,
-      [email],
+      `SELECT * FROM procure_guard_permissions WHERE LOWER(email) = ? LIMIT 1`,
+      [normalizeEmail(email)],
     );
     return rows[0] ? normalisePermissionCountry(serialise<ProcureGuardPermissionRow>(rows[0])) : null;
   } catch (err) {
@@ -420,31 +317,25 @@ function mergeApprovalAuthority(base: ProcureGuardPermissionProfile, granted: Pr
   };
 }
 
-let delegationTableEnsured: Promise<void> | null = null;
-async function ensureProcureGuardDelegationTable(): Promise<void> {
-  if (delegationTableEnsured) return delegationTableEnsured;
-  delegationTableEnsured = (async () => {
-    try {
-      await exec(`CREATE TABLE IF NOT EXISTS procure_guard_delegations (
-        id SERIAL PRIMARY KEY,
-        delegator_email TEXT NOT NULL,
-        delegator_name TEXT,
-        delegate_email TEXT NOT NULL,
-        delegate_name TEXT,
-        expires_at TIMESTAMPTZ,
-        is_active BOOLEAN NOT NULL DEFAULT TRUE,
-        revoked_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )`);
-      await exec(`CREATE INDEX IF NOT EXISTS idx_pg_delegations_delegate ON procure_guard_delegations (LOWER(delegate_email))`);
-      await exec(`CREATE INDEX IF NOT EXISTS idx_pg_delegations_delegator ON procure_guard_delegations (LOWER(delegator_email))`);
-    } catch (err) {
-      delegationTableEnsured = null; // allow a later retry
-      console.error('[ensureProcureGuardDelegationTable]', err);
-    }
-  })();
-  return delegationTableEnsured;
+// A delegation hands over live approval authority, so its end date is validated rather than passed
+// straight to TIMESTAMPTZ: a garbage or past date used to be accepted (and the "granted" email still
+// went out). Blank stays "until revoked"; anything else must parse, be in the future and stay inside
+// the window below. A date-only value (the picker's format) means the end of that day.
+const MAX_DELEGATION_WINDOW_DAYS = 90;
+const ADMIN_DELEGATION_REFUSAL =
+  'An Admin profile cannot be delegated: it would grant approval rights for every step in every country. Delegate from a scoped approver role instead.';
+
+function validateDelegationExpiry(value: string | null | undefined): string | null {
+  const raw = (value ?? '').trim();
+  if (!raw) return null;
+  const parsed = new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T23:59:59.999Z` : raw);
+  if (Number.isNaN(parsed.getTime())) throw new Error('Enter a valid delegation end date.');
+  const now = Date.now();
+  if (parsed.getTime() <= now) throw new Error('The delegation end date must be in the future.');
+  if (parsed.getTime() > now + MAX_DELEGATION_WINDOW_DAYS * 86_400_000) {
+    throw new Error(`A delegation can run for at most ${MAX_DELEGATION_WINDOW_DAYS} days.`);
+  }
+  return parsed.toISOString();
 }
 
 // The scopes an actor may review within: their own (only if they can review) plus any active delegation.
@@ -454,25 +345,6 @@ function actorReviewGrants(actor: ProcureGuardActor): ProcureGuardReviewGrant[] 
   return actor.permissions.canViewAll
     ? [{ source: 'self', fromEmail: actor.email, fromName: actor.name, role: actor.role, country: actor.country ?? null, segment: actor.segment ?? null, isAdmin: actor.role === 'Admin' }]
     : [];
-}
-
-// All active (non-expired) delegations grouped by delegator email (lowercased). Fail-safe → {}.
-// Shared by the initial approval notification and the reminder job so a delegate is emailed by both.
-async function getActiveDelegatesByDelegator(): Promise<Record<string, ProcureGuardDelegation[]>> {
-  const map: Record<string, ProcureGuardDelegation[]> = {};
-  try {
-    await ensureProcureGuardDelegationTable();
-    const rows = await sql<QueryResultRow[]>(
-      `SELECT * FROM procure_guard_delegations WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
-    );
-    for (const d of serialise<ProcureGuardDelegation[]>(rows)) {
-      const key = d.delegator_email.trim().toLowerCase();
-      (map[key] ??= []).push(d);
-    }
-  } catch (err) {
-    console.error('[ProcureGuard] active-delegates lookup failed', err);
-  }
-  return map;
 }
 
 // Expand a role-based approver list to also include each approver's active delegate(s), deduped by email.
@@ -503,7 +375,8 @@ function withDelegateRecipients<T extends { email: string; display_name: string;
 // page render share a single resolution instead of re-querying the DB every time.
 const getActor = cache(async (): Promise<ProcureGuardActor> => {
   const user = await getProcureGuardUser();
-  const email = user?.email ?? '';
+  // Canonical, lowercase identity everywhere downstream (scopedWhere, ownership checks, writeActivity).
+  const email = normalizeEmail(user?.email);
 
   if (!email) {
     throw new Error('You must be signed in to use ProcureGuard.');
@@ -617,6 +490,28 @@ function scopedWhere(actor: ProcureGuardActor): { where: string; params: string[
     clauses.push(`(${parts.join(' AND ')})`);
   }
   return { where: `WHERE (${clauses.join(' OR ')})`, params };
+}
+
+// Analytics scope. Reviewers, viewers and admins reuse the same scopedWhere() the request lists
+// use, so a country-scoped manager's analytics cover only their countries. Analyst / Read Only
+// hold no review grant (scopedWhere would collapse them to their own requests) yet the role exists
+// solely to read cross-country analytics — they get the global set, narrowed by any country /
+// segment recorded on their permission row.
+function analyticsScopedWhere(actor: ProcureGuardActor): { where: string; params: string[] } {
+  if (actor.permissions.accessView !== 'analyst') return scopedWhere(actor);
+  const parts: string[] = [];
+  const params: string[] = [];
+  const countries = getProcureGuardCountryScopeCountries(actor.country);
+  if (countries.length > 0) {
+    parts.push(`country IN (${countries.map(() => '?').join(', ')})`);
+    params.push(...countries);
+  }
+  if (actor.segment) {
+    parts.push('segment = ?');
+    params.push(actor.segment);
+  }
+  if (parts.length === 0) return { where: '', params: [] };
+  return { where: `WHERE ${parts.join(' AND ')}`, params };
 }
 
 function normaliseScopeValue(value: string | null | undefined): string {
@@ -767,6 +662,15 @@ function validateMoney(amount: unknown) {
   return n;
 }
 
+// The currency decides the USD conversion rate, which decides which approvers are required.
+// An unknown currency used to fall back to rate 1 (understating the amount and skipping the
+// Supply Chain Director / Treasury / Corporate Controller / CFO gates), so reject it outright.
+function validateCurrency(value: unknown): string {
+  const currency = (typeof value === 'string' ? value : '').trim().toUpperCase() || 'USD';
+  if (!CURRENCY_OPTIONS.includes(currency)) throw new Error('Choose a supported currency.');
+  return currency;
+}
+
 function requireText(value: unknown, label: string) {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`${label} is required.`);
   return value.trim();
@@ -902,108 +806,6 @@ type ReviewDurationDraft = ProcureGuardReviewDurationMetric & { longestUpdatedAt
 
 type ProcureGuardWorkflowEvent = 'request.submitted' | 'request.status_changed' | 'request.requester_status_changed';
 
-type ProcureGuardWebhookRequest = Pick<
-  AdhocPaymentRequest | AdvancePaymentRequest,
-  | 'id'
-  | 'reference_number'
-  | 'requisition_number'
-  | 'po_number'
-  | 'status'
-  | 'priority'
-  | 'vendor_name'
-  | 'amount'
-  | 'currency'
-  | 'spend_value_usd'
-  | 'country'
-  | 'segment'
-  | 'spend_category'
-  | 'requested_by_name'
-  | 'requested_by_email'
-  | 'requester_notification_emails'
-  | 'email_test_mode'
-  | 'email_test_recipients'
-  | 'email_test_recipient_overrides'
-  | 'requester_comments'
-  | 'created_at'
-  | 'updated_at'
->;
-
-type ProcureGuardNotificationRecipient = {
-  display_name: string;
-  email: string;
-  notification_role: string;
-  approval_status: ProcureGuardStatus | null;
-  country: string;
-  source_column: string;
-};
-
-function getAppBaseUrl(): string {
-  const configured = process.env.CLIENT_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:4001';
-  return stripEnvQuotes(configured).replace(/\/$/, '');
-}
-
-function getRequestDetailUrl(requestType: ProcureGuardRequestType, id: number): string {
-  const segment = requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments';
-  return `${getAppBaseUrl()}/procure-guard/${segment}/${id}`;
-}
-
-function countryRecipientKeys(country: string | null | undefined): string[] {
-  const raw = normalizeProcureGuardCountry(country)?.trim();
-  if (!raw) return [];
-
-  const keys = new Set([raw]);
-  const normalized = raw.toLowerCase();
-  if (normalized === 'saudi arabia (ksa)' || normalized === 'ksa') keys.add('Saudi Arabia');
-  if (normalized === 'saudi arabia') keys.add('Saudi Arabia (KSA)');
-  if (normalized === 'united arab emirates (uae)' || normalized === 'united arab emirates') keys.add('UAE');
-  if (normalized === 'uae') keys.add('United Arab Emirates (UAE)');
-  // 'Indonesia + Malaysia' is one combined country in the UI; its notification recipients are
-  // still stored per-country, so match both. getProcureGuardNotificationRecipients dedupes by email.
-  if (normalized === 'indonesia + malaysia') { keys.add('Indonesia'); keys.add('Malaysia'); }
-  return [...keys];
-}
-
-function getRecipientApprovalStatus(
-  requestType: ProcureGuardRequestType,
-  request: ProcureGuardWebhookRequest,
-): ProcureGuardStatus | null {
-  if (!isActiveApprovalStatus(request.status)) return null;
-  if (request.status === 'Submitted') {
-    // First-approver notification recipients (SCM / Country Controller) are keyed to
-    // 'Under Review', so route submission notifications there even though the request now
-    // moves straight to the first approved status when approved.
-    return 'Under Review';
-  }
-  return request.status;
-}
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function formatWebhookAmount(amount: number | string | null | undefined, currency: string | null | undefined): string {
-  const value = Number(amount || 0);
-  return `${currency || 'USD'} ${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
-}
-
-// Email table rows for the requester-entered identifiers (the PR / PO number approvers recognise in
-// SAP), so recipients can tie the email to the source document. Renders nothing when both are blank.
-function procureGuardRefRowsHtml(request: Pick<ProcureGuardWebhookRequest, 'requisition_number' | 'po_number'>): string {
-  const row = (label: string, value: string) =>
-    `<tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;width:170px;">${label}</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(value)}</td></tr>`;
-  const rows: string[] = [];
-  const pr = request.requisition_number?.toString().trim();
-  const po = request.po_number?.toString().trim();
-  if (pr) rows.push(row('Requisition / PR No.', pr));
-  if (po) rows.push(row('PO No.', po));
-  return rows.join('');
-}
-
 function getNotificationPreviewStatuses(
   requestType: ProcureGuardRequestType,
   amount?: number | string | null,
@@ -1067,66 +869,6 @@ async function getProcureGuardNotificationContactPreviewRows(input: {
     .sort((a, b) => (statusRank.get(a.approval_status as ProcureGuardStatus) ?? 99) - (statusRank.get(b.approval_status as ProcureGuardStatus) ?? 99)
       || a.notification_role.localeCompare(b.notification_role)
       || a.display_name.localeCompare(b.display_name));
-}
-// Approver roles that are NOT country-scoped (they can approve any country's request). For these
-// steps the notification lookup must NOT be gated by the request's country — otherwise a single
-// global approver only gets emailed for countries where a recipient row happens to be seeded, and
-// the request silently stalls at the final step. Mirrors COUNTRY_SCOPED_PERMISSION_ROLES (which is
-// only SCM Manager + Country Controller).
-const GLOBAL_APPROVER_OWNER_LABELS = new Set<string>([
-  'Supply Chain Director',
-  'Treasury Director',
-  'Corporate Controller',
-  'CFO',
-]);
-
-async function getProcureGuardNotificationRecipients(input: {
-  requestType: ProcureGuardRequestType;
-  country: string | null | undefined;
-  approvalStatus: ProcureGuardStatus;
-  ownerLabel: string;
-}): Promise<ProcureGuardNotificationRecipient[]> {
-  const countries = countryRecipientKeys(input.country);
-  if (countries.length === 0) return [];
-
-  const countryPlaceholders = countries.map(() => '?').join(', ');
-  // For a global approver step, also match recipients tagged with that role regardless of country,
-  // so a single Supply Chain Director / Treasury Director / Corporate Controller / CFO is notified
-  // for every country's request (not only the country their recipient row is filed under).
-  const isGlobalOwner = GLOBAL_APPROVER_OWNER_LABELS.has(input.ownerLabel);
-  const globalClause = isGlobalOwner ? 'OR LOWER(notification_role) = LOWER(?)' : '';
-  const rows = await sql<QueryResultRow[]>(
-    `SELECT display_name, email, notification_role, approval_status, country, source_column
-     FROM procure_guard_notification_recipients
-     WHERE is_active = TRUE
-       AND email IS NOT NULL
-       AND TRIM(email) <> ''
-       AND (request_type = ? OR request_type = 'both')
-       AND (
-         (country IN (${countryPlaceholders}) AND (approval_status = ? OR LOWER(notification_role) = LOWER(?)))
-         ${globalClause}
-       )
-     ORDER BY CASE WHEN approval_status = ? THEN 0 ELSE 1 END,
-              is_required DESC,
-              display_name ASC`,
-    [
-      input.requestType,
-      ...countries,
-      input.approvalStatus,
-      input.ownerLabel,
-      ...(isGlobalOwner ? [input.ownerLabel] : []),
-      input.approvalStatus,
-    ],
-  );
-
-  const seen = new Set<string>();
-  return serialise<ProcureGuardNotificationRecipient[]>(rows)
-    .filter(row => {
-      const key = row.email.trim().toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
 }
 
 function buildProcureGuardNotificationEmail(input: {
@@ -1255,47 +997,6 @@ function buildProcureGuardRequesterStageEmail(input: {
   return { subject, bodyHtml };
 }
 
-async function postProcureGuardWebhook(
-  webhookUrl: string,
-  headers: Record<string, string>,
-  payload: unknown,
-): Promise<{ ok: boolean; status: number; statusText: string }> {
-  const url = new URL(stripEnvQuotes(webhookUrl));
-  const body = JSON.stringify(payload);
-  const isHttps = url.protocol === 'https:';
-
-  return new Promise((resolve, reject) => {
-    const request = (isHttps ? httpsRequest : httpRequest)({
-      method: 'POST',
-      protocol: url.protocol,
-      hostname: url.hostname,
-      port: url.port ? Number(url.port) : undefined,
-      path: `${url.pathname}${url.search}`,
-      headers: {
-        ...headers,
-        'Content-Length': Buffer.byteLength(body),
-      },
-      rejectUnauthorized: isHttps ? false : undefined,
-    }, response => {
-      response.resume();
-      response.on('end', () => {
-        const status = response.statusCode ?? 0;
-        resolve({
-          ok: status >= 200 && status < 300,
-          status,
-          statusText: response.statusMessage ?? '',
-        });
-      });
-    });
-
-    request.setTimeout(15000, () => {
-      request.destroy(new Error('ProcureGuard n8n webhook timed out.'));
-    });
-    request.on('error', reject);
-    request.write(body);
-    request.end();
-  });
-}
 async function notifyProcureGuardNextApprover(input: {
   event: ProcureGuardWorkflowEvent;
   requestType: ProcureGuardRequestType;
@@ -1565,185 +1266,6 @@ async function notifyProcureGuardNextApprover(input: {
   } catch (err) {
     console.error('[ProcureGuard n8n] Webhook notification failed', procureGuardWebhookErrorMessage(err), err);
   }
-}
-
-function buildProcureGuardReminderEmail(input: {
-  requestType: ProcureGuardRequestType;
-  request: ProcureGuardWebhookRequest;
-  detailUrl: string;
-  ownerLabel: string;
-  ageLabel: string;
-  ageDays: number;
-}) {
-  const typeLabel = input.requestType === 'adhoc' ? 'Adhoc PO' : 'Advance Payment';
-  const accent = '#b45309';
-  const subject = `ProcureGuard reminder: ${input.request.reference_number} has been awaiting ${input.ownerLabel} for ${input.ageLabel}`;
-  const bodyHtml = `
-    <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:24px;color:#1f2937;">
-      <div style="border-bottom:3px solid ${accent};padding-bottom:14px;margin-bottom:22px;">
-        <div style="font-size:19px;font-weight:700;color:${accent};">NESR ProcureGuard</div>
-        <div style="font-size:12px;color:#6b7280;margin-top:4px;">Pending approval reminder</div>
-      </div>
-      <h2 style="margin:0 0 8px 0;color:#111827;">${escapeHtml(input.request.reference_number)} is still waiting for your review</h2>
-      <p style="margin:0 0 22px 0;color:#4b5563;">This ${escapeHtml(typeLabel)} request has been awaiting <strong>${escapeHtml(input.ownerLabel)}</strong> action for <strong>${escapeHtml(input.ageLabel)}</strong> (${Math.floor(input.ageDays)} days). Please review it or delegate your approval.</p>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:22px;">
-        ${procureGuardRefRowsHtml(input.request)}
-        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;width:170px;">Vendor</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.vendor_name)}</td></tr>
-        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Amount</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(formatWebhookAmount(input.request.amount, input.request.currency))}</td></tr>
-        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Country</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.country || 'Unspecified')}</td></tr>
-        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Current stage</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(formatProcureGuardStatusLabel(input.request.status))}</td></tr>
-        <tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;">Requester</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(input.request.requested_by_name || input.request.requested_by_email)}</td></tr>
-      </table>
-      <div style="text-align:center;margin:24px 0;">
-        <a href="${escapeHtml(input.detailUrl)}" style="display:inline-block;background:${accent};color:#ffffff;padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:700;">Review request</a>
-      </div>
-      <div style="border-top:1px solid #e5e7eb;padding-top:14px;font-size:12px;color:#6b7280;">Automated reminder from the ProcureGuard workflow. You are receiving this because this request is awaiting your approval step.</div>
-    </div>
-  `;
-  return { subject, bodyHtml };
-}
-
-const REMINDER_MILESTONES = [
-  { days: 14, column: 'reminder_14d_sent_at', label: '2 weeks' },
-  { days: 7, column: 'reminder_7d_sent_at', label: '7 days' },
-] as const;
-
-// Emails the current approver(s) (and their active delegates) for requests that have been sitting
-// in the same stage for 7 days and again at 2 weeks. Idempotent per milestone via the
-// reminder_*_sent_at columns (which reset whenever the request moves to a new stage), so it is safe
-// to run daily. Intended to be triggered by a scheduled job (see /api/procure-guard/reminders).
-export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked: number; sent: number; skipped: number; errors: number }> {
-  const summary = { checked: 0, sent: 0, skipped: 0, errors: 0 };
-  const webhookUrl = process.env.N8N_PROCUREGUARD_WEBHOOK_URL?.trim();
-  if (!webhookUrl) {
-    console.warn('[ProcureGuard reminders] N8N_PROCUREGUARD_WEBHOOK_URL not configured; skipping.');
-    return summary;
-  }
-  await ensureProcureGuardPaymentRequestColumns();
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const secret = process.env.N8N_PROCUREGUARD_WEBHOOK_SECRET?.trim();
-  if (secret) headers['x-procureguard-secret'] = secret;
-
-  // Active delegates keyed by delegator email, so a delegate also gets nudged.
-  const delegatesByDelegator = await getActiveDelegatesByDelegator();
-
-  const adminPermissions = getPermissionProfile('Admin');
-  const tables: Array<{ table: 'procure_guard_adhoc_payments' | 'procure_guard_advance_payments'; requestType: ProcureGuardRequestType }> = [
-    { table: 'procure_guard_adhoc_payments', requestType: 'adhoc' },
-    { table: 'procure_guard_advance_payments', requestType: 'advance' },
-  ];
-
-  for (const { table, requestType } of tables) {
-    let rows: QueryResultRow[] = [];
-    try {
-      // "Open since" the current stage began: last approval (reviewed_at) or, for never-actioned
-      // submissions, creation. Immune to unrelated row updates (viewer/attachment changes).
-      rows = await sql<QueryResultRow[]>(`SELECT * FROM ${table} WHERE COALESCE(reviewed_at, created_at) <= NOW() - INTERVAL '7 days' ORDER BY COALESCE(reviewed_at, created_at) ASC`);
-    } catch (err) {
-      console.error('[ProcureGuard reminders] query failed', table, err);
-      summary.errors += 1;
-      continue;
-    }
-
-    for (const raw of rows) {
-      const request = serialise<ProcureGuardWebhookRequest>(raw);
-      if (!isActiveApprovalStatus(request.status)) continue;
-      summary.checked += 1;
-
-      const openedAt = new Date((raw.reviewed_at as string) ?? (raw.created_at as string));
-      const ageDays = (Date.now() - openedAt.getTime()) / 86_400_000;
-      const milestone = REMINDER_MILESTONES.find(m => ageDays >= m.days && !raw[m.column]);
-      if (!milestone) continue;
-
-      const thresholdAmount = request.spend_value_usd ?? request.amount;
-      const thresholdCurrency = request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD';
-      const approvalStatus = getRecipientApprovalStatus(requestType, request);
-      const actions = getProcureGuardAvailableActions(adminPermissions, requestType, request.status, thresholdAmount, thresholdCurrency);
-      if (!approvalStatus || !actions.requiredPermission) { summary.skipped += 1; continue; }
-
-      const recipients = await getProcureGuardNotificationRecipients({
-        requestType,
-        country: request.country,
-        approvalStatus,
-        ownerLabel: actions.ownerLabel,
-      });
-      const delegateRecipients = recipients.flatMap(r =>
-        (delegatesByDelegator[r.email.trim().toLowerCase()] ?? []).map(d => ({
-          display_name: d.delegate_name || d.delegate_email,
-          email: d.delegate_email,
-          notification_role: `Delegate of ${r.display_name || r.email}`,
-          approval_status: r.approval_status,
-          country: r.country,
-          source_column: 'delegation',
-        })),
-      );
-      const seen = new Set<string>();
-      const allRecipients = [...recipients, ...delegateRecipients].filter(r => {
-        const key = r.email.trim().toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      if (allRecipients.length === 0) { summary.skipped += 1; continue; }
-
-      const detailUrl = getRequestDetailUrl(requestType, request.id);
-      const email = buildProcureGuardReminderEmail({ requestType, request, detailUrl, ownerLabel: actions.ownerLabel, ageLabel: milestone.label, ageDays });
-      const payload = {
-        event: 'request.reminder',
-        source: 'procureguard-local',
-        occurred_at: new Date().toISOString(),
-        request_type: requestType,
-        reminder: { milestone_days: milestone.days, milestone_label: milestone.label, days_open: Math.floor(ageDays) },
-        request: {
-          id: request.id,
-          reference_number: request.reference_number,
-          status: request.status,
-          vendor_name: request.vendor_name,
-          amount: request.amount,
-          currency: request.currency,
-          amount_usd: toUsd(thresholdAmount, thresholdCurrency),
-          country: request.country,
-          requested_by_name: request.requested_by_name,
-          requested_by_email: request.requested_by_email,
-          created_at: request.created_at,
-          updated_at: request.updated_at,
-          detail_url: detailUrl,
-        },
-        workflow: { owner_role: actions.ownerLabel, required_permission: actions.requiredPermission, decision_status: approvalStatus, next_status: actions.nextStatus },
-        recipients: allRecipients.map(r => ({ name: r.display_name, email: r.email, role: r.notification_role, approval_status: r.approval_status, country: r.country, source_column: r.source_column })),
-        email: {
-          subject: email.subject,
-          body_html: email.bodyHtml,
-          to: allRecipients.map(r => r.email),
-          to_recipients: allRecipients.map(r => ({ emailAddress: { address: r.email, name: r.display_name } })),
-        },
-      };
-
-      try {
-        const response = await postProcureGuardWebhook(webhookUrl, headers, payload);
-        if (!response.ok) { console.error('[ProcureGuard reminders] webhook failed', response.status, response.statusText); summary.errors += 1; continue; }
-        summary.sent += 1;
-      } catch (err) {
-        console.error('[ProcureGuard reminders] webhook failed', procureGuardWebhookErrorMessage(err), err);
-        summary.errors += 1;
-        continue;
-      }
-
-      // Mark this milestone sent. When firing the 14-day one, also stamp the 7-day column so a
-      // late 7-day reminder can never fire afterwards.
-      const setCols = milestone.days >= 14
-        ? 'reminder_14d_sent_at = CURRENT_TIMESTAMP, reminder_7d_sent_at = COALESCE(reminder_7d_sent_at, CURRENT_TIMESTAMP)'
-        : 'reminder_7d_sent_at = CURRENT_TIMESTAMP';
-      try {
-        await exec(`UPDATE ${table} SET ${setCols} WHERE id = ?`, [request.id]);
-      } catch (err) {
-        console.error('[ProcureGuard reminders] failed to mark reminder sent', table, request.id, err);
-      }
-    }
-  }
-
-  return summary;
 }
 
 function buildReviewDurationMetrics(
@@ -2167,14 +1689,17 @@ export async function grantProcureGuardDelegation(input: { delegateEmail: string
     if (!selfGrant) {
       return { success: false, error: 'Only approvers can delegate their approval authority.' };
     }
+    if (selfGrant.isAdmin) {
+      return { success: false, error: ADMIN_DELEGATION_REFUSAL };
+    }
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(delegateEmail)) {
       return { success: false, error: 'Enter a valid delegate email address.' };
     }
-    if (delegateEmail === actor.email.toLowerCase()) {
+    if (delegateEmail === normalizeEmail(actor.email)) {
       return { success: false, error: 'You cannot delegate to yourself.' };
     }
-    const expiresAt = input.expiresAt && input.expiresAt.trim() ? input.expiresAt.trim() : null;
+    const expiresAt = validateDelegationExpiry(input.expiresAt);
 
     // Replace any existing active delegation to the same person so there is only one live grant.
     await exec(
@@ -2264,8 +1789,11 @@ export async function adminGrantProcureGuardDelegation(input: {
     if (!delegatorProfile.canViewAll) {
       return { success: false, error: 'The selected approver has no approval authority to delegate.' };
     }
+    if (delegatorRole === 'Admin') {
+      return { success: false, error: ADMIN_DELEGATION_REFUSAL };
+    }
     const delegatorName = delegatorRow?.name || delegatorEmail;
-    const expiresAt = input.expiresAt && input.expiresAt.trim() ? input.expiresAt.trim() : null;
+    const expiresAt = validateDelegationExpiry(input.expiresAt);
 
     // Replace any existing active delegation for this same pair so there is only one live grant.
     await exec(
@@ -2286,7 +1814,8 @@ export async function adminGrantProcureGuardDelegation(input: {
       role: delegatorRole,
       country: normalizeProcureGuardCountryScope(delegatorRow?.country),
       segment: delegatorRow?.segment ?? null,
-      isAdmin: delegatorRole === 'Admin',
+      // Admin delegators are refused above, so the delegator is never an admin here.
+      isAdmin: false,
     });
     await sendProcureGuardDelegationEmail('granted', {
       delegateEmail,
@@ -2312,6 +1841,10 @@ export async function getProcureGuardNotificationPreview(input: {
   currency?: string | null;
 }): Promise<ProcureGuardNotificationContact[]> {
   try {
+    // This returns the approver directory for a country, so it needs the same access the request
+    // forms that render it need — not merely a signed-in session.
+    const actor = await getActor();
+    requireProcureGuardOperationalAccess(actor);
     return await getProcureGuardNotificationContactPreviewRows({
       requestType: input.requestType,
       country: input.country,
@@ -2506,9 +2039,10 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
   try {
     const actor = await getActor();
     requireProcureGuardAnalyticsAccess(actor);
+    const scope = analyticsScopedWhere(actor);
     const [adhocRows, advanceRows] = await Promise.all([
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ORDER BY created_at DESC`),
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ORDER BY created_at DESC`),
+      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
+      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
     ]);
 
     const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
@@ -2786,6 +2320,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
     if (!actor.permissions.canCreateRequests) throw new Error('Request creation access is required.');
     await ensureProcureGuardPaymentRequestColumns();
     const amount = validateMoney(input.amount);
+    const currency = validateCurrency(input.currency);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
     const country = requireCountryOption(input.country);
     const segment = requireText(input.segment, 'Segment');
@@ -2814,7 +2349,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
         vendorTaxId,
         blankToNull(input.supplier_email),
         amount,
-        input.currency || 'USD',
+        currency,
         country,
         segment,
         blankToNull(input.department ?? actor.department),
@@ -2826,7 +2361,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
         blankToNull(input.due_date),
         blankToNull(input.expense_category),
         spendCategory,
-        input.spend_value_usd ?? amount,
+        toUsd(amount, currency),
         blankToNull(input.payment_method),
         reason,
         (input.justification || reason).trim(),
@@ -2884,6 +2419,7 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
     if (!actor.permissions.canCreateRequests) throw new Error('Request creation access is required.');
     await ensureProcureGuardPaymentRequestColumns();
     const amount = validateMoney(input.amount);
+    const currency = validateCurrency(input.currency);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
     const country = requireCountryOption(input.country);
     const segment = requireText(input.segment, 'Segment');
@@ -2922,7 +2458,7 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
         sapVendorId,
         blankToNull(input.supplier_email),
         amount,
-        input.currency || 'USD',
+        currency,
         country,
         segment,
         blankToNull(input.department ?? actor.department),
@@ -2934,7 +2470,7 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
         contractValue,
         advancePercentage,
         spendCategory,
-        input.spend_value_usd ?? amount,
+        toUsd(amount, currency),
         paymentTermsDays,
         creditLimitUsd,
         blankToNull(input.expected_invoice_date),
@@ -3008,6 +2544,7 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
     }
 
     const amount = validateMoney(input.amount);
+    const currency = validateCurrency(input.currency);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
     const country = requireCountryOption(input.country);
     const segment = requireText(input.segment, 'Segment');
@@ -3050,12 +2587,12 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
         blankToNull(input.vendor_code || vendorTaxId),
         vendorTaxId,
         amount,
-        input.currency || 'USD',
+        currency,
         country,
         segment,
         spendCategory,
         spendCategory,
-        input.spend_value_usd ?? amount,
+        toUsd(amount, currency),
         blankToNull(input.payment_method),
         reason,
         (input.justification || reason).trim(),
@@ -3131,6 +2668,7 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
     }
 
     const amount = validateMoney(input.amount);
+    const currency = validateCurrency(input.currency);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
     const country = requireCountryOption(input.country);
     const segment = requireText(input.segment, 'Segment');
@@ -3182,13 +2720,13 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
         sapVendorId,
         sapVendorId,
         amount,
-        input.currency || 'USD',
+        currency,
         country,
         segment,
         contractValue,
         advancePercentage,
         spendCategory,
-        input.spend_value_usd ?? amount,
+        toUsd(amount, currency),
         paymentTermsDays,
         creditLimitUsd,
         reason,
@@ -3251,6 +2789,7 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
     const actor = await requireAdminActor();
     await ensureProcureGuardPaymentRequestColumns();
     const amount = validateMoney(input.amount);
+    const currency = validateCurrency(input.currency);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
     const country = requireCountryOption(input.country);
     const segment = requireText(input.segment, 'Segment');
@@ -3282,7 +2821,7 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
         vendorTaxId,
         blankToNull(input.supplier_email),
         amount,
-        input.currency || 'USD',
+        currency,
         country,
         segment,
         blankToNull(input.department ?? actor.department),
@@ -3294,7 +2833,7 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
         blankToNull(input.due_date),
         blankToNull(input.expense_category),
         spendCategory,
-        input.spend_value_usd ?? amount,
+        toUsd(amount, currency),
         blankToNull(input.payment_method),
         reason,
         (input.justification || reason).trim(),
@@ -3348,6 +2887,7 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
     const actor = await requireAdminActor();
     await ensureProcureGuardPaymentRequestColumns();
     const amount = validateMoney(input.amount);
+    const currency = validateCurrency(input.currency);
     const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
     const country = requireCountryOption(input.country);
     const segment = requireText(input.segment, 'Segment');
@@ -3390,7 +2930,7 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
         sapVendorId,
         blankToNull(input.supplier_email),
         amount,
-        input.currency || 'USD',
+        currency,
         country,
         segment,
         blankToNull(input.department ?? actor.department),
@@ -3402,7 +2942,7 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
         contractValue,
         advancePercentage,
         spendCategory,
-        input.spend_value_usd ?? amount,
+        toUsd(amount, currency),
         paymentTermsDays,
         creditLimitUsd,
         blankToNull(input.expected_invoice_date),
@@ -3677,11 +3217,15 @@ export async function uploadProcureGuardDocument(
     const requestType = formData.get('request_type') as ProcureGuardRequestType | null;
     const requestId = Number(formData.get('request_id'));
     const file = formData.get('file') as File | null;
-    const customName = ((formData.get('custom_name') as string) || '').trim() || (file ? fileBaseName(file.name) : 'Attachment');
+    const customName = (((formData.get('custom_name') as string) || '').trim() || (file ? fileBaseName(file.name) : 'Attachment')).slice(0, MAX_PROCURE_GUARD_DOCUMENT_NAME_CHARS);
     const documentType = ((formData.get('document_type') as string) || 'request_attachment').trim();
 
     if ((requestType !== 'adhoc' && requestType !== 'advance') || !Number.isFinite(requestId) || requestId <= 0 || !file) {
       return { success: false, error: 'Missing required upload fields.' };
+    }
+
+    if (!PROCURE_GUARD_DOCUMENT_TYPES.has(documentType)) {
+      return { success: false, error: 'Unsupported attachment type.' };
     }
 
     if (file.size > MAX_PROCURE_GUARD_FILE_BYTES) {
@@ -3689,11 +3233,17 @@ export async function uploadProcureGuardDocument(
     }
 
     const table = requestType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
-    const requestRows = await sql<QueryResultRow[]>(`SELECT id, reference_number, requested_by_email, requester_notification_emails FROM ${table} WHERE id = ? LIMIT 1`, [requestId]);
+    const requestRows = await sql<QueryResultRow[]>(`SELECT id, reference_number, requested_by_email, requester_notification_emails, country, segment FROM ${table} WHERE id = ? LIMIT 1`, [requestId]);
     if (!requestRows[0]) return { success: false, error: 'Request not found.' };
-    const request = serialise<Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requested_by_email' | 'requester_notification_emails'>>(requestRows[0]);
-    if (!actor.permissions.canViewAll && !actorCanAccessRequesterSideRequest(actor, request)) {
-      return { success: false, error: 'You can only upload files to your own requests.' };
+    const request = normalisePaymentCountry(serialise<Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requested_by_email' | 'requester_notification_emails' | 'country' | 'segment'>>(requestRows[0]));
+    // canViewAll alone is NOT upload rights: the read-only Viewer role and reviewers looking at a
+    // country outside their scope may see a request without being able to attach anything to it.
+    const canUpload = actorCanAccessRequesterSideRequest(actor, request)
+      || (actor.permissions.canViewAll
+        && actor.permissions.accessView !== 'viewer'
+        && actorCanAccessRequestScope(actor, request));
+    if (!canUpload) {
+      return { success: false, error: 'You do not have access to upload files to this request.' };
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -3745,9 +3295,14 @@ export async function uploadProcureGuardDocument(
 export async function deleteProcureGuardDocument(documentId: number): Promise<ActionResult> {
   try {
     const actor = await getActor();
+    requireProcureGuardOperationalAccess(actor);
     const docs = await sql<QueryResultRow[]>(
-      `SELECT d.id, d.request_type, d.request_id,
-              COALESCE(a.reference_number, adv.reference_number) AS reference_number
+      `SELECT d.id, d.request_type, d.request_id, d.uploaded_by_email,
+              COALESCE(a.reference_number, adv.reference_number) AS reference_number,
+              COALESCE(a.requested_by_email, adv.requested_by_email) AS requested_by_email,
+              COALESCE(a.requester_notification_emails, adv.requester_notification_emails) AS requester_notification_emails,
+              COALESCE(a.country, adv.country) AS country,
+              COALESCE(a.segment, adv.segment) AS segment
        FROM procure_guard_documents d
        LEFT JOIN procure_guard_adhoc_payments a ON d.request_type = 'adhoc' AND d.request_id = a.id
        LEFT JOIN procure_guard_advance_payments adv ON d.request_type = 'advance' AND d.request_id = adv.id
@@ -3756,6 +3311,26 @@ export async function deleteProcureGuardDocument(documentId: number): Promise<Ac
     );
     const doc = docs[0];
     if (!doc) return { success: false, error: 'Attachment not found.' };
+
+    // Deleting an attachment destroys audit evidence, so it needs at least the access uploading
+    // needs, plus one of: you uploaded it, you are on the requester side, or you hold delete rights.
+    const request = normalisePaymentCountry(serialise<Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requested_by_email' | 'requester_notification_emails' | 'country' | 'segment'>>({
+      requested_by_email: doc.requested_by_email,
+      requester_notification_emails: doc.requester_notification_emails,
+      country: doc.country,
+      segment: doc.segment,
+    }));
+    const isUploader = normalizeEmail(doc.uploaded_by_email as string) === normalizeEmail(actor.email);
+    const hasScopedReviewAccess = actor.permissions.canViewAll
+      && actor.permissions.accessView !== 'viewer'
+      && actorCanAccessRequestScope(actor, request);
+    const canDelete = isUploader
+      || actorCanAccessRequesterSideRequest(actor, request)
+      || actor.permissions.canDeleteRecords
+      || hasScopedReviewAccess;
+    if (!canDelete) {
+      return { success: false, error: 'You do not have access to delete this attachment.' };
+    }
 
     await exec(`DELETE FROM procure_guard_documents WHERE id = ?`, [documentId]);
     await writeActivity({
@@ -4413,237 +3988,6 @@ async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
       [email],
     );
   }
-}
-
-function serialiseProcureGuardAccessRequest(row: QueryResultRow): ProcureGuardAccessRequestRow {
-  return {
-    user_email: String(row.user_email),
-    display_name: row.display_name ? String(row.display_name) : null,
-    job_title: row.job_title ? String(row.job_title) : null,
-    department: row.department ? String(row.department) : null,
-    status: row.status as ProcureGuardAccessRequestStatus,
-    requested_role: normaliseProcureGuardRole(row.requested_role),
-    approved_role: row.approved_role ? normaliseProcureGuardRole(row.approved_role) : null,
-    country: normalizeProcureGuardCountryScope(row.country ? String(row.country) : null),
-    segment: row.segment ? String(row.segment) : null,
-    requested_at: row.requested_at instanceof Date ? row.requested_at.toISOString() : String(row.requested_at),
-    reviewed_at: row.reviewed_at instanceof Date ? row.reviewed_at.toISOString() : (row.reviewed_at ?? null),
-    reviewed_by: row.reviewed_by ? String(row.reviewed_by) : null,
-    notes: row.notes ? String(row.notes) : null,
-  };
-}
-
-export async function submitProcureGuardAccessRequest(input: {
-  userEmail: string;
-  displayName: string;
-  jobTitle?: string | null;
-  department?: string | null;
-  requestedRole?: ProcureGuardPermissionRole;
-}): Promise<ActionResult> {
-  try {
-    await ensureProcureGuardAccessRequestTable();
-    const email = requireText(input.userEmail, 'Email').toLowerCase();
-    const displayName = requireText(input.displayName, 'Display name');
-    const requestedRole = normaliseProcureGuardRole(input.requestedRole ?? 'Requester');
-
-    await exec(
-      `INSERT INTO procure_guard_access_requests
-         (user_email, display_name, job_title, department, requested_role, status, requested_at)
-       VALUES (?, ?, ?, ?, ?, 'Pending', CURRENT_TIMESTAMP)
-       ON CONFLICT (user_email) DO UPDATE SET
-         display_name = EXCLUDED.display_name,
-         job_title = EXCLUDED.job_title,
-         department = EXCLUDED.department,
-         requested_role = EXCLUDED.requested_role,
-         status = 'Pending',
-         requested_at = CURRENT_TIMESTAMP,
-         reviewed_at = NULL,
-         reviewed_by = NULL,
-         notes = NULL`,
-      [email, displayName, blankToNull(input.jobTitle), blankToNull(input.department), requestedRole],
-    );
-
-    revalidatePath('/admin');
-    return { success: true };
-  } catch (err) {
-    console.error('[submitProcureGuardAccessRequest]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to submit ProcureGuard access request.' };
-  }
-}
-
-export async function getProcureGuardAccessRequests(): Promise<ProcureGuardAccessRequestRow[]> {
-  try {
-    await ensureProcureGuardAccessRequestTable();
-    await syncProcureGuardRecipientAccessApprovals();
-    const [requestRows, permissionRows] = await Promise.all([
-      sql<QueryResultRow[]>(
-        `SELECT * FROM procure_guard_access_requests
-         ORDER BY CASE status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END, requested_at DESC`,
-      ),
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_permissions ORDER BY updated_at DESC, email`),
-    ]);
-
-    const byEmail = new Map<string, ProcureGuardAccessRequestRow>();
-    for (const row of requestRows) {
-      byEmail.set(String(row.user_email).toLowerCase(), serialiseProcureGuardAccessRequest(row));
-    }
-
-    for (const row of permissionRows) {
-      const email = String(row.email).toLowerCase();
-      if (byEmail.has(email)) continue;
-      const role = normaliseProcureGuardRole(row.role);
-      byEmail.set(email, {
-        user_email: email,
-        display_name: row.name ? String(row.name) : null,
-        job_title: null,
-        department: null,
-        status: 'Approved',
-        requested_role: role,
-        approved_role: role,
-        country: normalizeProcureGuardCountryScope(row.country ? String(row.country) : null),
-        segment: row.segment ? String(row.segment) : null,
-        requested_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-        reviewed_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
-        reviewed_by: 'ProcureGuard permissions',
-        notes: null,
-      });
-    }
-
-    return [...byEmail.values()].sort((a, b) => {
-      const rank = (status: ProcureGuardAccessRequestStatus) => status === 'Pending' ? 0 : status === 'Approved' ? 1 : 2;
-      return rank(a.status) - rank(b.status) || Date.parse(b.requested_at) - Date.parse(a.requested_at);
-    });
-  } catch (err) {
-    console.error('[getProcureGuardAccessRequests]', err);
-    return [];
-  }
-}
-
-export async function getProcureGuardPendingAccessCount(): Promise<number> {
-  try {
-    await ensureProcureGuardAccessRequestTable();
-    const rows = await sql<QueryResultRow[]>(`SELECT COUNT(*) AS cnt FROM procure_guard_access_requests WHERE status = 'Pending'`);
-    return Number(rows[0]?.cnt ?? 0);
-  } catch (err) {
-    console.error('[getProcureGuardPendingAccessCount]', err);
-    return 0;
-  }
-}
-
-export async function approveProcureGuardAccess(input: {
-  userEmail: string;
-  approvedRole: ProcureGuardPermissionRole;
-  reviewedBy: string;
-  country?: string | null;
-  segment?: string | null;
-  notes?: string | null;
-}): Promise<ActionResult> {
-  try {
-    await requirePermissionManager();
-    await ensureProcureGuardAccessRequestTable();
-    await ensureProcureGuardPermissionRoleValues();
-    const email = requireText(input.userEmail, 'Email').toLowerCase();
-    const role = normaliseProcureGuardRole(input.approvedRole);
-    const country = normalisePermissionCountryForRole(role, input.country);
-
-    await exec(
-      `INSERT INTO procure_guard_access_requests
-         (user_email, display_name, status, requested_role, approved_role, country, segment, requested_at, reviewed_at, reviewed_by, notes)
-       VALUES (?, ?, 'Approved', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
-       ON CONFLICT (user_email) DO UPDATE SET
-         status = 'Approved',
-         approved_role = EXCLUDED.approved_role,
-         country = EXCLUDED.country,
-         segment = EXCLUDED.segment,
-         reviewed_at = CURRENT_TIMESTAMP,
-         reviewed_by = EXCLUDED.reviewed_by,
-         notes = EXCLUDED.notes`,
-      [email, email, role, role, blankToNull(country), blankToNull(input.segment), input.reviewedBy, blankToNull(input.notes)],
-    );
-
-    await exec(
-      `INSERT INTO procure_guard_permissions (email, name, role, country, segment)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT (email) DO UPDATE SET
-         role = EXCLUDED.role,
-         country = EXCLUDED.country,
-         segment = EXCLUDED.segment,
-         updated_at = CURRENT_TIMESTAMP`,
-      [email, null, role, blankToNull(country), blankToNull(input.segment)],
-    );
-
-    revalidateProcureGuardPaths();
-    return { success: true };
-  } catch (err) {
-    console.error('[approveProcureGuardAccess]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to approve ProcureGuard access.' };
-  }
-}
-
-export async function rejectProcureGuardAccess(userEmail: string, reviewedBy: string): Promise<ActionResult> {
-  try {
-    await requirePermissionManager();
-    await ensureProcureGuardAccessRequestTable();
-    const email = requireText(userEmail, 'Email').toLowerCase();
-    await exec(
-      `UPDATE procure_guard_access_requests
-       SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
-       WHERE user_email = ?`,
-      [reviewedBy, email],
-    );
-    if (!adminEmails().includes(email)) {
-      await exec(`DELETE FROM procure_guard_permissions WHERE email = ?`, [email]);
-    }
-    revalidateProcureGuardPaths();
-    return { success: true };
-  } catch (err) {
-    console.error('[rejectProcureGuardAccess]', err);
-    return { success: false, error: 'Failed to reject ProcureGuard access.' };
-  }
-}
-
-export async function revokeProcureGuardAccess(userEmail: string, reviewedBy: string): Promise<ActionResult> {
-  try {
-    await requirePermissionManager();
-    await ensureProcureGuardAccessRequestTable();
-    const email = requireText(userEmail, 'Email').toLowerCase();
-    await exec(
-      `INSERT INTO procure_guard_access_requests
-         (user_email, display_name, status, requested_role, requested_at, reviewed_at, reviewed_by)
-       VALUES (?, ?, 'Revoked', 'Requester', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-       ON CONFLICT (user_email) DO UPDATE SET
-         status = 'Revoked',
-         approved_role = NULL,
-         reviewed_at = CURRENT_TIMESTAMP,
-         reviewed_by = EXCLUDED.reviewed_by`,
-      [email, email, reviewedBy],
-    );
-    if (!adminEmails().includes(email)) {
-      await exec(`DELETE FROM procure_guard_permissions WHERE email = ?`, [email]);
-    }
-    revalidateProcureGuardPaths();
-    return { success: true };
-  } catch (err) {
-    console.error('[revokeProcureGuardAccess]', err);
-    return { success: false, error: 'Failed to revoke ProcureGuard access.' };
-  }
-}
-
-export async function editProcureGuardAccess(input: {
-  userEmail: string;
-  approvedRole: ProcureGuardPermissionRole;
-  reviewedBy: string;
-  country?: string | null;
-  segment?: string | null;
-}): Promise<ActionResult> {
-  return approveProcureGuardAccess({
-    userEmail: input.userEmail,
-    approvedRole: input.approvedRole,
-    reviewedBy: input.reviewedBy,
-    country: input.country,
-    segment: input.segment,
-    notes: 'Access edited by admin',
-  });
 }
 
 export async function deleteProcureGuardAccessRequest(userEmail: string): Promise<ActionResult> {

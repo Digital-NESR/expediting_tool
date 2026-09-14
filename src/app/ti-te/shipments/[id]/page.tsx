@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { notFound } from 'next/navigation';
+import { currentTiteUser, isTiteApproved, canViewTiteCountry } from '@/lib/tite-auth';
 import {
   getShipmentById, getShipmentDocuments,
   getShipmentActivityLog, getShipmentNotificationContacts,
@@ -19,26 +19,17 @@ export default async function ShipmentDetailPage({
   const { id } = await params;
   const numId  = Number(id);
 
-  const session = await getServerSession(authOptions);
-  const email   = session?.user?.email ?? '';
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = adminEmails.includes(email.toLowerCase());
+  /* Identity and country scope come from the shared TI-TE guard, never from
+     props or the URL. An out-of-scope id must look exactly like a missing one. */
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user)) notFound();
 
-  // Derive titeViewOnly from BOTH the dedicated JWT field AND approvedCountries directly.
-  // The fallback on approvedCountries handles users whose JWT cookie predates the titeViewOnly
-  // field — they do not need to re-login for view-only enforcement to work.
-  const titeApprovedCountries = session?.user?.toolAccess?.tite?.approvedCountries ?? [];
-  const titeViewOnly =
-    session?.user?.titeViewOnly === true ||
-    titeApprovedCountries.includes('All Countries - View Only');
-
-  console.log('[TI-TE] shipment detail — titeViewOnly:', titeViewOnly, '| session.titeViewOnly:', session?.user?.titeViewOnly, '| approvedCountries:', titeApprovedCountries);
+  const titeViewOnly = user.viewOnly;
 
   /* View-only users see all countries, same as admin, but cannot mutate */
-  const approvedCountries = (isAdmin || titeViewOnly)
+  const approvedCountries = (user.isAdmin || titeViewOnly)
     ? undefined
-    : titeApprovedCountries;
+    : user.approvedCountries;
 
   const [shipment, documents, activityLog, notificationContacts, notificationLog, stats] = await Promise.all([
     getShipmentById(numId),
@@ -48,6 +39,8 @@ export default async function ShipmentDetailPage({
     getShipmentNotificationStatus(numId),
     getShipmentStats(approvedCountries),
   ]);
+
+  if (!shipment || !canViewTiteCountry(user, shipment.country)) notFound();
 
   const activeCount = stats?.active_count ?? 0;
   const urgentCount = (stats?.overdue_count ?? 0) + (stats?.urgent_count ?? 0) + (stats?.action_count ?? 0);

@@ -10,7 +10,7 @@ import type { CatalogDelegationGrant, CatalogEntry } from '@/types/catalog-manag
 import { fmtMoney, fmtUsd } from '@/lib/catalog-manager-utils';
 
 export default function ApprovalsClient({
-  pending, scope, countries, roleLabel, canApprove, canAdmin, approverCountries, isAdmin, delegatedFrom,
+  pending, scope, countries, roleLabel, canApprove, canAdmin, approvableIds, delegatedFrom,
 }: {
   pending: CatalogEntry[];
   scope: string;
@@ -18,15 +18,16 @@ export default function ApprovalsClient({
   roleLabel: string;
   canApprove: boolean;
   canAdmin: boolean;
-  approverCountries: string[];
-  isAdmin: boolean;
+  /** Server-computed ids the caller may decide on — the client never re-derives the rule. */
+  approvableIds: number[];
   delegatedFrom: CatalogDelegationGrant[];
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<{ entry: CatalogEntry; decision: 'approve' | 'reject' } | null>(null);
   const [bulkDialog, setBulkDialog] = useState<{ supplier: string; entries: CatalogEntry[] } | null>(null);
 
-  const canActOn = (e: CatalogEntry) => canApprove && (isAdmin || approverCountries.length === 0 || approverCountries.includes(e.country_code));
+  const approvable = useMemo(() => new Set(approvableIds), [approvableIds]);
+  const canActOn = (e: CatalogEntry) => approvable.has(e.id);
 
   const groups = useMemo(() => {
     const map = new Map<string, CatalogEntry[]>();

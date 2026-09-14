@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { getCachedSession } from '@/lib/session';
+import { currentActor } from '@/lib/require-access';
 import { findAdminApp, resolveSection } from '../adminNav';
 import AdminAppContent, { type AdminAppContentProps } from './AdminAppContent';
 import { getExpeditingAnalytics } from '@/app/actions/adminAnalytics';
@@ -12,10 +12,10 @@ import {
 import { getLaptopAdminData, getLaptopAnalyticsData } from '@/app/actions/laptopProcurement';
 import { getLearningHubAdminData, getLearningHubAnalytics } from '@/app/actions/learning-hub';
 
-/* One admin app per route. The layout has already enforced the
-   ADMIN_EMAILS gate for this whole segment, so here we only resolve
-   the section and fetch the data THAT ONE SECTION needs — nothing
-   else. Most sections' panels self-fetch, so most fetch nothing. */
+/* One admin app per route. The ADMIN_EMAILS gate is enforced by the
+   layout AND again here (see below), then we resolve the section and
+   fetch the data THAT ONE SECTION needs — nothing else. Most sections'
+   panels self-fetch, so most fetch nothing. */
 export default async function AdminAppPage({
   params,
   searchParams,
@@ -27,8 +27,15 @@ export default async function AdminAppPage({
   const app = findAdminApp(appId);
   if (!app) notFound();
 
-  const session = await getCachedSession();
-  if (!session?.user?.email) redirect('/login');
+  /* The layout gates this segment, but layouts do not re-render on
+     navigation and layout/page render in parallel — so the gate is
+     re-checked HERE too, before any data fetch below runs. Same rule
+     as the layout (ADMIN_EMAILS, via the shared helper); when it fails
+     the layout is the one that renders the Access Denied card, so this
+     page just renders nothing. */
+  const actor = await currentActor();
+  if (!actor) redirect('/login');
+  if (!actor.isPlatformAdmin) return null;
 
   const sp = searchParams ? await searchParams : {};
   const section = resolveSection(app, sp.section);
@@ -36,7 +43,7 @@ export default async function AdminAppPage({
   const base: AdminAppContentProps = {
     app: app.id,
     section,
-    userEmail: session.user.email,
+    userEmail: actor.email,
   };
 
   /* Fetch ONLY the data the current section renders. Switching sections

@@ -8,6 +8,7 @@ import procureGuardPool from "@/lib/db-procureguard";
 import snsPool from "@/lib/db-sns";
 import learningHubPool from "@/lib/db-learning-hub";
 import { getPermissionProfile } from "@/lib/procureGuard-utils";
+import { normalizeEmail } from "@/lib/require-access";
 import type { ProcureGuardPermissionRole } from "@/types/procureGuard";
 
 /* ── Per-user access memo ─────────────────────────────────────────
@@ -115,8 +116,14 @@ export const authOptions: NextAuthOptions = {
       }
 
       // Resolve per-tool access from the DB, memoized per user for TTL.
-      if (token.email) {
-        const email = (token.email as string).toLowerCase();
+      // One canonical lowercase identity drives the memo key, all 7 access-table
+      // lookups and everything downstream that reads session.user.email. Graph can
+      // return `mail` in mixed case, which otherwise splits one person into two
+      // identities: an approved user resolves to 'new', and a fresh request row is
+      // written alongside the existing one.
+      const email = normalizeEmail(token.email as string | null | undefined);
+      if (email) {
+        token.email = email;
         const forceRefresh = trigger === 'update' || account != null;
         const cached = toolAccessCache.get(email);
         if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
@@ -139,35 +146,37 @@ export const authOptions: NextAuthOptions = {
             .map(e => e.trim().toLowerCase())
             .filter(Boolean);
 
-          // Query each tool's access table in parallel
+          // Query each tool's access table in parallel. Every predicate is
+          // LOWER(column) = $1 against the already-lowercased `email`, so rows
+          // stored with mixed case still match their owner.
           const [poResult, titeResult, sgChampResult, sgAccessResult, pgPermResult, snsResult, lhResult] = await Promise.all([
             pool.query(
-              `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
-              [token.email]
+              `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
+              [email]
             ),
             titePool.query(
-              `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
-              [token.email]
+              `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
+              [email]
             ),
             sourceGuidePool.query(
-              `SELECT country_code FROM sg_champions WHERE email IS NOT NULL AND LOWER(email) = LOWER($1)`,
-              [token.email]
+              `SELECT country_code FROM sg_champions WHERE email IS NOT NULL AND LOWER(email) = $1`,
+              [email]
             ).catch(() => ({ rows: [] as { country_code: string }[] })),
             sourceGuidePool.query(
-              `SELECT status FROM access_requests WHERE user_email = $1`,
-              [token.email]
+              `SELECT status FROM access_requests WHERE LOWER(user_email) = $1`,
+              [email]
             ).catch(() => ({ rows: [] as { status: string }[] })),
             procureGuardPool.query(
-              `SELECT role FROM procure_guard_permissions WHERE LOWER(email) = LOWER($1) LIMIT 1`,
-              [token.email]
+              `SELECT role FROM procure_guard_permissions WHERE LOWER(email) = $1 LIMIT 1`,
+              [email]
             ).catch(() => ({ rows: [] as { role: string }[] })),
             snsPool.query(
-              `SELECT status, approved_role, approved_countries FROM sns_access_requests WHERE LOWER(user_email) = LOWER($1)`,
-              [token.email]
+              `SELECT status, approved_role, approved_countries FROM sns_access_requests WHERE LOWER(user_email) = $1`,
+              [email]
             ).catch(() => ({ rows: [] as { status: string; approved_role: string | null; approved_countries: string[] }[] })),
             learningHubPool.query(
-              `SELECT status, approved_countries FROM access_requests WHERE user_email = $1`,
-              [token.email]
+              `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
+              [email]
             ).catch(() => ({ rows: [] as { status: string; approved_countries: string[] }[] })),
           ]);
 

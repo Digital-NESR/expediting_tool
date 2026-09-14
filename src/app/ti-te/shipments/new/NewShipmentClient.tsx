@@ -237,7 +237,6 @@ export default function NewShipmentClient({
         comments:       comments       || undefined,
         customs_docs_location: customsDocsLocation.trim() || undefined,
         country:        operatingCountry || undefined,
-        created_by_email: creatorEmail  || undefined,
         additionalContacts: additionalContacts.filter(c => c.name || c.email),
       });
 

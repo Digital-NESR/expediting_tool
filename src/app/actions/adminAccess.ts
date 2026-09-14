@@ -1,6 +1,7 @@
 'use server';
 
 import pool from '@/lib/db';
+import { normalizeEmail, requireAdmin, withAccessFallback } from '@/lib/require-access';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -18,51 +19,56 @@ export interface AccessRequestRow {
 /* ─── getAccessRequests ──────────────────────────────────────── */
 
 export async function getAccessRequests(): Promise<AccessRequestRow[]> {
-  try {
-    const { rows } = await pool.query(`
-      SELECT
-        ar.user_email,
-        ar.display_name,
-        ar.job_title,
-        ar.status,
-        ar.requested_countries,
-        ar.approved_countries,
-        ar.requested_at,
-        ar.reviewed_at
-      FROM access_requests ar
-      ORDER BY
-        CASE ar.status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END,
-        ar.requested_at DESC
-    `);
-    console.log('Pending requests:', rows.filter(r => r.status === 'Pending'));
-    return rows.map(r => ({
-      user_email:          String(r.user_email),
-      display_name:        r.display_name ? String(r.display_name) : null,
-      job_title:           r.job_title    ? String(r.job_title)    : null,
-      status:              r.status as 'Pending' | 'Approved' | 'Rejected' | 'Revoked',
-      requested_countries: r.requested_countries || [],
-      approved_countries:  r.approved_countries  || [],
-      requested_at:        r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),
-      reviewed_at:         r.reviewed_at  instanceof Date ? r.reviewed_at.toISOString()  : (r.reviewed_at ?? null),
-    }));
-  } catch (err) {
-    console.error('[getAccessRequests]', err);
-    return [];
-  }
+  return withAccessFallback(async () => {
+    await requireAdmin();
+    try {
+      const { rows } = await pool.query(`
+        SELECT
+          ar.user_email,
+          ar.display_name,
+          ar.job_title,
+          ar.status,
+          ar.requested_countries,
+          ar.approved_countries,
+          ar.requested_at,
+          ar.reviewed_at
+        FROM access_requests ar
+        ORDER BY
+          CASE ar.status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END,
+          ar.requested_at DESC
+      `);
+      return rows.map(r => ({
+        user_email:          String(r.user_email),
+        display_name:        r.display_name ? String(r.display_name) : null,
+        job_title:           r.job_title    ? String(r.job_title)    : null,
+        status:              r.status as 'Pending' | 'Approved' | 'Rejected' | 'Revoked',
+        requested_countries: r.requested_countries || [],
+        approved_countries:  r.approved_countries  || [],
+        requested_at:        r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),
+        reviewed_at:         r.reviewed_at  instanceof Date ? r.reviewed_at.toISOString()  : (r.reviewed_at ?? null),
+      }));
+    } catch (err) {
+      console.error('[getAccessRequests]', err);
+      return [];
+    }
+  }, []);
 }
 
 /* ─── getPendingAccessCount ──────────────────────────────────── */
 
 export async function getPendingAccessCount(): Promise<number> {
-  try {
-    const { rows } = await pool.query(
-      `SELECT COUNT(*) AS cnt FROM access_requests WHERE status = 'Pending'`,
-    );
-    return Number(rows[0]?.cnt ?? 0);
-  } catch (err) {
-    console.error('[getPendingAccessCount]', err);
-    return 0;
-  }
+  return withAccessFallback(async () => {
+    await requireAdmin();
+    try {
+      const { rows } = await pool.query(
+        `SELECT COUNT(*) AS cnt FROM access_requests WHERE status = 'Pending'`,
+      );
+      return Number(rows[0]?.cnt ?? 0);
+    } catch (err) {
+      console.error('[getPendingAccessCount]', err);
+      return 0;
+    }
+  }, 0);
 }
 
 /* ─── approveAccessRequest ───────────────────────────────────── */
@@ -71,6 +77,7 @@ export async function approveAccessRequest(
   userEmail: string,
   countries: string[],
 ): Promise<{ success: boolean; error?: string }> {
+  const actor = await requireAdmin();
   if (!countries.length) {
     return { success: false, error: 'Please select at least one country to approve.' };
   }
@@ -79,9 +86,10 @@ export async function approveAccessRequest(
       `UPDATE access_requests
           SET status             = 'Approved',
               approved_countries = $2,
-              reviewed_at        = NOW()
-        WHERE user_email = $1`,
-      [userEmail, countries],
+              reviewed_at        = NOW(),
+              reviewed_by        = $3
+        WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail), countries, actor.email],
     );
     return { success: true };
   } catch (err) {
@@ -95,14 +103,16 @@ export async function approveAccessRequest(
 export async function rejectAccessRequest(
   userEmail: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const actor = await requireAdmin();
   try {
     await pool.query(
       `UPDATE access_requests
           SET status             = 'Denied',
               approved_countries = '{}',
-              reviewed_at        = NOW()
-        WHERE user_email = $1`,
-      [userEmail],
+              reviewed_at        = NOW(),
+              reviewed_by        = $2
+        WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail), actor.email],
     );
     return { success: true };
   } catch (err) {
@@ -116,10 +126,11 @@ export async function rejectAccessRequest(
 export async function deleteAccessRequest(
   userEmail: string,
 ): Promise<{ success: boolean; error?: string }> {
+  await requireAdmin();
   try {
     await pool.query(
-      `DELETE FROM access_requests WHERE user_email = $1`,
-      [userEmail],
+      `DELETE FROM access_requests WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail)],
     );
     return { success: true };
   } catch (err) {
@@ -133,14 +144,16 @@ export async function deleteAccessRequest(
 export async function revokeAccess(
   userEmail: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const actor = await requireAdmin();
   try {
     await pool.query(
       `UPDATE access_requests
           SET status             = 'Denied',
               approved_countries = '{}',
-              reviewed_at        = NOW()
-        WHERE user_email = $1`,
-      [userEmail],
+              reviewed_at        = NOW(),
+              reviewed_by        = $2
+        WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail), actor.email],
     );
     return { success: true };
   } catch (err) {
@@ -155,6 +168,7 @@ export async function editUserAccess(
   userEmail: string,
   countries: string[],
 ): Promise<{ success: boolean; error?: string }> {
+  const actor = await requireAdmin();
   if (!countries.length) {
     return { success: false, error: 'Please select at least one country.' };
   }
@@ -162,9 +176,10 @@ export async function editUserAccess(
     await pool.query(
       `UPDATE access_requests
           SET approved_countries = $2,
-              reviewed_at        = NOW()
-        WHERE user_email = $1`,
-      [userEmail, countries],
+              reviewed_at        = NOW(),
+              reviewed_by        = $3
+        WHERE LOWER(user_email) = $1`,
+      [normalizeEmail(userEmail), countries, actor.email],
     );
     return { success: true };
   } catch (err) {

@@ -1,6 +1,25 @@
 'use server';
 
 import pool from '@/lib/db';
+import { getCachedSession } from '@/lib/session';
+import { isAdminActor, isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
+
+/* ─── Access ─────────────────────────────────────────────────── */
+
+/**
+ * Cross-buyer PO reads: platform admins, plus users with approved
+ * `po_expediting` access. These actions back both the admin panel and
+ * `/po-expediting/team-analytics` ("All Analytics"), which the sidebar offers to
+ * every approved buyer — so `requireAdmin()` alone would break that page. Reads
+ * degrade to an empty shape instead of throwing so panels render an empty state.
+ */
+async function hasPoTeamAccess(): Promise<boolean> {
+  const session = await getCachedSession();
+  const email = normalizeEmail(session?.user?.email);
+  if (!email) return false;
+  if (isPlatformAdminEmail(email) || session?.user?.isAdmin) return true;
+  return session?.user?.toolAccess?.po_expediting?.status === 'approved';
+}
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -72,6 +91,21 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
     if (v instanceof Date) return v.toISOString();
     return String(v);
   };
+
+  const empty: ExpeditingAnalytics = {
+    totalLinesExpedited: 0,
+    totalSuppliersContacted: 0,
+    totalEmailsSent: 0,
+    overallResponseRate: null,
+    buyerBreakdown: [],
+    supplierBreakdown: [],
+    recentSessions: [],
+    weeklyRateData: [],
+    supplierResponseTime: [],
+  };
+
+  // Company-wide analytics: admin panel only. Degrade to an empty state.
+  if (!(await isAdminActor())) return empty;
 
   try {
     const [kpiRes, buyerRes, supplierRes, sessionsRes, weeklyRes, responseTimeRes] = await Promise.all([
@@ -239,17 +273,7 @@ export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
     };
   } catch (err) {
     console.error('[getExpeditingAnalytics]', err);
-    return {
-      totalLinesExpedited: 0,
-      totalSuppliersContacted: 0,
-      totalEmailsSent: 0,
-      overallResponseRate: null,
-      buyerBreakdown: [],
-      supplierBreakdown: [],
-      recentSessions: [],
-      weeklyRateData: [],
-      supplierResponseTime: [],
-    };
+    return empty;
   }
 }
 
@@ -275,6 +299,7 @@ export async function getBuyerDetail(buyerEmail: string): Promise<BuyerSessionRo
     if (v instanceof Date) return v.toISOString();
     return String(v);
   };
+  if (!(await hasPoTeamAccess())) return [];
   try {
     const res = await pool.query(`
       SELECT
@@ -291,9 +316,9 @@ export async function getBuyerDetail(buyerEmail: string): Promise<BuyerSessionRo
         up.job_title
       FROM expediting_sessions es
       JOIN user_profiles up ON up.email = es.dispatched_by
-      WHERE es.dispatched_by = $1
+      WHERE LOWER(es.dispatched_by) = $1
       ORDER BY es.dispatched_at DESC
-    `, [buyerEmail]);
+    `, [normalizeEmail(buyerEmail)]);
 
     return res.rows.map(r => ({
       session_ref:         String(r.session_ref ?? ''),
@@ -342,6 +367,7 @@ export async function getAdminSupplierDetail(supplierName: string): Promise<Admi
     if (v instanceof Date) return v.toISOString();
     return String(v);
   };
+  if (!(await hasPoTeamAccess())) return [];
   try {
     const res = await pool.query(`
       SELECT
@@ -421,6 +447,7 @@ export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSe
     if (v instanceof Date) return v.toISOString();
     return String(v);
   };
+  if (!(await hasPoTeamAccess())) return [];
   try {
     const res = await pool.query(`
       SELECT

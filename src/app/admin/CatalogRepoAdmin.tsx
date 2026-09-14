@@ -79,10 +79,8 @@ function RoleSelector({
 }
 
 export function CatalogAccessApprovalsClient({
-  userEmail,
   onPendingCountChange,
 }: {
-  userEmail: string;
   onPendingCountChange?: (count: number) => void;
 }) {
   const [requests, setRequests] = useState<CatalogAccessRequestRow[]>([]);
@@ -123,7 +121,8 @@ export function CatalogAccessApprovalsClient({
     setActionError('');
     setProcessingEmail(row.user_email);
     startTransition(async () => {
-      const result = await approveCatalogAccessRequest({ userEmail: row.user_email, approvedRole: role, reviewedBy: userEmail, countryCode: countryCode || null });
+      // The reviewer identity comes from the server session, never from this client.
+      const result = await approveCatalogAccessRequest({ userEmail: row.user_email, approvedRole: role, countryCode: countryCode || null });
       if (!result.success) { setActionError(result.error ?? 'Failed to approve access.'); setProcessingEmail(null); return; }
       await refreshData();
       setExpandedEmail(null);
@@ -132,11 +131,11 @@ export function CatalogAccessApprovalsClient({
   }
   function handleReject(email: string) {
     setProcessingEmail(email);
-    startTransition(async () => { await rejectCatalogAccessRequest(email, userEmail); await refreshData(); setProcessingEmail(null); });
+    startTransition(async () => { await rejectCatalogAccessRequest(email); await refreshData(); setProcessingEmail(null); });
   }
   function handleRevoke(email: string) {
     setProcessingEmail(email);
-    startTransition(async () => { await revokeCatalogAccessRequest(email, userEmail); await refreshData(); setProcessingEmail(null); });
+    startTransition(async () => { await revokeCatalogAccessRequest(email); await refreshData(); setProcessingEmail(null); });
   }
   function handleDelete(email: string) {
     setProcessingEmail(email);

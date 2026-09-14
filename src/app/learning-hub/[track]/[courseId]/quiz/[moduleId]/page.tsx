@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getModuleQuizPageData } from '@/app/actions/learning-hub';
+import { getModuleQuizPageData } from '@/lib/learning-hub-queries';
 import QuizClient from './QuizClient';
 
 type PageProps = { params: Promise<{ track: string; courseId: string; moduleId: string }> };

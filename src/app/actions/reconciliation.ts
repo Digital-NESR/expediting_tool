@@ -1,6 +1,7 @@
 'use server';
 
 import pool from '@/lib/db';
+import { currentActor, requireUser } from '@/lib/require-access';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -40,10 +41,12 @@ export interface SessionData {
 
 /* ─── getMyExpeditingSessions ────────────────────────────────── */
 
-export async function getMyExpeditingSessions(
-  userEmail: string,
-): Promise<SessionData[]> {
-  if (!userEmail) return [];
+export async function getMyExpeditingSessions(): Promise<SessionData[]> {
+  // Identity comes from the session, never from the caller: a server action is a
+  // public POST endpoint, so a buyer-email argument would be a read-any-buyer IDOR.
+  const actor = await currentActor();
+  if (!actor) return [];
+  const userEmail = actor.email;
 
   try {
     const result = await pool.query(
@@ -71,7 +74,7 @@ export async function getMyExpeditingSessions(
          ON ae.po_number = s.po_number AND ae.po_line = s.po_line
        LEFT JOIN expediting_sessions es
          ON ae.session_ref = es.session_ref
-       WHERE ae.dispatched_by = $1
+       WHERE LOWER(ae.dispatched_by) = $1
          AND ae.session_ref IS NOT NULL
        ORDER BY ae.dispatched_at DESC, ae.session_ref, ae.expedite_token,
                 ae.po_number, ae.po_line`,
@@ -170,13 +173,20 @@ export async function saveBuyerComment(
   expedite_token: string,
   comment: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const actor = await requireUser();
+
   try {
-    await pool.query(
+    // Scoped to the actor's own rows: a buyer cannot annotate another buyer's line.
+    const res = await pool.query(
       `UPDATE active_expediting
        SET buyer_comments = $1, updated_at = NOW()
-       WHERE po_number = $2 AND po_line = $3 AND expedite_token = $4`,
-      [comment.trim() || null, po_number, po_line, expedite_token],
+       WHERE po_number = $2 AND po_line = $3 AND expedite_token = $4
+         AND LOWER(dispatched_by) = $5`,
+      [comment.trim() || null, po_number, po_line, expedite_token, actor.email],
     );
+    if (res.rowCount === 0) {
+      return { success: false, error: 'Line not found for this buyer.' };
+    }
     return { success: true };
   } catch (err) {
     console.error('[saveBuyerComment]', err);

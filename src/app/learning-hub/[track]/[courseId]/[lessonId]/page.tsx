@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getProcureGuardUser } from '@/lib/auth';
-import { getLessonDetail, getLessonTitle } from '@/app/actions/learning-hub';
+import { getLessonDetail, getLessonTitle } from '@/lib/learning-hub-queries';
 import LessonViewerClient from './LessonViewerClient';
 
 type PageProps = { params: Promise<{ track: string; courseId: string; lessonId: string }> };
@@ -19,10 +18,8 @@ export default async function LessonViewerPage({ params }: PageProps) {
   if (!Number.isInteger(numericCourseId) || numericCourseId <= 0) notFound();
   if (!Number.isInteger(numericLessonId) || numericLessonId <= 0) notFound();
 
-  const user = await getProcureGuardUser();
-  const userEmail = user?.email ?? '';
-  const data = await getLessonDetail(track, numericCourseId, numericLessonId, userEmail);
+  const data = await getLessonDetail(track, numericCourseId, numericLessonId);
   if (!data) notFound();
 
-  return <LessonViewerClient data={data} userEmail={userEmail} />;
+  return <LessonViewerClient data={data} />;
 }

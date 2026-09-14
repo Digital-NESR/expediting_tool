@@ -14,7 +14,6 @@ import {
   CURRENCY_OPTIONS,
   SEGMENT_OPTIONS,
   SPEND_CATEGORY_OPTIONS,
-  toUsd,
   usdEquivalentFmt,
 } from '@/lib/procureGuard-utils';
 import type { AdvancePaymentRequest, CreateAdvancePaymentInput, ProcureGuardAccessView, ProcureGuardNotificationContact } from '@/types/procureGuard';
@@ -297,7 +296,6 @@ export default function AdvancePaymentFormClient(_props: {
       contract_value: totalAmount,
       advance_percentage: totalAmount > 0 ? Math.round((amount / totalAmount) * 100) : undefined,
       spend_category: spendCategory,
-      spend_value_usd: toUsd(amount, currency),
       current_payment_terms_days: Number(paymentTermsDays),
       current_credit_limit_usd: Number(creditLimitUsd),
       advance_purpose: reason,

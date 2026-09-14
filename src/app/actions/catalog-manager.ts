@@ -5,6 +5,7 @@ import { unstable_cache } from 'next/cache';
 import ExcelJS from 'exceljs';
 import catalogManagerPool from '@/lib/db-catalog-manager';
 import { getProcureGuardUser } from '@/lib/auth';
+import { AccessError, normalizeEmail } from '@/lib/require-access';
 import { getDelegatorsForApp } from '@/app/actions/delegation';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
 import { SERVICE_ACTIVITIES } from '@/lib/catalog-service-activities';
@@ -284,6 +285,9 @@ async function initCatalogManagerSchema(): Promise<void> {
     reviewed_by TEXT
   )`);
 
+  // Audit trail records the AUTHENTICATED actor's email alongside the (spoofable) display name.
+  execSchema(`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS user_email TEXT`);
+
   // Logistics fields (added later): Incoterms 2020 code + supplier lead time in days.
   execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms TEXT`);
   execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms_location TEXT`);
@@ -440,7 +444,7 @@ async function seedSupplierDirectory(): Promise<void> {
  * (supplier_directory, seeded once from the expediting DB). Returns up to 20 distinct-by-name matches.
  */
 export async function searchSupplierDirectory(query: string): Promise<{ name: string; code: string }[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   const q = (query ?? '').trim();
   if (q.length < 2) return [];
   const rows = await sql<{ code: string; name: string }[]>(
@@ -650,6 +654,39 @@ export async function getCatalogActor(): Promise<CatalogActor> {
   };
 }
 
+/* ----------------------------------------------------------------------------
+   GUARDS — this is a `'use server'` module, so EVERY export below is a public
+   POST endpoint reachable by any signed-in employee. The /catalog-manager
+   layout's ADMIN_EMAILS redirect is NOT a security control for these, so each
+   exported action must start with one of the two guards below.
+---------------------------------------------------------------------------- */
+
+const CATALOG_ROLE_RANK: Record<CatalogRole, number> = { Viewer: 0, Contributor: 1, Approver: 2, Admin: 3 };
+
+function meetsCatalogRole(actor: CatalogActor, min: CatalogRole): boolean {
+  // 'Approver' also admits a delegated approver, whose own role may be lower.
+  if (min === 'Approver') return actor.canApprove;
+  return (CATALOG_ROLE_RANK[actor.role] ?? 0) >= CATALOG_ROLE_RANK[min];
+}
+
+/** Mutations: throws when signed out or under-privileged. MUST be the first statement. */
+async function requireCatalogActor(min: CatalogRole = 'Viewer'): Promise<CatalogActor> {
+  const actor = await getCatalogActor();
+  if (!actor.email) throw new AccessError('Sign in required.', 401);
+  if (!meetsCatalogRole(actor, min)) throw new AccessError(`This action requires the ${min} role.`);
+  return actor;
+}
+
+/** Reads a server page renders: returns null (caller degrades to an empty shape) instead of throwing. */
+async function optionalCatalogActor(min: CatalogRole = 'Viewer'): Promise<CatalogActor | null> {
+  try {
+    return await requireCatalogActor(min);
+  } catch (err) {
+    if (err instanceof AccessError) return null;
+    throw err;
+  }
+}
+
 /**
  * Resolve active delegations TO `email` for Catalog Repo, expanding each
  * delegator into the countries they can approve (from this DB's own tables).
@@ -684,24 +721,106 @@ async function resolveCatalogDelegations(email: string): Promise<CatalogDelegati
 }
 
 /**
- * For a catalog entry's country, decide whether the actor is acting under their
- * OWN authority or on behalf of a delegator. Returns the display label to record
- * and whether the action is permitted at all.
+ * One row of approval authority: either a global one (role Admin) or one
+ * country_approver assignment. An Approver with NO assignment rows has NO
+ * authority — an empty set is never "all countries" (which is what the admin UI
+ * promises: "an approver ... can sign off for the countries assigned here").
  */
-function catalogActingIdentity(
+interface ApproverScope {
+  email: string;
+  isGlobal: boolean;
+  country_code: string | null;
+  spend_category_id: number | null;
+}
+
+/** Load every authority row for the given emails in one query. */
+async function loadApproverScopes(emails: (string | null | undefined)[]): Promise<ApproverScope[]> {
+  const list = [...new Set(emails.map(normalizeEmail).filter(Boolean))];
+  if (!list.length) return [];
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT LOWER(au.email) AS email, au.role, ca.country_code, ca.spend_category_id
+     FROM app_user au
+     LEFT JOIN country_approver ca ON ca.user_id = au.id AND ca.is_active = TRUE
+     WHERE LOWER(au.email) IN (${list.map(() => '?').join(', ')})`,
+    list,
+  );
+  return rows.map((r) => ({
+    email: String(r.email),
+    isGlobal: r.role === 'Admin',
+    country_code: r.country_code ?? null,
+    spend_category_id: r.spend_category_id != null ? Number(r.spend_category_id) : null,
+  }));
+}
+
+/** Does `email` hold authority over this country AND this spend category? A NULL category row = all categories. */
+function scopeCovers(
+  scopes: ApproverScope[],
+  email: string,
+  countryCode: string,
+  categoryId: number | null,
+): boolean {
+  const e = normalizeEmail(email);
+  return scopes.some(
+    (s) =>
+      s.email === e &&
+      (s.isGlobal ||
+        (s.country_code === countryCode && (s.spend_category_id === null || s.spend_category_id === categoryId))),
+  );
+}
+
+/**
+ * For a catalog entry's country + spend category, decide whether the actor is
+ * acting under their OWN authority or on behalf of a delegator. Returns the
+ * display label to record and whether the action is permitted at all.
+ * Pass `preloaded` scopes when deciding many entries in one request.
+ */
+async function catalogActingIdentity(
   actor: CatalogActor,
   countryCode: string,
-): { allowed: boolean; label: string } {
-  const ownCovers =
-    actor.role === 'Admin' ||
-    (actor.canApproveOwn === true &&
-      ((actor.ownApproverCountries?.length ?? 0) === 0 || (actor.ownApproverCountries ?? []).includes(countryCode)));
-  if (ownCovers) return { allowed: true, label: actor.name };
+  categoryId: number | null,
+  preloaded?: ApproverScope[],
+): Promise<{ allowed: boolean; label: string }> {
+  if (actor.role === 'Admin') return { allowed: true, label: actor.name };
 
-  const delegator = (actor.delegatedFrom ?? []).find((d) => d.countries.includes(countryCode));
+  const delegators = actor.delegatedFrom ?? [];
+  const scopes = preloaded ?? (await loadApproverScopes([actor.email, ...delegators.map((d) => d.email)]));
+
+  if (actor.canApproveOwn === true && scopeCovers(scopes, actor.email, countryCode, categoryId)) {
+    return { allowed: true, label: actor.name };
+  }
+
+  const delegator = delegators.find((d) => scopeCovers(scopes, d.email, countryCode, categoryId));
   if (delegator) return { allowed: true, label: `${actor.name} (on behalf of ${delegator.name})` };
 
   return { allowed: false, label: actor.name };
+}
+
+/**
+ * Server-computed "which of these entries may I approve?" — the single source of
+ * truth for the approvals list and the entry detail page, which used to re-derive
+ * (a looser version of) this rule client-side.
+ */
+export async function getApprovableEntryIds(entryIds: number[]): Promise<number[]> {
+  const actor = await optionalCatalogActor();
+  const ids = [...new Set((entryIds ?? []).map(Number).filter((n) => Number.isFinite(n)))];
+  if (!actor || !actor.canApprove || !ids.length) return [];
+  if (actor.role === 'Admin') return ids;
+
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT id, country_code, category_id FROM catalog_entry WHERE id IN (${ids.map(() => '?').join(', ')})`,
+    ids,
+  );
+  const delegators = actor.delegatedFrom ?? [];
+  const emails = [...(actor.canApproveOwn === true ? [actor.email] : []), ...delegators.map((d) => d.email)];
+  const scopes = await loadApproverScopes([actor.email, ...delegators.map((d) => d.email)]);
+
+  return rows
+    .filter((r) =>
+      emails.some((e) =>
+        scopeCovers(scopes, e, String(r.country_code), r.category_id != null ? Number(r.category_id) : null),
+      ),
+    )
+    .map((r) => Number(r.id));
 }
 
 /* ============================================================================
@@ -788,7 +907,7 @@ export interface CatalogListFilters {
 }
 
 export async function listCatalogEntries(filters: CatalogListFilters = {}): Promise<CatalogEntry[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   const params: QueryParams = [];
   let where = '';
   if (filters.country && filters.country !== 'ALL') {
@@ -927,10 +1046,10 @@ function pirWhere(query: PirQuery): { where: string; params: QueryParams } {
 
 /** One page of PIR rows matching the search/filters, plus the total match count. */
 export async function listPirEntries(query: PirQuery = {}): Promise<PirListResult> {
-  await ensureCatalogManagerSchema();
-  await ensurePirNamesFresh();
   const page = Math.max(1, Math.floor(query.page ?? 1));
   const pageSize = Math.min(200, Math.max(10, Math.floor(query.pageSize ?? 50)));
+  if (!(await optionalCatalogActor())) return { rows: [], total: 0, page, pageSize };
+  await ensurePirNamesFresh();
   const sort = PIR_SORT_SQL[query.sort ?? 'supplier'] ?? PIR_SORT_SQL.supplier;
   const { where, params } = pirWhere(query);
 
@@ -947,7 +1066,7 @@ export async function listPirEntries(query: PirQuery = {}): Promise<PirListResul
 
 /** All rows matching the filters (no paging) — for CSV export. Bounded to keep the payload sane. */
 export async function exportPirEntries(query: PirQuery = {}): Promise<PirEntry[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   await ensurePirNamesFresh();
   const sort = PIR_SORT_SQL[query.sort ?? 'supplier'] ?? PIR_SORT_SQL.supplier;
   const { where, params } = pirWhere(query);
@@ -992,13 +1111,15 @@ const loadPirMeta = unstable_cache(
 );
 
 export async function getPirMeta(): Promise<PirMeta> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) {
+    return { stats: { total: 0, suppliers: 0, plants: 0, countries: 0 }, facets: { countries: [], porgs: [], plants: [], mgroups: [] } };
+  }
   return loadPirMeta();
 }
 
 /** All SAP supplier names (from the seeded directory) — feeds the import template's supplier dropdown. */
 export async function getSupplierDirectoryNames(): Promise<string[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   const rows = await sql<{ name: string }[]>(
     `SELECT DISTINCT name FROM supplier_directory WHERE name IS NOT NULL AND name <> '' ORDER BY name`,
   );
@@ -1006,7 +1127,7 @@ export async function getSupplierDirectoryNames(): Promise<string[]> {
 }
 
 export async function getPendingApprovalCount(country = 'ALL'): Promise<number> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return 0;
   const params: QueryParams = ['Pending Approval'];
   let where = `WHERE status = ?`;
   if (country && country !== 'ALL') {
@@ -1018,7 +1139,7 @@ export async function getPendingApprovalCount(country = 'ALL'): Promise<number> 
 }
 
 export async function getCatalogEntry(id: number): Promise<CatalogEntry | null> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return null;
   const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [id]);
   if (!rows[0]) return null;
   const entry = mapEntry(rows[0]);
@@ -1062,7 +1183,13 @@ export async function getCatalogEntry(id: number): Promise<CatalogEntry | null> 
 ============================================================================ */
 
 export async function getCatalogManagerDashboardData(country = 'ALL'): Promise<CatalogManagerDashboardData> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) {
+    return {
+      scope: country === 'ALL' ? 'all operating countries' : country,
+      activeCount: 0, supplierCount: 0, categoryCount: 0, expiringCount: 0, pendingCount: 0,
+      byCategory: [], expiringSoon: [], recent: [],
+    };
+  }
   const scoped = country !== 'ALL';
   const scopeWhere = scoped ? `WHERE e.country_code = ?` : '';
   const scopeParams: QueryParams = scoped ? [country] : [];
@@ -1194,8 +1321,7 @@ async function resolveRefs(input: CatalogEntryInput) {
 
 /** Create a new entry. mode 'draft' keeps it Draft; 'submit' sends for approval (or auto-activates Tier 1). */
 export async function createCatalogEntry(input: CatalogEntryInput, mode: 'draft' | 'submit'): Promise<{ id: number; code: string; status: CatalogStatus }> {
-  const actor = await getCatalogActor();
-  if (!actor.canCreate) throw new Error('You do not have permission to create catalog entries.');
+  const actor = await requireCatalogActor('Contributor');
 
   const supplierId = await upsertSupplier(input.supplier_name, input.supplier_code, input.manager);
   const { categoryId, spendType, subId, uomId } = await resolveRefs(input);
@@ -1224,7 +1350,7 @@ export async function createCatalogEntry(input: CatalogEntryInput, mode: 'draft'
      VALUES (?, 1, ?, ?, ?, ?, 'Initial agreed rate', ?)`,
     [ins.insertId, input.unit_price, input.currency_code, input.effective_date, input.expiry_date, actor.name],
   );
-  await writeAudit('Create', code, actor.name,
+  await writeAudit('Create', code, actor.name, actor.email,
     mode === 'draft' ? 'Saved new draft entry' : status === 'Active' ? 'New entry created & activated' : 'New entry submitted for approval');
   return { id: ins.insertId, code, status };
 }
@@ -1237,8 +1363,7 @@ export async function createCatalogEntriesBatch(
   lines: CatalogEntryLine[],
   mode: 'draft' | 'submit',
 ): Promise<{ created: number; firstId: number | null }> {
-  const actor = await getCatalogActor();
-  if (!actor.canCreate) throw new Error('You do not have permission to create catalog entries.');
+  await requireCatalogActor('Contributor');
   if (!lines.length) throw new Error('Add at least one line item.');
 
   let firstId: number | null = null;
@@ -1253,8 +1378,7 @@ export async function createCatalogEntriesBatch(
 
 /** Edit an entry — retains the prior version and bumps the version number. */
 export async function updateCatalogEntry(input: CatalogEntryInput, mode: 'draft' | 'submit'): Promise<{ id: number; status: CatalogStatus }> {
-  const actor = await getCatalogActor();
-  if (!actor.canCreate) throw new Error('You do not have permission to edit catalog entries.');
+  const actor = await requireCatalogActor('Contributor');
   if (!input.id) throw new Error('Missing entry id.');
 
   const current = await sql<{ code: string; current_version_no: number }[]>(
@@ -1292,13 +1416,12 @@ export async function updateCatalogEntry(input: CatalogEntryInput, mode: 'draft'
       status, tier.label, nextVersion, approver, actor.name, input.id,
     ],
   );
-  await writeAudit('Edit', current[0].code, actor.name, `Edited entry — version ${nextVersion} saved`);
+  await writeAudit('Edit', current[0].code, actor.name, actor.email, `Edited entry — version ${nextVersion} saved`);
   return { id: input.id, status };
 }
 
 export async function submitForApproval(entryId: number): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canCreate) throw new Error('Not permitted.');
+  const actor = await requireCatalogActor('Contributor');
   const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
   if (!rows[0]) throw new Error('Entry not found.');
   const e = mapEntry(rows[0]);
@@ -1308,21 +1431,20 @@ export async function submitForApproval(entryId: number): Promise<void> {
   const approver = next === 'Pending Approval' ? (e.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
   await exec(`UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
     [next, approver, actor.name, entryId]);
-  await writeAudit('Status change', e.code, actor.name, `${e.status} → ${next}`);
+  await writeAudit('Status change', e.code, actor.name, actor.email, `${e.status} → ${next}`);
 }
 
 export async function decideCatalogEntry(entryId: number, decision: 'approve' | 'reject' | 'revise', comment: string): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canApprove) throw new Error('You do not have approver permission.');
+  const actor = await requireCatalogActor('Approver');
   if (!comment.trim()) throw new Error('A comment is required to record this decision.');
 
   const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
   if (!rows[0]) throw new Error('Entry not found.');
   const e = mapEntry(rows[0]);
 
-  const acting = catalogActingIdentity(actor, e.country_code);
+  const acting = await catalogActingIdentity(actor, e.country_code, e.category_id);
   if (!acting.allowed) {
-    throw new Error(`You are not an approver for ${e.country_name}.`);
+    throw new Error(`You are not an approver for ${e.country_name}${e.category_name ? ` / ${e.category_name}` : ''}.`);
   }
 
   const next: CatalogStatus = decision === 'approve' ? 'Active' : decision === 'revise' ? 'Draft' : 'Rejected';
@@ -1336,17 +1458,16 @@ export async function decideCatalogEntry(entryId: number, decision: 'approve' | 
     `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES (?, ?, ?, ?, 2, ?)`,
     [entryId, e.version_no, acting.label, decisionLabel, comment.trim()],
   );
-  await writeAudit(decision === 'approve' ? 'Approve' : 'Reject', e.code, acting.label,
+  await writeAudit(decision === 'approve' ? 'Approve' : 'Reject', e.code, acting.label, actor.email,
     `${decision === 'approve' ? 'Approved' : decision === 'revise' ? 'Revision requested' : 'Rejected'} — "${comment.trim().slice(0, 48)}"`);
 }
 
 export async function deactivateCatalogEntry(entryId: number): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canCreate) throw new Error('Not permitted.');
+  const actor = await requireCatalogActor('Contributor');
   const rows = await sql<{ code: string; status: string }[]>(`SELECT code, status FROM catalog_entry WHERE id = ?`, [entryId]);
   if (!rows[0]) throw new Error('Entry not found.');
   await exec(`UPDATE catalog_entry SET status = 'Expired', modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [actor.name, entryId]);
-  await writeAudit('Status change', rows[0].code, actor.name, `${rows[0].status} → Deactivated`);
+  await writeAudit('Status change', rows[0].code, actor.name, actor.email, `${rows[0].status} → Deactivated`);
 }
 
 /* ============================================================================
@@ -1400,8 +1521,7 @@ function normalizeImportDate(raw: string | null): string | null {
 }
 
 export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]; filename: string }): Promise<CatalogImportResult> {
-  const actor = await getCatalogActor();
-  if (!actor.canCreate) throw new Error('You do not have permission to import catalog entries.');
+  const actor = await requireCatalogActor('Contributor');
 
   // reference lookups (resolved once per call)
   const countries = await sql<{ code: string; name: string }[]>(`SELECT code, name FROM country`);
@@ -1554,7 +1674,7 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
   }
 
   if (inserted > 0) {
-    await writeAudit('Import', `Catalog — ${input.filename}`, actor.name, `Bulk imported ${inserted} entries (${skipped} skipped, ${errors} errors)`);
+    await writeAudit('Import', `Catalog — ${input.filename}`, actor.name, actor.email, `Bulk imported ${inserted} entries (${skipped} skipped, ${errors} errors)`);
   }
   return { inserted, skipped, errors, log };
 }
@@ -1574,8 +1694,7 @@ export interface CommodityReferenceFile {
 }
 
 export async function buildCommodityReference(): Promise<CommodityReferenceFile> {
-  await getCatalogActor(); // ensure an authenticated catalog user
-  await ensureCatalogManagerSchema();
+  await requireCatalogActor(); // signed-in catalog user only
 
   // The full catalog spend taxonomy (Category → Sub-category → Commodity), no UNSPSC codes.
   const taxonomyRows: { spend_type: string; category: string; sub: string; family: string; commodity: string; description: string }[] = [];
@@ -1631,9 +1750,11 @@ export async function buildCommodityReference(): Promise<CommodityReferenceFile>
 
 /** Approve every pending entry in a supplier group in one action (Approvals "Approve all"). */
 export async function bulkDecideEntries(entryIds: number[], comment: string): Promise<{ approved: number }> {
-  const actor = await getCatalogActor();
-  if (!actor.canApprove) throw new Error('You do not have approver permission.');
+  const actor = await requireCatalogActor('Approver');
   if (!comment.trim()) throw new Error('A comment is required to record this decision.');
+
+  // Load the actor's (and their delegators') authority rows once for the whole batch.
+  const scopes = await loadApproverScopes([actor.email, ...(actor.delegatedFrom ?? []).map((d) => d.email)]);
 
   let approved = 0;
   for (const id of entryIds) {
@@ -1641,7 +1762,7 @@ export async function bulkDecideEntries(entryIds: number[], comment: string): Pr
     if (!rows[0]) continue;
     const e = mapEntry(rows[0]);
     if (e.status !== 'Pending Approval') continue;
-    const acting = catalogActingIdentity(actor, e.country_code);
+    const acting = await catalogActingIdentity(actor, e.country_code, e.category_id, scopes);
     if (!acting.allowed) continue;
 
     await exec(
@@ -1652,7 +1773,7 @@ export async function bulkDecideEntries(entryIds: number[], comment: string): Pr
       `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES (?, ?, ?, 'Approved', 2, ?)`,
       [id, e.version_no, acting.label, comment.trim()],
     );
-    await writeAudit('Approve', e.code, acting.label, `Approved (bulk) — "${comment.trim().slice(0, 48)}"`);
+    await writeAudit('Approve', e.code, acting.label, actor.email, `Approved (bulk) — "${comment.trim().slice(0, 48)}"`);
     approved++;
   }
   return { approved };
@@ -1663,42 +1784,43 @@ export async function bulkDecideEntries(entryIds: number[], comment: string): Pr
 ============================================================================ */
 
 export async function getCountries(): Promise<CountryRow[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   return sql<CountryRow[]>(`SELECT code, name, default_currency, flag, status FROM country ORDER BY name`);
 }
 export async function getCurrencies(): Promise<CurrencyRow[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   const rows = await sql<QueryResultRow[]>(`SELECT code, decimals, usd_rate FROM currency ORDER BY code`);
   return rows.map((r) => ({ code: String(r.code), decimals: Number(r.decimals), usd_rate: Number(r.usd_rate) }));
 }
 export async function getUoms(): Promise<UomRow[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   return sql<UomRow[]>(`SELECT id, name, status FROM unit_of_measure ORDER BY name`);
 }
 export async function getSuppliers(): Promise<SupplierRow[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   return sql<SupplierRow[]>(`SELECT id, vendor_code, name, accountable_manager FROM supplier ORDER BY name`);
 }
 export async function getServiceActivities(): Promise<{ no: string; text: string; uom: string }[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   const rows = await sql<{ activity_number: string; short_text: string; base_uom: string | null }[]>(
     `SELECT activity_number, short_text, base_uom FROM service_activity ORDER BY short_text`,
   );
   return rows.map((r) => ({ no: String(r.activity_number), text: String(r.short_text), uom: String(r.base_uom ?? '') }));
 }
 export async function getCategoriesWithSubs(): Promise<(SpendCategoryRow & { subs: SpendSubcategoryRow[] })[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   const cats = await sql<SpendCategoryRow[]>(`SELECT id, name, type, status FROM spend_category ORDER BY type, name`);
   const subs = await sql<SpendSubcategoryRow[]>(`SELECT id, category_id, name, status FROM spend_subcategory ORDER BY name`);
   return cats.map((c) => ({ ...c, subs: subs.filter((s) => Number(s.category_id) === Number(c.id)) }));
 }
 export async function getUsers(): Promise<AppUserRow[]> {
-  await ensureCatalogManagerSchema();
+  // Directory PII (names + emails) — Admin only, empty for everyone else.
+  if (!(await optionalCatalogActor('Admin'))) return [];
   return sql<AppUserRow[]>(`SELECT id, full_name, email, country_code, role FROM app_user ORDER BY full_name`);
 }
 
 export async function getCountryApprovers(): Promise<CountryApproverRow[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor('Admin'))) return [];
   const rows = await sql<QueryResultRow[]>(
     `SELECT ca.id, ca.user_id, au.full_name AS user_name, au.email AS user_email,
             ca.country_code, c.name AS country_name,
@@ -1724,8 +1846,7 @@ export async function getCountryApprovers(): Promise<CountryApproverRow[]> {
 }
 
 export async function addCountryApprover(userId: number, countryCode: string, spendCategoryId: number | null, tier = 2): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) throw new Error('Admin only.');
+  const actor = await requireCatalogActor('Admin');
   await exec(
     `INSERT INTO country_approver (user_id, country_code, spend_category_id, tier, is_active)
      VALUES (?, ?, ?, ?, TRUE)
@@ -1733,22 +1854,20 @@ export async function addCountryApprover(userId: number, countryCode: string, sp
     [userId, countryCode, spendCategoryId, tier],
   );
   const u = await sql<{ full_name: string }[]>(`SELECT full_name FROM app_user WHERE id = ?`, [userId]);
-  await writeAudit('Master data', 'Country approvers', actor.name, `Assigned ${u[0]?.full_name ?? 'user'} as approver for ${countryCode}`);
+  await writeAudit('Master data', 'Country approvers', actor.name, actor.email, `Assigned ${u[0]?.full_name ?? 'user'} as approver for ${countryCode}`);
 }
 
 export async function removeCountryApprover(id: number): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) throw new Error('Admin only.');
+  const actor = await requireCatalogActor('Admin');
   await exec(`DELETE FROM country_approver WHERE id = ?`, [id]);
-  await writeAudit('Master data', 'Country approvers', actor.name, `Removed a country-approver assignment`);
+  await writeAudit('Master data', 'Country approvers', actor.name, actor.email, `Removed a country-approver assignment`);
 }
 
 export async function setUserRole(userId: number, role: CatalogRole): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) throw new Error('Admin only.');
+  const actor = await requireCatalogActor('Admin');
   const u = await sql<{ full_name: string }[]>(`SELECT full_name FROM app_user WHERE id = ?`, [userId]);
   await exec(`UPDATE app_user SET role = ? WHERE id = ?`, [role, userId]);
-  await writeAudit('Master data', 'Users & roles', actor.name, `Changed ${u[0]?.full_name ?? 'user'} role → ${role}`);
+  await writeAudit('Master data', 'Users & roles', actor.name, actor.email, `Changed ${u[0]?.full_name ?? 'user'} role → ${role}`);
 }
 
 /* ============================================================================
@@ -1778,9 +1897,9 @@ function mapAccessRequest(row: QueryResultRow): CatalogAccessRequestRow {
 export async function getMyCatalogAccessRequest(): Promise<CatalogAccessRequestRow | null> {
   await ensureCatalogManagerSchema();
   const sessionUser = await getProcureGuardUser();
-  const email = (sessionUser?.email ?? '').toLowerCase();
+  const email = normalizeEmail(sessionUser?.email);
   if (!email) return null;
-  const rows = await sql<QueryResultRow[]>(`SELECT * FROM catalog_access_requests WHERE user_email = ?`, [email]);
+  const rows = await sql<QueryResultRow[]>(`SELECT * FROM catalog_access_requests WHERE LOWER(user_email) = ?`, [email]);
   return rows[0] ? mapAccessRequest(rows[0]) : null;
 }
 
@@ -1796,7 +1915,7 @@ export async function submitCatalogAccessRequest(input: {
 }): Promise<{ success: boolean; error?: string }> {
   await ensureCatalogManagerSchema();
   const sessionUser = await getProcureGuardUser();
-  const email = (sessionUser?.email ?? '').toLowerCase();
+  const email = normalizeEmail(sessionUser?.email);
   if (!email) return { success: false, error: 'You must be signed in to request access.' };
 
   await exec(
@@ -1821,7 +1940,8 @@ export async function submitCatalogAccessRequest(input: {
 
 /** All access requests for the platform admin queue, ordered Pending first, then most recent. */
 export async function getCatalogAccessRequests(): Promise<CatalogAccessRequestRow[]> {
-  await ensureCatalogManagerSchema();
+  // Other people's names, job titles and emails — Admin only.
+  if (!(await optionalCatalogActor('Admin'))) return [];
   const rows = await sql<QueryResultRow[]>(
     `SELECT * FROM catalog_access_requests
      ORDER BY CASE status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END, requested_at DESC`,
@@ -1830,7 +1950,7 @@ export async function getCatalogAccessRequests(): Promise<CatalogAccessRequestRo
 }
 
 export async function getCatalogAccessPendingCount(): Promise<number> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor('Admin'))) return 0;
   const rows = await sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM catalog_access_requests WHERE status = 'Pending'`);
   return Number(rows[0]?.n ?? 0);
 }
@@ -1839,22 +1959,22 @@ export async function getCatalogAccessPendingCount(): Promise<number> {
 export async function approveCatalogAccessRequest(input: {
   userEmail: string;
   approvedRole: CatalogRole;
-  reviewedBy: string;
   countryCode?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) return { success: false, error: 'Admin only.' };
-  const email = input.userEmail.toLowerCase();
+  // The reviewer is the AUTHENTICATED actor — never a value the client sent.
+  const actor = await optionalCatalogActor('Admin');
+  if (!actor) return { success: false, error: 'Admin only.' };
+  const email = normalizeEmail(input.userEmail);
 
-  const existing = await sql<QueryResultRow[]>(`SELECT display_name, country_code FROM catalog_access_requests WHERE user_email = ?`, [email]);
+  const existing = await sql<QueryResultRow[]>(`SELECT display_name, country_code FROM catalog_access_requests WHERE LOWER(user_email) = ?`, [email]);
   const displayName = existing[0]?.display_name ?? email;
   const countryCode = input.countryCode || existing[0]?.country_code || null;
 
   await exec(
     `UPDATE catalog_access_requests
      SET status = 'Approved', approved_role = ?, country_code = COALESCE(?, country_code), reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
-     WHERE user_email = ?`,
-    [input.approvedRole, countryCode, input.reviewedBy, email],
+     WHERE LOWER(user_email) = ?`,
+    [input.approvedRole, countryCode, actor.email, email],
   );
   await exec(
     `INSERT INTO app_user (full_name, email, country_code, role)
@@ -1862,40 +1982,42 @@ export async function approveCatalogAccessRequest(input: {
      ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, country_code = COALESCE(app_user.country_code, EXCLUDED.country_code)`,
     [displayName, email, countryCode, input.approvedRole],
   );
-  await writeAudit('Master data', 'Access requests', input.reviewedBy, `Approved ${email} → ${input.approvedRole}`);
+  await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Approved ${email} → ${input.approvedRole}`);
   return { success: true };
 }
 
-export async function rejectCatalogAccessRequest(userEmail: string, reviewedBy: string): Promise<{ success: boolean }> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) return { success: false };
-  const email = userEmail.toLowerCase();
+export async function rejectCatalogAccessRequest(userEmail: string): Promise<{ success: boolean }> {
+  const actor = await optionalCatalogActor('Admin');
+  if (!actor) return { success: false };
+  const email = normalizeEmail(userEmail);
   await exec(
-    `UPDATE catalog_access_requests SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE user_email = ?`,
-    [reviewedBy, email],
+    `UPDATE catalog_access_requests SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE LOWER(user_email) = ?`,
+    [actor.email, email],
   );
-  await writeAudit('Master data', 'Access requests', reviewedBy, `Rejected access request from ${email}`);
+  await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Rejected access request from ${email}`);
   return { success: true };
 }
 
 /** Revoke previously-approved access: resets the request status AND demotes app_user back to Viewer. */
-export async function revokeCatalogAccessRequest(userEmail: string, reviewedBy: string): Promise<{ success: boolean }> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) return { success: false };
-  const email = userEmail.toLowerCase();
+export async function revokeCatalogAccessRequest(userEmail: string): Promise<{ success: boolean }> {
+  const actor = await optionalCatalogActor('Admin');
+  if (!actor) return { success: false };
+  const email = normalizeEmail(userEmail);
   await exec(
-    `UPDATE catalog_access_requests SET status = 'Revoked', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE user_email = ?`,
-    [reviewedBy, email],
+    `UPDATE catalog_access_requests SET status = 'Revoked', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE LOWER(user_email) = ?`,
+    [actor.email, email],
   );
   await exec(`UPDATE app_user SET role = 'Viewer' WHERE LOWER(email) = ?`, [email]);
-  await writeAudit('Master data', 'Access requests', reviewedBy, `Revoked access for ${email} (reset to Viewer)`);
+  await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Revoked access for ${email} (reset to Viewer)`);
   return { success: true };
 }
 
 export async function deleteCatalogAccessRequest(userEmail: string): Promise<{ success: boolean }> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) return { success: false };
-  await exec(`DELETE FROM catalog_access_requests WHERE user_email = ?`, [userEmail.toLowerCase()]);
+  const actor = await optionalCatalogActor('Admin');
+  if (!actor) return { success: false };
+  const email = normalizeEmail(userEmail);
+  await exec(`DELETE FROM catalog_access_requests WHERE LOWER(user_email) = ?`, [email]);
+  await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Deleted the access request from ${email}`);
   return { success: true };
 }
 
@@ -1905,7 +2027,14 @@ export async function deleteCatalogAccessRequest(userEmail: string): Promise<{ s
 
 /** Lightweight master-data snapshot for the platform admin console's Catalog Repo panel. */
 export async function getCatalogAdminSummary(): Promise<CatalogAdminSummary> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor('Admin'))) {
+    return {
+      countriesActive: 0, countriesTotal: 0, currencies: 0, suppliers: 0, categoriesActive: 0,
+      uoms: 0, thresholdRules: 0, usersTotal: 0,
+      usersByRole: { Viewer: 0, Contributor: 0, Approver: 0, Admin: 0 },
+      countryApprovers: 0,
+    };
+  }
   const [countryRows, ccyRows, supplierRows, catRows, uomRows, thresholdRows, userRows, caRows] = await Promise.all([
     sql<{ total: number; active: number }[]>(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'Active')::int AS active FROM country`),
     sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM currency`),
@@ -1939,7 +2068,9 @@ export async function getCatalogAdminSummary(): Promise<CatalogAdminSummary> {
  * to the cached name) so "coverage" reflects what users actually see, not the raw column alone.
  */
 export async function getPirSyncHealth(): Promise<PirSyncHealth> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor('Admin'))) {
+    return { total: 0, lastSyncedAt: null, hoursSinceSync: null, withDescription: 0, descriptionCoveragePct: 0, isStale: true };
+  }
   const rows = await sql<{ total: number; last_synced: string | null; with_desc: number }[]>(
     `SELECT COUNT(*)::int AS total, MAX(p.synced_at)::text AS last_synced,
             COUNT(*) FILTER (WHERE ${PIR_DESC_EXPR} IS NOT NULL AND ${PIR_DESC_EXPR} <> '')::int AS with_desc
@@ -1961,17 +2092,15 @@ export async function getPirSyncHealth(): Promise<PirSyncHealth> {
 }
 
 export async function toggleCountryStatus(code: string): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) throw new Error('Admin only.');
+  const actor = await requireCatalogActor('Admin');
   await exec(`UPDATE country SET status = CASE WHEN status = 'Active' THEN 'Inactive' ELSE 'Active' END WHERE code = ?`, [code]);
-  await writeAudit('Master data', 'Countries', actor.name, `Toggled country ${code} status`);
+  await writeAudit('Master data', 'Countries', actor.name, actor.email, `Toggled country ${code} status`);
 }
 
 export async function toggleCategoryStatus(id: number): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) throw new Error('Admin only.');
+  const actor = await requireCatalogActor('Admin');
   await exec(`UPDATE spend_category SET status = CASE WHEN status = 'Active' THEN 'Inactive' ELSE 'Active' END WHERE id = ?`, [id]);
-  await writeAudit('Master data', 'Spend categories', actor.name, `Toggled a spend category status`);
+  await writeAudit('Master data', 'Spend categories', actor.name, actor.email, `Toggled a spend category status`);
 }
 
 // The fixed set of vendor codes the fabricated demo catalog entries used to be seeded under
@@ -1983,8 +2112,7 @@ const DEMO_SUPPLIER_VENDOR_CODES = [
 ];
 
 export async function deleteDemoCatalogData(): Promise<{ deletedEntries: number; deletedSuppliers: number }> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) throw new Error('Admin only.');
+  const actor = await requireCatalogActor('Admin');
 
   const entryResult = await exec(
     `DELETE FROM catalog_entry WHERE supplier_id IN (SELECT id FROM supplier WHERE vendor_code = ANY(?))`,
@@ -1997,27 +2125,33 @@ export async function deleteDemoCatalogData(): Promise<{ deletedEntries: number;
     [DEMO_SUPPLIER_VENDOR_CODES],
   );
 
-  await writeAudit('Master data', 'Catalog', actor.name, `Removed ${entryResult.rowCount} sample/demo catalog entries and ${supplierResult.rowCount} demo suppliers`);
+  await writeAudit('Master data', 'Catalog', actor.name, actor.email, `Removed ${entryResult.rowCount} sample/demo catalog entries and ${supplierResult.rowCount} demo suppliers`);
   return { deletedEntries: entryResult.rowCount, deletedSuppliers: supplierResult.rowCount };
 }
 
 export async function addUom(name: string): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) throw new Error('Admin only.');
+  const actor = await requireCatalogActor('Admin');
   await exec(`INSERT INTO unit_of_measure (name, status) VALUES (?, 'Active') ON CONFLICT (name) DO NOTHING`, [name]);
-  await writeAudit('Master data', 'Units of measure', actor.name, `Added UOM ${name}`);
+  await writeAudit('Master data', 'Units of measure', actor.name, actor.email, `Added UOM ${name}`);
 }
 
 /* ============================================================================
    AUDIT
 ============================================================================ */
 
-async function writeAudit(action: string, target: string, userName: string, detail: string): Promise<void> {
-  await exec(`INSERT INTO audit_log (action, target, user_name, detail) VALUES (?, ?, ?, ?)`, [action, target, userName, detail]);
+/**
+ * `userName` is a display label (and may read "X on behalf of Y"), so it is not an identity.
+ * `userEmail` is the AUTHENTICATED actor's address and is what the trail is keyed on.
+ */
+async function writeAudit(action: string, target: string, userName: string, userEmail: string | null, detail: string): Promise<void> {
+  await exec(
+    `INSERT INTO audit_log (action, target, user_name, user_email, detail) VALUES (?, ?, ?, ?, ?)`,
+    [action, target, userName, normalizeEmail(userEmail) || null, detail],
+  );
 }
 
 export async function getAuditLog(limit = 200): Promise<AuditEvent[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   const rows = await sql<QueryResultRow[]>(
     `SELECT id, action, target, user_name, detail,
             to_char(occurred_at, 'YYYY-MM-DD HH24:MI') AS occurred_at
@@ -2035,8 +2169,8 @@ export async function getAuditLog(limit = 200): Promise<AuditEvent[]> {
 }
 
 export async function logExport(scopeLabel: string, rowCount: number): Promise<void> {
-  const actor = await getCatalogActor();
-  await writeAudit('Export', `Catalog — ${scopeLabel}`, actor.name, `Exported ${rowCount} rows to CSV`);
+  const actor = await requireCatalogActor(); // never let an unauthenticated caller write the audit trail
+  await writeAudit('Export', `Catalog — ${scopeLabel}`, actor.name, actor.email, `Exported ${rowCount} rows to CSV`);
 }
 
 /* ============================================================================
@@ -2049,8 +2183,7 @@ export async function addEntryDocument(
   entryId: number,
   input: { fileName: string; docType: string | null; sizeLabel: string | null; dataUrl: string },
 ): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canCreate) throw new Error('You do not have permission to attach documents.');
+  const actor = await requireCatalogActor('Contributor');
   if (!input.dataUrl) throw new Error('No file content received.');
   if (input.dataUrl.length > MAX_DOC_DATAURL_LEN) throw new Error('File is too large — max ~5 MB.');
 
@@ -2060,19 +2193,25 @@ export async function addEntryDocument(
     [entryId, input.fileName, input.docType, input.sizeLabel, input.dataUrl, actor.name],
   );
   const code = await sql<{ code: string }[]>(`SELECT code FROM catalog_entry WHERE id = ?`, [entryId]);
-  await writeAudit('Document', code[0]?.code ?? String(entryId), actor.name, `Attached ${input.docType || 'document'}: ${input.fileName}`);
+  await writeAudit('Document', code[0]?.code ?? String(entryId), actor.name, actor.email, `Attached ${input.docType || 'document'}: ${input.fileName}`);
 }
 
 export async function deleteEntryDocument(docId: number, entryId: number): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canCreate) throw new Error('You do not have permission to remove documents.');
+  await requireCatalogActor('Contributor');
   await exec(`DELETE FROM entry_document WHERE id = ? AND entry_id = ?`, [docId, entryId]);
 }
 
-/** Returns the stored data URL for a document (for download), or null if it's a seeded placeholder. */
+/**
+ * Returns the stored data URL for a document (for download), or null if it's a seeded placeholder.
+ * The bytes are released only to a signed-in catalog user whose visibility covers the document's
+ * PARENT entry — without that join this was a document IDOR: any caller could walk `docId`.
+ */
 export async function getDocumentDataUrl(docId: number): Promise<string | null> {
-  await ensureCatalogManagerSchema();
-  const rows = await sql<{ data_url: string | null }[]>(`SELECT data_url FROM entry_document WHERE id = ?`, [docId]);
+  if (!(await optionalCatalogActor())) return null;
+  const rows = await sql<{ data_url: string | null }[]>(
+    `SELECT d.data_url FROM entry_document d JOIN catalog_entry e ON e.id = d.entry_id WHERE d.id = ?`,
+    [docId],
+  );
   return rows[0]?.data_url ?? null;
 }
 
@@ -2086,6 +2225,12 @@ export async function getDocumentDataUrl(docId: number): Promise<string | null> 
  * second identical full-table query — pass the same array instead of re-fetching it here.
  */
 export async function getCatalogAnalyticsData(country = 'ALL', preloadedEntries?: CatalogEntry[]): Promise<CatalogAnalyticsData> {
+  if (!(await optionalCatalogActor())) {
+    return {
+      activeCount: 0, supplierCount: 0, pendingCount: 0, expiringCount: 0, avgRateChangePct: null,
+      byCategory: [], byCountry: [], topMovers: [], statusCounts: [],
+    };
+  }
   const entries = preloadedEntries ?? await listCatalogEntries({ country });
   const today = new Date();
   const active = entries.filter((e) => e.status === 'Active');
@@ -2170,7 +2315,7 @@ export async function getCatalogAnalyticsData(country = 'ALL', preloadedEntries?
 ============================================================================ */
 
 export async function getApprovalThresholds(): Promise<ApprovalThresholdRule[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   const rows = await sql<QueryResultRow[]>(
     `SELECT t.id, t.country_code, c.name AS country_name, t.spend_category_id, sc.name AS spend_category_name, t.threshold_usd
      FROM approval_threshold t
@@ -2189,8 +2334,7 @@ export async function getApprovalThresholds(): Promise<ApprovalThresholdRule[]> 
 }
 
 export async function setApprovalThreshold(input: { country_code: string | null; spend_category_id: number | null; threshold_usd: number }): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) throw new Error('Admin only.');
+  const actor = await requireCatalogActor('Admin');
   if (!Number.isFinite(input.threshold_usd) || input.threshold_usd < 0) throw new Error('Enter a valid threshold amount.');
   await exec(
     `INSERT INTO approval_threshold (country_code, spend_category_id, threshold_usd, updated_by)
@@ -2199,12 +2343,11 @@ export async function setApprovalThreshold(input: { country_code: string | null;
        DO UPDATE SET threshold_usd = EXCLUDED.threshold_usd, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP`,
     [input.country_code, input.spend_category_id, input.threshold_usd, actor.name],
   );
-  await writeAudit('Master data', 'Thresholds', actor.name, `Set ${input.country_code ?? 'Any country'}${input.spend_category_id != null ? ' (category)' : ''} threshold to $${input.threshold_usd.toLocaleString()}`);
+  await writeAudit('Master data', 'Thresholds', actor.name, actor.email, `Set ${input.country_code ?? 'Any country'}${input.spend_category_id != null ? ' (category)' : ''} threshold to $${input.threshold_usd.toLocaleString()}`);
 }
 
 export async function removeApprovalThreshold(id: number): Promise<void> {
-  const actor = await getCatalogActor();
-  if (!actor.canAdmin) throw new Error('Admin only.');
+  const actor = await requireCatalogActor('Admin');
   const rows = await sql<{ country_code: string | null; spend_category_id: number | null }[]>(
     `SELECT country_code, spend_category_id FROM approval_threshold WHERE id = ?`, [id],
   );
@@ -2212,7 +2355,7 @@ export async function removeApprovalThreshold(id: number): Promise<void> {
     throw new Error('The global default threshold cannot be removed — edit its value instead.');
   }
   await exec(`DELETE FROM approval_threshold WHERE id = ?`, [id]);
-  await writeAudit('Master data', 'Thresholds', actor.name, 'Removed a threshold override');
+  await writeAudit('Master data', 'Thresholds', actor.name, actor.email, 'Removed a threshold override');
 }
 
 /* ============================================================================
@@ -2229,7 +2372,7 @@ export interface SupplierStats {
 }
 
 export async function getSuppliersWithStats(): Promise<SupplierStats[]> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return [];
   const rows = await sql<QueryResultRow[]>(
     `SELECT s.id, s.name, s.vendor_code, s.accountable_manager AS manager,
             COUNT(e.id)::int AS entry_count,
@@ -2262,7 +2405,7 @@ export interface SupplierProfile {
 }
 
 export async function getSupplierProfile(supplierId: number): Promise<SupplierProfile | null> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return null;
   const sup = await sql<SupplierRow[]>(`SELECT id, vendor_code, name, accountable_manager FROM supplier WHERE id = ?`, [supplierId]);
   if (!sup[0]) return null;
   const supplier = sup[0];
@@ -2298,22 +2441,20 @@ export async function getSupplierProfile(supplierId: number): Promise<SupplierPr
 ============================================================================ */
 
 export async function bulkDeactivateEntries(entryIds: number[]): Promise<{ count: number }> {
-  const actor = await getCatalogActor();
-  if (!actor.canCreate) throw new Error('Not permitted.');
+  const actor = await requireCatalogActor('Contributor');
   let count = 0;
   for (const id of entryIds) {
     const rows = await sql<{ code: string; status: string }[]>(`SELECT code, status FROM catalog_entry WHERE id = ?`, [id]);
     if (!rows[0] || rows[0].status === 'Expired') continue;
     await exec(`UPDATE catalog_entry SET status = 'Expired', modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [actor.name, id]);
-    await writeAudit('Status change', rows[0].code, actor.name, `${rows[0].status} → Deactivated (bulk)`);
+    await writeAudit('Status change', rows[0].code, actor.name, actor.email, `${rows[0].status} → Deactivated (bulk)`);
     count++;
   }
   return { count };
 }
 
 export async function bulkSubmitEntries(entryIds: number[]): Promise<{ count: number }> {
-  const actor = await getCatalogActor();
-  if (!actor.canCreate) throw new Error('Not permitted.');
+  const actor = await requireCatalogActor('Contributor');
   const rules = await loadThresholdRules();
   let count = 0;
   for (const id of entryIds) {
@@ -2325,7 +2466,7 @@ export async function bulkSubmitEntries(entryIds: number[]): Promise<{ count: nu
     const next: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
     const approver = next === 'Pending Approval' ? (e.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
     await exec(`UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [next, approver, actor.name, id]);
-    await writeAudit('Status change', e.code, actor.name, `${e.status} → ${next} (bulk)`);
+    await writeAudit('Status change', e.code, actor.name, actor.email, `${e.status} → ${next} (bulk)`);
     count++;
   }
   return { count };
@@ -2342,7 +2483,7 @@ export interface GlobalSearchResult {
 }
 
 export async function globalCatalogSearch(query: string): Promise<GlobalSearchResult> {
-  await ensureCatalogManagerSchema();
+  if (!(await optionalCatalogActor())) return { entries: [], suppliers: [], pir: [] };
   const q = (query ?? '').trim();
   if (q.length < 2) return { entries: [], suppliers: [], pir: [] };
   const like = `%${q}%`;

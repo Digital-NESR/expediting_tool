@@ -102,11 +102,11 @@ function RoleSelector({
   );
 }
 
+// No userEmail prop: the reviewer identity on every approve/reject/revoke now comes
+// from the authenticated actor inside the server action, not from the client.
 export default function LaptopAccessApprovalsClient({
-  userEmail,
   onPendingCountChange,
 }: {
-  userEmail: string;
   onPendingCountChange?: (count: number) => void;
 }) {
   const [requests, setRequests] = useState<LaptopAccessRequestRow[]>([]);
@@ -158,7 +158,7 @@ export default function LaptopAccessApprovalsClient({
     setActionError('');
     setProcessingEmail(row.user_email);
     startTransition(async () => {
-      const result = await approveLaptopAccess({ userEmail: row.user_email, approvedRole: role, reviewedBy: userEmail, country, segment, notes: null });
+      const result = await approveLaptopAccess({ userEmail: row.user_email, approvedRole: role, country, segment, notes: null });
       if (!result.success) {
         setActionError(result.error ?? 'Failed to approve Laptop Procurement access.');
         setProcessingEmail(null);
@@ -175,7 +175,7 @@ export default function LaptopAccessApprovalsClient({
     setActionError('');
     setProcessingEmail(row.user_email);
     startTransition(async () => {
-      const result = await editLaptopAccess({ userEmail: row.user_email, approvedRole: role, reviewedBy: userEmail, country, segment });
+      const result = await editLaptopAccess({ userEmail: row.user_email, approvedRole: role, country, segment });
       if (!result.success) {
         setActionError(result.error ?? 'Failed to edit Laptop Procurement access.');
         setProcessingEmail(null);
@@ -191,7 +191,7 @@ export default function LaptopAccessApprovalsClient({
   function handleReject(email: string) {
     setProcessingEmail(email);
     startTransition(async () => {
-      await rejectLaptopAccess(email, userEmail);
+      await rejectLaptopAccess(email);
       await refreshData();
       setProcessingEmail(null);
     });
@@ -200,7 +200,7 @@ export default function LaptopAccessApprovalsClient({
   function handleRevoke(email: string) {
     setProcessingEmail(email);
     startTransition(async () => {
-      await revokeLaptopAccess(email, userEmail);
+      await revokeLaptopAccess(email);
       await refreshData();
       setProcessingEmail(null);
     });

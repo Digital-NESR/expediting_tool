@@ -1,6 +1,7 @@
 'use server';
 
 import pool from '@/lib/db';
+import { currentActor } from '@/lib/require-access';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -51,12 +52,29 @@ export interface MyAnalytics {
 
 /* ─── getMyExpeditingAnalytics ───────────────────────────────── */
 
-export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAnalytics> {
+export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
   const toStr = (v: unknown): string | null => {
     if (v === null || v === undefined) return null;
     if (v instanceof Date) return v.toISOString();
     return String(v);
   };
+
+  const empty: MyAnalytics = {
+    totalLinesExpedited: 0,
+    totalSuppliersContacted: 0,
+    totalEmailsSent: 0,
+    overallResponseRate: null,
+    supplierBreakdown: [],
+    recentSessions: [],
+    weeklyRateData: [],
+    supplierResponseTime: [],
+  };
+
+  // Identity comes from the session, never from the caller: a server action is a
+  // public POST endpoint, so a buyer-email argument would be a read-any-buyer IDOR.
+  const actor = await currentActor();
+  if (!actor) return empty;
+  const userEmail = actor.email;
 
   try {
     const [kpiRes, supplierRes, sessionsRes, weeklyRes, responseTimeRes] = await Promise.all([
@@ -66,22 +84,22 @@ export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAna
         SELECT
           (SELECT COUNT(*)
              FROM active_expediting
-             WHERE dispatched_by = $1
+             WHERE LOWER(dispatched_by) = $1
           ) AS total_lines,
           (SELECT COUNT(DISTINCT s.supplier_name)
              FROM active_expediting ae
              JOIN sap_open_po_master s
                ON ae.po_number = s.po_number AND ae.po_line = s.po_line
-             WHERE ae.dispatched_by = $1
+             WHERE LOWER(ae.dispatched_by) = $1
           ) AS total_suppliers,
           (SELECT COALESCE(SUM(total_emails_sent), 0)
              FROM expediting_sessions
-             WHERE dispatched_by = $1
+             WHERE LOWER(dispatched_by) = $1
           ) AS total_emails,
           (SELECT ROUND(
              COUNT(CASE WHEN workflow_state = 'Submitted' THEN 1 END) * 100.0
                / NULLIF(COUNT(*), 0), 1
-           ) FROM active_expediting WHERE dispatched_by = $1) AS response_rate
+           ) FROM active_expediting WHERE LOWER(dispatched_by) = $1) AS response_rate
       `, [userEmail]),
 
       /* ── My supplier breakdown ── */
@@ -99,7 +117,7 @@ export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAna
         FROM active_expediting ae
         JOIN sap_open_po_master s
           ON ae.po_number = s.po_number AND ae.po_line = s.po_line
-        WHERE ae.dispatched_by = $1
+        WHERE LOWER(ae.dispatched_by) = $1
         GROUP BY s.supplier_name
         ORDER BY response_rate DESC NULLS LAST
       `, [userEmail]),
@@ -116,7 +134,7 @@ export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAna
           response_rate_pct,
           fully_closed
         FROM expediting_sessions
-        WHERE dispatched_by = $1
+        WHERE LOWER(dispatched_by) = $1
         ORDER BY dispatched_at DESC
         LIMIT 20
       `, [userEmail]),
@@ -130,7 +148,7 @@ export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAna
           ROUND(AVG(response_rate_pct), 1)   AS avg_response_rate,
           COUNT(*)                           AS sessions_count
         FROM expediting_sessions
-        WHERE dispatched_by = $1
+        WHERE LOWER(dispatched_by) = $1
         GROUP BY DATE_TRUNC('week', dispatched_at)
         ORDER BY week ASC
       `, [userEmail]),
@@ -147,7 +165,7 @@ export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAna
         JOIN sap_open_po_master s
           ON ae.po_number = s.po_number AND ae.po_line = s.po_line
         WHERE ae.workflow_state = 'Submitted'
-          AND ae.dispatched_by = $1
+          AND LOWER(ae.dispatched_by) = $1
           AND ae.dispatched_at IS NOT NULL
           AND ae.updated_at IS NOT NULL
         GROUP BY s.supplier_name
@@ -200,16 +218,7 @@ export async function getMyExpeditingAnalytics(userEmail: string): Promise<MyAna
     };
   } catch (err) {
     console.error('[getMyExpeditingAnalytics]', err);
-    return {
-      totalLinesExpedited: 0,
-      totalSuppliersContacted: 0,
-      totalEmailsSent: 0,
-      overallResponseRate: null,
-      supplierBreakdown: [],
-      recentSessions: [],
-      weeklyRateData: [],
-      supplierResponseTime: [],
-    };
+    return empty;
   }
 }
 
@@ -235,13 +244,16 @@ export interface SupplierDetailLine {
 
 export async function getSupplierDetail(
   supplierName: string,
-  userEmail: string,
 ): Promise<SupplierDetailLine[]> {
   const toStr = (v: unknown): string | null => {
     if (v === null || v === undefined) return null;
     if (v instanceof Date) return v.toISOString();
     return String(v);
   };
+  // Scope to the signed-in buyer; never to a caller-supplied email.
+  const actor = await currentActor();
+  if (!actor) return [];
+  const userEmail = actor.email;
   try {
     const res = await pool.query(`
       SELECT
@@ -264,7 +276,7 @@ export async function getSupplierDetail(
       JOIN sap_open_po_master s
         ON ae.po_number = s.po_number AND ae.po_line = s.po_line
       WHERE s.supplier_name = $1
-        AND ae.dispatched_by = $2
+        AND LOWER(ae.dispatched_by) = $2
       ORDER BY ae.po_number, ae.po_line
     `, [supplierName, userEmail]);
 
@@ -313,13 +325,16 @@ export interface SessionDetailLine {
 
 export async function getSessionDetail(
   sessionRef: string,
-  userEmail: string,
 ): Promise<SessionDetailLine[]> {
   const toStr = (v: unknown): string | null => {
     if (v === null || v === undefined) return null;
     if (v instanceof Date) return v.toISOString();
     return String(v);
   };
+  // Scope to the signed-in buyer; never to a caller-supplied email.
+  const actor = await currentActor();
+  if (!actor) return [];
+  const userEmail = actor.email;
   try {
     const res = await pool.query(`
       SELECT
@@ -342,7 +357,7 @@ export async function getSessionDetail(
       JOIN sap_open_po_master s
         ON ae.po_number = s.po_number AND ae.po_line = s.po_line
       WHERE ae.session_ref = $1::uuid
-        AND ae.dispatched_by = $2
+        AND LOWER(ae.dispatched_by) = $2
       ORDER BY s.supplier_name, ae.po_number, ae.po_line
     `, [sessionRef, userEmail]);
 

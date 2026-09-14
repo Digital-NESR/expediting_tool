@@ -1,23 +1,47 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { BarChart3, ArrowLeft } from 'lucide-react';
+import { currentActor } from '@/lib/require-access';
 
-export default function SupplyChainAnalyticsPage() {
-  const router = useRouter();
+/* The Power BI report/tenant/workspace ids are configuration, not source.
+   Read server-side (no NEXT_PUBLIC_ prefix) with the previous hard-coded
+   values as defaults, so an unset env changes nothing. */
+const POWERBI_REPORT_ID = process.env.POWERBI_SCA_REPORT_ID ?? 'c1485412-17dc-476d-8c80-dc56714d9e53';
+const POWERBI_TENANT_ID = process.env.POWERBI_TENANT_ID ?? '5f13d1c2-10ac-49b8-a85e-4bb3d91135b9';
+const POWERBI_WORKSPACE_ID = process.env.POWERBI_SCA_WORKSPACE_ID ?? '';
+
+function embedUrl(): string {
+  const params = new URLSearchParams({
+    reportId: POWERBI_REPORT_ID,
+    autoAuth: 'true',
+    ctid: POWERBI_TENANT_ID,
+  });
+  // Only sent when configured — the report embedded fine without it.
+  if (POWERBI_WORKSPACE_ID) params.set('groupId', POWERBI_WORKSPACE_ID);
+  return `https://app.powerbi.com/reportEmbed?${params.toString()}`;
+}
+
+export default async function SupplyChainAnalyticsPage() {
+  /* The layout gates this segment, but layouts do not re-render on navigation
+     and layout/page render in parallel — so the same ADMIN_EMAILS rule is
+     re-checked here. When it fails the layout renders the Access Denied card,
+     so this page renders nothing. */
+  const actor = await currentActor();
+  if (!actor) redirect('/login');
+  if (!actor.isPlatformAdmin) return null;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans text-slate-900">
 
       {/* Header */}
       <header className="h-14 bg-white border-b border-gray-200 px-6 flex items-center gap-4 shrink-0">
-        <button
-          onClick={() => router.push('/home')}
+        <Link
+          href="/home"
           className="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Home
-        </button>
+        </Link>
         <div className="h-5 w-px bg-gray-200" />
         <div className="flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-[#307c4c]" />
@@ -39,7 +63,7 @@ export default function SupplyChainAnalyticsPage() {
           <div className="w-full h-full min-h-[600px] bg-white rounded-xl border border-gray-200 overflow-hidden">
             <iframe
               title="Supply Chain Health Board - 2026"
-              src="https://app.powerbi.com/reportEmbed?reportId=c1485412-17dc-476d-8c80-dc56714d9e53&autoAuth=true&ctid=5f13d1c2-10ac-49b8-a85e-4bb3d91135b9"
+              src={embedUrl()}
               className="w-full h-full min-h-[600px] border-0"
               allowFullScreen
             />

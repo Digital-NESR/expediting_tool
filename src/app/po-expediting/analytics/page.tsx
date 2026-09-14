@@ -14,7 +14,6 @@ export default async function MyAnalyticsPage() {
 
   return (
     <AnalyticsClient
-      userEmail={session.user.email}
       userName={session.user.name ?? session.user.email}
     />
   );
