@@ -340,6 +340,93 @@ export async function getProcureGuardNotificationRecipients(input: {
     });
 }
 
+/**
+ * Batched sibling of getProcureGuardNotificationRecipients(): resolves the recipients for SEVERAL
+ * workflow steps in ONE query instead of one round-trip per step. The detail page's "who gets
+ * emailed" preview walked every step of the workflow sequentially, so a 5-step advance request cost
+ * 5 identical-shaped queries.
+ *
+ * The matching and ordering rules are byte-for-byte the single-step ones, just evaluated in JS over
+ * the union of candidate rows: a recipient matches a step when it is filed under one of the
+ * request's country keys AND (its stored approval_status is that step's status OR its
+ * notification_role is that step's owner label), or — for a global approver step — when its
+ * notification_role is that owner label regardless of country.
+ */
+export async function getProcureGuardNotificationRecipientsForStatuses(input: {
+  requestType: ProcureGuardRequestType;
+  country: string | null | undefined;
+  steps: Array<{ status: ProcureGuardStatus; ownerLabel: string }>;
+}): Promise<Map<ProcureGuardStatus, ProcureGuardNotificationRecipient[]>> {
+  const result = new Map<ProcureGuardStatus, ProcureGuardNotificationRecipient[]>();
+  const countries = countryRecipientKeys(input.country);
+  if (countries.length === 0 || input.steps.length === 0) {
+    for (const step of input.steps) result.set(step.status, []);
+    return result;
+  }
+
+  const statuses = [...new Set(input.steps.map(step => step.status))];
+  const ownerLabels = [...new Set(input.steps.map(step => step.ownerLabel))];
+  const globalLabels = ownerLabels.filter(label => GLOBAL_APPROVER_OWNER_LABELS.has(label));
+
+  const countryPlaceholders = countries.map(() => '?').join(', ');
+  const statusPlaceholders = statuses.map(() => '?').join(', ');
+  const ownerPlaceholders = ownerLabels.map(() => 'LOWER(?)').join(', ');
+  const globalClause = globalLabels.length
+    ? `OR LOWER(notification_role) IN (${globalLabels.map(() => 'LOWER(?)').join(', ')})`
+    : '';
+
+  // Ordered by the two step-independent keys of the single-step query; the step-dependent
+  // "approval_status matches this step first" key is applied per step below.
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT display_name, email, notification_role, approval_status, country, source_column, is_required
+     FROM procure_guard_notification_recipients
+     WHERE is_active = TRUE
+       AND email IS NOT NULL
+       AND TRIM(email) <> ''
+       AND (request_type = ? OR request_type = 'both')
+       AND (
+         (country IN (${countryPlaceholders}) AND (approval_status IN (${statusPlaceholders}) OR LOWER(notification_role) IN (${ownerPlaceholders})))
+         ${globalClause}
+       )
+     ORDER BY is_required DESC, display_name ASC`,
+    [input.requestType, ...countries, ...statuses, ...ownerLabels, ...globalLabels],
+  );
+
+  type CandidateRow = ProcureGuardNotificationRecipient & { is_required?: boolean | null };
+  const candidates = serialise<CandidateRow[]>(rows);
+  const countryKeys = new Set(countries);
+
+  for (const step of input.steps) {
+    const ownerLower = step.ownerLabel.toLowerCase();
+    const isGlobalOwner = GLOBAL_APPROVER_OWNER_LABELS.has(step.ownerLabel);
+    const matched = candidates.filter(row => {
+      const roleLower = (row.notification_role ?? '').toLowerCase();
+      const countryMatch = countryKeys.has(row.country)
+        && (row.approval_status === step.status || roleLower === ownerLower);
+      return countryMatch || (isGlobalOwner && roleLower === ownerLower);
+    });
+    // Array.prototype.sort is stable, so re-sorting the already correctly ordered candidate list by
+    // the single step-dependent key reproduces the original three-key SQL ORDER BY exactly.
+    matched.sort((a, b) =>
+      (a.approval_status === step.status ? 0 : 1) - (b.approval_status === step.status ? 0 : 1));
+
+    const seen = new Set<string>();
+    result.set(
+      step.status,
+      matched
+        .filter(row => {
+          const key = row.email.trim().toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .map(({ is_required: _isRequired, ...recipient }) => recipient),
+    );
+  }
+
+  return result;
+}
+
 export async function postProcureGuardWebhook(
   webhookUrl: string,
   headers: Record<string, string>,

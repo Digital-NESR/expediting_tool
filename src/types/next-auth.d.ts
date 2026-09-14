@@ -34,6 +34,10 @@ declare module "next-auth" {
 
 declare module "next-auth/jwt" {
   interface JWT {
+    /* Whether this user has an avatar in `user_photos`. The image itself is
+       deliberately NOT in the token — it used to be a base64 data: URI and
+       was the bulk of the encrypted session cookie. See /api/me/photo. */
+    hasPhoto?: boolean;
     jobTitle?: string;
     department?: string;
     country?: string;

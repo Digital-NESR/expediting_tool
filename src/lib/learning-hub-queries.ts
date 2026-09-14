@@ -424,10 +424,8 @@ export async function ensureLearningHubReady(): Promise<void> {
 
 /* ── Shared row shapes for aggregate queries ─────────────────────────── */
 
-interface CountRow extends QueryResultRow {
-  lesson_count: number;
-  completed_count: number;
-}
+// (CountRow was the per-track/per-course aggregate row shape; those N+1 loops are now single
+// GROUP BY queries whose rows are read straight off QueryResultRow.)
 
 /* ── Lightweight title lookups (for page <title> metadata) ───────────────── */
 
@@ -524,55 +522,64 @@ export async function getLearningHubDashboardData(): Promise<LearningHubDashboar
   const userEmail = me.email;
   await ensureLearningHubReady();
 
-  const tracks = await sql<LearningTrack[]>(`SELECT * FROM learning_tracks ORDER BY order_index ASC, id ASC`);
+  // One GROUP BY for EVERY track's counts, issued alongside the track list and the "continue"
+  // lookup. This used to be 1 + 2N + 1 strictly sequential round trips (8 for four tracks); it is
+  // now three concurrent ones. The LEFT JOIN chain reproduces the old numbers exactly: a published
+  // course with no modules still counts toward course_count (as it did under the separate COUNT(*)),
+  // and the lesson/completed counts still only see published courses.
+  const [tracks, trackCountRows, continueRows] = await Promise.all([
+    sql<LearningTrack[]>(`SELECT * FROM learning_tracks ORDER BY order_index ASC, id ASC`),
+    sql<QueryResultRow[]>(
+      `SELECT
+         t.id AS track_id,
+         COUNT(DISTINCT c.id)::int AS course_count,
+         COUNT(DISTINCT l.id)::int AS lesson_count,
+         COUNT(DISTINCT p.id)::int AS completed_count
+       FROM learning_tracks t
+       LEFT JOIN learning_courses c ON c.track_id = t.id AND c.status = 'published'
+       LEFT JOIN learning_modules m ON m.course_id = c.id
+       LEFT JOIN learning_lessons l ON l.module_id = m.id
+       LEFT JOIN learning_lesson_progress p ON p.lesson_id = l.id AND p.user_email = ?
+       GROUP BY t.id`,
+      [userEmail],
+    ),
+    sql<QueryResultRow[]>(
+      `SELECT t.key AS track_key, t.name AS track_name, c.id AS course_id, c.title AS course_title,
+              l.id AS lesson_id, l.title AS lesson_title
+       FROM learning_lessons l
+       JOIN learning_modules m ON m.id = l.module_id
+       JOIN learning_courses c ON c.id = m.course_id
+       JOIN learning_tracks t ON t.id = c.track_id
+       LEFT JOIN learning_lesson_progress p ON p.lesson_id = l.id AND p.user_email = ?
+       WHERE c.status = 'published' AND p.id IS NULL
+       ORDER BY t.order_index ASC, c.order_index ASC, m.order_index ASC, l.order_index ASC
+       LIMIT 1`,
+      [userEmail],
+    ),
+  ]);
+
+  const countsByTrack = new Map<number, QueryResultRow>();
+  for (const row of trackCountRows) countsByTrack.set(Number(row.track_id), row);
 
   const tracksWithProgress: TrackWithProgress[] = [];
   let totalLessons = 0;
   let totalCompleted = 0;
 
   for (const track of tracks) {
-    const rows = await sql<CountRow[]>(
-      `SELECT
-         COUNT(DISTINCT l.id)::int AS lesson_count,
-         COUNT(DISTINCT p.id)::int AS completed_count
-       FROM learning_courses c
-       JOIN learning_modules m ON m.course_id = c.id
-       JOIN learning_lessons l ON l.module_id = m.id
-       LEFT JOIN learning_lesson_progress p ON p.lesson_id = l.id AND p.user_email = ?
-       WHERE c.track_id = ? AND c.status = 'published'`,
-      [userEmail, track.id],
-    );
-    const courseCountRows = await sql<QueryResultRow[]>(
-      `SELECT COUNT(*)::int AS count FROM learning_courses WHERE track_id = ? AND status = 'published'`,
-      [track.id],
-    );
-    const lessonCount = Number(rows[0]?.lesson_count ?? 0);
-    const completedCount = Number(rows[0]?.completed_count ?? 0);
+    const counts = countsByTrack.get(Number(track.id));
+    const lessonCount = Number(counts?.lesson_count ?? 0);
+    const completedCount = Number(counts?.completed_count ?? 0);
     totalLessons += lessonCount;
     totalCompleted += completedCount;
 
     tracksWithProgress.push({
       ...track,
-      course_count: Number(courseCountRows[0]?.count ?? 0),
+      course_count: Number(counts?.course_count ?? 0),
       lesson_count: lessonCount,
       completed_count: completedCount,
       progress_pct: lessonCount > 0 ? Math.round((completedCount / lessonCount) * 100) : 0,
     });
   }
-
-  const continueRows = await sql<QueryResultRow[]>(
-    `SELECT t.key AS track_key, t.name AS track_name, c.id AS course_id, c.title AS course_title,
-            l.id AS lesson_id, l.title AS lesson_title
-     FROM learning_lessons l
-     JOIN learning_modules m ON m.id = l.module_id
-     JOIN learning_courses c ON c.id = m.course_id
-     JOIN learning_tracks t ON t.id = c.track_id
-     LEFT JOIN learning_lesson_progress p ON p.lesson_id = l.id AND p.user_email = ?
-     WHERE c.status = 'published' AND p.id IS NULL
-     ORDER BY t.order_index ASC, c.order_index ASC, m.order_index ASC, l.order_index ASC
-     LIMIT 1`,
-    [userEmail],
-  );
 
   const continueRow = continueRows[0];
 
@@ -605,30 +612,40 @@ export async function getTrackDetail(trackKey: string): Promise<TrackDetailData 
   const track = tracks[0];
   if (!track) return null;
 
-  const courses = await sql<LearningCourse[]>(
-    `SELECT * FROM learning_courses WHERE track_id = ? AND status = 'published' ORDER BY order_index ASC, id ASC`,
-    [track.id],
-  );
-
-  const coursesWithProgress: CourseWithProgress[] = [];
-  for (const course of courses) {
-    const rows = await sql<CountRow[]>(
-      `SELECT COUNT(DISTINCT l.id)::int AS lesson_count, COUNT(DISTINCT p.id)::int AS completed_count
-       FROM learning_modules m
-       JOIN learning_lessons l ON l.module_id = m.id
+  // Course list + ONE GROUP BY covering every course's counts, in parallel (was 1 + N sequential).
+  const [courses, courseCountRows] = await Promise.all([
+    sql<LearningCourse[]>(
+      `SELECT * FROM learning_courses WHERE track_id = ? AND status = 'published' ORDER BY order_index ASC, id ASC`,
+      [track.id],
+    ),
+    sql<QueryResultRow[]>(
+      `SELECT c.id AS course_id,
+              COUNT(DISTINCT l.id)::int AS lesson_count,
+              COUNT(DISTINCT p.id)::int AS completed_count
+       FROM learning_courses c
+       LEFT JOIN learning_modules m ON m.course_id = c.id
+       LEFT JOIN learning_lessons l ON l.module_id = m.id
        LEFT JOIN learning_lesson_progress p ON p.lesson_id = l.id AND p.user_email = ?
-       WHERE m.course_id = ?`,
-      [userEmail, course.id],
-    );
-    const lessonCount = Number(rows[0]?.lesson_count ?? 0);
-    const completedCount = Number(rows[0]?.completed_count ?? 0);
-    coursesWithProgress.push({
+       WHERE c.track_id = ? AND c.status = 'published'
+       GROUP BY c.id`,
+      [userEmail, track.id],
+    ),
+  ]);
+
+  const countsByCourse = new Map<number, QueryResultRow>();
+  for (const row of courseCountRows) countsByCourse.set(Number(row.course_id), row);
+
+  const coursesWithProgress: CourseWithProgress[] = courses.map((course) => {
+    const counts = countsByCourse.get(Number(course.id));
+    const lessonCount = Number(counts?.lesson_count ?? 0);
+    const completedCount = Number(counts?.completed_count ?? 0);
+    return {
       ...course,
       lesson_count: lessonCount,
       completed_count: completedCount,
       progress_pct: lessonCount > 0 ? Math.round((completedCount / lessonCount) * 100) : 0,
-    });
-  }
+    };
+  });
 
   return { track, courses: coursesWithProgress };
 }
@@ -715,31 +732,49 @@ export async function getCourseDetail(trackKey: string, courseId: number): Promi
     [course.id],
   );
 
-  const completedRows = await sql<QueryResultRow[]>(
-    `SELECT l.id AS lesson_id
-     FROM learning_lessons l
-     JOIN learning_modules m ON m.id = l.module_id
-     JOIN learning_lesson_progress p ON p.lesson_id = l.id
-     WHERE m.course_id = ? AND p.user_email = ?`,
-    [course.id, userEmail],
-  );
-  const completedIds = new Set(completedRows.map((r) => Number(r.lesson_id)));
-  const gating = await getCourseGating(course.id, userEmail);
-
   const moduleIds = modules.map((m) => m.id);
-  const quizRows = moduleIds.length
-    ? await sql<QueryResultRow[]>(`SELECT module_id FROM learning_quizzes WHERE module_id = ANY(?)`, [moduleIds])
-    : [];
+
+  // Completion, gating, module-quiz flags and EVERY module's lessons in one parallel batch: these
+  // four reads only depend on the course/module ids, and the lesson query replaces the per-module
+  // loop (was 3 + N sequential round trips for an N-module course).
+  const [completedRows, gating, quizRows, lessonRows] = await Promise.all([
+    sql<QueryResultRow[]>(
+      `SELECT l.id AS lesson_id
+       FROM learning_lessons l
+       JOIN learning_modules m ON m.id = l.module_id
+       JOIN learning_lesson_progress p ON p.lesson_id = l.id
+       WHERE m.course_id = ? AND p.user_email = ?`,
+      [course.id, userEmail],
+    ),
+    getCourseGating(course.id, userEmail),
+    moduleIds.length
+      ? sql<QueryResultRow[]>(`SELECT module_id FROM learning_quizzes WHERE module_id = ANY(?)`, [moduleIds])
+      : Promise.resolve([] as QueryResultRow[]),
+    moduleIds.length
+      ? sql<LearningLesson[]>(
+          `SELECT * FROM learning_lessons WHERE module_id = ANY(?) ORDER BY module_id ASC, order_index ASC, id ASC`,
+          [moduleIds],
+        )
+      : Promise.resolve([] as LearningLesson[]),
+  ]);
+
+  const completedIds = new Set(completedRows.map((r) => Number(r.lesson_id)));
   const quizModuleIds = new Set(quizRows.map((r) => Number(r.module_id)));
+
+  // Same per-module ordering as the old one-query-per-module loop (order_index ASC, id ASC).
+  const lessonsByModule = new Map<number, LearningLesson[]>();
+  for (const lesson of lessonRows) {
+    const key = Number(lesson.module_id);
+    const bucket = lessonsByModule.get(key);
+    if (bucket) bucket.push(lesson);
+    else lessonsByModule.set(key, [lesson]);
+  }
 
   const moduleOutlines: ModuleOutline[] = [];
   let lessonCount = 0;
   let completedCount = 0;
   for (const mod of modules) {
-    const lessons = await sql<LearningLesson[]>(
-      `SELECT * FROM learning_lessons WHERE module_id = ? ORDER BY order_index ASC, id ASC`,
-      [mod.id],
-    );
+    const lessons = lessonsByModule.get(Number(mod.id)) ?? [];
     const lessonsWithCompletion = lessons.map((l) => {
       const g = gating.get(l.id);
       const completed = g?.hasQuiz ? !!g.quizPassed : completedIds.has(l.id);
@@ -784,27 +819,30 @@ export async function getLessonDetail(
   const course = courses[0];
   if (!course) return null;
 
-  const lessons = await sql<QueryResultRow[]>(
-    `SELECT l.* FROM learning_lessons l
-     JOIN learning_modules m ON m.id = l.module_id
-     WHERE m.course_id = ?
-     ORDER BY m.order_index ASC, m.id ASC, l.order_index ASC, l.id ASC`,
-    [course.id],
-  );
+  // The lesson list, this lesson's completion row and the course gating are independent of one
+  // another; they used to be awaited one after the other (3 sequential round trips).
+  const [lessons, completedRows, gating] = await Promise.all([
+    sql<QueryResultRow[]>(
+      `SELECT l.* FROM learning_lessons l
+       JOIN learning_modules m ON m.id = l.module_id
+       WHERE m.course_id = ?
+       ORDER BY m.order_index ASC, m.id ASC, l.order_index ASC, l.id ASC`,
+      [course.id],
+    ),
+    sql<QueryResultRow[]>(
+      `SELECT id FROM learning_lesson_progress WHERE lesson_id = ? AND user_email = ?`,
+      [lessonId, userEmail],
+    ),
+    getCourseGating(course.id, userEmail),
+  ]);
 
   const idx = lessons.findIndex((l) => Number(l.id) === lessonId);
   if (idx < 0) return null;
   const lesson = lessons[idx] as unknown as LearningLesson;
 
-  const completedRows = await sql<QueryResultRow[]>(
-    `SELECT id FROM learning_lesson_progress WHERE lesson_id = ? AND user_email = ?`,
-    [lessonId, userEmail],
-  );
-
   const prevRow = idx > 0 ? lessons[idx - 1] : null;
   const nextRow = idx < lessons.length - 1 ? lessons[idx + 1] : null;
 
-  const gating = await getCourseGating(course.id, userEmail);
   const g = gating.get(lessonId);
   const locked = !!g?.locked;
   const quizPassed = !!g?.quizPassed;

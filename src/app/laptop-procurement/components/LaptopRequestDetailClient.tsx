@@ -897,7 +897,11 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
               ) : (
                 <div className="space-y-2">
                   {documents.map(doc => (
-                    <Link key={doc.id} href={`/api/laptop-procurement/documents/${doc.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm transition hover:bg-white">
+                    // A plain <a>, deliberately not <Link>: this href is a file download, not a
+                    // route. <Link> prefetches its target on hover/viewport, which pulled the
+                    // whole attachment out of the database in the background for every
+                    // attachment on the page, whether or not anyone clicked one.
+                    <a key={doc.id} href={`/api/laptop-procurement/documents/${doc.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm transition hover:bg-white">
                       <span className="flex min-w-0 items-center gap-3">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#307c4c] text-[9px] font-bold text-white shadow-sm">{fileBadgeLabel(doc.file_type)}</span>
                         <span className="min-w-0">
@@ -906,7 +910,7 @@ export default function LaptopRequestDetailClient({ data, devices }: { data: Lap
                         </span>
                       </span>
                       <span className="text-xs font-bold text-[#307c4c]">Download</span>
-                    </Link>
+                    </a>
                   ))}
                 </div>
               )}

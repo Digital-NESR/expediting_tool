@@ -140,13 +140,16 @@ export async function getLearningHubAnalytics(): Promise<LearningHubAnalytics> {
     if (!actor?.isAdmin) return EMPTY_ANALYTICS;
     await ensureLearningHubReady();
 
-    const trackRows = await sql<QueryResultRow[]>(
-      `SELECT id, key, name, color, order_index FROM learning_tracks ORDER BY order_index, id`,
-    );
-
-    // Per-course: lesson count, distinct learners, learners who finished all lessons, total completions.
-    const courseRows = await sql<QueryResultRow[]>(
-      `WITH course_lessons AS (
+    // All five reads are independent; they used to be awaited one after the other, so the admin
+    // analytics page paid five serial round trips (plus whatever getRedBullGameStats did) before
+    // rendering anything.
+    const [trackRows, courseRows, overallRows, trackLearnerRows, redBull] = await Promise.all([
+      sql<QueryResultRow[]>(
+        `SELECT id, key, name, color, order_index FROM learning_tracks ORDER BY order_index, id`,
+      ),
+      // Per-course: lesson count, distinct learners, learners who finished all lessons, total completions.
+      sql<QueryResultRow[]>(
+        `WITH course_lessons AS (
          SELECT c.id AS course_id, c.track_id, c.title, c.status, c.order_index,
                 COUNT(l.id) AS lesson_count
          FROM learning_courses c
@@ -171,20 +174,20 @@ export async function getLearningHubAnalytics(): Promise<LearningHubAnalytics> {
        LEFT JOIN user_course uc ON uc.course_id = cl.course_id
        GROUP BY cl.course_id, cl.track_id, cl.title, cl.status, cl.order_index, cl.lesson_count
        ORDER BY cl.track_id, cl.order_index, cl.course_id`,
-    );
-
-    const overallRows = await sql<QueryResultRow[]>(
-      `SELECT COUNT(DISTINCT user_email)::int AS learners, COUNT(*)::int AS completions FROM learning_lesson_progress`,
-    );
-
-    const trackLearnerRows = await sql<QueryResultRow[]>(
-      `SELECT c.track_id, COUNT(DISTINCT p.user_email)::int AS learners
-       FROM learning_courses c
-       JOIN learning_modules m ON m.course_id = c.id
-       JOIN learning_lessons l ON l.module_id = m.id
-       JOIN learning_lesson_progress p ON p.lesson_id = l.id
-       GROUP BY c.track_id`,
-    );
+      ),
+      sql<QueryResultRow[]>(
+        `SELECT COUNT(DISTINCT user_email)::int AS learners, COUNT(*)::int AS completions FROM learning_lesson_progress`,
+      ),
+      sql<QueryResultRow[]>(
+        `SELECT c.track_id, COUNT(DISTINCT p.user_email)::int AS learners
+         FROM learning_courses c
+         JOIN learning_modules m ON m.course_id = c.id
+         JOIN learning_lessons l ON l.module_id = m.id
+         JOIN learning_lesson_progress p ON p.lesson_id = l.id
+         GROUP BY c.track_id`,
+      ),
+      getRedBullGameStats(),
+    ]);
 
     const tracks: LhTrackAnalytics[] = trackRows.map((t) => {
       const courses: LhCourseAnalytics[] = courseRows
@@ -214,8 +217,6 @@ export async function getLearningHubAnalytics(): Promise<LearningHubAnalytics> {
         courses,
       };
     });
-
-    const redBull = await getRedBullGameStats();
 
     return {
       overview: {
@@ -328,11 +329,14 @@ export async function getLearningHubAdminData(): Promise<LearningHubAdminData> {
   if (!actor?.isAdmin) return EMPTY_ADMIN_DATA;
   await ensureLearningHubReady();
 
-  const tracks = await sql<LearningTrack[]>(`SELECT * FROM learning_tracks ORDER BY order_index ASC, id ASC`);
-  const courses = await sql<LearningCourse[]>(`SELECT * FROM learning_courses ORDER BY track_id ASC, order_index ASC, id ASC`);
-  const modules = await sql<LearningModule[]>(`SELECT * FROM learning_modules ORDER BY course_id ASC, order_index ASC, id ASC`);
-  const lessons = await sql<LearningLesson[]>(`SELECT * FROM learning_lessons ORDER BY module_id ASC, order_index ASC, id ASC`);
-  const quizRows = await sql<QueryResultRow[]>(`SELECT module_id FROM learning_quizzes`);
+  // Five independent selects: one round trip instead of five serial ones.
+  const [tracks, courses, modules, lessons, quizRows] = await Promise.all([
+    sql<LearningTrack[]>(`SELECT * FROM learning_tracks ORDER BY order_index ASC, id ASC`),
+    sql<LearningCourse[]>(`SELECT * FROM learning_courses ORDER BY track_id ASC, order_index ASC, id ASC`),
+    sql<LearningModule[]>(`SELECT * FROM learning_modules ORDER BY course_id ASC, order_index ASC, id ASC`),
+    sql<LearningLesson[]>(`SELECT * FROM learning_lessons ORDER BY module_id ASC, order_index ASC, id ASC`),
+    sql<QueryResultRow[]>(`SELECT module_id FROM learning_quizzes`),
+  ]);
   const quizModuleIds = new Set(quizRows.map((r) => Number(r.module_id)));
 
   const modulesWithLessons: AdminModuleWithLessons[] = modules.map((m) => ({

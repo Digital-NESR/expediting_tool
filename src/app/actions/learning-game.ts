@@ -160,55 +160,77 @@ export async function submitRedBullScore(input: RedBullScoreInput): Promise<{ su
   }
 }
 
+/**
+ * The top-25 board on its own. Split out of getRedBullLeaderboard() so the admin analytics page
+ * (getRedBullGameStats) can ask for JUST the board: it used to call the whole leaderboard and throw
+ * away `me` and `history`, paying for up to three extra queries against the admin's own scores.
+ */
+async function getRedBullTopScores(myEmail: string): Promise<RedBullLeaderboardEntry[]> {
+  // Best run per player, ranked. The details shown are those of each player's best run.
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT user_email,
+            MAX(score) AS score,
+            (ARRAY_AGG(player_name ORDER BY score DESC, created_at DESC))[1] AS player_name,
+            (ARRAY_AGG(grade       ORDER BY score DESC, created_at DESC))[1] AS grade,
+            (ARRAY_AGG(role        ORDER BY score DESC, created_at DESC))[1] AS role,
+            (ARRAY_AGG(pattern     ORDER BY score DESC, created_at DESC))[1] AS pattern,
+            (ARRAY_AGG(weeks       ORDER BY score DESC, created_at DESC))[1] AS weeks,
+            (ARRAY_AGG(created_at  ORDER BY score DESC, created_at DESC))[1] AS created_at
+     FROM learning_game_scores
+     WHERE game_key = ?
+     GROUP BY user_email
+     ORDER BY score DESC, created_at ASC
+     LIMIT 25`,
+    [GAME_KEY],
+  );
+
+  return rows.map((r, i) => ({
+    rank: i + 1,
+    player_name: String(r.player_name || (r.user_email as string)?.split('@')[0] || 'Player'),
+    score: Number(r.score),
+    grade: (r.grade as string) ?? null,
+    role: (r.role as string) ?? null,
+    pattern: (r.pattern as string) ?? null,
+    weeks: r.weeks == null ? null : Number(r.weeks),
+    created_at: String(r.created_at),
+    isMe: !!myEmail && String(r.user_email).toLowerCase() === myEmail,
+  }));
+}
+
 export async function getRedBullLeaderboard(): Promise<RedBullLeaderboard> {
   try {
     await ensureGameSchema();
     const user = await currentUser();
     const myEmail = user?.email ?? '';
 
-    // Best run per player, ranked. The details shown are those of each player's best run.
-    const rows = await sql<QueryResultRow[]>(
-      `SELECT user_email,
-              MAX(score) AS score,
-              (ARRAY_AGG(player_name ORDER BY score DESC, created_at DESC))[1] AS player_name,
-              (ARRAY_AGG(grade       ORDER BY score DESC, created_at DESC))[1] AS grade,
-              (ARRAY_AGG(role        ORDER BY score DESC, created_at DESC))[1] AS role,
-              (ARRAY_AGG(pattern     ORDER BY score DESC, created_at DESC))[1] AS pattern,
-              (ARRAY_AGG(weeks       ORDER BY score DESC, created_at DESC))[1] AS weeks,
-              (ARRAY_AGG(created_at  ORDER BY score DESC, created_at DESC))[1] AS created_at
-       FROM learning_game_scores
-       WHERE game_key = ?
-       GROUP BY user_email
-       ORDER BY score DESC, created_at ASC
-       LIMIT 25`,
-      [GAME_KEY],
-    );
-
-    const top: RedBullLeaderboardEntry[] = rows.map((r, i) => ({
-      rank: i + 1,
-      player_name: String(r.player_name || (r.user_email as string)?.split('@')[0] || 'Player'),
-      score: Number(r.score),
-      grade: (r.grade as string) ?? null,
-      role: (r.role as string) ?? null,
-      pattern: (r.pattern as string) ?? null,
-      weeks: r.weeks == null ? null : Number(r.weeks),
-      created_at: String(r.created_at),
-      isMe: !!myEmail && String(r.user_email).toLowerCase() === myEmail,
-    }));
+    // Board + the viewer's own aggregate + the viewer's history are independent reads.
+    const [top, mine, hist] = await Promise.all([
+      getRedBullTopScores(myEmail),
+      myEmail
+        ? sql<QueryResultRow[]>(
+            `SELECT COUNT(*)::int AS plays,
+                    MAX(score) AS best,
+                    ROUND(AVG(score))::int AS avg_score,
+                    COUNT(*) FILTER (WHERE mode = 'team')::int AS team_plays,
+                    COUNT(*) FILTER (WHERE mode IS DISTINCT FROM 'team')::int AS solo_plays,
+                    (ARRAY_AGG(grade ORDER BY score DESC, created_at DESC))[1] AS best_grade
+             FROM learning_game_scores WHERE game_key = ? AND user_email = ?`,
+            [GAME_KEY, myEmail],
+          )
+        : Promise.resolve([] as QueryResultRow[]),
+      myEmail
+        ? sql<QueryResultRow[]>(
+            `SELECT score, grade, role, pattern, weeks, mode, created_at
+             FROM learning_game_scores WHERE game_key = ? AND user_email = ?
+             ORDER BY created_at DESC LIMIT 20`,
+            [GAME_KEY, myEmail],
+          )
+        : Promise.resolve([] as QueryResultRow[]),
+    ]);
 
     let me: RedBullMeStats = { best: null, plays: 0, rank: null, avgScore: null, soloPlays: 0, teamPlays: 0, bestGrade: null };
     let history: RedBullHistoryEntry[] = [];
     if (myEmail) {
-      const mine = await sql<QueryResultRow[]>(
-        `SELECT COUNT(*)::int AS plays,
-                MAX(score) AS best,
-                ROUND(AVG(score))::int AS avg_score,
-                COUNT(*) FILTER (WHERE mode = 'team')::int AS team_plays,
-                COUNT(*) FILTER (WHERE mode IS DISTINCT FROM 'team')::int AS solo_plays,
-                (ARRAY_AGG(grade ORDER BY score DESC, created_at DESC))[1] AS best_grade
-         FROM learning_game_scores WHERE game_key = ? AND user_email = ?`,
-        [GAME_KEY, myEmail],
-      );
       const best = mine[0]?.best == null ? null : Number(mine[0].best);
       const plays = Number(mine[0]?.plays ?? 0);
       let rank: number | null = null;
@@ -230,12 +252,6 @@ export async function getRedBullLeaderboard(): Promise<RedBullLeaderboard> {
         bestGrade: (mine[0]?.best_grade as string) ?? null,
       };
 
-      const hist = await sql<QueryResultRow[]>(
-        `SELECT score, grade, role, pattern, weeks, mode, created_at
-         FROM learning_game_scores WHERE game_key = ? AND user_email = ?
-         ORDER BY created_at DESC LIMIT 20`,
-        [GAME_KEY, myEmail],
-      );
       history = hist.map((h) => ({
         score: Number(h.score),
         grade: (h.grade as string) ?? null,
@@ -268,17 +284,23 @@ export interface RedBullGameStats {
 export async function getRedBullGameStats(): Promise<RedBullGameStats> {
   try {
     await ensureGameSchema();
-    const agg = await sql<QueryResultRow[]>(
-      `SELECT COUNT(*)::int AS total_plays,
-              COUNT(DISTINCT user_email)::int AS unique_players,
-              ROUND(AVG(score))::int AS avg_score,
-              MAX(score) AS best_score,
-              COUNT(*) FILTER (WHERE mode = 'team')::int AS team_plays,
-              COUNT(*) FILTER (WHERE mode IS DISTINCT FROM 'team')::int AS solo_plays
-       FROM learning_game_scores WHERE game_key = ?`,
-      [GAME_KEY],
-    );
-    const board = await getRedBullLeaderboard();
+    const user = await currentUser();
+    const myEmail = user?.email ?? '';
+    // Only the board is needed here. This used to call getRedBullLeaderboard() and discard its `me`
+    // and `history`, which cost up to three extra queries on every admin analytics load.
+    const [agg, top] = await Promise.all([
+      sql<QueryResultRow[]>(
+        `SELECT COUNT(*)::int AS total_plays,
+                COUNT(DISTINCT user_email)::int AS unique_players,
+                ROUND(AVG(score))::int AS avg_score,
+                MAX(score) AS best_score,
+                COUNT(*) FILTER (WHERE mode = 'team')::int AS team_plays,
+                COUNT(*) FILTER (WHERE mode IS DISTINCT FROM 'team')::int AS solo_plays
+         FROM learning_game_scores WHERE game_key = ?`,
+        [GAME_KEY],
+      ),
+      getRedBullTopScores(myEmail),
+    ]);
     const r = agg[0] ?? {};
     return {
       totalPlays: Number(r.total_plays ?? 0),
@@ -287,7 +309,7 @@ export async function getRedBullGameStats(): Promise<RedBullGameStats> {
       bestScore: r.best_score == null ? null : Number(r.best_score),
       soloPlays: Number(r.solo_plays ?? 0),
       teamPlays: Number(r.team_plays ?? 0),
-      top: board.top,
+      top,
     };
   } catch (err) {
     console.error('[getRedBullGameStats]', err);

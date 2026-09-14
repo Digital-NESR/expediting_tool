@@ -6,42 +6,92 @@
    it here; this component renders the section selected in the URL.
    Every tool panel below is reused as-is from its own feature
    folder — nothing about the tools themselves changed, only how
-   they are loaded (one app at a time instead of all at once).
+   they are loaded.
+
+   Each panel is pulled in with next/dynamic so Webpack emits ONE
+   CHUNK PER PANEL instead of folding all 24 (recharts twice, plus
+   lucide) into a single bundle every admin route had to download.
+   Prerendering is left ON (no `ssr: false`): these are ordinary
+   client components that already rendered on the server before this
+   change, so the server-fetched props and the moment data appears
+   are exactly as they were — only the client chunk boundary moved.
    ───────────────────────────────────────────────────────────── */
 
-import PoAnalyticsPanel from '../PoAnalyticsPanel';
-import AccessApprovalsClient from '../AccessApprovalsClient';
-import TiteMigrationClient from '../TiteMigrationClient';
-import TiteAccessApprovalsClient from '../TiteAccessApprovalsClient';
-import TiteDefaultNotifiersClient from '../TiteDefaultNotifiersClient';
-import TiteAnalyticsClient from '../TiteAnalyticsClient';
-import ProcureGuardAccessApprovalsClient from '../ProcureGuardAccessApprovalsClient';
-import ProcureGuardAdminPanelClient from '../../procure-guard/admin/AdminPanelClient';
-import ProcureGuardAnalyticsClient from '../../procure-guard/analytics/AnalyticsClient';
-import ProcureGuardAdminAnalyticsClient from '../../procure-guard/admin-analytics/AdminAnalyticsClient';
-import { SourceGuideAccessApprovalsClient, SourceGuideGuidesClient, SourceGuideAnalyticsClient, SourceGuideChampionsClient } from '../SourceGuideAdmin';
-import { CatalogAccessApprovalsClient, CatalogAdminPanelClient, CatalogSyncHealthClient } from '../CatalogRepoAdmin';
-import SnsAccessApprovalsClient from '../SnsAccessApprovalsClient';
-import SnsReferenceDataClient from '../SnsReferenceDataClient';
-import LaptopAdminClient from '../../laptop-procurement/admin/LaptopAdminClient';
-import LaptopAnalyticsClient from '../../laptop-procurement/analytics/LaptopAnalyticsClient';
-import LaptopApproverMatrixClient from '../LaptopApproverMatrixClient';
-import LaptopAccessApprovalsClient from '../LaptopAccessApprovalsClient';
-import LearningHubAdminClient from '../../learning-hub/admin/AdminClient';
-import LearningHubAnalyticsClient from '../LearningHubAnalyticsClient';
-import type { Shipment } from '@/types/tite';
+import dynamic from 'next/dynamic';
+import type { TiteAnalyticsShipment } from '@/types/tite';
 import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
 import type { LaptopAdminData, LaptopAnalyticsData } from '@/types/laptopProcurement';
 import type { LearningHubAdminData } from '@/types/learning-hub';
 import type { LearningHubAnalytics } from '@/app/actions/learning-hub';
 import type { ExpeditingAnalytics } from '@/app/actions/adminAnalytics';
 
+/* Same shape as ./loading.tsx — the skeleton the route already shows
+   while a section's server data loads — so a panel chunk arriving a
+   beat later looks like a continuation of that, not a new state. */
+function PanelSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="mb-6 h-6 w-56 rounded-md bg-slate-200" />
+      <div className="mb-6 h-20 w-full rounded-xl bg-slate-100" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-24 rounded-xl bg-slate-100" />
+        ))}
+      </div>
+      <div className="mt-6 h-64 w-full rounded-xl bg-slate-100" />
+    </div>
+  );
+}
+
+const loading = () => <PanelSkeleton />;
+
+/* ── PO Expediting ── */
+const PoAnalyticsPanel = dynamic(() => import('../PoAnalyticsPanel'), { loading });
+const AccessApprovalsClient = dynamic(() => import('../AccessApprovalsClient'), { loading });
+
+/* ── TI-TE ── */
+const TiteMigrationClient = dynamic(() => import('../TiteMigrationClient'), { loading });
+const TiteAccessApprovalsClient = dynamic(() => import('../TiteAccessApprovalsClient'), { loading });
+const TiteDefaultNotifiersClient = dynamic(() => import('../TiteDefaultNotifiersClient'), { loading });
+const TiteAnalyticsClient = dynamic(() => import('../TiteAnalyticsClient'), { loading });
+
+/* ── ProcureGuard ── */
+const ProcureGuardAccessApprovalsClient = dynamic(() => import('../ProcureGuardAccessApprovalsClient'), { loading });
+const ProcureGuardAdminPanelClient = dynamic(() => import('../../procure-guard/admin/AdminPanelClient'), { loading });
+const ProcureGuardAnalyticsClient = dynamic(() => import('../../procure-guard/analytics/AnalyticsClient'), { loading });
+const ProcureGuardAdminAnalyticsClient = dynamic(() => import('../../procure-guard/admin-analytics/AdminAnalyticsClient'), { loading });
+
+/* ── SourceGuide (named exports of one module) ── */
+const SourceGuideAccessApprovalsClient = dynamic(() => import('../SourceGuideAdmin').then(m => m.SourceGuideAccessApprovalsClient), { loading });
+const SourceGuideGuidesClient = dynamic(() => import('../SourceGuideAdmin').then(m => m.SourceGuideGuidesClient), { loading });
+const SourceGuideAnalyticsClient = dynamic(() => import('../SourceGuideAdmin').then(m => m.SourceGuideAnalyticsClient), { loading });
+const SourceGuideChampionsClient = dynamic(() => import('../SourceGuideAdmin').then(m => m.SourceGuideChampionsClient), { loading });
+
+/* ── Catalog Repo (named exports of one module) ── */
+const CatalogAccessApprovalsClient = dynamic(() => import('../CatalogRepoAdmin').then(m => m.CatalogAccessApprovalsClient), { loading });
+const CatalogAdminPanelClient = dynamic(() => import('../CatalogRepoAdmin').then(m => m.CatalogAdminPanelClient), { loading });
+const CatalogSyncHealthClient = dynamic(() => import('../CatalogRepoAdmin').then(m => m.CatalogSyncHealthClient), { loading });
+
+/* ── S&S Registry ── */
+const SnsAccessApprovalsClient = dynamic(() => import('../SnsAccessApprovalsClient'), { loading });
+const SnsReferenceDataClient = dynamic(() => import('../SnsReferenceDataClient'), { loading });
+
+/* ── Laptop Procurement ── */
+const LaptopAdminClient = dynamic(() => import('../../laptop-procurement/admin/LaptopAdminClient'), { loading });
+const LaptopAnalyticsClient = dynamic(() => import('../../laptop-procurement/analytics/LaptopAnalyticsClient'), { loading });
+const LaptopApproverMatrixClient = dynamic(() => import('../LaptopApproverMatrixClient'), { loading });
+const LaptopAccessApprovalsClient = dynamic(() => import('../LaptopAccessApprovalsClient'), { loading });
+
+/* ── Learning Hub ── */
+const LearningHubAdminClient = dynamic(() => import('../../learning-hub/admin/AdminClient'), { loading });
+const LearningHubAnalyticsClient = dynamic(() => import('../LearningHubAnalyticsClient'), { loading });
+
 export interface AdminAppContentProps {
   app: string;
   section: string;
   userEmail: string;
   poAnalytics?: ExpeditingAnalytics;
-  titeShipments?: Shipment[] | null;
+  titeShipments?: TiteAnalyticsShipment[] | null;
   pgAdminData?: ProcureGuardAdminData | null;
   pgAnalyticsData?: ProcureGuardAnalyticsData | null;
   pgUsageData?: ProcureGuardAdminAnalyticsData | null;

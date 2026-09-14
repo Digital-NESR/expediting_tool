@@ -3,7 +3,7 @@ import { currentActor } from '@/lib/require-access';
 import { findAdminApp, resolveSection } from '../adminNav';
 import AdminAppContent, { type AdminAppContentProps } from './AdminAppContent';
 import { getTeamAnalyticsData } from '@/app/actions/teamAnalytics';
-import { getAllShipments } from '@/app/actions/tite';
+import { getShipmentsForAnalytics } from '@/app/actions/tite';
 import {
   getProcureGuardAdminData,
   getProcureGuardAnalyticsData,
@@ -57,8 +57,10 @@ export default async function AdminAppPage({
       base.poAnalytics = await getTeamAnalyticsData({});
       break;
     case 'tite/analytics':
-      // Admins see all shipments (no country filter)
-      base.titeShipments = await getAllShipments();
+      /* Admins see all shipments (no country filter). Narrowed to the columns
+         the panel actually charts — it filters client-side, so every column
+         fetched here is serialised into the page payload. */
+      base.titeShipments = await getShipmentsForAnalytics();
       break;
     case 'procureguard/admin':
       base.pgAdminData = await getProcureGuardAdminData();

@@ -15,5 +15,5 @@ export default async function MyWorkPage() {
     redirect(actor.permissions.accessView === 'analyst' ? '/procure-guard/analytics' : '/procure-guard');
   }
   const data = await getProcureGuardWorkQueueData();
-  return <><RefreshOnView /><MyWorkClient data={data} /></>;
+  return <><RefreshOnView renderId={crypto.randomUUID()} /><MyWorkClient data={data} /></>;
 }

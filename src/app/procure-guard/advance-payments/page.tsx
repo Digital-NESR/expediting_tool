@@ -15,5 +15,5 @@ export default async function AdvancePaymentsStatusPage() {
     redirect('/procure-guard/analytics');
   }
   const data = await getAdvancePaymentRequestsData();
-  return <><RefreshOnView /><AdvancePaymentsStatusClient data={data} /></>;
+  return <><RefreshOnView renderId={crypto.randomUUID()} /><AdvancePaymentsStatusClient data={data} /></>;
 }

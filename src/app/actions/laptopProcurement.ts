@@ -4,6 +4,8 @@ import type { PoolClient, QueryResultRow } from 'pg';
 import { request as httpRequest } from 'http';
 import { request as httpsRequest } from 'https';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
+import { cache } from 'react';
 import { getProcureGuardUser } from '@/lib/auth';
 import laptopProcurementPool from '@/lib/db-laptop';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
@@ -117,6 +119,16 @@ function serialise<T>(value: unknown): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+// Rows handed back by sql()/sqlTx() have ALREADY been through serialise() once — they
+// are plain JSON values with no Dates, Buffers or pg internals left in them. Running
+// serialise() over them a second time at the call site was a full JSON round trip of
+// every row on every read for a value that cannot change, so use this instead: the same
+// type narrowing, no second pass. Only ever apply it to sql()/sqlTx() output (or values
+// built out of it) — anything straight off the pool still needs a real serialise().
+function asSerialised<T>(value: unknown): T {
+  return value as T;
+}
+
 async function sql<T extends QueryResultRow[]>(statement: string, params: QueryParams = []): Promise<T> {
   const result = await laptopProcurementPool.query(toPostgresQuery(statement), normaliseParams(params));
   return serialise<T>(result.rows);
@@ -180,7 +192,7 @@ function laptopProcurementAdminEmails(): string[] {
 async function getPermissionRowForEmail(email: string): Promise<LaptopPermissionRow | null> {
   try {
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions WHERE email = ? LIMIT 1`, [email]);
-    return rows[0] ? serialise<LaptopPermissionRow>(rows[0]) : null;
+    return rows[0] ? asSerialised<LaptopPermissionRow>(rows[0]) : null;
   } catch (err) {
     console.error('[laptop getPermissionRowForEmail]', err);
     return null;
@@ -349,20 +361,36 @@ function allMatrixCountries(capabilities: Record<LaptopApprovalStage, string[]> 
   return [...new Set(APPROVAL_STAGES.flatMap(stage => capabilities[stage]))];
 }
 
-async function getActor(): Promise<LaptopActor> {
+// Wrapped in React's cache() so the several calls a single request makes all collapse
+// onto one resolution. A page render hit it at least twice (the page's own data loader
+// and the shell's getLaptopActor), and each hit was four sequential round trips to a
+// remote Postgres.
+//
+// Safe to memoise: cache() is scoped to one request, and nothing within a request can
+// legitimately change the answer. The actor is derived purely from the signed-in
+// identity plus laptop_permissions / laptop_approver_matrix / laptop_delegations, and
+// every action that writes those resolves its actor up front, before the write, and
+// never re-reads it afterwards — so no caller can observe a stale value. (Outside a
+// request scope React's cache simply doesn't memoise, so behaviour is unchanged there
+// too.)
+const getActor = cache(async (): Promise<LaptopActor> => {
   const user = await getProcureGuardUser();
   const email = user?.email ?? '';
   if (!email) throw new Error('You must be signed in to use Laptop Procurement.');
 
-  const permissionRow = await getPermissionRowForEmail(email);
+  // Independent of one another — all three only need `email` — so they go together
+  // instead of one after the next.
+  const [permissionRow, matrixCapabilities, delegatedFrom] = await Promise.all([
+    getPermissionRowForEmail(email),
+    getApproverMatrixCapabilities(email),
+    resolveLaptopDelegations(email),
+  ]);
   const fallbackRole: LaptopPermissionRole = laptopProcurementAdminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
   const baseRole = (permissionRow?.role ?? fallbackRole) as LaptopPermissionRole;
-  const matrixCapabilities = await getApproverMatrixCapabilities(email);
   // Applied even when an explicit permissions row exists, so a platform admin who also
   // holds a Requester row keeps that row's abilities and still isn't 404'd out of the
   // request details the /admin console links them to.
   const permissions = buildEffectivePermissions(baseRole, matrixCapabilities, adminEmails().includes(email.toLowerCase()));
-  const delegatedFrom = await resolveLaptopDelegations(email);
   // Whole-page gates (Admin Panel, Analytics, Reviewer Queue) use the best access
   // tier across the actor's own role and every role they hold via delegation, so a
   // delegate can actually reach those pages — not just act on individual requests,
@@ -381,7 +409,7 @@ async function getActor(): Promise<LaptopActor> {
     delegatedFrom,
     effectiveAccessView,
   };
-}
+});
 
 let laptopDelegationTableEnsured: Promise<void> | null = null;
 async function ensureLaptopDelegationTable(): Promise<void> {
@@ -415,52 +443,102 @@ async function ensureLaptopDelegationTable(): Promise<void> {
   return laptopDelegationTableEnsured;
 }
 
-// A delegation whose expires_at has simply passed still carries is_active = TRUE
-// until someone explicitly revokes it — resolveLaptopDelegations already filters on
-// expires_at directly so access is never affected, but the admin/delegate lists sort
-// and label off this flag, so a merely-expired row reads as if it outranks ones
-// genuinely revoked more recently. Flip it here whenever those lists are read.
-async function expireStaleLaptopDelegations(): Promise<void> {
-  await exec(
-    `UPDATE laptop_delegations
-     SET is_active = FALSE, revoked_at = expires_at, updated_at = CURRENT_TIMESTAMP
-     WHERE is_active = TRUE AND expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP`,
-  );
+// A delegation whose expires_at has simply passed still carries is_active = TRUE until
+// someone explicitly revokes it — resolveLaptopDelegations already filters on expires_at
+// directly so access is never affected, but the admin/delegate lists sort and label off
+// this flag, so a merely-expired row would read as if it outranked ones genuinely
+// revoked more recently.
+//
+// This used to be fixed by an UPDATE (expireStaleLaptopDelegations) fired on every admin
+// panel and delegate page load — a write on a read path, on every page view, for a
+// cosmetic ordering concern. It is derived at read time instead: same flag, same
+// revoked_at, same ordering as the UPDATE-then-ORDER-BY produced, no write. The stored
+// flag is still flipped for real by revokeLaptopDelegation.
+function applyLaptopDelegationExpiry(rows: LaptopDelegationRow[]): LaptopDelegationRow[] {
+  const now = Date.now();
+  return rows
+    .map(row => {
+      if (!row.is_active || !row.expires_at) return row;
+      const expiresAt = new Date(row.expires_at).getTime();
+      if (Number.isNaN(expiresAt) || expiresAt > now) return row;
+      return { ...row, is_active: false, revoked_at: row.revoked_at ?? row.expires_at };
+    })
+    // Mirrors `ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`, but over
+    // the derived flag rather than the stored one.
+    .sort((a, b) => {
+      if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
+      return new Date(b.revoked_at ?? b.created_at).getTime() - new Date(a.revoked_at ?? a.created_at).getTime();
+    });
 }
 
 /**
- * Who should actually be notified in place of `email` for this specific (stage,
- * country) slot, if anyone — follows an active delegation FROM `email` scoped to
- * exactly that role, and recursively from there in case the delegate has also
- * delegated that same role onward. A delegation of a *different* role held by the
- * same person doesn't match and is ignored — role-based delegation only follows the
- * slot actually being resolved. Returns null if there's no matching active
- * delegation (the caller should keep using `email` unchanged).
+ * Every active delegation for ONE country, loaded in a single query and walked in
+ * memory.
+ *
+ * This used to be resolveActiveLaptopDelegateEmail(email, stage, country): one query per
+ * approver, recursing a further query per hop up to depth 5. A request detail page
+ * resolves six matrix slots and every notification repeats the walk for each recipient,
+ * so a single page render could issue dozens of round trips to a remote Postgres for
+ * what is a handful of rows. The resolved answer is identical — same role-scoped
+ * matching (a delegation of a *different* stage held by the same person is ignored),
+ * same follow-the-chain-onward behaviour, same six-hop ceiling, same "return null and
+ * keep the original approver" when nothing matches.
  */
-async function resolveActiveLaptopDelegateEmail(
-  email: string | null | undefined,
-  stage: LaptopApprovalStage,
-  country: string | null | undefined,
-  depth = 0,
-): Promise<{ name: string | null; email: string } | null> {
-  if (!email || !country || depth > 5) return null;
+type LaptopDelegationChain = {
+  /** Who should be notified in place of `email` for this stage, or null to keep `email`. */
+  resolve(email: string | null | undefined, stage: LaptopApprovalStage): { name: string | null; email: string } | null;
+};
+
+const NO_LAPTOP_DELEGATIONS: LaptopDelegationChain = { resolve: () => null };
+
+// Matches the old per-hop query's depth guard: lookups ran at depth 0..5, i.e. at most
+// six hops along a delegation chain before it gave up.
+const LAPTOP_DELEGATION_MAX_HOPS = 6;
+
+async function loadLaptopDelegationChain(country: string | null | undefined): Promise<LaptopDelegationChain> {
+  if (!country) return NO_LAPTOP_DELEGATIONS;
   try {
     const rows = await sql<QueryResultRow[]>(
-      `SELECT delegate_email, delegate_name FROM laptop_delegations
-       WHERE LOWER(delegator_email) = ? AND stage = ? AND LOWER(country) = ? AND is_active = TRUE
+      `SELECT delegator_email, stage, delegate_email, delegate_name FROM laptop_delegations
+       WHERE LOWER(country) = ? AND is_active = TRUE
          AND (starts_at IS NULL OR starts_at <= CURRENT_TIMESTAMP)
-         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-       LIMIT 1`,
-      [email.toLowerCase(), stage, country.toLowerCase()],
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
+      [country.toLowerCase()],
     );
-    const row = rows[0];
-    if (!row) return null;
-    const delegateEmail = String(row.delegate_email);
-    const further = await resolveActiveLaptopDelegateEmail(delegateEmail, stage, country, depth + 1);
-    return further ?? { name: (row.delegate_name as string | null) ?? null, email: delegateEmail };
+    // "stage|lowercased delegator" -> delegate. First row wins, mirroring the LIMIT 1
+    // (no ORDER BY) of the query this replaces.
+    const byStageAndDelegator = new Map<string, { name: string | null; email: string }>();
+    for (const row of rows) {
+      const stage = String(row.stage ?? '');
+      const delegator = String(row.delegator_email ?? '').trim().toLowerCase();
+      const delegate = String(row.delegate_email ?? '').trim();
+      if (!stage || !delegator || !delegate) continue;
+      const key = `${stage}|${delegator}`;
+      if (byStageAndDelegator.has(key)) continue;
+      byStageAndDelegator.set(key, { name: (row.delegate_name as string | null) ?? null, email: delegate });
+    }
+    if (byStageAndDelegator.size === 0) return NO_LAPTOP_DELEGATIONS;
+
+    return {
+      resolve(email, stage) {
+        if (!email) return null;
+        let current = email.trim().toLowerCase();
+        let found: { name: string | null; email: string } | null = null;
+        // Bounded rather than cycle-detected on purpose: a delegation loop resolved to
+        // whoever the old recursion reached last before its depth guard tripped, and it
+        // still does.
+        for (let hop = 0; hop < LAPTOP_DELEGATION_MAX_HOPS; hop++) {
+          const next = byStageAndDelegator.get(`${stage}|${current}`);
+          if (!next) break;
+          found = next;
+          current = next.email.trim().toLowerCase();
+        }
+        return found;
+      },
+    };
   } catch (err) {
-    console.error('[resolveActiveLaptopDelegateEmail]', err);
-    return null;
+    console.error('[loadLaptopDelegationChain]', err);
+    return NO_LAPTOP_DELEGATIONS;
   }
 }
 
@@ -804,6 +882,35 @@ function laptopTestStageCandidates(stage: LaptopApprovalStage): Array<{ name: st
   }
 }
 
+/**
+ * Hand outbound n8n work to Next's `after()` instead of making the caller wait on it.
+ *
+ * Every status transition fires up to three webhooks, each with its own 15s timeout,
+ * plus the matrix/delegation lookups they need — so a reviewer's click could sit for
+ * the better part of a minute while n8n was slow or down, long after their decision was
+ * already safely committed. `after(cb)` (stable since Next 15.1 — see
+ * node_modules/next/dist/docs/01-app/03-api-reference/04-functions/after.md) runs `cb`
+ * once the response has been sent, and on a serverless platform keeps the invocation
+ * alive via `waitUntil` until it settles, so the work still actually runs. The docs also
+ * note the callback runs even when the response ended in an error, so nothing is dropped
+ * on a thrown action.
+ *
+ * Only ever used for work that is already durable: the DB write and its activity-log
+ * line are committed inside withTransaction before we get here, and a webhook cannot be
+ * rolled back anyway. Deferred failures are caught and logged here so a broken n8n can
+ * never take down an invocation after the user has already been told it worked — and so
+ * they are never silently swallowed either.
+ */
+function deferLaptopNotifications(label: string, run: () => Promise<void>): void {
+  after(async () => {
+    try {
+      await run();
+    } catch (err) {
+      console.error(`[Laptop Procurement n8n] Deferred notification failed (${label})`, laptopWebhookErrorMessage(err), err);
+    }
+  });
+}
+
 async function postLaptopWebhook(
   webhookUrl: string,
   headers: Record<string, string>,
@@ -901,7 +1008,10 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
   if (!stage) return;
 
   try {
-    const matrix = await getActiveApproverMatrixForCountry(request.country);
+    const [matrix, delegations] = await Promise.all([
+      getActiveApproverMatrixForCountry(request.country),
+      loadLaptopDelegationChain(request.country),
+    ]);
 
     const matrixRecipients: Array<{ name: string | null; email: string }> =
       stage === 'IT Manager'
@@ -923,12 +1033,10 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
     // replaced), so they're kept in the loop even while someone else is covering for
     // them.
     const realRecipients = dedupeLaptopRecipients(
-      (await Promise.all(
-        matrixRecipients.map(async r => {
-          const delegate = await resolveActiveLaptopDelegateEmail(r.email, stage, request.country);
-          return delegate ? [r, { name: delegate.name, email: delegate.email }] : [r];
-        }),
-      )).flat(),
+      matrixRecipients.flatMap(r => {
+        const delegate = delegations.resolve(r.email, stage);
+        return delegate ? [r, { name: delegate.name, email: delegate.email }] : [r];
+      }),
     );
 
     // TESTING OVERRIDE (opt-in): replace the real laptop_approver_matrix lookup above with a
@@ -1008,7 +1116,10 @@ async function notifyLaptopFinalApproval(request: LaptopRequest): Promise<void> 
   }
 
   try {
-    const matrix = await getActiveApproverMatrixForCountry(request.country);
+    const [matrix, delegations] = await Promise.all([
+      getActiveApproverMatrixForCountry(request.country),
+      loadLaptopDelegationChain(request.country),
+    ]);
     const itManagerCandidates: Array<{ name: string | null; email: string }> = ([
       { name: (matrix?.it_manager_name as string) ?? null, email: matrix?.it_manager_email as string },
       { name: (matrix?.it_manager_2_name as string) ?? null, email: matrix?.it_manager_2_email as string },
@@ -1016,12 +1127,10 @@ async function notifyLaptopFinalApproval(request: LaptopRequest): Promise<void> 
     ].filter(r => r.email) as Array<{ name: string | null; email: string }>);
 
     const realRecipients = dedupeLaptopRecipients(
-      (await Promise.all(
-        itManagerCandidates.map(async r => {
-          const delegate = await resolveActiveLaptopDelegateEmail(r.email, 'IT Manager', request.country);
-          return delegate ? [r, { name: delegate.name, email: delegate.email }] : [r];
-        }),
-      )).flat(),
+      itManagerCandidates.flatMap(r => {
+        const delegate = delegations.resolve(r.email, 'IT Manager');
+        return delegate ? [r, { name: delegate.name, email: delegate.email }] : [r];
+      }),
     );
 
     const testMode = isLaptopEmailTestMode();
@@ -1252,28 +1361,21 @@ function isActionableForActor(actor: LaptopActor, request: LaptopRequest): boole
   return actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canProcureNew || actions.canSubmitProcureDetails;
 }
 
-function buildStats(requests: LaptopRequest[], actor: LaptopActor) {
-  const isAssigned = (s: string) => s === 'Assign from Inventory' || s === 'Assign from Inventory & Closed';
-  return {
-    total: requests.length,
-    pending_review: requests.filter(r => isActionableForActor(actor, r)).length,
-    procure_new: requests.filter(r => r.status === 'Procure New' || r.status === 'Approved').length,
-    assigned_inventory: requests.filter(r => isAssigned(r.status)).length,
-    repaired: requests.filter(r => r.status === 'Repaired & Closed').length,
-    rejected: requests.filter(r => r.status.startsWith('Rejected')).length,
-    laptops: requests.filter(r => (r.type_of_device ?? '').toLowerCase() === 'laptop').length,
-    desktops: requests.filter(r => (r.type_of_device ?? '').toLowerCase() === 'desktop').length,
-  };
-}
-
-// Same stats as buildStats, but the outcome-category counts are computed with SQL
-// aggregates against an optional scope (WHERE clause + params) instead of pulling
-// every matching row into JS first — for callers (admin panel, dashboard) that
-// mostly just need counts. pending_review is the one exception: it has to mean
-// "awaiting THIS actor's decision" (see isActionableForActor), which isn't
-// expressible as a SQL aggregate, so it's computed separately from the (bounded,
-// active-only) rows.
-async function computeLaptopStats(actor: LaptopActor, whereClause: string, whereParams: QueryParams): Promise<LaptopDashboardStats> {
+// Outcome-category counts computed with SQL aggregates against an optional scope
+// (WHERE clause + params) rather than pulling every matching row into JS first.
+// pending_review is the one exception: it has to mean "awaiting THIS actor's decision"
+// (see isActionableForActor), which isn't expressible as a SQL aggregate, so it's
+// computed separately from the (bounded, active-only) rows.
+//
+// `activeRows` lets a caller that has already fetched the in-scope active-approval rows
+// (the dashboard, which needs them for its pending queue anyway) hand them over instead
+// of making this run the identical query a second time.
+async function computeLaptopStats(
+  actor: LaptopActor,
+  whereClause: string,
+  whereParams: QueryParams,
+  activeRowsProvided?: LaptopRequest[] | Promise<LaptopRequest[]>,
+): Promise<LaptopDashboardStats> {
   const activePlaceholders = APPROVAL_ACTIVE_STATUSES.map(() => '?').join(', ');
   const [rows, activeRows] = await Promise.all([
     sql<QueryResultRow[]>(
@@ -1289,13 +1391,13 @@ async function computeLaptopStats(actor: LaptopActor, whereClause: string, where
        ${whereClause}`,
       whereParams,
     ),
-    sql<QueryResultRow[]>(
+    activeRowsProvided ?? sql<QueryResultRow[]>(
       `SELECT * FROM laptop_requests ${whereClause ? `${whereClause} AND status IN (${activePlaceholders})` : `WHERE status IN (${activePlaceholders})`}`,
       [...whereParams, ...APPROVAL_ACTIVE_STATUSES],
     ),
   ]);
   const row = rows[0] ?? {};
-  const pendingReview = serialise<LaptopRequest[]>(activeRows).filter(r => isActionableForActor(actor, r)).length;
+  const pendingReview = asSerialised<LaptopRequest[]>(activeRows).filter(r => isActionableForActor(actor, r)).length;
   return {
     total: Number(row.total ?? 0),
     pending_review: pendingReview,
@@ -1308,7 +1410,9 @@ async function computeLaptopStats(actor: LaptopActor, whereClause: string, where
   };
 }
 
-function buildMonthlyTrend(requests: LaptopRequest[]): LaptopMonthlyMetric[] {
+// Takes only the two date columns it reads, so analytics can fetch just those rather
+// than every column of every request.
+function buildMonthlyTrend(requests: Array<Pick<LaptopRequest, 'requested_date' | 'created_at'>>): LaptopMonthlyMetric[] {
   const map = new Map<string, number>();
   for (const r of requests) {
     const basis = r.requested_date || r.created_at;
@@ -1395,7 +1499,7 @@ export async function getLaptopDeviceOptions(): Promise<LaptopDeviceOption[]> {
     const rows = await sql<QueryResultRow[]>(
       `SELECT type_of_device, model FROM laptop_device_catalog WHERE active = TRUE ORDER BY type_of_device, model`,
     );
-    return serialise<LaptopDeviceOption[]>(rows);
+    return asSerialised<LaptopDeviceOption[]>(rows);
   } catch (err) {
     console.error('[getLaptopDeviceOptions]', err);
     return [];
@@ -1466,7 +1570,7 @@ export async function getLaptopRequestsData(): Promise<LaptopRequestListData | n
       `SELECT * FROM laptop_requests ${scope.where} ORDER BY created_at DESC, id DESC`,
       scope.params,
     );
-    return { actor, requests: serialise<LaptopRequest[]>(rows) };
+    return { actor, requests: asSerialised<LaptopRequest[]>(rows) };
   } catch (err) {
     console.error('[getLaptopRequestsData]', err);
     return null;
@@ -1486,21 +1590,30 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
     const activePlaceholders = APPROVAL_ACTIVE_STATUSES.map(() => '?').join(', ');
     const pendingWhere = scope.where ? `${scope.where} AND status IN (${activePlaceholders})` : `WHERE status IN (${activePlaceholders})`;
 
-    const [pendingRows, activityRows, stats] = await Promise.all([
-      sql<QueryResultRow[]>(
-        `SELECT * FROM laptop_requests ${pendingWhere} ORDER BY created_at DESC LIMIT 50`,
-        [...scope.params, ...APPROVAL_ACTIVE_STATUSES],
-      ),
+    // One fetch of the in-scope active-approval rows, shared with computeLaptopStats
+    // below — it needs exactly this set for pending_review and used to issue the very
+    // same query itself. The LIMIT 50 that used to be in SQL is applied in JS instead,
+    // after the same ORDER BY, so the queue is still the 50 most recent and the count
+    // still spans everything.
+    const activeRequestsPromise = sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_requests ${pendingWhere} ORDER BY created_at DESC`,
+      [...scope.params, ...APPROVAL_ACTIVE_STATUSES],
+    ).then(rows => asSerialised<LaptopRequest[]>(rows));
+
+    const [activeRequests, activityRows, stats] = await Promise.all([
+      activeRequestsPromise,
       // Always the actor's own actions — not everything canViewAll can see — so
       // "Recent Activity" reflects what this person actually did.
       sql<QueryResultRow[]>(
         `SELECT * FROM laptop_activity_log WHERE actor_email = ? AND ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 12`,
         [actor.email],
       ),
-      computeLaptopStats(actor, scope.where, scope.params),
+      // Handed the same promise, so its aggregate query still runs in parallel with the
+      // fetch it is reusing rather than waiting on it.
+      computeLaptopStats(actor, scope.where, scope.params, activeRequestsPromise),
     ]);
 
-    const pendingQueue = serialise<LaptopRequest[]>(pendingRows).filter(r => {
+    const pendingQueue = activeRequests.slice(0, 50).filter(r => {
       const actions = getScopedActions(actor, r);
       return actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canProcureNew || actions.canSubmitProcureDetails;
     });
@@ -1508,7 +1621,7 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
     return {
       stats,
       pendingQueue,
-      activity: serialise<LaptopActivityRow[]>(activityRows),
+      activity: asSerialised<LaptopActivityRow[]>(activityRows),
       actor,
     };
   } catch (err) {
@@ -1524,7 +1637,10 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
 // columns), since the live matrix assignment may have changed since; pending/upcoming
 // stages show the live, delegation-resolved assignee, since that's who needs to act now.
 async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStageAssignee[]> {
-  const matrix = await getActiveApproverMatrixForCountry(request.country);
+  const [matrix, delegations] = await Promise.all([
+    getActiveApproverMatrixForCountry(request.country),
+    loadLaptopDelegationChain(request.country),
+  ]);
   const currentStage = getLaptopApprovalStage(request.status);
   const currentIndex = currentStage ? APPROVAL_STAGES.indexOf(currentStage) : -1;
   // Assign-from-inventory / plain-approved requests now end at Country Manager — IT
@@ -1533,10 +1649,10 @@ async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStag
   const endedAtCountryManager = !request.procure_new_requested &&
     (request.status === 'Assign from Inventory' || request.status === 'Assign from Inventory & Closed' || request.status === 'Approved');
 
-  async function liveNameFor(matrixEmail: unknown, matrixName: unknown, stage: LaptopApprovalStage): Promise<string | null> {
+  function liveNameFor(matrixEmail: unknown, matrixName: unknown, stage: LaptopApprovalStage): string | null {
     const email = String(matrixEmail ?? '').trim();
     if (!email) return null;
-    const delegate = await resolveActiveLaptopDelegateEmail(email, stage, request.country);
+    const delegate = delegations.resolve(email, stage);
     if (delegate) return delegate.name ?? delegate.email;
     return String(matrixName ?? '').trim() || email;
   }
@@ -1561,14 +1677,14 @@ async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStag
     { label: 'Supply Chain Director', stage: 'Supply Chain Director', matrixEmail: matrix?.scd_email, matrixName: matrix?.scd_name, actedName: request.sc_director },
   ];
 
-  return Promise.all(slots.map(async slot => {
+  return slots.map(slot => {
     const hasAssignee = Boolean(String(slot.matrixEmail ?? '').trim()) || Boolean(slot.actedName);
     const state = stateFor(slot.stage, hasAssignee);
     const name = state === 'done'
-      ? (slot.actedName || await liveNameFor(slot.matrixEmail, slot.matrixName, slot.stage))
-      : await liveNameFor(slot.matrixEmail, slot.matrixName, slot.stage);
+      ? (slot.actedName || liveNameFor(slot.matrixEmail, slot.matrixName, slot.stage))
+      : liveNameFor(slot.matrixEmail, slot.matrixName, slot.stage);
     return { label: slot.label, name: name || null, state };
-  }));
+  });
 }
 
 export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestDetailData | null> {
@@ -1578,7 +1694,7 @@ export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestD
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
     if (!rows[0]) return null;
 
-    const request = serialise<LaptopRequest>(rows[0]);
+    const request = asSerialised<LaptopRequest>(rows[0]);
     // Visible if EITHER the actor's own identity or any identity they hold via
     // delegation can see it — mirrors the list query (scopedWhere), which already
     // accounts for delegation. Every delegation grant already has canViewAll=true
@@ -1604,8 +1720,8 @@ export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestD
     return {
       actor,
       request,
-      activity: serialise<LaptopActivityRow[]>(activityRows),
-      documents: serialise<LaptopDocument[]>(documentRows),
+      activity: asSerialised<LaptopActivityRow[]>(activityRows),
+      documents: asSerialised<LaptopDocument[]>(documentRows),
       actions: getScopedActions(actor, request),
       stageAssignees: await resolveStageAssignees(request),
     };
@@ -1624,7 +1740,7 @@ export async function getLaptopWorkQueueData(): Promise<LaptopWorkQueueData | nu
       `SELECT * FROM laptop_requests ${scope.where} ORDER BY created_at DESC, id DESC`,
       scope.params,
     );
-    const requests = serialise<LaptopRequest[]>(rows);
+    const requests = asSerialised<LaptopRequest[]>(rows);
     const items = requests
       .map(request => ({ request, actions: getScopedActions(actor, request) }))
       .filter(item => item.actions.canApprove || item.actions.canReject || item.actions.canAssignInventory || item.actions.canProcureNew || item.actions.canSubmitProcureDetails)
@@ -1759,7 +1875,6 @@ export async function getLaptopAdminData(requestsPage: number = 0): Promise<Lapt
   try {
     const actor = await requireAdminActor();
     await ensureLaptopDelegationTable();
-    await expireStaleLaptopDelegations();
     const offset = Math.max(0, Math.floor(requestsPage)) * ADMIN_REQUESTS_PAGE_SIZE;
     const [requestRows, requestsCountRows, activityRows, permissionRows, delegationRows, deviceRows, matrixRows, stats] = await Promise.all([
       // Only the current page — the table only ever shows ADMIN_REQUESTS_PAGE_SIZE
@@ -1774,15 +1889,15 @@ export async function getLaptopAdminData(requestsPage: number = 0): Promise<Lapt
       sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix WHERE is_active = TRUE`),
       computeLaptopStats(actor, '', []),
     ]);
-    const delegations = serialise<LaptopDelegationRow[]>(delegationRows);
+    const delegations = applyLaptopDelegationExpiry(asSerialised<LaptopDelegationRow[]>(delegationRows));
     return {
       actor,
-      requests: serialise<LaptopRequest[]>(requestRows),
+      requests: asSerialised<LaptopRequest[]>(requestRows),
       requestsTotal: Number(requestsCountRows[0]?.count ?? 0),
-      activity: serialise<LaptopActivityRow[]>(activityRows),
-      permissions: serialise<LaptopPermissionRow[]>(permissionRows),
+      activity: asSerialised<LaptopActivityRow[]>(activityRows),
+      permissions: asSerialised<LaptopPermissionRow[]>(permissionRows),
       delegations,
-      deviceCatalog: serialise<LaptopDeviceCatalogRow[]>(deviceRows),
+      deviceCatalog: asSerialised<LaptopDeviceCatalogRow[]>(deviceRows),
       stats,
       delegatableRoles: buildDelegatableRoles(matrixRows),
       permissionsList: buildMergedPermissionsList(permissionRows, matrixRows),
@@ -1793,33 +1908,79 @@ export async function getLaptopAdminData(requestsPage: number = 0): Promise<Lapt
   }
 }
 
+// Every breakdown is a GROUP BY now rather than `SELECT *` followed by six passes over
+// the whole table in JS: same labels ('Unspecified' for blank/NULL), same descending
+// count order, same slice sizes — as LIMIT — but Postgres returns a dozen rows instead of
+// the entire requests table. `tally()` and its full-table fetch are gone with it.
+//
+// monthly_trend deliberately stays in JS. Bucketing dates into YYYY-MM in SQL would do it
+// in the database's timezone rather than the Node process's, which can move a request
+// either side of a month boundary and change a figure on the chart — so it keeps
+// buildMonthlyTrend and its exact semantics, and only the two date columns it actually
+// reads are fetched for it instead of every column of every row.
 async function computeLaptopAnalytics(actor: LaptopActor, where: string, params: string[]): Promise<LaptopAnalyticsData> {
-  const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests ${where}`, params);
-  const requests = serialise<LaptopRequest[]>(rows);
+  // COALESCE(NULLIF(TRIM(col), ''), 'Unspecified') is exactly the old
+  // `(value ?? '').trim() || 'Unspecified'`. The label tiebreak is new only in that it is
+  // now deterministic — equal counts previously came back in whatever order the rows
+  // happened to arrive in.
+  const breakdown = (column: string, limit?: number) => sql<QueryResultRow[]>(
+    `SELECT COALESCE(NULLIF(TRIM(${column}), ''), 'Unspecified') AS label, COUNT(*)::int AS count
+     FROM laptop_requests ${where}
+     GROUP BY 1
+     ORDER BY count DESC, label ASC${limit ? ` LIMIT ${limit}` : ''}`,
+    params,
+  );
+  const toMetrics = (rows: QueryResultRow[]): LaptopAnalyticsMetric[] =>
+    rows.map(r => ({ label: String(r.label), count: Number(r.count ?? 0) }));
 
-  const tally = (key: (r: LaptopRequest) => string | null | undefined): LaptopAnalyticsMetric[] => {
-    const map = new Map<string, number>();
-    for (const r of requests) {
-      const label = (key(r) ?? '').trim() || 'Unspecified';
-      map.set(label, (map.get(label) ?? 0) + 1);
-    }
-    return [...map.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
-  };
+  const [
+    stats,
+    countRows,
+    statusRows,
+    requestTypeRows,
+    deviceRows,
+    countryRows,
+    segmentRows,
+    modelRows,
+    trendRows,
+  ] = await Promise.all([
+    // The same stats the old in-JS buildStats() produced. pending_review is identical
+    // too: it counts requests actionable by this actor, and getScopedActions can
+    // only ever return an actionable move for a status that has an approval stage — which
+    // is exactly APPROVAL_ACTIVE_STATUSES, the set computeLaptopStats filters to.
+    computeLaptopStats(actor, where, params),
+    sql<QueryResultRow[]>(
+      `SELECT
+         COUNT(DISTINCT LOWER(TRIM(requested_by_email))) FILTER (WHERE TRIM(requested_by_email) <> '')::int AS active_requester_count,
+         COUNT(DISTINCT LOWER(TRIM(country))) FILTER (WHERE TRIM(country) <> '')::int AS country_count
+       FROM laptop_requests ${where}`,
+      params,
+    ),
+    breakdown('status'),
+    breakdown('request_type'),
+    breakdown('type_of_device'),
+    breakdown('country', 12),
+    breakdown('segment', 12),
+    breakdown('requested_model', 10),
+    sql<QueryResultRow[]>(`SELECT requested_date, created_at FROM laptop_requests ${where}`, params),
+  ]);
+
+  const counts = countRows[0] ?? {};
 
   return {
     actor,
     stats: {
-      ...buildStats(requests, actor),
-      active_requester_count: new Set(requests.map(r => r.requested_by_email.trim().toLowerCase()).filter(Boolean)).size,
-      country_count: new Set(requests.map(r => (r.country ?? '').trim().toLowerCase()).filter(Boolean)).size,
+      ...stats,
+      active_requester_count: Number(counts.active_requester_count ?? 0),
+      country_count: Number(counts.country_count ?? 0),
     },
-    status_breakdown: tally(r => r.status),
-    request_type_breakdown: tally(r => r.request_type),
-    device_breakdown: tally(r => r.type_of_device),
-    country_breakdown: tally(r => r.country).slice(0, 12),
-    segment_breakdown: tally(r => r.segment).slice(0, 12),
-    top_models: tally(r => r.requested_model).slice(0, 10),
-    monthly_trend: buildMonthlyTrend(requests),
+    status_breakdown: toMetrics(statusRows),
+    request_type_breakdown: toMetrics(requestTypeRows),
+    device_breakdown: toMetrics(deviceRows),
+    country_breakdown: toMetrics(countryRows),
+    segment_breakdown: toMetrics(segmentRows),
+    top_models: toMetrics(modelRows),
+    monthly_trend: buildMonthlyTrend(asSerialised<Array<Pick<LaptopRequest, 'requested_date' | 'created_at'>>>(trendRows)),
     generated_at: new Date().toISOString(),
   };
 }
@@ -1939,7 +2100,9 @@ export async function createLaptopRequest(input: CreateLaptopRequestInput): Prom
       return { id, reference };
     });
     revalidateLaptopPaths();
-    await notifyNewLaptopRequest(id);
+    // The request is committed; nobody should watch a webhook timeout before they are
+    // told their reference number.
+    deferLaptopNotifications('new-request', () => notifyNewLaptopRequest(id));
     return { success: true, data: { id }, reference_number: reference };
   } catch (err) {
     console.error('[createLaptopRequest]', err);
@@ -1950,7 +2113,7 @@ export async function createLaptopRequest(input: CreateLaptopRequestInput): Prom
 async function notifyNewLaptopRequest(id: number): Promise<void> {
   try {
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
-    if (rows[0]) await notifyLaptopNextApprover(serialise<LaptopRequest>(rows[0]));
+    if (rows[0]) await notifyLaptopNextApprover(asSerialised<LaptopRequest>(rows[0]));
   } catch (err) {
     console.error('[notifyNewLaptopRequest]', err);
   }
@@ -2070,7 +2233,9 @@ export async function createAdminLaptopRequest(input: AdminCreateLaptopRequestIn
       return { id, reference };
     });
     revalidateLaptopPaths();
-    await notifyNewLaptopRequest(id);
+    // The request is committed; nobody should watch a webhook timeout before they are
+    // told their reference number.
+    deferLaptopNotifications('new-request', () => notifyNewLaptopRequest(id));
     return { success: true, data: { id }, reference_number: reference };
   } catch (err) {
     console.error('[createAdminLaptopRequest]', err);
@@ -2183,14 +2348,18 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     // The row as actually committed (RETURNING *), not the pre-update snapshot — patching
     // `row` by hand leaves every column the UPDATE touched stale in the email. Read inside
     // the transaction, notified only after it commits: a webhook cannot be rolled back.
-    const rejectedRequest = serialise<LaptopRequest>(updatedRow ?? { ...row, status: nextStatus });
-    await notifyLaptopNextApprover(rejectedRequest);
-    await notifyLaptopRequesterUpdate(rejectedRequest, {
-      kind: 'rejected',
-      actorName: actor.name,
-      actorEmail: actor.email,
-      comment: trimmedReason,
-      nextOwnerLabel: 'IT Manager',
+    // ...and deferred past the response with after(), so the reviewer's click returns as
+    // soon as the decision is durable instead of waiting on two 15s-timeout webhooks.
+    const rejectedRequest = asSerialised<LaptopRequest>(updatedRow ?? { ...row, status: nextStatus });
+    deferLaptopNotifications('reject', async () => {
+      await notifyLaptopNextApprover(rejectedRequest);
+      await notifyLaptopRequesterUpdate(rejectedRequest, {
+        kind: 'rejected',
+        actorName: actor.name,
+        actorEmail: actor.email,
+        comment: trimmedReason,
+        nextOwnerLabel: 'IT Manager',
+      });
     });
     return { success: true };
   } catch (err) {
@@ -2406,21 +2575,26 @@ export async function updateLaptopRequestStatus(
     // type_of_device / requested_model in this very statement, so patching `row` by hand
     // mailed the approver a description of the wrong device. Read inside the transaction,
     // notified only after it commits: a webhook cannot be rolled back.
-    const updatedRequest = serialise<LaptopRequest>(updatedRow ?? { ...row, status });
-    await notifyLaptopNextApprover(updatedRequest);
-    await notifyLaptopFinalApproval(updatedRequest);
-    // The requester already knows about their own cancellation — everyone else's
-    // decision (approve/assign/procure-new/repair) gets reported back to them.
-    if (!userCancellingOwnRequest) {
-      const nextStage = getLaptopApprovalStage(status);
-      await notifyLaptopRequesterUpdate(updatedRequest, {
-        kind: nextStage ? 'forwarded' : 'final_approved',
-        actorName: actor.name,
-        actorEmail: actor.email,
-        comment: comment || null,
-        nextOwnerLabel: nextStage,
-      });
-    }
+    // ...and deferred past the response with after(). This is the path the finding was
+    // really about: three webhooks at 15s apiece, plus their matrix/delegation lookups,
+    // all of it after the decision was already committed.
+    const updatedRequest = asSerialised<LaptopRequest>(updatedRow ?? { ...row, status });
+    deferLaptopNotifications('status-update', async () => {
+      await notifyLaptopNextApprover(updatedRequest);
+      await notifyLaptopFinalApproval(updatedRequest);
+      // The requester already knows about their own cancellation — everyone else's
+      // decision (approve/assign/procure-new/repair) gets reported back to them.
+      if (!userCancellingOwnRequest) {
+        const nextStage = getLaptopApprovalStage(status);
+        await notifyLaptopRequesterUpdate(updatedRequest, {
+          kind: nextStage ? 'forwarded' : 'final_approved',
+          actorName: actor.name,
+          actorEmail: actor.email,
+          comment: comment || null,
+          nextOwnerLabel: nextStage,
+        });
+      }
+    });
     return { success: true };
   } catch (err) {
     console.error('[updateLaptopRequestStatus]', err);
@@ -2473,14 +2647,17 @@ export async function submitProcureNewDetails(id: number, input: SubmitProcureNe
     // The row as actually committed (RETURNING *), not the pre-update snapshot patched by
     // hand. Read inside the transaction, notified only after it commits: a webhook cannot
     // be rolled back.
-    const confirmedRequest = serialise<LaptopRequest>(updatedRow ?? { ...row, status: nextStatus, type_of_device: typeOfDevice, requested_model: model });
-    await notifyLaptopNextApprover(confirmedRequest);
-    await notifyLaptopRequesterUpdate(confirmedRequest, {
-      kind: 'forwarded',
-      actorName: actor.name,
-      actorEmail: actor.email,
-      comment: null,
-      nextOwnerLabel: 'Country Manager',
+    // ...and deferred past the response with after().
+    const confirmedRequest = asSerialised<LaptopRequest>(updatedRow ?? { ...row, status: nextStatus, type_of_device: typeOfDevice, requested_model: model });
+    deferLaptopNotifications('procure-new-details', async () => {
+      await notifyLaptopNextApprover(confirmedRequest);
+      await notifyLaptopRequesterUpdate(confirmedRequest, {
+        kind: 'forwarded',
+        actorName: actor.name,
+        actorEmail: actor.email,
+        comment: null,
+        nextOwnerLabel: 'Country Manager',
+      });
     });
     return { success: true };
   } catch (err) {
@@ -2587,7 +2764,7 @@ export async function uploadLaptopDocument(formData: FormData): Promise<{ succes
       return rows;
     });
     revalidatePath(`/laptop-procurement/requests/${requestId}`);
-    return { success: true, document: serialise<LaptopDocument>(docs[0]) };
+    return { success: true, document: asSerialised<LaptopDocument>(docs[0]) };
   } catch (err) {
     console.error('[uploadLaptopDocument]', err);
     return { success: false, error: 'Upload failed. Please try again.' };
@@ -2707,7 +2884,7 @@ export async function getLaptopApproverMatrix(): Promise<LaptopApproverMatrixRow
   try {
     await requireAdminActor();
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix ORDER BY country`);
-    return serialise<LaptopApproverMatrixRow[]>(rows);
+    return asSerialised<LaptopApproverMatrixRow[]>(rows);
   } catch (err) {
     console.error('[getLaptopApproverMatrix]', err);
     return null;
@@ -3219,7 +3396,6 @@ export async function getLaptopDelegationData(): Promise<LaptopDelegationData | 
   try {
     const actor = await getActor();
     await ensureLaptopDelegationTable();
-    await expireStaleLaptopDelegations();
     const [grantedRows, receivedRows] = await Promise.all([
       sql<QueryResultRow[]>(
         `SELECT * FROM laptop_delegations WHERE LOWER(delegator_email) = ? ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`,
@@ -3236,8 +3412,11 @@ export async function getLaptopDelegationData(): Promise<LaptopDelegationData | 
     ]);
     return {
       actor,
-      granted: serialise<LaptopDelegationRow[]>(grantedRows),
-      received: serialise<LaptopDelegationRow[]>(receivedRows),
+      granted: applyLaptopDelegationExpiry(asSerialised<LaptopDelegationRow[]>(grantedRows)),
+      // Already filtered to unexpired rows by the query itself, so expiry never changes
+      // anything here — passed through the same helper only so both lists are built the
+      // same way.
+      received: applyLaptopDelegationExpiry(asSerialised<LaptopDelegationRow[]>(receivedRows)),
     };
   } catch (err) {
     console.error('[getLaptopDelegationData]', err);
@@ -3296,14 +3475,14 @@ export async function grantLaptopDelegation(input: {
       }
     });
     revalidatePath('/laptop-procurement/delegate');
-    await sendLaptopDelegationNotification('granted', {
+    deferLaptopNotifications('delegation-granted', () => sendLaptopDelegationNotification('granted', {
       delegatorEmail: actor.email,
       delegatorName: actor.name,
       delegateEmail,
       delegateName: input.delegateName?.trim() || null,
       roles: input.roles,
       expiresAt,
-    });
+    }));
     return { success: true, data: { count: input.roles.length } };
   } catch (err) {
     console.error('[grantLaptopDelegation]', err);
@@ -3332,14 +3511,14 @@ export async function revokeLaptopDelegation(id: number): Promise<ActionResult> 
         `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         [id],
       );
-      await sendLaptopDelegationNotification('revoked', {
+      deferLaptopNotifications('delegation-revoked', () => sendLaptopDelegationNotification('revoked', {
         delegatorEmail: String(row.delegator_email),
         delegatorName: (row.delegator_name as string) || actor.name,
         delegateEmail: String(row.delegate_email),
         delegateName: (row.delegate_name as string | null) ?? null,
         roles: row.stage && row.country ? [{ stage: String(row.stage), country: String(row.country) }] : [],
         expiresAt: null,
-      });
+      }));
     }
     revalidatePath('/laptop-procurement/delegate');
     revalidatePath('/admin');
@@ -3409,14 +3588,14 @@ export async function adminGrantLaptopDelegation(input: {
     });
     revalidatePath('/admin');
     revalidatePath('/laptop-procurement/delegate');
-    await sendLaptopDelegationNotification('granted', {
+    deferLaptopNotifications('delegation-granted', () => sendLaptopDelegationNotification('granted', {
       delegatorEmail,
       delegatorName,
       delegateEmail,
       delegateName: input.delegateName?.trim() || null,
       roles: input.roles,
       expiresAt,
-    });
+    }));
     return { success: true, data: { count: input.roles.length } };
   } catch (err) {
     console.error('[adminGrantLaptopDelegation]', err);

@@ -15,6 +15,7 @@ import {
   getActiveDelegatesByDelegator,
   getAppBaseUrl,
   getProcureGuardNotificationRecipients,
+  getProcureGuardNotificationRecipientsForStatuses,
   getRecipientApprovalStatus,
   getRequestDetailUrl,
   postProcureGuardWebhook,
@@ -673,29 +674,31 @@ async function getProcureGuardNotificationContactPreviewRows(input: {
   // approval_status row) and global approvers (Supply Chain Director / Treasury Director /
   // Corporate Controller / CFO) whose recipient row is filed under another country — both of which
   // getProcureGuardNotificationRecipients now handles via its notification_role + global-role rules.
+  // One query for ALL steps instead of one per step (the loop used to cost 3-5 round-trips on the
+  // request detail page); the per-step matching/ordering rules are unchanged, just applied in JS.
   const profile = getPermissionProfile(null); // ownerLabel derives from the status only, not the profile
-  const perStep = await Promise.all(
-    statuses.map(async status => {
-      const { ownerLabel } = getProcureGuardAvailableActions(profile, input.requestType, status, input.amount, input.currency);
-      const recipients = await getProcureGuardNotificationRecipients({
-        requestType: input.requestType,
-        country: input.country,
-        approvalStatus: status,
-        ownerLabel,
-      });
-      // Group each recipient under THIS step's status: a role-tagged row may carry a null/other
-      // stored approval_status, and the contacts panel groups + highlights the step by approval_status.
-      return recipients.map((row, index): ProcureGuardNotificationContact => ({
-        id: index,
-        country: row.country,
-        request_type: input.requestType,
-        notification_role: row.notification_role,
-        approval_status: status,
-        source_column: row.source_column,
-        display_name: row.display_name,
-        email: row.email,
-      }));
-    }),
+  const steps = statuses.map(status => ({
+    status,
+    ownerLabel: getProcureGuardAvailableActions(profile, input.requestType, status, input.amount, input.currency).ownerLabel,
+  }));
+  const recipientsByStatus = await getProcureGuardNotificationRecipientsForStatuses({
+    requestType: input.requestType,
+    country: input.country,
+    steps,
+  });
+  // Group each recipient under THIS step's status: a role-tagged row may carry a null/other
+  // stored approval_status, and the contacts panel groups + highlights the step by approval_status.
+  const perStep = steps.map(step =>
+    (recipientsByStatus.get(step.status) ?? []).map((row, index): ProcureGuardNotificationContact => ({
+      id: index,
+      country: row.country,
+      request_type: input.requestType,
+      notification_role: row.notification_role,
+      approval_status: step.status,
+      source_column: row.source_column,
+      display_name: row.display_name,
+      email: row.email,
+    })),
   );
 
   const statusRank = new Map(statuses.map((status, index) => [status, index]));
@@ -1271,7 +1274,6 @@ export async function getAdhocPayments(): Promise<AdhocPaymentRequest[] | null> 
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
     await ensureProcureGuardPaymentRequestColumns();
-    await ensureProcureGuardPaymentRequestColumns();
     const scope = scopedWhere(actor);
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_adhoc_payments
@@ -1781,6 +1783,9 @@ export async function getProcureGuardRequestDetail(
 // via revalidateTag(PROCUREGUARD_DATA_TAG); the TTL is a backstop in case a write path is missed.
 const PROCUREGUARD_DATA_TAG = 'procureguard-data';
 
+// NOTE: the rows are serialised/normalised INSIDE this function, not by the caller. unstable_cache
+// already JSON round-trips whatever it stores, so doing serialise() again on the way out meant every
+// dashboard load JSON.parse(JSON.stringify(...))'d both whole tables a second time for nothing.
 const getCachedDashboardRows = unstable_cache(
   async (where: string, params: string[], canViewAll: boolean, email: string) => {
     const [adhocRows, advanceRows, activityRows] = await Promise.all([
@@ -1806,7 +1811,11 @@ const getCachedDashboardRows = unstable_cache(
         canViewAll ? [] : [email, email, email, email],
       ),
     ]);
-    return { adhocRows, advanceRows, activityRows };
+    return {
+      adhoc: normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows)),
+      advance: normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(advanceRows)),
+      activity: serialise<ProcureGuardActivityRow[]>(activityRows),
+    };
   },
   ['procureguard-dashboard'],
   { revalidate: 20, tags: [PROCUREGUARD_DATA_TAG] },
@@ -1819,20 +1828,18 @@ export async function getProcureGuardDashboardData(): Promise<ProcureGuardDashbo
     await ensureProcureGuardPaymentRequestColumns();
     const scope = scopedWhere(actor);
 
-    const { adhocRows, advanceRows, activityRows } = await getCachedDashboardRows(
+    const { adhoc, advance, activity } = await getCachedDashboardRows(
       scope.where,
       scope.params,
       actor.permissions.canViewAll,
       actor.email.toLowerCase(),
     );
 
-    const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
-    const advance = normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(advanceRows));
     return {
       stats: buildStats(adhoc, advance),
       adhoc,
       advance,
-      activity: serialise<ProcureGuardActivityRow[]>(activityRows),
+      activity,
       actor,
     };
   } catch (err) {
@@ -1887,9 +1894,19 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
     const actor = await getActor();
     requireProcureGuardAnalyticsAccess(actor);
     const scope = analyticsScopedWhere(actor);
+    // Only the columns this page actually aggregates or returns. The aggregation stays in JS because
+    // the same rows are ALSO returned wholesale as `requests` for the client-side table — pushing the
+    // breakdowns into SQL GROUP BY would add a second full scan of both tables rather than remove
+    // one. Narrowing SELECT * to these 13 columns is the win that was available: it drops the
+    // attachment/notification/JSONB baggage from every row of both tables on the hottest read.
+    // Keep this list in sync with the consumers below (addMetric / vendorTotals / monthly /
+    // highValueOpenRequests / analyticsRequests / buildStats / buildReviewDurationMetrics /
+    // normalisePaymentCountries / procureGuardThreshold). `contract_reference` is selected for the
+    // advance table only: its presence is the adhoc-vs-advance discriminator further down.
+    const ANALYTICS_COLUMNS = 'id, reference_number, vendor_name, status, priority, requested_by_email, requested_by_name, amount, currency, spend_value_usd, country, created_at, reviewed_at';
     const [adhocRows, advanceRows] = await Promise.all([
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
+      sql<QueryResultRow[]>(`SELECT ${ANALYTICS_COLUMNS} FROM procure_guard_adhoc_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
+      sql<QueryResultRow[]>(`SELECT ${ANALYTICS_COLUMNS}, contract_reference FROM procure_guard_advance_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
     ]);
 
     const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));

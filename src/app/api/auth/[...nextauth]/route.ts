@@ -9,7 +9,14 @@ import snsPool from "@/lib/db-sns";
 import learningHubPool from "@/lib/db-learning-hub";
 import { getPermissionProfile } from "@/lib/procureGuard-utils";
 import { normalizeEmail } from "@/lib/require-access";
+import { saveUserPhoto, parseDataUri } from "@/lib/user-photo";
 import type { ProcureGuardPermissionRole } from "@/types/procureGuard";
+
+/* Emails whose legacy inline avatar this process has already copied into
+   user_photos. A token keeps its data: URI until the cookie is next
+   re-encoded, so without this the migration would re-write the same bytes
+   on every server render in between. */
+const migratedPhotos = new Set<string>();
 
 /* ── Per-user access memo ─────────────────────────────────────────
    The jwt callback below resolves per-tool access with 7 DB queries
@@ -102,28 +109,58 @@ export const authOptions: NextAuthOptions = {
           // fall through gracefully
         }
 
-        // Fetch profile photo from Microsoft Graph
+        /* Fetch the profile photo from Microsoft Graph and store the BYTES
+           server-side. It used to be inlined here as a base64 data: URI,
+           which NextAuth then encrypted into the session cookie — several
+           kilobytes riding on every single request and decrypted by
+           middleware each time. The token now carries one boolean and the
+           image is served by /api/me/photo. */
         try {
           const photoRes = await fetch(
             "https://graph.microsoft.com/v1.0/me/photos/48x48/$value",
             { headers: { Authorization: `Bearer ${account.access_token}` } }
           );
           if (photoRes.ok) {
-            const buf = await photoRes.arrayBuffer();
-            token.picture = `data:image/jpeg;base64,${Buffer.from(buf).toString("base64")}`;
+            const buf = Buffer.from(await photoRes.arrayBuffer());
+            const photoEmail = normalizeEmail(token.email as string | null | undefined);
+            token.hasPhoto = await saveUserPhoto(
+              photoEmail,
+              buf,
+              photoRes.headers.get("content-type") ?? "image/jpeg",
+            );
           } else {
-            token.picture = null;
+            token.hasPhoto = false;
           }
         } catch {
-          token.picture = null;
+          token.hasPhoto = false;
         }
+        delete token.picture;
       }
 
       if (account?.provider === "credentials") {
         token.jobTitle = "Developer";
         token.department = undefined;
         token.country = undefined;
-        token.picture = null;
+        token.hasPhoto = false;
+        delete token.picture;
+      }
+
+      /* One-time migration for sessions issued before the change above:
+         their cookie still holds the inline data: URI. Move those bytes into
+         the store and drop the field, so already-signed-in users keep their
+         avatar (and get the smaller cookie) without having to re-login. */
+      if (typeof token.picture === "string" && token.picture.startsWith("data:")) {
+        const legacyEmail = normalizeEmail(token.email as string | null | undefined);
+        if (legacyEmail && migratedPhotos.has(legacyEmail)) {
+          token.hasPhoto = true;
+        } else {
+          const legacy = parseDataUri(token.picture);
+          if (legacy && legacyEmail) {
+            token.hasPhoto = await saveUserPhoto(legacyEmail, legacy.photo, legacy.contentType);
+            if (token.hasPhoto) migratedPhotos.add(legacyEmail);
+          }
+        }
+        delete token.picture;
       }
 
       // Resolve per-tool access from the DB, memoized per user for TTL.
@@ -347,7 +384,12 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.name       = (token.name    as string) ?? session.user.name;
         session.user.email      = (token.email   as string) ?? session.user.email;
-        session.user.image      = (token.picture as string | null) ?? null;
+        /* A URL, not the image. Every consumer renders
+           `session.user.image ? <img src={…}> : <initials/>`, so pointing at
+           the route keeps both branches behaving exactly as before while the
+           bytes stay out of the cookie. Null when the user has no avatar, so
+           the initials fallback still triggers. */
+        session.user.image      = token.hasPhoto ? '/api/me/photo' : null;
         session.user.jobTitle   = token.jobTitle   as string | undefined;
         session.user.department = token.department as string | undefined;
         session.user.country    = token.country    as string | undefined;

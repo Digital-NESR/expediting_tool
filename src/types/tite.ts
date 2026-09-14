@@ -38,6 +38,32 @@ export interface Shipment {
   daysToExpiry?: number;
 }
 
+/* The column subset the admin TI-TE analytics panel actually reads. That panel
+   filters and charts entirely on the client, so every column it receives is
+   serialised into the page payload — and it never touches from_country,
+   to_country, invoice_number, invoice_value_usd, description, mot, awb_number,
+   po_number, comments or customs_docs_location (description and comments being
+   the free-text heavyweights). Narrowing the type keeps it that way: the report
+   tables address columns by string key, so the compiler is the only thing that
+   stops a dropped column from silently rendering as an em dash. */
+export type TiteAnalyticsShipment = Pick<
+  Shipment,
+  | 'id'
+  | 'reference_number'
+  | 'customs_reference_number'
+  | 'segment'
+  | 'movement_type'
+  | 'import_date'
+  | 'expiry_date'
+  | 'extended_date'
+  | 'deposit_usd'
+  | 'country'
+  | 'status'
+  | 'alert_level'
+  | 'created_by'
+  | 'created_at'
+>;
+
 export interface ShipmentDocument {
   id: number;
   shipment_id: number;

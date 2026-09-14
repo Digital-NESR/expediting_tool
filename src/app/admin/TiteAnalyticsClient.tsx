@@ -7,7 +7,7 @@ import {
   PieChart, Pie, Cell, LineChart, Line, Legend,
 } from 'recharts';
 import { usdFmt, fmtDate, BUCKET_HEX, ALERT_LABEL, shipmentAlertLevel } from '@/lib/tite-utils';
-import type { Shipment } from '@/types/tite';
+import type { TiteAnalyticsShipment } from '@/types/tite';
 
 /* ─── Constants ─────────────────────────────────────────────────── */
 const ACCENT = '#006B0C';
@@ -44,7 +44,7 @@ interface ColDef { key: string; label: string; }
 interface ReportDef {
   id: number; title: string; desc: string; owner: string;
   cols: ColDef[];
-  getRows: (data: Shipment[]) => Shipment[];
+  getRows: (data: TiteAnalyticsShipment[]) => TiteAnalyticsShipment[];
 }
 
 const REPORTS: ReportDef[] = [
@@ -168,13 +168,13 @@ const REPORTS: ReportDef[] = [
 ];
 
 /* ─── Cell renderer ──────────────────────────────────────────────── */
-function renderCell(col: string, row: Shipment): string {
+function renderCell(col: string, row: TiteAnalyticsShipment): string {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   switch (col) {
     case 'deposit_usd':      return usdFmt(row.deposit_usd);
     case 'import_date':
     case 'expiry_date':
-    case 'extended_date':    return fmtDate(row[col as keyof Shipment] as string | null);
+    case 'extended_date':    return fmtDate(row[col as keyof TiteAnalyticsShipment] as string | null);
     case 'created_at':       return fmtDate(row.created_at);
     case 'alert_level_label':return ALERT_LABEL[row.alert_level] ?? row.alert_level;
     case 'recovered':        return row.status === 'Closed - Refund Recovered' ? usdFmt(row.deposit_usd) : '$0.00';
@@ -189,7 +189,7 @@ function renderCell(col: string, row: Shipment): string {
       const days = Math.floor((today.getTime() - new Date(eff).getTime()) / 86400000);
       return days > 0 ? `${days}d` : '—';
     }
-    default: return (row[col as keyof Shipment] as string | null) ?? '—';
+    default: return (row[col as keyof TiteAnalyticsShipment] as string | null) ?? '—';
   }
 }
 
@@ -239,7 +239,7 @@ const NoData = () => (
 
 /* ─── Export helpers ─────────────────────────────────────────────── */
 async function exportToPDF(
-  report: ReportDef, rows: Shipment[],
+  report: ReportDef, rows: TiteAnalyticsShipment[],
   fc: string, fs: string, fm: string, fst: string, fdf: string, fdt: string, fal: string,
 ) {
   const { jsPDF }           = await import('jspdf');
@@ -277,7 +277,7 @@ async function exportToPDF(
 }
 
 async function exportToExcel(
-  report: ReportDef, rows: Shipment[],
+  report: ReportDef, rows: TiteAnalyticsShipment[],
   fc: string, fs: string, fm: string, fst: string, fdf: string, fdt: string, fal: string,
 ) {
   const ExcelJS = await import('exceljs');
@@ -307,7 +307,7 @@ async function exportToExcel(
 }
 
 /* ─── Main component ─────────────────────────────────────────────── */
-export default function TiteAnalyticsClient({ shipments }: { shipments: Shipment[] | null }) {
+export default function TiteAnalyticsClient({ shipments }: { shipments: TiteAnalyticsShipment[] | null }) {
   const [filterCountry,  setFilterCountry]  = useState('');
   const [filterSegment,  setFilterSegment]  = useState('');
   const [filterMovement, setFilterMovement] = useState('');

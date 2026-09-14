@@ -43,8 +43,12 @@ export async function GET(
   }
 
   try {
+    // Metadata first, authorise, and only then pull the BYTEA. Selecting file_content up
+    // front meant every request — including ones about to be refused with a 403, and
+    // link prefetches nobody asked for — dragged the whole blob out of Postgres and
+    // across the wire before anyone checked whether the caller was allowed to see it.
     const { rows } = await laptopProcurementPool.query(
-      `SELECT request_id, document_name, original_name, file_content, file_type, file_size
+      `SELECT request_id, document_name, original_name, file_type, file_size
        FROM laptop_documents WHERE id = $1 LIMIT 1`,
       [docId],
     );
@@ -58,6 +62,15 @@ export async function GET(
       return new NextResponse('Forbidden', { status: 403 });
     }
 
+    const { rows: contentRows } = await laptopProcurementPool.query(
+      `SELECT file_content FROM laptop_documents WHERE id = $1 LIMIT 1`,
+      [docId],
+    );
+    const fileContent = contentRows[0]?.file_content;
+    if (fileContent === undefined || fileContent === null) {
+      return new NextResponse('Document not found', { status: 404 });
+    }
+
     const nameForExt: string = doc.original_name || doc.document_name;
     const ext = extOf(nameForExt);
     let contentType: string = doc.file_type || '';
@@ -66,10 +79,10 @@ export async function GET(
     }
 
     let fileBuffer: Buffer;
-    if (Buffer.isBuffer(doc.file_content)) {
-      fileBuffer = doc.file_content;
+    if (Buffer.isBuffer(fileContent)) {
+      fileBuffer = fileContent;
     } else {
-      const str = String(doc.file_content);
+      const str = String(fileContent);
       fileBuffer = str.startsWith('\\x') ? Buffer.from(str.slice(2), 'hex') : Buffer.from(str, 'binary');
     }
 

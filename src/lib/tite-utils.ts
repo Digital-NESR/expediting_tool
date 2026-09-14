@@ -146,6 +146,12 @@ export function alertLevelFor(
 }
 
 /** {@link alertLevelFor} for a whole shipment row. */
-export function shipmentAlertLevel(s: Shipment, today?: Date): TiteAlertLevel {
+/* Takes only the three fields it reads, so callers holding a narrowed row
+   (see TiteAnalyticsShipment) can use it as well as callers holding a full
+   Shipment — which still satisfy this structurally. */
+export function shipmentAlertLevel(
+  s: Pick<Shipment, 'expiry_date' | 'extended_date' | 'status'>,
+  today?: Date,
+): TiteAlertLevel {
   return alertLevelFor(s.expiry_date, s.extended_date, s.status, today);
 }

@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, cache } from 'react';
 import { redirect } from 'next/navigation';
 import { getCachedSession } from '@/lib/session';
 import AdminShell from './AdminShell';
@@ -16,6 +16,23 @@ export const metadata = { title: 'NESR | Admin' };
 // prerendered. Declaring it dynamic keeps `next build` from attempting a
 // static pass (which would flag AdminShell's useSearchParams usage).
 export const dynamic = 'force-dynamic';
+
+/* The six badge COUNTs, resolved ONCE per request. Wrapped in React's
+   cache() so any re-render of this segment within the same request
+   (and any other server component that needs the same numbers) shares
+   one evaluation instead of firing six queries across six pools again.
+   Same values, same freshness — cache() has request scope only. */
+const getAdminCounts = cache(async (): Promise<AdminCounts> => {
+  const [po, tite, sourceguide, catalog, sns, laptop] = await Promise.all([
+    getPendingAccessCount(),
+    getTitePendingCount(),
+    getSourceGuidePendingCount(),
+    getCatalogAccessPendingCount(),
+    getSnsPendingAccessCount(),
+    getLaptopPendingAccessCount(),
+  ]);
+  return { po, tite, sourceguide, catalog, sns, laptop };
+});
 
 /* This layout gates the ENTIRE /admin/* segment: only ADMIN_EMAILS
    may enter, exactly as before. It also fetches the lightweight
@@ -55,25 +72,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   }
 
-  /* Lightweight badge counts (COUNT queries), fetched once for the
-     whole session. ProcureGuard is open-access → no pending badge. */
-  const [po, tite, sourceguide, catalog, sns, laptop] = await Promise.all([
-    getPendingAccessCount(),
-    getTitePendingCount(),
-    getSourceGuidePendingCount(),
-    getCatalogAccessPendingCount(),
-    getSnsPendingAccessCount(),
-    getLaptopPendingAccessCount(),
-  ]);
-
-  const counts: AdminCounts = {
-    po,
-    tite,
-    sourceguide,
-    catalog,
-    sns,
-    laptop,
-  };
+  /* Lightweight badge counts (COUNT queries), memoized per request by
+     getAdminCounts above. ProcureGuard is open-access → no pending badge. */
+  const counts = await getAdminCounts();
 
   return (
     <Suspense fallback={null}>

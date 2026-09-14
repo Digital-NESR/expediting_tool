@@ -9,6 +9,7 @@
 
 import type { QueryResultRow } from 'pg';
 import {
+  APPROVAL_ACTIVE_STATUSES,
   formatProcureGuardStatusLabel,
   getPermissionProfile,
   getProcureGuardAvailableActions,
@@ -101,12 +102,22 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
     { table: 'procure_guard_advance_payments', requestType: 'advance' },
   ];
 
+  const activeStatusPlaceholders = APPROVAL_ACTIVE_STATUSES.map(() => '?').join(', ');
+
   for (const { table, requestType } of tables) {
     let rows: QueryResultRow[] = [];
     try {
       // "Open since" the current stage began: last approval (reviewed_at) or, for never-actioned
       // submissions, creation. Immune to unrelated row updates (viewer/attachment changes).
-      rows = await sql<QueryResultRow[]>(`SELECT * FROM ${table} WHERE COALESCE(reviewed_at, created_at) <= NOW() - INTERVAL '7 days' ORDER BY COALESCE(reviewed_at, created_at) ASC`);
+      // Terminal rows (Approved/Rejected/Cancelled) are filtered in SQL rather than pulled back and
+      // dropped by the isActiveApprovalStatus() check below, which used to read the whole table.
+      rows = await sql<QueryResultRow[]>(
+        `SELECT * FROM ${table}
+          WHERE COALESCE(reviewed_at, created_at) <= NOW() - INTERVAL '7 days'
+            AND status IN (${activeStatusPlaceholders})
+          ORDER BY COALESCE(reviewed_at, created_at) ASC`,
+        [...APPROVAL_ACTIVE_STATUSES],
+      );
     } catch (err) {
       console.error('[ProcureGuard reminders] query failed', table, err);
       summary.errors += 1;

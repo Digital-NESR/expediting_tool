@@ -15,7 +15,7 @@ import {
   type TiteUser,
 } from '@/lib/tite-auth';
 import { AccessError, requireAdmin, forbidden, normalizeEmail, isAdminActor } from '@/lib/require-access';
-import type { Shipment, ShipmentStats, ShipmentStatus, ShipmentDocument, ActivityLogRow, NotificationContact, CountryStakeholder, CountryStakeholderFull } from '@/types/tite';
+import type { Shipment, TiteAnalyticsShipment, ShipmentStats, ShipmentStatus, ShipmentDocument, ActivityLogRow, NotificationContact, CountryStakeholder, CountryStakeholderFull } from '@/types/tite';
 import {
   dbInsertDocument,
   dbGetDocuments,
@@ -180,6 +180,69 @@ export async function getAllShipments(approvedCountries?: string[]): Promise<Shi
     return fresh;
   } catch (err) {
     console.error('[TI-TE] getAllShipments error:', err);
+    return null;
+  }
+}
+
+/* ─── getShipmentsForAnalytics ────────────────────────────────── */
+
+/* Fourteen columns instead of twenty-four. The admin analytics panel does all
+   of its filtering client-side, so every row it gets is serialised into the
+   page payload — and it reads none of description, comments, invoice_number,
+   invoice_value_usd, mot, awb_number, po_number, customs_docs_location or
+   from/to_country. Ordering and the alert_level recalculation below are
+   deliberately identical to getAllShipments: the report tables render rows in
+   the order they arrive. */
+const ANALYTICS_COLS = `
+  id, reference_number, customs_reference_number, segment, movement_type,
+  deposit_usd, status, alert_level, country, created_by,
+  import_date::text   AS import_date,
+  expiry_date::text   AS expiry_date,
+  extended_date::text AS extended_date,
+  created_at::text    AS created_at
+`;
+
+export async function getShipmentsForAnalytics(
+  approvedCountries?: string[],
+): Promise<TiteAnalyticsShipment[] | null> {
+  const user = await currentTiteUser();
+  if (!isTiteApproved(user)) return null;
+  try {
+    const scope    = effectiveCountryScope(user, approvedCountries);
+    const filtered = scope !== null;
+    const { rows } = await titePool.query<TiteAnalyticsShipment>(
+      `SELECT ${ANALYTICS_COLS}
+       FROM shipments
+       ${filtered ? 'WHERE country = ANY($1::text[])' : ''}
+       ORDER BY
+         CASE alert_level
+           WHEN 'overdue' THEN 1
+           WHEN 'urgent'  THEN 2
+           WHEN 'action'  THEN 3
+           WHEN 'plan'    THEN 4
+           WHEN 'info'    THEN 5
+           WHEN 'ok'      THEN 6
+           WHEN 'closed'  THEN 7
+           ELSE 8
+         END,
+         COALESCE(extended_date, expiry_date) ASC NULLS LAST`,
+      filtered ? [scope] : [],
+    );
+    const ALERT_ORDER: Record<string, number> = {
+      overdue: 1, urgent: 2, action: 3, plan: 4, info: 5, ok: 6, closed: 7,
+    };
+    const fresh = rows.map(r => ({ ...r, alert_level: shipmentAlertLevel(r) }));
+    fresh.sort((a, b) => {
+      const oa = ALERT_ORDER[a.alert_level] ?? 8;
+      const ob = ALERT_ORDER[b.alert_level] ?? 8;
+      if (oa !== ob) return oa - ob;
+      const da = a.extended_date || a.expiry_date || '';
+      const db = b.extended_date || b.expiry_date || '';
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+    return fresh;
+  } catch (err) {
+    console.error('[TI-TE] getShipmentsForAnalytics error:', err);
     return null;
   }
 }
