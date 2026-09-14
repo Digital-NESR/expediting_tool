@@ -241,14 +241,27 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
          to matching the stored display name, with no `active` filter, so a
          deactivated country still resolves. Unresolvable stays NULL. */
       snsPool.query(
-        `SELECT r.*, COALESCE(r.country_code, c.code) AS resolved_country_code
+        `SELECT r.rid, r.classification, r.country, r.scope_level, r.supplier_id, r.supplier_name,
+                r.reason, r.justification, r.base_status, r.spend, r.registry_id,
+                r.issue_date, r.expiry_date, r.requestor,
+                COALESCE(r.country_code, c.code) AS resolved_country_code
            FROM sns_record r
            LEFT JOIN sns_country c ON c.name = r.country
           ORDER BY r.created_at DESC, r.rid DESC`,
       ),
-      snsPool.query(`SELECT * FROM sns_record_node ORDER BY record_rid, sort_order, id`),
-      snsPool.query(`SELECT * FROM sns_record_segment ORDER BY record_rid, segment`),
-      snsPool.query(`SELECT * FROM sns_record_history ORDER BY record_rid, id`),
+      /* Only the columns the shaper below reads: these three child tables are
+         fetched for the whole registry, so every unused column is dead payload. */
+      snsPool.query(
+        `SELECT record_rid, category, sub_category, family, commodity
+           FROM sns_record_node ORDER BY record_rid, sort_order, id`,
+      ),
+      snsPool.query(
+        `SELECT record_rid, segment FROM sns_record_segment ORDER BY record_rid, segment`,
+      ),
+      snsPool.query(
+        `SELECT record_rid, step, actor, entry_date, note
+           FROM sns_record_history ORDER BY record_rid, id`,
+      ),
     ]);
 
     const nodesBy = new Map<number, ScopeNode[]>();
@@ -482,7 +495,6 @@ export async function createSnsRecord(draft: Draft, base: 'Draft' | 'Pending Lev
     );
 
     await client.query('COMMIT');
-    revalidatePath('/sns-registry');
     return { success: true, rid };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -605,7 +617,6 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
     }
 
     await client.query('COMMIT');
-    revalidatePath('/sns-registry');
     return { success: true };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -667,7 +678,6 @@ export async function rejectSnsRecord(rid: number, note: string): Promise<Action
     );
 
     await client.query('COMMIT');
-    revalidatePath('/sns-registry');
     return { success: true };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -732,7 +742,6 @@ export async function startSnsReview(rid: number): Promise<ActionResult> {
     );
 
     await client.query('COMMIT');
-    revalidatePath('/sns-registry');
     return { success: true };
   } catch (err) {
     await client.query('ROLLBACK');

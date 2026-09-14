@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getToolScope, toolReadScope } from '@/lib/tool-scope';
-import { getAllShipments } from '@/app/actions/tite';
+import { getShipmentsForList } from '@/app/actions/tite';
 import ShipmentsClient from './ShipmentsClient';
 
 export const metadata: Metadata = { title: 'NESR | Shipments - TI-TE' };
@@ -15,6 +15,6 @@ export default async function ShipmentsPage() {
   const titeViewOnly = scope.viewOnly;
   const approvedCountries = toolReadScope(scope) ?? undefined;
 
-  const shipments = await getAllShipments(approvedCountries);
+  const shipments = await getShipmentsForList(approvedCountries);
   return <ShipmentsClient shipments={shipments} viewOnly={titeViewOnly} />;
 }

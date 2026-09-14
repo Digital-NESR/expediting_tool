@@ -46,6 +46,35 @@ export interface Shipment {
    the free-text heavyweights). Narrowing the type keeps it that way: the report
    tables address columns by string key, so the compiler is the only thing that
    stops a dropped column from silently rendering as an em dash. */
+/* The shipment register's own projection: everything the list renders, searches
+   or filters on, and nothing else. It drops invoice_value_usd, comments,
+   customs_docs_location and created_at — four columns the register never reads
+   but which were serialised into the page payload for every row. Built the same
+   way as TiteAnalyticsShipment below. */
+export type TiteListShipment = Pick<
+  Shipment,
+  | 'id'
+  | 'reference_number'
+  | 'description'
+  | 'invoice_number'
+  | 'customs_reference_number'
+  | 'awb_number'
+  | 'po_number'
+  | 'from_country'
+  | 'to_country'
+  | 'mot'
+  | 'segment'
+  | 'movement_type'
+  | 'import_date'
+  | 'expiry_date'
+  | 'extended_date'
+  | 'deposit_usd'
+  | 'country'
+  | 'status'
+  | 'alert_level'
+  | 'created_by'
+>;
+
 export type TiteAnalyticsShipment = Pick<
   Shipment,
   | 'id'

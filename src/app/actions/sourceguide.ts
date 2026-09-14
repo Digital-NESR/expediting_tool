@@ -86,6 +86,16 @@ async function canReadAdmin(): Promise<boolean> {
   return withAccessFallback(async () => { await requireSgAdmin(); return true; }, false);
 }
 
+/**
+ * {@link canRead} that hands back the user it already resolved. Read paths that
+ * also write a usage log used to resolve the session twice (once to decide
+ * access, once inside `logUsage`); they now resolve it once and pass it down.
+ * Same gate, same fallback — `null` means "denied", exactly as `false` did.
+ */
+async function readUser(): Promise<SgUser | null> {
+  return withAccessFallback<SgUser | null>(async () => requireSgReader(), null);
+}
+
 function buildPath(c: { category: string; subCategory: string | null; family: string | null; name: string }): string[] {
   return [c.category, c.subCategory, c.family, c.name].filter(Boolean) as string[];
 }
@@ -257,6 +267,15 @@ async function getCountriesLite(): Promise<{ code: string; name: string; tone: s
   const { rows } = await sourceGuidePool.query(`SELECT code, name, tone FROM sg_countries ORDER BY sort_order, name`);
   _ctryCache = { rows, at: Date.now() };
   return _ctryCache.rows;
+}
+
+/**
+ * Drop the caches a mapping write invalidates. The mapped-supplier index is
+ * derived from `sg_mappings`, so without this an edit stayed invisible to
+ * search until the TTL expired. Called by every mapping mutation below.
+ */
+function invalidateMappingCaches(): void {
+  _supCache = null;
 }
 
 /** Extra searchable text for a commodity (weighted below the name in the fuzzy scorer). */
@@ -437,7 +456,8 @@ export async function searchSuppliers(query: string, limit = 6): Promise<SgSuppl
 /* ─── commodity detail ───────────────────────────────────────── */
 
 export async function getCommodityDetail(commodityId: number): Promise<SgCommodityDetail | null> {
-  if (!(await canRead())) return null;
+  const viewer = await readUser();
+  if (!viewer) return null;
   try {
     const comRes = await sourceGuidePool.query(
       `SELECT id, code, name, category, category_id, sub_category, family, spend_type, description
@@ -469,7 +489,7 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
     }
     const countries = Object.keys(mappingsByCountry);
 
-    await logUsage('view', 'commodity', commodity.name, String(commodityId));
+    void logUsage('view', 'commodity', commodity.name, String(commodityId), viewer);
     return { commodity, countries, mappingsByCountry };
   } catch (err) {
     console.error('[sg.getCommodityDetail]', err);
@@ -480,7 +500,8 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
 /* ─── supplier profile ───────────────────────────────────────── */
 
 export async function getSupplierProfile(supplierCode: string): Promise<SgSupplierProfile | null> {
-  if (!(await canRead())) return null;
+  const viewer = await readUser();
+  if (!viewer) return null;
   try {
     const sRes = await sourceGuidePool.query(
       `SELECT supplier_code, name, email FROM supplier_avl WHERE supplier_code = $1`,
@@ -508,7 +529,7 @@ export async function getSupplierProfile(supplierCode: string): Promise<SgSuppli
       [countries],
     );
 
-    await logUsage('view', 'supplier', s.name, s.supplier_code);
+    void logUsage('view', 'supplier', s.name, s.supplier_code, viewer);
     return {
       code: s.supplier_code, name: s.name, email: s.email ?? null, countries,
       totalCommodities: new Set(mappings.map(m => m.commodityId)).size,
@@ -890,12 +911,18 @@ async function logSafe(
   }
 }
 
-/** Best-effort usage log for read paths (page views + searches). Never throws; skips anonymous. */
+/**
+ * Best-effort usage log for read paths (page views + searches). Never throws;
+ * skips anonymous. Callers that already resolved the user pass it in as `known`
+ * so the session is not read twice; the log write itself is fire-and-forget, so
+ * the page no longer waits on a round trip it does not use.
+ */
 async function logUsage(
   eventType: 'view' | 'search', target: string, label: string | null, ref: string | null,
+  known?: SgUser | null,
 ): Promise<void> {
   try {
-    const u = await getSgUser();
+    const u = known ?? await getSgUser();
     if (!u) return;
     await sourceGuidePool.query(
       `INSERT INTO sg_usage_log (user_email, user_name, event_type, target, label, ref)
@@ -909,10 +936,11 @@ async function logUsage(
 
 /** Record a committed search from the search UI. Fire-and-forget from the client. */
 export async function recordSearch(query: string): Promise<void> {
-  if (!(await canRead())) return;
+  const viewer = await readUser();
+  if (!viewer) return;
   const q = (query || '').trim();
   if (!q) return;
-  await logUsage('search', 'search', q.slice(0, 200), null);
+  await logUsage('search', 'search', q.slice(0, 200), null, viewer);
 }
 
 export async function addMapping(input: {
@@ -946,6 +974,7 @@ export async function addMapping(input: {
       );
     }
 
+    invalidateMappingCaches();
     const com = await sourceGuidePool.query(`SELECT name FROM sg_commodities WHERE id=$1`, [input.commodityId]);
     await logActivity(input.country, input.commodityId, 'Add',
       `${input.tier} · ${supplierName} → ${com.rows[0]?.name ?? ''}`, user.name, user.email);
@@ -973,6 +1002,7 @@ export async function removeMapping(mapId: number): Promise<{ success: boolean; 
     if (!(await canEdit(user, row.country_code))) return { success: false, error: 'You cannot edit this country.' };
 
     await sourceGuidePool.query(`UPDATE sg_mappings SET status='Inactive' WHERE id=$1`, [mapId]);
+    invalidateMappingCaches();
     await logActivity(row.country_code, row.commodity_id, 'Deactivate',
       `${row.tier} · ${row.supplier_name} ✕ ${row.com_name}`, user.name, user.email);
     return { success: true };
@@ -999,6 +1029,7 @@ export async function changeTier(mapId: number, tier: Tier): Promise<{ success: 
     if (!(await canEdit(user, row.country_code))) return { success: false, error: 'You cannot edit this country.' };
 
     await sourceGuidePool.query(`UPDATE sg_mappings SET tier=$2 WHERE id=$1`, [mapId, tier]);
+    invalidateMappingCaches();
     await logActivity(row.country_code, row.commodity_id, 'Edit tier',
       `${row.supplier_name}: ${row.tier} → ${tier} (${row.com_name})`, user.name, user.email);
     return { success: true };
@@ -1080,7 +1111,8 @@ export interface SgCountryDashboard {
 }
 
 export async function getCountryDashboard(code: string): Promise<SgCountryDashboard | null> {
-  if (!(await canRead())) return null;
+  const viewer = await readUser();
+  if (!viewer) return null;
   try {
     const cRes = await sourceGuidePool.query(
       `SELECT c.code, c.name, c.tone,
@@ -1113,7 +1145,7 @@ export async function getCountryDashboard(code: string): Promise<SgCountryDashbo
          GROUP BY a.supplier_code, a.name ORDER BY mappings DESC LIMIT 8`, [code]),
     ]);
     const s = statsRes.rows[0];
-    await logUsage('view', 'country', c.name, c.code);
+    void logUsage('view', 'country', c.name, c.code, viewer);
     return {
       code: c.code, name: c.name, tone: c.tone, champions: c.champions || [],
       version: c.version, status: c.status, updatedAt: isoOf(c.updated_at),

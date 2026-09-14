@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import ExcelJS from 'exceljs';
 import Sidebar from '@/components/Sidebar';
 import { saveBuyerComment, getMyExpeditingSessions } from '@/app/actions/reconciliation';
 import type { SessionData, SupplierGroup, LineData } from '@/app/actions/reconciliation';
@@ -60,6 +59,8 @@ interface ExportRow {
 }
 
 async function exportToExcel(rows: ExportRow[], filename: string) {
+  // Loaded on demand so exceljs stays out of this page's initial client chunk.
+  const ExcelJS = await import('exceljs');
   const workbook  = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Expediting Export');
 

@@ -77,7 +77,10 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
    * if it failed, otherwise re-read the records. Re-reading rather than
    * patching local state keeps this client honest about what the database
    * actually did — server-side permission checks can reject an action the UI
-   * believed was allowed.
+   * believed was allowed. This one re-read is the only refresh: the record
+   * mutations no longer `revalidatePath('/sns-registry')` as well, because the
+   * RSC re-render it forced reloaded the whole registry a second time into
+   * props this hook's `useState` already ignores.
    */
   const run = useCallback(
     (action: () => Promise<{ success: boolean; error?: string }>, onDone?: () => void) => {

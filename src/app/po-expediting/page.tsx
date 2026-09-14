@@ -1029,6 +1029,9 @@ export default function Dashboard() {
 
   // Filters
   const [search, setSearch] = useState('');
+  // The row scan below reads this debounced copy, so a fast typist does not
+  // re-scan every row on every keystroke. Only the timing changes, never the result.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterDelivCode, setFilterDelivCode] = useState<string[]>([]);
   const [filterCountry, setFilterCountry] = useState<string[]>([]);
   const [filterSuppliers, setFilterSuppliers] = useState<string[]>([]);
@@ -1058,6 +1061,12 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
     return () => ctrl.abort();
   }, []);
+
+  /* Debounce the search box before it feeds the row scan ---- */
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search), 200);
+    return () => clearTimeout(id);
+  }, [search]);
 
   /* Reset page when any filter/sort changes ---------------- */
   useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterAccountTypes, filterPGroup, filterSegment, poSortKey, poSortDir]);
@@ -1108,138 +1117,84 @@ export default function Dashboard() {
      OTHER active filters (but NOT the filter for that dropdown),
      preventing users from locking themselves out of deselecting. */
 
-  const deliveryCodes = useMemo(() => {
+  /* Trimmed filter look-ups, built once per filter change rather than
+     re-allocated for every row inside the scan below. */
+  const delivCodeSet = useMemo(() => new Set(filterDelivCode), [filterDelivCode]);
+  const countrySet   = useMemo(() => new Set(filterCountry), [filterCountry]);
+  const supplierSet  = useMemo(() => new Set(filterSuppliers.map(s => s.trim())), [filterSuppliers]);
+  const buyerSet     = useMemo(() => new Set(filterBuyers.map(b => b.trim())), [filterBuyers]);
+  const pGroupSet    = useMemo(() => new Set(filterPGroup), [filterPGroup]);
+  const segmentSet   = useMemo(() => new Set(filterSegment), [filterSegment]);
+
+  /* One pass over `rows` produces all six option lists plus the filtered set.
+     A row is recorded against every dropdown whose OWN filter is the only one
+     it fails (and against all six when it fails none), which is exactly the
+     cascading "all other filters" rule the six separate scans implemented. */
+  const {
+    deliveryCodes, countries, supplierList, supplierDisplayMap,
+    buyerList, pGroupList, segmentList, filtered,
+  } = useMemo(() => {
     const dc = new Set<string>();
-    rows.forEach((r) => {
-      if (!rowMatchesStatus(r, filterStatus)) return;
-      if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
-      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
-      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
-      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
-      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return;
-      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return;
-      dc.add(r['Delivery Code'] || '(Blank)');
-    });
-    return [...dc].sort();
-  }, [rows, filterStatus, filterAccountTypes, search, filterCountry, filterSuppliers, filterBuyers, filterPGroup, filterSegment]);
-
-  const countries = useMemo(() => {
     const co = new Set<string>();
-    rows.forEach((r) => {
-      if (!rowMatchesStatus(r, filterStatus)) return;
-      if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
-      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
-      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
-      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
-      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return;
-      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return;
-      if (r['Country']) co.add(r['Country']);
-    });
-    return [...co].sort();
-  }, [rows, filterStatus, filterAccountTypes, search, filterDelivCode, filterSuppliers, filterBuyers, filterPGroup, filterSegment]);
-
-  const { supplierList, supplierDisplayMap } = useMemo(() => {
     const sp = new Map<string, string>(); // supplierName -> "ID - Name"
-    rows.forEach((r) => {
-      if (!rowMatchesStatus(r, filterStatus)) return;
-      if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
-      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
-      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
-      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
-      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return;
-      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return;
-      const name = (r['Supplier Name'] ?? '').trim();
-      if (name && !sp.has(name)) {
-        const id = r['Supplier ID'];
-        sp.set(name, id ? `${id} - ${name}` : name);
+    const by = new Set<string>();
+    const pg = new Set<string>();
+    const sg = new Set<string>();
+    const keep: PurchaseOrder[] = [];
+
+    // The option scans matched on the raw box contents; `filtered` trimmed it first.
+    const trimmedSearch = debouncedSearch.trim();
+    const sameSearch = trimmedSearch === debouncedSearch;
+
+    for (const r of rows) {
+      if (!rowMatchesStatus(r, filterStatus)) continue;
+      if (!rowMatchesAccountType(r, filterAccountTypes)) continue;
+
+      const okOptions = rowMatchesSearch(r, debouncedSearch);
+      const okFiltered = sameSearch ? okOptions : rowMatchesSearch(r, trimmedSearch);
+      if (!okOptions && !okFiltered) continue;
+
+      const failDC = delivCodeSet.size > 0 && !delivCodeSet.has(r['Delivery Code'] || '(Blank)');
+      const failCO = countrySet.size > 0 && !countrySet.has(r['Country'] ?? '');
+      const failSP = supplierSet.size > 0 && !supplierSet.has((r['Supplier Name'] ?? '').trim());
+      const failBY = buyerSet.size > 0 && !buyerSet.has((r['Buyer Name'] ?? '').trim());
+      const failPG = pGroupSet.size > 0 && !pGroupSet.has(r['P Group'] ?? '');
+      const failSG = segmentSet.size > 0 && !segmentSet.has(r['Segment'] ?? '');
+      const fails = +failDC + +failCO + +failSP + +failBY + +failPG + +failSG;
+
+      if (fails === 0 && okFiltered) keep.push(r);
+      if (!okOptions || fails > 1) continue;
+
+      if (fails === 0 || failDC) dc.add(r['Delivery Code'] || '(Blank)');
+      if ((fails === 0 || failCO) && r['Country']) co.add(r['Country']);
+      if (fails === 0 || failSP) {
+        const name = (r['Supplier Name'] ?? '').trim();
+        if (name && !sp.has(name)) {
+          const id = r['Supplier ID'];
+          sp.set(name, id ? `${id} - ${name}` : name);
+        }
       }
-    });
+      if ((fails === 0 || failBY) && r['Buyer Name']) by.add(r['Buyer Name']);
+      if ((fails === 0 || failPG) && r['P Group']) pg.add(r['P Group']);
+      if ((fails === 0 || failSG) && r['Segment']) sg.add(r['Segment']);
+    }
+
     const sortedNames = [...sp.keys()].sort();
     const displayMap: Record<string, string> = {};
     sortedNames.forEach((name) => { displayMap[name] = sp.get(name)!; });
-    return { supplierList: sortedNames, supplierDisplayMap: displayMap };
-  }, [rows, filterStatus, filterAccountTypes, search, filterDelivCode, filterCountry, filterBuyers, filterPGroup, filterSegment]);
 
-  const buyerList = useMemo(() => {
-    const by = new Set<string>();
-    rows.forEach((r) => {
-      if (!rowMatchesStatus(r, filterStatus)) return;
-      if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
-      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
-      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
-      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
-      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return;
-      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return;
-      if (r['Buyer Name']) by.add(r['Buyer Name']);
-    });
-    return [...by].sort();
-  }, [rows, filterStatus, filterAccountTypes, search, filterDelivCode, filterCountry, filterSuppliers, filterPGroup, filterSegment]);
+    return {
+      deliveryCodes: [...dc].sort(),
+      countries: [...co].sort(),
+      supplierList: sortedNames,
+      supplierDisplayMap: displayMap,
+      buyerList: [...by].sort(),
+      pGroupList: [...pg].sort(),
+      segmentList: [...sg].sort(),
+      filtered: keep,
+    };
+  }, [rows, debouncedSearch, filterStatus, filterAccountTypes, delivCodeSet, countrySet, supplierSet, buyerSet, pGroupSet, segmentSet]);
 
-  const pGroupList = useMemo(() => {
-    const pg = new Set<string>();
-    rows.forEach((r) => {
-      if (!rowMatchesStatus(r, filterStatus)) return;
-      if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
-      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
-      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
-      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
-      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
-      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return;
-      if (r['P Group']) pg.add(r['P Group']);
-    });
-    return [...pg].sort();
-  }, [rows, filterStatus, filterAccountTypes, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterSegment]);
-
-  const segmentList = useMemo(() => {
-    const sg = new Set<string>();
-    rows.forEach((r) => {
-      if (!rowMatchesStatus(r, filterStatus)) return;
-      if (!rowMatchesSearch(r, search)) return;
-      if (!rowMatchesAccountType(r, filterAccountTypes)) return;
-      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return;
-      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return;
-      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return;
-      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return;
-      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return;
-      if (r['Segment']) sg.add(r['Segment']);
-    });
-    return [...sg].sort();
-  }, [rows, filterStatus, filterAccountTypes, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterPGroup]);
-
-  /* Smart filtering ---------------------------------------- */
-  const filtered = useMemo(() => {
-    const term = search.toLowerCase().trim();
-    return rows.filter((r) => {
-      if (filterDelivCode.length > 0 && !filterDelivCode.includes(r['Delivery Code'] || '(Blank)')) return false;
-      if (filterCountry.length > 0 && !filterCountry.includes(r['Country'] ?? '')) return false;
-      if (filterSuppliers.length > 0 && !filterSuppliers.map(s => s.trim()).includes((r['Supplier Name'] ?? '').trim())) return false;
-      if (filterBuyers.length > 0 && !filterBuyers.map(b => b.trim()).includes((r['Buyer Name'] ?? '').trim())) return false;
-      if (filterPGroup.length > 0 && !filterPGroup.includes(r['P Group'] ?? '')) return false;
-      if (filterSegment.length > 0 && !filterSegment.includes(r['Segment'] ?? '')) return false;
-
-      // Status tile filter
-      if (!rowMatchesStatus(r, filterStatus)) return false;
-
-      // Account type filter (line level — by account_classification_description)
-      if (!rowMatchesAccountType(r, filterAccountTypes)) return false;
-
-      // Search: match PO Number, Supplier Name, Supplier ID, or SAP MAT ID
-      if (term) {
-        const matchesPO = String(r['PO Number'] ?? '').toLowerCase().includes(term);
-        const matchesSupplier = String(r['Supplier Name'] ?? '').toLowerCase().includes(term);
-        const matchesSupplierID = String(r['Supplier ID'] ?? '').toLowerCase().includes(term);
-        const matchesMatID = String(r['SAP MAT ID'] ?? '').toLowerCase().includes(term);
-        if (!matchesPO && !matchesSupplier && !matchesSupplierID && !matchesMatID) return false;
-      }
-
-      return true;
-    });
-  }, [rows, search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterAccountTypes, filterPGroup, filterSegment]);
 
   /* PO grouping -------------------------------------------- */
   const groupedPOs = useMemo((): PoGroup[] => {

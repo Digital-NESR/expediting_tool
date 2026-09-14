@@ -1,6 +1,7 @@
 'use server';
 
 import type { PoolClient, QueryResultRow } from 'pg';
+import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import ExcelJS from 'exceljs';
 import catalogManagerPool from '@/lib/db-catalog-manager';
@@ -61,7 +62,7 @@ import type {
   UomRow,
 } from '@/types/catalog-manager';
 
-type QueryParams = (string | number | boolean | null | undefined | string[])[];
+type QueryParams = (string | number | boolean | null | undefined | string[] | number[])[];
 
 function toPostgresQuery(statement: string): string {
   let index = 0;
@@ -614,7 +615,19 @@ async function upsertSupplier(name: string, vendor: string, manager: string | nu
    ACTOR / PERMISSIONS
 ============================================================================ */
 
-export async function getCatalogActor(): Promise<CatalogActor> {
+/**
+ * Request-scoped memo of the actor. Resolving one costs 3-6 queries across TWO databases
+ * (app_user + country_approver here, delegations in delegation_db), and every guarded export plus
+ * the page that renders them used to pay it again. React `cache()` collapses that to once per
+ * request; outside a React request scope (a bare server-action invocation) it simply runs the
+ * function, so behaviour is unchanged.
+ *
+ * Safe to memoise: the tables it derives from (app_user, country_approver, delegation) are only
+ * written by admin actions — setUserRole, add/removeCountryApprover, approve/reject/revoke access —
+ * and none of them re-reads the actor after writing (they take the actor first, as the guard, then
+ * write and revalidate, so the refreshed value is read by the NEXT request).
+ */
+const loadCatalogActor = cache(async (): Promise<CatalogActor> => {
   await ensureCatalogManagerSchema();
   const sessionUser = await getProcureGuardUser();
   const email = (sessionUser?.email ?? '').toLowerCase();
@@ -625,7 +638,12 @@ export async function getCatalogActor(): Promise<CatalogActor> {
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 
-  const rows = email ? await sql<AppUserRow[]>(`SELECT * FROM app_user WHERE LOWER(email) = ?`, [email]) : [];
+  // The app_user row and the delegations granted TO this user are independent lookups (and live in
+  // different databases), so they go out together rather than one after the other.
+  const [rows, delegatedFrom] = await Promise.all([
+    email ? sql<AppUserRow[]>(`SELECT * FROM app_user WHERE LOWER(email) = ?`, [email]) : Promise.resolve([] as AppUserRow[]),
+    resolveCatalogDelegations(email),
+  ]);
   const userRow = rows[0];
 
   let role: CatalogRole;
@@ -662,8 +680,7 @@ export async function getCatalogActor(): Promise<CatalogActor> {
     ownApproverCountries = ca.map((c) => c.country_code);
   }
 
-  // Merge in any active delegations TO this user for the Catalog Repo app.
-  const delegatedFrom = await resolveCatalogDelegations(email);
+  // Merge in any active delegations TO this user for the Catalog Repo app (resolved above).
   const delegatedCountries = delegatedFrom.flatMap((d) => d.countries);
   const approverCountries = [...new Set([...ownApproverCountries, ...delegatedCountries])];
 
@@ -680,6 +697,10 @@ export async function getCatalogActor(): Promise<CatalogActor> {
     ownApproverCountries,
     delegatedFrom,
   };
+});
+
+export async function getCatalogActor(): Promise<CatalogActor> {
+  return loadCatalogActor();
 }
 
 /* ----------------------------------------------------------------------------
@@ -724,25 +745,42 @@ async function resolveCatalogDelegations(email: string): Promise<CatalogDelegati
   const delegators = await getDelegatorsForApp(email, 'catalog');
   if (!delegators.length) return [];
 
+  // One query for every delegator's user row (was one per delegator), then at most two more for
+  // the countries they can approve — never a query per delegator.
+  const emails = [...new Set(delegators.map((d) => d.email.toLowerCase()))];
+  const users = await sql<AppUserRow[]>(
+    `SELECT * FROM app_user WHERE LOWER(email) IN (${emails.map(() => '?').join(', ')})`,
+    emails,
+  );
+  const userByEmail = new Map(users.map((u) => [String(u.email).toLowerCase(), u]));
+  const approving = users.filter((u) => u.role === 'Approver' || u.role === 'Admin');
+  const assignedIds = approving.filter((u) => u.role !== 'Admin').map((u) => Number(u.id));
+
+  const [allCountries, assignments] = await Promise.all([
+    approving.some((u) => u.role === 'Admin')
+      ? sql<{ code: string }[]>(`SELECT code FROM country WHERE status = 'Active'`)
+      : Promise.resolve([] as { code: string }[]),
+    assignedIds.length
+      ? sql<{ user_id: number; country_code: string }[]>(
+          `SELECT DISTINCT user_id, country_code FROM country_approver WHERE user_id = ANY(?) AND is_active = TRUE`,
+          [assignedIds],
+        )
+      : Promise.resolve([] as { user_id: number; country_code: string }[]),
+  ]);
+  const byUser = new Map<number, string[]>();
+  for (const a of assignments) {
+    const list = byUser.get(Number(a.user_id)) ?? [];
+    list.push(a.country_code);
+    byUser.set(Number(a.user_id), list);
+  }
+
   const grants: CatalogDelegationGrant[] = [];
   for (const d of delegators) {
-    const rows = await sql<AppUserRow[]>(`SELECT * FROM app_user WHERE LOWER(email) = ?`, [d.email.toLowerCase()]);
-    const u = rows[0];
+    const u = userByEmail.get(d.email.toLowerCase());
     if (!u) continue;
     const canApprove = u.role === 'Approver' || u.role === 'Admin';
     if (!canApprove) continue;
-
-    let countries: string[];
-    if (u.role === 'Admin') {
-      const all = await sql<{ code: string }[]>(`SELECT code FROM country WHERE status = 'Active'`);
-      countries = all.map((c) => c.code);
-    } else {
-      const ca = await sql<{ country_code: string }[]>(
-        `SELECT DISTINCT country_code FROM country_approver WHERE user_id = ? AND is_active = TRUE`,
-        [u.id],
-      );
-      countries = ca.map((c) => c.country_code);
-    }
+    const countries = u.role === 'Admin' ? allCountries.map((c) => c.code) : byUser.get(Number(u.id)) ?? [];
     grants.push({ email: d.email, name: u.full_name ?? d.name ?? d.email, countries });
   }
   return grants;
@@ -986,16 +1024,22 @@ function mapEntry(row: QueryResultRow, rates: UsdRates): CatalogEntry {
 
 export interface CatalogListFilters {
   country?: string; // 'ALL' or a code
+  status?: CatalogStatus; // narrows in SQL — the approvals queue only ever wants 'Pending Approval'
 }
 
 export async function listCatalogEntries(filters: CatalogListFilters = {}): Promise<CatalogEntry[]> {
   if (!(await optionalCatalogActor())) return [];
   const params: QueryParams = [];
-  let where = '';
+  const clauses: string[] = [];
   if (filters.country && filters.country !== 'ALL') {
-    where = `WHERE e.country_code = ?`;
+    clauses.push(`e.country_code = ?`);
     params.push(filters.country);
   }
+  if (filters.status) {
+    clauses.push(`e.status = ?`);
+    params.push(filters.status);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const [rows, rates] = await Promise.all([
     sql<QueryResultRow[]>(`${ENTRY_SELECT} ${where} ORDER BY e.modified_at DESC`, params),
     loadCurrencyRates(),
@@ -1223,7 +1267,12 @@ export async function getPendingApprovalCount(country = 'ALL'): Promise<number> 
   return Number(rows[0]?.n ?? 0);
 }
 
-export async function getCatalogEntry(id: number): Promise<CatalogEntry | null> {
+/**
+ * Request-scoped memo: the entry detail route calls this from BOTH generateMetadata (for the title)
+ * and the page body, and pg queries are not deduplicated the way `fetch` is, so every entry
+ * navigation ran these three queries twice. React `cache()` collapses them to one set per request.
+ */
+const loadCatalogEntry = cache(async (id: number): Promise<CatalogEntry | null> => {
   if (!(await optionalCatalogActor())) return null;
   const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [id]);
   if (!rows[0]) return null;
@@ -1261,6 +1310,10 @@ export async function getCatalogEntry(id: number): Promise<CatalogEntry | null> 
   }));
 
   return entry;
+});
+
+export async function getCatalogEntry(id: number): Promise<CatalogEntry | null> {
+  return loadCatalogEntry(id);
 }
 
 /* ============================================================================
@@ -1391,7 +1444,43 @@ async function loadThresholdRules(db: CatalogDb = poolDb): Promise<ThresholdRule
   }));
 }
 
-async function resolveRefs(input: CatalogEntryInput, db: CatalogDb = poolDb) {
+/**
+ * The three reference tables resolveRefs() looks a single entry up in, loaded once so a multi-line
+ * create resolves every line in memory instead of issuing 3 lookups per line. They are small,
+ * admin-maintained taxonomy tables; the lookups stay exact-name matches, first row wins, exactly as
+ * the per-line queries did.
+ */
+interface EntryRefLookups {
+  categories: Map<string, { id: number; type: string }>;
+  subs: { id: number; category_id: number; name: string }[];
+  uoms: Map<string, number>;
+}
+
+async function loadEntryRefLookups(db: CatalogDb = poolDb): Promise<EntryRefLookups> {
+  const [cats, subs, uoms] = [
+    await db.sql<{ id: number; name: string; type: string }[]>(`SELECT id, name, type FROM spend_category`),
+    await db.sql<{ id: number; category_id: number; name: string }[]>(`SELECT id, category_id, name FROM spend_subcategory`),
+    await db.sql<{ id: number; name: string }[]>(`SELECT id, name FROM unit_of_measure`),
+  ];
+  const categories = new Map<string, { id: number; type: string }>();
+  for (const c of cats) if (!categories.has(c.name)) categories.set(c.name, { id: Number(c.id), type: c.type });
+  const uomMap = new Map<string, number>();
+  for (const u of uoms) if (!uomMap.has(u.name)) uomMap.set(u.name, Number(u.id));
+  return { categories, subs, uoms: uomMap };
+}
+
+async function resolveRefs(input: CatalogEntryInput, db: CatalogDb = poolDb, lookups?: EntryRefLookups) {
+  if (lookups) {
+    const hit = lookups.categories.get(input.category_name);
+    const categoryId = hit?.id ?? null;
+    const spendType = (input.spend_type ?? (hit?.type as SpendType)) ?? 'Indirect';
+    let subId: number | null = null;
+    if (categoryId && input.subcategory_name) {
+      subId = lookups.subs.find((s) => Number(s.category_id) === categoryId && s.name === input.subcategory_name)?.id ?? null;
+      subId = subId != null ? Number(subId) : null;
+    }
+    return { categoryId, spendType, subId, uomId: lookups.uoms.get(input.uom_name) ?? null };
+  }
   const cat = await db.sql<{ id: number; type: string }[]>(`SELECT id, type FROM spend_category WHERE name = ?`, [input.category_name]);
   const categoryId = cat[0]?.id ?? null;
   const spendType = (input.spend_type ?? (cat[0]?.type as SpendType)) ?? 'Indirect';
@@ -1409,19 +1498,33 @@ async function resolveRefs(input: CatalogEntryInput, db: CatalogDb = poolDb) {
  * and the audit row are one unit of work: a failure between them used to leave an entry with no
  * version (or an orphan version whose number collided with the next edit).
  */
+/**
+ * Everything an insert needs that does NOT vary line to line. A multi-line create resolves it once
+ * and hands it down, so the 6 lookups below (supplier upsert, taxonomy, rates, thresholds, approver
+ * scopes) are paid once per request instead of once per line.
+ */
+interface InsertContext {
+  supplierId: number;
+  lookups: EntryRefLookups;
+  rates: UsdRates;
+  rules: ThresholdRule[];
+  scopes: ApproverScope[];
+}
+
 async function insertCatalogEntry(
   db: CatalogDb,
   actor: CatalogActor,
   input: CatalogEntryInput,
   mode: 'draft' | 'submit',
+  ctx?: InsertContext,
 ): Promise<{ id: number; code: string; status: CatalogStatus }> {
-  const supplierId = await upsertSupplier(input.supplier_name, input.supplier_code, input.manager, db);
-  const { categoryId, spendType, subId, uomId } = await resolveRefs(input, db);
-  const usd = toUsd(input.unit_price, input.currency_code, await loadCurrencyRates(db));
-  const threshold = effectiveThresholdUsd(await loadThresholdRules(db), input.country_code, categoryId);
+  const supplierId = ctx?.supplierId ?? (await upsertSupplier(input.supplier_name, input.supplier_code, input.manager, db));
+  const { categoryId, spendType, subId, uomId } = await resolveRefs(input, db, ctx?.lookups);
+  const usd = toUsd(input.unit_price, input.currency_code, ctx?.rates ?? (await loadCurrencyRates(db)));
+  const threshold = effectiveThresholdUsd(ctx?.rules ?? (await loadThresholdRules(db)), input.country_code, categoryId);
   const tier = approvalTier(usd, threshold);
   const status: CatalogStatus = mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
-  const approver = status === 'Pending Approval' ? await resolveApproverLabel(db, input.country_code, categoryId) : null;
+  const approver = status === 'Pending Approval' ? await resolveApproverLabel(db, input.country_code, categoryId, ctx?.scopes) : null;
 
   const ins = await db.sql<{ id: number; code: string }[]>(
     `INSERT INTO catalog_entry
@@ -1469,10 +1572,20 @@ export async function createCatalogEntriesBatch(
   // and still throw, so the caller saw an error over a half-created group.
   return withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
+    // Every line shares the supplier, the country and the same reference data, so all of it is
+    // resolved once here instead of ~6 lookups per line inside insertCatalogEntry.
+    const ctx: InsertContext = {
+      supplierId: await upsertSupplier(shared.supplier_name, shared.supplier_code, shared.manager, db),
+      lookups: await loadEntryRefLookups(db),
+      rates: await loadCurrencyRates(db),
+      rules: await loadThresholdRules(db),
+      // Draft lines never route to an approver, so their scopes are not loaded at all.
+      scopes: mode === 'draft' ? [] : await loadApproverScopes(null, db),
+    };
     let firstId: number | null = null;
     let created = 0;
     for (const line of lines) {
-      const res = await insertCatalogEntry(db, actor, { ...line, ...shared }, mode);
+      const res = await insertCatalogEntry(db, actor, { ...line, ...shared }, mode, ctx);
       if (firstId === null) firstId = res.id;
       created++;
     }
@@ -1652,6 +1765,27 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
   const thresholdRules = await loadThresholdRules(db);
   // Who a routed row lands on — loaded once for the whole file, not once per row.
   const approverScopes = await loadApproverScopes(null, db);
+
+  // Duplicate detection, once for the whole file instead of a SELECT per row. Scoped to the
+  // supplier codes the file actually mentions, then matched on the same (vendor code, country,
+  // case-insensitive item name) triple over Active entries the per-row query used. Rows inserted by
+  // THIS file are folded into the map as they land, so a file that repeats a line still reports the
+  // second one as a duplicate of the first — exactly as the in-transaction SELECT did.
+  const fileSupplierCodes = [...new Set(input.rows.map((r) => sanitizeImportText(r.supplier_code)).filter((c): c is string => !!c))];
+  const dupKeyOf = (vendor: string, country: string, item: string) => `${vendor}\u0000${country}\u0000${item.toLowerCase()}`;
+  const activeKeys = new Map<string, string>();
+  if (fileSupplierCodes.length) {
+    const existing = await db.sql<{ vendor_code: string; country_code: string; item_name: string; code: string }[]>(
+      `SELECT s.vendor_code, e.country_code, e.item_name, e.code
+       FROM catalog_entry e JOIN supplier s ON s.id = e.supplier_id
+       WHERE e.status = 'Active' AND s.vendor_code = ANY(?)`,
+      [fileSupplierCodes],
+    );
+    for (const d of existing) {
+      const k = dupKeyOf(String(d.vendor_code), String(d.country_code), String(d.item_name));
+      if (!activeKeys.has(k)) activeKeys.set(k, String(d.code));
+    }
+  }
   let inserted = 0, skipped = 0, errors = 0;
   const log: string[] = [];
 
@@ -1747,47 +1881,58 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
         if (exp < eff) { errors++; log.push(`❌ Row ${r.rowIndex}: expiry date ${exp} is before the effective date ${eff}`); continue; }
       }
 
+      const dupKey = dupKeyOf(supplierCode, countryCode, itemName);
+      const dupCode = activeKeys.get(dupKey);
+      if (dupCode) {
+        skipped++; log.push(`⚠️ Row ${r.rowIndex}: looks like a duplicate of active ${dupCode} — skipped`); continue;
+      }
+
       await client.query(`SAVEPOINT ${ROW_SAVEPOINT}`);
       rowSavepoint = true;
 
-      const dup = await db.sql<{ code: string }[]>(
-        `SELECT e.code FROM catalog_entry e JOIN supplier s ON s.id = e.supplier_id
-         WHERE s.vendor_code = ? AND e.country_code = ? AND LOWER(e.item_name) = LOWER(?) AND e.status = 'Active' LIMIT 1`,
-        [supplierCode, countryCode, itemName],
-      );
-      if (dup[0]) {
-        await client.query(`RELEASE SAVEPOINT ${ROW_SAVEPOINT}`);
-        rowSavepoint = false;
-        skipped++; log.push(`⚠️ Row ${r.rowIndex}: looks like a duplicate of active ${dup[0].code} — skipped`); continue;
-      }
-
-      const supplierId = await upsertSupplier(supplier, supplierCode, manager, db);
       const usd = toUsd(r.unit_price, ccy, rates);
       const tier = approvalTier(usd, effectiveThresholdUsd(thresholdRules, countryCode, categoryId));
       const status: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
       const approver = status === 'Pending Approval' ? await resolveApproverLabel(db, countryCode, categoryId, approverScopes) : null;
       const sirionUrl = sirionUrlFor(sirion);
 
+      // The supplier upsert, the entry and its first rate version go in ONE statement (data-modifying
+      // CTEs) rather than three round trips per row. Params are cast explicitly because an
+      // INSERT ... SELECT cannot infer a bare parameter's type from the target column.
       const ins = await db.sql<{ id: number; code: string }[]>(
-        `INSERT INTO catalog_entry
-          (code, country_code, supplier_id, category_id, subcategory_id, uom_id, spend_type, commodity,
-           item_name, description, sirion_contract_id, sirion_url, notes, incoterms, incoterms_location, lead_time_days, status, tier_label,
-           current_version_no, manager, approver_name, created_by, modified_by)
-         VALUES (${CODE_NEXTVAL}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id, code`,
+        `WITH sup AS (
+           INSERT INTO supplier (vendor_code, name, accountable_manager) VALUES (?, ?, ?)
+           ON CONFLICT (vendor_code) DO UPDATE SET name = EXCLUDED.name,
+             accountable_manager = COALESCE(EXCLUDED.accountable_manager, supplier.accountable_manager)
+           RETURNING id
+         ), ent AS (
+           INSERT INTO catalog_entry
+             (code, country_code, supplier_id, category_id, subcategory_id, uom_id, spend_type, commodity,
+              item_name, description, sirion_contract_id, sirion_url, notes, incoterms, incoterms_location, lead_time_days, status, tier_label,
+              current_version_no, manager, approver_name, created_by, modified_by)
+           SELECT ${CODE_NEXTVAL}, ?::text, sup.id, ?::int, ?::int, ?::int, ?::text, ?::text,
+                  ?::text, ?::text, ?::text, ?::text, ?::text, ?::text, ?::text, ?::int, ?::text, ?::text,
+                  1, ?::text, ?::text, ?::text, ?::text
+           FROM sup
+           RETURNING id, code
+         ), rv AS (
+           INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
+           SELECT ent.id, 1, ?::numeric, ?::text, ?::date, ?::date, 'Imported via bulk upload', ?::text FROM ent
+         )
+         SELECT id, code FROM ent`,
         [
-          countryCode, supplierId, categoryId, subId, uom.id, spendType, commodity,
+          supplierCode, supplier, manager,
+          countryCode, categoryId, subId, uom.id, spendType, commodity,
           itemName, description, sirion, sirionUrl, notes,
           incoterms, incotermsLocation, leadTime, status, tier.label, manager, approver, actor.name, actor.name,
+          r.unit_price, ccy, eff, exp, actor.name,
         ],
       );
       const code = String(ins[0]?.code);
-      await db.exec(
-        `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
-         VALUES (?, 1, ?, ?, ?, ?, 'Imported via bulk upload', ?)`,
-        [Number(ins[0]?.id), r.unit_price, ccy, eff, exp, actor.name],
-      );
       await client.query(`RELEASE SAVEPOINT ${ROW_SAVEPOINT}`);
       rowSavepoint = false;
+      // Later rows in this same file must see this one as an existing Active entry.
+      if (status === 'Active') activeKeys.set(dupKey, code);
       inserted++;
       log.push(`✅ Row ${r.rowIndex}: ${code} — ${r.supplier.trim()} (${status})`);
     } catch (err) {
@@ -1888,27 +2033,51 @@ export async function bulkDecideEntries(entryIds: number[], comment: string): Pr
     const scopes = await loadApproverScopes([actor.email, ...(actor.delegatedFrom ?? []).map((d) => d.email)], db);
     const rates = await loadCurrencyRates(db);
 
-    let approved = 0;
-    for (const id of entryIds) {
-      const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [id]);
-      if (!rows[0]) continue;
-      const e = mapEntry(rows[0], rates);
+    const ids = [...new Set(entryIds.map(Number).filter((n) => Number.isFinite(n)))];
+    if (!ids.length) return { approved: 0 };
+
+    // One SELECT for the whole batch — the authority check is pure JS over `scopes`, already loaded.
+    const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ANY(?)`, [ids]);
+    const byId = new Map(rows.map((r) => [Number(r.id), r]));
+
+    const trimmed = comment.trim();
+    const audits: AuditEntry[] = [];
+    const decisions: { id: number; version_no: number; label: string }[] = [];
+    // Entries decided under the same identity (own authority vs "on behalf of") update together.
+    const byLabel = new Map<string, number[]>();
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (!row) continue;
+      const e = mapEntry(row, rates);
       if (e.status !== 'Pending Approval') continue;
       const acting = await catalogActingIdentity(actor, e.country_code, e.category_id, scopes, db);
       if (!acting.allowed) continue;
 
-      await db.exec(
-        `UPDATE catalog_entry SET status = 'Active', approver_name = ?, approval_comment = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [acting.label, comment.trim(), acting.label, id],
-      );
-      await db.exec(
-        `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES (?, ?, ?, 'Approved', 2, ?)`,
-        [id, e.version_no, acting.label, comment.trim()],
-      );
-      await writeAudit('Approve', e.code, acting.label, actor.email, `Approved (bulk) — "${comment.trim().slice(0, 48)}"`, db);
-      approved++;
+      byLabel.set(acting.label, [...(byLabel.get(acting.label) ?? []), id]);
+      decisions.push({ id, version_no: e.version_no, label: acting.label });
+      audits.push({ action: 'Approve', target: e.code, userName: acting.label, userEmail: actor.email, detail: `Approved (bulk) — "${trimmed.slice(0, 48)}"` });
     }
-    return { approved };
+    if (!decisions.length) return { approved: 0 };
+
+    for (const [label, groupIds] of byLabel) {
+      await db.exec(
+        `UPDATE catalog_entry SET status = 'Active', approver_name = ?, approval_comment = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ANY(?)`,
+        [label, trimmed, label, groupIds],
+      );
+    }
+    const decisionParams: QueryParams = [];
+    const decisionRows = decisions
+      .map((d) => {
+        decisionParams.push(d.id, d.version_no, d.label, trimmed);
+        return `(?, ?, ?, 'Approved', 2, ?)`;
+      })
+      .join(', ');
+    await db.exec(
+      `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES ${decisionRows}`,
+      decisionParams,
+    );
+    await writeAuditBatch(audits, db);
+    return { approved: decisions.length };
   });
 }
 
@@ -2320,6 +2489,31 @@ async function writeAudit(action: string, target: string, userName: string, user
   );
 }
 
+/**
+ * The same audit rows writeAudit() writes, but for a whole batch in ONE multi-row INSERT. A bulk
+ * action still records one row per entry (the per-entry trail is the point of the audit log) — it
+ * just no longer pays a round trip per row.
+ */
+interface AuditEntry {
+  action: string;
+  target: string;
+  userName: string;
+  userEmail: string | null;
+  detail: string;
+}
+
+async function writeAuditBatch(entries: AuditEntry[], db: CatalogDb = poolDb): Promise<void> {
+  if (!entries.length) return;
+  const params: QueryParams = [];
+  const placeholders = entries
+    .map((e) => {
+      params.push(e.action, e.target, e.userName, normalizeEmail(e.userEmail) || null, e.detail);
+      return '(?, ?, ?, ?, ?)';
+    })
+    .join(', ');
+  await db.exec(`INSERT INTO audit_log (action, target, user_name, user_email, detail) VALUES ${placeholders}`, params);
+}
+
 export async function getAuditLog(limit = 200): Promise<AuditEvent[]> {
   if (!(await optionalCatalogActor())) return [];
   const rows = await sql<QueryResultRow[]>(
@@ -2406,8 +2600,14 @@ export async function getCatalogAnalyticsData(country = 'ALL', preloadedEntries?
       byCategory: [], byCountry: [], topMovers: [], statusCounts: [],
     };
   }
-  const entries = preloadedEntries ?? await listCatalogEntries({ country });
   const today = new Date();
+  // No caller-supplied entry list => aggregate in SQL. Pulling every entry row back just to count
+  // them shipped the whole table into this process for four counters and two GROUP BYs.
+  // (When a caller DOES pass its entries — the admin page, which renders them anyway — we count in
+  // memory rather than re-scanning the table a second time.)
+  if (!preloadedEntries) return catalogAnalyticsFromSql(country, today);
+
+  const entries = preloadedEntries;
   const active = entries.filter((e) => e.status === 'Active');
 
   // active-rate count by category
@@ -2435,7 +2635,23 @@ export async function getCatalogAnalyticsData(country = 'ALL', preloadedEntries?
     .map((status) => ({ status, count: entries.filter((e) => e.status === status).length }))
     .filter((s) => s.count > 0);
 
-  // rate-history movers — entries with >1 version: first vs current price
+  const { avgRateChangePct, topMovers } = await loadRateMovers(country);
+
+  return {
+    activeCount: active.length,
+    supplierCount: new Set(active.map((e) => e.supplier_id)).size,
+    pendingCount: entries.filter((e) => e.status === 'Pending Approval').length,
+    expiringCount: active.filter((e) => isExpiringSoon(e.status, e.expiry_date, today)).length,
+    avgRateChangePct,
+    byCategory,
+    byCountry,
+    topMovers,
+    statusCounts,
+  };
+}
+
+/** rate-history movers — entries with >1 version: first vs current price. */
+async function loadRateMovers(country: string): Promise<{ avgRateChangePct: number | null; topMovers: RateMover[] }> {
   const moverParams: QueryParams = [];
   let moverWhere = `WHERE e.current_version_no > 1`;
   if (country && country !== 'ALL') { moverWhere += ` AND e.country_code = ?`; moverParams.push(country); }
@@ -2471,17 +2687,91 @@ export async function getCatalogAnalyticsData(country = 'ALL', preloadedEntries?
     .filter((m) => m.firstPrice > 0);
   const avgRateChangePct = movers.length ? movers.reduce((s, m) => s + m.changePct, 0) / movers.length : null;
   const topMovers = [...movers].sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct)).slice(0, 8);
+  return { avgRateChangePct, topMovers };
+}
+
+/**
+ * The same figures as the in-memory rollup above, computed by the database. Four small aggregate
+ * result sets (issued together) replace a full ENTRY_SELECT of every row in scope, which for the
+ * analytics page was the whole catalog joined six ways and then thrown away after counting.
+ *
+ * Every counter is reproduced exactly, including the tie-breaks: the JS version builds its category
+ * and country buckets in `modified_at DESC` order and sorts them with a stable sort, so equal counts
+ * fall back to "most recently modified member first" — that is what MAX(e.modified_at) DESC does
+ * here. The expiring window is passed in as the app's own local `today` rather than the database's
+ * CURRENT_DATE, so a timezone gap between Node and Postgres cannot shift the count.
+ */
+async function catalogAnalyticsFromSql(country: string, today: Date): Promise<CatalogAnalyticsData> {
+  const scoped: QueryParams = [];
+  let where = '';
+  if (country && country !== 'ALL') {
+    where = `WHERE e.country_code = ?`;
+    scoped.push(country);
+  }
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  const [statusRows, catRows, ctyRows, movers] = await Promise.all([
+    sql<QueryResultRow[]>(
+      `SELECT e.status,
+              COUNT(*)::int AS n,
+              COUNT(DISTINCT e.supplier_id)::int AS suppliers,
+              COUNT(*) FILTER (WHERE rv.expiry_date IS NOT NULL
+                                 AND rv.expiry_date >= ?::date
+                                 AND rv.expiry_date <= ?::date + 30)::int AS expiring
+       FROM catalog_entry e
+       LEFT JOIN rate_version rv ON rv.entry_id = e.id AND rv.version_no = e.current_version_no
+       ${where}
+       GROUP BY e.status`,
+      [todayStr, todayStr, ...scoped],
+    ),
+    sql<QueryResultRow[]>(
+      `SELECT COALESCE(cat.name, 'Uncategorized') AS name,
+              (array_agg(e.spend_type ORDER BY e.modified_at DESC))[1] AS type,
+              COUNT(*)::int AS active_count
+       FROM catalog_entry e
+       LEFT JOIN spend_category cat ON cat.id = e.category_id
+       ${where ? `${where} AND` : 'WHERE'} e.status = 'Active'
+       GROUP BY COALESCE(cat.name, 'Uncategorized')
+       ORDER BY active_count DESC, MAX(e.modified_at) DESC`,
+      scoped,
+    ),
+    sql<QueryResultRow[]>(
+      `SELECT e.country_code, c.name, c.flag, COUNT(*)::int AS active_count
+       FROM catalog_entry e
+       JOIN country c ON c.code = e.country_code
+       ${where ? `${where} AND` : 'WHERE'} e.status = 'Active'
+       GROUP BY e.country_code, c.name, c.flag
+       ORDER BY active_count DESC, MAX(e.modified_at) DESC`,
+      scoped,
+    ),
+    loadRateMovers(country),
+  ]);
+
+  const byStatus = new Map(statusRows.map((r) => [String(r.status), r]));
+  const activeRow = byStatus.get('Active');
+  const statusOrder: CatalogStatus[] = ['Active', 'Pending Approval', 'Draft', 'Expired', 'Rejected'];
 
   return {
-    activeCount: active.length,
-    supplierCount: new Set(active.map((e) => e.supplier_id)).size,
-    pendingCount: entries.filter((e) => e.status === 'Pending Approval').length,
-    expiringCount: active.filter((e) => isExpiringSoon(e.status, e.expiry_date, today)).length,
-    avgRateChangePct,
-    byCategory,
-    byCountry,
-    topMovers,
-    statusCounts,
+    activeCount: Number(activeRow?.n ?? 0),
+    supplierCount: Number(activeRow?.suppliers ?? 0),
+    pendingCount: Number(byStatus.get('Pending Approval')?.n ?? 0),
+    expiringCount: Number(activeRow?.expiring ?? 0),
+    avgRateChangePct: movers.avgRateChangePct,
+    byCategory: catRows.map((r) => ({
+      name: String(r.name),
+      type: (r.type as SpendType) ?? null,
+      activeCount: Number(r.active_count),
+    })),
+    byCountry: ctyRows.map((r) => ({
+      code: String(r.country_code),
+      name: String(r.name),
+      flag: r.flag ?? null,
+      activeCount: Number(r.active_count),
+    })),
+    topMovers: movers.topMovers,
+    statusCounts: statusOrder
+      .map((status) => ({ status, count: Number(byStatus.get(status)?.n ?? 0) }))
+      .filter((s) => s.count > 0),
   };
 }
 
@@ -2585,7 +2875,8 @@ export interface SupplierProfile {
   contactEmails: string[];
 }
 
-export async function getSupplierProfile(supplierId: number): Promise<SupplierProfile | null> {
+/** Same story as loadCatalogEntry: generateMetadata and the supplier page each used to run all four queries. */
+const loadSupplierProfile = cache(async (supplierId: number): Promise<SupplierProfile | null> => {
   if (!(await optionalCatalogActor())) return null;
   const sup = await sql<SupplierRow[]>(`SELECT id, vendor_code, name, accountable_manager FROM supplier WHERE id = ?`, [supplierId]);
   if (!sup[0]) return null;
@@ -2616,6 +2907,10 @@ export async function getSupplierProfile(supplierId: number): Promise<SupplierPr
     activeCount: active.length,
     contactEmails,
   };
+});
+
+export async function getSupplierProfile(supplierId: number): Promise<SupplierProfile | null> {
+  return loadSupplierProfile(supplierId);
 }
 
 /* ============================================================================
@@ -2626,15 +2921,34 @@ export async function bulkDeactivateEntries(entryIds: number[]): Promise<{ count
   const actor = await requireCatalogActor('Contributor');
   return withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
-    let count = 0;
-    for (const id of entryIds) {
-      const rows = await db.sql<{ code: string; status: string }[]>(`SELECT code, status FROM catalog_entry WHERE id = ?`, [id]);
-      if (!rows[0] || rows[0].status === 'Expired') continue;
-      await db.exec(`UPDATE catalog_entry SET status = 'Expired', modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [actor.name, id]);
-      await writeAudit('Status change', rows[0].code, actor.name, actor.email, `${rows[0].status} → Deactivated (bulk)`, db);
-      count++;
-    }
-    return { count };
+    const ids = [...new Set(entryIds.map(Number).filter((n) => Number.isFinite(n)))];
+    if (!ids.length) return { count: 0 };
+
+    // One SELECT for every target, one UPDATE for the whole set, one multi-row audit INSERT —
+    // instead of three round trips per entry. The same audit rows are written, one per entry.
+    const rows = await db.sql<{ id: number; code: string; status: string }[]>(
+      `SELECT id, code, status FROM catalog_entry WHERE id = ANY(?)`,
+      [ids],
+    );
+    const byId = new Map(rows.map((r) => [Number(r.id), r]));
+    const targets = ids.map((id) => byId.get(id)).filter((r): r is { id: number; code: string; status: string } => !!r && r.status !== 'Expired');
+    if (!targets.length) return { count: 0 };
+
+    await db.exec(
+      `UPDATE catalog_entry SET status = 'Expired', modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ANY(?)`,
+      [actor.name, targets.map((t) => Number(t.id))],
+    );
+    await writeAuditBatch(
+      targets.map((t) => ({
+        action: 'Status change',
+        target: t.code,
+        userName: actor.name,
+        userEmail: actor.email,
+        detail: `${t.status} → Deactivated (bulk)`,
+      })),
+      db,
+    );
+    return { count: targets.length };
   });
 }
 
@@ -2645,20 +2959,41 @@ export async function bulkSubmitEntries(entryIds: number[]): Promise<{ count: nu
     const rules = await loadThresholdRules(db);
     const rates = await loadCurrencyRates(db);
     const approverScopes = await loadApproverScopes(null, db);
-    let count = 0;
-    for (const id of entryIds) {
-      const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [id]);
-      if (!rows[0]) continue;
-      const e = mapEntry(rows[0], rates);
+    const ids = [...new Set(entryIds.map(Number).filter((n) => Number.isFinite(n)))];
+    if (!ids.length) return { count: 0 };
+
+    // Every target entry in one SELECT; the routing decision is pure JS over data already loaded.
+    const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ANY(?)`, [ids]);
+    const byId = new Map(rows.map((r) => [Number(r.id), r]));
+
+    const audits: AuditEntry[] = [];
+    // Entries that end up with the same (status, approver) are updated together, so a batch costs a
+    // handful of UPDATEs rather than one per entry.
+    const groups = new Map<string, { next: CatalogStatus; approver: string | null; ids: number[] }>();
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (!row) continue;
+      const e = mapEntry(row, rates);
       if (e.status !== 'Draft' && e.status !== 'Rejected') continue;
       const tier = approvalTier(e.usd_equivalent, effectiveThresholdUsd(rules, e.country_code, e.category_id));
       const next: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
       const approver = next === 'Pending Approval' ? await resolveApproverLabel(db, e.country_code, e.category_id, approverScopes) : null;
-      await db.exec(`UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [next, approver, actor.name, id]);
-      await writeAudit('Status change', e.code, actor.name, actor.email, `${e.status} → ${next} (bulk)`, db);
-      count++;
+      const key = `${next}\u0000${approver ?? ''}`;
+      const group = groups.get(key) ?? { next, approver, ids: [] };
+      group.ids.push(id);
+      groups.set(key, group);
+      audits.push({ action: 'Status change', target: e.code, userName: actor.name, userEmail: actor.email, detail: `${e.status} → ${next} (bulk)` });
     }
-    return { count };
+    if (!audits.length) return { count: 0 };
+
+    for (const g of groups.values()) {
+      await db.exec(
+        `UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ANY(?)`,
+        [g.next, g.approver, actor.name, g.ids],
+      );
+    }
+    await writeAuditBatch(audits, db);
+    return { count: audits.length };
   });
 }
 

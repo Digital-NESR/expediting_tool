@@ -12,12 +12,13 @@ export default async function ApprovalsPage({
   searchParams: Promise<{ country?: string }>;
 }) {
   const { country = 'ALL' } = await searchParams;
-  const [entries, actor, countries] = await Promise.all([
-    listCatalogEntries({ country }),
+  // Only the pending rows are needed here — filtered in SQL, not by shipping the whole catalog
+  // to this page and discarding most of it.
+  const [pending, actor, countries] = await Promise.all([
+    listCatalogEntries({ country, status: 'Pending Approval' }),
     getCatalogActor(),
     getCountries(),
   ]);
-  const pending = entries.filter((e) => e.status === 'Pending Approval');
   // Server-computed: which of these the caller actually holds authority over
   // (country AND spend category). Never re-derived in the client.
   const approvableIds = await getApprovableEntryIds(pending.map((e) => e.id));

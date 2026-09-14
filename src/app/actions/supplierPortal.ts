@@ -145,6 +145,12 @@ export async function submitSupplierUpdates(
 
   const validCodes = new Set(Object.keys(DS_DESCRIPTIONS));
   const cleaned: LineUpdate[] = [];
+  /* The old row-at-a-time loop updated the first copy of a repeated (po, line)
+     and then silently no-opped on the rest, because the first update had already
+     flipped workflow_state to 'Submitted'. The set-based UPDATE below has no such
+     ordering, so keep first-wins explicit here. Validation still runs over EVERY
+     entry, so a bad code in a duplicate still rejects the whole submission. */
+  const seenLines = new Set<string>();
 
   for (const u of updates) {
     const code = String(u?.delivery_status_code ?? '').trim();
@@ -165,9 +171,15 @@ export async function submitSupplierUpdates(
       };
     }
 
+    const po_number = String(u?.po_number ?? '').slice(0, 100);
+    const po_line = String(u?.po_line ?? '').slice(0, 100);
+    const key = `${po_number}\u0000${po_line}`;
+    if (seenLines.has(key)) continue;
+    seenLines.add(key);
+
     cleaned.push({
-      po_number: String(u?.po_number ?? '').slice(0, 100),
-      po_line: String(u?.po_line ?? '').slice(0, 100),
+      po_number,
+      po_line,
       delivery_status_code: code,
       new_delivery_date: date,
       supplier_comments: comments,
@@ -206,14 +218,23 @@ export async function submitSupplierUpdates(
       };
     }
 
-    for (const u of cleaned) {
-      /* Update active_expediting — sets workflow_state = 'Submitted' (expires the link).
-         Scoped to the token AND still-open rows so a stale line can never be rewritten. */
-      const updated = await client.query<{ id: number }>(
-        `UPDATE active_expediting SET
-           current_status     = $1,
-           new_delivery_date  = $2,
-           supplier_comments  = $3,
+    /* One statement for the whole submission instead of an UPDATE + an INSERT per
+       line: over the tunnelled database each round trip cost more than the work.
+       Every guard the loop applied is still applied, now as a join condition —
+       the update is scoped to this token AND to rows that are still open, so a
+       stale or already-submitted line can never be rewritten, and a line the
+       token does not own matches nothing and is skipped exactly as before.
+       The audit rows are written from the UPDATE's own RETURNING, so only lines
+       that really changed are logged, in payload order. */
+    await client.query(
+      `WITH v AS (
+         SELECT * FROM unnest($2::text[], $3::text[], $4::text[], $5::date[], $6::text[])
+                WITH ORDINALITY AS t(po, line, code, dt, cmt, ord)
+       ), updated AS (
+         UPDATE active_expediting ae SET
+           current_status     = v.code,
+           new_delivery_date  = v.dt,
+           supplier_comments  = v.cmt,
            workflow_state     = 'Submitted',
            /* The ONLY writer of responded_at. The response-time charts and the
               "Last Response" columns read it instead of updated_at, which
@@ -221,37 +242,27 @@ export async function submitSupplierUpdates(
               supplier's response time look better than it was. */
            responded_at       = NOW(),
            updated_at         = NOW()
-         WHERE expedite_token = $4
-           AND po_number      = $5
-           AND po_line        = $6
-           AND workflow_state <> 'Submitted'
-         RETURNING id`,
-        [
-          u.delivery_status_code,
-          u.new_delivery_date || null,
-          u.supplier_comments || null,
-          token,
-          u.po_number,
-          u.po_line,
-        ]
-      );
-
-      if (updated.rows.length === 0) continue;
-      const activeExpId = updated.rows[0].id;
-
-      /* Insert audit log */
-      await client.query(
-        `INSERT INTO expediting_audit_log
-           (active_expediting_id, status_submitted, new_delivery_date, comments, submitted_by, submitted_at)
-         VALUES ($1, $2, $3, $4, 'Supplier', NOW())`,
-        [
-          activeExpId,
-          u.delivery_status_code,
-          u.new_delivery_date || null,
-          u.supplier_comments || null,
-        ]
-      );
-    }
+         FROM v
+         WHERE ae.expedite_token = $1
+           AND ae.po_number      = v.po
+           AND ae.po_line        = v.line
+           AND ae.workflow_state <> 'Submitted'
+         RETURNING ae.id, v.code, v.dt, v.cmt, v.ord
+       )
+       INSERT INTO expediting_audit_log
+         (active_expediting_id, status_submitted, new_delivery_date, comments, submitted_by, submitted_at)
+       SELECT u.id, u.code, u.dt, u.cmt, 'Supplier', NOW()
+         FROM updated u
+        ORDER BY u.ord`,
+      [
+        token,
+        cleaned.map((u) => u.po_number),
+        cleaned.map((u) => u.po_line),
+        cleaned.map((u) => u.delivery_status_code),
+        cleaned.map((u) => u.new_delivery_date || null),
+        cleaned.map((u) => u.supplier_comments || null),
+      ]
+    );
 
     /* ── Update expediting_sessions response stats ── */
     const sessionRefResult = await client.query<{ session_ref: string }>(

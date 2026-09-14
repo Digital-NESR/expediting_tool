@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
 import MultiSelectDropdown from '@/components/MultiSelectDropdown';
 import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, getStatusBadge } from '@/lib/tite-utils';
-import type { Shipment } from '@/types/tite';
+import type { TiteListShipment } from '@/types/tite';
 
 /* ─── Error / empty states ───────────────────────────────────── */
 
@@ -68,7 +68,7 @@ const ALL_STATUS_OPTIONS = ['Open', 'Open - Extended', 'Closed', 'Closed - Refun
 
 /* ─── Main ───────────────────────────────────────────────────── */
 
-export default function ShipmentsClient({ shipments, viewOnly }: { shipments: Shipment[] | null; viewOnly?: boolean }) {
+export default function ShipmentsClient({ shipments, viewOnly }: { shipments: TiteListShipment[] | null; viewOnly?: boolean }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
 
@@ -117,8 +117,8 @@ export default function ShipmentsClient({ shipments, viewOnly }: { shipments: Sh
     );
   }, [list, search]);
 
-  const applyFilters = (
-    src: Shipment[],
+  const applyFilters = useCallback((
+    src: TiteListShipment[],
     {
       countries    = filterCountries,
       segments     = filterSegments,
@@ -139,48 +139,50 @@ export default function ShipmentsClient({ shipments, viewOnly }: { shipments: Sh
     if (statuses.length      && !statuses.includes(s.status))                           return false;
     if (alerts.length        && !alerts.includes(s.alert_level))                        return false;
     return true;
-  });
+  }), [filterCountries, filterSegments, filterMovementTypes, filterStatuses, filterAlerts]);
 
-  const countryOptions = useMemo(() =>
-    [...new Set(
-      applyFilters(afterSearch, { countries: [] })
-        .map(s => s.country ?? '(Blank)')
-    )].sort()
-  , [afterSearch, filterSegments, filterMovementTypes, filterStatuses, filterAlerts]);
-
-  const segmentOptions = useMemo(() =>
-    [...new Set(
-      applyFilters(afterSearch, { segments: [] })
-        .map(s => s.segment ?? '(Blank)')
-    )].sort()
-  , [afterSearch, filterCountries, filterMovementTypes, filterStatuses, filterAlerts]);
-
-  const movementTypeOptions = useMemo(() =>
-    [...new Set(
-      applyFilters(afterSearch, { movementTypes: [] })
-        .map(s => s.movement_type ?? '(Blank)')
-        .filter(Boolean)
-    )].sort()
-  , [afterSearch, filterCountries, filterSegments, filterStatuses, filterAlerts]);
-
-  const statusOptions = useMemo(() =>
-    ALL_STATUS_OPTIONS.filter(st =>
-      applyFilters(afterSearch, { statuses: [] }).some(s => s.status === st)
-    )
-  , [afterSearch, filterCountries, filterSegments, filterMovementTypes, filterAlerts]);
-
-  const alertOptions = useMemo(() =>
-    ALL_ALERT_OPTIONS.filter(al =>
-      applyFilters(afterSearch, { alerts: [] }).some(s => s.alert_level === al)
-    )
-  , [afterSearch, filterCountries, filterSegments, filterMovementTypes, filterStatuses]);
+  /* One pass instead of five. Each option list is still "all filters except my
+     own", but the five cascades are evaluated per row rather than by five
+     separate sweeps of the register — same options, same order. */
+  const {
+    countries: countryOptions,
+    segments: segmentOptions,
+    movementTypes: movementTypeOptions,
+    statuses: statusOptions,
+    alerts: alertOptions,
+  } = useMemo(() => {
+    const countrySet = new Set<string>();
+    const segmentSet = new Set<string>();
+    const movementSet = new Set<string>();
+    const statusSet = new Set<string>();
+    const alertSet = new Set<string>();
+    for (const s of afterSearch) {
+      const country  = s.country ?? '(Blank)';
+      const segment  = s.segment ?? '(Blank)';
+      const movement = s.movement_type ?? '(Blank)';
+      const okCountry  = !filterCountries.length     || filterCountries.includes(country);
+      const okSegment  = !filterSegments.length      || filterSegments.includes(segment);
+      const okMovement = !filterMovementTypes.length || filterMovementTypes.includes(movement);
+      const okStatus   = !filterStatuses.length      || filterStatuses.includes(s.status);
+      const okAlert    = !filterAlerts.length        || filterAlerts.includes(s.alert_level);
+      if (okSegment && okMovement && okStatus && okAlert) countrySet.add(country);
+      if (okCountry && okMovement && okStatus && okAlert) segmentSet.add(segment);
+      if (okCountry && okSegment && okStatus && okAlert && movement) movementSet.add(movement);
+      if (okCountry && okSegment && okMovement && okAlert) statusSet.add(s.status);
+      if (okCountry && okSegment && okMovement && okStatus) alertSet.add(s.alert_level);
+    }
+    return {
+      countries: [...countrySet].sort(),
+      segments: [...segmentSet].sort(),
+      movementTypes: [...movementSet].sort(),
+      statuses: ALL_STATUS_OPTIONS.filter(st => statusSet.has(st)),
+      alerts: ALL_ALERT_OPTIONS.filter(al => alertSet.has(al)),
+    };
+  }, [afterSearch, filterCountries, filterSegments, filterMovementTypes, filterStatuses, filterAlerts]);
 
   /* ── Final filtered rows ── */
 
-  const rows = useMemo(() => applyFilters(afterSearch), [
-    afterSearch, filterCountries, filterSegments,
-    filterMovementTypes, filterStatuses, filterAlerts,
-  ]);
+  const rows = useMemo(() => applyFilters(afterSearch), [afterSearch, applyFilters]);
 
   const totalDep = rows.reduce((a, s) => a + (Number(s.deposit_usd) || 0), 0);
 

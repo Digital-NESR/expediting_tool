@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, X, Zap, Clock, Lock, ChevronDown, Check } from 'lucide-react';
 import { SG_BRAND } from '../constants';
 import { PathTrail } from '../ui';
@@ -37,21 +37,39 @@ export default function MappingsClient({
 
   const c = useMemo(() => countries.find(x => x.code === country), [countries, country]);
 
-  const reload = useCallback(async () => {
+  /* The list is the only thing a keystroke can change, so it is the only thing a
+     keystroke reloads — debounced, and sequenced so a slow reply for an earlier
+     query cannot land on top of a newer one. Same pattern as SearchClient. */
+  const listSeq = useRef(0);
+  useEffect(() => {
+    const id = ++listSeq.current;
     setLoading(true);
-    const [items, sum, log, gapSummary] = await Promise.all([
-      getMappingEditList(country, q, 200, mode),
-      getCountryMappingSummary(country),
-      getActivityLog(isAdmin ? null : country, 12),
-      getCoverageGapsSummary(),
-    ]);
-    setList(items); setSummary(sum); setAudit(log); setLoading(false);
-    const g = gapSummary.find(x => x.country === country);
-    setGaps({ missing: g?.missing ?? 0, noPreferred: g?.noPreferred ?? 0 });
-  }, [country, q, isAdmin, mode]);
+    const t = setTimeout(async () => {
+      const items = await getMappingEditList(country, q, 200, mode);
+      if (id === listSeq.current) { setList(items); setLoading(false); }
+    }, 150);
+    return () => clearTimeout(t);
+  }, [country, q, mode, refreshKey]);
+
+  /* Summary, audit and coverage gaps do not depend on the query: they reload on a
+     country change or after a mutation, not per keystroke. */
+  const ctxSeq = useRef(0);
+  useEffect(() => {
+    const id = ++ctxSeq.current;
+    void (async () => {
+      const [sum, log, gapSummary] = await Promise.all([
+        getCountryMappingSummary(country),
+        getActivityLog(isAdmin ? null : country, 12),
+        getCoverageGapsSummary(),
+      ]);
+      if (id !== ctxSeq.current) return;
+      setSummary(sum); setAudit(log);
+      const g = gapSummary.find(x => x.country === country);
+      setGaps({ missing: g?.missing ?? 0, noPreferred: g?.noPreferred ?? 0 });
+    })();
+  }, [country, isAdmin, refreshKey]);
 
   useEffect(() => { setLimit(15); }, [country, q, mode]);
-  useEffect(() => { void reload(); }, [reload, refreshKey]);
 
   const bump = (msg?: string) => { if (msg) setToast(msg); setRefreshKey(k => k + 1); };
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 2200); return () => clearTimeout(t); }, [toast]);
