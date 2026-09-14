@@ -99,7 +99,7 @@ function excelSerialToDate(serial: number): string | null {
  *   - DD-MM-YYYY                → e.g. "15-06-2023" → 2023-06-15
  *   - Numeric string            → Excel serial fallback
  */
-function parseDateFlexible(value: any): string | null {
+function parseDateFlexible(value: unknown): string | null {
   if (value == null) return null;
 
   // Native number (XLSX library returns these for unformatted date cells)
@@ -318,8 +318,8 @@ export async function importShipments(params: {
         );
         inserted++;
       }
-    } catch (err: any) {
-      log.push(`❌ ${reference_number}: ${err?.message ?? String(err)}`);
+    } catch (err) {
+      log.push(`❌ ${reference_number}: ${err instanceof Error ? err.message : String(err)}`);
       errors++;
     }
   }

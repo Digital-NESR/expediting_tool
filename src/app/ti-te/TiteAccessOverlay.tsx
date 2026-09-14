@@ -259,7 +259,7 @@ export default function TiteAccessOverlay({
               </div>
               <h1 className="text-lg font-bold text-slate-900">Access Request Pending</h1>
               <p className="text-sm text-slate-500 mt-2 leading-relaxed max-w-xs mx-auto">
-                Your request is under review. You'll have access once an administrator approves it.
+                Your request is under review. You&apos;ll have access once an administrator approves it.
               </p>
               <div className="flex flex-col gap-2 mt-6">
                 <button

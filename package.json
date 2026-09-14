@@ -2,17 +2,29 @@
   "name": "expediting_tool",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0 <23"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "laptop:db:init": "node --env-file=.env.local scripts/laptop-init-db.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky",
     "laptop:db:seed": "node --env-file=.env.local scripts/laptop-seed-data.mjs",
     "sns:db:init": "node scripts/sns-init-db.mjs"
   },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint"
+    ]
+  },
   "dependencies": {
-    "@types/leaflet": "^1.9.21",
     "exceljs": "^4.4.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
@@ -24,19 +36,23 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
-    "sharp": "^0.34.5",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/leaflet": "^1.9.21",
+    "@types/node": "^22",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.9.6",
     "tailwindcss": "^4",
-    "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.0"
   }
 }

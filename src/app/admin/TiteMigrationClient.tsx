@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import Link from 'next/link';
 import { readSpreadsheet } from '@/lib/spreadsheet-import';
 import { importShipments, getMigrationLog } from '@/app/actions/tite-migration';
 import type { RawShipmentRow, MigrationLogRow } from '@/app/actions/tite-migration';
@@ -129,9 +130,9 @@ async function parseExcel(file: File): Promise<ParsedFile> {
     sheets[0];
 
   if (!sheet) throw new Error('The workbook contains no readable sheets.');
-  const rawRows: any[][] = sheet.rows;
+  const rawRows: string[][] = sheet.rows;
 
-  const headers: string[] = (rawRows[1] ?? []).map((h: any) =>
+  const headers: string[] = (rawRows[1] ?? []).map((h) =>
     h != null ? String(h).trim() : '',
   );
 
@@ -143,7 +144,7 @@ async function parseExcel(file: File): Promise<ParsedFile> {
     }),
   );
 
-  const parseNum = (val: any): number | null => {
+  const parseNum = (val: string | undefined): number | null => {
     if (!val) return null;
     const s = String(val).trim();
     if (s.startsWith('=') || s === '') return null;
@@ -156,7 +157,7 @@ async function parseExcel(file: File): Promise<ParsedFile> {
     return isNaN(n) ? null : n;
   };
 
-  const parseDate = (val: any): string | null => {
+  const parseDate = (val: string | undefined): string | null => {
     if (val == null) return null;
     const s = String(val).trim();
     if (s.startsWith('=') || s === '') return null;
@@ -174,7 +175,7 @@ async function parseExcel(file: File): Promise<ParsedFile> {
     return null;
   };
 
-  const parseStatus = (val: any): string => {
+  const parseStatus = (val: string | undefined): string => {
     if (!val) return 'Open';
     const s = String(val).toLowerCase().trim();
     if (s.includes('refund')) return 'Closed - Refund Recovered';
@@ -384,8 +385,8 @@ export default function TiteMigrationClient() {
     try {
       const result = await parseExcel(f);
       setParsed(result);
-    } catch (err: any) {
-      setParseError(err?.message ?? 'Failed to parse Excel file.');
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : 'Failed to parse Excel file.');
     }
   }, []);
 
@@ -677,7 +678,7 @@ export default function TiteMigrationClient() {
                 </div>
                 {matches.some((m) => !m.matched) && (
                   <p className="text-[10px] text-slate-400 mt-2">
-                    Hover a chip to see what was detected. Amber = column present but header name didn't match. Gray = column missing.
+                    Hover a chip to see what was detected. Amber = column present but header name didn&apos;t match. Gray = column missing.
                   </p>
                 )}
               </div>
@@ -867,7 +868,7 @@ export default function TiteMigrationClient() {
               </svg>
               Import Another File
             </button>
-            <a
+            <Link
               href="/ti-te/shipments"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
               style={{ background: '#307c4c' }}
@@ -876,7 +877,7 @@ export default function TiteMigrationClient() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
-            </a>
+            </Link>
           </div>
         </div>
       )}

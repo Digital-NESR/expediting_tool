@@ -324,15 +324,15 @@ function RFQFlow() {
             </thead>
             <tbody className="divide-y divide-slate-100 align-top">
               {[
-                [<Database className="h-3.5 w-3.5 text-slate-400" />, 'Suppliers (AVL)', 'remote', '/admin/approved-vendors', <>Supplier master (<Mono>supplier_avl</Mono>) — names, emails — for AI suggestions and display. Preferred/backup is derived from that supplier&apos;s <Mono>sg_mappings</Mono> tier per country.</>],
-                [<Map className="h-3.5 w-3.5 text-slate-400" />, 'Mappings', 'remote', '/admin/source-guide', <>First-pass filter in AI supplier selection. <Mono>sg_mappings</Mono> narrows the pool to suppliers serving the (country + category), keyed by <Mono>supplier_code</Mono>.</>],
-                [<BookOpen className="h-3.5 w-3.5 text-slate-400" />, 'Commodities / taxonomy', 'remote', '/admin/spend-taxonomy', <>Canonical hierarchy (<Mono>sg_commodities</Mono>) given to Gemini 2.5-Flash during PR classification.</>],
-                [<Globe className="h-3.5 w-3.5 text-slate-400" />, 'Countries', 'remote', '/admin/countries', <>Country reference (<Mono>sg_countries</Mono> + champions + <Mono>sg_guide_meta</Mono>) — names, tones, champions. Powers country filters and code→name resolution.</>],
-                [<History className="h-3.5 w-3.5 text-slate-400" />, 'Spend History', 'remote', '/admin/spend-history', <>Buyer-only historical PO spend from <Mono>historic_spend</Mono>. Matched by exact SAP part number, then fuzzy word-overlap, scoped to country. Never shown to vendors.</>],
-                [<Trophy className="h-3.5 w-3.5 text-slate-400" />, 'Historical Prices (awards)', 'local', 'auto-created on award', <>Local <Mono>HistoricalPrice</Mono>, write-only today — populated on every award but not read yet. Reserved for a future use case.</>],
-                [<FileText className="h-3.5 w-3.5 text-slate-400" />, 'Released PRs', 'remote', '/released-prs', <>Released SAP PRs from <Mono>released_prs</Mono>. Powers the &quot;Select a Released PR&quot; creation path and its own list/detail screens. Visibility scoped by buyer country.</>],
-              ].map(([icon, name, src, browse, used], i) => (
-                <tr key={i}>
+                { icon: <Database className="h-3.5 w-3.5 text-slate-400" />, name: 'Suppliers (AVL)', src: 'remote', browse: '/admin/approved-vendors', used: <>Supplier master (<Mono>supplier_avl</Mono>) — names, emails — for AI suggestions and display. Preferred/backup is derived from that supplier&apos;s <Mono>sg_mappings</Mono> tier per country.</> },
+                { icon: <Map className="h-3.5 w-3.5 text-slate-400" />, name: 'Mappings', src: 'remote', browse: '/admin/source-guide', used: <>First-pass filter in AI supplier selection. <Mono>sg_mappings</Mono> narrows the pool to suppliers serving the (country + category), keyed by <Mono>supplier_code</Mono>.</> },
+                { icon: <BookOpen className="h-3.5 w-3.5 text-slate-400" />, name: 'Commodities / taxonomy', src: 'remote', browse: '/admin/spend-taxonomy', used: <>Canonical hierarchy (<Mono>sg_commodities</Mono>) given to Gemini 2.5-Flash during PR classification.</> },
+                { icon: <Globe className="h-3.5 w-3.5 text-slate-400" />, name: 'Countries', src: 'remote', browse: '/admin/countries', used: <>Country reference (<Mono>sg_countries</Mono> + champions + <Mono>sg_guide_meta</Mono>) — names, tones, champions. Powers country filters and code→name resolution.</> },
+                { icon: <History className="h-3.5 w-3.5 text-slate-400" />, name: 'Spend History', src: 'remote', browse: '/admin/spend-history', used: <>Buyer-only historical PO spend from <Mono>historic_spend</Mono>. Matched by exact SAP part number, then fuzzy word-overlap, scoped to country. Never shown to vendors.</> },
+                { icon: <Trophy className="h-3.5 w-3.5 text-slate-400" />, name: 'Historical Prices (awards)', src: 'local', browse: 'auto-created on award', used: <>Local <Mono>HistoricalPrice</Mono>, write-only today — populated on every award but not read yet. Reserved for a future use case.</> },
+                { icon: <FileText className="h-3.5 w-3.5 text-slate-400" />, name: 'Released PRs', src: 'remote', browse: '/released-prs', used: <>Released SAP PRs from <Mono>released_prs</Mono>. Powers the &quot;Select a Released PR&quot; creation path and its own list/detail screens. Visibility scoped by buyer country.</> },
+              ].map(({ icon, name, src, browse, used }) => (
+                <tr key={name}>
                   <td className="py-3 pr-4 font-medium text-slate-700"><span className="inline-flex items-center gap-1.5">{icon}{name}</span></td>
                   <td className="py-3 pr-4 text-xs">
                     <span className={`inline-flex items-center gap-1 ${src === 'remote' ? 'text-sky-700' : 'text-emerald-700'}`}>

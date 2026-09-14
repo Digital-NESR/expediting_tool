@@ -171,7 +171,11 @@ export function fmtDateNice(dateStr: string | null): string {
 export function daysUntil(dateStr: string | null, today: Date = new Date()): number | null {
   if (!dateStr) return null;
   const d = new Date(`${dateStr.slice(0, 10)}T00:00:00`);
-  const base = new Date(`${today.toISOString().slice(0, 10)}T00:00:00`);
+  // Build the baseline from LOCAL date parts. toISOString() converts to UTC and
+  // rolls the date back a day for any positive-UTC-offset zone — including every
+  // NESR Gulf office — while the target above is parsed as local midnight. Mixing
+  // the two made every countdown one day long between 00:00 and 04:00 local.
+  const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   return Math.round((d.getTime() - base.getTime()) / 86400000);
 }
 

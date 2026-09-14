@@ -21,8 +21,8 @@ interface DrawerProps {
   lineItem: PurchaseOrder | null;
   onClose: () => void;
   // We accept formatting tools from parent to avoid circular dependencies
-  formatCurrency: (v: any) => string;
-  formatDate: (v: any) => string;
+  formatCurrency: (v: number | string | null | undefined) => string;
+  formatDate: (v: string | null | undefined) => string;
   deliveryStatusMap: Record<string, string>;
 }
 

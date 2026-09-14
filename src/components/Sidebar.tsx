@@ -68,7 +68,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const initials = nameParts.length > 1
     ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
     : rawName.substring(0, 2).toUpperCase();
-  const jobTitle = (session?.user as any)?.jobTitle || 'Admin';
+  const jobTitle = session?.user?.jobTitle || 'Admin';
 
   const NavLink = ({ href, icon, label, exact = false, badge }: { href: string; icon: React.ReactNode; label: string; exact?: boolean; badge?: number }) => {
     const isActive = pathname === href;
