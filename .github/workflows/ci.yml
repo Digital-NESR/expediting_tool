@@ -36,12 +36,7 @@ jobs:
       - name: Test
         run: npm test
 
-      # Non-blocking on purpose. There are currently 8 high/critical advisories
-      # that can only be cleared by upgrading `next` (needs >= 16.3.5) and
-      # `next-auth`; both upgrades are deliberately out of scope for the
-      # quality-gate change and are tracked separately.
-      # TODO: drop `continue-on-error` once next and next-auth are upgraded,
-      # so a new high-severity advisory blocks the build.
+      # Blocking. `next` and `next-auth` were upgraded to clear their critical
+      # advisories, so a new high-severity advisory should now fail the build.
       - name: Audit dependencies
         run: npm audit --audit-level=high
-        continue-on-error: true
