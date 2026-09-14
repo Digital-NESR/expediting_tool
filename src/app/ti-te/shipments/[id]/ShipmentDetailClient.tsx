@@ -700,7 +700,7 @@ export default function ShipmentDetailClient({
           <div>
             <p className="text-xs text-slate-400 mb-1">
               <button className="hover:underline text-[#006B0C]" onClick={() => router.push('/ti-te/shipments')}>Shipment register</button>
-              {' / '}Shipment #{String(s.id).padStart(3, '0')}
+              {' / '}<span className="font-mono">{s.reference_number || `#${String(s.id).padStart(3, '0')}`}</span>
             </p>
             <h1 className="text-2xl font-bold tracking-tight">
               {s.description || `${s.segment || 'Shipment'} — ${s.from_country} → ${s.to_country}`}

@@ -1,6 +1,7 @@
 'use server';
 
 import titePool from '@/lib/db-tite';
+import { titeCountryCode, formatTiteReference } from '@/lib/tite-constants';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -48,21 +49,6 @@ export interface MigrationLogRow {
 
 /* ─── Country code map ───────────────────────────────────────── */
 
-const COUNTRY_CODE: Record<string, string> = {
-  'Saudi Arabia (KSA)':          'KSA',
-  'United Arab Emirates (UAE)':  'UAE',
-  'Qatar':                        'QAT',
-  'Kuwait':                       'KWT',
-  'Oman':                         'OMN',
-  'Bahrain':                      'BHR',
-  'Egypt':                        'EGY',
-  'Algeria':                      'DZA',
-  'Iraq':                         'IRQ',
-  'Libya':                        'LBY',
-  'Chad':                         'TCD',
-  'Congo':                        'COG',
-  'Other':                        'OTH',
-};
 
 /* ─── Flexible date parser ───────────────────────────────────── */
 
@@ -190,7 +176,7 @@ export async function importShipments(params: {
   userEmail: string;
 }): Promise<MigrationResult> {
   const { country, filename, rows, userEmail } = params;
-  const countryCode = COUNTRY_CODE[country] ?? 'OTH';
+  const countryCode = titeCountryCode(country);
 
   const log: string[] = [];
   let inserted = 0;
@@ -212,8 +198,7 @@ export async function importShipments(params: {
       continue;
     }
 
-    const reference_number =
-      `${countryCode}-${String(Math.round(numericNo)).padStart(3, '0')}`;
+    const reference_number = formatTiteReference(countryCode, Math.round(numericNo));
 
     try {
       const importDate   = parseDateFlexible(row.import_date);

@@ -1,6 +1,7 @@
 'use server';
 
 import titePool from '@/lib/db-tite';
+import { titeCountryCode, formatTiteReference } from '@/lib/tite-constants';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { Shipment, ShipmentStats, ShipmentStatus, ShipmentDocument, ActivityLogRow, NotificationContact, CountryStakeholder, CountryStakeholderFull } from '@/types/tite';
@@ -196,12 +197,26 @@ export async function createShipment(
     const status: ShipmentStatus = 'Open';
     const alert_level = calcAlertLevel(input.expiry_date, input.extended_date, status);
 
-    const { rows: countRows } = await titePool.query<{ next_num: string }>(
-      `SELECT LPAD((COUNT(*) + 1)::text, 4, '0') AS next_num FROM shipments`,
-    );
-    const reference_number = `TI-${countRows[0].next_num}`;
+    /* Reference numbers are `<country code>-<per-country sequence>` (e.g. OMN-020).
+       The advisory lock serialises concurrent creates for the same country so two
+       callers cannot compute the same sequence and trip the unique index. */
+    const countryCode = titeCountryCode(input.country);
 
-    const { rows } = await titePool.query<{ id: number }>(
+    const client = await titePool.connect();
+    let rows: { id: number }[];
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`tite_ref_${countryCode}`]);
+
+      const { rows: seqRows } = await client.query<{ next_no: number }>(
+        `SELECT COALESCE(MAX((regexp_replace(reference_number, '^[A-Z]+-', ''))::int), 0) + 1 AS next_no
+           FROM shipments
+          WHERE reference_number ~ ('^' || $1 || '-[0-9]+$')`,
+        [countryCode],
+      );
+      const reference_number = formatTiteReference(countryCode, Number(seqRows[0].next_no));
+
+      ({ rows } = await client.query<{ id: number }>(
       `INSERT INTO shipments (
         reference_number, segment, from_country, to_country,
         invoice_number, invoice_value_usd, customs_reference_number, description,
@@ -241,7 +256,14 @@ export async function createShipment(
         input.country           ?? null,
         createdBy,
       ],
-    );
+      ));
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
     const shipmentId = rows[0].id;
 
     /* ─── Insert notification contacts ─── */
