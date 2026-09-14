@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { clsLabel, leafOf, money, nodeKey, nodePath, taxCategories, taxCommodities, taxFamilies, taxSubs } from '../lib/helpers';
 import type { RegistryApp } from '../lib/useRegistryApp';
 import type { ScopeNode } from '../lib/types';
+import { validateForSubmission } from '../lib/validate';
 
 function levelWord(level: 'Family' | 'Commodity', count: number): string {
   if (level === 'Family') return count > 1 ? 'families' : 'family';
@@ -23,21 +24,16 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
     { label: 'Classification & Country', sub: d.country ? `${clsLabel(d.cls)} · ${d.country}` : 'Single or sole source' },
     { label: 'Taxonomy & Segment', sub: d.nodes.length ? `${d.nodes.length} ${levelWord(d.level, d.nodes.length)}` : 'Family or Commodity level' },
     { label: 'Supplier & Justification', sub: d.supplierName || 'One supplier per record' },
-    { label: 'Evidence & Review', sub: d.evidence || 'Attach and submit' },
+    { label: 'Review & Submit', sub: 'Check and route for validation' },
   ];
 
   const toggleNode = (node: ScopeNode) => app.toggleNode(node);
 
   const dup = app.records.find((r) => r.supplierId && r.supplierId === d.supplierId && r.country === d.country && (r.base === 'Active' || r.base === 'Extended'));
 
-  const missing: string[] = [];
-  if (!d.country) missing.push('country');
-  if (!d.nodes.length) missing.push('taxonomy scope');
-  if (!d.segments.length) missing.push('at least one segment tag');
-  if (!d.supplierId || !d.supplierName) missing.push('supplier SAP ID and name');
-  if (!d.reason) missing.push('reason code');
-  if (!d.justification.trim()) missing.push('justification narrative');
-  if (!d.evidence) missing.push('evidence attachment');
+  /* The same rules the server applies, from the same module — the wizard is a
+     convenience, not the gate. */
+  const missing = validateForSubmission(d);
 
   const reviewFields = [
     { label: 'CLASSIFICATION', value: clsLabel(d.cls) },
@@ -48,7 +44,6 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
     { label: 'SUPPLIER', value: d.supplierName ? `${d.supplierId} — ${d.supplierName}` : 'Not set' },
     { label: 'REASON CODE', value: d.reason || 'Not set' },
     { label: 'ESTIMATED ANNUAL SPEND', value: d.spend ? money(parseInt(String(d.spend).replace(/[^0-9]/g, ''), 10)) : 'Not set' },
-    { label: 'EVIDENCE', value: d.evidence || 'Not attached' },
   ];
 
   const cats = new Set(d.nodes.map((n) => n.cat));
@@ -118,7 +113,7 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
             <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>Country / entity scope</div>
             <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 12 }}>One country from the confirmed list, or Global for cases that apply across all entities.</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: 900 }}>
-              {app.countries.filter((c) => app.canActOn(c[0])).map((c) => {
+              {app.countries.filter((c) => app.canActOn(c[1])).map((c) => {
                 const sel = d.country === c[0];
                 return (
                   <button key={c[0]} onClick={() => app.setDraft({ country: c[0] })} style={{ border: `1px solid ${sel ? '#2A7E4F' : '#D1D3D4'}`, background: sel ? '#2A7E4F' : '#fff', color: sel ? '#fff' : '#1F1F1D', fontSize: 12.5, fontWeight: 'bold', padding: '8px 13px', borderRadius: 2, cursor: 'pointer' }}>
@@ -281,23 +276,6 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
 
         {step === 4 && (
           <div>
-            <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>Evidence attachment</div>
-            <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 12 }}>
-              {d.cls === 'SGL' ? 'Market survey, OEM letter, or equivalent proof that no viable alternative exists.' : 'Contract clause, warranty terms, or equivalent support for the business rationale.'}
-            </div>
-            <div style={{ border: '2px dashed #6AAF8E', background: '#F7FBF9', padding: 20, maxWidth: 560, display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ width: 34, height: 42, background: '#2A7E4F', color: '#fff', fontSize: 9, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>DOC</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 'bold' }}>{d.evidence || 'No file attached'}</div>
-                <div style={{ fontSize: 11.5, color: '#58595B', marginTop: 3 }}>PDF, DOCX, XLSX or MSG. Retained on the record for audit reference.</div>
-              </div>
-              <label style={{ background: '#2A7E4F', color: '#fff', fontWeight: 'bold', fontSize: 12, padding: '9px 14px', cursor: 'pointer', borderRadius: 2, flex: '0 0 auto' }}>
-                <span>Choose file</span>
-                <input type="file" onChange={(e) => { const f = e.target.files?.[0]; if (f) app.setDraft({ evidence: f.name }); }} style={{ display: 'none' }} />
-              </label>
-            </div>
-
-            <div style={{ height: 1, background: '#E4E6E6', margin: '24px 0' }} />
             <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 12 }}>Review before submission</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid #E4E6E6', maxWidth: 1000 }}>
               {reviewFields.map((f) => (

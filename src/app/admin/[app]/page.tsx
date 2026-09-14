@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { currentActor } from '@/lib/require-access';
 import { findAdminApp, resolveSection } from '../adminNav';
 import AdminAppContent, { type AdminAppContentProps } from './AdminAppContent';
-import { getExpeditingAnalytics } from '@/app/actions/adminAnalytics';
+import { getTeamAnalyticsData } from '@/app/actions/teamAnalytics';
 import { getAllShipments } from '@/app/actions/tite';
 import {
   getProcureGuardAdminData,
@@ -51,7 +51,10 @@ export default async function AdminAppPage({
      an app's datasets here would re-pull data the section never shows. */
   switch (`${app.id}/${section}`) {
     case 'po-expediting/analytics':
-      base.poAnalytics = await getExpeditingAnalytics();
+      /* Unfiltered team analytics. getExpeditingAnalytics was a drifting clone of
+         this; the platform-admin gate on this route is enforced above, not by the
+         action. */
+      base.poAnalytics = await getTeamAnalyticsData({});
       break;
     case 'tite/analytics':
       // Admins see all shipments (no country filter)

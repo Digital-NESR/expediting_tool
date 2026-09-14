@@ -9,6 +9,7 @@ import {
   getProcureGuardViewerGrants,
   updateProcureGuardPermission,
   deleteProcureGuardAccessRequest,
+  resyncProcureGuardRecipientAccess,
   type ProcureGuardApproverMatrix,
   type ApproverMatrixColumn,
   type ApproverCell,
@@ -614,6 +615,8 @@ export default function ProcureGuardAccessApprovalsClient({
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncError, setResyncError] = useState<string | null>(null);
 
   // The app is open-access now: there are no pending ProcureGuard access requests, so keep the nav badge cleared.
   useEffect(() => {
@@ -637,18 +640,40 @@ export default function ProcureGuardAccessApprovalsClient({
               : '-'}
           </p>
         </div>
-        <button
-          type="button"
-          disabled={refreshing}
-          onClick={() => {
-            setRefreshing(true);
-            setRefreshKey((k) => k + 1);
-          }}
-          className="rounded-md border border-slate-200 px-3.5 py-2 text-[13px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60"
-        >
-          {refreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Rebuilding permissions from the recipient directory is a WRITE, so it is a deliberate
+              click — it no longer runs whenever this panel is rendered. */}
+          <button
+            type="button"
+            disabled={resyncing}
+            onClick={async () => {
+              setResyncing(true);
+              setResyncError(null);
+              const result = await resyncProcureGuardRecipientAccess();
+              if (!result.success) setResyncError(result.error ?? 'Re-sync failed.');
+              setResyncing(false);
+              setRefreshing(true);
+              setRefreshKey((k) => k + 1);
+            }}
+            title="Rebuild ProcureGuard permissions from the notification-recipient directory"
+            className="rounded-md border border-slate-200 px-3.5 py-2 text-[13px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+          >
+            {resyncing ? 'Re-syncing...' : 'Re-sync access'}
+          </button>
+          <button
+            type="button"
+            disabled={refreshing}
+            onClick={() => {
+              setRefreshing(true);
+              setRefreshKey((k) => k + 1);
+            }}
+            className="rounded-md border border-slate-200 px-3.5 py-2 text-[13px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
       </div>
+      {resyncError && <p className="text-[12px] font-medium text-red-600">{resyncError}</p>}
       <p className="text-[12px] text-slate-400">
         The approver notified for each role in each country. Supply Chain Director is split into Adhoc and Advance. Click any
         cell to reassign from the employee directory.

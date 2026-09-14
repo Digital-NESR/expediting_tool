@@ -1,18 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { addDays, daysFromToday, formatDate, parseISODate, toISODate, today } from '../date';
+import { BUSINESS_TZ, addDays, daysFromToday, formatDate, parseISODate, toISODate, today, todayISO } from '../date';
+
+/* The suite runs with TZ=Asia/Dubai (+04) while the registry's business
+   timezone is Asia/Riyadh (+03) — see vitest.config.mts. That one-hour gap is
+   deliberate: it makes the business date observably independent of the process
+   timezone, which is the whole point (the server is UTC on Vercel, the browser
+   is whatever the user's laptop says). So "local 00:30" below is 23:30 of the
+   PREVIOUS business day. */
 
 describe('today()', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('is local midnight of the current day', () => {
+  it('anchors on one named business timezone, not the process timezone', () => {
+    expect(BUSINESS_TZ).toBe('Asia/Riyadh');
+    expect(process.env.TZ).not.toBe(BUSINESS_TZ);
+  });
+
+  it('is midnight of the current business-timezone date', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 8, 14, 17, 42, 31, 500));
     const t = today();
     expect([t.getFullYear(), t.getMonth(), t.getDate()]).toEqual([2026, 8, 14]);
     expect([t.getHours(), t.getMinutes(), t.getSeconds(), t.getMilliseconds()]).toEqual([0, 0, 0, 0]);
+    expect(todayISO()).toBe('2026-09-14');
   });
 
   it('is recomputed on every call rather than frozen at import', () => {
@@ -22,6 +35,26 @@ describe('today()', () => {
     vi.setSystemTime(new Date(2026, 8, 15, 12, 0, 0));
     expect(toISODate(today())).not.toBe(first);
     expect(toISODate(today())).toBe('2026-09-15');
+  });
+
+  it('reports the business date, not the process-local one, in the small hours', () => {
+    vi.useFakeTimers();
+    // 00:30 in Dubai (+04) is still 23:30 of the previous day in Riyadh (+03).
+    vi.setSystemTime(new Date(2026, 8, 15, 0, 30, 0));
+    expect(todayISO()).toBe('2026-09-14');
+    // An hour later both zones agree.
+    vi.setSystemTime(new Date(2026, 8, 15, 1, 30, 0));
+    expect(todayISO()).toBe('2026-09-15');
+  });
+
+  it('does not roll the YEAR early — the Registry ID carries it', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2027, 0, 1, 0, 30, 0));
+    expect(todayISO()).toBe('2026-12-31');
+    expect(today().getFullYear()).toBe(2026);
+    vi.setSystemTime(new Date(2027, 0, 1, 1, 30, 0));
+    expect(todayISO()).toBe('2027-01-01');
+    expect(today().getFullYear()).toBe(2027);
   });
 });
 
@@ -124,12 +157,18 @@ describe('daysFromToday', () => {
     expect(daysFromToday(iso)).toBe(expected);
   });
 
-  it('is stable across the hours of the day, including local midnight', () => {
-    for (const hour of [0, 1, 3, 12, 23]) {
+  it('is stable across the hours of the business day', () => {
+    for (const hour of [1, 3, 12, 23]) {
       vi.setSystemTime(new Date(2026, 8, 14, hour, 30, 0));
       expect(daysFromToday('2026-09-14')).toBe(0);
       expect(daysFromToday('2026-11-13')).toBe(60);
     }
+  });
+
+  it('counts from the business date, so the first local hour is still yesterday', () => {
+    vi.setSystemTime(new Date(2026, 8, 14, 0, 30, 0));
+    expect(daysFromToday('2026-09-14')).toBe(1);
+    expect(daysFromToday('2026-09-13')).toBe(0);
   });
 
   it('drives the 60-day "expiring soon" boundary used by the registry', () => {

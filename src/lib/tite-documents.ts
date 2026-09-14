@@ -77,20 +77,68 @@ export async function dbGetDocumentFile(id: number): Promise<{
 /* ─── Activity log helpers ──────────────────────────────────────── */
 
 /**
+ * `shipment_activity_log.performed_by` is a free-text display name. Keying the
+ * recent-activity feed on it breaks the moment someone is renamed in Azure AD,
+ * and leaks one colleague's activity to another of the same name. The email is
+ * the stable identity, so it is stored alongside.
+ *
+ * Added with the codebase's idempotent ADD COLUMN IF NOT EXISTS pattern, memoised
+ * so it costs one statement per process. It MUST be awaited before any
+ * transaction that writes a log row opens — inside a transaction the failing
+ * ALTER would abort the whole unit of work.
+ */
+let activityLogSchemaReady: Promise<void> | null = null;
+
+export function ensureTiteActivityLogSchema(): Promise<void> {
+  if (!activityLogSchemaReady) {
+    activityLogSchemaReady = (async () => {
+      try {
+        await titePool.query(
+          `ALTER TABLE shipment_activity_log ADD COLUMN IF NOT EXISTS performed_by_email TEXT`,
+        );
+        await titePool.query(
+          `CREATE INDEX IF NOT EXISTS idx_shipment_activity_log_email
+             ON shipment_activity_log (performed_by_email, performed_at DESC)`,
+        );
+      } catch (err) {
+        // Never let a schema hiccup take a write down; retry on the next call.
+        activityLogSchemaReady = null;
+        console.error('[TI-TE] ensureTiteActivityLogSchema failed', err);
+      }
+    })();
+  }
+  return activityLogSchemaReady;
+}
+
+/**
  * Append an activity-log row. Pass the `client` of a surrounding transaction so
  * the log entry commits with the change it describes; without one it runs on
  * the pool, on its own connection.
+ *
+ * `performed_by_email` is the authenticated caller's email, resolved from the
+ * session by the action BEFORE it opens its transaction — never taken from a
+ * payload, and never resolved here, where it would hold a pooled connection
+ * while deciding identity.
  */
 export async function dbInsertActivityLog(params: {
   shipment_id: number;
   action: string;
   details: string | null;
   performed_by: string | null;
+  performed_by_email: string | null;
 }, client?: PoolClient): Promise<void> {
+  if (!client) await ensureTiteActivityLogSchema();
   await (client ?? titePool).query(
-    `INSERT INTO shipment_activity_log (shipment_id, action, details, performed_by)
-     VALUES ($1, $2, $3, $4)`,
-    [params.shipment_id, params.action, params.details, params.performed_by],
+    `INSERT INTO shipment_activity_log
+       (shipment_id, action, details, performed_by, performed_by_email)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [
+      params.shipment_id,
+      params.action,
+      params.details,
+      params.performed_by,
+      params.performed_by_email ? params.performed_by_email.trim().toLowerCase() : null,
+    ],
   );
 }
 
@@ -114,10 +162,14 @@ export async function dbUpdateShipmentWithLog(params: {
   action: string;
   details: string | null;
   performed_by: string | null;
+  performed_by_email: string | null;
 }): Promise<void> {
   const keys   = Object.keys(params.fields);
   const values = Object.values(params.fields);
   const setClauses = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+
+  // Before the transaction opens: the ALTER would abort it from inside.
+  await ensureTiteActivityLogSchema();
 
   // The row and the log entry describing it land together or not at all.
   await withTransaction(titePool, async (client) => {
@@ -127,10 +179,11 @@ export async function dbUpdateShipmentWithLog(params: {
     );
 
     await dbInsertActivityLog({
-      shipment_id:  params.shipment_id,
-      action:       params.action,
-      details:      params.details,
-      performed_by: params.performed_by,
+      shipment_id:        params.shipment_id,
+      action:             params.action,
+      details:            params.details,
+      performed_by:       params.performed_by,
+      performed_by_email: params.performed_by_email,
     }, client);
   });
 }

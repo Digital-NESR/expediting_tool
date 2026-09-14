@@ -25,7 +25,6 @@ export interface ShapedRow {
   reason: string;
   segments: string[];
   spend: number;
-  evidence: string;
   requestor: string;
 }
 
@@ -72,7 +71,6 @@ export function shapeRow(r: RegistryRecord): ShapedRow {
     reason: r.reason,
     segments: r.segments,
     spend: r.spend,
-    evidence: r.evidence,
     requestor: r.requestor,
   };
 }

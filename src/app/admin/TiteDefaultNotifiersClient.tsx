@@ -11,14 +11,16 @@ import {
 import EmployeeSearchInput from '@/components/EmployeeSearchInput';
 import type { Employee } from '@/components/EmployeeSearchInput';
 import type { CountryStakeholderFull } from '@/types/tite';
+import { TITE_COUNTRY_VALUES } from '@/lib/tite-constants';
 
 /* ─── Constants ─────────────────────────────────────────────── */
 
-const TITE_COUNTRIES = [
-  'Saudi Arabia', 'UAE', 'Kuwait', 'Qatar', 'Oman', 'Bahrain',
-  'Egypt', 'Cameroon', 'Algeria', 'Iraq', 'Libya',
-  'USA', 'UK', 'Germany', 'France', 'China', 'Singapore', 'India',
-];
+/* `country_stakeholders.country` must match `shipments.country` EXACTLY — the
+   default-notifier seed in the migration and in createShipment joins the two on
+   that string. This panel used to offer 'Saudi Arabia' / 'UAE' while every other
+   panel wrote 'Saudi Arabia (KSA)' / 'United Arab Emirates (UAE)', so notifiers
+   configured here never attached to anything. One canonical list now. */
+const COUNTRY_OPTIONS = TITE_COUNTRY_VALUES;
 
 const ROLE_SUGGESTIONS = [
   'Supply Chain Manager',
@@ -148,7 +150,7 @@ export default function TiteDefaultNotifiersClient() {
 
   // All countries: merge static + DB
   const allCountries = useMemo(() => {
-    const set = new Set([...TITE_COUNTRIES, ...stakeholders.map(s => s.country)]);
+    const set = new Set([...COUNTRY_OPTIONS, ...stakeholders.map(s => s.country)]);
     return [...set].sort();
   }, [stakeholders]);
 

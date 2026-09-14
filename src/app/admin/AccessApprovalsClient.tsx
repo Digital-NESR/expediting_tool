@@ -11,6 +11,7 @@ import {
 } from '@/app/actions/adminAccess';
 import { getCountries } from '@/app/actions/access';
 import type { AccessRequestRow } from '@/app/actions/adminAccess';
+import type { StoredAccessStatus } from '@/types/access';
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 
@@ -23,7 +24,7 @@ function formatDate(raw: string): string {
 
 /* ─── StatusBadge ────────────────────────────────────────────── */
 
-function StatusBadge({ status }: { status: 'Pending' | 'Approved' | 'Rejected' | 'Revoked' }) {
+function StatusBadge({ status }: { status: StoredAccessStatus }) {
   if (status === 'Approved') return (
     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap">
       Approved

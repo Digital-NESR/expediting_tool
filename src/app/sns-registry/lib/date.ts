@@ -1,13 +1,41 @@
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /**
- * Local midnight for "now". Deliberately not a module-level constant: the tool
- * runs long enough that a cached anchor would drift, and expiry countdowns are
- * the whole point of the Expiry & Review screen.
+ * The one business timezone the registry keeps its calendar in.
+ *
+ * Dates on a record are compliance facts: the issue date, the expiry date, the
+ * audit-trail entry dates, and the year embedded in the immutable Registry ID.
+ * They must not depend on where the code happens to run — the server is UTC on
+ * Vercel, the browser is whatever the user's laptop says. Both sides call the
+ * helpers below, so a sign-off at 01:00 Gulf time stamps the same calendar day
+ * on the server, in the browser, and in the Registry ID.
+ */
+export const BUSINESS_TZ = 'Asia/Riyadh';
+
+/* Fixed zone, so the formatter can be built once and reused. */
+const BUSINESS_DATE_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: BUSINESS_TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/** Today's calendar date in the business timezone, as `YYYY-MM-DD`. */
+export function todayISO(): string {
+  const parts = BUSINESS_DATE_FMT.formatToParts(new Date());
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+/**
+ * Business-timezone "today", as a date with no time component.
+ *
+ * Deliberately not a module-level constant: the tool runs long enough that a
+ * cached anchor would drift, and expiry countdowns are the whole point of the
+ * Expiry & Review screen.
  */
 export function today(): Date {
-  const n = new Date();
-  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  return parseISODate(todayISO());
 }
 
 export function addDays(base: Date, n: number): Date {

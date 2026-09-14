@@ -63,7 +63,14 @@ export interface RegistryRecord {
   /** Surrogate key (sns_record.rid). The human-facing ID is `id`, issued at Level 2. */
   rid: number;
   cls: Classification;
+  /** Display name as it read when the record was raised — a snapshot, not a key. */
   country: string;
+  /**
+   * `sns_country.code` — the stable identity. Country names are editable
+   * reference data, so every scope check and the Registry ID key off this.
+   * Empty only for a legacy record whose country name no longer resolves.
+   */
+  countryCode: string;
   level: ScopeLevel;
   nodes: ScopeNode[];
   segments: string[];
@@ -73,8 +80,6 @@ export interface RegistryRecord {
   justification: string;
   base: BaseStatus;
   spend: number;
-  poCount: number;
-  evidence: string;
   /** Registry ID — null until Level 2 sign-off publishes the record. */
   id: string | null;
   issue: string | null;
@@ -85,6 +90,7 @@ export interface RegistryRecord {
 
 export interface Draft {
   cls: Classification;
+  /** Country display name. The server resolves it to a `sns_country.code` on save. */
   country: string;
   level: ScopeLevel;
   nodes: ScopeNode[];
@@ -94,7 +100,6 @@ export interface Draft {
   spend: string;
   reason: string;
   justification: string;
-  evidence: string;
 }
 
 export type Screen = 'registry' | 'detail' | 'new' | 'inbox' | 'expiry' | 'dash';
@@ -119,10 +124,11 @@ export interface SnsViewer {
   role: SnsRole | null;
   roleKind: RoleKind;
   /**
-   * Countries the viewer may act in. Empty means unrestricted — which is the
-   * case for admins, and for read-only/leadership roles that see everything.
+   * `sns_country.code` values the viewer may act in — codes, not names, so a
+   * country rename cannot silently widen or break someone's scope. Empty means
+   * unrestricted: admins, and read-only/leadership roles that see everything.
    */
-  countries: string[];
+  countryCodes: string[];
 }
 
 export interface SnsAccessRequestRow {

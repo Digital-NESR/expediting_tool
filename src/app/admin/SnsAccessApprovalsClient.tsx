@@ -11,7 +11,7 @@ import {
   revokeSnsAccess,
 } from '@/app/actions/sns';
 import { ROLES } from '@/app/sns-registry/lib/constants';
-import type { SnsAccessRequestRow, SnsRole } from '@/app/sns-registry/lib/types';
+import type { Country, SnsAccessRequestRow, SnsRole } from '@/app/sns-registry/lib/types';
 
 const BRAND = '#2A7E4F';
 
@@ -28,7 +28,7 @@ export default function SnsAccessApprovalsClient({
   onPendingCountChange?: (n: number) => void;
 }) {
   const [requests, setRequests] = useState<SnsAccessRequestRow[]>([]);
-  const [countries, setCountries] = useState<string[]>([]);
+  const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +44,7 @@ export default function SnsAccessApprovalsClient({
       getSnsReferenceData(),
     ]);
     setRequests(reqs);
-    setCountries(ref.countries.map((c) => c[0]));
+    setCountries(ref.countries);
     setLoading(false);
     onPendingCountChange?.(cnt);
   }, [onPendingCountChange]);
@@ -64,6 +64,9 @@ export default function SnsAccessApprovalsClient({
     setEditing(null);
     await reload();
   }
+
+  /** Country grants are stored as `sns_country.code`; names are for display only. */
+  const countryName = (code: string) => countries.find((c) => c[1] === code)?.[0] ?? code;
 
   /** Opens the approve editor pre-filled with whatever the user asked for. */
   function beginApprove(r: SnsAccessRequestRow) {
@@ -122,7 +125,7 @@ export default function SnsAccessApprovalsClient({
                       </div>
                       <div>
                         <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">Requested countries</dt>
-                        <dd className="text-slate-700">{r.requestedCountries.join(', ') || '—'}</dd>
+                        <dd className="text-slate-700">{r.requestedCountries.map(countryName).join(', ') || '—'}</dd>
                       </div>
                       {r.status === 'Approved' && (
                         <>
@@ -133,7 +136,7 @@ export default function SnsAccessApprovalsClient({
                           <div>
                             <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">Approved countries</dt>
                             <dd className="font-semibold text-slate-900">
-                              {r.approvedCountries.length ? r.approvedCountries.join(', ') : 'All countries'}
+                              {r.approvedCountries.length ? r.approvedCountries.map(countryName).join(', ') : 'All countries'}
                             </dd>
                           </div>
                         </>
@@ -217,20 +220,20 @@ export default function SnsAccessApprovalsClient({
                       Countries <span className="font-medium normal-case tracking-normal text-slate-400">(none selected = all countries)</span>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {countries.map((c) => {
-                        const on = editCountries.includes(c);
+                      {countries.map(([name, code]) => {
+                        const on = editCountries.includes(code);
                         return (
                           <button
-                            key={c}
+                            key={code}
                             type="button"
                             onClick={() =>
-                              setEditCountries((prev) => (on ? prev.filter((x) => x !== c) : prev.concat([c])))
+                              setEditCountries((prev) => (on ? prev.filter((x) => x !== code) : prev.concat([code])))
                             }
                             className={`rounded-lg border px-2.5 py-1 text-[12px] font-semibold transition-colors ${
                               on ? 'border-[#2A7E4F] bg-[#2A7E4F] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                             }`}
                           >
-                            {c}
+                            {name}
                           </button>
                         );
                       })}

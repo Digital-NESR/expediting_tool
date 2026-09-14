@@ -13,6 +13,7 @@ import {
   getPermissionProfile,
   getProcureGuardAvailableActions,
   isActiveApprovalStatus,
+  procureGuardThreshold,
   toUsd,
 } from '@/lib/procureGuard-utils';
 import type { ProcureGuardRequestType } from '@/types/procureGuard';
@@ -122,8 +123,7 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
       const milestone = REMINDER_MILESTONES.find(m => ageDays >= m.days && !raw[m.column]);
       if (!milestone) continue;
 
-      const thresholdAmount = request.spend_value_usd ?? request.amount;
-      const thresholdCurrency = request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD';
+      const { amount: thresholdAmount, currency: thresholdCurrency } = procureGuardThreshold(request);
       const approvalStatus = getRecipientApprovalStatus(requestType, request);
       const actions = getProcureGuardAvailableActions(adminPermissions, requestType, request.status, thresholdAmount, thresholdCurrency);
       if (!approvalStatus || !actions.requiredPermission) { summary.skipped += 1; continue; }

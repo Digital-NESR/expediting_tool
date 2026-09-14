@@ -2,6 +2,7 @@
 
 import pool from '@/lib/db';
 import { currentActor } from '@/lib/require-access';
+import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -77,6 +78,12 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
   const userEmail = actor.email;
 
   try {
+    await ensureActiveExpeditingColumns();
+
+    /* Every query below reads active_expediting's dispatch-time snapshot instead
+       of joining sap_open_po_master, which n8n truncates and reloads nightly with
+       only the POs still open — the join silently dropped every line whose PO had
+       since closed, so completed work vanished from these totals. */
     const [kpiRes, supplierRes, sessionsRes, weeklyRes, responseTimeRes] = await Promise.all([
 
       /* ── KPI block ── */
@@ -86,10 +93,8 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
              FROM active_expediting
              WHERE LOWER(dispatched_by) = $1
           ) AS total_lines,
-          (SELECT COUNT(DISTINCT s.supplier_name)
+          (SELECT COUNT(DISTINCT ae.supplier_name)
              FROM active_expediting ae
-             JOIN sap_open_po_master s
-               ON ae.po_number = s.po_number AND ae.po_line = s.po_line
              WHERE LOWER(ae.dispatched_by) = $1
           ) AS total_suppliers,
           (SELECT COALESCE(SUM(total_emails_sent), 0)
@@ -105,7 +110,7 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
       /* ── My supplier breakdown ── */
       pool.query(`
         SELECT
-          s.supplier_name,
+          ae.supplier_name,
           COUNT(DISTINCT ae.expedite_token)                                      AS times_expedited,
           COUNT(ae.id)                                                           AS total_lines,
           COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END)            AS lines_responded,
@@ -113,12 +118,10 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
             COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) * 100.0
               / NULLIF(COUNT(ae.id), 0), 1
           )                                                                      AS response_rate,
-          MAX(CASE WHEN ae.workflow_state = 'Submitted' THEN ae.updated_at END) AS last_response
+          MAX(ae.responded_at)                                                   AS last_response
         FROM active_expediting ae
-        JOIN sap_open_po_master s
-          ON ae.po_number = s.po_number AND ae.po_line = s.po_line
         WHERE LOWER(ae.dispatched_by) = $1
-        GROUP BY s.supplier_name
+        GROUP BY ae.supplier_name
         ORDER BY response_rate DESC NULLS LAST
       `, [userEmail]),
 
@@ -153,23 +156,22 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
         ORDER BY week ASC
       `, [userEmail]),
 
-      /* ── My avg response time by supplier ── */
+      /* ── My avg response time by supplier ──
+         responded_at, not updated_at: saveBuyerComment also bumps updated_at, so
+         every buyer note used to shorten the supplier's apparent turnaround. */
       pool.query(`
         SELECT
-          s.supplier_name,
+          ae.supplier_name,
           ROUND(AVG(
-            EXTRACT(EPOCH FROM (ae.updated_at - ae.dispatched_at)) / 86400
+            EXTRACT(EPOCH FROM (ae.responded_at - ae.dispatched_at)) / 86400
           ), 1) AS avg_days_to_respond,
-          COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) AS responses_count
+          COUNT(*) AS responses_count
         FROM active_expediting ae
-        JOIN sap_open_po_master s
-          ON ae.po_number = s.po_number AND ae.po_line = s.po_line
         WHERE ae.workflow_state = 'Submitted'
           AND LOWER(ae.dispatched_by) = $1
           AND ae.dispatched_at IS NOT NULL
-          AND ae.updated_at IS NOT NULL
-        GROUP BY s.supplier_name
-        HAVING COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) > 0
+          AND ae.responded_at IS NOT NULL
+        GROUP BY ae.supplier_name
         ORDER BY avg_days_to_respond ASC
       `, [userEmail]),
     ]);
@@ -255,6 +257,11 @@ export async function getSupplierDetail(
   if (!actor) return [];
   const userEmail = actor.email;
   try {
+    await ensureActiveExpeditingColumns();
+    /* Matched and read off the snapshot; the master is LEFT JOINed only for the
+       two fields that are not snapshotted. The old INNER JOIN on s.supplier_name
+       hid every line whose PO had since closed, so this drill-down showed fewer
+       lines than the supplier row that opened it. */
     const res = await pool.query(`
       SELECT
         ae.po_number,
@@ -266,16 +273,16 @@ export async function getSupplierDetail(
         ae.supplier_comments,
         ae.buyer_comments,
         ae.dispatched_at,
-        s.item_description,
+        COALESCE(ae.item_description,  s.item_description)  AS item_description,
         s.sap_mat_id,
-        s.open_qty,
-        s.open_po_value_usd,
-        s.delivery_date  AS original_delivery_date,
+        COALESCE(ae.open_qty,          s.open_qty)          AS open_qty,
+        COALESCE(ae.open_po_value_usd, s.open_po_value_usd) AS open_po_value_usd,
+        COALESCE(ae.delivery_date,     s.delivery_date)     AS original_delivery_date,
         s.delivery_code  AS sap_delivery_code
       FROM active_expediting ae
-      JOIN sap_open_po_master s
+      LEFT JOIN sap_open_po_master s
         ON ae.po_number = s.po_number AND ae.po_line = s.po_line
-      WHERE s.supplier_name = $1
+      WHERE COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name) = $1
         AND LOWER(ae.dispatched_by) = $2
       ORDER BY ae.po_number, ae.po_line
     `, [supplierName, userEmail]);
@@ -336,6 +343,7 @@ export async function getSessionDetail(
   if (!actor) return [];
   const userEmail = actor.email;
   try {
+    await ensureActiveExpeditingColumns();
     const res = await pool.query(`
       SELECT
         ae.po_number,
@@ -346,19 +354,20 @@ export async function getSessionDetail(
         ae.supplier_comments,
         ae.buyer_comments,
         ae.expedite_token,
-        s.supplier_name,
-        s.item_description,
+        COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name, 'Unknown Supplier') AS supplier_name,
+        COALESCE(ae.item_description,  s.item_description)  AS item_description,
         s.sap_mat_id,
-        s.open_qty,
-        s.open_po_value_usd,
-        s.delivery_date  AS original_delivery_date,
+        COALESCE(ae.open_qty,          s.open_qty)          AS open_qty,
+        COALESCE(ae.open_po_value_usd, s.open_po_value_usd) AS open_po_value_usd,
+        COALESCE(ae.delivery_date,     s.delivery_date)     AS original_delivery_date,
         s.delivery_code  AS sap_delivery_code
       FROM active_expediting ae
-      JOIN sap_open_po_master s
+      LEFT JOIN sap_open_po_master s
         ON ae.po_number = s.po_number AND ae.po_line = s.po_line
       WHERE ae.session_ref = $1::uuid
         AND LOWER(ae.dispatched_by) = $2
-      ORDER BY s.supplier_name, ae.po_number, ae.po_line
+      ORDER BY COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name, 'Unknown Supplier'),
+               ae.po_number, ae.po_line
     `, [sessionRef, userEmail]);
 
     return res.rows.map(r => ({

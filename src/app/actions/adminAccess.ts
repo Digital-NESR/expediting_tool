@@ -2,6 +2,7 @@
 
 import pool from '@/lib/db';
 import { normalizeEmail, requireAdmin, withAccessFallback } from '@/lib/require-access';
+import type { StoredAccessStatus } from '@/types/access';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -9,7 +10,8 @@ export interface AccessRequestRow {
   user_email: string;
   display_name: string | null;
   job_title: string | null;
-  status: 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
+  // Reads tolerate the legacy 'Denied' until the one-off migration has run everywhere.
+  status: StoredAccessStatus;
   requested_countries: string[];
   approved_countries: string[];
   requested_at: string;
@@ -41,7 +43,7 @@ export async function getAccessRequests(): Promise<AccessRequestRow[]> {
         user_email:          String(r.user_email),
         display_name:        r.display_name ? String(r.display_name) : null,
         job_title:           r.job_title    ? String(r.job_title)    : null,
-        status:              r.status as 'Pending' | 'Approved' | 'Rejected' | 'Revoked',
+        status:              r.status as StoredAccessStatus,
         requested_countries: r.requested_countries || [],
         approved_countries:  r.approved_countries  || [],
         requested_at:        r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),
@@ -107,7 +109,7 @@ export async function rejectAccessRequest(
   try {
     await pool.query(
       `UPDATE access_requests
-          SET status             = 'Denied',
+          SET status             = 'Rejected',
               approved_countries = '{}',
               reviewed_at        = NOW(),
               reviewed_by        = $2
@@ -148,7 +150,7 @@ export async function revokeAccess(
   try {
     await pool.query(
       `UPDATE access_requests
-          SET status             = 'Denied',
+          SET status             = 'Revoked',
               approved_countries = '{}',
               reviewed_at        = NOW(),
               reviewed_by        = $2

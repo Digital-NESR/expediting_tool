@@ -25,7 +25,9 @@ import {
   IT_MANAGER_STATUSES,
   laptopHasAssignedUnit,
   laptopIsProcureNewFlow,
+  resolveLaptopMatrixCountry,
 } from '@/lib/laptopProcurement-utils';
+import { normalizeEmail } from '@/lib/require-access';
 import type { LaptopApprovalStage, LaptopPermissionKey } from '@/lib/laptopProcurement-utils';
 import type {
   ActionResult,
@@ -259,6 +261,37 @@ async function getApproverMatrixCapabilities(email: string): Promise<Record<Lapt
     console.error('[getApproverMatrixCapabilities]', err);
   }
   return capabilities;
+}
+
+// The single lookup for "the active approver-matrix row covering this country".
+//
+// Authorization resolves matrix countries case/whitespace-insensitively (see
+// getApproverMatrixCapabilities + normaliseScopeValue), so the routing side has to match
+// on exactly the same terms. While these compared with `country = ?`, a matrix row whose
+// country differed only by casing or padding let its reviewer act on a request while
+// nobody was notified and the "Assigned Approvers" panel showed nobody — the approval
+// silently went nowhere.
+async function getActiveApproverMatrixForCountry(country: string | null | undefined): Promise<QueryResultRow | undefined> {
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT * FROM laptop_approver_matrix WHERE LOWER(TRIM(country)) = LOWER(TRIM(?)) AND is_active = TRUE LIMIT 1`,
+    [country ?? null],
+  );
+  return rows[0];
+}
+
+// Every country already on the matrix. Passed to resolveLaptopMatrixCountry on write so
+// legacy spellings (EOS / Jordan / Malaysia) stay editable and a case variant lands on
+// the row that already exists instead of creating a second one beside it.
+async function existingMatrixCountries(): Promise<string[]> {
+  const rows = await sql<QueryResultRow[]>(`SELECT DISTINCT country FROM laptop_approver_matrix WHERE country IS NOT NULL`);
+  return rows.map(r => String(r.country)).filter(c => c.trim());
+}
+
+function unknownMatrixCountryError(countries: string[]): string {
+  const subject = countries.length === 1
+    ? `"${countries[0]}" is not`
+    : `${countries.map(c => `"${c}"`).join(', ')} are not`;
+  return `${subject} a recognised country. Pick one of the standard countries — an approver saved under a spelling nothing else matches is never notified and never shows up on a request.`;
 }
 
 function hasAnyMatrixCapability(capabilities: Record<LaptopApprovalStage, string[]>): boolean {
@@ -638,20 +671,55 @@ function requireReviewerQueueAccess(actor: LaptopActor): void {
   }
 }
 
+/**
+ * Gate for the /admin console's Laptop Procurement pages.
+ *
+ * A real laptop Admin (an `Admin` laptop_permissions row, or LAPTOP_PROCUREMENT_ADMIN_EMAILS
+ * with no row at all — see getActor's fallback) passes through untouched, with full rights.
+ *
+ * Everyone else on ADMIN_EMAILS gets a READ-ONLY elevation. The old bypass handed them the
+ * complete Admin profile — manage-permissions, delete-records, manage-data — on the theory
+ * that these functions are "reached only through /admin". Server actions are public POST
+ * endpoints, so that was never a control: being on the platform-wide admin list silently
+ * made someone a full laptop Admin, contradicting laptopProcurementAdminEmails' own stated
+ * policy. They keep exactly what the console needs to render (unscoped read across every
+ * country) and nothing that writes; every write action re-checks its own capability flag
+ * and now refuses them.
+ *
+ * Bootstrapping is preserved deliberately — see canBootstrapOwnLaptopPermission.
+ */
 async function requireAdminActor(): Promise<LaptopActor> {
   const actor = await getActor();
   if (canUseLaptopAdmin(actor.effectiveAccessView)) return actor;
-  // ADMIN_EMAILS (platform-wide) or LAPTOP_PROCUREMENT_ADMIN_EMAILS opens the /admin
-  // console's Laptop Procurement admin pages — every function above that calls
-  // requireAdminActor() is reached only through /admin, never through the main
-  // /laptop-procurement app. The elevation below is scoped to the actor object this
-  // call returns; it never touches what getActor() itself hands back, so someone
-  // here only via the env var still shows up as a plain Requester on the app itself.
-  if (!adminEmails().includes(actor.email.toLowerCase())) {
+  if (!adminEmails().includes(normalizeEmail(actor.email))) {
     throw new Error('Admin access is required.');
   }
-  const permissions = buildEffectivePermissions('Admin', actor.matrixCapabilities);
-  return { ...actor, role: 'Admin', isAdmin: true, permissions, effectiveAccessView: permissions.accessView };
+  // Scoped to the actor object this call returns; it never touches what getActor() hands
+  // back, so someone here only via the env var still shows up as a plain Requester on the
+  // main /laptop-procurement app. Their real role and matrix-derived review rights are kept
+  // as-is — this only adds console visibility, and explicitly removes every write flag.
+  const permissions: LaptopPermissionProfile = {
+    ...buildEffectivePermissions(actor.role, actor.matrixCapabilities, true),
+    canManageData: false,
+    canManagePermissions: false,
+    canDeleteRecords: false,
+  };
+  return { ...actor, permissions, effectiveAccessView: 'admin' };
+}
+
+/**
+ * The one write a read-only console admin keeps: granting a laptop_permissions row to
+ * THEMSELVES, and only themselves.
+ *
+ * Without it, an environment whose laptop_permissions table is empty and whose
+ * LAPTOP_PROCUREMENT_ADMIN_EMAILS is unset would be locked out for good — the console would
+ * render, and every write, including the one that creates the first Admin row, would be
+ * refused. Unlike the blanket elevation it replaces, this is explicit and leaves a row
+ * behind naming who holds what, instead of applying invisibly to every admin action.
+ */
+function canBootstrapOwnLaptopPermission(actor: LaptopActor, targetEmail: string): boolean {
+  return adminEmails().includes(normalizeEmail(actor.email))
+    && normalizeEmail(targetEmail) === normalizeEmail(actor.email);
 }
 
 /* ── n8n webhooks (mirrors ProcureGuard's notifier) ───────────── */
@@ -833,11 +901,7 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
   if (!stage) return;
 
   try {
-    const matrixRows = await sql<QueryResultRow[]>(
-      `SELECT * FROM laptop_approver_matrix WHERE country = ? AND is_active = TRUE LIMIT 1`,
-      [request.country],
-    );
-    const matrix = matrixRows[0];
+    const matrix = await getActiveApproverMatrixForCountry(request.country);
 
     const matrixRecipients: Array<{ name: string | null; email: string }> =
       stage === 'IT Manager'
@@ -944,11 +1008,7 @@ async function notifyLaptopFinalApproval(request: LaptopRequest): Promise<void> 
   }
 
   try {
-    const matrixRows = await sql<QueryResultRow[]>(
-      `SELECT * FROM laptop_approver_matrix WHERE country = ? AND is_active = TRUE LIMIT 1`,
-      [request.country],
-    );
-    const matrix = matrixRows[0];
+    const matrix = await getActiveApproverMatrixForCountry(request.country);
     const itManagerCandidates: Array<{ name: string | null; email: string }> = ([
       { name: (matrix?.it_manager_name as string) ?? null, email: matrix?.it_manager_email as string },
       { name: (matrix?.it_manager_2_name as string) ?? null, email: matrix?.it_manager_2_email as string },
@@ -1464,8 +1524,7 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
 // columns), since the live matrix assignment may have changed since; pending/upcoming
 // stages show the live, delegation-resolved assignee, since that's who needs to act now.
 async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStageAssignee[]> {
-  const matrixRows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix WHERE country = ? AND is_active = TRUE LIMIT 1`, [request.country]);
-  const matrix = matrixRows[0];
+  const matrix = await getActiveApproverMatrixForCountry(request.country);
   const currentStage = getLaptopApprovalStage(request.status);
   const currentIndex = currentStage ? APPROVAL_STAGES.indexOf(currentStage) : -1;
   // Assign-from-inventory / plain-approved requests now end at Country Manager — IT
@@ -2107,8 +2166,8 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     if (stageDecisionColumn) { sets.push(`${stageDecisionColumn} = ?`); params.push('Rejected'); }
     params.push(id);
 
-    await withTransaction(laptopProcurementPool, async (client) => {
-      await execTx(client, `UPDATE laptop_requests SET ${sets.join(', ')} WHERE id = ?`, params);
+    const updatedRow = await withTransaction(laptopProcurementPool, async (client) => {
+      const updated = await sqlTx<QueryResultRow[]>(client, `UPDATE laptop_requests SET ${sets.join(', ')} WHERE id = ? RETURNING *`, params);
       await writeActivity({
         requestId: id,
         referenceNumber: row.reference_number,
@@ -2117,10 +2176,14 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
         notes: trimmedReason,
         client,
       });
+      return updated[0];
     });
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
-    const rejectedRequest = serialise<LaptopRequest>({ ...row, status: nextStatus });
+    // The row as actually committed (RETURNING *), not the pre-update snapshot — patching
+    // `row` by hand leaves every column the UPDATE touched stale in the email. Read inside
+    // the transaction, notified only after it commits: a webhook cannot be rolled back.
+    const rejectedRequest = serialise<LaptopRequest>(updatedRow ?? { ...row, status: nextStatus });
     await notifyLaptopNextApprover(rejectedRequest);
     await notifyLaptopRequesterUpdate(rejectedRequest, {
       kind: 'rejected',
@@ -2308,8 +2371,8 @@ export async function updateLaptopRequestStatus(
       .filter(Boolean)
       .join(' — ') || null;
 
-    await withTransaction(laptopProcurementPool, async (client) => {
-      await execTx(
+    const updatedRow = await withTransaction(laptopProcurementPool, async (client) => {
+      const updated = await sqlTx<QueryResultRow[]>(
         client,
         `UPDATE laptop_requests SET
            status = ?,
@@ -2320,7 +2383,8 @@ export async function updateLaptopRequestStatus(
            rejection_reason = ?,
            review_comments = ?${stageDateAssignment}${stageCommentAssignment}${stageApproverAssignment}${stageDecisionAssignment}${assignedLaptopAssignment}${procureNewFlagAssignment}${procureNewDetailsAssignment},
            updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
+         WHERE id = ?
+         RETURNING *`,
         params,
       );
 
@@ -2332,11 +2396,17 @@ export async function updateLaptopRequestStatus(
         notes: activityNotes,
         client,
       });
+      return updated[0];
     });
 
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
-    const updatedRequest = serialise<LaptopRequest>({ ...row, status });
+    // The row as actually committed (RETURNING *), not the pre-update snapshot: an IT
+    // Manager's up-front procure-new and an assigned unit's device-type change both rewrite
+    // type_of_device / requested_model in this very statement, so patching `row` by hand
+    // mailed the approver a description of the wrong device. Read inside the transaction,
+    // notified only after it commits: a webhook cannot be rolled back.
+    const updatedRequest = serialise<LaptopRequest>(updatedRow ?? { ...row, status });
     await notifyLaptopNextApprover(updatedRequest);
     await notifyLaptopFinalApproval(updatedRequest);
     // The requester already knows about their own cancellation — everyone else's
@@ -2386,19 +2456,24 @@ export async function submitProcureNewDetails(id: number, input: SubmitProcureNe
     const model = requireText(input.model, 'Model');
     const nextStatus: LaptopRequestStatus = 'CM Confirm Device';
 
-    await withTransaction(laptopProcurementPool, async (client) => {
-      await execTx(
+    const updatedRow = await withTransaction(laptopProcurementPool, async (client) => {
+      const updated = await sqlTx<QueryResultRow[]>(
         client,
         `UPDATE laptop_requests SET
            type_of_device = ?, requested_model = ?, status = ?, pending_with = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
+         WHERE id = ?
+         RETURNING *`,
         [typeOfDevice, model, nextStatus, getPendingWithLabel(nextStatus), id],
       );
       await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Device details submitted, sent to Country Manager for confirmation', actor, client });
+      return updated[0];
     });
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
-    const confirmedRequest = serialise<LaptopRequest>({ ...row, status: nextStatus, type_of_device: typeOfDevice, requested_model: model });
+    // The row as actually committed (RETURNING *), not the pre-update snapshot patched by
+    // hand. Read inside the transaction, notified only after it commits: a webhook cannot
+    // be rolled back.
+    const confirmedRequest = serialise<LaptopRequest>(updatedRow ?? { ...row, status: nextStatus, type_of_device: typeOfDevice, requested_model: model });
     await notifyLaptopNextApprover(confirmedRequest);
     await notifyLaptopRequesterUpdate(confirmedRequest, {
       kind: 'forwarded',
@@ -2556,10 +2631,12 @@ export async function deleteLaptopDocument(documentId: number): Promise<ActionRe
 export async function updateLaptopPermission(input: UpdateLaptopPermissionInput): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
     const email = requireText(input.email, 'Email').toLowerCase();
     const role = requireText(input.role, 'Role') as LaptopPermissionRole;
     if (!getPermissionProfile(role)) return { success: false, error: 'Unknown role.' };
+    if (!actor.permissions.canManagePermissions && !canBootstrapOwnLaptopPermission(actor, email)) {
+      return { success: false, error: 'Permission management access is required.' };
+    }
 
     await ensureLaptopPermissionsRoleConstraint();
     await exec(
@@ -2655,7 +2732,10 @@ export async function setLaptopApproverCell(input: {
   try {
     const actor = await requireAdminActor();
     if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
-    const country = requireText(input.country, 'Country');
+    const rawCountry = requireText(input.country, 'Country');
+    // Canonicalised before it can reach the table — see resolveLaptopMatrixCountry.
+    const country = resolveLaptopMatrixCountry(rawCountry, await existingMatrixCountries());
+    if (!country) return { success: false, error: unknownMatrixCountryError([rawCountry]) };
     const cols = getMatrixColumns(input.role, input.slot ?? 1);
     if (!cols) return { success: false, error: 'Unknown approver role.' };
 
@@ -2768,8 +2848,14 @@ export async function saveApproverMatrixRole(input: {
     if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
     const email = requireText(input.email, 'Email').toLowerCase();
     const slot = input.slot ?? 1;
-    const countries = [...new Set(input.countries.map(c => c.trim()).filter(Boolean))];
-    if (!countries.length) return { success: false, error: 'At least one country is required.' };
+    const rawCountries = [...new Set(input.countries.map(c => c.trim()).filter(Boolean))];
+    if (!rawCountries.length) return { success: false, error: 'At least one country is required.' };
+    // Canonicalised before they can reach the table — see resolveLaptopMatrixCountry.
+    const known = await existingMatrixCountries();
+    const resolvedCountries = rawCountries.map(c => ({ raw: c, canonical: resolveLaptopMatrixCountry(c, known) }));
+    const unknownCountries = resolvedCountries.filter(c => !c.canonical).map(c => c.raw);
+    if (unknownCountries.length) return { success: false, error: unknownMatrixCountryError(unknownCountries) };
+    const countries = [...new Set(resolvedCountries.map(c => c.canonical as string))];
     const cols = getMatrixColumns(input.role, slot);
     if (!cols) return { success: false, error: 'Unknown approver role.' };
 
@@ -3233,13 +3319,12 @@ export async function revokeLaptopDelegation(id: number): Promise<ActionResult> 
     const row = rows[0];
     if (!row) return { success: false, error: 'Delegation not found.' };
     const isOwner = String(row.delegator_email).toLowerCase() === actor.email.toLowerCase();
-    // This action is shared by the self-service Delegate page (isOwner) and the
-    // /admin console's "All delegations" list, which shows every delegation with a
-    // Revoke button regardless of who's viewing it — so an ADMIN_EMAILS-only console
-    // admin (no laptop_permissions row, hence not actor.permissions.canManagePermissions)
-    // needs the same bypass requireAdminActor() gives them everywhere else in /admin.
-    const isConsoleAdmin = adminEmails().includes(actor.email.toLowerCase());
-    if (!isOwner && !actor.permissions.canManagePermissions && !isConsoleAdmin) {
+    // This action is shared by the self-service Delegate page (isOwner) and the /admin
+    // console's "All delegations" list, which shows every delegation with a Revoke button
+    // regardless of who's viewing it. Revoking someone else's delegation is a write, so it
+    // needs real canManagePermissions — the ADMIN_EMAILS console bypass that used to stand
+    // in for it here is the same one requireAdminActor() no longer grants writes through.
+    if (!isOwner && !actor.permissions.canManagePermissions) {
       return { success: false, error: 'You can only revoke delegations you created.' };
     }
     if (row.is_active) {
@@ -3279,7 +3364,10 @@ export async function adminGrantLaptopDelegation(input: {
   endsAt?: string | null;
 }): Promise<ActionResult<{ count: number }>> {
   try {
-    await requireAdminActor();
+    const actor = await requireAdminActor();
+    // This one never carried a capability check of its own — it leaned entirely on
+    // requireAdminActor's old blanket elevation, which no longer grants writes.
+    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
     await ensureLaptopDelegationTable();
     const delegatorEmail = requireText(input.delegatorEmail, 'Approver email').toLowerCase();
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();

@@ -9,6 +9,7 @@ import LearningHubHero from '../components/LearningHubHero';
 import LearningHubHomeButton from '../components/LearningHubHomeButton';
 import LearningHubBackButton from '../components/LearningHubBackButton';
 import TrackIcon from '../components/TrackIcon';
+import { isComingSoon } from '@/lib/learning-hub-display';
 import type { TrackDetailData } from '@/types/learning-hub';
 
 export default function TrackCoursesClient({ data }: { data: TrackDetailData }) {
@@ -41,7 +42,7 @@ export default function TrackCoursesClient({ data }: { data: TrackDetailData }) 
             {courses.map((course) => {
               // A course with no lessons yet is shown greyed with a "Coming Soon" pill
               // and is not clickable (nothing to open).
-              if (course.lesson_count === 0) {
+              if (isComingSoon(course)) {
                 return (
                   <div
                     key={course.id}

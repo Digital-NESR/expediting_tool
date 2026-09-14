@@ -10,24 +10,17 @@ import {
   deleteTiteAccessRequest,
 } from '@/app/actions/tite';
 import type { TiteAccessRequestRow } from '@/app/actions/tite';
+import { TITE_COUNTRY_VALUES, TITE_VIEW_ALL_COUNTRIES } from '@/lib/tite-constants';
 
 /* ─── Static fallback country list ──────────────────────────── */
 
+/* The canonical operating countries, plus the read-everything sentinel. These
+   strings are written to `access_requests.approved_countries` and compared against
+   `shipments.country`, so they have to be the same list the app and the migration
+   use — an approval written in a different spelling silently matches nothing. */
 const TITE_FALLBACK_COUNTRIES = [
-  'All Countries - View Only',
-  'Saudi Arabia (KSA)',
-  'United Arab Emirates (UAE)',
-  'Qatar',
-  'Kuwait',
-  'Oman',
-  'Bahrain',
-  'Egypt',
-  'Algeria',
-  'Iraq',
-  'Libya',
-  'Chad',
-  'Congo',
-  'Other',
+  TITE_VIEW_ALL_COUNTRIES,
+  ...TITE_COUNTRY_VALUES,
 ];
 
 /* ─── Helpers ────────────────────────────────────────────────── */

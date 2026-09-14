@@ -5,10 +5,12 @@ import {
   ALERT_LABEL,
   ALERT_PILL,
   BUCKET_HEX,
+  alertLevelFor,
   calcDays,
   fmtDate,
   getStatusBadge,
   sarFmt,
+  shipmentAlertLevel,
   usdFmt,
 } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
@@ -95,6 +97,117 @@ describe('calcDays', () => {
     vi.setSystemTime(new Date('2026-09-13T21:00:00Z'));
     expect(new Date().getHours()).toBe(1); // 01:00 local, Asia/Dubai
     expect(calcDays(shipment('2026-09-14'))).toBe(1);
+  });
+});
+
+describe('alertLevelFor', () => {
+  /** Midday UTC, so the UTC and Asia/Dubai calendar days agree. */
+  const TODAY = new Date('2026-09-14T12:00:00Z');
+  const level = (expiry: string | null, extended: string | null = null, status = 'Open') =>
+    alertLevelFor(expiry, extended, status, TODAY);
+
+  it('is closed for either closed status, whatever the dates say', () => {
+    for (const status of ['Closed', 'Closed - Refund Recovered']) {
+      expect(alertLevelFor('2020-01-01', null, status, TODAY)).toBe('closed');
+      expect(alertLevelFor('2099-01-01', null, status, TODAY)).toBe('closed');
+      expect(alertLevelFor(null, null, status, TODAY)).toBe('closed');
+    }
+  });
+
+  it('is info — not ok — when there is no effective date at all', () => {
+    // A shipment with no customs deadline on file is "Monitor", never "On track".
+    // The migration used to call this 'ok', which hid it from every alert view.
+    expect(level(null)).toBe('info');
+    expect(level(null, null)).toBe('info');
+    expect(level('', '')).toBe('info');
+  });
+
+  /* ── Every bucket boundary, both sides. ── */
+  it.each([
+    // overdue | ... | urgent
+    ['2026-08-15', -30, 'overdue'],
+    ['2026-09-12',  -2, 'overdue'],
+    ['2026-09-13',  -1, 'overdue'],
+    ['2026-09-14',   0, 'urgent'],
+    ['2026-09-15',   1, 'urgent'],
+    // urgent | action
+    ['2026-09-21',   7, 'urgent'],
+    ['2026-09-22',   8, 'action'],
+    // action | plan
+    ['2026-09-28',  14, 'action'],
+    ['2026-09-29',  15, 'plan'],
+    // plan | info
+    ['2026-10-14',  30, 'plan'],
+    ['2026-10-15',  31, 'info'],
+    // info | ok
+    ['2026-11-13',  60, 'info'],
+    ['2026-11-14',  61, 'ok'],
+    ['2027-09-14', 365, 'ok'],
+  ])('%s (%d days) falls in the %s bucket', (date, days, bucket) => {
+    expect(calcDays(shipment(date), TODAY)).toBe(days);
+    expect(level(date)).toBe(bucket);
+  });
+
+  it('buckets on the extension, not the original expiry', () => {
+    // An extended shipment is judged on the new deadline: an expiry three months
+    // in the past extended into next year is on track, not overdue.
+    expect(level('2026-06-01', '2027-06-01')).toBe('ok');
+    // And the reverse: a distant expiry pulled back by an extension is overdue.
+    expect(level('2026-12-31', '2026-09-13')).toBe('overdue');
+  });
+
+  it('falls back to the expiry date when the extension is absent or blank', () => {
+    expect(level('2026-09-21', null)).toBe('urgent');
+    expect(level('2026-09-21', '')).toBe('urgent');
+  });
+
+  it('only ever returns one of the seven presentation buckets', () => {
+    const dates = [null, '', '2020-01-01', '2026-09-14', '2026-09-22', '2026-10-01', '2026-11-01', '2030-01-01'];
+    for (const d of dates) {
+      for (const status of ['Open', 'Open - Extended', 'Closed', '']) {
+        const l = alertLevelFor(d, null, status, TODAY);
+        expect(ALERT_LABEL[l]).toBeTruthy();
+        expect(BUCKET_HEX[l]).toBeTruthy();
+      }
+    }
+  });
+
+  it('defaults the anchor to now when no date is passed', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(TODAY);
+    try {
+      expect(alertLevelFor('2026-09-14', null, 'Open')).toBe('urgent');
+      expect(alertLevelFor('2026-09-13', null, 'Open')).toBe('overdue');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('anchors to the UTC day, so the 00:00–04:00 Gulf window reads one day late', () => {
+    // 2026-09-14T01:00 Asia/Dubai is 2026-09-13T21:00Z. Anchored to the UTC day,
+    // a shipment that expired on 13 Sep (Gulf: yesterday) still reads as expiring
+    // today — 'urgent', not yet 'overdue'. Documented and deliberate: the anchor
+    // matches calcDays, the SQL ORDER BY, and Postgres CURRENT_DATE on a UTC
+    // server. Changing it here alone would make those four disagree.
+    const gulfEarlyMorning = new Date('2026-09-13T21:00:00Z');
+    expect(alertLevelFor('2026-09-13', null, 'Open', gulfEarlyMorning)).toBe('urgent');
+    expect(alertLevelFor('2026-09-12', null, 'Open', gulfEarlyMorning)).toBe('overdue');
+    // Once the UTC day catches up, the same row is overdue.
+    expect(alertLevelFor('2026-09-13', null, 'Open', TODAY)).toBe('overdue');
+  });
+
+  it('agrees with calcDays on which side of the overdue line a row sits', () => {
+    for (let offset = -5; offset <= 70; offset++) {
+      const d = new Date(Date.UTC(2026, 8, 14) + offset * 86400000).toISOString().slice(0, 10);
+      const days = calcDays(shipment(d), TODAY)!;
+      expect(level(d) === 'overdue').toBe(days < 0);
+    }
+  });
+
+  it('shipmentAlertLevel reads the three fields off a row', () => {
+    const row = { expiry_date: '2026-09-13', extended_date: '2026-10-14', status: 'Open - Extended' } as Shipment;
+    expect(shipmentAlertLevel(row, TODAY)).toBe('plan');
+    expect(shipmentAlertLevel({ ...row, status: 'Closed' }, TODAY)).toBe('closed');
   });
 });
 

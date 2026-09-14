@@ -25,7 +25,18 @@ import {
   stripEnvQuotes,
 } from '@/lib/procure-guard/internals';
 import type { ExecResult, ProcureGuardWebhookRequest } from '@/lib/procure-guard/internals';
-import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, CURRENCY_OPTIONS, formatProcureGuardStatusLabel, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getProcureGuardCountryScopeCountries, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, normalizeProcureGuardCountry, normalizeProcureGuardCountryScope, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, roleRequiresProcureGuardCountryScope, toUsd } from '@/lib/procureGuard-utils';
+import {
+  actorCanAccessRequesterSideRequest,
+  actorCanAccessRequestScope,
+  actorReviewGrants,
+  canActorViewRequest,
+  grantCoversRequest,
+  normaliseScopeValue,
+  requesterNotificationEmailsOf,
+  scopedRequestWhere as scopedWhere,
+} from '@/lib/procure-guard/access';
+import { getPermissionRowForEmail, resolveProcureGuardActorScope } from '@/lib/procure-guard/actor-scope';
+import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, CURRENCY_OPTIONS, formatProcureGuardStatusLabel, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getProcureGuardCountryScopeCountries, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, procureGuardThreshold, normalizeProcureGuardCountry, normalizeProcureGuardCountryScope, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, roleRequiresProcureGuardCountryScope, toUsd } from '@/lib/procureGuard-utils';
 import type { ProcureGuardAvailableActions } from '@/lib/procureGuard-utils';
 import type {
   ActionResult,
@@ -37,7 +48,6 @@ import type {
   CreateAdvancePaymentInput,
   ProcureGuardActor,
   ProcureGuardPermissionRole,
-  ProcureGuardPermissionProfile,
   ProcureGuardPermissionRow,
   ProcureGuardAdminData,
   ProcureGuardAnalyticsData,
@@ -254,10 +264,6 @@ function normalisePaymentCountries<T extends { country?: string | null }>(rows: 
   return rows.map(row => normalisePaymentCountry(row));
 }
 
-function normalisePermissionCountry<T extends { country?: string | null }>(row: T): T {
-  return { ...row, country: normalizeProcureGuardCountryScope(row.country) };
-}
-
 function requireCountryOption(value: string | null | undefined, label = 'Country'): string {
   const country = normalizeProcureGuardCountry(requireText(value, label));
   if (!country) throw new Error(`${label} is required.`);
@@ -276,45 +282,6 @@ function testerEmails(): string[] {
     .split(',')
     .map(e => e.trim().toLowerCase())
     .filter(Boolean);
-}
-
-// Matched case-insensitively: Azure AD can hand back a mixed-case `mail` claim while every writer
-// lowercases the stored email. A case-sensitive lookup silently downgraded such an approver to
-// Requester in every action.
-async function getPermissionRowForEmail(email: string): Promise<ProcureGuardPermissionRow | null> {
-  try {
-    const rows = await sql<QueryResultRow[]>(
-      `SELECT * FROM procure_guard_permissions WHERE LOWER(email) = ? LIMIT 1`,
-      [normalizeEmail(email)],
-    );
-    return rows[0] ? normalisePermissionCountry(serialise<ProcureGuardPermissionRow>(rows[0])) : null;
-  } catch (err) {
-    console.error('[getPermissionRowForEmail]', err);
-    return null;
-  }
-}
-
-const ACCESS_VIEW_RANK: Record<string, number> = { requester: 0, analyst: 1, reviewer: 2, admin: 3 };
-
-// Delegation grants the delegate the delegator's APPROVAL authority only — not data/permission/delete
-// admin powers — and never elevates the UI past 'reviewer'. So an admin can hand off their approvals
-// without handing over the admin panel.
-function mergeApprovalAuthority(base: ProcureGuardPermissionProfile, granted: ProcureGuardPermissionProfile): ProcureGuardPermissionProfile {
-  const grantedView = granted.accessView === 'admin' ? 'reviewer' : granted.accessView;
-  const accessView = ACCESS_VIEW_RANK[grantedView] > ACCESS_VIEW_RANK[base.accessView] ? grantedView : base.accessView;
-  return {
-    ...base,
-    accessView,
-    canViewAll: base.canViewAll || granted.canViewAll,
-    canReject: base.canReject || granted.canReject,
-    canReviewAdhocScm: base.canReviewAdhocScm || granted.canReviewAdhocScm,
-    canReviewAdhocDirector: base.canReviewAdhocDirector || granted.canReviewAdhocDirector,
-    canReviewAdvanceCountryController: base.canReviewAdvanceCountryController || granted.canReviewAdvanceCountryController,
-    canReviewAdvanceSupplyChainDirector: base.canReviewAdvanceSupplyChainDirector || granted.canReviewAdvanceSupplyChainDirector,
-    canReviewAdvanceTreasuryDirector: base.canReviewAdvanceTreasuryDirector || granted.canReviewAdvanceTreasuryDirector,
-    canReviewAdvanceCorporateController: base.canReviewAdvanceCorporateController || granted.canReviewAdvanceCorporateController,
-    canReviewAdvanceCfo: base.canReviewAdvanceCfo || granted.canReviewAdvanceCfo,
-  };
 }
 
 // A delegation hands over live approval authority, so its end date is validated rather than passed
@@ -336,15 +303,6 @@ function validateDelegationExpiry(value: string | null | undefined): string | nu
     throw new Error(`A delegation can run for at most ${MAX_DELEGATION_WINDOW_DAYS} days.`);
   }
   return parsed.toISOString();
-}
-
-// The scopes an actor may review within: their own (only if they can review) plus any active delegation.
-function actorReviewGrants(actor: ProcureGuardActor): ProcureGuardReviewGrant[] {
-  if (actor.reviewGrants) return actor.reviewGrants;
-  // Backward-compatible fallback for actors built without delegation resolution.
-  return actor.permissions.canViewAll
-    ? [{ source: 'self', fromEmail: actor.email, fromName: actor.name, role: actor.role, country: actor.country ?? null, segment: actor.segment ?? null, isAdmin: actor.role === 'Admin' }]
-    : [];
 }
 
 // Expand a role-based approver list to also include each approver's active delegate(s), deduped by email.
@@ -382,63 +340,21 @@ const getActor = cache(async (): Promise<ProcureGuardActor> => {
     throw new Error('You must be signed in to use ProcureGuard.');
   }
 
-  // The permission row and the user's delegations are independent — fetch them in parallel.
-  await ensureProcureGuardDelegationTable();
-  const [permissionRow, delegationRows] = await Promise.all([
-    getPermissionRowForEmail(email),
-    sql<QueryResultRow[]>(
-      `SELECT delegator_email, delegator_name FROM procure_guard_delegations
-       WHERE LOWER(delegate_email) = LOWER(?) AND is_active = TRUE
-         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
-      [email],
-    ).catch(err => {
-      console.error('[getActor delegations]', err);
-      return [] as QueryResultRow[];
-    }),
-  ]);
-
-  const fallbackRole: ProcureGuardPermissionRole = adminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
-  const role = (permissionRow?.role ?? fallbackRole) as ProcureGuardPermissionRole;
-  const basePermissions = getPermissionProfile(role);
-  const baseName = permissionRow?.name ?? user?.name ?? email;
-  const baseCountry = normalizeProcureGuardCountryScope(permissionRow?.country);
-  const baseSegment = permissionRow?.segment ?? null;
-
-  const reviewGrants: ProcureGuardReviewGrant[] = [];
-  if (basePermissions.canViewAll) {
-    reviewGrants.push({ source: 'self', fromEmail: email, fromName: baseName, role: basePermissions.role, country: baseCountry, segment: baseSegment, isAdmin: basePermissions.role === 'Admin' });
-  }
-
-  let permissions = basePermissions;
-  for (const row of delegationRows) {
-    const delegatorEmail = String(row.delegator_email);
-    const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
-    const delegatorRole = (delegatorRow?.role ?? (adminEmails().includes(delegatorEmail.toLowerCase()) ? 'Admin' : 'Requester')) as ProcureGuardPermissionRole;
-    const delegatorProfile = getPermissionProfile(delegatorRole);
-    if (!delegatorProfile.canViewAll) continue; // delegator had no approval authority to hand off
-    permissions = mergeApprovalAuthority(permissions, delegatorProfile);
-    reviewGrants.push({
-      source: 'delegation',
-      fromEmail: delegatorEmail,
-      fromName: (row.delegator_name as string) || delegatorRow?.name || delegatorEmail,
-      role: delegatorRole,
-      country: normalizeProcureGuardCountryScope(delegatorRow?.country),
-      segment: delegatorRow?.segment ?? null,
-      isAdmin: delegatorRole === 'Admin',
-    });
-  }
+  // Permission row + delegations + review grants, resolved by the SAME helper the document download
+  // route uses, so no entry point can end up with a different idea of this actor's scope.
+  const scope = await resolveProcureGuardActorScope(email, user?.name ?? null);
 
   return {
-    email,
-    name: baseName,
+    email: scope.email,
+    name: scope.permissionName ?? user?.name ?? scope.email,
     department: user?.department ?? null,
     jobTitle: user?.jobTitle ?? null,
-    isAdmin: basePermissions.role === 'Admin',
-    role: basePermissions.role,
-    permissions,
-    country: baseCountry,
-    segment: baseSegment,
-    reviewGrants,
+    isAdmin: scope.role === 'Admin',
+    role: scope.role,
+    permissions: scope.permissions,
+    country: scope.country,
+    segment: scope.segment,
+    reviewGrants: scope.reviewGrants,
   };
 });
 
@@ -461,37 +377,6 @@ export async function canAccessProcureGuardApp(): Promise<boolean> {
   return Boolean(email);
 }
 
-function scopedWhere(actor: ProcureGuardActor): { where: string; params: string[] } {
-  const email = actor.email.toLowerCase();
-  const ownClause = '(LOWER(requested_by_email) = ? OR ? = ANY(COALESCE(requester_notification_emails, ARRAY[]::TEXT[])))';
-  const grants = actorReviewGrants(actor);
-
-  // Everyone can always see their own requests.
-  if (grants.length === 0) {
-    return { where: `WHERE ${ownClause}`, params: [email, email] };
-  }
-
-  const clauses = [ownClause];
-  const params: string[] = [email, email];
-  for (const grant of grants) {
-    if (grant.isAdmin || (!roleRequiresProcureGuardCountryScope(grant.role) && !grant.country && !grant.segment)) {
-      // A full-scope grant (admin or unscoped reviewer) can see everything.
-      return { where: '', params: [] };
-    }
-    if (roleRequiresProcureGuardCountryScope(grant.role) && !grant.country) continue;
-    const parts: string[] = [];
-    const scopedCountries = getProcureGuardCountryScopeCountries(grant.country);
-    if (scopedCountries.length > 0) {
-      parts.push(`country IN (${scopedCountries.map(() => '?').join(', ')})`);
-      params.push(...scopedCountries);
-    }
-    if (grant.segment) { parts.push('segment = ?'); params.push(grant.segment); }
-    if (parts.length === 0) continue;
-    clauses.push(`(${parts.join(' AND ')})`);
-  }
-  return { where: `WHERE (${clauses.join(' OR ')})`, params };
-}
-
 // Analytics scope. Reviewers, viewers and admins reuse the same scopedWhere() the request lists
 // use, so a country-scoped manager's analytics cover only their countries. Analyst / Read Only
 // hold no review grant (scopedWhere would collapse them to their own requests) yet the role exists
@@ -512,33 +397,6 @@ function analyticsScopedWhere(actor: ProcureGuardActor): { where: string; params
   }
   if (parts.length === 0) return { where: '', params: [] };
   return { where: `WHERE ${parts.join(' AND ')}`, params };
-}
-
-function normaliseScopeValue(value: string | null | undefined): string {
-  const trimmed = (value ?? '').trim().toLowerCase();
-  const aliases: Record<string, string> = {
-    ksa: 'saudi arabia (ksa)',
-    'saudi arabia': 'saudi arabia (ksa)',
-    uae: 'united arab emirates (uae)',
-    'united arab emirates': 'united arab emirates (uae)',
-  };
-  return aliases[trimmed] ?? trimmed;
-}
-
-function actorCanAccessRequestScope(
-  actor: ProcureGuardActor,
-  request: { country?: string | null; segment?: string | null },
-): boolean {
-  // True if any review grant (own or delegated) covers this request's scope.
-  return actorReviewGrants(actor).some(grant => {
-    if (grant.isAdmin) return true;
-    if (roleRequiresProcureGuardCountryScope(grant.role) && !grant.country) return false;
-    const scopedCountries = getProcureGuardCountryScopeCountries(grant.country);
-    const requestCountry = normalizeProcureGuardCountry(request.country);
-    const countryOk = scopedCountries.length === 0 || (requestCountry ? scopedCountries.includes(requestCountry) : false);
-    const segmentOk = !grant.segment || normaliseScopeValue(grant.segment) === normaliseScopeValue(request.segment);
-    return countryOk && segmentOk;
-  });
 }
 
 function getScopeRestrictionMessage(
@@ -566,8 +424,7 @@ function getScopedProcureGuardAvailableActions(
   requestType: ProcureGuardRequestType,
   request: { status: ProcureGuardStatus; amount?: number | string | null; currency?: string | null; spend_value_usd?: number | string | null; country?: string | null; segment?: string | null },
 ): ProcureGuardAvailableActions {
-  const thresholdAmount = request.spend_value_usd ?? request.amount;
-  const thresholdCurrency = request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD';
+  const { amount: thresholdAmount, currency: thresholdCurrency } = procureGuardThreshold(request);
   const actions = getProcureGuardAvailableActions(actor.permissions, requestType, request.status, thresholdAmount, thresholdCurrency);
   if (actorCanAccessRequestScope(actor, request)) return actions;
 
@@ -727,12 +584,6 @@ function validateEmailTestRouting(enabled: boolean | undefined, fallbackValue: u
   return { recipients, overrides };
 }
 
-function requesterNotificationEmailsOf(request: Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requester_notification_emails'>): string[] {
-  return Array.isArray(request.requester_notification_emails)
-    ? request.requester_notification_emails.map(email => email.trim().toLowerCase()).filter(Boolean)
-    : [];
-}
-
 function emailTestRecipientOverridesOf(request: Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'email_test_recipient_overrides'>): Record<string, string[]> {
   return normalizeEmailTestRecipientOverrides(request.email_test_recipient_overrides);
 }
@@ -764,15 +615,6 @@ function emailTestRecipientsOf(
     country: null as string | null,
     source_column: roleLabel ? `email_test_recipient_overrides.${roleLabel}` : 'email_test_recipients',
   }));
-}
-
-function actorCanAccessRequesterSideRequest(
-  actor: ProcureGuardActor,
-  request: Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requested_by_email' | 'requester_notification_emails'>,
-): boolean {
-  const actorEmail = actor.email.toLowerCase();
-  return request.requested_by_email?.toLowerCase() === actorEmail
-    || requesterNotificationEmailsOf(request).includes(actorEmail);
 }
 
 function requestMonth(value: string | null | undefined): string {
@@ -1017,8 +859,7 @@ async function notifyProcureGuardNextApprover(input: {
     const request = rows[0] ? serialise<ProcureGuardWebhookRequest>(rows[0]) : null;
     if (!request) return;
 
-    const thresholdAmount = request.spend_value_usd ?? request.amount;
-    const thresholdCurrency = request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD';
+    const { amount: thresholdAmount, currency: thresholdCurrency } = procureGuardThreshold(request);
     const adminPermissions = getPermissionProfile('Admin');
     const actions = getProcureGuardAvailableActions(
       adminPermissions,
@@ -1282,14 +1123,18 @@ function buildReviewDurationMetrics(
   ]) {
     if (!isActiveApprovalStatus(row.request.status)) continue;
 
+    const threshold = procureGuardThreshold(row.request);
     const actions = getProcureGuardAvailableActions(
       adminPermissions,
       row.requestType,
       row.request.status,
-      row.request.amount,
-      row.request.currency,
+      threshold.amount,
+      threshold.currency,
     );
-    const enteredAt = row.request.updated_at || row.request.created_at;
+    // When the request entered its CURRENT stage: the last approval, or submission if never
+    // actioned. `updated_at` is bumped by viewer edits and attachment writes, which used to reset
+    // the age of a request nobody had actually reviewed. Matches the reminder job's "open since".
+    const enteredAt = row.request.reviewed_at || row.request.created_at;
     const stuckHours = hoursBetween(enteredAt, nowMs);
     const groupKey = `${row.requestType}:${row.request.status}:${actions.ownerLabel}`;
     const enteredAtMs = new Date(enteredAt).getTime();
@@ -1397,23 +1242,22 @@ function resolveDelegationAttribution(
   targetStatus: ProcureGuardStatus,
   request: { country?: string | null; segment?: string | null; amount?: number | string | null; currency?: string | null; spend_value_usd?: number | string | null },
 ): { name: string; email: string } | null {
+  const { amount: thresholdAmount, currency: thresholdCurrency } = procureGuardThreshold(request);
   const requiredPermission = getRequiredPermissionForTransition(
     requestType,
     currentStatus,
     targetStatus,
-    request.spend_value_usd ?? request.amount,
-    request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD',
+    thresholdAmount,
+    thresholdCurrency,
   );
   if (!requiredPermission) return null;
 
-  const grantCoversScope = (grant: ProcureGuardReviewGrant): boolean => {
-    if (grant.isAdmin) return true;
-    const countryOk = !grant.country || normalizeProcureGuardCountry(grant.country) === normalizeProcureGuardCountry(request.country);
-    const segmentOk = !grant.segment || normaliseScopeValue(grant.segment) === normaliseScopeValue(request.segment);
-    return countryOk && segmentOk;
-  };
+  // Scope is judged by the SAME predicate that decides visibility and approval rights. This used to
+  // compare the whole scope string through normalizeProcureGuardCountry(), which collapses any
+  // multi-country scope ('Bahrain, Saudi Arabia (KSA)', or the live 'EOS, Chad, Congo') to 'Other'
+  // and so matched nothing — silently dropping "on behalf of" from the log for those delegations.
   const grantHasPermission = (grant: ProcureGuardReviewGrant): boolean =>
-    Boolean(getPermissionProfile(grant.role)[requiredPermission]) && grantCoversScope(grant);
+    Boolean(getPermissionProfile(grant.role)[requiredPermission]) && grantCoversRequest(grant, request);
 
   const grants = actorReviewGrants(actor);
   // Own authority takes precedence — if the actor could do this themselves, it's not "on behalf of".
@@ -1875,10 +1719,11 @@ export async function getProcureGuardRequestDetail(
     if (!rows[0]) return null;
 
     const request = normalisePaymentCountry(serialise<AdhocPaymentRequest | AdvancePaymentRequest>(rows[0]));
-    if (!actor.permissions.canViewAll && !actorCanAccessRequesterSideRequest(actor, request)) {
-      return null;
-    }
-    if (actor.permissions.canViewAll && !actorCanAccessRequestScope(actor, request)) {
+    // ONE view predicate, shared with the list SQL and the document download route. The detail page
+    // used to check the requester side ONLY for actors without canViewAll, so a country-scoped
+    // reviewer opening a request they had raised themselves (or been added as a viewer on) outside
+    // their review scope got a 404 on a row their own list had just shown them.
+    if (!canActorViewRequest(actor, request)) {
       return null;
     }
 
@@ -2001,7 +1846,9 @@ export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData 
     const actor = await requireAdminActor();
     await ensureProcureGuardPaymentRequestColumns();
     await ensureProcureGuardDelegationTable();
-    await syncProcureGuardRecipientAccessApprovals();
+    // No recipient sync here: this is a READ path. Rendering the admin panel used to rewrite every
+    // approver permission row (and prune the ones the manual editor had granted). The sync now runs
+    // from the recipient mutators and from resyncProcureGuardRecipientAccess() only.
     const [adhocRows, advanceRows, activityRows, permissionRows, notificationRecipientRows, delegationRows] = await Promise.all([
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ORDER BY created_at DESC`),
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ORDER BY created_at DESC`),
@@ -2613,6 +2460,7 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
         `UPDATE procure_guard_adhoc_payments
            SET status = 'Submitted', rejection_reason = NULL, reviewed_by_name = NULL,
                reviewed_by_email = NULL, reviewed_at = NULL, review_comments = NULL,
+               reminder_7d_sent_at = NULL, reminder_14d_sent_at = NULL,
                updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [id],
@@ -2748,6 +2596,7 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
         `UPDATE procure_guard_advance_payments
            SET status = 'Submitted', rejection_reason = NULL, reviewed_by_name = NULL,
                reviewed_by_email = NULL, reviewed_at = NULL, review_comments = NULL,
+               reminder_7d_sent_at = NULL, reminder_14d_sent_at = NULL,
                updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [id],
@@ -3070,8 +2919,7 @@ async function updateStatusCommon(input: {
       return { success: false, error: 'This request can only be cancelled before review starts.' };
     }
   } else {
-    const thresholdAmount = row.spend_value_usd ?? row.amount;
-    const thresholdCurrency = row.spend_value_usd === null || row.spend_value_usd === undefined ? row.currency : 'USD';
+    const { amount: thresholdAmount, currency: thresholdCurrency } = procureGuardThreshold(row);
     const expectedNextStatus = getNextApprovalStatus(input.requestType, row.status, thresholdAmount, thresholdCurrency);
     const requiredPermission = getRequiredPermissionForTransition(
       input.requestType,
@@ -3246,12 +3094,11 @@ export async function uploadProcureGuardDocument(
     const requestRows = await sql<QueryResultRow[]>(`SELECT id, reference_number, requested_by_email, requester_notification_emails, country, segment FROM ${table} WHERE id = ? LIMIT 1`, [requestId]);
     if (!requestRows[0]) return { success: false, error: 'Request not found.' };
     const request = normalisePaymentCountry(serialise<Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requested_by_email' | 'requester_notification_emails' | 'country' | 'segment'>>(requestRows[0]));
-    // canViewAll alone is NOT upload rights: the read-only Viewer role and reviewers looking at a
-    // country outside their scope may see a request without being able to attach anything to it.
-    const canUpload = actorCanAccessRequesterSideRequest(actor, request)
-      || (actor.permissions.canViewAll
-        && actor.permissions.accessView !== 'viewer'
-        && actorCanAccessRequestScope(actor, request));
+    // Seeing the request is necessary but NOT sufficient: the read-only Viewer role can see a
+    // request it may not attach anything to. (Requester-side access always carries upload rights,
+    // including for a Viewer-role user on their own request.)
+    const canUpload = canActorViewRequest(actor, request)
+      && (actorCanAccessRequesterSideRequest(actor, request) || actor.permissions.accessView !== 'viewer');
     if (!canUpload) {
       return { success: false, error: 'You do not have access to upload files to this request.' };
     }
@@ -3331,9 +3178,9 @@ export async function deleteProcureGuardDocument(documentId: number): Promise<Ac
       segment: doc.segment,
     }));
     const isUploader = normalizeEmail(doc.uploaded_by_email as string) === normalizeEmail(actor.email);
-    const hasScopedReviewAccess = actor.permissions.canViewAll
+    const hasScopedReviewAccess = canActorViewRequest(actor, request)
       && actor.permissions.accessView !== 'viewer'
-      && actorCanAccessRequestScope(actor, request);
+      && !actorCanAccessRequesterSideRequest(actor, request);
     const canDelete = isUploader
       || actorCanAccessRequesterSideRequest(actor, request)
       || actor.permissions.canDeleteRecords
@@ -3815,7 +3662,11 @@ function normalisePersonName(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-// Source: "ProcureGuard - Sub (1).csv". This maps CSV approver names to their country-level roles.
+// Originally from "ProcureGuard - Sub (1).csv": approver name -> the countries their country-scoped
+// role covers. This is now only the SEED for `procure_guard_recipient_country_scopes`, which the
+// sync actually reads (see loadRecipientCountryScopes). It is kept in source so a fresh database
+// still gets the right scopes on first sync — including the live 'EOS, Chad, Congo' Country
+// Controller scope, which must never be lost. Edit the TABLE, not this map, for new corrections.
 const PROCURE_GUARD_CSV_ROLE_COUNTRIES: Record<string, Partial<Record<ProcureGuardPermissionRole, string[]>>> = {
   [normalisePersonName('Hichem Bezghoud')]: { 'SCM Manager': ['Algeria'] },
   [normalisePersonName('Wael Sharabash')]: { 'SCM Manager': ['Bahrain', 'Saudi Arabia (KSA)'] },
@@ -3845,8 +3696,66 @@ const PROCURE_GUARD_CSV_ROLE_COUNTRIES: Record<string, Partial<Record<ProcureGua
   [normalisePersonName('Rami Dabous')]: { 'Country Controller': ['United Arab Emirates (UAE)'] },
 };
 
-function csvRoleCountriesForRecipient(name: string, role: ProcureGuardPermissionRole): string[] {
-  const countries = PROCURE_GUARD_CSV_ROLE_COUNTRIES[normalisePersonName(name)]?.[role] ?? [];
+/** name -> role -> countries, as loaded from the database for one sync run. */
+type RecipientCountryScopes = Map<string, Partial<Record<ProcureGuardPermissionRole, string[]>>>;
+
+/**
+ * Loads the approver name -> country-scope overrides from `procure_guard_recipient_country_scopes`,
+ * creating and seeding that table from PROCURE_GUARD_CSV_ROLE_COUNTRIES the first time. Admins can
+ * then correct a scope with a row update instead of a code deploy.
+ *
+ * If the table cannot be created or read, we fall back to the in-source seed rather than syncing
+ * people to an empty scope — losing a country scope silently is what caused the 404 incident.
+ */
+async function loadRecipientCountryScopes(): Promise<RecipientCountryScopes> {
+  const fromSeed = (): RecipientCountryScopes =>
+    new Map(Object.entries(PROCURE_GUARD_CSV_ROLE_COUNTRIES));
+
+  try {
+    await exec(`
+      CREATE TABLE IF NOT EXISTS procure_guard_recipient_country_scopes (
+        person_name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        countries TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (person_name, role)
+      )
+    `);
+
+    // Insert any seed entry the table does not already have. DO NOTHING, never overwrite: a row an
+    // admin has corrected in the database wins over the seed, and a seed entry added after the table
+    // was first created (such as the 'EOS, Chad, Congo' Country Controller fix) still lands.
+    for (const [personName, byRole] of Object.entries(PROCURE_GUARD_CSV_ROLE_COUNTRIES)) {
+      for (const [role, countries] of Object.entries(byRole)) {
+        await exec(
+          `INSERT INTO procure_guard_recipient_country_scopes (person_name, role, countries)
+           VALUES (?, ?, ?)
+           ON CONFLICT (person_name, role) DO NOTHING`,
+          [personName, role, countries ?? []],
+        );
+      }
+    }
+
+    const existing = await sql<QueryResultRow[]>(`SELECT person_name, role, countries FROM procure_guard_recipient_country_scopes`);
+    const scopes: RecipientCountryScopes = new Map();
+    for (const row of existing) {
+      const personName = normalisePersonName(String(row.person_name ?? ''));
+      const role = String(row.role ?? '') as ProcureGuardPermissionRole;
+      if (!personName || !role) continue;
+      const countries = Array.isArray(row.countries) ? row.countries.map(String) : [];
+      const byRole = scopes.get(personName) ?? {};
+      byRole[role] = countries;
+      scopes.set(personName, byRole);
+    }
+    return scopes.size > 0 ? scopes : fromSeed();
+  } catch (err) {
+    console.error('[loadRecipientCountryScopes] falling back to the in-source seed', err);
+    return fromSeed();
+  }
+}
+
+function csvRoleCountriesForRecipient(scopes: RecipientCountryScopes, name: string, role: ProcureGuardPermissionRole): string[] {
+  const countries = scopes.get(normalisePersonName(name))?.[role] ?? [];
   return countries.map(country => normalizeProcureGuardCountry(country)).filter((country): country is string => Boolean(country));
 }
 
@@ -3875,9 +3784,19 @@ function procureGuardRoleFromRecipient(row: {
   return null;
 }
 
+/**
+ * Rebuilds permission + access rows from the notification-recipient directory.
+ *
+ * NEVER call this from a read path. It used to run on every admin page load, performing two upserts
+ * per recipient plus deletes and pruning approver permissions, which silently wiped approver roles
+ * granted through the manual permission editor the next time an admin opened the panel. It now runs
+ * only from the recipient mutators (which change its inputs) and from the explicit admin "Re-sync"
+ * action below.
+ */
 async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
   await ensureProcureGuardAccessRequestTable();
   await ensureProcureGuardPermissionRoleValues();
+  const countryScopes = await loadRecipientCountryScopes();
 
   for (const email of PROCURE_GUARD_LOCAL_TEST_EMAILS) {
     await exec(`DELETE FROM procure_guard_access_requests WHERE user_email = ?`, [email]);
@@ -3916,7 +3835,7 @@ async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
     const nextRole = PROCURE_GUARD_REVIEW_ROLE_RANK[role] > currentRank ? role : current?.role ?? role;
     const countries = current?.countries ?? new Set<string>();
     const displayName = String(row.display_name ?? '').trim();
-    const csvCountries = roleRequiresProcureGuardCountryScope(role) ? csvRoleCountriesForRecipient(displayName, role) : [];
+    const csvCountries = roleRequiresProcureGuardCountryScope(role) ? csvRoleCountriesForRecipient(countryScopes, displayName, role) : [];
     const country = normalizeProcureGuardCountry(row.country ? String(row.country) : null);
     if (csvCountries.length > 0) {
       countries.clear();
@@ -3940,7 +3859,7 @@ async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
     if (existingRoleByEmail.get(recipient.email) === 'Admin') continue;
 
     const csvCountries = roleRequiresProcureGuardCountryScope(recipient.role)
-      ? csvRoleCountriesForRecipient(recipient.name, recipient.role)
+      ? csvRoleCountriesForRecipient(countryScopes, recipient.name, recipient.role)
       : [];
     const country = roleRequiresProcureGuardCountryScope(recipient.role)
       ? csvCountries.length > 0
@@ -3983,20 +3902,49 @@ async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
   }
 
   // Clean handoff: prune approver grants no longer backed by an active recipient, so a reassigned or
-  // removed approver loses authority AND queue visibility for the scope they were taken off. Admins and
-  // manually granted non-approver roles (Viewer / Analyst / Read Only) are preserved untouched.
+  // removed approver loses authority AND queue visibility for the scope they were taken off.
+  //
+  // The prune is limited to rows THIS SYNC created (their access row carries reviewed_by =
+  // 'ProcureGuard recipient sync'). It used to delete any approver-role permission with no matching
+  // recipient, which meant an approver role granted by hand in the permission editor was wiped the
+  // next time the sync ran — the sync and the editor disagreeing about who is an approver. Admins
+  // and non-approver roles (Viewer / Analyst / Read Only) were, and stay, untouched.
   const liveApproverEmails = new Set(byEmail.keys());
+  const syncOwnedRows = await sql<QueryResultRow[]>(
+    `SELECT user_email FROM procure_guard_access_requests WHERE reviewed_by = 'ProcureGuard recipient sync'`,
+  );
+  const syncOwnedEmails = new Set(syncOwnedRows.map(row => String(row.user_email ?? '').toLowerCase()).filter(Boolean));
   for (const existing of existingRows) {
     const email = String(existing.email ?? '').toLowerCase();
     if (!email) continue;
     const role = normaliseProcureGuardRole(existing.role);
     if (!PROCURE_GUARD_APPROVER_ROLES.includes(role)) continue; // preserve Admin / Viewer / Analyst / Read Only
     if (liveApproverEmails.has(email)) continue; // still an active recipient somewhere
+    if (!syncOwnedEmails.has(email)) continue; // granted by hand in the permission editor — not ours to delete
     await exec(`DELETE FROM procure_guard_permissions WHERE LOWER(email) = ?`, [email]);
     await exec(
       `DELETE FROM procure_guard_access_requests WHERE LOWER(user_email) = ? AND reviewed_by = 'ProcureGuard recipient sync'`,
       [email],
     );
+  }
+}
+
+/**
+ * The explicit admin "Re-sync approver access" action. The sync is a WRITE, so it needs a deliberate
+ * click behind a permission-manager guard — it must never ride along on a page render.
+ */
+export async function resyncProcureGuardRecipientAccess(): Promise<ActionResult> {
+  try {
+    const actor = await requirePermissionManager();
+    if (!actor.permissions.canManagePermissions) {
+      return { success: false, error: 'Permission management access is required.' };
+    }
+    await syncProcureGuardRecipientAccessApprovals();
+    revalidateProcureGuardPaths();
+    return { success: true };
+  } catch (err) {
+    console.error('[resyncProcureGuardRecipientAccess]', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to re-sync approver access.' };
   }
 }
 

@@ -249,6 +249,36 @@ export const COUNTRY_OPTIONS = [
   'Other',
 ];
 
+/** Trim + lowercase — the one canonical form for comparing country names. */
+export function normaliseLaptopCountry(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+/**
+ * Resolve a typed country to the exact spelling an approver-matrix row should be
+ * stored under, or null when it isn't a country this app knows.
+ *
+ * laptop_approver_matrix.country is free text, and authorization compares it
+ * case/whitespace-insensitively — so a row saved as ' oman' is a second, invisible
+ * Oman: reviewers resolve their authority from it while notification routing and the
+ * Assigned Approvers panel keep reading the other one, and the approval silently goes
+ * nowhere. Writes therefore have to land on one canonical spelling.
+ *
+ * `existing` (the countries already on the matrix) wins over COUNTRY_OPTIONS, for two
+ * reasons: legacy rows like EOS / Jordan / Malaysia predate COUNTRY_OPTIONS and have to
+ * stay editable, and reusing the stored spelling is what stops a case variant from
+ * inserting a duplicate row next to the one that already exists.
+ */
+export function resolveLaptopMatrixCountry(
+  value: string | null | undefined,
+  existing: readonly string[] = [],
+): string | null {
+  const target = normaliseLaptopCountry(value);
+  if (!target) return null;
+  const match = (list: readonly string[]) => list.find(c => normaliseLaptopCountry(c) === target);
+  return match(existing) ?? match(COUNTRY_OPTIONS) ?? null;
+}
+
 export const SEGMENT_OPTIONS = [
   'Hydraulic Fracturing',
   'Ops Support',

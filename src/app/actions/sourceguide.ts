@@ -4,12 +4,14 @@ import sourceGuidePool from '@/lib/db-sourceguide';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { AccessError, isToolAdminEmail, normalizeEmail, withAccessFallback } from '@/lib/require-access';
+import { getToolScope } from '@/lib/tool-scope';
 import { matchScore, MATCH_THRESHOLD, norm } from '@/lib/sg-fuzzy';
 import type {
   SgCountry, SgCommodity, SgSupplier, SgMapping, SgCategory, SgStats,
   SgCommodityResult, SgSupplierProfile, SgCommodityDetail, SgGuide,
   SgActivityEntry, SgSearchFilters, SgFacets, Tier,
 } from '@/types/sourceguide';
+import type { AccessStatus, StoredAccessStatus } from '@/types/access';
 
 /* ─── helpers ────────────────────────────────────────────────── */
 
@@ -29,22 +31,22 @@ interface SgUser {
 
 async function getSgUser(): Promise<SgUser | null> {
   const session = await getServerSession(authOptions);
-  const user = session?.user;
-  const email = normalizeEmail(user?.email);
-  if (!user || !email) return null;
+  if (!session?.user || !normalizeEmail(session.user.email)) return null;
 
-  const isAdmin = isToolAdminEmail(email, process.env.SOURCEGUIDE_ADMIN_EMAILS);
-  const sg = user.toolAccess?.sourceguide;
-  const approvedCountries = sg?.approvedCountries ?? [];
-  const viewOnly = approvedCountries.includes('All Countries - View Only');
+  /* Admin list and view-only come from the one shared definition (`getToolScope`),
+     which the SourceGuide layout also consumes. They previously disagreed: the
+     layout treated an empty champion-country list as view-only, this function only
+     the 'All Countries - View Only' sentinel. The guards and status strings below
+     are unchanged — this reads the scope, it does not reinterpret it. */
+  const scope = getToolScope(session, 'sourceguide');
 
   return {
-    email,
-    name: user.name ?? email,
-    isAdmin,
-    status: sg?.status ?? 'new',
-    approvedCountries,
-    viewOnly,
+    email: scope.email,
+    name: scope.name,
+    isAdmin: scope.isAdmin,
+    status: scope.status,
+    approvedCountries: scope.approvedCountries,
+    viewOnly: scope.viewOnly,
   };
 }
 
@@ -1481,7 +1483,8 @@ export interface SgAccessRequest {
   user_email: string;
   display_name: string | null;
   job_title: string | null;
-  status: 'Pending' | 'Approved' | 'Rejected' | 'Denied' | 'Revoked';
+  // Reads tolerate the legacy 'Denied' until the one-off migration has run everywhere.
+  status: StoredAccessStatus;
   requested_countries: string[];
   approved_countries: string[];
   requested_at: string;
@@ -1589,13 +1592,13 @@ export async function approveSourceGuideAccessRequest(userEmail: string): Promis
   }
 }
 
-async function denyAccess(userEmail: string, action: 'Access denied' | 'Access revoked'): Promise<{ success: boolean; error?: string }> {
+async function denyAccess(userEmail: string, action: 'Access denied' | 'Access revoked', status: Extract<AccessStatus, 'Rejected' | 'Revoked'>): Promise<{ success: boolean; error?: string }> {
   const user = await getSgUser();
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   try {
     await sourceGuidePool.query(
-      `UPDATE access_requests SET status='Denied', approved_countries='{}', reviewed_at=NOW(), reviewed_by=$2 WHERE LOWER(user_email)=$1`,
-      [normalizeEmail(userEmail), user.name],
+      `UPDATE access_requests SET status=$3, approved_countries='{}', reviewed_at=NOW(), reviewed_by=$2 WHERE LOWER(user_email)=$1`,
+      [normalizeEmail(userEmail), user.name, status],
     );
     await logSafe(null, null, action, userEmail, user.name, user.email);
     return { success: true };
@@ -1606,11 +1609,11 @@ async function denyAccess(userEmail: string, action: 'Access denied' | 'Access r
 }
 
 export async function rejectSourceGuideAccessRequest(userEmail: string): Promise<{ success: boolean; error?: string }> {
-  return denyAccess(userEmail, 'Access denied');
+  return denyAccess(userEmail, 'Access denied', 'Rejected');
 }
 
 export async function revokeSourceGuideAccess(userEmail: string): Promise<{ success: boolean; error?: string }> {
-  return denyAccess(userEmail, 'Access revoked');
+  return denyAccess(userEmail, 'Access revoked', 'Revoked');
 }
 
 export async function editSourceGuideAccess(userEmail: string, countries: string[]): Promise<{ success: boolean; error?: string }> {

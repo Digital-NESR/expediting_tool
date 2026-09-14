@@ -1,5 +1,6 @@
 import { getCachedSession } from '@/lib/session';
-import { AccessError, normalizeEmail, isPlatformAdminEmail } from '@/lib/require-access';
+import { AccessError, normalizeEmail } from '@/lib/require-access';
+import { getToolScope } from '@/lib/tool-scope';
 
 /**
  * One authorization boundary for TI-TE.
@@ -14,8 +15,10 @@ import { AccessError, normalizeEmail, isPlatformAdminEmail } from '@/lib/require
  *     and for the pre-approval flows (access request / status lookup).
  */
 
-/** The sentinel country that grants read-everything, write-nothing. */
-export const TITE_VIEW_ALL_COUNTRIES = 'All Countries - View Only';
+/** The sentinel country that grants read-everything, write-nothing.
+ *  Defined in `tite-constants` (importable from client components) and re-exported
+ *  here so every existing importer keeps working. */
+export { TITE_VIEW_ALL_COUNTRIES } from '@/lib/tite-constants';
 
 export type TiteAccessStatus =
   | 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
@@ -41,26 +44,19 @@ export interface TiteUser {
  */
 export async function currentTiteUser(): Promise<TiteUser | null> {
   const session = await getCachedSession();
-  const email = normalizeEmail(session?.user?.email);
-  if (!email) return null;
+  if (!normalizeEmail(session?.user?.email)) return null;
 
-  const isAdmin = isPlatformAdminEmail(email) || session?.user?.isAdmin === true;
-  const tite = session?.user?.toolAccess?.tite;
-  const approvedCountries = tite?.approvedCountries ?? [];
-
-  // Derive view-only from BOTH the dedicated JWT field and approvedCountries, so
-  // a JWT cookie that predates the titeViewOnly field is still enforced.
-  const viewOnly =
-    !isAdmin &&
-    (session?.user?.titeViewOnly === true || approvedCountries.includes(TITE_VIEW_ALL_COUNTRIES));
+  // Admin list, status and view-only all come from the one shared definition,
+  // so this guard cannot drift from the TI-TE layout and pages again.
+  const scope = getToolScope(session, 'tite');
 
   return {
-    email,
-    name: session?.user?.name ?? email,
-    isAdmin,
-    approvedCountries,
-    viewOnly,
-    status: (tite?.status ?? 'new') as TiteAccessStatus,
+    email: scope.email,
+    name: scope.name,
+    isAdmin: scope.isAdmin,
+    approvedCountries: scope.approvedCountries,
+    viewOnly: scope.viewOnly,
+    status: scope.status as TiteAccessStatus,
   };
 }
 

@@ -2,7 +2,8 @@
 
 import pool from '@/lib/db';
 import { getCachedSession } from '@/lib/session';
-import { isAdminActor, isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
+import { isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
+import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
 
 /* ─── Access ─────────────────────────────────────────────────── */
 
@@ -83,199 +84,12 @@ export interface ExpeditingAnalytics {
   supplierResponseTime: SupplierResponseTimeRow[];
 }
 
-/* ─── getExpeditingAnalytics ─────────────────────────────────── */
-
-export async function getExpeditingAnalytics(): Promise<ExpeditingAnalytics> {
-  const toStr = (v: unknown): string | null => {
-    if (v === null || v === undefined) return null;
-    if (v instanceof Date) return v.toISOString();
-    return String(v);
-  };
-
-  const empty: ExpeditingAnalytics = {
-    totalLinesExpedited: 0,
-    totalSuppliersContacted: 0,
-    totalEmailsSent: 0,
-    overallResponseRate: null,
-    buyerBreakdown: [],
-    supplierBreakdown: [],
-    recentSessions: [],
-    weeklyRateData: [],
-    supplierResponseTime: [],
-  };
-
-  // Company-wide analytics: admin panel only. Degrade to an empty state.
-  if (!(await isAdminActor())) return empty;
-
-  try {
-    const [kpiRes, buyerRes, supplierRes, sessionsRes, weeklyRes, responseTimeRes] = await Promise.all([
-
-      /* ── KPI block ── */
-      pool.query(`
-        SELECT
-          (SELECT COUNT(*) FROM active_expediting) AS total_lines,
-          (SELECT COUNT(DISTINCT s.supplier_name)
-             FROM active_expediting ae
-             JOIN sap_open_po_master s
-               ON ae.po_number = s.po_number AND ae.po_line = s.po_line
-          ) AS total_suppliers,
-          (SELECT COALESCE(SUM(total_emails_sent), 0) FROM expediting_sessions) AS total_emails,
-          (SELECT ROUND(
-             COUNT(CASE WHEN workflow_state = 'Submitted' THEN 1 END) * 100.0
-               / NULLIF(COUNT(*), 0), 1
-           ) FROM active_expediting) AS response_rate
-      `),
-
-      /* ── Buyer breakdown ── */
-      pool.query(`
-        SELECT
-          up.email,
-          up.display_name,
-          up.job_title,
-          up.last_active_at,
-          COUNT(DISTINCT es.id)                          AS total_sessions,
-          COALESCE(SUM(es.total_po_lines), 0)            AS total_lines,
-          COALESCE(SUM(es.total_suppliers), 0)           AS total_suppliers,
-          COALESCE(SUM(es.total_emails_sent), 0)         AS total_emails,
-          ROUND(AVG(es.response_rate_pct), 1)            AS avg_response_rate
-        FROM user_profiles up
-        LEFT JOIN expediting_sessions es ON es.dispatched_by = up.email
-        GROUP BY up.email, up.display_name, up.job_title, up.last_active_at
-        ORDER BY total_lines DESC
-      `),
-
-      /* ── Supplier breakdown ── */
-      pool.query(`
-        SELECT
-          s.supplier_name,
-          COUNT(DISTINCT ae.expedite_token)                                      AS times_expedited,
-          COUNT(ae.id)                                                           AS total_lines,
-          COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END)            AS lines_responded,
-          ROUND(
-            COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) * 100.0
-              / NULLIF(COUNT(ae.id), 0), 1
-          )                                                                      AS response_rate,
-          MAX(CASE WHEN ae.workflow_state = 'Submitted' THEN ae.updated_at END) AS last_response
-        FROM active_expediting ae
-        JOIN sap_open_po_master s
-          ON ae.po_number = s.po_number AND ae.po_line = s.po_line
-        GROUP BY s.supplier_name
-        ORDER BY response_rate DESC NULLS LAST
-      `),
-
-      /* ── Recent sessions ── */
-      pool.query(`
-        SELECT
-          es.session_ref,
-          es.dispatched_at,
-          es.dispatched_by,
-          es.total_suppliers,
-          es.total_po_lines,
-          es.total_emails_sent,
-          es.suppliers_responded,
-          es.response_rate_pct,
-          es.fully_closed,
-          up.display_name
-        FROM expediting_sessions es
-        LEFT JOIN user_profiles up ON up.email = es.dispatched_by
-        ORDER BY es.dispatched_at DESC
-        LIMIT 20
-      `),
-
-      /* ── Weekly expediting vs responses trend ── */
-      pool.query(`
-        SELECT
-          DATE_TRUNC('week', dispatched_at)  AS week,
-          SUM(total_po_lines)                AS lines_expedited,
-          SUM(lines_responded)               AS lines_responded,
-          ROUND(AVG(response_rate_pct), 1)   AS avg_response_rate,
-          COUNT(*)                           AS sessions_count
-        FROM expediting_sessions
-        GROUP BY DATE_TRUNC('week', dispatched_at)
-        ORDER BY week ASC
-      `),
-
-      /* ── Avg response time by supplier ── */
-      pool.query(`
-        SELECT
-          s.supplier_name,
-          ROUND(AVG(
-            EXTRACT(EPOCH FROM (ae.updated_at - ae.dispatched_at)) / 86400
-          ), 1) AS avg_days_to_respond,
-          COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) AS responses_count
-        FROM active_expediting ae
-        JOIN sap_open_po_master s
-          ON ae.po_number = s.po_number AND ae.po_line = s.po_line
-        WHERE ae.workflow_state = 'Submitted'
-          AND ae.dispatched_at IS NOT NULL
-          AND ae.updated_at IS NOT NULL
-        GROUP BY s.supplier_name
-        HAVING COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) > 0
-        ORDER BY avg_days_to_respond ASC
-      `),
-    ]);
-
-    const kpi = kpiRes.rows[0] ?? {};
-
-    return {
-      totalLinesExpedited:     Number(kpi.total_lines ?? 0),
-      totalSuppliersContacted: Number(kpi.total_suppliers ?? 0),
-      totalEmailsSent:         Number(kpi.total_emails ?? 0),
-      overallResponseRate:     kpi.response_rate != null ? Number(kpi.response_rate) : null,
-
-      buyerBreakdown: buyerRes.rows.map(r => ({
-        email:             String(r.email ?? ''),
-        display_name:      toStr(r.display_name),
-        job_title:         toStr(r.job_title),
-        last_active_at:    toStr(r.last_active_at),
-        total_sessions:    Number(r.total_sessions ?? 0),
-        total_lines:       Number(r.total_lines ?? 0),
-        total_suppliers:   Number(r.total_suppliers ?? 0),
-        total_emails:      Number(r.total_emails ?? 0),
-        avg_response_rate: r.avg_response_rate != null ? Number(r.avg_response_rate) : null,
-      })),
-
-      supplierBreakdown: supplierRes.rows.map(r => ({
-        supplier_name:   String(r.supplier_name ?? ''),
-        times_expedited: Number(r.times_expedited ?? 0),
-        total_lines:     Number(r.total_lines ?? 0),
-        lines_responded: Number(r.lines_responded ?? 0),
-        response_rate:   r.response_rate != null ? Number(r.response_rate) : null,
-        last_response:   toStr(r.last_response),
-      })),
-
-      recentSessions: sessionsRes.rows.map(r => ({
-        session_ref:        String(r.session_ref ?? ''),
-        dispatched_at:      toStr(r.dispatched_at) ?? '',
-        dispatched_by:      String(r.dispatched_by ?? ''),
-        display_name:       toStr(r.display_name),
-        total_suppliers:    Number(r.total_suppliers ?? 0),
-        total_po_lines:     Number(r.total_po_lines ?? 0),
-        total_emails_sent:  Number(r.total_emails_sent ?? 0),
-        suppliers_responded: r.suppliers_responded != null ? Number(r.suppliers_responded) : null,
-        response_rate_pct:  r.response_rate_pct != null ? Number(r.response_rate_pct) : null,
-        fully_closed:       r.fully_closed != null ? Boolean(r.fully_closed) : null,
-      })),
-
-      weeklyRateData: weeklyRes.rows.map(r => ({
-        week:              toStr(r.week) ?? '',
-        lines_expedited:   Number(r.lines_expedited ?? 0),
-        lines_responded:   Number(r.lines_responded ?? 0),
-        avg_response_rate: r.avg_response_rate != null ? Number(r.avg_response_rate) : null,
-        sessions_count:    Number(r.sessions_count ?? 0),
-      })),
-
-      supplierResponseTime: responseTimeRes.rows.map(r => ({
-        supplier_name:       String(r.supplier_name ?? ''),
-        avg_days_to_respond: Number(r.avg_days_to_respond ?? 0),
-        responses_count:     Number(r.responses_count ?? 0),
-      })),
-    };
-  } catch (err) {
-    console.error('[getExpeditingAnalytics]', err);
-    return empty;
-  }
-}
+/* ─── getExpeditingAnalytics — DELETED ────────────────────────
+   It was an unfiltered clone of teamAnalytics.getTeamAnalyticsData, kept in sync
+   by hand and drifting. Its callers (src/app/admin/[app]/page.tsx and
+   src/app/admin/PoAnalyticsPanel.tsx) now call getTeamAnalyticsData({}), which
+   returns a superset of ExpeditingAnalytics. The ExpeditingAnalytics type stays
+   here because the admin panel's props are still typed against it. */
 
 /* ─── Buyer Detail ────────────────────────────────────────────── */
 
@@ -369,6 +183,12 @@ export async function getAdminSupplierDetail(supplierName: string): Promise<Admi
   };
   if (!(await hasPoTeamAccess())) return [];
   try {
+    await ensureActiveExpeditingColumns();
+    /* Matched and read off the dispatch-time snapshot, with the master LEFT
+       JOINed only for the two fields that are not snapshotted (sap_mat_id and
+       the live SAP delivery code). Matching on s.supplier_name through an INNER
+       JOIN used to drop every line whose PO had since closed, so this drill-down
+       showed fewer lines than the supplier breakdown that opened it. */
     const res = await pool.query(`
       SELECT
         ae.po_number,
@@ -382,17 +202,17 @@ export async function getAdminSupplierDetail(supplierName: string): Promise<Admi
         ae.dispatched_at,
         ae.dispatched_by         AS buyer_email,
         up.display_name          AS buyer_display_name,
-        s.item_description,
+        COALESCE(ae.item_description,  s.item_description)  AS item_description,
         s.sap_mat_id,
-        s.open_qty,
-        s.open_po_value_usd,
-        s.delivery_date          AS original_delivery_date,
+        COALESCE(ae.open_qty,          s.open_qty)          AS open_qty,
+        COALESCE(ae.open_po_value_usd, s.open_po_value_usd) AS open_po_value_usd,
+        COALESCE(ae.delivery_date,     s.delivery_date)     AS original_delivery_date,
         s.delivery_code          AS sap_delivery_code
       FROM active_expediting ae
-      JOIN sap_open_po_master s
+      LEFT JOIN sap_open_po_master s
         ON ae.po_number = s.po_number AND ae.po_line = s.po_line
       LEFT JOIN user_profiles up ON up.email = ae.dispatched_by
-      WHERE s.supplier_name = $1
+      WHERE COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name) = $1
       ORDER BY ae.po_number, ae.po_line
     `, [supplierName]);
 
@@ -449,6 +269,7 @@ export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSe
   };
   if (!(await hasPoTeamAccess())) return [];
   try {
+    await ensureActiveExpeditingColumns();
     const res = await pool.query(`
       SELECT
         ae.po_number,
@@ -460,11 +281,11 @@ export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSe
         ae.buyer_comments,
         ae.expedite_token,
         COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name, 'Unknown Supplier') AS supplier_name,
-        s.item_description,
+        COALESCE(ae.item_description,  s.item_description)  AS item_description,
         s.sap_mat_id,
-        s.open_qty,
-        s.open_po_value_usd,
-        s.delivery_date  AS original_delivery_date,
+        COALESCE(ae.open_qty,          s.open_qty)          AS open_qty,
+        COALESCE(ae.open_po_value_usd, s.open_po_value_usd) AS open_po_value_usd,
+        COALESCE(ae.delivery_date,     s.delivery_date)     AS original_delivery_date,
         s.delivery_code  AS sap_delivery_code
       FROM active_expediting ae
       LEFT JOIN sap_open_po_master s

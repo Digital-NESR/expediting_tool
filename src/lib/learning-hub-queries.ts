@@ -23,6 +23,7 @@ import type {
   LearningCourse,
   LearningModule,
   LearningLesson,
+  LearningHubNavTrack,
   TrackWithProgress,
   LearningHubDashboardData,
   CourseWithProgress,
@@ -128,6 +129,12 @@ async function ensureLearningHubSchema(): Promise<void> {
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
   await execSchema(`ALTER TABLE learning_tracks ADD COLUMN IF NOT EXISTS seed_version TEXT`);
+  // Browser-tab label rule as DATA instead of a track-key literal in the query layer: a track with a
+  // prefix set shows the compact "<prefix> lvl N" form in the tight tab space (see getCourseTabTitle).
+  await execSchema(`ALTER TABLE learning_tracks ADD COLUMN IF NOT EXISTS tab_label_prefix TEXT`);
+  // One-time, idempotent backfill of the single track that already had this behaviour hard-coded, so
+  // the column starts out matching what production renders today. New tracks opt in by setting it.
+  await execSchema(`UPDATE learning_tracks SET tab_label_prefix = 'SC' WHERE key = 'supply_chain' AND tab_label_prefix IS NULL`);
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_courses (
     id SERIAL PRIMARY KEY,
@@ -438,14 +445,23 @@ export async function getCourseTitle(id: number): Promise<string | null> {
     return (rows[0]?.title as string) ?? null;
   } catch { return null; }
 }
-// Browser-tab label. The Supply Chain track uses the short level form ("SC lvl 1") in the
-// tight tab space, even though the card/page shows the full course title.
+// Browser-tab label. A track that sets `tab_label_prefix` uses the short level form
+// ("SC lvl 1") in the tight tab space, even though the card/page shows the full course
+// title; every other track just shows the title. The rule lives on the track row, so no
+// track key is spelled out here.
 export async function getCourseTabTitle(trackKey: string, id: number): Promise<string | null> {
   try {
     await ensureLearningHubReady();
-    const rows = await sql<QueryResultRow[]>(`SELECT title, order_index FROM learning_courses WHERE id = ?`, [id]);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT c.title, c.order_index, t.tab_label_prefix
+       FROM learning_courses c
+       JOIN learning_tracks t ON t.id = c.track_id
+       WHERE c.id = ? AND t.key = ?`,
+      [id, trackKey],
+    );
     if (!rows[0]) return null;
-    if (trackKey === 'supply_chain') return `SC lvl ${Number(rows[0].order_index ?? 0) + 1}`;
+    const prefix = rows[0].tab_label_prefix ? String(rows[0].tab_label_prefix) : '';
+    if (prefix) return `${prefix} lvl ${Number(rows[0].order_index ?? 0) + 1}`;
     return (rows[0].title as string) ?? null;
   } catch { return null; }
 }
@@ -455,6 +471,42 @@ export async function getLessonTitle(id: number): Promise<string | null> {
     const rows = await sql<QueryResultRow[]>(`SELECT title FROM learning_lessons WHERE id = ?`, [id]);
     return (rows[0]?.title as string) ?? null;
   } catch { return null; }
+}
+
+/* ── Sidebar navigation (one source of truth for every Learning Hub page) ── */
+
+/**
+ * The tracks the sidebar links to, loaded once in the Learning Hub layout and shared by
+ * every page under it. Previously the sidebar carried a hard-coded link list, which drifted
+ * from the database (it linked a track a fresh DB never creates, i.e. a 404).
+ *
+ * Counts are published-only and user-independent, so the caller can apply the same
+ * `isComingSoon()` rule the dashboard and track pages use.
+ */
+export async function getLearningHubNavTracks(): Promise<LearningHubNavTrack[]> {
+  const me = await learnerIdentity();
+  if (!me) return [];
+  await ensureLearningHubReady();
+
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT t.key, t.name, t.icon,
+            COUNT(DISTINCT c.id)::int AS course_count,
+            COUNT(DISTINCT l.id)::int AS lesson_count
+     FROM learning_tracks t
+     LEFT JOIN learning_courses c ON c.track_id = t.id AND c.status = 'published'
+     LEFT JOIN learning_modules m ON m.course_id = c.id
+     LEFT JOIN learning_lessons l ON l.module_id = m.id
+     GROUP BY t.id, t.key, t.name, t.icon, t.order_index
+     ORDER BY t.order_index ASC, t.id ASC`,
+  );
+
+  return rows.map((r) => ({
+    key: String(r.key),
+    name: String(r.name),
+    icon: r.icon ? String(r.icon) : null,
+    course_count: Number(r.course_count ?? 0),
+    lesson_count: Number(r.lesson_count ?? 0),
+  }));
 }
 
 /* ── Dashboard ────────────────────────────────────────────────────────── */

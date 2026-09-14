@@ -22,6 +22,8 @@ import {
   getWorkflowSteps,
   isActiveApprovalStatus,
   normalizeProcureGuardCountry,
+  procureGuardThreshold,
+  thresholdUsd,
   normalizeProcureGuardCountryScope,
   roleRequiresProcureGuardCountryScope,
   safeNum,
@@ -30,9 +32,16 @@ import {
   usdEquivalentFmt,
   usdFmt,
 } from '@/lib/procureGuard-utils';
+import {
+  canActorViewRequest,
+  grantCoversRequest,
+  scopedRequestWhere,
+} from '@/lib/procure-guard/access';
 import type {
   ProcureGuardAccessView,
+  ProcureGuardActor,
   ProcureGuardPermissionRole,
+  ProcureGuardReviewGrant,
   ProcureGuardStatus,
 } from '@/types/procureGuard';
 
@@ -705,5 +714,180 @@ describe('timeAgo', () => {
     expect(timeAgo('2026-09-13T12:00:00Z')).toBe('1d ago');
     expect(timeAgo('2026-09-04T12:00:00Z')).toBe('10d ago');
     expect(timeAgo(null)).toBe('-');
+  });
+});
+
+/* ── The single view predicate (src/lib/procure-guard/access.ts) ──────────────
+ * Three implementations of "may this actor see this request" used to disagree, which put a country
+ * controller on a 404 for a request he was the approver for. These lock the one predicate down.
+ */
+
+function reviewGrant(overrides: Partial<ProcureGuardReviewGrant> = {}): ProcureGuardReviewGrant {
+  return {
+    source: 'self',
+    fromEmail: 'approver@nesr.com',
+    fromName: 'Approver',
+    role: 'Country Controller',
+    country: null,
+    segment: null,
+    isAdmin: false,
+    ...overrides,
+  };
+}
+
+function actorWith(grants: ProcureGuardReviewGrant[], overrides: Partial<ProcureGuardActor> = {}): ProcureGuardActor {
+  const role = overrides.role ?? grants[0]?.role ?? 'Requester';
+  return {
+    email: 'approver@nesr.com',
+    name: 'Approver',
+    isAdmin: role === 'Admin',
+    role,
+    permissions: getPermissionProfile(role),
+    country: grants[0]?.country ?? null,
+    segment: grants[0]?.segment ?? null,
+    reviewGrants: grants,
+    ...overrides,
+  };
+}
+
+describe('grantCoversRequest', () => {
+  it('covers every country a MULTI-COUNTRY scope names', () => {
+    // The live Country Controller scope the incident was about.
+    const eosChadCongo = reviewGrant({ country: 'EOS, Chad, Congo' });
+    expect(grantCoversRequest(eosChadCongo, { country: 'EOS' })).toBe(true);
+    expect(grantCoversRequest(eosChadCongo, { country: 'Chad' })).toBe(true);
+    expect(grantCoversRequest(eosChadCongo, { country: 'Congo' })).toBe(true);
+    expect(grantCoversRequest(eosChadCongo, { country: 'Qatar' })).toBe(false);
+    expect(grantCoversRequest(eosChadCongo, { country: null })).toBe(false);
+  });
+
+  it('does not collapse a multi-country scope to "Other"', () => {
+    // Comparing the whole scope string through normalizeProcureGuardCountry() yields 'Other', which
+    // then matched the literal country 'Other' and nothing else. Both halves are asserted here.
+    const multi = reviewGrant({ role: 'SCM Manager', country: 'Bahrain, Saudi Arabia (KSA)' });
+    expect(grantCoversRequest(multi, { country: 'Bahrain' })).toBe(true);
+    expect(grantCoversRequest(multi, { country: 'Saudi Arabia (KSA)' })).toBe(true);
+    expect(grantCoversRequest(multi, { country: 'ksa' })).toBe(true);
+    expect(grantCoversRequest(multi, { country: 'Other' })).toBe(false);
+  });
+
+  it('accepts separators and aliases inside a multi-country scope', () => {
+    expect(grantCoversRequest(reviewGrant({ country: 'EOS + Chad + Congo' }), { country: 'Chad' })).toBe(true);
+    const aliased = reviewGrant({ country: 'ksa, uae' });
+    expect(grantCoversRequest(aliased, { country: 'Saudi Arabia (KSA)' })).toBe(true);
+    expect(grantCoversRequest(aliased, { country: 'United Arab Emirates (UAE)' })).toBe(true);
+    expect(grantCoversRequest(aliased, { country: 'Qatar' })).toBe(false);
+  });
+
+  it('an admin grant covers everything; a country-scoped grant with NO country covers nothing', () => {
+    expect(grantCoversRequest(reviewGrant({ role: 'Admin', isAdmin: true }), { country: 'Qatar' })).toBe(true);
+    expect(grantCoversRequest(reviewGrant({ role: 'Country Controller', country: null }), { country: 'Qatar' })).toBe(false);
+    expect(grantCoversRequest(reviewGrant({ role: 'SCM Manager', country: '' }), { country: 'Qatar' })).toBe(false);
+  });
+
+  it('an unscoped non-country role covers every country', () => {
+    expect(grantCoversRequest(reviewGrant({ role: 'CFO', country: null }), { country: 'Qatar' })).toBe(true);
+    expect(grantCoversRequest(reviewGrant({ role: 'Treasury Director', country: null }), { country: null })).toBe(true);
+  });
+
+  it('narrows by segment as well as country', () => {
+    const segmented = reviewGrant({ country: 'EOS, Chad, Congo', segment: 'Production Solutions' });
+    expect(grantCoversRequest(segmented, { country: 'Chad', segment: 'Production Solutions' })).toBe(true);
+    expect(grantCoversRequest(segmented, { country: 'Chad', segment: 'Drilling' })).toBe(false);
+    expect(grantCoversRequest(segmented, { country: 'Chad', segment: null })).toBe(false);
+  });
+});
+
+describe('canActorViewRequest', () => {
+  const scoped = actorWith([reviewGrant({ country: 'EOS, Chad, Congo' })]);
+
+  it('lets a scoped reviewer see requests inside their scope and not outside it', () => {
+    expect(canActorViewRequest(scoped, { country: 'Chad', requested_by_email: 'someone@nesr.com' })).toBe(true);
+    expect(canActorViewRequest(scoped, { country: 'Qatar', requested_by_email: 'someone@nesr.com' })).toBe(false);
+  });
+
+  it('THE INCIDENT: a scoped reviewer can still open a request they raised OUTSIDE their scope', () => {
+    // The detail page used to check the requester side only for actors WITHOUT canViewAll, so this
+    // returned 404 on a row the actor's own list had just shown them.
+    expect(canActorViewRequest(scoped, { country: 'Qatar', requested_by_email: 'approver@nesr.com' })).toBe(true);
+  });
+
+  it('honours per-request viewer grants regardless of scope, case-insensitively', () => {
+    expect(canActorViewRequest(scoped, {
+      country: 'Qatar',
+      requested_by_email: 'someone@nesr.com',
+      requester_notification_emails: ['Approver@NESR.com'],
+    })).toBe(true);
+  });
+
+  it('covers a DELEGATE through the delegator multi-country scope', () => {
+    // A delegate holds no scope of their own; the delegation grant carries the delegator's.
+    const delegate = actorWith(
+      [reviewGrant({ source: 'delegation', fromEmail: 'controller@nesr.com', country: 'EOS, Chad, Congo' })],
+      { email: 'delegate@nesr.com', name: 'Delegate' },
+    );
+    expect(canActorViewRequest(delegate, { country: 'Congo', requested_by_email: 'someone@nesr.com' })).toBe(true);
+    expect(canActorViewRequest(delegate, { country: 'Qatar', requested_by_email: 'someone@nesr.com' })).toBe(false);
+  });
+
+  it('a plain requester sees only their own requests', () => {
+    const requester = actorWith([], { email: 'requester@nesr.com', role: 'Requester' });
+    expect(canActorViewRequest(requester, { country: 'Chad', requested_by_email: 'requester@nesr.com' })).toBe(true);
+    expect(canActorViewRequest(requester, { country: 'Chad', requested_by_email: 'someone@nesr.com' })).toBe(false);
+  });
+});
+
+describe('scopedRequestWhere', () => {
+  it('is the SQL form of the same predicate: own requests OR each grant scope', () => {
+    const scoped = scopedRequestWhere(actorWith([reviewGrant({ country: 'EOS, Chad, Congo' })]));
+    expect(scoped.where).toContain('LOWER(requested_by_email) = ?');
+    expect(scoped.where).toContain('country IN (?, ?, ?)');
+    expect(scoped.params).toEqual(['approver@nesr.com', 'approver@nesr.com', 'EOS', 'Chad', 'Congo']);
+  });
+
+  it('does not restrict an admin, and restricts a requester to their own rows', () => {
+    expect(scopedRequestWhere(actorWith([reviewGrant({ role: 'Admin', isAdmin: true })])).where).toBe('');
+    const requester = scopedRequestWhere(actorWith([], { email: 'requester@nesr.com', role: 'Requester' }));
+    expect(requester.params).toEqual(['requester@nesr.com', 'requester@nesr.com']);
+  });
+
+  it('agrees with canActorViewRequest about which countries a multi-country scope reaches', () => {
+    const actor = actorWith([reviewGrant({ country: 'EOS, Chad, Congo' })]);
+    const sqlCountries = scopedRequestWhere(actor).params.slice(2);
+    for (const country of ['EOS', 'Chad', 'Congo', 'Qatar']) {
+      expect(canActorViewRequest(actor, { country, requested_by_email: 'someone@nesr.com' }))
+        .toBe(sqlCountries.includes(country));
+    }
+  });
+});
+
+describe('procureGuardThreshold', () => {
+  it('prefers the server-computed USD value over the entered amount/currency', () => {
+    expect(procureGuardThreshold({ amount: 90_000, currency: 'EUR', spend_value_usd: 97_200 }))
+      .toEqual({ amount: 97_200, currency: 'USD' });
+    expect(thresholdUsd({ amount: 90_000, currency: 'EUR', spend_value_usd: 97_200 })).toBe(97_200);
+  });
+
+  it('falls back to the entered amount on a legacy row with no stored USD value', () => {
+    expect(procureGuardThreshold({ amount: 1_000, currency: 'EUR', spend_value_usd: null }))
+      .toEqual({ amount: 1_000, currency: 'EUR' });
+    expect(thresholdUsd({ amount: 1_000, currency: 'EUR', spend_value_usd: null })).toBeCloseTo(1_080, 6);
+    expect(procureGuardThreshold({ amount: 500, currency: null, spend_value_usd: null }))
+      .toEqual({ amount: 500, currency: 'USD' });
+  });
+
+  it('files a request under the same approver that routing picked', () => {
+    // An advance row's `amount` is the contract value while `spend_value_usd` is the advance itself,
+    // so the two land in different threshold buckets. Analytics used to read amount+currency and
+    // routing the stored USD value, filing the request under an approver nobody was waiting on.
+    const row = { amount: 30_000, currency: 'USD', spend_value_usd: 97_200 };
+    const nextStatus = (amount: number | string | null, currency: string) => getProcureGuardAvailableActions(
+      getPermissionProfile('Admin'), 'advance', 'Submitted', amount, currency,
+    ).nextStatus;
+    expect(thresholdUsd(row)).toBeGreaterThan(ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD);
+    const stored = procureGuardThreshold(row);
+    expect(nextStatus(stored.amount, stored.currency)).toBe(nextStatus(97_200, 'USD'));
+    // The raw amount+currency the analytics used to read puts the request in the other bucket.
+    expect(nextStatus(row.amount, row.currency)).not.toBe(nextStatus(97_200, 'USD'));
   });
 });

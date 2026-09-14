@@ -116,7 +116,10 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
     setError(null);
     setDraftState({
       cls: 'SGL',
-      country: viewer.countries.length === 1 ? viewer.countries[0] : '',
+      country:
+        viewer.countryCodes.length === 1
+          ? countries.find((c) => c[1] === viewer.countryCodes[0])?.[0] ?? ''
+          : '',
       level: 'Family',
       nodes: [],
       segments: [],
@@ -125,10 +128,9 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
       spend: '',
       reason: '',
       justification: '',
-      evidence: '',
     });
     setBrowse(defaultBrowse());
-  }, [viewer.countries, defaultBrowse]);
+  }, [viewer.countryCodes, countries, defaultBrowse]);
 
   const setDraft = useCallback((patch: Partial<Draft>) => {
     setDraftState((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -212,12 +214,12 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
   }, [records, filters]);
 
   const exportCsv = useCallback(() => {
-    const header = ['Registry ID', 'Classification', 'Country', 'Scope level', 'Scope', 'Segments', 'Supplier SAP ID', 'Supplier SAP Name', 'Reason code', 'Status', 'Issue date', 'Expiry date', 'Annual spend USD', 'PO/RFQ count'];
+    const header = ['Registry ID', 'Classification', 'Country', 'Country code', 'Scope level', 'Scope', 'Segments', 'Supplier SAP ID', 'Supplier SAP Name', 'Reason code', 'Status', 'Issue date', 'Expiry date', 'Annual spend USD'];
     const rows = [header, ...filteredRecords.map((r) => [
-      r.id || '(not issued)', clsLabel(r.cls), r.country, r.level,
+      r.id || '(not issued)', clsLabel(r.cls), r.country, r.countryCode, r.level,
       r.nodes.map((n) => n.com || n.fam).join('; '), r.segments.join('; '),
       r.supplierId, r.supplierName, r.reason, displayStatus(r),
-      r.issue || '', r.expiry || '', String(r.spend), String(r.poCount),
+      r.issue || '', r.expiry || '', String(r.spend),
     ])];
     const csv = rows.map((row) => row.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -239,17 +241,25 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
   const resetFilters = useCallback(() => setFilters(DEFAULT_FILTERS), []);
 
   /**
-   * Countries this viewer may raise or validate records for. An empty approved
-   * list means unrestricted, which is also how admins are stored.
+   * Countries this viewer may raise or validate records for, by display name.
+   * An empty approved list means unrestricted, which is also how admins are
+   * stored.
    */
   const actionableCountries = useMemo(
-    () => (viewer.countries.length === 0 ? countries.map((c) => c[0]) : viewer.countries),
-    [viewer.countries, countries],
+    () =>
+      viewer.countryCodes.length === 0
+        ? countries.map((c) => c[0])
+        : countries.filter((c) => viewer.countryCodes.includes(c[1])).map((c) => c[0]),
+    [viewer.countryCodes, countries],
   );
 
+  /**
+   * Scope check, by `sns_country.code` rather than display name — the same key
+   * the server uses, so renaming a country cannot make the two disagree.
+   */
   const canActOn = useCallback(
-    (country: string) => viewer.countries.length === 0 || viewer.countries.includes(country),
-    [viewer.countries],
+    (code: string) => viewer.countryCodes.length === 0 || (!!code && viewer.countryCodes.includes(code)),
+    [viewer.countryCodes],
   );
 
   return {

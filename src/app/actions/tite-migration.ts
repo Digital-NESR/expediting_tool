@@ -1,11 +1,16 @@
 'use server';
 
 import titePool from '@/lib/db-tite';
-import { titeCountryCode, formatTiteReference } from '@/lib/tite-constants';
+import { withTransaction } from '@/lib/db/tx';
+import { titeCountryCode, formatTiteReference, canonicalTiteCountry } from '@/lib/tite-constants';
+import { alertLevelFor } from '@/lib/tite-utils';
 import { requireAdmin, isAdminActor } from '@/lib/require-access';
 
 /** Hard ceiling on rows accepted per call — a bulk INSERT is not a free-for-all. */
 const MAX_IMPORT_ROWS = 5000;
+
+/** Rows per multi-row INSERT. 100 × 21 columns is well inside the 65535 bind-parameter cap. */
+const INSERT_CHUNK = 100;
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -25,6 +30,10 @@ export interface RawShipmentRow {
   awb_number: string | null;
   po_number: string | null;
   movement_type: string | null;
+  /* Dates are RAW cell values — whatever the spreadsheet held. The client must not
+     pre-parse them: `parseDateFlexible` below is the one parser, and it runs in
+     UTC. A client-side `new Date(s).toISOString()` shifts every date back a day
+     for a Gulf user and nulls the formats this one handles. */
   import_date: string | null;
   expiry_date: string | null;
   extended_date: string | null;
@@ -51,8 +60,8 @@ export interface MigrationLogRow {
   migrated_at: string;
 }
 
-/* ─── Country code map ───────────────────────────────────────── */
-
+/* The country → reference-prefix map and the canonical country list both live in
+   `@/lib/tite-constants`, shared with the admin panels and the app pages. */
 
 /* ─── Flexible date parser ───────────────────────────────────── */
 
@@ -148,45 +157,58 @@ function parseDateFlexible(value: unknown): string | null {
   return null;
 }
 
-/* ─── Alert level ────────────────────────────────────────────── */
-
-function calcAlertLevel(
-  expiryDate: string | null,
-  extendedDate: string | null,
-  status: string,
-): string {
-  if (status === 'Closed' || status === 'Closed - Refund Recovered') return 'closed';
-  const effective = extendedDate || expiryDate;
-  if (!effective) return 'ok';
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diff = Math.ceil(
-    (new Date(effective).getTime() - today.getTime()) / 86400000,
-  );
-  if (diff < 0)   return 'overdue';
-  if (diff <= 7)  return 'urgent';
-  if (diff <= 14) return 'action';
-  if (diff <= 30) return 'plan';
-  if (diff <= 60) return 'info';
-  return 'ok';
-}
-
 /* ─── Main action ────────────────────────────────────────────── */
 
+/** The 21 columns a migrated shipment row writes, in bind order. */
+const SHIPMENT_COLS = [
+  'reference_number', 'segment', 'from_country', 'to_country',
+  'invoice_number', 'invoice_value_usd', 'customs_reference_number', 'description',
+  'mot', 'awb_number', 'po_number', 'movement_type',
+  'import_date', 'expiry_date', 'extended_date',
+  'deposit_usd', 'comments', 'status', 'alert_level', 'country', 'created_by',
+] as const;
+
+interface PreparedRow {
+  rowIndex: number;
+  reference_number: string;
+  /** Log line to emit when this row inserts successfully. */
+  successLine: string;
+  values: unknown[];
+}
+
+/** `($1,$2,…,$21),($22,…)` for `count` rows of `SHIPMENT_COLS.length` columns. */
+function valuePlaceholders(count: number): string {
+  const width = SHIPMENT_COLS.length;
+  return Array.from({ length: count }, (_, r) =>
+    `(${Array.from({ length: width }, (_, c) => `$${r * width + c + 1}`).join(',')})`,
+  ).join(',');
+}
+
+/**
+ * Import one whole Excel file.
+ *
+ * The client sends the file in ONE call. It used to drive its own batches of 10,
+ * each a separate server action writing its own `migration_log` row: a 500-row
+ * file produced 50 partial log rows and ~100 sequential round trips with no
+ * transaction at all, and a batch that threw left the UI stuck on 'running' with
+ * a half-imported file and no way to tell which half. Now the whole file either
+ * commits or does not, chunked server-side, with a single log row.
+ *
+ * Per-row reporting is unchanged: every row is still individually accounted for
+ * as inserted / skipped / errored, and a single bad row is retried on its own so
+ * it cannot take its chunk down with it.
+ */
 export async function importShipments(params: {
   country: string;
   filename: string;
   rows: RawShipmentRow[];
 }): Promise<MigrationResult> {
   const admin = await requireAdmin();
-  const { country, filename, rows } = params;
+  const { filename, rows } = params;
   const userEmail = admin.email;
+  // Store the canonical spelling so the stakeholder seed below actually joins.
+  const country = canonicalTiteCountry(params.country) ?? params.country;
   const countryCode = titeCountryCode(country);
-
-  const log: string[] = [];
-  let inserted = 0;
-  let skipped = 0;
-  let errors = 0;
 
   if (rows.length > MAX_IMPORT_ROWS) {
     return {
@@ -197,134 +219,184 @@ export async function importShipments(params: {
     };
   }
 
-  for (const row of rows) {
-    // Skip rows with no reference number
-    if (!row.no || row.no.trim() === '') {
-      log.push(`⏭  Row ${row.rowIndex}: skipped — no reference number`);
-      skipped++;
-      continue;
-    }
+  /* ── Phase 1: prepare every row in memory. No DB connection is held here. ── */
 
-    const numericNo = parseFloat(row.no.trim());
+  const lines = new Map<number, string>();   // rowIndex → log line, emitted in order
+  const prepared: PreparedRow[] = [];
+  const seenRefs = new Set<string>();
+  let skipped = 0;
+  let errors  = 0;
+
+  const created_by = `migration-${country
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')}`;
+
+  for (const row of rows) {
+    const numericNo = row.no ? parseFloat(row.no.trim()) : NaN;
     if (isNaN(numericNo)) {
-      log.push(`⏭  Row ${row.rowIndex}: skipped — no reference number`);
+      lines.set(row.rowIndex, `⏭  Row ${row.rowIndex}: skipped — no reference number`);
       skipped++;
       continue;
     }
 
     const reference_number = formatTiteReference(countryCode, Math.round(numericNo));
 
-    try {
-      const importDate   = parseDateFlexible(row.import_date);
-      const expiryDate   = parseDateFlexible(row.expiry_date);
-      const extendedDate = parseDateFlexible(row.extended_date);
+    // A reference repeated inside the same file: ON CONFLICT would silently drop
+    // the second copy, so report it as the duplicate it is.
+    if (seenRefs.has(reference_number)) {
+      lines.set(row.rowIndex, `⚠️  ${reference_number}: duplicated in this file, skipped`);
+      skipped++;
+      continue;
+    }
+    seenRefs.add(reference_number);
 
-      const alert_level = calcAlertLevel(
+    // Dates are parsed HERE and only here. The client sends raw cell values.
+    const importDate   = parseDateFlexible(row.import_date);
+    const expiryDate   = parseDateFlexible(row.expiry_date);
+    const extendedDate = parseDateFlexible(row.extended_date);
+
+    prepared.push({
+      rowIndex: row.rowIndex,
+      reference_number,
+      successLine: `✅ ${reference_number} | ${row.segment ?? ''} | ${row.movement_type ?? ''} | ${expiryDate ?? 'N/A'}`,
+      values: [
+        reference_number,
+        row.segment,
+        row.from_country,
+        row.to_country,
+        row.invoice_number,
+        row.invoice_value_usd,
+        row.customs_reference_number,
+        row.description,
+        row.mot,
+        row.awb_number,
+        row.po_number,
+        row.movement_type,
+        importDate,
         expiryDate,
         extendedDate,
+        row.deposit_usd,
+        row.comments,
         row.status,
-      );
+        alertLevelFor(expiryDate, extendedDate, row.status),
+        country,
+        created_by,
+      ],
+    });
+  }
 
-      const created_by = `migration-${country
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '')}`;
+  /* ── Phase 2: one transaction for the whole file. ── */
 
-      const result = await titePool.query<{ id: number }>(
-        `INSERT INTO shipments (
-          reference_number,
-          segment,
-          from_country,
-          to_country,
-          invoice_number,
-          invoice_value_usd,
-          customs_reference_number,
-          description,
-          mot,
-          awb_number,
-          po_number,
-          movement_type,
-          import_date,
-          expiry_date,
-          extended_date,
-          deposit_usd,
-          comments,
-          status,
-          alert_level,
-          country,
-          created_by
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
-        )
-        ON CONFLICT (reference_number) DO NOTHING
-        RETURNING id`,
-        [
-          reference_number,
-          row.segment,
-          row.from_country,
-          row.to_country,
-          row.invoice_number,
-          row.invoice_value_usd,
-          row.customs_reference_number,
-          row.description,
-          row.mot,
-          row.awb_number,
-          row.po_number,
-          row.movement_type,
-          importDate,
-          expiryDate,
-          extendedDate,
-          row.deposit_usd,
-          row.comments,
-          row.status,
-          alert_level,
-          country,
-          created_by,
-        ],
-      );
+  const insertedIds: number[] = [];
+  let seededContacts = 0;
 
-      if (result.rowCount === 0) {
-        log.push(`⚠️  ${reference_number}: already exists, skipped`);
-        skipped++;
-      } else {
-        const shipmentId = result.rows[0].id;
+  if (prepared.length > 0) {
+    await withTransaction(titePool, async (client) => {
+      const insertSql = (count: number) =>
+        `INSERT INTO shipments (${SHIPMENT_COLS.join(', ')})
+         VALUES ${valuePlaceholders(count)}
+         ON CONFLICT (reference_number) DO NOTHING
+         RETURNING id, reference_number`;
 
-        // Seed default notification recipients from country_stakeholders (best-effort)
+      for (let i = 0; i < prepared.length; i += INSERT_CHUNK) {
+        const chunk = prepared.slice(i, i + INSERT_CHUNK);
+        const sp = `mig_${i}`;
+        await client.query(`SAVEPOINT ${sp}`);
         try {
-          await titePool.query(
+          const res = await client.query<{ id: number; reference_number: string }>(
+            insertSql(chunk.length),
+            chunk.flatMap(p => p.values),
+          );
+          await client.query(`RELEASE SAVEPOINT ${sp}`);
+          const landed = new Map(res.rows.map(r => [r.reference_number, r.id]));
+          for (const p of chunk) {
+            const id = landed.get(p.reference_number);
+            if (id == null) {
+              lines.set(p.rowIndex, `⚠️  ${p.reference_number}: already exists, skipped`);
+              skipped++;
+            } else {
+              lines.set(p.rowIndex, p.successLine);
+              insertedIds.push(id);
+            }
+          }
+        } catch {
+          // One bad row poisons its whole chunk inside a transaction. Roll the
+          // chunk back and replay it row by row so the rest of the file survives
+          // and the operator is told exactly which row failed.
+          await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+          for (const p of chunk) {
+            const rowSp = `mig_r_${p.rowIndex}`;
+            await client.query(`SAVEPOINT ${rowSp}`);
+            try {
+              const one = await client.query<{ id: number }>(insertSql(1), p.values);
+              await client.query(`RELEASE SAVEPOINT ${rowSp}`);
+              if (one.rowCount === 0) {
+                lines.set(p.rowIndex, `⚠️  ${p.reference_number}: already exists, skipped`);
+                skipped++;
+              } else {
+                lines.set(p.rowIndex, p.successLine);
+                insertedIds.push(one.rows[0].id);
+              }
+            } catch (err) {
+              await client.query(`ROLLBACK TO SAVEPOINT ${rowSp}`);
+              lines.set(
+                p.rowIndex,
+                `❌ ${p.reference_number}: ${err instanceof Error ? err.message : String(err)}`,
+              );
+              errors++;
+            }
+          }
+        }
+      }
+
+      /* Seed default notification recipients for everything that landed, in one
+         statement. A migrated shipment with no recipients is invisible to the
+         expiry alerts, which is how a customs deadline gets missed — so this is
+         inside the transaction, but behind a savepoint so a stakeholder-table
+         problem reports itself instead of discarding the whole import. */
+      if (insertedIds.length > 0) {
+        await client.query(`SAVEPOINT mig_contacts`);
+        try {
+          const seeded = await client.query(
             `INSERT INTO shipment_notification_contacts
                (shipment_id, email, name, role,
                 notify_60_days, notify_30_days, notify_14_days, notify_7_days,
                 notify_2_days, notify_1_day, notify_0_day, notify_overdue)
-             SELECT
-               $1,
-               email,
-               name,
-               role,
-               true, true, true, true, true, true, true, true
-             FROM country_stakeholders
-             WHERE country = $2
-               AND active = true
+             SELECT sid, cs.email, cs.name, cs.role,
+                    true, true, true, true, true, true, true, true
+             FROM unnest($1::int[]) AS sid
+             CROSS JOIN country_stakeholders cs
+             WHERE cs.country = $2 AND cs.active = true
              ON CONFLICT DO NOTHING`,
-            [shipmentId, country],
+            [insertedIds, country],
           );
-        } catch {
-          // Non-fatal — country may have no stakeholders configured
+          await client.query(`RELEASE SAVEPOINT mig_contacts`);
+          seededContacts = seeded.rowCount ?? 0;
+        } catch (err) {
+          await client.query(`ROLLBACK TO SAVEPOINT mig_contacts`);
+          lines.set(
+            Number.MAX_SAFE_INTEGER - 1,
+            `❌ Default notifiers could not be seeded: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
-
-        log.push(
-          `✅ ${reference_number} | ${row.segment ?? ''} | ${row.movement_type ?? ''} | ${expiryDate ?? 'N/A'}`,
-        );
-        inserted++;
       }
-    } catch (err) {
-      log.push(`❌ ${reference_number}: ${err instanceof Error ? err.message : String(err)}`);
-      errors++;
-    }
+    });
   }
 
-  // Record in migration_log (best-effort — don't fail the whole import)
+  const inserted = insertedIds.length;
+
+  if (inserted > 0 && seededContacts === 0) {
+    lines.set(
+      Number.MAX_SAFE_INTEGER,
+      `⚠️  No default notifiers configured for "${country}" — ${inserted} shipment${inserted === 1 ? '' : 's'} imported with no expiry recipients. Add them under Default Notifiers.`,
+    );
+  }
+
+  const log = [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, line]) => line);
+
+  // ONE row per file, written after the import commits (best-effort: the
+  // migration_log table may not exist yet, and that must not undo the import).
   try {
     await titePool.query(
       `INSERT INTO migration_log

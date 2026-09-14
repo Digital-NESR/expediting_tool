@@ -82,13 +82,70 @@ export function getStatusBadge(status: string): { label: string; className: stri
  *  Matches PostgreSQL's (COALESCE(extended_date, expiry_date) - CURRENT_DATE)
  *  exactly: 0 = expires today, -1 = 1 day overdue, 30 = 30 days remaining.
  *  Uses UTC arithmetic so DST transitions never cause an off-by-one.
+ *
+ *  `today` is injectable so one caller can pin the anchor; it defaults to now.
  */
-export function calcDays(s: Shipment): number | null {
+export function calcDays(s: Shipment, today: Date = new Date()): number | null {
   const effective = s.extended_date || s.expiry_date;
   if (!effective) return null;
   const [ey, em, ed] = effective.split('-').map(Number);
-  const today = new Date();
   const expiryUtc = Date.UTC(ey, em - 1, ed);
   const todayUtc  = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   return (expiryUtc - todayUtc) / 86400000;
+}
+
+/** The seven buckets every presentation map above defines a value for. */
+export type TiteAlertLevel =
+  | 'overdue' | 'urgent' | 'action' | 'plan' | 'info' | 'ok' | 'closed';
+
+/**
+ * The ONE alert-level rule for TI-TE.
+ *
+ * Every page, action and report derives urgency from here, from
+ * `COALESCE(extended_date, expiry_date)` — never from the persisted
+ * `shipments.alert_level` column, which is only rewritten on create / extend /
+ * close and is therefore stale for any row that simply aged. Three separate
+ * copies of this rule used to disagree on the no-date case ('ok' vs 'info') and
+ * on the day anchor, so the dashboard, the analytics panel and the SQL KPI
+ * counts reported different numbers for the same data.
+ *
+ * Buckets, by days until effective expiry:
+ *   < 0 overdue · 0–7 urgent · 8–14 action · 15–30 plan · 31–60 info · 61+ ok
+ * A closed shipment is always 'closed'; a shipment with no effective date at all
+ * is 'info' ("Monitor") — a missing customs deadline is not "On track".
+ *
+ * ANCHOR: the UTC calendar day, the same anchor as {@link calcDays} and as
+ * Postgres `CURRENT_DATE` on a UTC server. Between 00:00 and 04:00 Gulf time the
+ * UTC day is still the previous day, so a shipment that expired yesterday in
+ * Gulf terms reads as expiring today ('urgent', not 'overdue') for those four
+ * hours. That is accepted deliberately: a Gulf business-day anchor here alone
+ * would put this function permanently at odds with `calcDays`, with the
+ * ORDER BY / FILTER clauses in `tite.ts`, and with the stored column — the
+ * Alerts page would show a card in the "Overdue" group reading "0 days
+ * remaining". Moving to a business-day anchor is a one-line change at the
+ * `today` argument, but it has to be made on all four at once.
+ */
+export function alertLevelFor(
+  expiry:   string | null | undefined,
+  extended: string | null | undefined,
+  status:   string | null | undefined,
+  today:    Date = new Date(),
+): TiteAlertLevel {
+  if (status === 'Closed' || status === 'Closed - Refund Recovered') return 'closed';
+  const days = calcDays(
+    { expiry_date: expiry ?? null, extended_date: extended ?? null } as Shipment,
+    today,
+  );
+  if (days === null) return 'info';
+  if (days <   0) return 'overdue';
+  if (days <=  7) return 'urgent';
+  if (days <= 14) return 'action';
+  if (days <= 30) return 'plan';
+  if (days <= 60) return 'info';
+  return 'ok';
+}
+
+/** {@link alertLevelFor} for a whole shipment row. */
+export function shipmentAlertLevel(s: Shipment, today?: Date): TiteAlertLevel {
+  return alertLevelFor(s.expiry_date, s.extended_date, s.status, today);
 }

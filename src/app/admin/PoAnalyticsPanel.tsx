@@ -8,7 +8,6 @@ import {
   ResponsiveContainer, Cell, LabelList, Legend,
 } from 'recharts';
 import {
-  getExpeditingAnalytics,
   getBuyerDetail,
   getAdminSupplierDetail,
   getAdminSessionDetail,
@@ -1377,7 +1376,9 @@ export default function PoAnalyticsPanel({ analytics: initialAnalytics }: PoAnal
           supplierResponseTime: result.supplierResponseTime,
         });
       } else {
-        const data = await getExpeditingAnalytics();
+        // Same action as the filtered branch, just with no filters — it used to be
+        // getExpeditingAnalytics, an unfiltered clone that had drifted out of sync.
+        const data = await getTeamAnalyticsData({});
         setLiveAnalytics(data);
       }
       setLastRefreshed(new Date());

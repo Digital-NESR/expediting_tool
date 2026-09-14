@@ -8,6 +8,7 @@ import {
   getUoms,
   getSuppliers,
   getPendingApprovalCount,
+  getApprovalThresholds,
 } from '@/app/actions/catalog-manager';
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import CatalogEntryFormClient from '../../CatalogEntryFormClient';
@@ -17,7 +18,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function EditCatalogEntryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [actor, entry, countries, currencies, uoms, suppliers, pendingCount] = await Promise.all([
+  const [actor, entry, countries, currencies, uoms, suppliers, pendingCount, thresholds] = await Promise.all([
     getCatalogActor(),
     getCatalogEntry(Number(id)),
     getCountries(),
@@ -25,6 +26,7 @@ export default async function EditCatalogEntryPage({ params }: { params: Promise
     getUoms(),
     getSuppliers(),
     getPendingApprovalCount(),
+    getApprovalThresholds(),
   ]);
   if (!entry) notFound();
   if (!actor.canCreate) redirect(`/catalog-manager/catalog/${id}`);
@@ -35,11 +37,12 @@ export default async function EditCatalogEntryPage({ params }: { params: Promise
     <CatalogEntryFormClient
       initial={entry}
       countries={countries.map((c) => ({ code: c.code, name: c.name, flag: c.flag }))}
-      currencies={currencies.map((c) => ({ code: c.code }))}
+      currencies={currencies.map((c) => ({ code: c.code, usd_rate: c.usd_rate }))}
       uoms={uoms.map((u) => ({ name: u.name }))}
       managers={managers}
       scope="ALL"
       pendingCount={pendingCount}
+      thresholds={thresholds}
       roleLabel={getPermissionProfile(actor.role).description}
       canApprove={actor.canApprove}
       canAdmin={actor.canAdmin}

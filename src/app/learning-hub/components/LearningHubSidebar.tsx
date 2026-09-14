@@ -3,19 +3,17 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
-import { LayoutGrid, Boxes, Building2, ListChecks } from 'lucide-react';
-
-const NAV = [
-  { href: '/learning-hub', label: 'Dashboard', icon: LayoutGrid },
-  { href: '/learning-hub/supply_chain', label: 'Supply Chain', icon: Boxes },
-  { href: '/learning-hub/sap', label: 'SAP', icon: LayoutGrid },
-  { href: '/learning-hub/nesr_supply_chain', label: 'NESR Supply Chain', icon: Building2 },
-  { href: '/learning-hub/my-work', label: 'My Work', icon: ListChecks },
-];
+import { LayoutGrid, ListChecks } from 'lucide-react';
+import TrackIcon from './TrackIcon';
+import { useLearningHubNavTracks } from './LearningHubNavContext';
+import { isComingSoon } from '@/lib/learning-hub-display';
 
 export default function LearningHubSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  // Track links come from the database (via the layout), so the sidebar can never link a
+  // track that doesn't exist and never needs editing when a track is added or renamed.
+  const navTracks = useLearningHubNavTracks();
 
   const rawName = session?.user?.name || 'Unknown User';
   const nameParts = rawName.split(' ').filter(Boolean);
@@ -23,6 +21,14 @@ export default function LearningHubSidebar({ isOpen, onClose }: { isOpen: boolea
     ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
     : rawName.substring(0, 2).toUpperCase();
   const jobTitle = (session?.user as { jobTitle?: string })?.jobTitle || 'User';
+
+  // The dashboard link is matched exactly - every Learning Hub route starts with it.
+  const linkClass = (href: string) => {
+    const active = pathname === href || (href !== '/learning-hub' && pathname.startsWith(`${href}/`));
+    return `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+      active ? 'bg-gradient-to-r from-[#307c4c] to-[#1d4f31] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+    }`;
+  };
 
   return (
     <>
@@ -47,23 +53,29 @@ export default function LearningHubSidebar({ isOpen, onClose }: { isOpen: boolea
             Back to NESR Home
           </Link>
           <div className="space-y-1">
-            {NAV.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              const Icon = item.icon;
+            <Link href="/learning-hub" onClick={onClose} className={linkClass('/learning-hub')}>
+              <LayoutGrid className="h-4 w-4 shrink-0" />
+              Dashboard
+            </Link>
+            {navTracks.map((track) => {
+              const href = `/learning-hub/${track.key}`;
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                    active ? 'bg-gradient-to-r from-[#307c4c] to-[#1d4f31] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {item.label}
+                <Link key={track.key} href={href} onClick={onClose} className={linkClass(href)}>
+                  <TrackIcon icon={track.icon} className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{track.name}</span>
+                  {/* Same rule the dashboard and track pages use: nothing published to open yet. */}
+                  {isComingSoon(track) && (
+                    <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      Soon
+                    </span>
+                  )}
                 </Link>
               );
             })}
+            <Link href="/learning-hub/my-work" onClick={onClose} className={linkClass('/learning-hub/my-work')}>
+              <ListChecks className="h-4 w-4 shrink-0" />
+              My Work
+            </Link>
           </div>
         </nav>
 

@@ -19,6 +19,8 @@ import {
   effectiveThresholdUsd,
   type ThresholdRule,
   toUsd,
+  usdRatesFrom,
+  type UsdRates,
   isExpiringSoon,
   sirionUrlFor,
   INCOTERM_CODES,
@@ -26,6 +28,8 @@ import {
   LEAD_TIME_MAX_DAYS,
   UNIT_PRICE_MAX,
   sanitizeImportText,
+  normalizeImportDate,
+  IMPORT_DATE_FORMATS_HINT,
 } from '@/lib/catalog-manager-utils';
 import type {
   AppUserRow,
@@ -441,7 +445,6 @@ async function initCatalogManagerSchema(): Promise<void> {
   }
 
   await seedMasterData();
-  await seedDemoData();
   await seedSupplierDirectory();
 }
 
@@ -516,9 +519,12 @@ async function seedMasterData(): Promise<void> {
   // every list is a single multi-row upsert — one round trip regardless of list size.
   if (SEED_CURRENCIES.length) {
     const { placeholders, params } = multiRowValues(SEED_CURRENCIES.map((c) => [c.code, c.decimals, c.usd_rate]));
+    // DO NOTHING, not DO UPDATE: `currency.usd_rate` is the live rate the approval tier is
+    // computed from and an admin can correct it. Re-upserting the constants on every boot
+    // silently reverted any such correction on the next cold start.
     await exec(
       `INSERT INTO currency (code, decimals, usd_rate) VALUES ${placeholders}
-       ON CONFLICT (code) DO UPDATE SET decimals = EXCLUDED.decimals, usd_rate = EXCLUDED.usd_rate`,
+       ON CONFLICT (code) DO NOTHING`,
       params,
     );
   }
@@ -584,37 +590,14 @@ async function seedMasterData(): Promise<void> {
   }
 }
 
-const DEMO_USERS: { name: string; email: string; role: CatalogRole; country: string }[] = [
-  { name: 'Layla Al-Rashid', email: 'layla.alrashid@nesr.com', role: 'Contributor', country: 'SA' },
-  { name: 'Omar Haddad', email: 'omar.haddad@nesr.com', role: 'Approver', country: 'SA' },
-  { name: 'Fatima Noor', email: 'fatima.noor@nesr.com', role: 'Contributor', country: 'AE' },
-  { name: 'Daniel Reyes', email: 'daniel.reyes@nesr.com', role: 'Approver', country: 'AE' },
-  { name: 'Khalid Mansour', email: 'khalid.mansour@nesr.com', role: 'Admin', country: 'SA' },
-  { name: 'Priya Menon', email: 'priya.menon@nesr.com', role: 'Viewer', country: 'KW' },
-];
-
-// Bootstraps the initial admin/approver accounts (once, when app_user is empty). Fabricated
-// demo catalog entries used to be seeded here too — removed now that the catalog holds real
-// imported data; a fresh DB should start with zero catalog entries, not sample rows.
-async function seedDemoData(): Promise<void> {
-  const users = await sql<{ id: number; email: string }[]>(`SELECT id, email FROM app_user`);
-  if (users.length === 0) {
-    for (const u of DEMO_USERS) {
-      await exec(`INSERT INTO app_user (full_name, email, country_code, role) VALUES (?, ?, ?, ?)
-        ON CONFLICT (email) DO NOTHING`, [u.name, u.email, u.country, u.role]);
-    }
-    // seed per-country approvers from the two Approver users
-    const omar = await sql<{ id: number }[]>(`SELECT id FROM app_user WHERE email = ?`, ['omar.haddad@nesr.com']);
-    const daniel = await sql<{ id: number }[]>(`SELECT id FROM app_user WHERE email = ?`, ['daniel.reyes@nesr.com']);
-    if (omar[0]) {
-      await exec(`INSERT INTO country_approver (user_id, country_code, tier) VALUES (?, 'SA', 2) ON CONFLICT DO NOTHING`, [omar[0].id]);
-      await exec(`INSERT INTO country_approver (user_id, country_code, tier) VALUES (?, 'KW', 2) ON CONFLICT DO NOTHING`, [omar[0].id]);
-    }
-    if (daniel[0]) {
-      await exec(`INSERT INTO country_approver (user_id, country_code, tier) VALUES (?, 'AE', 2) ON CONFLICT DO NOTHING`, [daniel[0].id]);
-    }
-  }
-}
+/*
+ * A fresh database used to be seeded here with six fabricated @nesr.com accounts — an Admin,
+ * two Approvers (with country_approver rows) and three others. Roles are resolved by email,
+ * so anyone who was ever granted one of those addresses in Azure AD inherited that role on
+ * their first sign-in, without anyone granting it. The seed is gone: an empty app_user table
+ * now means nobody has a role, and the first Admin comes from ADMIN_EMAILS via the
+ * admin-preview branch in getCatalogActor() below, which needs no database row at all.
+ */
 
 async function upsertSupplier(name: string, vendor: string, manager: string | null, db: CatalogDb = poolDb): Promise<number> {
   const ins = await db.exec(
@@ -653,7 +636,9 @@ export async function getCatalogActor(): Promise<CatalogActor> {
     role = userRow.role;
     countryCode = userRow.country_code;
   } else if (adminEmails.includes(email)) {
-    // Admin-preview: configured admins with no app_user row act as Admin.
+    // Admin-preview AND the bootstrap path: a platform admin configured in ADMIN_EMAILS acts as
+    // Admin with no app_user row, which is what lets the first real admin sign in to an empty
+    // database and grant everyone else a role. (Demo accounts used to be seeded for this.)
     role = 'Admin';
     countryCode = (process.env.CATALOG_HOME_COUNTRY ?? '').trim().toUpperCase() || null;
   } else {
@@ -771,28 +756,71 @@ async function resolveCatalogDelegations(email: string): Promise<CatalogDelegati
  */
 interface ApproverScope {
   email: string;
+  name: string;
   isGlobal: boolean;
   country_code: string | null;
   spend_category_id: number | null;
 }
 
-/** Load every authority row for the given emails in one query. */
-async function loadApproverScopes(emails: (string | null | undefined)[], db: CatalogDb = poolDb): Promise<ApproverScope[]> {
-  const list = [...new Set(emails.map(normalizeEmail).filter(Boolean))];
-  if (!list.length) return [];
+/**
+ * Load every authority row for the given emails in one query — or, when `emails` is null,
+ * for every user who can approve at all (used to name the approver an entry is routed to).
+ */
+async function loadApproverScopes(emails: (string | null | undefined)[] | null, db: CatalogDb = poolDb): Promise<ApproverScope[]> {
+  const list = emails === null ? null : [...new Set(emails.map(normalizeEmail).filter(Boolean))];
+  if (list !== null && !list.length) return [];
+  const where = list === null
+    ? `au.role IN ('Approver', 'Admin')`
+    : `LOWER(au.email) IN (${list.map(() => '?').join(', ')})`;
   const rows = await db.sql<QueryResultRow[]>(
-    `SELECT LOWER(au.email) AS email, au.role, ca.country_code, ca.spend_category_id
+    `SELECT LOWER(au.email) AS email, au.full_name, au.role, ca.country_code, ca.spend_category_id
      FROM app_user au
      LEFT JOIN country_approver ca ON ca.user_id = au.id AND ca.is_active = TRUE
-     WHERE LOWER(au.email) IN (${list.map(() => '?').join(', ')})`,
-    list,
+     WHERE ${where}`,
+    list ?? [],
   );
   return rows.map((r) => ({
     email: String(r.email),
+    name: String(r.full_name ?? r.email),
     isGlobal: r.role === 'Admin',
     country_code: r.country_code ?? null,
     spend_category_id: r.spend_category_id != null ? Number(r.spend_category_id) : null,
   }));
+}
+
+/**
+ * Who will actually decide an entry routed to Pending Approval, for `catalog_entry.approver_name`.
+ *
+ * Every path that set this field used to write a hardcoded person — 'Daniel Reyes' for country AE,
+ * 'Omar Haddad' for everything else — and the entry detail page showed that invented name to the
+ * user as "Awaiting <name>". Both names were seeded demo accounts; neither had any connection to
+ * the assignment tables the approvals queue actually reads.
+ *
+ * The answer now comes from the same `country_approver` rows that grant authority, honouring
+ * `is_active` and the category scope (a NULL category row covers every category). Returns null —
+ * the UI then says "Awaiting approver" — when nobody is assigned, because inventing a name is
+ * exactly the bug. A global Admin is deliberately NOT named here: an Admin can approve anything,
+ * so naming one would pick an arbitrary system administrator rather than the person responsible.
+ * Whoever really decides is recorded by decideCatalogEntry/bulkDecideEntries anyway.
+ */
+async function resolveApproverLabel(
+  db: CatalogDb,
+  countryCode: string,
+  categoryId: number | null,
+  preloaded?: ApproverScope[],
+): Promise<string | null> {
+  const scopes = preloaded ?? (await loadApproverScopes(null, db));
+  const covering = scopes.filter(
+    (s) => s.country_code === countryCode && (s.spend_category_id === null || s.spend_category_id === categoryId),
+  );
+  if (!covering.length) return null;
+  // Most specific first (a category-scoped assignment beats an all-category one), then by name
+  // so the same entry always resolves to the same person.
+  covering.sort((a, b) => {
+    const specificity = Number(b.spend_category_id != null) - Number(a.spend_category_id != null);
+    return specificity !== 0 ? specificity : a.name.localeCompare(b.name);
+  });
+  return covering[0].name;
 }
 
 /** Does `email` hold authority over this country AND this spend category? A NULL category row = all categories. */
@@ -896,7 +924,17 @@ const ENTRY_SELECT = `
   LEFT JOIN rate_version rv ON rv.entry_id = e.id AND rv.version_no = e.current_version_no
 `;
 
-function mapEntry(row: QueryResultRow): CatalogEntry {
+/**
+ * The live USD rates, from the `currency` table an admin maintains — NOT the code constants.
+ * Every conversion that feeds the approval tier has to read these, or an edited rate changes
+ * nothing about how entries are routed.
+ */
+async function loadCurrencyRates(db: CatalogDb = poolDb): Promise<UsdRates> {
+  const rows = await db.sql<{ code: string; usd_rate: string | number }[]>(`SELECT code, usd_rate FROM currency`);
+  return usdRatesFrom(rows);
+}
+
+function mapEntry(row: QueryResultRow, rates: UsdRates): CatalogEntry {
   const price = Number(row.unit_price ?? 0);
   const ccy = String(row.currency_code ?? 'USD');
   return {
@@ -923,7 +961,7 @@ function mapEntry(row: QueryResultRow): CatalogEntry {
     uom_name: row.uom_name ?? null,
     unit_price: price,
     currency_code: ccy,
-    usd_equivalent: toUsd(price, ccy),
+    usd_equivalent: toUsd(price, ccy, rates),
     effective_date: row.effective_date ? String(row.effective_date).slice(0, 10) : '',
     expiry_date: row.expiry_date ? String(row.expiry_date).slice(0, 10) : null,
     status: row.status as CatalogStatus,
@@ -958,8 +996,11 @@ export async function listCatalogEntries(filters: CatalogListFilters = {}): Prom
     where = `WHERE e.country_code = ?`;
     params.push(filters.country);
   }
-  const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} ${where} ORDER BY e.modified_at DESC`, params);
-  return rows.map(mapEntry);
+  const [rows, rates] = await Promise.all([
+    sql<QueryResultRow[]>(`${ENTRY_SELECT} ${where} ORDER BY e.modified_at DESC`, params),
+    loadCurrencyRates(),
+  ]);
+  return rows.map((r) => mapEntry(r, rates));
 }
 
 /**
@@ -1186,7 +1227,7 @@ export async function getCatalogEntry(id: number): Promise<CatalogEntry | null> 
   if (!(await optionalCatalogActor())) return null;
   const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [id]);
   if (!rows[0]) return null;
-  const entry = mapEntry(rows[0]);
+  const entry = mapEntry(rows[0], await loadCurrencyRates());
 
   const docs = await sql<QueryResultRow[]>(
     `SELECT id, file_name, doc_type, size_label, (data_url IS NOT NULL) AS has_file, uploaded_by
@@ -1286,6 +1327,7 @@ export async function getCatalogManagerDashboardData(country = 'ALL'): Promise<C
   ]);
 
   const total = totals[0] ?? { active_count: 0, supplier_count: 0, category_count: 0, pending_count: 0, expiring_count: 0 };
+  const rates = await loadCurrencyRates();
 
   return {
     scope: country === 'ALL' ? 'all operating countries' : (countryRows[0]?.name ?? country),
@@ -1295,7 +1337,7 @@ export async function getCatalogManagerDashboardData(country = 'ALL'): Promise<C
     expiringCount: Number(total.expiring_count ?? 0),
     pendingCount: Number(total.pending_count ?? 0),
     byCategory: byCategoryRows.map((r) => ({ name: String(r.name), count: Number(r.count) })),
-    expiringSoon: expiringRows.map(mapEntry),
+    expiringSoon: expiringRows.map((r) => mapEntry(r, rates)),
     recent,
   };
 }
@@ -1375,11 +1417,11 @@ async function insertCatalogEntry(
 ): Promise<{ id: number; code: string; status: CatalogStatus }> {
   const supplierId = await upsertSupplier(input.supplier_name, input.supplier_code, input.manager, db);
   const { categoryId, spendType, subId, uomId } = await resolveRefs(input, db);
-  const usd = toUsd(input.unit_price, input.currency_code);
+  const usd = toUsd(input.unit_price, input.currency_code, await loadCurrencyRates(db));
   const threshold = effectiveThresholdUsd(await loadThresholdRules(db), input.country_code, categoryId);
   const tier = approvalTier(usd, threshold);
   const status: CatalogStatus = mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
-  const approver = status === 'Pending Approval' ? (input.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
+  const approver = status === 'Pending Approval' ? await resolveApproverLabel(db, input.country_code, categoryId) : null;
 
   const ins = await db.sql<{ id: number; code: string }[]>(
     `INSERT INTO catalog_entry
@@ -1459,11 +1501,11 @@ export async function updateCatalogEntry(input: CatalogEntryInput, mode: 'draft'
 
     const supplierId = await upsertSupplier(input.supplier_name, input.supplier_code, input.manager, db);
     const { categoryId, spendType, subId, uomId } = await resolveRefs(input, db);
-    const usd = toUsd(input.unit_price, input.currency_code);
+    const usd = toUsd(input.unit_price, input.currency_code, await loadCurrencyRates(db));
     const threshold = effectiveThresholdUsd(await loadThresholdRules(db), input.country_code, categoryId);
     const tier = approvalTier(usd, threshold);
     const status: CatalogStatus = mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
-    const approver = status === 'Pending Approval' ? (input.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
+    const approver = status === 'Pending Approval' ? await resolveApproverLabel(db, input.country_code, categoryId) : null;
 
     await db.exec(
       `UPDATE catalog_entry SET
@@ -1496,11 +1538,11 @@ export async function submitForApproval(entryId: number): Promise<void> {
     const db = dbOn(client);
     const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
     if (!rows[0]) throw new Error('Entry not found.');
-    const e = mapEntry(rows[0]);
+    const e = mapEntry(rows[0], await loadCurrencyRates(db));
     const threshold = effectiveThresholdUsd(await loadThresholdRules(db), e.country_code, e.category_id);
     const tier = approvalTier(e.usd_equivalent, threshold);
     const next: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
-    const approver = next === 'Pending Approval' ? (e.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
+    const approver = next === 'Pending Approval' ? await resolveApproverLabel(db, e.country_code, e.category_id) : null;
     await db.exec(`UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
       [next, approver, actor.name, entryId]);
     await writeAudit('Status change', e.code, actor.name, actor.email, `${e.status} → ${next}`, db);
@@ -1515,7 +1557,7 @@ export async function decideCatalogEntry(entryId: number, decision: 'approve' | 
     const db = dbOn(client);
     const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
     if (!rows[0]) throw new Error('Entry not found.');
-    const e = mapEntry(rows[0]);
+    const e = mapEntry(rows[0], await loadCurrencyRates(db));
 
     const acting = await catalogActingIdentity(actor, e.country_code, e.category_id, undefined, db);
     if (!acting.allowed) {
@@ -1583,22 +1625,6 @@ export interface CatalogImportResult {
   log: string[];
 }
 
-function normalizeImportDate(raw: string | null): string | null {
-  if (!raw) return null;
-  const t = String(raw).trim();
-  if (!t || t.startsWith('=')) return null;
-  const parts = t.split(/[/-]/);
-  if (parts.length === 3 && parts.every((p) => p.trim() !== '')) {
-    // YYYY-MM-DD when the first part is a 4-digit year; otherwise DD-MM-YYYY / DD/MM/YYYY.
-    const [d, m, y] = parts[0].length === 4 ? [parts[2], parts[1], parts[0]] : parts;
-    const dt = new Date(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
-    if (!Number.isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
-  }
-  const dt = new Date(t);
-  if (!Number.isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
-  return null;
-}
-
 export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]; filename: string }): Promise<CatalogImportResult> {
   const actor = await requireCatalogActor('Contributor');
 
@@ -1613,8 +1639,9 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
   const countries = await db.sql<{ code: string; name: string }[]>(`SELECT code, name FROM country`);
   const countryByCode = new Map(countries.map((c) => [c.code.toUpperCase(), c.code]));
   const countryByName = new Map(countries.map((c) => [c.name.toLowerCase(), c.code]));
-  const ccyRows = await db.sql<{ code: string }[]>(`SELECT code FROM currency`);
+  const ccyRows = await db.sql<{ code: string; usd_rate: string | number }[]>(`SELECT code, usd_rate FROM currency`);
   const ccySet = new Set(ccyRows.map((c) => c.code.toUpperCase()));
+  const rates = usdRatesFrom(ccyRows);
   const uomRows = await db.sql<{ id: number; name: string }[]>(`SELECT id, name FROM unit_of_measure`);
   const uomByName = new Map(uomRows.map((u) => [u.name.toLowerCase(), u]));
   const catRows = await db.sql<{ id: number; name: string; type: string }[]>(`SELECT id, name, type FROM spend_category`);
@@ -1623,6 +1650,8 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
   const incotermSet = new Set(INCOTERM_CODES);
 
   const thresholdRules = await loadThresholdRules(db);
+  // Who a routed row lands on — loaded once for the whole file, not once per row.
+  const approverScopes = await loadApproverScopes(null, db);
   let inserted = 0, skipped = 0, errors = 0;
   const log: string[] = [];
 
@@ -1709,11 +1738,13 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
       const itemName = description ?? commodity;
 
       const eff = normalizeImportDate(r.effective_date);
-      if (!eff) { errors++; log.push(`❌ Row ${r.rowIndex}: invalid effective date "${r.effective_date}"`); continue; }
+      if (!eff) { errors++; log.push(`❌ Row ${r.rowIndex}: invalid effective date "${r.effective_date}" — ${IMPORT_DATE_FORMATS_HINT}`); continue; }
       let exp: string | null = null;
       if (r.expiry_date?.trim()) {
         exp = normalizeImportDate(r.expiry_date);
-        if (!exp) { errors++; log.push(`❌ Row ${r.rowIndex}: invalid expiry date "${r.expiry_date}"`); continue; }
+        if (!exp) { errors++; log.push(`❌ Row ${r.rowIndex}: invalid expiry date "${r.expiry_date}" — ${IMPORT_DATE_FORMATS_HINT}`); continue; }
+        // Both are 'YYYY-MM-DD', so a string comparison is a date comparison.
+        if (exp < eff) { errors++; log.push(`❌ Row ${r.rowIndex}: expiry date ${exp} is before the effective date ${eff}`); continue; }
       }
 
       await client.query(`SAVEPOINT ${ROW_SAVEPOINT}`);
@@ -1731,10 +1762,10 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
       }
 
       const supplierId = await upsertSupplier(supplier, supplierCode, manager, db);
-      const usd = toUsd(r.unit_price, ccy);
+      const usd = toUsd(r.unit_price, ccy, rates);
       const tier = approvalTier(usd, effectiveThresholdUsd(thresholdRules, countryCode, categoryId));
       const status: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
-      const approver = status === 'Pending Approval' ? (countryCode === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
+      const approver = status === 'Pending Approval' ? await resolveApproverLabel(db, countryCode, categoryId, approverScopes) : null;
       const sirionUrl = sirionUrlFor(sirion);
 
       const ins = await db.sql<{ id: number; code: string }[]>(
@@ -1855,12 +1886,13 @@ export async function bulkDecideEntries(entryIds: number[], comment: string): Pr
     const db = dbOn(client);
     // Load the actor's (and their delegators') authority rows once for the whole batch.
     const scopes = await loadApproverScopes([actor.email, ...(actor.delegatedFrom ?? []).map((d) => d.email)], db);
+    const rates = await loadCurrencyRates(db);
 
     let approved = 0;
     for (const id of entryIds) {
       const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [id]);
       if (!rows[0]) continue;
-      const e = mapEntry(rows[0]);
+      const e = mapEntry(rows[0], rates);
       if (e.status !== 'Pending Approval') continue;
       const acting = await catalogActingIdentity(actor, e.country_code, e.category_id, scopes, db);
       if (!acting.allowed) continue;
@@ -2560,7 +2592,8 @@ export async function getSupplierProfile(supplierId: number): Promise<SupplierPr
   const supplier = sup[0];
 
   const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.supplier_id = ? ORDER BY e.modified_at DESC`, [supplierId]);
-  const entries = rows.map(mapEntry);
+  const rates = await loadCurrencyRates();
+  const entries = rows.map((r) => mapEntry(r, rates));
   const active = entries.filter((e) => e.status === 'Active');
   const countryMap = new Map<string, { code: string; name: string; flag: string | null }>();
   entries.forEach((e) => countryMap.set(e.country_code, { code: e.country_code, name: e.country_name, flag: e.country_flag }));
@@ -2610,15 +2643,17 @@ export async function bulkSubmitEntries(entryIds: number[]): Promise<{ count: nu
   return withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
     const rules = await loadThresholdRules(db);
+    const rates = await loadCurrencyRates(db);
+    const approverScopes = await loadApproverScopes(null, db);
     let count = 0;
     for (const id of entryIds) {
       const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [id]);
       if (!rows[0]) continue;
-      const e = mapEntry(rows[0]);
+      const e = mapEntry(rows[0], rates);
       if (e.status !== 'Draft' && e.status !== 'Rejected') continue;
       const tier = approvalTier(e.usd_equivalent, effectiveThresholdUsd(rules, e.country_code, e.category_id));
       const next: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
-      const approver = next === 'Pending Approval' ? (e.country_code === 'AE' ? 'Daniel Reyes' : 'Omar Haddad') : null;
+      const approver = next === 'Pending Approval' ? await resolveApproverLabel(db, e.country_code, e.category_id, approverScopes) : null;
       await db.exec(`UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [next, approver, actor.name, id]);
       await writeAudit('Status change', e.code, actor.name, actor.email, `${e.status} → ${next} (bulk)`, db);
       count++;

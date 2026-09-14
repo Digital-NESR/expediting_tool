@@ -3,6 +3,7 @@
 import pool from '@/lib/db';
 import { getCachedSession } from '@/lib/session';
 import { isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
+import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
 import type { BuyerRow, SupplierRow, RecentSession, WeeklyRateRow, SupplierResponseTimeRow } from './adminAnalytics';
 
 /* ─── Access ─────────────────────────────────────────────────── */
@@ -64,69 +65,68 @@ export interface FilterOptions {
   suppliers: string[];
 }
 
-/* ─── WHERE-clause builder ──────────────────────────────────── */
+/* ─── Filter-condition builders ─────────────────────────────── */
 
-function buildWhereClause(
-  filters: TeamAnalyticsFilters,
-  paramOffset = 0,
-  tableAliases: { ae?: string; es?: string; s?: string } = {},
-) {
+/** `WHERE ` + the conditions, or '' when there are none. */
+function whereOf(conditions: string[]): string {
+  return conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+}
+
+/**
+ * Conditions for line-level queries over `active_expediting`.
+ *
+ * Every filter now reads the dispatch-time SNAPSHOT on `ae` — country, p_group
+ * and supplier_name included. They used to reference the `s` alias of
+ * `sap_open_po_master`, which n8n truncates and reloads nightly with only
+ * currently-open POs, so a line whose PO had since closed could not match any
+ * filter and disappeared from every total. Returning `conditions` rather than a
+ * pre-joined `WHERE ...` string lets each call site splice them into whatever
+ * clause it needs (a WHERE, or a LEFT JOIN's ON) without string-patching.
+ */
+function buildLineConditions(filters: TeamAnalyticsFilters, paramOffset = 0, alias = 'ae') {
   const conditions: string[] = [];
   const params: unknown[] = [];
   let idx = paramOffset + 1;
 
-  const ae = tableAliases.ae || 'ae';
-  const es = tableAliases.es || 'es';
-  const s  = tableAliases.s  || 's';
-
   if (filters.dateFrom) {
-    conditions.push(`${ae}.dispatched_at >= $${idx}`);
+    conditions.push(`${alias}.dispatched_at >= $${idx}`);
     params.push(filters.dateFrom);
     idx++;
   }
   if (filters.dateTo) {
-    conditions.push(`${ae}.dispatched_at <= $${idx}::date + interval '1 day'`);
+    conditions.push(`${alias}.dispatched_at <= $${idx}::date + interval '1 day'`);
     params.push(filters.dateTo);
     idx++;
   }
   if (filters.buyerEmails?.length) {
-    conditions.push(`${ae}.dispatched_by = ANY($${idx})`);
+    conditions.push(`${alias}.dispatched_by = ANY($${idx})`);
     params.push(filters.buyerEmails);
     idx++;
   }
   if (filters.countries?.length) {
-    conditions.push(`${s}.country = ANY($${idx})`);
+    conditions.push(`${alias}.country = ANY($${idx})`);
     params.push(filters.countries);
     idx++;
   }
   if (filters.segments?.length) {
-    conditions.push(`${s}.p_group = ANY($${idx})`);
+    conditions.push(`${alias}.p_group = ANY($${idx})`);
     params.push(filters.segments);
     idx++;
   }
   if (filters.supplierNames?.length) {
-    conditions.push(`${s}.supplier_name = ANY($${idx})`);
+    conditions.push(`${alias}.supplier_name = ANY($${idx})`);
     params.push(filters.supplierNames);
     idx++;
   }
 
-  return {
-    where: conditions.length ? 'WHERE ' + conditions.join(' AND ') : '',
-    params,
-    nextIdx: idx,
-  };
+  return { conditions, params, nextIdx: idx };
 }
 
 /**
- * Build a WHERE clause for session-only queries (expediting_sessions).
- * Only dateFrom, dateTo, and buyerEmails apply here since sessions
- * don't join to sap_open_po_master.
+ * Conditions for session-level queries (`expediting_sessions`). Only dateFrom,
+ * dateTo and buyerEmails apply: a session row carries no line attributes.
  */
-function buildSessionWhereClause(
-  filters: TeamAnalyticsFilters,
-  paramOffset = 0,
-  alias = 'es',
-) {
+function buildSessionConditions(filters: TeamAnalyticsFilters, paramOffset = 0, alias = 'es') {
   const conditions: string[] = [];
   const params: unknown[] = [];
   let idx = paramOffset + 1;
@@ -147,15 +147,23 @@ function buildSessionWhereClause(
     idx++;
   }
 
-  return {
-    where: conditions.length ? 'WHERE ' + conditions.join(' AND ') : '',
-    params,
-    nextIdx: idx,
-  };
+  return { conditions, params, nextIdx: idx };
 }
 
 /* ─── getTeamAnalyticsData ──────────────────────────────────── */
 
+/**
+ * The single cross-buyer analytics query set. `adminAnalytics.getExpeditingAnalytics`
+ * was a filter-less clone of this and has been deleted; the admin panel now calls
+ * this with `{}`.
+ *
+ * That merge does NOT widen what the admin panel exposes: the panel already called
+ * this action directly for every filtered refresh, so `hasPoTeamAccess` was already
+ * the effective gate on this data for admin-panel users. What it does change is that
+ * the unfiltered admin view is now reachable by an approved PO user too — which is
+ * exactly the gate `/po-expediting/team-analytics` needs, since that page is offered
+ * to every approved buyer and would break under an admin-only guard.
+ */
 export async function getTeamAnalyticsData(
   filters: TeamAnalyticsFilters,
 ): Promise<TeamAnalyticsData> {
@@ -182,33 +190,44 @@ export async function getTeamAnalyticsData(
   if (!(await hasPoTeamAccess())) return empty;
 
   try {
-    /* Build filter clauses for the different query shapes */
-    const kpiWhere = buildWhereClause(filters, 0, { ae: 'ae', s: 's' });
-    const buyerSessionWhere = buildSessionWhereClause(filters, 0, 'es');
-    const supplierWhere = buildWhereClause(filters, 0, { ae: 'ae', s: 's' });
-    const sessionsWhere = buildSessionWhereClause(filters, 0, 'es');
-    const weeklyWhere = buildSessionWhereClause(filters, 0, 'es');
-    const responseTimeWhere = buildWhereClause(filters, 0, { ae: 'ae', s: 's' });
+    await ensureActiveExpeditingColumns();
 
-    const [kpiRes, buyerRes, supplierRes, sessionsRes, weeklyRes, responseTimeRes] =
+    /* One line-level condition set and one session-level set, reused by every
+       query below. The six queries used to rebuild these independently. */
+    const line = buildLineConditions(filters);
+    const session = buildSessionConditions(filters);
+
+    /* Response-time query: the shared filters plus its own guards, appended as
+       conditions rather than patched into a finished WHERE string. Note the
+       guard is on responded_at — a line can be 'Submitted' with a NULL
+       responded_at only if it predates that column (see the backfill). */
+    const responseTimeConditions = [
+      ...line.conditions,
+      "ae.workflow_state = 'Submitted'",
+      'ae.dispatched_at IS NOT NULL',
+      'ae.responded_at IS NOT NULL',
+    ];
+
+    const [kpiRes, buyerRes, supplierRes, sessionsRes, weeklyRes, responseTimeRes, emailsRes] =
       await Promise.all([
 
-        /* ── KPI block ── */
+        /* ── KPI block ──
+           No join to sap_open_po_master at all: the supplier name is snapshotted
+           on active_expediting at dispatch, so lines whose PO has since closed
+           still count toward the totals and the response-rate denominator. */
         pool.query(
           `SELECT
              COUNT(DISTINCT ae.expedite_token)                                    AS total_batches,
              COUNT(ae.id)                                                         AS total_lines_expedited,
-             COUNT(DISTINCT s.supplier_name)                                      AS total_suppliers_contacted,
+             COUNT(DISTINCT ae.supplier_name)                                     AS total_suppliers_contacted,
              COUNT(DISTINCT ae.dispatched_by)                                     AS total_active_buyers,
              ROUND(
                COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) * 100.0
                  / NULLIF(COUNT(ae.id), 0), 1
              )                                                                    AS overall_response_rate
            FROM active_expediting ae
-           JOIN sap_open_po_master s
-             ON ae.po_number = s.po_number AND ae.po_line = s.po_line
-           ${kpiWhere.where}`,
-          kpiWhere.params,
+           ${whereOf(line.conditions)}`,
+          line.params,
         ),
 
         /* ── Buyer breakdown ── */
@@ -225,17 +244,17 @@ export async function getTeamAnalyticsData(
              ROUND(AVG(es.response_rate_pct), 1)      AS avg_response_rate
            FROM user_profiles up
            LEFT JOIN expediting_sessions es ON es.dispatched_by = up.email
-             ${buyerSessionWhere.where ? 'AND ' + buyerSessionWhere.where.replace(/^WHERE /, '') : ''}
+             ${session.conditions.length ? 'AND ' + session.conditions.join(' AND ') : ''}
            GROUP BY up.email, up.display_name, up.job_title, up.last_active_at
            HAVING COUNT(es.id) > 0
            ORDER BY total_lines DESC`,
-          buyerSessionWhere.params,
+          session.params,
         ),
 
         /* ── Supplier breakdown ── */
         pool.query(
           `SELECT
-             s.supplier_name,
+             ae.supplier_name,
              COUNT(DISTINCT ae.expedite_token)                                    AS times_expedited,
              COUNT(ae.id)                                                         AS total_lines,
              COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END)          AS lines_responded,
@@ -243,14 +262,12 @@ export async function getTeamAnalyticsData(
                COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) * 100.0
                  / NULLIF(COUNT(ae.id), 0), 1
              )                                                                    AS response_rate,
-             MAX(CASE WHEN ae.workflow_state = 'Submitted' THEN ae.updated_at END) AS last_response
+             MAX(ae.responded_at)                                                 AS last_response
            FROM active_expediting ae
-           JOIN sap_open_po_master s
-             ON ae.po_number = s.po_number AND ae.po_line = s.po_line
-           ${supplierWhere.where}
-           GROUP BY s.supplier_name
+           ${whereOf(line.conditions)}
+           GROUP BY ae.supplier_name
            ORDER BY response_rate DESC NULLS LAST`,
-          supplierWhere.params,
+          line.params,
         ),
 
         /* ── Recent sessions ── */
@@ -268,10 +285,10 @@ export async function getTeamAnalyticsData(
              up.display_name
            FROM expediting_sessions es
            LEFT JOIN user_profiles up ON up.email = es.dispatched_by
-           ${sessionsWhere.where}
+           ${whereOf(session.conditions)}
            ORDER BY es.dispatched_at DESC
            LIMIT 20`,
-          sessionsWhere.params,
+          session.params,
         ),
 
         /* ── Weekly expediting vs responses trend ── */
@@ -283,51 +300,38 @@ export async function getTeamAnalyticsData(
              ROUND(AVG(es.response_rate_pct), 1)    AS avg_response_rate,
              COUNT(*)                               AS sessions_count
            FROM expediting_sessions es
-           ${weeklyWhere.where}
+           ${whereOf(session.conditions)}
            GROUP BY DATE_TRUNC('week', es.dispatched_at)
            ORDER BY week ASC`,
-          weeklyWhere.params,
+          session.params,
         ),
 
-        /* ── Avg response time by supplier ── */
-        (() => {
-          const base = buildWhereClause(filters, 0, { ae: 'ae', s: 's' });
-          const extraConditions = [
-            "ae.workflow_state = 'Submitted'",
-            'ae.dispatched_at IS NOT NULL',
-            'ae.updated_at IS NOT NULL',
-          ];
-          const combined = base.where
-            ? base.where + ' AND ' + extraConditions.join(' AND ')
-            : 'WHERE ' + extraConditions.join(' AND ');
+        /* ── Avg response time by supplier ──
+           responded_at, not updated_at: saveBuyerComment bumps updated_at, so
+           every buyer note used to shorten the supplier's apparent turnaround. */
+        pool.query(
+          `SELECT
+             ae.supplier_name,
+             ROUND(AVG(
+               EXTRACT(EPOCH FROM (ae.responded_at - ae.dispatched_at)) / 86400
+             ), 1) AS avg_days_to_respond,
+             COUNT(*) AS responses_count
+           FROM active_expediting ae
+           ${whereOf(responseTimeConditions)}
+           GROUP BY ae.supplier_name
+           ORDER BY avg_days_to_respond ASC`,
+          line.params,
+        ),
 
-          return pool.query(
-            `SELECT
-               s.supplier_name,
-               ROUND(AVG(
-                 EXTRACT(EPOCH FROM (ae.updated_at - ae.dispatched_at)) / 86400
-               ), 1) AS avg_days_to_respond,
-               COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) AS responses_count
-             FROM active_expediting ae
-             JOIN sap_open_po_master s
-               ON ae.po_number = s.po_number AND ae.po_line = s.po_line
-             ${combined}
-             GROUP BY s.supplier_name
-             HAVING COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) > 0
-             ORDER BY avg_days_to_respond ASC`,
-            base.params,
-          );
-        })(),
+        /* ── Total emails ── folded into the parallel batch; it used to run
+           serially after all six others for no reason. */
+        pool.query(
+          `SELECT COALESCE(SUM(es.total_emails_sent), 0) AS total_emails
+           FROM expediting_sessions es
+           ${whereOf(session.conditions)}`,
+          session.params,
+        ),
       ]);
-
-    /* ── Compute total emails from a separate session-based query ── */
-    const emailsWhere = buildSessionWhereClause(filters, 0, 'es');
-    const emailsRes = await pool.query(
-      `SELECT COALESCE(SUM(es.total_emails_sent), 0) AS total_emails
-       FROM expediting_sessions es
-       ${emailsWhere.where}`,
-      emailsWhere.params,
-    );
 
     const kpi = kpiRes.rows[0] ?? {};
 
@@ -404,6 +408,13 @@ export async function getFilterOptions(): Promise<FilterOptions> {
   if (!(await hasPoTeamAccess())) return empty;
 
   try {
+    await ensureActiveExpeditingColumns();
+
+    /* Every dropdown is drawn from the SAME snapshot columns the filters now match
+       on. Reading country/segment from sap_open_po_master instead would offer
+       values no expedited line carries, and — because that table is reloaded
+       nightly with only still-open POs — would omit values that only closed lines
+       carry, making them unfilterable. */
     const [buyersRes, countriesRes, segmentsRes, suppliersRes] = await Promise.all([
       pool.query(`
         SELECT up.email AS value, COALESCE(up.display_name, up.email) AS label
@@ -415,26 +426,24 @@ export async function getFilterOptions(): Promise<FilterOptions> {
       `),
 
       pool.query(`
-        SELECT DISTINCT s.country
-        FROM sap_open_po_master s
-        WHERE s.country IS NOT NULL AND s.country <> ''
-        ORDER BY s.country ASC
+        SELECT DISTINCT ae.country
+        FROM active_expediting ae
+        WHERE ae.country IS NOT NULL AND ae.country <> ''
+        ORDER BY ae.country ASC
       `),
 
       pool.query(`
-        SELECT DISTINCT s.p_group
-        FROM sap_open_po_master s
-        WHERE s.p_group IS NOT NULL AND s.p_group <> ''
-        ORDER BY s.p_group ASC
+        SELECT DISTINCT ae.p_group
+        FROM active_expediting ae
+        WHERE ae.p_group IS NOT NULL AND ae.p_group <> ''
+        ORDER BY ae.p_group ASC
       `),
 
       pool.query(`
-        SELECT DISTINCT s.supplier_name
-        FROM sap_open_po_master s
-        JOIN active_expediting ae
-          ON ae.po_number = s.po_number AND ae.po_line = s.po_line
-        WHERE s.supplier_name IS NOT NULL AND s.supplier_name <> ''
-        ORDER BY s.supplier_name ASC
+        SELECT DISTINCT ae.supplier_name
+        FROM active_expediting ae
+        WHERE ae.supplier_name IS NOT NULL AND ae.supplier_name <> ''
+        ORDER BY ae.supplier_name ASC
       `),
     ]);
 

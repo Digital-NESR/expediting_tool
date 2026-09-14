@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
 } from 'recharts';
-import { usdFmt, fmtDate, BUCKET_HEX, ALERT_LABEL } from '@/lib/tite-utils';
+import { usdFmt, fmtDate, BUCKET_HEX, ALERT_LABEL, shipmentAlertLevel } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
 
 /* ─── Constants ─────────────────────────────────────────────────── */
@@ -39,23 +39,6 @@ const ALERT_FILTER_OPTIONS = [
 ];
 
 /* Client-side alert level derived from effective expiry, not the stored column */
-function calcClientAlertLevel(s: Shipment): string {
-  if (s.status === 'Closed' || s.status === 'Closed - Refund Recovered') return 'closed';
-  const effective = s.extended_date || s.expiry_date;
-  if (!effective) return 'info';
-  const today = new Date();
-  const todayUtc  = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  const [ey, em, ed] = effective.split('-').map(Number);
-  const expiryUtc = Date.UTC(ey, em - 1, ed);
-  const days = (expiryUtc - todayUtc) / 86400000;
-  if (days < 0)   return 'overdue';
-  if (days <= 7)  return 'urgent';
-  if (days <= 14) return 'action';
-  if (days <= 30) return 'plan';
-  if (days <= 60) return 'info';
-  return 'ok';
-}
-
 /* ─── Report definitions ─────────────────────────────────────────── */
 interface ColDef { key: string; label: string; }
 interface ReportDef {
@@ -355,7 +338,7 @@ export default function TiteAnalyticsClient({ shipments }: { shipments: Shipment
   const filtered = useMemo(() => {
     if (!shipments) return [];
     return shipments
-      .map(s => ({ ...s, alert_level: calcClientAlertLevel(s) }))
+      .map(s => ({ ...s, alert_level: shipmentAlertLevel(s) as string }))
       .filter(s => {
         if (filterCountry  && s.country       !== filterCountry)  return false;
         if (filterSegment  && s.segment       !== filterSegment)  return false;

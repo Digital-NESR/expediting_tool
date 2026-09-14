@@ -2,40 +2,25 @@ import type { Metadata } from 'next';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getAllTiteCountries } from '@/app/actions/tite';
+import { TITE_COUNTRY_VALUES } from '@/lib/tite-constants';
+import { getToolScope } from '@/lib/tool-scope';
 import NewShipmentClient from './NewShipmentClient';
 
 export const metadata: Metadata = { title: 'NESR | Add Shipment - TI-TE' };
 
-const TITE_FALLBACK_COUNTRIES = [
-  'Saudi Arabia (KSA)',
-  'United Arab Emirates (UAE)',
-  'Qatar',
-  'Kuwait',
-  'Oman',
-  'Bahrain',
-  'Egypt',
-  'Algeria',
-  'Iraq',
-  'Libya',
-  'Chad',
-  'Congo',
-  'Other',
-];
-
 export default async function NewShipmentPage() {
   const session = await getServerSession(authOptions);
-  const email = session?.user?.email ?? '';
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = adminEmails.includes(email.toLowerCase());
+  const scope = getToolScope(session, 'tite');
 
+  /* An admin picks from the canonical list plus anything already in the data; a
+     scoped user may only create shipments for a country they can EDIT, so a
+     view-only user is offered nothing. */
   let countryOptions: string[];
-  if (isAdmin) {
+  if (scope.isAdmin) {
     const dbCountries = await getAllTiteCountries();
-    const merged = [...new Set([...TITE_FALLBACK_COUNTRIES, ...dbCountries])].sort();
-    countryOptions = merged;
+    countryOptions = [...new Set([...TITE_COUNTRY_VALUES, ...dbCountries])].sort();
   } else {
-    countryOptions = session?.user?.toolAccess?.tite?.approvedCountries ?? [];
+    countryOptions = scope.approvedCountries.filter(c => scope.canEdit(c));
   }
 
   const creatorName  = session?.user?.name  ?? '';
@@ -44,7 +29,7 @@ export default async function NewShipmentPage() {
   return (
     <NewShipmentClient
       countryOptions={countryOptions}
-      isAdmin={isAdmin}
+      isAdmin={scope.isAdmin}
       creatorName={creatorName}
       creatorEmail={creatorEmail}
     />

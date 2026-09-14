@@ -6,8 +6,9 @@ import type { PoolClient } from 'pg';
 import { authOptions } from '@/lib/auth';
 import snsPool from '@/lib/db-sns';
 import { ROLES } from '@/app/sns-registry/lib/constants';
-import { addDays, parseISODate, toISODate, today } from '@/app/sns-registry/lib/date';
-import { countryCode, roleKind } from '@/app/sns-registry/lib/helpers';
+import { addDays, parseISODate, toISODate, today, todayISO } from '@/app/sns-registry/lib/date';
+import { roleKind } from '@/app/sns-registry/lib/helpers';
+import { submissionError, validateForSubmission } from '@/app/sns-registry/lib/validate';
 import type {
   BaseStatus,
   Classification,
@@ -27,6 +28,9 @@ export interface ActionResult {
   success: boolean;
   error?: string;
 }
+
+/** The pool and a transaction client both satisfy this. */
+type Queryable = Pick<PoolClient, 'query'>;
 
 /* ═══ Viewer / permissions ═══════════════════════════════════════ */
 
@@ -53,7 +57,7 @@ export async function getSnsViewer(): Promise<SnsViewer | null> {
   const name = session.user.name ?? email;
 
   if (adminEmails().includes(email.toLowerCase())) {
-    return { email, name, isAdmin: true, role: null, roleKind: 'admin', countries: [] };
+    return { email, name, isAdmin: true, role: null, roleKind: 'admin', countryCodes: [] };
   }
 
   try {
@@ -73,7 +77,7 @@ export async function getSnsViewer(): Promise<SnsViewer | null> {
       isAdmin: false,
       role: r.approved_role as SnsRole,
       roleKind: roleKind(r.approved_role),
-      countries: (r.approved_countries as string[]) ?? [],
+      countryCodes: await normaliseCountryCodes((r.approved_countries as string[]) ?? []),
     };
   } catch (err) {
     console.error('[getSnsViewer]', err);
@@ -81,11 +85,29 @@ export async function getSnsViewer(): Promise<SnsViewer | null> {
   }
 }
 
-/** Empty `countries` means unrestricted — admins, and roles approved globally. */
-function canActInCountry(viewer: SnsViewer, country: string): boolean {
+/**
+ * Resolves an approved-country array to `sns_country.code` values.
+ *
+ * Grants are written as codes, but rows predating that hold display names, so
+ * both are accepted. Deliberately unfiltered by `active`: deactivating a country
+ * must not silently widen or void a live grant. Anything that resolves to
+ * nothing is dropped — an unknown country fails closed rather than matching.
+ */
+async function normaliseCountryCodes(values: string[]): Promise<string[]> {
+  if (values.length === 0) return [];
+  const { rows } = await snsPool.query(
+    `SELECT code FROM sns_country WHERE code = ANY($1) OR name = ANY($1)`,
+    [values],
+  );
+  return rows.map((r) => String(r.code));
+}
+
+/** Empty `countryCodes` means unrestricted — admins, and roles approved globally. */
+function canActInCountry(viewer: SnsViewer, code: string): boolean {
   if (viewer.isAdmin) return true;
-  if (viewer.countries.length === 0) return true;
-  return viewer.countries.includes(country);
+  if (viewer.countryCodes.length === 0) return true;
+  if (!code) return false; // unresolvable country — never in scope for a scoped role
+  return viewer.countryCodes.includes(code);
 }
 
 function isAdminOr(viewer: SnsViewer | null, ...kinds: string[]): boolean {
@@ -176,20 +198,21 @@ export async function getSnsReferenceData(): Promise<ReferenceData> {
 }
 
 /**
- * Country names only, for the request-access form.
+ * Country name/code pairs, for the request-access form.
  *
  * That form is the one S&S screen a user reaches BEFORE they have a viewer, so
  * it cannot read the (now gated) reference tree. This exposes nothing beyond
- * the active country list, to signed-in users only.
+ * the active country list, to signed-in users only. The code travels with the
+ * name because a request is stored by code.
  */
-export async function getSnsCountryOptions(): Promise<string[]> {
+export async function getSnsCountryOptions(): Promise<Country[]> {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return [];
   try {
     const { rows } = await snsPool.query(
-      `SELECT name FROM sns_country WHERE active ORDER BY sort_order, name`,
+      `SELECT code, name FROM sns_country WHERE active ORDER BY sort_order, name`,
     );
-    return rows.map((r) => String(r.name));
+    return rows.map((r) => [String(r.name), String(r.code)] as Country);
   } catch (err) {
     console.error('[getSnsCountryOptions]', err);
     return [];
@@ -214,7 +237,15 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
 
   try {
     const [recs, nodes, segs, hist] = await Promise.all([
-      snsPool.query(`SELECT * FROM sns_record ORDER BY created_at DESC, rid DESC`),
+      /* COALESCE covers records raised before `country_code` existed: fall back
+         to matching the stored display name, with no `active` filter, so a
+         deactivated country still resolves. Unresolvable stays NULL. */
+      snsPool.query(
+        `SELECT r.*, COALESCE(r.country_code, c.code) AS resolved_country_code
+           FROM sns_record r
+           LEFT JOIN sns_country c ON c.name = r.country
+          ORDER BY r.created_at DESC, r.rid DESC`,
+      ),
       snsPool.query(`SELECT * FROM sns_record_node ORDER BY record_rid, sort_order, id`),
       snsPool.query(`SELECT * FROM sns_record_segment ORDER BY record_rid, segment`),
       snsPool.query(`SELECT * FROM sns_record_history ORDER BY record_rid, id`),
@@ -243,6 +274,7 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       rid: Number(r.rid),
       cls: r.classification as Classification,
       country: String(r.country),
+      countryCode: r.resolved_country_code ? String(r.resolved_country_code) : '',
       level: r.scope_level as ScopeLevel,
       nodes: nodesBy.get(Number(r.rid)) ?? [],
       segments: segsBy.get(Number(r.rid)) ?? [],
@@ -252,8 +284,6 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       justification: String(r.justification ?? ''),
       base: r.base_status as BaseStatus,
       spend: Number(r.spend ?? 0),
-      poCount: Number(r.po_count ?? 0),
-      evidence: String(r.evidence ?? 'No attachment'),
       id: r.registry_id ? String(r.registry_id) : null,
       issue: isoOrNull(r.issue_date),
       expiry: isoOrNull(r.expiry_date),
@@ -277,8 +307,72 @@ async function addHistory(
   await client.query(
     `INSERT INTO sns_record_history (record_rid, step, actor, actor_email, entry_date, note)
      VALUES ($1, $2, $3, $4, $5, $6)`,
-    [rid, step, actor, actorEmail, toISODate(today()), note],
+    [rid, step, actor, actorEmail, todayISO(), note],
   );
+}
+
+/**
+ * Rebuilds a stored record into the `Draft` shape so the shared submission
+ * rules can be applied to it. Used when a record is submitted from the detail
+ * screen rather than through the wizard.
+ */
+async function draftFromRecord(client: PoolClient, rec: Record<string, unknown>): Promise<Draft> {
+  const rid = Number(rec.rid);
+  const [nodes, segs] = await Promise.all([
+    client.query(
+      `SELECT category, sub_category, family, commodity FROM sns_record_node
+        WHERE record_rid = $1 ORDER BY sort_order, id`,
+      [rid],
+    ),
+    client.query(`SELECT segment FROM sns_record_segment WHERE record_rid = $1`, [rid]),
+  ]);
+  return {
+    cls: rec.classification as Classification,
+    country: String(rec.country ?? ''),
+    level: rec.scope_level as ScopeLevel,
+    nodes: nodes.rows.map((n) => ({
+      cat: String(n.category), sub: String(n.sub_category), fam: String(n.family), com: String(n.commodity ?? ''),
+    })),
+    segments: segs.rows.map((s) => String(s.segment)),
+    supplierId: String(rec.supplier_id ?? ''),
+    supplierName: String(rec.supplier_name ?? ''),
+    spend: '',
+    reason: String(rec.reason ?? ''),
+    justification: String(rec.justification ?? ''),
+  };
+}
+
+/**
+ * Resolves a country display name to its immutable `sns_country.code`.
+ *
+ * Runs on the caller's transaction client, so the code it returns is the code
+ * the rest of that transaction sees. Deliberately NOT filtered by `active`: a
+ * country that has been retired still has records to sign off, and its code is
+ * already embedded in every Registry ID issued for it.
+ *
+ * Throws when nothing matches. A Registry ID is an immutable identifier on a
+ * compliance record — minting one against a guessed country code would collide
+ * with real IDs, so the sign-off fails instead.
+ */
+async function resolveCountryCode(db: Queryable, country: string): Promise<string> {
+  const { rows } = await db.query(`SELECT code FROM sns_country WHERE name = $1`, [country]);
+  if (rows.length === 0) {
+    throw new UnknownCountryError(country);
+  }
+  return String(rows[0].code);
+}
+
+class UnknownCountryError extends Error {
+  constructor(readonly country: string) {
+    super(`Unknown country: ${country}`);
+    this.name = 'UnknownCountryError';
+  }
+}
+
+function unknownCountryMessage(err: unknown): string | null {
+  return err instanceof UnknownCountryError
+    ? `"${err.country}" is not a country in the S&S reference list. Ask an admin to add it before continuing.`
+    : null;
 }
 
 /**
@@ -286,16 +380,15 @@ async function addHistory(
  *
  * Takes a transaction-scoped advisory lock on the ID prefix so two concurrent
  * Level 2 sign-offs in the same country cannot both read the same maximum and
- * mint a duplicate. The lock releases when the transaction ends.
+ * mint a duplicate. The lock releases when the transaction ends. The year is
+ * the business-timezone year, not the server's.
  */
 async function nextRegistryId(
   client: PoolClient,
   cls: Classification,
-  country: string,
-  countries: Country[],
+  code: string,
 ): Promise<string> {
   const year = today().getFullYear();
-  const code = countryCode(countries, country);
   const prefix = `${cls}-${code}-${year}-`;
 
   await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [prefix]);
@@ -317,12 +410,35 @@ export async function createSnsRecord(draft: Draft, base: 'Draft' | 'Pending Lev
   if (!viewer) return { success: false, error: 'You do not have access to the S&S Registry.' };
   if (!isAdminOr(viewer, 'req')) return { success: false, error: 'Only Requestors can create records.' };
   if (!draft.country) return { success: false, error: 'Select a country.' };
-  if (!canActInCountry(viewer, draft.country)) {
+
+  /* A Draft may be incomplete by definition; a submission may not. The wizard
+     runs the same rules, but it is not the only way in — this action is a
+     public POST endpoint. */
+  if (base === 'Pending Level 1') {
+    const missing = validateForSubmission(draft);
+    if (missing.length) return { success: false, error: submissionError(missing) };
+  } else {
+    if (draft.nodes.length === 0) return { success: false, error: 'Select at least one scope item.' };
+    if (!draft.supplierId || !draft.supplierName) return { success: false, error: 'Supplier SAP ID and name are required.' };
+    if (!draft.reason) return { success: false, error: 'Select a reason code.' };
+  }
+
+  /* Resolving before the transaction keeps the access decision off a held
+     connection. It also validates the country against sns_country, and pins the
+     immutable code onto the record so a later rename cannot move it out of
+     anyone's scope or change the Registry ID it will eventually be issued. */
+  let code: string;
+  try {
+    code = await resolveCountryCode(snsPool, draft.country);
+  } catch (err) {
+    const msg = unknownCountryMessage(err);
+    if (msg) return { success: false, error: msg };
+    console.error('[createSnsRecord] country lookup', err);
+    return { success: false, error: 'Could not save the record.' };
+  }
+  if (!canActInCountry(viewer, code)) {
     return { success: false, error: `You are not approved to raise records for ${draft.country}.` };
   }
-  if (draft.nodes.length === 0) return { success: false, error: 'Select at least one scope item.' };
-  if (!draft.supplierId || !draft.supplierName) return { success: false, error: 'Supplier SAP ID and name are required.' };
-  if (!draft.reason) return { success: false, error: 'Select a reason code.' };
 
   const client = await snsPool.connect();
   try {
@@ -333,14 +449,13 @@ export async function createSnsRecord(draft: Draft, base: 'Draft' | 'Pending Lev
 
     const { rows } = await client.query(
       `INSERT INTO sns_record
-         (classification, country, scope_level, supplier_id, supplier_name, reason,
-          justification, base_status, spend, evidence, requestor, created_by)
+         (classification, country, country_code, scope_level, supplier_id, supplier_name, reason,
+          justification, base_status, spend, requestor, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING rid`,
       [
-        draft.cls, draft.country, draft.level, draft.supplierId, draft.supplierName,
-        draft.reason, draft.justification, base, spend,
-        draft.evidence || 'No attachment', requestor, viewer.email,
+        draft.cls, draft.country, code, draft.level, draft.supplierId, draft.supplierName,
+        draft.reason, draft.justification, base, spend, requestor, viewer.email,
       ],
     );
     const rid = Number(rows[0].rid);
@@ -395,8 +510,13 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(
-      `SELECT rid, classification, country, base_status, registry_id, expiry_date
-         FROM sns_record WHERE rid = $1 FOR UPDATE`,
+      `SELECT r.rid, r.classification, r.country, r.scope_level, r.supplier_id, r.supplier_name,
+              r.reason, r.justification, r.base_status, r.registry_id, r.expiry_date,
+              COALESCE(r.country_code, c.code) AS resolved_country_code
+         FROM sns_record r
+         LEFT JOIN sns_country c ON c.name = r.country
+        WHERE r.rid = $1
+          FOR UPDATE OF r`,
       [rid],
     );
     if (rows.length === 0) {
@@ -405,9 +525,10 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
     }
     const rec = rows[0];
     const country = String(rec.country);
+    const code = rec.resolved_country_code ? String(rec.resolved_country_code) : '';
     const base = String(rec.base_status) as BaseStatus;
 
-    if (!canActInCountry(viewer, country)) {
+    if (!canActInCountry(viewer, code)) {
       await client.query('ROLLBACK');
       return { success: false, error: `You are not approved to act on ${country} records.` };
     }
@@ -418,6 +539,13 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
       if (!isAdminOr(viewer, 'req')) {
         await client.query('ROLLBACK');
         return { success: false, error: 'Only a Requestor can submit this record.' };
+      }
+      /* Same completeness rules as the wizard, from the same module — calling
+         this action directly must not be a way past them. */
+      const missing = validateForSubmission(await draftFromRecord(client, rec));
+      if (missing.length) {
+        await client.query('ROLLBACK');
+        return { success: false, error: submissionError(missing) };
       }
       await client.query(
         `UPDATE sns_record SET base_status = 'Pending Level 1', updated_at = CURRENT_TIMESTAMP WHERE rid = $1`,
@@ -452,14 +580,19 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
           'Original Registry ID retained. Review history kept for audit.',
         );
       } else {
-        const ref = await getSnsReferenceData();
-        const newId = await nextRegistryId(client, rec.classification as Classification, country, ref.countries);
+        /* The Registry ID is immutable once written, so its country token is
+           resolved here, inside the minting transaction, from the code pinned
+           on the record — falling back to a name lookup only for records raised
+           before `country_code` existed. If neither resolves, the sign-off
+           fails rather than minting a guessed, colliding ID. */
+        const mintCode = code || (await resolveCountryCode(client, country));
+        const newId = await nextRegistryId(client, rec.classification as Classification, mintCode);
         await client.query(
           `UPDATE sns_record
               SET base_status = 'Active', issue_date = $2, expiry_date = $3,
-                  registry_id = $4, updated_at = CURRENT_TIMESTAMP
+                  registry_id = $4, country_code = $5, updated_at = CURRENT_TIMESTAMP
             WHERE rid = $1`,
-          [rid, toISODate(now), toISODate(addDays(now, 365)), newId],
+          [rid, toISODate(now), toISODate(addDays(now, 365)), newId, mintCode],
         );
         await addHistory(
           client, rid, `Level 2 sign-off — published to Active as ${newId}`,
@@ -477,13 +610,13 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('[advanceSnsRecord]', err);
-    return { success: false, error: 'Could not update the record.' };
+    return { success: false, error: unknownCountryMessage(err) ?? 'Could not update the record.' };
   } finally {
     client.release();
   }
 }
 
-/** Rejects a pending record back to Draft, recording the reason in the audit trail. */
+/** Rejects a pending record, recording the reason in the audit trail. */
 export async function rejectSnsRecord(rid: number, note: string): Promise<ActionResult> {
   const viewer = await getSnsViewer();
   if (!viewer) return { success: false, error: 'You do not have access to the S&S Registry.' };
@@ -492,7 +625,11 @@ export async function rejectSnsRecord(rid: number, note: string): Promise<Action
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(
-      `SELECT country, base_status FROM sns_record WHERE rid = $1 FOR UPDATE`,
+      `SELECT r.country, r.base_status, COALESCE(r.country_code, c.code) AS resolved_country_code
+         FROM sns_record r
+         LEFT JOIN sns_country c ON c.name = r.country
+        WHERE r.rid = $1
+          FOR UPDATE OF r`,
       [rid],
     );
     if (rows.length === 0) {
@@ -500,6 +637,7 @@ export async function rejectSnsRecord(rid: number, note: string): Promise<Action
       return { success: false, error: 'Record not found.' };
     }
     const country = String(rows[0].country);
+    const code = rows[0].resolved_country_code ? String(rows[0].resolved_country_code) : '';
     const base = String(rows[0].base_status) as BaseStatus;
 
     if (base !== 'Pending Level 1' && base !== 'Pending Level 2') {
@@ -511,7 +649,7 @@ export async function rejectSnsRecord(rid: number, note: string): Promise<Action
       await client.query('ROLLBACK');
       return { success: false, error: 'You are not the validator for this stage.' };
     }
-    if (!canActInCountry(viewer, country)) {
+    if (!canActInCountry(viewer, code)) {
       await client.query('ROLLBACK');
       return { success: false, error: `You are not approved to act on ${country} records.` };
     }
@@ -522,7 +660,8 @@ export async function rejectSnsRecord(rid: number, note: string): Promise<Action
     );
     await addHistory(
       client, rid,
-      `Rejected at ${base === 'Pending Level 1' ? 'Level 1' : 'Level 2'} — returned to Draft`,
+      // The status written is 'Rejected', not 'Draft' — the trail says so.
+      `Rejected at ${base === 'Pending Level 1' ? 'Level 1' : 'Level 2'} — returned to the requestor as Rejected`,
       actorFor(viewer, needed, country), viewer.email,
       note || 'No reason recorded.',
     );
@@ -549,7 +688,11 @@ export async function startSnsReview(rid: number): Promise<ActionResult> {
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(
-      `SELECT country, base_status FROM sns_record WHERE rid = $1 FOR UPDATE`,
+      `SELECT r.country, r.base_status, COALESCE(r.country_code, c.code) AS resolved_country_code
+         FROM sns_record r
+         LEFT JOIN sns_country c ON c.name = r.country
+        WHERE r.rid = $1
+          FOR UPDATE OF r`,
       [rid],
     );
     if (rows.length === 0) {
@@ -557,13 +700,23 @@ export async function startSnsReview(rid: number): Promise<ActionResult> {
       return { success: false, error: 'Record not found.' };
     }
     const country = String(rows[0].country);
+    const code = rows[0].resolved_country_code ? String(rows[0].resolved_country_code) : '';
     const base = String(rows[0].base_status) as BaseStatus;
 
-    if (base === 'Pending Level 1' || base === 'Pending Level 2') {
+    /* A periodic review re-validates something that was already published.
+       Draft and Rejected records have never been signed off, so there is
+       nothing to review — they go through submission instead. */
+    if (base !== 'Active' && base !== 'Extended' && base !== 'Expired') {
       await client.query('ROLLBACK');
-      return { success: false, error: 'This record is already in validation.' };
+      return {
+        success: false,
+        error:
+          base === 'Pending Level 1' || base === 'Pending Level 2'
+            ? 'This record is already in validation.'
+            : `A ${base} record has no published ID to review — submit it for validation instead.`,
+      };
     }
-    if (!canActInCountry(viewer, country)) {
+    if (!canActInCountry(viewer, code)) {
       await client.query('ROLLBACK');
       return { success: false, error: `You are not approved to act on ${country} records.` };
     }
@@ -591,6 +744,38 @@ export async function startSnsReview(rid: number): Promise<ActionResult> {
 }
 
 /* ═══ Access requests ════════════════════════════════════════════ */
+
+/**
+ * Validates a country list against `sns_country` and returns it as codes.
+ *
+ * A grant keyed on a display name breaks the moment an admin renames the
+ * country, so both sides of a request are stored as codes. Names are still
+ * accepted on the way in (the pickers send codes; this keeps older clients and
+ * re-submissions of a legacy request working). Unmatched entries are rejected
+ * rather than silently dropped — a grant must mean exactly what it says.
+ */
+async function checkCountries(values: string[]): Promise<{ codes: string[] } | { error: string }> {
+  if (values.length === 0) return { codes: [] };
+  try {
+    const { rows } = await snsPool.query(
+      `SELECT code, name FROM sns_country WHERE code = ANY($1) OR name = ANY($1)`,
+      [values],
+    );
+    const byKey = new Map<string, string>();
+    for (const r of rows) {
+      byKey.set(String(r.code), String(r.code));
+      byKey.set(String(r.name), String(r.code));
+    }
+    const unknown = values.filter((v) => !byKey.has(v));
+    if (unknown.length) {
+      return { error: `Not a country in the S&S reference list: ${unknown.join(', ')}.` };
+    }
+    return { codes: Array.from(new Set(values.map((v) => byKey.get(v) as string))) };
+  } catch (err) {
+    console.error('[checkCountries]', err);
+    return { error: 'Could not verify the country list.' };
+  }
+}
 
 function mapAccessRow(r: Record<string, unknown>): SnsAccessRequestRow {
   const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v ? String(v) : null);
@@ -648,6 +833,9 @@ export async function submitSnsAccessRequest(
     return { success: false, error: 'Select at least one country.' };
   }
 
+  const checked = await checkCountries(requestedCountries);
+  if ('error' in checked) return { success: false, error: checked.error };
+
   try {
     await snsPool.query(
       `INSERT INTO sns_access_requests
@@ -670,7 +858,7 @@ export async function submitSnsAccessRequest(
         session.user.name ?? email,
         session.user.jobTitle ?? null,
         requestedRole,
-        requestedCountries,
+        checked.codes,
         reason || null,
       ],
     );
@@ -725,13 +913,17 @@ export async function approveSnsAccess(
   if (!admin) return { success: false, error: 'Admins only.' };
   if (!ROLES.includes(approvedRole as SnsRole)) return { success: false, error: 'Select a valid role.' };
 
+  // Empty stays empty — that is the "all countries" grant.
+  const checked = await checkCountries(approvedCountries);
+  if ('error' in checked) return { success: false, error: checked.error };
+
   try {
     const { rowCount } = await snsPool.query(
       `UPDATE sns_access_requests
           SET status = 'Approved', approved_role = $2, approved_countries = $3,
               reviewed_at = CURRENT_TIMESTAMP, reviewed_by = $4
         WHERE LOWER(user_email) = LOWER($1)`,
-      [userEmail, approvedRole, approvedCountries, admin],
+      [userEmail, approvedRole, checked.codes, admin],
     );
     if (!rowCount) return { success: false, error: 'Request not found.' };
     revalidatePath('/admin');

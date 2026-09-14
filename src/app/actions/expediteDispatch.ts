@@ -7,6 +7,7 @@ import pool from '@/lib/db';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import { authOptions } from '@/lib/auth';
 import { normalizeEmail } from '@/lib/require-access';
+import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
 import type { PurchaseOrder } from '@/types/po';
 
 interface WebhookResult { ok: boolean; status?: number; error?: string }
@@ -232,6 +233,8 @@ interface MasterLine {
   po_release_date: Date | string | null;
   supplier_name: string | null;
   supplier_id: string | null;
+  country: string | null;
+  p_group: string | null;
 }
 
 function lineKey(poNumber: unknown, poLine: unknown): string {
@@ -289,6 +292,11 @@ export async function prepareAllExpediteDispatches(
   const groupsIn = Array.isArray(paramsList) ? paramsList : [];
   if (groupsIn.length === 0) return deniedResponse(groupsIn, 'No suppliers to notify.');
 
+  /* Snapshot columns must exist before the inserts below write them. Runs its DDL
+     at most once per process and deliberately OUTSIDE the transaction — an ALTER
+     TABLE on a second connection would block on the transaction's own locks. */
+  await ensureActiveExpeditingColumns();
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
   const results: DispatchResult[] = [];
   const preparedGroups: PreparedGroup[] = [];
@@ -335,7 +343,7 @@ export async function prepareAllExpediteDispatches(
     const masterRows = await pool.query<MasterLine>(
       `SELECT s.po_number, s.po_line, s.item_description, s.open_qty,
               s.open_po_value_usd, s.delivery_date, s.po_release_date,
-              s.supplier_name, s.supplier_id
+              s.supplier_name, s.supplier_id, s.country, s.p_group
          FROM sap_open_po_master s
          JOIN unnest($1::text[], $2::text[]) AS req(po_number, po_line)
            ON s.po_number = req.po_number
@@ -426,12 +434,22 @@ export async function prepareAllExpediteDispatches(
       try {
         for (const item of items) {
           await client.query(
+            /* The master fields are SNAPSHOTTED here, not just referenced: n8n
+               truncates and reloads sap_open_po_master nightly with only the POs
+               still open, so a line's country/segment/description/quantity/value/
+               date are gone from the master the moment the PO closes. Analytics
+               reads these columns so completed work keeps counting. */
             `INSERT INTO active_expediting
                (po_number, po_line, expedite_token, workflow_state,
                 current_status, dispatched_by, dispatched_at,
-                session_ref, supplier_name, supplier_id, created_at, updated_at)
+                session_ref, supplier_name, supplier_id,
+                country, p_group, item_description, open_qty,
+                open_po_value_usd, delivery_date, responded_at,
+                created_at, updated_at)
              VALUES ($1, $2, $3, 'Email Sent', 'Pending Supplier Response',
-                     $4, NOW(), $5, $6, $7, NOW(), NOW())
+                     $4, NOW(), $5, $6, $7,
+                     $8, $9, $10, $11, $12, $13, NULL,
+                     NOW(), NOW())
              ON CONFLICT (po_number, po_line)
              DO UPDATE SET
                expedite_token    = EXCLUDED.expedite_token,
@@ -445,10 +463,21 @@ export async function prepareAllExpediteDispatches(
                session_ref       = EXCLUDED.session_ref,
                supplier_name     = EXCLUDED.supplier_name,
                supplier_id       = EXCLUDED.supplier_id,
+               country           = EXCLUDED.country,
+               p_group           = EXCLUDED.p_group,
+               item_description  = EXCLUDED.item_description,
+               open_qty          = EXCLUDED.open_qty,
+               open_po_value_usd = EXCLUDED.open_po_value_usd,
+               delivery_date     = EXCLUDED.delivery_date,
+               /* Re-expediting resets the line to "awaiting a response", so the
+                  previous supplier response time must not carry over. */
+               responded_at      = NULL,
                updated_at        = NOW()`,
             [item.po_number, item.po_line ?? '', token, userEmail, sessionRef,
              item.supplier_name ?? (supplierName || null),
-             item.supplier_id ?? (supplierId || null)]
+             item.supplier_id ?? (supplierId || null),
+             item.country, item.p_group, item.item_description,
+             item.open_qty, item.open_po_value_usd, item.delivery_date]
           );
         }
         await client.query('RELEASE SAVEPOINT dispatch_group');

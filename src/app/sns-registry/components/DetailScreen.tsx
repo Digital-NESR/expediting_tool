@@ -28,7 +28,7 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
   // Admins carry every role's powers; everyone else acts only inside the
   // countries their access request was approved for.
   const isAdmin = app.viewer.isAdmin;
-  const inScope = app.canActOn(rec.country);
+  const inScope = app.canActOn(rec.countryCode);
   const can = (k: 'req' | 'l1' | 'l2') => inScope && (isAdmin || kind === k);
 
   const actions: { label: string; bg: string; fg: string; border: string; onClick: () => void }[] = [];
@@ -144,19 +144,9 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
                 ))}
               </div>
             </div>
-            <div style={{ padding: '14px 18px', borderBottom: '1px solid #F0F1F1' }}>
+            <div style={{ padding: '14px 18px' }}>
               <div style={{ fontSize: 10.5, fontWeight: 'bold', color: '#58595B', letterSpacing: 0.5 }}>JUSTIFICATION NARRATIVE</div>
               <div style={{ fontSize: 13, lineHeight: 1.55, marginTop: 6 }}>{rec.justification || '—'}</div>
-            </div>
-            <div style={{ padding: '14px 18px' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 'bold', color: '#58595B', letterSpacing: 0.5 }}>EVIDENCE ATTACHMENT</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, background: '#F7F9F8', border: '1px solid #E4E6E6', padding: '10px 12px' }}>
-                <div style={{ width: 28, height: 34, background: '#2A7E4F', color: '#fff', fontSize: 9, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>PDF</div>
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 'bold' }}>{rec.evidence}</div>
-                  <div style={{ fontSize: 11, color: '#58595B' }}>Uploaded by {rec.requestor}</div>
-                </div>
-              </div>
             </div>
           </div>
 

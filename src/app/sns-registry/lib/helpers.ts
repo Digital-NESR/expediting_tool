@@ -2,7 +2,6 @@ import { STATUS_STYLE } from './constants';
 import { daysFromToday } from './date';
 import type {
   Classification,
-  Country,
   DisplayStatus,
   RegistryRecord,
   RoleKind,
@@ -57,11 +56,6 @@ export function leafOf(n: ScopeNode): string {
 
 export function nodePath(n: ScopeNode): string {
   return n.cat + ' › ' + n.sub + (n.com ? ' › ' + n.fam + ' › ' : ' › ');
-}
-
-export function countryCode(countries: Country[], country: string): string {
-  const c = countries.find((x) => x[0] === country);
-  return c ? c[1] : 'GLB';
 }
 
 /* ─── Taxonomy lookups ─────────────────────────────────────────

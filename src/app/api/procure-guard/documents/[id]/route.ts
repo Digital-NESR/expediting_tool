@@ -1,9 +1,10 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { getProcureGuardUser } from '@/lib/auth';
 import procureGuardPool from '@/lib/db-procureguard';
-import { getPermissionProfile, getProcureGuardCountryScopeCountries, normalizeProcureGuardCountry, roleRequiresProcureGuardCountryScope } from '@/lib/procureGuard-utils';
+import { canActorViewRequest } from '@/lib/procure-guard/access';
+import { resolveProcureGuardActorScope } from '@/lib/procure-guard/actor-scope';
 import { attachmentContentDisposition } from '@/lib/contentDisposition';
-import type { ProcureGuardPermissionRole } from '@/types/procureGuard';
+import type { ProcureGuardActor } from '@/types/procureGuard';
 
 const MIME_MAP: Record<string, string> = {
   pdf: 'application/pdf',
@@ -26,24 +27,6 @@ const MIME_MAP: Record<string, string> = {
 function extOf(filename: string): string {
   const parts = filename.split('.');
   return parts.length > 1 ? parts.pop()!.toLowerCase() : '';
-}
-
-function adminEmails(): string[] {
-  return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.PROCURE_GUARD_ADMIN_EMAILS ?? ''}`)
-    .split(',')
-    .map(email => email.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-function normaliseScopeValue(value: string | null | undefined): string {
-  const trimmed = (value ?? '').trim().toLowerCase();
-  const aliases: Record<string, string> = {
-    ksa: 'saudi arabia (ksa)',
-    'saudi arabia': 'saudi arabia (ksa)',
-    uae: 'united arab emirates (uae)',
-    'united arab emirates': 'united arab emirates (uae)',
-  };
-  return aliases[trimmed] ?? trimmed;
 }
 
 export async function GET(
@@ -81,25 +64,29 @@ export async function GET(
     }
 
     const doc = rows[0];
-    const permissionRows = await procureGuardPool.query(
-      'SELECT role, country, segment FROM procure_guard_permissions WHERE LOWER(email) = $1 LIMIT 1',
-      [userEmail],
-    );
-    const permission = permissionRows.rows[0];
-    const role = (permission?.role ?? (adminEmails().includes(userEmail) ? 'Admin' : 'Requester')) as ProcureGuardPermissionRole;
-    const profile = getPermissionProfile(role);
-    const requesterEmails = Array.isArray(doc.requester_notification_emails)
-      ? doc.requester_notification_emails.map((email: string) => email.trim().toLowerCase()).filter(Boolean)
-      : [];
-    const requesterSideAccess = String(doc.requested_by_email ?? '').toLowerCase() === userEmail || requesterEmails.includes(userEmail);
-    const scopedCountries = getProcureGuardCountryScopeCountries(permission?.country);
-    const docCountry = normalizeProcureGuardCountry(doc.country);
-    const countryOk = scopedCountries.length === 0
-      ? !roleRequiresProcureGuardCountryScope(role)
-      : Boolean(docCountry && scopedCountries.includes(docCountry));
-    const segmentOk = !permission?.segment || normaliseScopeValue(permission.segment) === normaliseScopeValue(doc.segment);
 
-    if (!requesterSideAccess && !(profile.canViewAll && countryOk && segmentOk)) {
+    // Resolved the same way the server actions resolve it (permission row AND active delegations),
+    // then judged by the one shared view predicate. This route used to read the permission row on
+    // its own and ignore delegations entirely, so a delegate who could open and approve a request
+    // was refused its attachments.
+    const scope = await resolveProcureGuardActorScope(userEmail, user.name ?? null);
+    const actor: ProcureGuardActor = {
+      email: scope.email,
+      name: scope.permissionName ?? user.name ?? scope.email,
+      isAdmin: scope.role === 'Admin',
+      role: scope.role,
+      permissions: scope.permissions,
+      country: scope.country,
+      segment: scope.segment,
+      reviewGrants: scope.reviewGrants,
+    };
+
+    if (!canActorViewRequest(actor, {
+      requested_by_email: doc.requested_by_email,
+      requester_notification_emails: doc.requester_notification_emails,
+      country: doc.country,
+      segment: doc.segment,
+    })) {
       return new NextResponse('Forbidden', { status: 403 });
     }
 

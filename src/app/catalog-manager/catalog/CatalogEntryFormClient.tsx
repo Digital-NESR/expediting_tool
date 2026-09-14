@@ -6,8 +6,8 @@ import CatalogManagerShell, { type ScopeCountry } from '../components/CatalogMan
 import { Icon } from '../components/CatalogManagerUI';
 import { createCatalogEntry, updateCatalogEntry } from '@/app/actions/catalog-manager';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
-import type { CatalogEntry, SpendType } from '@/types/catalog-manager';
-import { APPROVAL_THRESHOLD_USD, fmtUsd, toUsd, sirionUrlFor, SPEND_TYPE_OPTIONS, INCOTERMS } from '@/lib/catalog-manager-utils';
+import type { ApprovalThresholdRule, CatalogEntry, SpendType } from '@/types/catalog-manager';
+import { effectiveThresholdUsd, fmtUsd, usdRateFor, usdRatesFrom, sirionUrlFor, SPEND_TYPE_OPTIONS, INCOTERMS } from '@/lib/catalog-manager-utils';
 
 interface FormState {
   supplier_name: string;
@@ -45,11 +45,12 @@ const inputCls = (err?: boolean) =>
   `w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none transition-colors focus:ring-2 focus:ring-[#307c4c]/20 ${err ? 'border-red-300 focus:border-red-400' : 'border-slate-300 focus:border-[#307c4c]'}`;
 
 export default function CatalogEntryFormClient({
-  initial, countries, currencies, uoms, managers, scope, pendingCount, roleLabel, canApprove, canAdmin,
+  initial, countries, currencies, uoms, managers, scope, pendingCount, roleLabel, canApprove, canAdmin, thresholds,
 }: {
   initial: CatalogEntry | null;
   countries: ScopeCountry[];
-  currencies: { code: string }[];
+  /** Rates come from the `currency` table, so this preview follows an admin's edit like the server does. */
+  currencies: { code: string; usd_rate: number }[];
   uoms: { name: string }[];
   managers: string[];
   scope: string;
@@ -57,6 +58,8 @@ export default function CatalogEntryFormClient({
   roleLabel: string;
   canApprove: boolean;
   canAdmin: boolean;
+  /** The configured approval thresholds — the preview no longer hardcodes 50k. */
+  thresholds: ApprovalThresholdRule[];
 }) {
   const router = useRouter();
   const isEdit = !!initial;
@@ -132,8 +135,18 @@ export default function CatalogEntryFormClient({
     });
   }
 
-  const usd = f.unit_price ? toUsd(Number(f.unit_price), f.currency_code) : 0;
-  const needsApproval = usd >= APPROVAL_THRESHOLD_USD;
+  // Preview only — the server recomputes both of these from the same tables before it routes
+  // the entry. `rate` is null for a currency with no configured rate, which the server refuses.
+  const rates = useMemo(() => usdRatesFrom(currencies), [currencies]);
+  const categoryIdByName = useMemo(
+    () => new Map(thresholds.filter((t) => t.spend_category_id != null && t.spend_category_name)
+      .map((t) => [t.spend_category_name as string, t.spend_category_id as number] as const)),
+    [thresholds],
+  );
+  const rate = usdRateFor(f.currency_code, rates);
+  const usd = f.unit_price && rate !== null ? Number(f.unit_price) * rate : 0;
+  const thresholdUsd = effectiveThresholdUsd(thresholds, f.country_code, categoryIdByName.get(f.category_name) ?? null);
+  const needsApproval = usd >= thresholdUsd;
 
   function validate(): boolean {
     const e: Record<string, string> = {};
@@ -328,11 +341,17 @@ export default function CatalogEntryFormClient({
             </label>
           </div>
 
-          {f.unit_price && (
+          {f.unit_price && rate === null && (
+            <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-[13px] text-red-700">
+              <Icon name="approve" className="h-4 w-4" />
+              <span className="font-semibold">No USD rate is configured for {f.currency_code} — an admin must add one before this entry can be saved.</span>
+            </div>
+          )}
+          {f.unit_price && rate !== null && (
             <div className={`mt-4 flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-[13px] ${needsApproval ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-[#307c4c]/20 bg-[#307c4c]/10 text-[#1d4f31]'}`}>
               <Icon name={needsApproval ? 'approve' : 'check'} className="h-4 w-4" />
               <span className="font-semibold">{needsApproval ? 'Tier 2 — requires Approver sign-off' : 'Tier 1 — auto-approved on submit'}</span>
-              <span className="ml-auto font-mono text-[12px] text-slate-500">≈ USD {fmtUsd(usd)} · threshold ${APPROVAL_THRESHOLD_USD / 1000}k</span>
+              <span className="ml-auto font-mono text-[12px] text-slate-500">≈ USD {fmtUsd(usd)} · threshold USD {fmtUsd(thresholdUsd)}</span>
             </div>
           )}
 

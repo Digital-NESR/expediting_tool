@@ -8,8 +8,8 @@ import BulkImportPanel from '../import/BulkImportPanel';
 import GridEntryPanel from './GridEntryPanel';
 import { createCatalogEntriesBatch, searchSupplierDirectory, type CatalogEntryLine } from '@/app/actions/catalog-manager';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
-import type { SpendType } from '@/types/catalog-manager';
-import { APPROVAL_THRESHOLD_USD, fmtUsd, toUsd, SPEND_TYPE_OPTIONS, INCOTERMS } from '@/lib/catalog-manager-utils';
+import type { ApprovalThresholdRule, SpendType } from '@/types/catalog-manager';
+import { effectiveThresholdUsd, fmtUsd, usdRateFor, usdRatesFrom, SPEND_TYPE_OPTIONS, INCOTERMS } from '@/lib/catalog-manager-utils';
 
 interface LineState {
   key: number;
@@ -39,10 +39,11 @@ function blankLine(currency: string): LineState {
 }
 
 export default function AddEntriesClient({
-  countries, currencies, uoms, services, managers, scope, initialTab, roleLabel, canApprove, canAdmin, pendingCount,
+  countries, currencies, uoms, services, managers, scope, initialTab, roleLabel, canApprove, canAdmin, pendingCount, thresholds,
 }: {
   countries: ScopeCountry[];
-  currencies: { code: string }[];
+  /** Rates come from the `currency` table, so this preview follows an admin's edit like the server does. */
+  currencies: { code: string; usd_rate: number }[];
   uoms: { name: string }[];
   services: string[];
   managers: string[];
@@ -52,6 +53,8 @@ export default function AddEntriesClient({
   canApprove: boolean;
   canAdmin: boolean;
   pendingCount: number;
+  /** The configured approval thresholds — the preview no longer hardcodes 50k. */
+  thresholds: ApprovalThresholdRule[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<'manual' | 'grid' | 'bulk'>(initialTab);
@@ -183,7 +186,21 @@ export default function AddEntriesClient({
     }
   }
 
-  const totalUsd = lines.reduce((s, l) => s + (l.price ? toUsd(Number(l.price), l.currency) : 0), 0);
+  // Preview only — the server recomputes every line's USD value and threshold from the same
+  // tables. A line in a currency with no configured rate contributes nothing and is flagged.
+  const rates = usdRatesFrom(currencies);
+  const categoryIdByName = new Map(
+    thresholds.filter((t) => t.spend_category_id != null && t.spend_category_name)
+      .map((t) => [t.spend_category_name as string, t.spend_category_id as number] as const),
+  );
+  const totalUsd = lines.reduce((s, l) => {
+    const rate = l.price ? usdRateFor(l.currency, rates) : null;
+    return rate === null ? s : s + Number(l.price) * rate;
+  }, 0);
+  const missingRateCcys = [...new Set(lines.filter((l) => l.price && usdRateFor(l.currency, rates) === null).map((l) => l.currency))];
+  // The tier a line crosses depends on its own category, so show the lowest threshold in play.
+  const lineThresholds = lines.map((l) => effectiveThresholdUsd(thresholds, country, categoryIdByName.get(l.category) ?? null));
+  const minThresholdUsd = lineThresholds.length ? Math.min(...lineThresholds) : effectiveThresholdUsd(thresholds, country, null);
 
   return (
     <CatalogManagerShell title="Add entries" roleLabel={roleLabel} canApprove={canApprove} canAdmin={canAdmin} pendingCount={pendingCount} showScope={false}>
@@ -356,7 +373,9 @@ export default function AddEntriesClient({
             </button>
 
             <div className="sticky bottom-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-sm">
-              <div className="text-[12.5px] text-slate-500">{lines.length} {lines.length === 1 ? 'line' : 'lines'} · <span className="font-mono font-semibold text-slate-900">≈ USD {fmtUsd(totalUsd)}</span> total <span className="text-slate-400">(lines ≥ ${APPROVAL_THRESHOLD_USD / 1000}k go to approval)</span></div>
+              <div className="text-[12.5px] text-slate-500">{lines.length} {lines.length === 1 ? 'line' : 'lines'} · <span className="font-mono font-semibold text-slate-900">≈ USD {fmtUsd(totalUsd)}</span> total <span className="text-slate-400">(lines ≥ USD {fmtUsd(minThresholdUsd)} go to approval)</span>
+                {missingRateCcys.length > 0 && <span className="ml-1 font-semibold text-red-600">· no USD rate configured for {missingRateCcys.join(', ')}</span>}
+              </div>
               <div className="flex gap-2.5">
                 <button onClick={() => submit('draft')} disabled={submitting} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98] disabled:opacity-50">Save as drafts</button>
                 <button onClick={() => submit('submit')} disabled={submitting} className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[#307c4c]/25 transition-all hover:bg-[#2b6f44] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100">

@@ -7,6 +7,7 @@ import {
   getUoms,
   getSuppliers,
   getPendingApprovalCount,
+  getApprovalThresholds,
 } from '@/app/actions/catalog-manager';
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import CatalogEntryFormClient from '../CatalogEntryFormClient';
@@ -20,13 +21,14 @@ export default async function NewCatalogEntryPage({
   searchParams: Promise<{ country?: string }>;
 }) {
   const { country = 'ALL' } = await searchParams;
-  const [actor, countries, currencies, uoms, suppliers, pendingCount] = await Promise.all([
+  const [actor, countries, currencies, uoms, suppliers, pendingCount, thresholds] = await Promise.all([
     getCatalogActor(),
     getCountries(),
     getCurrencies(),
     getUoms(),
     getSuppliers(),
     getPendingApprovalCount(),
+    getApprovalThresholds(),
   ]);
   if (!actor.canCreate) redirect('/catalog-manager/catalog');
 
@@ -36,11 +38,12 @@ export default async function NewCatalogEntryPage({
     <CatalogEntryFormClient
       initial={null}
       countries={countries.map((c) => ({ code: c.code, name: c.name, flag: c.flag }))}
-      currencies={currencies.map((c) => ({ code: c.code }))}
+      currencies={currencies.map((c) => ({ code: c.code, usd_rate: c.usd_rate }))}
       uoms={uoms.map((u) => ({ name: u.name }))}
       managers={managers}
       scope={country}
       pendingCount={pendingCount}
+      thresholds={thresholds}
       roleLabel={getPermissionProfile(actor.role).description}
       canApprove={actor.canApprove}
       canAdmin={actor.canAdmin}

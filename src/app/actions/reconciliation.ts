@@ -2,6 +2,7 @@
 
 import pool from '@/lib/db';
 import { currentActor, requireUser } from '@/lib/require-access';
+import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -49,6 +50,12 @@ export async function getMyExpeditingSessions(): Promise<SessionData[]> {
   const userEmail = actor.email;
 
   try {
+    await ensureActiveExpeditingColumns();
+    /* sap_open_po_master is reloaded nightly with only the POs still open, so a
+       closed line's description/qty/value/date/supplier are gone from it. Read
+       the dispatch-time snapshot first and fall back to the (live) master only
+       where the snapshot is absent — sap_mat_id and the account classification
+       are not snapshotted and stay master-only. */
     const result = await pool.query(
       `SELECT
          ae.session_ref,
@@ -61,13 +68,13 @@ export async function getMyExpeditingSessions(): Promise<SessionData[]> {
          ae.new_delivery_date,
          ae.supplier_comments,
          ae.buyer_comments,
-         s.item_description,
+         COALESCE(ae.item_description,  s.item_description)  AS item_description,
          s.sap_mat_id,
          s.account_classification_description,
-         s.open_qty,
-         s.open_po_value_usd,
-         s.delivery_date,
-         s.supplier_name,
+         COALESCE(ae.open_qty,          s.open_qty)          AS open_qty,
+         COALESCE(ae.open_po_value_usd, s.open_po_value_usd) AS open_po_value_usd,
+         COALESCE(ae.delivery_date,     s.delivery_date)     AS delivery_date,
+         COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name) AS supplier_name,
          COALESCE(es.total_emails_sent, 0) AS total_emails_sent
        FROM active_expediting ae
        LEFT JOIN sap_open_po_master s
@@ -177,6 +184,10 @@ export async function saveBuyerComment(
 
   try {
     // Scoped to the actor's own rows: a buyer cannot annotate another buyer's line.
+    // updated_at is a generic audit column and is deliberately the ONLY timestamp
+    // touched here — the supplier's response time lives in responded_at, which only
+    // submitSupplierUpdates writes. Bumping it here is what used to make every
+    // buyer note shorten the supplier's apparent turnaround.
     const res = await pool.query(
       `UPDATE active_expediting
        SET buyer_comments = $1, updated_at = NOW()

@@ -5,25 +5,13 @@ import Image from 'next/image';
 import { signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
+import { TITE_COUNTRY_VALUES, TITE_VIEW_ALL_COUNTRIES } from '@/lib/tite-constants';
 
 const BRAND = '#006B0C';
 
-const TITE_COUNTRIES = [
-  'All Countries - View Only',
-  'Saudi Arabia (KSA)',
-  'United Arab Emirates (UAE)',
-  'Qatar',
-  'Kuwait',
-  'Oman',
-  'Bahrain',
-  'Egypt',
-  'Algeria',
-  'Iraq',
-  'Libya',
-  'Chad',
-  'Congo',
-  'Other',
-];
+/* Same list the approvals panel offers, so a request can always be approved
+   verbatim without an admin having to re-pick a differently-spelled country. */
+const TITE_COUNTRIES = [TITE_VIEW_ALL_COUNTRIES, ...TITE_COUNTRY_VALUES];
 
 /* ─── Props ──────────────────────────────────────────────────── */
 

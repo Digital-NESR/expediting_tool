@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getToolScope } from '@/lib/tool-scope';
 import { TiteAccessProvider } from './TiteAccessContext';
 import TiteAccessOverlay from './TiteAccessOverlay';
 
@@ -14,15 +15,12 @@ export default async function TiteLayout({ children }: { children: React.ReactNo
     redirect('/login');
   }
 
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
-
-  const isAdmin = adminEmails.includes(session.user.email.toLowerCase());
+  /* Admin list and status come from the one shared definition, so this gate and
+     the server actions behind it can never disagree about who is an admin. */
+  const scope = getToolScope(session, 'tite');
 
   /* Admins bypass all access checks */
-  if (isAdmin) {
+  if (scope.isAdmin) {
     return (
       <TiteAccessProvider isAdmin={true} approvedCountries={[]}>
         {children}
@@ -30,9 +28,7 @@ export default async function TiteLayout({ children }: { children: React.ReactNo
     );
   }
 
-  /* Read TI-TE access from JWT session (hydrated by JWT callback) */
-  const titeAccess = session.user.toolAccess?.tite;
-  const rawStatus  = titeAccess?.status ?? 'new';
+  const rawStatus = scope.status;
 
   if (rawStatus !== 'approved') {
     const overlayStatus: 'new' | 'pending' | 'rejected' | 'revoked' | 'denied' =
@@ -52,10 +48,8 @@ export default async function TiteLayout({ children }: { children: React.ReactNo
     );
   }
 
-  const approvedCountries = titeAccess?.approvedCountries ?? [];
-
   return (
-    <TiteAccessProvider isAdmin={false} approvedCountries={approvedCountries}>
+    <TiteAccessProvider isAdmin={false} approvedCountries={scope.approvedCountries}>
       {children}
     </TiteAccessProvider>
   );

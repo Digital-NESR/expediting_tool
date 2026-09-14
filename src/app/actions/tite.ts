@@ -3,6 +3,7 @@
 import titePool from '@/lib/db-tite';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import { titeCountryCode, formatTiteReference } from '@/lib/tite-constants';
+import { alertLevelFor, shipmentAlertLevel } from '@/lib/tite-utils';
 import { getNextStatusOptions } from '@/lib/tite-stage-config';
 import {
   requireTiteUser,
@@ -22,6 +23,7 @@ import {
   dbGetActivityLog,
   dbInsertActivityLog,
   dbUpdateShipmentWithLog,
+  ensureTiteActivityLogSchema,
 } from '@/lib/tite-documents';
 
 /* ─── CreateShipmentInput ─────────────────────────────────────── */
@@ -74,29 +76,6 @@ export interface TiteAccessRequestRow {
   reviewed_at: string | null;
   reviewed_by: string | null;
   notes: string | null;
-}
-
-/* ─── Alert level helper ──────────────────────────────────────── */
-
-function calcAlertLevel(
-  expiryDate: string | undefined,
-  extendedDate: string | undefined,
-  status: string,
-): string {
-  if (status === 'Closed' || status === 'Closed - Refund Recovered') return 'closed';
-  const effective = extendedDate || expiryDate;
-  if (!effective) return 'info';
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const days = Math.ceil(
-    (new Date(effective).getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-  );
-  if (days < 0)   return 'overdue';
-  if (days <= 7)  return 'urgent';
-  if (days <= 14) return 'action';
-  if (days <= 30) return 'plan';
-  if (days <= 60) return 'info';
-  return 'ok';
 }
 
 /* ─── Special role sentinel ──────────────────────────────────── */
@@ -188,14 +167,7 @@ export async function getAllShipments(approvedCountries?: string[]): Promise<Shi
     const ALERT_ORDER: Record<string, number> = {
       overdue: 1, urgent: 2, action: 3, plan: 4, info: 5, ok: 6, closed: 7,
     };
-    const fresh = rows.map(r => ({
-      ...r,
-      alert_level: calcAlertLevel(
-        r.expiry_date   ?? undefined,
-        r.extended_date ?? undefined,
-        r.status        ?? '',
-      ),
-    }));
+    const fresh = rows.map(r => ({ ...r, alert_level: shipmentAlertLevel(r) }));
     fresh.sort((a, b) => {
       const oa = ALERT_ORDER[a.alert_level] ?? 8;
       const ob = ALERT_ORDER[b.alert_level] ?? 8;
@@ -226,14 +198,7 @@ export async function getShipmentById(id: number): Promise<Shipment | null> {
     const r = rows[0];
     // Country scope: an out-of-scope row is indistinguishable from a missing one.
     if (!canViewTiteCountry(user, r.country)) return null;
-    return {
-      ...r,
-      alert_level: calcAlertLevel(
-        r.expiry_date   ?? undefined,
-        r.extended_date ?? undefined,
-        r.status        ?? '',
-      ),
-    };
+    return { ...r, alert_level: shipmentAlertLevel(r) };
   } catch (err) {
     console.error('[TI-TE] getShipmentById error:', err);
     return null;
@@ -254,7 +219,7 @@ export async function createShipment(
     const createdBy = user.name;
 
     const status: ShipmentStatus = 'Open';
-    const alert_level = calcAlertLevel(input.expiry_date, input.extended_date, status);
+    const alert_level = alertLevelFor(input.expiry_date, input.extended_date, status);
 
     /* Reference numbers are `<country code>-<per-country sequence>` (e.g. OMN-020).
        The advisory lock serialises concurrent creates for the same country so two
@@ -264,6 +229,10 @@ export async function createShipment(
     /* Read on the pool before the transaction opens: this carries its own access
        check, and nothing about a read needs to roll back. */
     const stakeholders = input.country ? await getCountryStakeholders(input.country) : [];
+
+    /* The activity-log column is added outside the transaction: an ALTER that ran
+       inside it would abort the shipment insert on the first call after deploy. */
+    await ensureTiteActivityLogSchema();
 
     /* The shipment row, its notification contacts and its creation log entry all
        commit together — a shipment with no recipients would be silently missed by
@@ -365,9 +334,10 @@ export async function createShipment(
       }
 
       await client.query(
-        `INSERT INTO shipment_activity_log (shipment_id, action, details, performed_by)
-         VALUES ($1, 'created', 'Shipment created via portal', $2)`,
-        [newId, createdBy],
+        `INSERT INTO shipment_activity_log
+           (shipment_id, action, details, performed_by, performed_by_email)
+         VALUES ($1, 'created', 'Shipment created via portal', $2, $3)`,
+        [newId, createdBy, user.email],
       );
 
       return newId;
@@ -824,7 +794,7 @@ export async function extendShipment(params: {
     if (denied) return forbidden(denied);
     const performer = user.name;
 
-    const newAlertLevel = calcAlertLevel(undefined, params.extendedDate, 'Open - Extended');
+    const newAlertLevel = alertLevelFor(undefined, params.extendedDate, 'Open - Extended');
 
     await dbUpdateShipmentWithLog({
       shipment_id: params.shipmentId,
@@ -836,6 +806,7 @@ export async function extendShipment(params: {
       action:       'extended',
       details:      `Extended to ${params.extendedDate}${params.notes ? `. ${params.notes}` : ''}`,
       performed_by: performer,
+      performed_by_email: user.email,
     });
     return { success: true };
   } catch (err) {
@@ -865,6 +836,7 @@ export async function closeShipment(params: {
       action:       'closed',
       details:      `File closed${params.notes ? `. ${params.notes}` : ''}`,
       performed_by: performer,
+      performed_by_email: user.email,
     });
     return { success: true };
   } catch (err) {
@@ -894,6 +866,7 @@ export async function markRefundReceived(params: {
       action:       'refund_received',
       details:      `Customs refund recovered${params.notes ? `. ${params.notes}` : ''}`,
       performed_by: performer,
+      performed_by_email: user.email,
     });
     return { success: true };
   } catch (err) {
@@ -946,7 +919,7 @@ export async function updateShipmentStatus(params: {
         return { success: false, error: 'New expiry date is required.' };
       }
       fields.extended_date = params.newExpiryDate;
-      fields.alert_level   = calcAlertLevel(undefined, params.newExpiryDate, 'Open - Extended');
+      fields.alert_level   = alertLevelFor(undefined, params.newExpiryDate, 'Open - Extended');
       detailLines.push(`New expiry: ${params.newExpiryDate}`);
       if (params.extensionNotes) detailLines.push(`Notes: ${params.extensionNotes}`);
     } else if (params.newStatus === 'Closed') {
@@ -970,6 +943,7 @@ export async function updateShipmentStatus(params: {
       action:       'Status Updated',
       details:      detailLines.join('\n'),
       performed_by: performer,
+      performed_by_email: user.email,
     });
 
     return { success: true };
@@ -1180,6 +1154,8 @@ export async function saveNotificationContacts(params: {
     if (denied) return forbidden(denied);
     const performer = user.name;
 
+    await ensureTiteActivityLogSchema();
+
     /* Delete-then-insert: outside a transaction a failure between the two would
        leave the shipment with NO recipients, so nobody is alerted before the
        customs deadline. */
@@ -1217,6 +1193,7 @@ export async function saveNotificationContacts(params: {
         action:       'Notification Contacts Updated',
         details:      `Updated ${params.contacts.length} recipient${params.contacts.length !== 1 ? 's' : ''}`,
         performed_by: performer,
+        performed_by_email: user.email,
       }, client);
     });
 
@@ -1241,15 +1218,29 @@ export interface RecentActivityRow {
   country: string | null;
 }
 
-/** The caller's own recent activity. The identity is the session's, not a parameter. */
+/**
+ * The caller's own recent activity. The identity is the session's, not a parameter.
+ *
+ * Keyed on `performed_by_email`, not the free-text display name: a rename in Azure
+ * AD used to empty a user's feed, and two colleagues with the same display name
+ * saw each other's rows. Rows written before the column existed carry a NULL email
+ * — those still match on the display name so existing history does not vanish, and
+ * that fallback can be dropped once the backfill below has run:
+ *
+ *   UPDATE shipment_activity_log sal
+ *      SET performed_by_email = LOWER(ar.user_email)
+ *     FROM access_requests ar
+ *    WHERE sal.performed_by_email IS NULL
+ *      AND LOWER(TRIM(sal.performed_by)) = LOWER(TRIM(ar.display_name));
+ */
 export async function getRecentActivity(
   days: number = 7,
 ): Promise<RecentActivityRow[]> {
   const user = await currentTiteUser();
   if (!isTiteApproved(user)) return [];
   try {
+    await ensureTiteActivityLogSchema();
     const userName = user.name;
-    const scope    = titeReadScope(user);
     const { rows } = await titePool.query<RecentActivityRow>(
       `SELECT
          sal.id,
@@ -1263,12 +1254,17 @@ export async function getRecentActivity(
          s.country
        FROM shipment_activity_log sal
        JOIN shipments s ON s.id = sal.shipment_id
-       WHERE sal.performed_by = $1
-         AND sal.performed_at >= NOW() - ($2 || ' days')::INTERVAL
-         ${scope === null ? '' : 'AND s.country = ANY($3::text[])'}
+       WHERE (
+               sal.performed_by_email = $1
+               OR (sal.performed_by_email IS NULL AND sal.performed_by = $2)
+             )
+         AND sal.performed_at >= NOW() - ($3 || ' days')::INTERVAL
+         ${titeReadScope(user) === null ? '' : 'AND s.country = ANY($4::text[])'}
        ORDER BY sal.performed_at DESC
        LIMIT 20`,
-      scope === null ? [userName, days] : [userName, days, scope],
+      titeReadScope(user) === null
+        ? [user.email, userName, days]
+        : [user.email, userName, days, titeReadScope(user)],
     );
     return rows;
   } catch (err) {

@@ -131,6 +131,74 @@ export function csvSafe(value: unknown): string {
   return looksLikeFormula(str) ? "'" + str : str;
 }
 
+/** Excel's day 0 is 1899-12-30 (its 1900 leap-year bug shifts every serial from 61 up by one). */
+const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
+/** Serial range that lands inside DATE_MIN..DATE_MAX — safely clear of Excel's 1900 leap bug (<= 60). */
+const EXCEL_SERIAL_MIN = Math.round((Date.UTC(2000, 0, 1) - EXCEL_EPOCH_UTC) / 86400000); // 36526
+const EXCEL_SERIAL_MAX = Math.round((Date.UTC(2100, 11, 31) - EXCEL_EPOCH_UTC) / 86400000); // 73415
+
+/** Build 'YYYY-MM-DD' from calendar parts, rejecting anything that is not a real date. */
+function utcYmd(year: number, month: number, day: number): string | null {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const ms = Date.UTC(year, month - 1, day);
+  const d = new Date(ms);
+  // Date.UTC rolls 2026-02-30 forward to 2026-03-02; a round-trip check rejects that.
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return null;
+  // The year is zero-padded too, so the DATE_MIN/DATE_MAX string comparison below stays a real
+  // date comparison — an unpadded "202-01-01" would sort between them and slip through.
+  const ymd = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  return ymd >= DATE_MIN && ymd <= DATE_MAX ? ymd : null;
+}
+
+/**
+ * Normalise an imported date cell to 'YYYY-MM-DD', or null when it is not one of the
+ * formats the import template advertises.
+ *
+ * ACCEPTED — and nothing else:
+ *   - `YYYY-MM-DD` (what `readSpreadsheet` emits for a real date cell, from UTC parts),
+ *     optionally followed by a time part, which is discarded
+ *   - `DD-MM-YYYY` and `DD/MM/YYYY` (the template's documented format), 1-2 digit day/month
+ *   - an Excel serial number, for a date cell that arrives as a raw number
+ *
+ * REJECTED: free-form strings ("5 Jan 2026", "Jan 5, 2026", "2026/1/5"). `new Date(text)`
+ * used to accept those, but it reads an ambiguous "03/04/2026" as MARCH 4th (US order) while
+ * the template promises 3 April, and it parses in the SERVER's timezone before the result was
+ * converted back through toISOString() — shifting the stored day by one either side of midnight.
+ * Everything here is built with Date.UTC, so no timezone can move the day.
+ *
+ * Out-of-range values are rejected too: the template's data validation only allows
+ * DATE_MIN..DATE_MAX, but the server never enforced it, so a typo'd year sailed through.
+ */
+export function normalizeImportDate(raw: string | number | null | undefined): string | null {
+  if (raw == null) return null;
+  const text = String(raw).trim();
+  if (!text || looksLikeFormula(text)) return null;
+
+  // ISO, the canonical form — an optional time part is dropped, not parsed.
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/);
+  if (iso) return utcYmd(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+
+  // Day-first, with a consistent separator: DD-MM-YYYY or DD/MM/YYYY.
+  const dayFirst = text.match(/^(\d{1,2})([-/])(\d{1,2})\2(\d{4})$/);
+  if (dayFirst) return utcYmd(Number(dayFirst[4]), Number(dayFirst[3]), Number(dayFirst[1]));
+
+  // Excel serial (whole days since 1899-12-30), only within the accepted date range.
+  if (/^\d+$/.test(text)) {
+    const serial = Number(text);
+    if (serial >= EXCEL_SERIAL_MIN && serial <= EXCEL_SERIAL_MAX) {
+      const d = new Date(EXCEL_EPOCH_UTC + serial * 86400000);
+      return utcYmd(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+    }
+    return null;
+  }
+
+  return null;
+}
+
+/** The accepted date formats, for user-facing error messages. */
+export const IMPORT_DATE_FORMATS_HINT = `use YYYY-MM-DD, DD-MM-YYYY or DD/MM/YYYY, between ${DATE_MIN} and ${DATE_MAX}`;
+
 export const ALL_STATUSES: CatalogStatus[] = ['Active', 'Pending Approval', 'Draft', 'Expired', 'Rejected'];
 export const ALL_ROLES: CatalogRole[] = ['Viewer', 'Contributor', 'Approver', 'Admin'];
 
@@ -139,21 +207,58 @@ export const APPROVAL_THRESHOLD_USD = 50000;
 
 /* ---------------- money / date / usd ---------------- */
 
-const RATE_BY_CCY: Record<string, SeedCurrency> = Object.fromEntries(SEED_CURRENCIES.map((c) => [c.code, c]));
+/**
+ * Currency code → USD value of one unit, as loaded from the `currency` table
+ * (the rows the admin screen shows and an admin can change). The seed list above
+ * only ever populates that table on a cold start; it is NOT the live rate source,
+ * because conversion drives the approval tier and must follow the edited rate.
+ */
+export type UsdRates = Readonly<Record<string, number>>;
 
-export function currencyConfig(code: string): SeedCurrency {
-  return RATE_BY_CCY[code] ?? { code, decimals: 2, usd_rate: 0.27 };
+/** Build a rates map from `currency` rows (or the seed list). Keys are uppercased. */
+export function usdRatesFrom(rows: { code: string; usd_rate: number | string }[]): UsdRates {
+  const out: Record<string, number> = {};
+  for (const r of rows) {
+    const rate = Number(r.usd_rate);
+    if (Number.isFinite(rate) && rate > 0) out[String(r.code).trim().toUpperCase()] = rate;
+  }
+  return out;
 }
 
-export function toUsd(price: number, ccy: string): number {
-  return price * currencyConfig(ccy).usd_rate;
+/** The configured rate for a currency, or null when it has none. */
+export function usdRateFor(ccy: string, rates: UsdRates): number | null {
+  const rate = rates[String(ccy ?? '').trim().toUpperCase()];
+  return typeof rate === 'number' && Number.isFinite(rate) && rate > 0 ? rate : null;
+}
+
+/**
+ * Convert to USD at the configured rate.
+ *
+ * THROWS for a currency with no rate. This used to fall back to a magic 0.27, which
+ * silently produced a plausible-looking USD figure for a code nobody had configured —
+ * and that figure decided whether the entry needed Approver sign-off. A refusal is the
+ * only safe answer: a wrong tier is invisible, a thrown error is not.
+ */
+export function toUsd(price: number, ccy: string, rates: UsdRates): number {
+  const rate = usdRateFor(ccy, rates);
+  if (rate === null) {
+    throw new Error(`No USD rate is configured for currency "${ccy}". Add it to the currency master data before using it.`);
+  }
+  return price * rate;
+}
+
+const DECIMALS_BY_CCY: Record<string, number> = Object.fromEntries(SEED_CURRENCIES.map((c) => [c.code, c.decimals]));
+
+/** Display precision for a currency — a formatting default, never a conversion rate. */
+export function currencyDecimals(code: string): number {
+  return DECIMALS_BY_CCY[String(code ?? '').trim().toUpperCase()] ?? 2;
 }
 
 export function fmtMoney(price: number, ccy: string): string {
-  const cfg = currencyConfig(ccy);
+  const decimals = currencyDecimals(ccy);
   return Number(price).toLocaleString('en-US', {
-    minimumFractionDigits: cfg.decimals,
-    maximumFractionDigits: cfg.decimals,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   });
 }
 

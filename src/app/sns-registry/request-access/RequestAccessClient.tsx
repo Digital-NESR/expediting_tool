@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { submitSnsAccessRequest } from '@/app/actions/sns';
 import { ROLES } from '../lib/constants';
-import type { SnsAccessRequestRow, SnsRole } from '../lib/types';
+import type { Country, SnsAccessRequestRow, SnsRole } from '../lib/types';
 
 const ROLE_HELP: Record<SnsRole, string> = {
   'Requestor — Sourcing / Procurement': 'Raise new single/sole-source records and start periodic reviews.',
@@ -20,11 +20,13 @@ export default function RequestAccessClient({
   countries,
 }: {
   myRequest: SnsAccessRequestRow | null;
-  countries: string[];
+  countries: Country[];
 }) {
   const router = useRouter();
   const [role, setRole] = useState<SnsRole>((myRequest?.requestedRole as SnsRole) ?? ROLES[0]);
+  /* Held as `sns_country.code` — a request outlives any rename of the name. */
   const [selected, setSelected] = useState<string[]>(myRequest?.requestedCountries ?? []);
+  const countryName = (code: string) => countries.find((c) => c[1] === code)?.[0] ?? code;
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export default function RequestAccessClient({
               You asked for <span className="font-semibold text-slate-700">{done ? role : myRequest?.requestedRole}</span>
               {' '}access covering{' '}
               <span className="font-semibold text-slate-700">
-                {(done ? selected : myRequest?.requestedCountries ?? []).join(', ') || '—'}
+                {(done ? selected : myRequest?.requestedCountries ?? []).map(countryName).join(', ') || '—'}
               </span>. You&rsquo;ll be able to open the tool as soon as an admin approves it.
             </p>
             <Link
@@ -134,20 +136,20 @@ export default function RequestAccessClient({
                 Pick every country you need to work in. Validators can only act on records in their approved countries.
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {countries.map((c) => {
-                  const on = selected.includes(c);
+                {countries.map(([name, code]) => {
+                  const on = selected.includes(code);
                   return (
                     <button
-                      key={c}
+                      key={code}
                       type="button"
-                      onClick={() => toggleCountry(c)}
+                      onClick={() => toggleCountry(code)}
                       className={`rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
                         on
                           ? 'border-[#307c4c] bg-[#307c4c] text-white'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                       }`}
                     >
-                      {c}
+                      {name}
                     </button>
                   );
                 })}

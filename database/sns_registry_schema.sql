@@ -108,7 +108,12 @@ CREATE TABLE IF NOT EXISTS sns_record (
   rid            SERIAL PRIMARY KEY,
   registry_id    TEXT UNIQUE,
   classification TEXT NOT NULL CHECK (classification IN ('SGL', 'SOL')),
+  -- `country` is the display name as it read when the record was raised — a
+  -- snapshot for the audit trail, like the taxonomy nodes below. `country_code`
+  -- is the identity: it drives every scope check and supplies the token inside
+  -- the issued Registry ID, so it must not move when a country is renamed.
   country        TEXT NOT NULL,
+  country_code   TEXT,
   scope_level    TEXT NOT NULL CHECK (scope_level IN ('Family', 'Commodity')),
   supplier_id    TEXT NOT NULL DEFAULT '',
   supplier_name  TEXT NOT NULL DEFAULT '',
@@ -128,7 +133,13 @@ CREATE TABLE IF NOT EXISTS sns_record (
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Re-runs against a database created before `country_code` existed.
+-- Backfill and the FOREIGN KEY to sns_country (code) are a separate migration
+-- step, deliberately not applied here: see the note above.
+ALTER TABLE sns_record ADD COLUMN IF NOT EXISTS country_code TEXT;
+
 CREATE INDEX IF NOT EXISTS sns_record_country_idx ON sns_record (country);
+CREATE INDEX IF NOT EXISTS sns_record_country_code_idx ON sns_record (country_code);
 CREATE INDEX IF NOT EXISTS sns_record_status_idx  ON sns_record (base_status);
 CREATE INDEX IF NOT EXISTS sns_record_expiry_idx  ON sns_record (expiry_date);
 

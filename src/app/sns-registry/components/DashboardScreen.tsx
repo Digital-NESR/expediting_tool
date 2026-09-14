@@ -33,7 +33,6 @@ export default function DashboardScreen({ app }: { app: RegistryApp }) {
     { label: 'COVERED SPEND', value: money(totalSpend), sub: expiredRecs.length ? `excludes ${money(expiredSpend)} now expired` : 'annual, single + sole source', color: '#2A7E4F' },
     { label: 'SINGLE-SOURCE', value: sgl.length, sub: money(sgl.reduce((a, r) => a + r.spend, 0)), color: '#1D5B39' },
     { label: 'SOLE-SOURCE', value: sol.length, sub: money(sol.reduce((a, r) => a + r.spend, 0)), color: '#6AAF8E' },
-    { label: 'PO / RFQ COUNT', value: active.reduce((a, r) => a + r.poCount, 0), sub: 'referencing an active ID', color: '#58595B' },
   ];
 
   const charts = [
@@ -58,7 +57,7 @@ export default function DashboardScreen({ app }: { app: RegistryApp }) {
         <button onClick={app.exportCsv} className="btn-outline">Export to Excel</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 16 }}>
         {kpis.map((k) => (
           <div key={k.label} style={{ background: '#fff', border: '1px solid #E4E6E6', borderTop: `4px solid ${k.color}`, padding: '14px 16px' }}>
             <div style={{ fontSize: 10.5, fontWeight: 'bold', color: '#58595B', letterSpacing: 0.7 }}>{k.label}</div>

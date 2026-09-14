@@ -479,6 +479,36 @@ export function toUsd(value: number | string | null | undefined, currency = 'USD
   return safeNum(value) * rate;
 }
 
+/** The amount/currency pair the approval thresholds are judged on. */
+export interface ProcureGuardThresholdRow {
+  amount?: number | string | null;
+  currency?: string | null;
+  spend_value_usd?: number | string | null;
+}
+
+/**
+ * Which figure decides who has to approve a request.
+ *
+ * `spend_value_usd` is server-computed and validated at write time, so when it is present it is the
+ * authority and the currency is USD; only a legacy row without it falls back to the entered
+ * amount/currency. Routing, the notification webhook and the analytics owner-label all call this,
+ * because analytics used to derive the owning approver from the raw amount+currency while routing
+ * used the stored USD value — so a non-USD request could be filed under a different approver in the
+ * analytics than the one the workflow was actually waiting on.
+ */
+export function procureGuardThreshold(row: ProcureGuardThresholdRow): { amount: number | string | null; currency: string } {
+  const hasStoredUsd = row.spend_value_usd !== null && row.spend_value_usd !== undefined;
+  return hasStoredUsd
+    ? { amount: row.spend_value_usd as number | string, currency: 'USD' }
+    : { amount: row.amount ?? null, currency: row.currency || 'USD' };
+}
+
+/** The same figure as a single USD number. */
+export function thresholdUsd(row: ProcureGuardThresholdRow): number {
+  const { amount, currency } = procureGuardThreshold(row);
+  return toUsd(amount, currency);
+}
+
 export function usdEquivalentFmt(value: number | string | null | undefined, currency = 'USD'): string {
   return usdFmt(toUsd(value, currency), 'USD');
 }

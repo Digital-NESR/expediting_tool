@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { readSpreadsheet } from '@/lib/spreadsheet-import';
+import { TITE_COUNTRIES } from '@/lib/tite-constants';
 import { importShipments, getMigrationLog } from '@/app/actions/tite-migration';
 import type { RawShipmentRow, MigrationLogRow } from '@/app/actions/tite-migration';
 
@@ -15,24 +16,6 @@ interface ParsedFile {
   headers: string[];
   preview: string[][];
 }
-
-/* ─── Country options ────────────────────────────────────────── */
-
-const COUNTRIES = [
-  { label: 'Saudi Arabia (KSA)' },
-  { label: 'United Arab Emirates (UAE)' },
-  { label: 'Qatar' },
-  { label: 'Kuwait' },
-  { label: 'Oman' },
-  { label: 'Bahrain' },
-  { label: 'Egypt' },
-  { label: 'Algeria' },
-  { label: 'Iraq' },
-  { label: 'Libya' },
-  { label: 'Chad' },
-  { label: 'Congo' },
-  { label: 'Other' },
-];
 
 /* ─── Format reference data ─────────────────────────────────── */
 
@@ -49,9 +32,9 @@ const FORMAT_COLUMNS = [
   { col: 'J (9)',  header: 'AWB / BL Number',           field: 'awb_number',               notes: 'Air waybill or Bill of Lading number. Text.' },
   { col: 'K (10)', header: 'PO Number',                 field: 'po_number',                notes: 'Text.' },
   { col: 'L (11)', header: 'Movement type',             field: 'movement_type',            notes: 'Text — e.g. Import, Export. Extra whitespace is collapsed.' },
-  { col: 'M (12)', header: 'Import Date',               field: 'import_date',              notes: 'Date. Accepts DD/MM/YYYY or YYYY-MM-DD.' },
-  { col: 'N (13)', header: 'Expiry Date',               field: 'expiry_date',              notes: 'Date. Cells starting with = are null.' },
-  { col: 'O (14)', header: 'Extended Expiry Date',       field: 'extended_date',            notes: 'Date. Cells starting with = or empty are null.' },
+  { col: 'M (12)', header: 'Import Date',               field: 'import_date',              notes: 'Date. Accepts YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, DD/Mon/YY, DD-Mon-YYYY and Excel date serials.' },
+  { col: 'N (13)', header: 'Expiry Date',               field: 'expiry_date',              notes: 'Date. Same formats as Import Date. Cells starting with = are null.' },
+  { col: 'O (14)', header: 'Extended Expiry Date',       field: 'extended_date',            notes: 'Date. Same formats as Import Date. Cells starting with = or empty are null.' },
   { col: 'P (15)', header: 'Deposit (USD)',             field: 'deposit_usd',              notes: 'Numeric. USD deposit amount. Currency symbols are stripped automatically.' },
   { col: 'Q (16)', header: 'Comments',                  field: 'comments',                 notes: 'Text.' },
   { col: 'R (17)', header: 'Status',                    field: 'status',                   notes: 'Open / Open - Extended / Closed / Closed - Refund Recovered. "refund" → Closed - Refund Recovered; "extended"/"extension" → Open - Extended; "closed"/"close" → Closed; "active" → Open. Default: Open.' },
@@ -157,22 +140,17 @@ async function parseExcel(file: File): Promise<ParsedFile> {
     return isNaN(n) ? null : n;
   };
 
-  const parseDate = (val: string | undefined): string | null => {
+  /* Date cells are passed through UNTOUCHED. `parseDateFlexible` on the server is
+     the only date parser: it works in UTC and accepts DD/Mon/YY, DD-Mon-YYYY,
+     DD/MM/YYYY, YYYY-MM-DD and Excel serials. The client parser that used to live
+     here went through a local-time `new Date(s)` and then `toISOString()`, which
+     shifted every date back a day for every Gulf user, and returned null for the
+     formats the server handles. `readSpreadsheet` already emits real date cells as
+     'YYYY-MM-DD' built from UTC parts, so there is nothing left to do here. */
+  const rawCell = (val: string | undefined): string | null => {
     if (val == null) return null;
     const s = String(val).trim();
-    if (s.startsWith('=') || s === '') return null;
-    // DD/MM/YYYY
-    const parts = s.split('/');
-    if (parts.length === 3) {
-      const [d, m, y] = parts;
-      const dt = new Date(
-        `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`,
-      );
-      if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-    }
-    const dt = new Date(s);
-    if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-    return null;
+    return s === '' ? null : s;
   };
 
   const parseStatus = (val: string | undefined): string => {
@@ -212,9 +190,9 @@ async function parseExcel(file: File): Promise<ParsedFile> {
         movement_type: row[11]
           ? String(row[11]).trim().replace(/\s+/g, ' ') || null
           : null,
-        import_date: parseDate(row[12]),
-        expiry_date: parseDate(row[13]),
-        extended_date: parseDate(row[14]),
+        import_date: rawCell(row[12]),
+        expiry_date: rawCell(row[13]),
+        extended_date: rawCell(row[14]),
         deposit_usd: parseNum(row[15]),
         comments: row[16] ? String(row[16]).trim() || null : null,
         status: parseStatus(row[17]),
@@ -334,7 +312,7 @@ export default function TiteMigrationClient() {
 
   /* migration state */
   const [phase, setPhase] = useState<Phase>('form');
-  const [progress, setProgress] = useState(0);
+  const [importError, setImportError] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [result, setResult] = useState<{ inserted: number; skipped: number; errors: number } | null>(null);
 
@@ -370,7 +348,7 @@ export default function TiteMigrationClient() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const filteredCountries = COUNTRIES.filter((c) =>
+  const filteredCountries = TITE_COUNTRIES.filter((c) =>
     c.label.toLowerCase().includes(countrySearch.toLowerCase()),
   );
 
@@ -400,43 +378,36 @@ export default function TiteMigrationClient() {
     [handleFile],
   );
 
+  /* One call for the whole file. The server chunks and transacts it, so the import
+     either lands completely or not at all — no more half-imported file behind a
+     progress bar stuck at 60%. A failure returns to the form with the reason
+     instead of leaving the UI in 'running' forever. */
   const handleImport = async () => {
-    if (!country || !parsed) return;
+    if (!country || !parsed || !file) return;
     setPhase('running');
     setLog([]);
-    setProgress(0);
+    setImportError(null);
 
-    const total = parsed.rows.length;
-    let done = 0;
-
-    // Stream progress by batching rows — send 10 at a time so UI updates
-    const BATCH = 10;
-    let inserted = 0;
-    let skipped = 0;
-    let errors = 0;
-    const allLog: string[] = [];
-
-    for (let i = 0; i < parsed.rows.length; i += BATCH) {
-      const batch = parsed.rows.slice(i, i + BATCH);
+    try {
       const res = await importShipments({
         country,
-        filename: file!.name,
-        rows: batch,
+        filename: file.name,
+        rows: parsed.rows,
       });
-      inserted += res.inserted;
-      skipped += res.skipped;
-      errors += res.errors;
-      allLog.push(...res.log);
-      done = Math.min(i + BATCH, total);
-      setProgress(Math.round((done / total) * 100));
-      setLog([...allLog]);
+      setLog(res.log);
+      setResult({ inserted: res.inserted, skipped: res.skipped, errors: res.errors });
+      setPhase('done');
+    } catch (err) {
+      setImportError(
+        err instanceof Error && err.message
+          ? `Import failed — nothing was saved. ${err.message}`
+          : 'Import failed — nothing was saved. Please try again.',
+      );
+      setPhase('form');
+    } finally {
+      // Refresh history either way: a failed import still tells us the last good one.
+      getMigrationLog().then(setHistory).catch(() => {});
     }
-
-    setResult({ inserted, skipped, errors });
-    setPhase('done');
-
-    // Refresh history
-    getMigrationLog().then(setHistory);
   };
 
   const reset = () => {
@@ -448,7 +419,7 @@ export default function TiteMigrationClient() {
     setParseError(null);
     setLog([]);
     setResult(null);
-    setProgress(0);
+    setImportError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -481,6 +452,16 @@ export default function TiteMigrationClient() {
       {/* ── Form phase ── */}
       {phase === 'form' && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6 max-w-2xl">
+
+          {/* Failed import — the file was rolled back, so the form is safe to retry */}
+          {importError && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+              <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <p className="text-xs text-red-700 leading-relaxed">{importError}</p>
+            </div>
+          )}
 
           {/* Step 1 — Country */}
           <div>
@@ -519,10 +500,10 @@ export default function TiteMigrationClient() {
                     )}
                     {filteredCountries.map((c) => (
                       <button
-                        key={c.label}
+                        key={c.value}
                         type="button"
-                        onClick={() => { setCountry(c.label); setDropdownOpen(false); }}
-                        className={`w-full px-4 py-2.5 text-sm text-left hover:bg-[#307c4c]/5 transition-colors ${country === c.label ? 'bg-[#307c4c]/10 text-[#307c4c] font-semibold' : 'text-slate-700'}`}
+                        onClick={() => { setCountry(c.value); setDropdownOpen(false); }}
+                        className={`w-full px-4 py-2.5 text-sm text-left hover:bg-[#307c4c]/5 transition-colors ${country === c.value ? 'bg-[#307c4c]/10 text-[#307c4c] font-semibold' : 'text-slate-700'}`}
                       >
                         {c.label}
                       </button>
@@ -771,20 +752,22 @@ export default function TiteMigrationClient() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
             <div>
-              <p className="text-sm font-semibold text-slate-800">Processing rows…</p>
-              <p className="text-xs text-slate-400">{progress}% complete</p>
+              <p className="text-sm font-semibold text-slate-800">
+                Importing {parsed?.rows.length.toLocaleString() ?? ''} rows…
+              </p>
+              <p className="text-xs text-slate-400">
+                The whole file is imported in one transaction — it either lands completely or not at all.
+              </p>
             </div>
           </div>
 
-          {/* Progress bar */}
+          {/* Indeterminate bar — the import is one server call, so there is no
+              honest percentage to show. */}
           <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${progress}%`, background: '#307c4c' }}
-            />
+            <div className="h-full w-full rounded-full animate-pulse" style={{ background: '#307c4c' }} />
           </div>
 
-          {/* Live log */}
+          {/* Log (populated when the call returns) */}
           <div className="bg-[#0f172a] rounded-xl p-4 h-56 overflow-y-auto font-mono text-[11px] leading-5">
             {log.map((line, i) => {
               const color = line.startsWith('✅')
@@ -956,7 +939,7 @@ export default function TiteMigrationClient() {
             <ul className="space-y-1.5 text-xs text-slate-600">
               {[
                 'Column P (Deposit USD) — enter the deposit amount in USD. Currency symbols ($, SAR, AED, etc.) are stripped automatically.',
-                'Dates accept DD/MM/YYYY or YYYY-MM-DD. Excel serial date cells work if the cell is formatted as a date.',
+                'Dates are parsed on the server, in UTC: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, DD/Mon/YY, DD-Mon-YYYY and Excel serials all work, and none of them shift by a day.',
                 'Cells starting with = (Excel formulas) in numeric or date columns are treated as blank/null.',
                 'Rows with a blank or non-numeric value in col A (No.) are silently skipped.',
                 'Status: values map to one of four statuses — "refund" → Closed - Refund Recovered; "extended"/"extension" → Open - Extended; "closed"/"close" → Closed; "active" or blank → Open.',

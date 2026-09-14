@@ -2,6 +2,7 @@
 
 import pool from '@/lib/db';
 import { DS_DESCRIPTIONS } from '@/lib/constants';
+import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
 
 /* ─── Types ──────────────────────────────────────────────── */
 
@@ -173,6 +174,16 @@ export async function submitSupplierUpdates(
     });
   }
 
+  /* `responded_at` must exist before the UPDATE below writes it. Memoised, and
+     deliberately outside the transaction (DDL on a second connection would block
+     on the transaction's row locks). */
+  try {
+    await ensureActiveExpeditingColumns();
+  } catch (err) {
+    console.error('[submitSupplierUpdates] ensureActiveExpeditingColumns', err);
+    return { success: false, error: GENERIC_SUBMIT_ERROR };
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -204,6 +215,11 @@ export async function submitSupplierUpdates(
            new_delivery_date  = $2,
            supplier_comments  = $3,
            workflow_state     = 'Submitted',
+           /* The ONLY writer of responded_at. The response-time charts and the
+              "Last Response" columns read it instead of updated_at, which
+              saveBuyerComment also bumps — a buyer note used to make the
+              supplier's response time look better than it was. */
+           responded_at       = NOW(),
            updated_at         = NOW()
          WHERE expedite_token = $4
            AND po_number      = $5

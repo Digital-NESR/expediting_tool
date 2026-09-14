@@ -61,10 +61,9 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
             { label: 'REASON CODE', value: r.reason },
             { label: 'SEGMENT', value: r.segments.join(', ') || '—' },
             { label: 'ANNUAL SPEND', value: money(r.spend) },
-            { label: 'EVIDENCE', value: r.evidence },
             { label: 'REQUESTOR', value: r.requestor },
           ];
-          const canAct = hasStageRole && app.canActOn(r.country);
+          const canAct = hasStageRole && app.canActOn(r.countryCode);
           return (
             <div key={r.rid} style={{ background: '#fff', border: '1px solid #E4E6E6', borderLeft: `4px solid ${sh.accent}` }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, justifyContent: 'space-between', padding: '16px 18px' }}>

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   APPROVAL_ACTIVE_STATUSES,
   APPROVER_MATRIX_ROLES,
+  COUNTRY_OPTIONS,
   IT_MANAGER_STATUSES,
   PERMISSION_PROFILES,
   PERMISSION_ROLE_OPTIONS,
@@ -25,6 +26,8 @@ import {
   isActiveApprovalStatus,
   laptopHasAssignedUnit,
   laptopIsProcureNewFlow,
+  normaliseLaptopCountry,
+  resolveLaptopMatrixCountry,
   safeNum,
 } from '@/lib/laptopProcurement-utils';
 import type {
@@ -387,6 +390,60 @@ describe('bestAccessView', () => {
     const own = getLaptopAccessView('Requester' as LaptopPermissionRole);
     const delegated = getLaptopAccessView('IT Director' as LaptopPermissionRole);
     expect(canUseLaptopReviewerQueue(bestAccessView([own, delegated]))).toBe(true);
+  });
+});
+
+describe('approver-matrix country resolution', () => {
+  it('normalises case and surrounding whitespace', () => {
+    expect(normaliseLaptopCountry('  Oman ')).toBe('oman');
+    expect(normaliseLaptopCountry('OMAN')).toBe('oman');
+    expect(normaliseLaptopCountry(null)).toBe('');
+    expect(normaliseLaptopCountry(undefined)).toBe('');
+  });
+
+  it('canonicalises a COUNTRY_OPTIONS entry typed in any casing or padding', () => {
+    for (const country of COUNTRY_OPTIONS) {
+      expect(resolveLaptopMatrixCountry(country)).toBe(country);
+      expect(resolveLaptopMatrixCountry(country.toUpperCase())).toBe(country);
+      expect(resolveLaptopMatrixCountry(country.toLowerCase())).toBe(country);
+      expect(resolveLaptopMatrixCountry(`  ${country}  `)).toBe(country);
+    }
+  });
+
+  it('rejects a country that is neither a standard option nor already on the matrix', () => {
+    expect(resolveLaptopMatrixCountry('Atlantis')).toBeNull();
+    expect(resolveLaptopMatrixCountry('Om an')).toBeNull();
+    expect(resolveLaptopMatrixCountry('')).toBeNull();
+    expect(resolveLaptopMatrixCountry('   ')).toBeNull();
+    expect(resolveLaptopMatrixCountry(null)).toBeNull();
+  });
+
+  it('keeps legacy matrix countries editable even though they are not COUNTRY_OPTIONS', () => {
+    const existing = ['EOS', 'Jordan', 'Malaysia'];
+    expect(COUNTRY_OPTIONS).not.toContain('EOS');
+    expect(resolveLaptopMatrixCountry('eos', existing)).toBe('EOS');
+    expect(resolveLaptopMatrixCountry(' Malaysia ', existing)).toBe('Malaysia');
+    expect(resolveLaptopMatrixCountry('Jordan', [])).toBeNull();
+  });
+
+  // The bug this guards: a second row spelled ' oman' authorises its reviewer (matching is
+  // case-insensitive) while notifications and Assigned Approvers keep reading 'Oman'.
+  it('folds a case variant onto the spelling already stored, never a second row', () => {
+    const existing = [' oman '];
+    expect(resolveLaptopMatrixCountry('Oman', existing)).toBe(' oman ');
+    expect(resolveLaptopMatrixCountry('OMAN', existing)).toBe(' oman ');
+  });
+
+  it('prefers the stored spelling over the COUNTRY_OPTIONS one when they differ', () => {
+    expect(resolveLaptopMatrixCountry('qatar', ['QATAR'])).toBe('QATAR');
+    expect(resolveLaptopMatrixCountry('qatar', [])).toBe('Qatar');
+  });
+
+  it('resolves every stored country to itself, so a save is idempotent', () => {
+    const existing = ['Oman', 'EOS', 'HQ Dubai'];
+    for (const country of existing) {
+      expect(resolveLaptopMatrixCountry(country, existing)).toBe(country);
+    }
   });
 });
 

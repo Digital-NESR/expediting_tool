@@ -19,7 +19,7 @@ export default function Header({ app }: { app: RegistryApp }) {
 
   // Badge counts reflect what this viewer can act on, not the whole registry —
   // a Level 1 validator approved for Kuwait should not see Oman's queue depth.
-  const actionable = app.records.filter((r) => app.canActOn(r.country));
+  const actionable = app.records.filter((r) => app.canActOn(r.countryCode));
   const pendingCount = actionable.filter((r) => {
     const s = displayStatus(r);
     return s === 'Pending Level 1' || s === 'Pending Level 2';
@@ -38,7 +38,12 @@ export default function Header({ app }: { app: RegistryApp }) {
   const roleLabel = viewer.isAdmin
     ? 'Admin — full access'
     : ROLE_SHORT[viewer.role ?? ''] ?? viewer.role ?? '';
-  const countryLabel = viewer.countries.length === 0 ? 'All countries' : viewer.countries.join(', ');
+  // Scope is held as country codes; show the names where the reference list
+  // still has them, and the bare code where it does not.
+  const countryLabel =
+    viewer.countryCodes.length === 0
+      ? 'All countries'
+      : viewer.countryCodes.map((code) => app.countries.find((c) => c[1] === code)?.[0] ?? code).join(', ');
 
   return (
     <div style={{ background: '#2A7E4F', color: '#fff', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 0 rgba(0,0,0,0.12)' }}>

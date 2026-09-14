@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getToolScope, toolReadScope } from '@/lib/tool-scope';
 import { getAllShipments, getRecentActivity } from '@/app/actions/tite';
 import TiteDashboardClient from './TiteDashboardClient';
 import type { ShipmentStats } from '@/types/tite';
@@ -9,19 +10,9 @@ export const metadata: Metadata = { title: 'NESR | TI-TE' };
 
 export default async function TiteDashboardPage() {
   const session = await getServerSession(authOptions);
-  const email = session?.user?.email ?? '';
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = adminEmails.includes(email.toLowerCase());
-
-  const titeApprovedCountries = session?.user?.toolAccess?.tite?.approvedCountries ?? [];
-  const titeViewOnly =
-    session?.user?.titeViewOnly === true ||
-    titeApprovedCountries.includes('All Countries - View Only');
-
-  const approvedCountries = (isAdmin || titeViewOnly)
-    ? undefined
-    : titeApprovedCountries;
+  const scope = getToolScope(session, 'tite');
+  const titeViewOnly = scope.viewOnly;
+  const approvedCountries = toolReadScope(scope) ?? undefined;
 
   const [shipments, recentActivity] = await Promise.all([
     getAllShipments(approvedCountries),

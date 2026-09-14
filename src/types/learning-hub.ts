@@ -8,8 +8,19 @@ export interface LearningTrack {
   icon: string | null;
   color: string | null;
   order_index: number;
+  /** Short prefix for the browser-tab label ("SC" -> "SC lvl 1"); null keeps the full course title. */
+  tab_label_prefix: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Minimal track shape the Learning Hub sidebar needs (loaded once in the layout). */
+export interface LearningHubNavTrack {
+  key: string;
+  name: string;
+  icon: string | null;
+  course_count: number;
+  lesson_count: number;
 }
 
 export interface LearningCourse {

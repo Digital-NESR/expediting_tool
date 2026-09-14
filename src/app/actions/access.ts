@@ -5,6 +5,7 @@ import pool from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { normalizeEmail } from '@/lib/require-access';
+import type { StoredAccessStatus } from '@/types/access';
 
 /* ─── httpsPost (fire-and-forget, mirrors expediteDispatch) ──── */
 
@@ -34,7 +35,8 @@ function httpsPost(url: string, payload: unknown): void {
 
 export interface AccessRequest {
   user_email: string;
-  status: 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
+  // Reads tolerate the legacy 'Denied' until the one-off migration has run everywhere.
+  status: StoredAccessStatus;
   requested_countries: string[];
   approved_countries: string[];
   requested_at: string;
@@ -74,7 +76,7 @@ export async function getCurrentAccessRequest(
     const r = rows[0];
     return {
       user_email:          String(r.user_email),
-      status:              r.status as 'Pending' | 'Approved' | 'Rejected' | 'Revoked',
+      status:              r.status as StoredAccessStatus,
       requested_countries: r.requested_countries || [],
       approved_countries:  r.approved_countries  || [],
       requested_at:        r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),

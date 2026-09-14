@@ -8,6 +8,7 @@ import {
   getSuppliers,
   getServiceActivities,
   getPendingApprovalCount,
+  getApprovalThresholds,
 } from '@/app/actions/catalog-manager';
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import AddEntriesClient from './AddEntriesClient';
@@ -21,7 +22,7 @@ export default async function AddEntriesPage({
   searchParams: Promise<{ country?: string; tab?: string }>;
 }) {
   const sp = await searchParams;
-  const [actor, countries, currencies, uoms, suppliers, services, pendingCount] = await Promise.all([
+  const [actor, countries, currencies, uoms, suppliers, services, pendingCount, thresholds] = await Promise.all([
     getCatalogActor(),
     getCountries(),
     getCurrencies(),
@@ -29,6 +30,7 @@ export default async function AddEntriesPage({
     getSuppliers(),
     getServiceActivities(),
     getPendingApprovalCount(),
+    getApprovalThresholds(),
   ]);
   if (!actor.canCreate) redirect('/catalog-manager/catalog');
 
@@ -37,9 +39,10 @@ export default async function AddEntriesPage({
   return (
     <AddEntriesClient
       countries={countries.map((c) => ({ code: c.code, name: c.name, flag: c.flag }))}
-      currencies={currencies.map((c) => ({ code: c.code }))}
+      currencies={currencies.map((c) => ({ code: c.code, usd_rate: c.usd_rate }))}
       uoms={uoms.map((u) => ({ name: u.name }))}
       services={services.map((s) => s.text)}
+      thresholds={thresholds}
       managers={managers}
       scope={sp.country ?? 'ALL'}
       initialTab={sp.tab === 'bulk' ? 'bulk' : sp.tab === 'grid' ? 'grid' : 'manual'}

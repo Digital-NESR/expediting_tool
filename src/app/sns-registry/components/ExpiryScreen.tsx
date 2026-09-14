@@ -14,7 +14,7 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
     .sort((a, b) => a.d - b.d);
 
   const kpis = [
-    { label: 'EXPIRING IN 60 DAYS', value: counts('Expiring soon'), sub: 'flagged to requestor and both validators', color: '#E09A4E' },
+    { label: 'EXPIRING IN 60 DAYS', value: counts('Expiring soon'), sub: 'shown as Expiring soon in the registry', color: '#E09A4E' },
     { label: 'EXPIRED', value: counts('Expired'), sub: 'SAP reference is non-compliant', color: '#B34141' },
     { label: 'EXTENDED THIS PERIOD', value: counts('Extended'), sub: 'original Registry ID retained', color: '#2A7E4F' },
   ];
@@ -24,7 +24,7 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
       <div style={{ borderLeft: '4px solid #2A7E4F', paddingLeft: 12, marginBottom: 18 }}>
         <h1 style={{ margin: 0, fontSize: 21, fontWeight: 'bold' }}>Expiry &amp; Periodic Review</h1>
         <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#58595B', maxWidth: 760 }}>
-          Every record carries a fixed 12-month validity. Records are flagged 60 and 30 days before expiry. A successful review keeps the original Registry ID and resets expiry by a further 12 months.
+          Every record carries a fixed 12-month validity. Anything within 90 days of expiry is listed below, and from 60 days out it shows as &ldquo;Expiring soon&rdquo; across the registry. Reviews are started from here — there is no automated reminder, so check this queue. A successful review keeps the original Registry ID and resets expiry by a further 12 months.
         </p>
       </div>
 
@@ -47,8 +47,14 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
             const overdue = x.d < 0;
             const barPct = (overdue ? 100 : pct) + '%';
             const barColor = overdue ? '#B34141' : x.d <= 30 ? '#B34141' : '#E09A4E';
-            const reviewNote = overdue ? 'Re-validation required before this ID can be referenced again' : x.d <= 30 ? '30-day flag sent' : '60-day flag sent';
-            const canReview = (app.viewer.isAdmin || app.roleKind === 'req') && app.canActOn(x.r.country) && x.r.base !== 'Pending Level 1' && x.r.base !== 'Pending Level 2';
+            const reviewNote = overdue
+              ? 'Re-validation required before this ID can be referenced again'
+              : x.d <= 30
+                ? 'Under 30 days — start the review now'
+                : x.d <= 60
+                  ? 'Flagged Expiring soon in the registry'
+                  : 'Approaching the 60-day threshold';
+            const canReview = (app.viewer.isAdmin || app.roleKind === 'req') && app.canActOn(x.r.countryCode) && x.r.base !== 'Pending Level 1' && x.r.base !== 'Pending Level 2';
             const rowBg = i % 2 ? '#F7FAF8' : '#FFFFFF';
             return (
               <div key={x.r.rid} style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.3fr 1fr 190px', gap: 18, alignItems: 'center', padding: '15px 18px', borderBottom: '1px solid #F0F1F1', background: rowBg }}>
