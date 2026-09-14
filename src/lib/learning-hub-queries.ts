@@ -15,6 +15,7 @@
 import type { PoolClient, QueryResultRow } from 'pg';
 import { createHash } from 'crypto';
 import learningHubPool from '@/lib/db-learning-hub';
+import { createSqlHelpers } from '@/lib/db/sql';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import { currentActor, normalizeEmail } from '@/lib/require-access';
 import { SEED_TRACKS, type SeedTrack } from '@/lib/learning-hub-seed-content';
@@ -42,48 +43,25 @@ import type {
 
 export type QueryParams = (string | number | boolean | null | undefined | string[] | number[])[];
 
-function toPostgresQuery(statement: string): string {
-  let index = 0;
-  return statement.replace(/\?/g, () => `$${++index}`);
-}
-function normaliseParams(params: QueryParams): QueryParams {
-  return params.map((value) => (value === undefined ? null : value));
-}
-function serialise<T>(value: unknown): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-export async function sql<T extends QueryResultRow[]>(statement: string, params: QueryParams = []): Promise<T> {
-  const result = await learningHubPool.query(toPostgresQuery(statement), normaliseParams(params));
-  return serialise<T>(result.rows);
-}
-export async function exec(statement: string, params: QueryParams = []): Promise<{ rowCount: number; insertId: number }> {
-  const result = await learningHubPool.query(toPostgresQuery(statement), normaliseParams(params));
-  const rawId = result.rows[0]?.id;
-  const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
-  return { rowCount: result.rowCount ?? 0, insertId: Number.isFinite(insertId) ? insertId : 0 };
-}
+export const { sql, exec } = createSqlHelpers(learningHubPool);
 
 /* Transaction-bound twins of sql()/exec(). A multi-statement write must run every
    statement on the client withTransaction() supplied: anything going through the
    pool helpers above lands on a different connection, outside the transaction, and
    will not roll back with it. */
-export async function sqlOn<T extends QueryResultRow[]>(
+export function sqlOn<T extends QueryResultRow[]>(
   client: PoolClient,
   statement: string,
   params: QueryParams = [],
 ): Promise<T> {
-  const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
-  return serialise<T>(result.rows);
+  return createSqlHelpers(client).sql<T>(statement, params);
 }
-export async function execOn(
+export function execOn(
   client: PoolClient,
   statement: string,
   params: QueryParams = [],
 ): Promise<{ rowCount: number; insertId: number }> {
-  const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
-  const rawId = result.rows[0]?.id;
-  const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
-  return { rowCount: result.rowCount ?? 0, insertId: Number.isFinite(insertId) ? insertId : 0 };
+  return createSqlHelpers(client).exec(statement, params);
 }
 
 /* ── Learner identity (never taken from the caller) ──────────────────────── */

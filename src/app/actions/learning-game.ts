@@ -11,22 +11,11 @@ import type { QueryResultRow } from 'pg';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import learningHubPool from '@/lib/db-learning-hub';
+import { createSqlHelpers } from '@/lib/db/sql';
 
 const GAME_KEY = 'red_bull_distribution';
 
-type QueryParams = (string | number | boolean | null | undefined)[];
-
-function toPostgresQuery(statement: string): string {
-  let index = 0;
-  return statement.replace(/\?/g, () => `$${++index}`);
-}
-async function sql<T extends QueryResultRow[]>(statement: string, params: QueryParams = []): Promise<T> {
-  const result = await learningHubPool.query(
-    toPostgresQuery(statement),
-    params.map((v) => (v === undefined ? null : v)),
-  );
-  return JSON.parse(JSON.stringify(result.rows)) as T;
-}
+const { sql } = createSqlHelpers(learningHubPool);
 
 let schemaReady: Promise<void> | null = null;
 async function ensureGameSchema(): Promise<void> {

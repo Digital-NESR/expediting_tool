@@ -5,6 +5,11 @@ import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { Icon } from './CatalogManagerUI';
 import { CatalogLogoMark } from './CatalogManagerLogo';
+import AppSidebar, { sidebarInitials } from '@/components/AppSidebar';
+
+/** Catalog Manager rides the main app green, #307c4c (into #1d4f31 gradients). */
+const ASIDE_CLASS =
+  'fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[280px] flex-col border-r border-slate-200/80 bg-white transition-transform duration-200 ease-in-out';
 
 interface NavItem {
   href: string;
@@ -50,10 +55,7 @@ export default function CatalogManagerSidebar({
   ] satisfies NavItem[]).filter((n) => n.show !== false);
 
   const rawName = session?.user?.name || 'Catalog User';
-  const nameParts = rawName.split(' ').filter(Boolean);
-  const initials = nameParts.length > 1
-    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
-    : rawName.substring(0, 2).toUpperCase();
+  const initials = sidebarInitials(rawName);
   const image = session?.user?.image;
 
   const isActive = (href: string) =>
@@ -62,17 +64,36 @@ export default function CatalogManagerSidebar({
   const sections: ('Workspace' | 'System')[] = ['Workspace', 'System'];
 
   return (
-    <>
-      <button
-        type="button"
-        aria-label="Close menu"
-        className={`fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm transition-opacity duration-200 ${isOpen && !pinned ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-        onClick={onClose}
-      />
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[280px] flex-col border-r border-slate-200/80 bg-white transition-transform duration-200 ease-in-out ${pinned ? 'shadow-none' : 'shadow-2xl'}`}
-        style={{ transform: isOpen || pinned ? 'translateX(0)' : 'translateX(-100%)' }}
-      >
+    <AppSidebar
+      isOpen={isOpen}
+      onClose={onClose}
+      // The Catalog Manager shell owns and persists the pin flag (its header and
+      // content padding react to it too) and shifts its own content at `md:`,
+      // so no storage key or body class here.
+      bodyClass={null}
+      pinned={pinned}
+      onTogglePin={onTogglePin}
+      // Catalog Manager has never closed on Escape or locked page scroll — and
+      // its `fill` pages scroll internally, so a body lock would fight them.
+      closeOnEscape={false}
+      lockScroll={false}
+      backdrop={({ isOpen: open, pinned: isPinned, onClose: close }) => (
+        <button
+          type="button"
+          aria-label="Close menu"
+          className={`fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm transition-opacity duration-200 ${open && !isPinned ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+          onClick={close}
+        />
+      )}
+      asideClassName={({ pinned: isPinned }) =>
+        `${ASIDE_CLASS} ${isPinned ? 'shadow-none' : 'shadow-2xl'}`
+      }
+      asideStyle={({ isOpen: open, pinned: isPinned }) => ({
+        transform: open || isPinned ? 'translateX(0)' : 'translateX(-100%)',
+      })}
+    >
+      {() => (
+        <>
         <div className="relative flex h-16 shrink-0 items-center gap-3 overflow-hidden bg-gradient-to-br from-[#307c4c] via-[#2b6f44] to-[#1d4f31] px-5 text-white">
           <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white p-1.5 text-[#307c4c] shadow-sm"><CatalogLogoMark className="h-full w-full" /></div>
@@ -166,7 +187,8 @@ export default function CatalogManagerSidebar({
             Sign out
           </button>
         </div>
-      </aside>
-    </>
+        </>
+      )}
+    </AppSidebar>
   );
 }

@@ -4,13 +4,12 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Search, Menu } from 'lucide-react';
-import { SG_BRAND } from './constants';
+import { SG_BRAND, SG_PIN_KEY } from './constants';
 import { useSourceGuideAccess } from './SourceGuideAccessContext';
 import { initials } from './constants';
 import SourceGuideSidebar from './SourceGuideSidebar';
 import SourceGuideCommandPalette from './SourceGuideCommandPalette';
-
-const PIN_KEY = 'sg-sidebar-pinned';
+import { usePinnedSidebar } from '@/components/usePinnedSidebar';
 
 export default function SourceGuideShell({
   children,
@@ -23,13 +22,12 @@ export default function SourceGuideShell({
   const pathname = usePathname();
   const { isAdmin, viewOnly, approvedCountries } = useSourceGuideAccess();
   const [open, setOpen] = useState(false);
-  const [pinned, setPinned] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  // restore pin preference
-  useEffect(() => {
-    try { if (localStorage.getItem(PIN_KEY) === '1') setPinned(true); } catch { /* ignore */ }
-  }, []);
+  // The shell owns the pin flag because its top bar reacts to it too; the
+  // sidebar below is rendered controlled. Content shifting stays on the
+  // wrapper div (see below) rather than the shared body-padding rule.
+  const { pinned, togglePin: togglePinned } = usePinnedSidebar(SG_PIN_KEY, null, { defaultPinned: false });
 
   // Cmd/Ctrl-K opens the command palette
   useEffect(() => {
@@ -44,11 +42,7 @@ export default function SourceGuideShell({
   }, []);
 
   function togglePin() {
-    setPinned(p => {
-      const next = !p;
-      try { localStorage.setItem(PIN_KEY, next ? '1' : '0'); } catch { /* ignore */ }
-      return next;
-    });
+    togglePinned();
     setOpen(false);
   }
 

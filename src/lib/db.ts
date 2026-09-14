@@ -1,17 +1,15 @@
-import { Pool } from 'pg';
+import { createPool } from './db/pool';
 
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT) || 5432,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  ssl: process.env.DB_SSL === 'true'
-    ? { rejectUnauthorized: false }
-    : false,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-});
+// PO Expediting / platform-wide pool. Reads DB_NAME (no default) — unlike every
+// other tool, which falls back to a literal database name.
+//
+// FOLLOW-UP: this may point at the same database as db-expediting.ts in production
+// (EXPEDITING_DB_NAME='nesr_expediting_db'). DB_NAME is not set locally so it could
+// not be verified; they are deliberately kept as two separate pools until it is.
+//
+// NOTE: this pool has never had an 'error' handler, unlike the others. Preserved as-is
+// (an unhandled idle-client error still takes the process down) — adding one would be
+// a behaviour change and belongs in its own commit.
+const pool = createPool(process.env.DB_NAME, { key: 'default', label: null });
 
 export default pool;

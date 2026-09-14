@@ -10,6 +10,7 @@ import { request as httpRequest } from 'http';
 import { request as httpsRequest } from 'https';
 import type { QueryResultRow } from 'pg';
 import procureGuardPool from '@/lib/db-procureguard';
+import { asSerialised, createSqlHelpers, serialise } from '@/lib/db/sql';
 import { isActiveApprovalStatus, normalizeProcureGuardCountry } from '@/lib/procureGuard-utils';
 import type {
   AdhocPaymentRequest,
@@ -21,35 +22,11 @@ import type {
 
 export type QueryParam = string | number | boolean | null | Date | Buffer | number[] | string[] | undefined;
 export type QueryParams = QueryParam[];
-export type ExecResult = { rowCount: number; insertId: number };
+export type { ExecResult } from '@/lib/db/sql';
 
-function toPostgresQuery(statement: string): string {
-  let index = 0;
-  return statement.replace(/\?/g, () => `$${++index}`);
-}
+export const { sql, exec } = createSqlHelpers(procureGuardPool);
 
-function normaliseParams(params: QueryParams): QueryParams {
-  return params.map(value => value === undefined ? null : value);
-}
-
-export async function sql<T extends QueryResultRow[]>(statement: string, params: QueryParams = []): Promise<T> {
-  const result = await procureGuardPool.query(toPostgresQuery(statement), normaliseParams(params));
-  return serialise<T>(result.rows);
-}
-
-export async function exec(statement: string, params: QueryParams = []): Promise<ExecResult> {
-  const result = await procureGuardPool.query(toPostgresQuery(statement), normaliseParams(params));
-  const rawId = result.rows[0]?.id;
-  const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
-  return {
-    rowCount: result.rowCount ?? 0,
-    insertId: Number.isFinite(insertId) ? insertId : 0,
-  };
-}
-
-export function serialise<T>(value: unknown): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
+export { serialise };
 
 // Memoized so the ~11 idempotent schema statements run once per process (e.g. on a warm serverless
 // instance) instead of on every page load — that per-request DDL was the main ProcureGuard load lag.
@@ -167,7 +144,7 @@ export async function getActiveDelegatesByDelegator(): Promise<Record<string, Pr
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_delegations WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
     );
-    for (const d of serialise<ProcureGuardDelegation[]>(rows)) {
+    for (const d of asSerialised<ProcureGuardDelegation[]>(rows)) {
       const key = d.delegator_email.trim().toLowerCase();
       (map[key] ??= []).push(d);
     }
@@ -331,7 +308,7 @@ export async function getProcureGuardNotificationRecipients(input: {
   );
 
   const seen = new Set<string>();
-  return serialise<ProcureGuardNotificationRecipient[]>(rows)
+  return asSerialised<ProcureGuardNotificationRecipient[]>(rows)
     .filter(row => {
       const key = row.email.trim().toLowerCase();
       if (seen.has(key)) return false;
@@ -393,7 +370,7 @@ export async function getProcureGuardNotificationRecipientsForStatuses(input: {
   );
 
   type CandidateRow = ProcureGuardNotificationRecipient & { is_required?: boolean | null };
-  const candidates = serialise<CandidateRow[]>(rows);
+  const candidates = asSerialised<CandidateRow[]>(rows);
   const countryKeys = new Set(countries);
 
   for (const step of input.steps) {

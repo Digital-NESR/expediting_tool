@@ -5,6 +5,9 @@ export const SG_BRAND_DARK = '#1f5d3a';
 export const SG_BRAND_SOFT = '#eaf4ef';
 export const VIEW_ONLY = 'All Countries - View Only';
 
+/** localStorage key for the sidebar pin preference ('1' / '0'). */
+export const SG_PIN_KEY = 'sg-sidebar-pinned';
+
 /** deterministic avatar tone for a supplier name */
 export function supplierTone(name: string): string {
   const tones = ['#2A7E4F', '#1F7A6B', '#3E6FB0', '#8A6D2F', '#6B5BA8'];

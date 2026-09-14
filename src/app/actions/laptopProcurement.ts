@@ -8,6 +8,7 @@ import { after } from 'next/server';
 import { cache } from 'react';
 import { getProcureGuardUser } from '@/lib/auth';
 import laptopProcurementPool from '@/lib/db-laptop';
+import { asSerialised, createSqlHelpers } from '@/lib/db/sql';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import empDirectoryPool from '@/lib/db-emp-directory';
 import {
@@ -106,61 +107,18 @@ function detectMime(file: File): string {
   return FILE_MIME_MAP[fileExt] || file.type || 'application/octet-stream';
 }
 
-function toPostgresQuery(statement: string): string {
-  let index = 0;
-  return statement.replace(/\?/g, () => `$${++index}`);
-}
-
-function normaliseParams(params: QueryParams): QueryParams {
-  return params.map(value => (value === undefined ? null : value));
-}
-
-function serialise<T>(value: unknown): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-// Rows handed back by sql()/sqlTx() have ALREADY been through serialise() once — they
-// are plain JSON values with no Dates, Buffers or pg internals left in them. Running
-// serialise() over them a second time at the call site was a full JSON round trip of
-// every row on every read for a value that cannot change, so use this instead: the same
-// type narrowing, no second pass. Only ever apply it to sql()/sqlTx() output (or values
-// built out of it) — anything straight off the pool still needs a real serialise().
-function asSerialised<T>(value: unknown): T {
-  return value as T;
-}
-
-async function sql<T extends QueryResultRow[]>(statement: string, params: QueryParams = []): Promise<T> {
-  const result = await laptopProcurementPool.query(toPostgresQuery(statement), normaliseParams(params));
-  return serialise<T>(result.rows);
-}
-
-async function exec(statement: string, params: QueryParams = []): Promise<ExecResult> {
-  const result = await laptopProcurementPool.query(toPostgresQuery(statement), normaliseParams(params));
-  const rawId = result.rows[0]?.id;
-  const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
-  return {
-    rowCount: result.rowCount ?? 0,
-    insertId: Number.isFinite(insertId) ? insertId : 0,
-  };
-}
+const { sql, exec } = createSqlHelpers(laptopProcurementPool);
 
 // Same `?`-placeholder contract as sql()/exec() above, but bound to one transaction's
 // client. Everything inside a withTransaction callback has to go through these —
 // sql()/exec() reach for the pool, so they'd run on a different connection, outside
 // the transaction, and would not roll back with it.
-async function sqlTx<T extends QueryResultRow[]>(client: PoolClient, statement: string, params: QueryParams = []): Promise<T> {
-  const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
-  return serialise<T>(result.rows);
+function sqlTx<T extends QueryResultRow[]>(client: PoolClient, statement: string, params: QueryParams = []): Promise<T> {
+  return createSqlHelpers(client).sql<T>(statement, params);
 }
 
-async function execTx(client: PoolClient, statement: string, params: QueryParams = []): Promise<ExecResult> {
-  const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
-  const rawId = result.rows[0]?.id;
-  const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
-  return {
-    rowCount: result.rowCount ?? 0,
-    insertId: Number.isFinite(insertId) ? insertId : 0,
-  };
+function execTx(client: PoolClient, statement: string, params: QueryParams = []): Promise<ExecResult> {
+  return createSqlHelpers(client).exec(statement, params);
 }
 
 /* ── Actor / access ───────────────────────────────────────────── */

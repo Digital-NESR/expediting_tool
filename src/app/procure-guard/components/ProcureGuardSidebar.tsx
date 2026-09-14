@@ -1,11 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import type { ProcureGuardAccessView } from '@/types/procureGuard';
 import ProcureGuardLogo from './ProcureGuardLogo';
+import AppSidebar, { sidebarInitials } from '@/components/AppSidebar';
+
+/** ProcureGuard rides the main app green, #307c4c (into #1d4f31 gradients). */
+const PIN_KEY = 'pg-sidebar-pinned';
+
+const ASIDE_CLASS =
+  'fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[280px] flex-shrink-0 flex-col border-r border-slate-200 bg-white shadow-2xl transition-transform duration-200 ease-in-out';
 
 const NAV = [
   { href: '/procure-guard', label: 'Dashboard', icon: 'grid', access: ['requester', 'viewer', 'reviewer', 'admin'] },
@@ -85,42 +91,36 @@ export default function ProcureGuardSidebar({
   const visibleNav = NAV.filter(item => item.access.includes(accessView));
 
   const rawName = session?.user?.name || 'Unknown User';
-  const nameParts = rawName.split(' ').filter(Boolean);
-  const initials = nameParts.length > 1
-    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
-    : rawName.substring(0, 2).toUpperCase();
+  const initials = sidebarInitials(rawName);
   const jobTitle = (session?.user as { jobTitle?: string })?.jobTitle || 'User';
 
-  // Pinned by default: on large screens the sidebar docks open and shifts page content right.
-  // Users can unpin it (collapses back to the slide-over drawer). Choice persists per browser.
-  const [pinned, setPinned] = useState(true);
-  useEffect(() => {
-    const stored = window.localStorage.getItem('pg-sidebar-pinned');
-    if (stored !== null) setPinned(stored === '1');
-    if (!document.getElementById('pg-sidebar-pin-style')) {
-      const el = document.createElement('style');
-      el.id = 'pg-sidebar-pin-style';
-      el.textContent = '@media (min-width:1024px){body.pg-sidebar-pinned{padding-left:280px}}';
-      document.head.appendChild(el);
-    }
-  }, []);
-  useEffect(() => {
-    window.localStorage.setItem('pg-sidebar-pinned', pinned ? '1' : '0');
-    document.body.classList.toggle('pg-sidebar-pinned', pinned);
-    return () => { document.body.classList.remove('pg-sidebar-pinned'); };
-  }, [pinned]);
-
   return (
-    <>
-      <button
-        type="button"
-        aria-label="Close ProcureGuard menu"
-        className={`fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm transition-opacity ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'} ${pinned ? 'lg:hidden' : ''}`}
-        onClick={onClose}
-      />
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[280px] flex-shrink-0 flex-col border-r border-slate-200 bg-white shadow-2xl transition-transform duration-200 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} ${pinned ? 'lg:translate-x-0 lg:shadow-none' : ''}`}
-      >
+    // Pinned by default: on large screens the sidebar docks open and shifts page content right.
+    // Users can unpin it (collapses back to the slide-over drawer). Choice persists per browser.
+    <AppSidebar
+      isOpen={isOpen}
+      onClose={onClose}
+      storageKey={PIN_KEY}
+      bodyClass={PIN_KEY}
+      defaultPinned
+      // ProcureGuard has never closed on Escape or locked page scroll behind the
+      // drawer; keeping both off preserves today's behaviour exactly.
+      closeOnEscape={false}
+      lockScroll={false}
+      backdrop={({ isOpen: open, pinned, onClose: close }) => (
+        <button
+          type="button"
+          aria-label="Close ProcureGuard menu"
+          className={`fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm transition-opacity ${open ? 'opacity-100' : 'pointer-events-none opacity-0'} ${pinned ? 'lg:hidden' : ''}`}
+          onClick={close}
+        />
+      )}
+      asideClassName={({ isOpen: open, pinned }) =>
+        `${ASIDE_CLASS} ${open ? 'translate-x-0' : '-translate-x-full'} ${pinned ? 'lg:translate-x-0 lg:shadow-none' : ''}`
+      }
+    >
+      {({ pinned, togglePin }) => (
+        <>
         <div className="flex h-16 items-center gap-3 bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-5 text-white">
           <ProcureGuardLogo size="lg" />
           <div className="min-w-0">
@@ -132,7 +132,7 @@ export default function ProcureGuardSidebar({
               type="button"
               aria-label={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
               title={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
-              onClick={() => setPinned(p => !p)}
+              onClick={togglePin}
               className="hidden rounded-lg p-2 text-white/70 transition-colors hover:bg-white/15 hover:text-white lg:inline-flex"
             >
               {pinned ? (
@@ -237,7 +237,8 @@ export default function ProcureGuardSidebar({
             Sign out
           </button>
         </div>
-      </aside>
-    </>
+        </>
+      )}
+    </AppSidebar>
   );
 }

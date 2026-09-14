@@ -5,6 +5,7 @@ import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import ExcelJS from 'exceljs';
 import catalogManagerPool from '@/lib/db-catalog-manager';
+import { createSqlHelpers } from '@/lib/db/sql';
 import { withTransaction } from '@/lib/db/tx';
 import { getProcureGuardUser } from '@/lib/auth';
 import { AccessError, normalizeEmail } from '@/lib/require-access';
@@ -64,27 +65,7 @@ import type {
 
 type QueryParams = (string | number | boolean | null | undefined | string[] | number[])[];
 
-function toPostgresQuery(statement: string): string {
-  let index = 0;
-  return statement.replace(/\?/g, () => `$${++index}`);
-}
-function normaliseParams(params: QueryParams): QueryParams {
-  return params.map((value) => (value === undefined ? null : value));
-}
-function serialise<T>(value: unknown): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-async function sql<T extends QueryResultRow[]>(statement: string, params: QueryParams = []): Promise<T> {
-  const result = await catalogManagerPool.query(toPostgresQuery(statement), normaliseParams(params));
-  return serialise<T>(result.rows);
-}
-async function exec(statement: string, params: QueryParams = []): Promise<{ rowCount: number; insertId: number }> {
-  const result = await catalogManagerPool.query(toPostgresQuery(statement), normaliseParams(params));
-  const rawId = result.rows[0]?.id;
-  const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
-  return { rowCount: result.rowCount ?? 0, insertId: Number.isFinite(insertId) ? insertId : 0 };
-}
+const { sql, exec } = createSqlHelpers(catalogManagerPool);
 
 /**
  * The sql()/exec() pair a piece of work runs its statements through. Defaults to the pool-bound
@@ -101,18 +82,7 @@ const poolDb: CatalogDb = { sql, exec };
 
 /** Transaction-bound twins of sql()/exec() — same `?` → `$n` rewrite, same param/row handling. */
 function dbOn(client: PoolClient): CatalogDb {
-  return {
-    sql: async <T extends QueryResultRow[]>(statement: string, params: QueryParams = []): Promise<T> => {
-      const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
-      return serialise<T>(result.rows);
-    },
-    exec: async (statement: string, params: QueryParams = []) => {
-      const result = await client.query(toPostgresQuery(statement), normaliseParams(params));
-      const rawId = result.rows[0]?.id;
-      const insertId = typeof rawId === 'number' ? rawId : Number(rawId);
-      return { rowCount: result.rowCount ?? 0, insertId: Number.isFinite(insertId) ? insertId : 0 };
-    },
-  };
+  return createSqlHelpers(client);
 }
 
 /**

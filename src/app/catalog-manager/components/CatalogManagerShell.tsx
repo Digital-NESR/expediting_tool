@@ -1,12 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { usePinnedSidebar } from '@/components/usePinnedSidebar';
 import CatalogManagerSidebar from './CatalogManagerSidebar';
 import CatalogManagerHomeButton from './CatalogManagerHomeButton';
 import CatalogManagerLogo from './CatalogManagerLogo';
 import CommandPalette from './CommandPalette';
 import { Icon, Kbd } from './CatalogManagerUI';
+
+/** localStorage key for the sidebar pin preference ('1' / '0'). Pre-existing — do not rename. */
+const CM_PIN_KEY = 'cm_sidebar_pinned';
 
 export interface ScopeCountry {
   code: string;
@@ -41,23 +45,14 @@ export default function CatalogManagerShell({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [pinned, setPinned] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
-  useEffect(() => {
-    // Restore the saved pin preference after mount (keeps SSR markup stable → no hydration mismatch).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPinned(localStorage.getItem('cm_sidebar_pinned') === '1');
-  }, []);
-
-  function togglePin() {
-    setPinned((p) => {
-      const next = !p;
-      localStorage.setItem('cm_sidebar_pinned', next ? '1' : '0');
-      return next;
-    });
-  }
+  // The shell owns the pin flag because the header and the content padding react
+  // to it too; the sidebar below is rendered controlled. The stored preference is
+  // restored after mount (keeps SSR markup stable → no hydration mismatch).
+  // Key kept as `cm_sidebar_pinned` so existing preferences survive.
+  const { pinned, togglePin } = usePinnedSidebar(CM_PIN_KEY, null, { defaultPinned: false });
 
   function onScopeChange(value: string) {
     const qs = value && value !== 'ALL' ? `?country=${value}` : '';

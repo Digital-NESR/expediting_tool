@@ -2,7 +2,10 @@
 
 import type { QueryResultRow } from 'pg';
 import delegationPool from '@/lib/db-delegation';
+import { asSerialised, createSqlHelpers } from '@/lib/db/sql';
 import type { DelegationAppId, DelegationRow } from '@/lib/delegation-shared';
+
+const { sql } = createSqlHelpers(delegationPool);
 
 /* ============================================================================
    DELEGATION RESOLVER (slim) — Catalog Repo admin preview.
@@ -11,14 +14,6 @@ import type { DelegationAppId, DelegationRow } from '@/lib/delegation-shared';
    read-side resolver so Catalog Repo can honor any active delegation grants.
    Everything is fail-safe: if delegation_db / the table is absent, returns [].
 ============================================================================ */
-
-function toPostgresQuery(statement: string): string {
-  let index = 0;
-  return statement.replace(/\?/g, () => `$${++index}`);
-}
-function serialise<T>(value: unknown): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
 
 function isExpectedMissingDb(err: unknown): boolean {
   const code = (err as { code?: string } | null)?.code;
@@ -61,18 +56,16 @@ export async function getDelegatorsForApp(
   if (!email) return [];
   try {
     await ensureDelegationSchema();
-    const result = await delegationPool.query(
-      toPostgresQuery(
-        `SELECT DISTINCT delegator_email, delegator_name
+    const result = await sql<QueryResultRow[]>(
+      `SELECT DISTINCT delegator_email, delegator_name
            FROM delegations
           WHERE LOWER(delegate_email) = ?
             AND status = 'active'
             AND NOW() BETWEEN starts_at AND ends_at
             AND (app = 'all' OR app = ?)`,
-      ),
       [email, app],
     );
-    const rows = serialise<DelegationRow[]>(result.rows as QueryResultRow[]);
+    const rows = asSerialised<DelegationRow[]>(result);
     return rows.map((r) => ({ email: r.delegator_email, name: r.delegator_name }));
   } catch (err) {
     if (!isExpectedMissingDb(err)) console.warn('[delegation] resolver degraded to no-delegation:', (err as Error)?.message ?? err);

@@ -1,6 +1,8 @@
 'use server';
 
-import empPool from '@/lib/db-emp';
+// db-emp.ts declared a second, identical pool against the same azure_emp_directory
+// database; both now share the one empDirectoryPool.
+import empPool from '@/lib/db-emp-directory';
 
 export interface Employee {
   id: number;
