@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint, typecheck, test
+    name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
 
     steps:
@@ -35,6 +35,30 @@ jobs:
 
       - name: Test
         run: npm test
+
+      # Cache Next's build cache so repeat runs don't recompile from scratch.
+      - name: Restore Next build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**/*.[jt]s', 'src/**/*.[jt]sx') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            next-${{ runner.os }}-
+
+      # Compile check only. The env values below are throwaway placeholders so the
+      # build is hermetic and needs no secrets; the artifact is discarded. Real
+      # values come from the Vercel project at deploy time. NEXT_PUBLIC_APP_URL is
+      # inlined into the client bundle at build, which is exactly why this build
+      # output must never be deployed.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          NODE_OPTIONS: --max-old-space-size=6144
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXTAUTH_URL: http://localhost:3000
+          NEXTAUTH_SECRET: ci-placeholder-not-a-real-secret
 
       # Blocking. `next` and `next-auth` were upgraded to clear their critical
       # advisories, so a new high-severity advisory should now fail the build.
