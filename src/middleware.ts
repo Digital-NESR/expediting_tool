@@ -10,11 +10,26 @@ const PUBLIC_PATHS = [
   '/help',
 ];
 
+// Machine-to-machine API endpoints. Their callers (Vercel Cron, n8n) never carry a
+// NextAuth cookie, so the blanket 401 below would make them permanently unreachable.
+// Each handler enforces its own shared secret instead — that is the gate here, not
+// the session cookie. Matched exactly (trailing slash allowed) so nothing else slips
+// past the cookie check; the laptop path has a dynamic <id> segment.
+const MACHINE_PATHS = [
+  /^\/api\/procure-guard\/reminders\/?$/,
+  /^\/api\/laptop-procurement\/requests\/[^/]+\/status\/?$/,
+];
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow public paths through without any auth check
   if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  // Machine endpoints authenticate themselves in the handler (shared secret)
+  if (MACHINE_PATHS.some(p => p.test(pathname))) {
     return NextResponse.next();
   }
 

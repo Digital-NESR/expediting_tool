@@ -679,6 +679,43 @@ function dedupeLaptopRecipients<T extends { email: string }>(recipients: T[]): T
   });
 }
 
+// Approval-email test mode is strictly opt-in: it only turns on when the variable is
+// literally 'true'. Anything else — unset, empty, typo'd — means real recipients, so a
+// misconfigured production deploy can never silently divert approver mail to a test inbox.
+function isLaptopEmailTestMode(): boolean {
+  return stripEnvQuotes(process.env.LAPTOP_APPROVAL_EMAIL_TEST_MODE ?? '').trim().toLowerCase() === 'true';
+}
+
+// Test-mode addresses come from env only — there are deliberately no fallbacks, so a
+// half-configured test run fails loudly instead of mailing whoever used to be hardcoded here.
+function requireLaptopTestEmail(varName: string): string {
+  const value = stripEnvQuotes(process.env[varName] ?? '').trim();
+  if (!value) {
+    throw new Error(
+      `LAPTOP_APPROVAL_EMAIL_TEST_MODE is enabled but ${varName} is not set. ` +
+      `Set ${varName} to a test inbox, or set LAPTOP_APPROVAL_EMAIL_TEST_MODE=false to notify the real approvers.`,
+    );
+  }
+  return value;
+}
+
+// The per-stage test roster, shared by the approval-chain and final-approval notifications.
+function laptopTestStageCandidates(stage: LaptopApprovalStage): Array<{ name: string; email: string }> {
+  switch (stage) {
+    case 'IT Manager':
+      return [
+        { name: 'IT Manager (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL') },
+        { name: 'IT Manager 2 (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL') },
+      ];
+    case 'Country Manager':
+      return [{ name: 'Country Manager (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_CM_EMAIL') }];
+    case 'IT Director':
+      return [{ name: 'IT Director (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_ITD_EMAIL') }];
+    case 'Supply Chain Director':
+      return [{ name: 'Supply Chain Director (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_SCD_EMAIL') }];
+  }
+}
+
 async function postLaptopWebhook(
   webhookUrl: string,
   headers: Record<string, string>,
@@ -762,9 +799,9 @@ async function sendLaptopDelegationNotification(
 /**
  * Notifies whoever is next in the approval chain (IT Manager → Country Manager →
  * IT Director → Supply Chain Director) that a request needs their attention. The
- * real recipients are resolved from laptop_approver_matrix, but for now every stage
- * is routed to a fixed test roster — see LAPTOP_APPROVAL_EMAIL_TEST_MODE and the
- * LAPTOP_APPROVAL_TEST_*_EMAIL vars below.
+ * recipients are resolved from laptop_approver_matrix. Setting
+ * LAPTOP_APPROVAL_EMAIL_TEST_MODE=true instead routes every stage to the test roster in
+ * the LAPTOP_APPROVAL_TEST_*_EMAIL vars; any other value delivers to the real approvers.
  */
 async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
   const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL?.trim();
@@ -810,31 +847,17 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
       )).flat(),
     );
 
-    // TESTING OVERRIDE: replace the real laptop_approver_matrix lookup above with a fixed
-    // per-stage test roster, so the full chain — including the IT Manager → IT Manager 2
-    // escalation — can be exercised safely before the real matrix is verified end-to-end.
-    // Set LAPTOP_APPROVAL_EMAIL_TEST_MODE=false to deliver to the real matrix recipients.
-    const testMode = process.env.LAPTOP_APPROVAL_EMAIL_TEST_MODE !== 'false';
-    const testStageCandidates: Record<LaptopApprovalStage, Array<{ name: string; email: string }>> = {
-      'IT Manager': [
-        { name: 'IT Manager (test)', email: process.env.LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL?.trim() || 'sbagalkot@nesr.com' },
-        { name: 'IT Manager 2 (test)', email: process.env.LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL?.trim() || 'sbagalkot@nesr.com' },
-      ],
-      'Country Manager': [
-        { name: 'Country Manager (test)', email: process.env.LAPTOP_APPROVAL_TEST_CM_EMAIL?.trim() || 'cmorales@nesr.com' },
-      ],
-      'IT Director': [
-        { name: 'IT Director (test)', email: process.env.LAPTOP_APPROVAL_TEST_ITD_EMAIL?.trim() || 'mfarhan@nesr.com' },
-      ],
-      'Supply Chain Director': [
-        { name: 'Supply Chain Director (test)', email: process.env.LAPTOP_APPROVAL_TEST_SCD_EMAIL?.trim() || 'sbagalkot@nesr.com' },
-      ],
-    };
+    // TESTING OVERRIDE (opt-in): replace the real laptop_approver_matrix lookup above with a
+    // per-stage test roster taken from LAPTOP_APPROVAL_TEST_*_EMAIL, so the full chain —
+    // including the IT Manager → IT Manager 2 escalation — can be exercised safely.
+    // Only active when LAPTOP_APPROVAL_EMAIL_TEST_MODE=true.
+    const testMode = isLaptopEmailTestMode();
+    const testCandidates = testMode ? laptopTestStageCandidates(stage) : null;
 
     // `intended_recipients` is the full candidate list for the stage (used by the n8n workflow
     // to pick an escalation target); `recipients` is only the primary — who gets emailed right now.
-    const intendedRecipients = testMode ? testStageCandidates[stage] : realRecipients;
-    const routedRecipients = testMode ? [testStageCandidates[stage][0]] : realRecipients;
+    const intendedRecipients = testCandidates ?? realRecipients;
+    const routedRecipients = testCandidates ? [testCandidates[0]] : realRecipients;
 
     if (routedRecipients.length === 0) {
       console.warn('[Laptop Procurement n8n] No approver configured for stage; skipping notification', { stage, country: request.country });
@@ -921,15 +944,13 @@ async function notifyLaptopFinalApproval(request: LaptopRequest): Promise<void> 
       )).flat(),
     );
 
-    const testMode = process.env.LAPTOP_APPROVAL_EMAIL_TEST_MODE !== 'false';
-    const testRecipients = [
-      { name: 'IT Manager (test)', email: process.env.LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL?.trim() || 'sbagalkot@nesr.com' },
-      { name: 'IT Manager 2 (test)', email: process.env.LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL?.trim() || 'sbagalkot@nesr.com' },
-    ];
+    const testMode = isLaptopEmailTestMode();
     // Deduped because LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL and
-    // LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL both default to the same address when
-    // unset, which would otherwise email the same test inbox twice.
-    const recipients = dedupeLaptopRecipients(testMode ? testRecipients : realRecipients);
+    // LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL are often pointed at the same test inbox,
+    // which would otherwise email it twice.
+    const recipients = dedupeLaptopRecipients(
+      testMode ? laptopTestStageCandidates('IT Manager') : realRecipients,
+    );
 
     if (recipients.length === 0) {
       console.warn('[Laptop Procurement n8n] No IT Manager configured; skipping final-approval notification', { country: request.country });
@@ -1004,9 +1025,9 @@ async function notifyLaptopRequesterUpdate(
     const secret = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_SECRET?.trim();
     if (secret) headers['x-laptop-procurement-secret'] = secret;
 
-    const testMode = process.env.LAPTOP_APPROVAL_EMAIL_TEST_MODE !== 'false';
+    const testMode = isLaptopEmailTestMode();
     const recipient = testMode
-      ? { name: 'Requester (test)', email: process.env.LAPTOP_APPROVAL_TEST_REQUESTER_EMAIL?.trim() || 'sbagalkot@nesr.com' }
+      ? { name: 'Requester (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_REQUESTER_EMAIL') }
       : { name: request.requested_by_name, email: request.requested_by_email };
 
     const payload = {

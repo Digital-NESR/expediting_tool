@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import * as XLSX from 'xlsx';
+import { readSpreadsheet } from '@/lib/spreadsheet-import';
 import { importShipments, getMigrationLog } from '@/app/actions/tite-migration';
 import type { RawShipmentRow, MigrationLogRow } from '@/app/actions/tite-migration';
 
@@ -115,128 +115,112 @@ function calcColumnMatch(headers: string[]): { matches: ColMatch[]; score: numbe
 
 /* ─── Client-side Excel parser ───────────────────────────────── */
 
-function parseExcel(file: File): Promise<ParsedFile> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target!.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array', dateNF: 'yyyy-mm-dd' });
+async function parseExcel(file: File): Promise<ParsedFile> {
+  const sheets = await readSpreadsheet(file);
 
-        const sheetName =
-          workbook.SheetNames.find(
-            (n) =>
-              n.includes('KSA') || n.includes('UAE') ||
-              n.toLowerCase().includes('portal') ||
-              n.toLowerCase().includes('data'),
-          ) ??
-          workbook.SheetNames[1] ??
-          workbook.SheetNames[0];
+  const sheet =
+    sheets.find(
+      (s) =>
+        s.name.includes('KSA') || s.name.includes('UAE') ||
+        s.name.toLowerCase().includes('portal') ||
+        s.name.toLowerCase().includes('data'),
+    ) ??
+    sheets[1] ??
+    sheets[0];
 
-        const sheet = workbook.Sheets[sheetName];
-        const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, {
-          header: 1,
-          raw: false,
-          dateNF: 'yyyy-mm-dd',
-        });
+  if (!sheet) throw new Error('The workbook contains no readable sheets.');
+  const rawRows: any[][] = sheet.rows;
 
-        const headers: string[] = (rawRows[1] ?? []).map((h: any) =>
-          h != null ? String(h).trim() : '',
-        );
+  const headers: string[] = (rawRows[1] ?? []).map((h: any) =>
+    h != null ? String(h).trim() : '',
+  );
 
-        const previewSource = rawRows.slice(2, 5);
-        const preview: string[][] = previewSource.map((row) =>
-          headers.map((_, ci) => {
-            const v = row[ci];
-            return v != null ? String(v).trim() : '';
-          }),
-        );
+  const previewSource = rawRows.slice(2, 5);
+  const preview: string[][] = previewSource.map((row) =>
+    headers.map((_, ci) => {
+      const v = row[ci];
+      return v != null ? String(v).trim() : '';
+    }),
+  );
 
-        const parseNum = (val: any): number | null => {
-          if (!val) return null;
-          const s = String(val).trim();
-          if (s.startsWith('=') || s === '') return null;
-          const cleaned = s
-            .replace(/SAR|AED|USD|KWD|QAR|OMR|BHD|EGP/gi, '')
-            .replace(/[$£€﷼]/g, '')
-            .replace(/,/g, '')
-            .trim();
-          const n = parseFloat(cleaned);
-          return isNaN(n) ? null : n;
-        };
+  const parseNum = (val: any): number | null => {
+    if (!val) return null;
+    const s = String(val).trim();
+    if (s.startsWith('=') || s === '') return null;
+    const cleaned = s
+      .replace(/SAR|AED|USD|KWD|QAR|OMR|BHD|EGP/gi, '')
+      .replace(/[$£€﷼]/g, '')
+      .replace(/,/g, '')
+      .trim();
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? null : n;
+  };
 
-        const parseDate = (val: any): string | null => {
-          if (val == null) return null;
-          const s = String(val).trim();
-          if (s.startsWith('=') || s === '') return null;
-          // DD/MM/YYYY
-          const parts = s.split('/');
-          if (parts.length === 3) {
-            const [d, m, y] = parts;
-            const dt = new Date(
-              `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`,
-            );
-            if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-          }
-          const dt = new Date(s);
-          if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-          return null;
-        };
+  const parseDate = (val: any): string | null => {
+    if (val == null) return null;
+    const s = String(val).trim();
+    if (s.startsWith('=') || s === '') return null;
+    // DD/MM/YYYY
+    const parts = s.split('/');
+    if (parts.length === 3) {
+      const [d, m, y] = parts;
+      const dt = new Date(
+        `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`,
+      );
+      if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
+    }
+    const dt = new Date(s);
+    if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
+    return null;
+  };
 
-        const parseStatus = (val: any): string => {
-          if (!val) return 'Open';
-          const s = String(val).toLowerCase().trim();
-          if (s.includes('refund')) return 'Closed - Refund Recovered';
-          if (s.includes('extended') || s.includes('extension')) return 'Open - Extended';
-          if (s.includes('closed') || s.includes('close')) return 'Closed';
-          if (s.includes('open')) return 'Open';
-          if (s.includes('active')) return 'Open';
-          return 'Open';
-        };
+  const parseStatus = (val: any): string => {
+    if (!val) return 'Open';
+    const s = String(val).toLowerCase().trim();
+    if (s.includes('refund')) return 'Closed - Refund Recovered';
+    if (s.includes('extended') || s.includes('extension')) return 'Open - Extended';
+    if (s.includes('closed') || s.includes('close')) return 'Closed';
+    if (s.includes('open')) return 'Open';
+    if (s.includes('active')) return 'Open';
+    return 'Open';
+  };
 
-        const dataRows = rawRows.slice(2);
-        const rows: RawShipmentRow[] = dataRows
-          .filter((row) => row[0] != null && String(row[0]).trim() !== '')
-          .map((row, i) => {
-            return {
-              rowIndex: i + 3,
-              no: String(row[0] || '').trim(),
-              segment: row[1] ? String(row[1]).trim() || null : null,
-              from_country: row[2] ? String(row[2]).trim() || null : null,
-              to_country: row[3] ? String(row[3]).trim() || null : null,
-              invoice_number: row[4] ? String(row[4]).trim() || null : null,
-              invoice_value_usd: parseNum(row[5]),
-              customs_reference_number: row[6]
-                ? String(row[6]).trim().split('\n')[0] || null
-                : null,
-              description: row[7] ? String(row[7]).trim() || null : null,
-              mot: row[8]
-                ? String(row[8]).trim()
-                    .replace(/lnad/i, 'Land')
-                    .replace(/lnd/i, 'Land') || null
-                : null,
-              awb_number: row[9] ? String(row[9]).trim() || null : null,
-              po_number: row[10] ? String(row[10]).trim() || null : null,
-              movement_type: row[11]
-                ? String(row[11]).trim().replace(/\s+/g, ' ') || null
-                : null,
-              import_date: parseDate(row[12]),
-              expiry_date: parseDate(row[13]),
-              extended_date: parseDate(row[14]),
-              deposit_usd: parseNum(row[15]),
-              comments: row[16] ? String(row[16]).trim() || null : null,
-              status: parseStatus(row[17]),
-            };
-          });
+  const dataRows = rawRows.slice(2);
+  const rows: RawShipmentRow[] = dataRows
+    .filter((row) => row[0] != null && String(row[0]).trim() !== '')
+    .map((row, i) => {
+      return {
+        rowIndex: i + 3,
+        no: String(row[0] || '').trim(),
+        segment: row[1] ? String(row[1]).trim() || null : null,
+        from_country: row[2] ? String(row[2]).trim() || null : null,
+        to_country: row[3] ? String(row[3]).trim() || null : null,
+        invoice_number: row[4] ? String(row[4]).trim() || null : null,
+        invoice_value_usd: parseNum(row[5]),
+        customs_reference_number: row[6]
+          ? String(row[6]).trim().split('\n')[0] || null
+          : null,
+        description: row[7] ? String(row[7]).trim() || null : null,
+        mot: row[8]
+          ? String(row[8]).trim()
+              .replace(/lnad/i, 'Land')
+              .replace(/lnd/i, 'Land') || null
+          : null,
+        awb_number: row[9] ? String(row[9]).trim() || null : null,
+        po_number: row[10] ? String(row[10]).trim() || null : null,
+        movement_type: row[11]
+          ? String(row[11]).trim().replace(/\s+/g, ' ') || null
+          : null,
+        import_date: parseDate(row[12]),
+        expiry_date: parseDate(row[13]),
+        extended_date: parseDate(row[14]),
+        deposit_usd: parseNum(row[15]),
+        comments: row[16] ? String(row[16]).trim() || null : null,
+        status: parseStatus(row[17]),
+      };
+    });
 
-        resolve({ rows, headers, preview });
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
-  });
+  return { rows, headers, preview };
 }
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -390,8 +374,8 @@ export default function TiteMigrationClient() {
   );
 
   const handleFile = useCallback(async (f: File) => {
-    if (!f.name.match(/\.(xlsx|xls)$/i)) {
-      setParseError('Only .xlsx and .xls files are accepted.');
+    if (!f.name.match(/\.xlsx$/i)) {
+      setParseError('Only .xlsx files are accepted. Open a legacy .xls workbook in Excel and save it as .xlsx.');
       return;
     }
     setFile(f);
@@ -581,7 +565,7 @@ export default function TiteMigrationClient() {
                     <span className="text-[#307c4c] font-semibold underline underline-offset-2">
                       browse files
                     </span>{' '}
-                    · .xlsx, .xls only
+                    · .xlsx only
                   </p>
                 </div>
               </div>
@@ -616,7 +600,7 @@ export default function TiteMigrationClient() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx"
               className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />

@@ -325,12 +325,15 @@ export function SupplierPortalForm({ token, data }: Props) {
                 updated every line, click <strong>Submit</strong> at the bottom to send them to your NESR buyer in one go.
               </p>
               <p className="mt-3 text-sm leading-relaxed text-slate-600">The short video below walks you through it.</p>
+              {/* referrerPolicy: the portal URL carries the supplier's write-capable token in
+                  its query string, so this third-party embed must never receive a Referer. */}
               <div className="mt-4 aspect-video w-full overflow-hidden rounded-lg bg-black">
                 <iframe
                   src="https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=814d1093-6f25-4093-b2eb-aac7402dcc7c&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create"
                   frameBorder="0"
                   scrolling="no"
                   allowFullScreen
+                  referrerPolicy="no-referrer"
                   title="PO Expediting Supplier Guide"
                   className="h-full w-full"
                 />

@@ -2,8 +2,8 @@
 
 import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
-import * as XLSX from 'xlsx';
-import ExcelJS from 'exceljs';
+import type * as ExcelJS from 'exceljs';
+import { readSpreadsheet } from '@/lib/spreadsheet-import';
 import { Icon } from '../../components/CatalogManagerUI';
 import { bulkImportCatalogEntries, buildCommodityReference, getSupplierDirectoryNames, type CatalogImportRow } from '@/app/actions/catalog-manager';
 import { SEED_UOMS, SEED_CURRENCIES, SEED_COUNTRIES, INCOTERMS, FIELD_MAX, LEAD_TIME_MAX_DAYS, UNIT_PRICE_MAX } from '@/lib/catalog-manager-utils';
@@ -53,49 +53,36 @@ function parseNum(val: unknown): number | null {
 const cell = (row: unknown[], i: number): string => (row[i] != null ? String(row[i]).trim() : '');
 const orNull = (s: string): string | null => (s ? s : null);
 
-function parseFile(file: File): Promise<ParsedFile> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target!.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: 'array', raw: false, dateNF: 'yyyy-mm-dd' });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const raw: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
-        const headers = (raw[0] ?? []).map((h) => (h != null ? String(h).trim() : ''));
-        const dataRows = raw.slice(1);
-        const preview = dataRows.slice(0, 3).map((row) => COLUMNS.map((_, ci) => cell(row, ci)));
-        const rows: CatalogImportRow[] = dataRows
-          .filter((row) => cell(row, 0) !== '' || cell(row, 1) !== '')
-          .map((row, i) => ({
-            rowIndex: i + 2,
-            supplier: cell(row, 0),
-            supplier_code: cell(row, 1),
-            country: cell(row, 2),
-            category: cell(row, 3),
-            subcategory: orNull(cell(row, 4)),
-            commodity: orNull(cell(row, 5)),
-            description: cell(row, 6),
-            uom: cell(row, 7),
-            unit_price: parseNum(row[8]),
-            currency: cell(row, 9),
-            effective_date: orNull(cell(row, 10)),
-            expiry_date: orNull(cell(row, 11)),
-            manager: orNull(cell(row, 12)),
-            sirion_contract_id: orNull(cell(row, 13)),
-            notes: orNull(cell(row, 14)),
-            incoterms: orNull(cell(row, 15)),
-            incoterms_location: orNull(cell(row, 16)),
-            lead_time_days: parseNum(row[17]),
-          }));
-        resolve({ rows, headers, preview });
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
-  });
+async function parseFile(file: File): Promise<ParsedFile> {
+  const sheets = await readSpreadsheet(file);
+  const raw: unknown[][] = sheets[0]?.rows ?? [];
+  const headers = (raw[0] ?? []).map((h) => (h != null ? String(h).trim() : ''));
+  const dataRows = raw.slice(1);
+  const preview = dataRows.slice(0, 3).map((row) => COLUMNS.map((_, ci) => cell(row, ci)));
+  const rows: CatalogImportRow[] = dataRows
+    .filter((row) => cell(row, 0) !== '' || cell(row, 1) !== '')
+    .map((row, i) => ({
+      rowIndex: i + 2,
+      supplier: cell(row, 0),
+      supplier_code: cell(row, 1),
+      country: cell(row, 2),
+      category: cell(row, 3),
+      subcategory: orNull(cell(row, 4)),
+      commodity: orNull(cell(row, 5)),
+      description: cell(row, 6),
+      uom: cell(row, 7),
+      unit_price: parseNum(row[8]),
+      currency: cell(row, 9),
+      effective_date: orNull(cell(row, 10)),
+      expiry_date: orNull(cell(row, 11)),
+      manager: orNull(cell(row, 12)),
+      sirion_contract_id: orNull(cell(row, 13)),
+      notes: orNull(cell(row, 14)),
+      incoterms: orNull(cell(row, 15)),
+      incoterms_location: orNull(cell(row, 16)),
+      lead_time_days: parseNum(row[17]),
+    }));
+  return { rows, headers, preview };
 }
 
 const TPL_GREEN = 'FF307C4C';
@@ -187,7 +174,9 @@ function validationFor(kind: DVKind, required: boolean, listRange: Record<string
 }
 
 async function downloadTemplate() {
-  const wb = new ExcelJS.Workbook();
+  // Loaded on demand so exceljs stays out of this page's initial client chunk.
+  const ExcelJSLib = await import('exceljs');
+  const wb = new ExcelJSLib.Workbook();
   wb.creator = 'NESR Catalog Repo';
   wb.created = new Date();
 
@@ -482,7 +471,7 @@ export default function BulkImportPanel() {
   }
 
   const handleFile = useCallback(async (f: File) => {
-    if (!f.name.match(/\.(xlsx|xls|csv)$/i)) { setParseError('Only .xlsx, .xls, or .csv files are accepted.'); return; }
+    if (!f.name.match(/\.(xlsx|csv)$/i)) { setParseError('Only .xlsx or .csv files are accepted. Open a legacy .xls workbook in Excel and save it as .xlsx.'); return; }
     setFile(f); setParseError(null); setParsed(null);
     try {
       setParsed(await parseFile(f));
@@ -547,7 +536,7 @@ export default function BulkImportPanel() {
               </div>
               <div className="text-center">
                 <p className="text-sm font-medium text-slate-600">Drop your rate-card file here</p>
-                <p className="mt-0.5 text-xs text-slate-400">or <span className="font-semibold text-[#307c4c] underline underline-offset-2">browse files</span> · .xlsx, .xls, .csv</p>
+                <p className="mt-0.5 text-xs text-slate-400">or <span className="font-semibold text-[#307c4c] underline underline-offset-2">browse files</span> · .xlsx, .csv</p>
               </div>
             </div>
           ) : (
@@ -560,7 +549,7 @@ export default function BulkImportPanel() {
               <button onClick={(e) => { e.stopPropagation(); reset(); }} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"><Icon name="close" className="h-4 w-4" /></button>
             </div>
           )}
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+          <input ref={fileInputRef} type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
 
           {parseError && <p className="flex items-center gap-1.5 text-xs text-red-500"><Icon name="alert" className="h-3.5 w-3.5" /> {parseError}</p>}
 

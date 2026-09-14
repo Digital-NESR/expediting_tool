@@ -297,7 +297,7 @@ async function exportToExcel(
   report: ReportDef, rows: Shipment[],
   fc: string, fs: string, fm: string, fst: string, fdf: string, fdt: string, fal: string,
 ) {
-  const XLSX    = await import('xlsx');
+  const ExcelJS = await import('exceljs');
   const summary = buildFilterSummary(fc, fs, fm, fst, fdf, fdt, fal);
   const wsData  = [
     [`Report: ${report.title}`],
@@ -307,10 +307,20 @@ async function exportToExcel(
     report.cols.map(c => c.label),
     ...rows.map(row => report.cols.map(c => renderCell(c.key, row))),
   ];
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Report');
-  XLSX.writeFile(wb, `${report.title.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Report');
+  for (const r of wsData) ws.addRow(r);
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob   = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href = url;
+  a.download = `${report.title.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /* ─── Main component ─────────────────────────────────────────────── */

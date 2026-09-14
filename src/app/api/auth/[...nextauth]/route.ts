@@ -43,26 +43,37 @@ export const authOptions: NextAuthOptions = {
         },
       },
     }),
-    CredentialsProvider({
-      name: "Password",
-      credentials: {
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.password) return null;
+    /* Local-development password login ONLY.
+       FALLBACK_PASSWORD is a single static secret with no rate limiting, and
+       /api/auth/callback/credentials is reachable even though the login page only
+       ever calls signIn('azure-ad') — so in production this provider is a hidden
+       bypass of every requireUser() gate in the app. It is therefore registered
+       only outside production, and the identity it returns is a non-routable test
+       address that can never collide with a real user or an ADMIN_EMAILS entry. */
+    ...(process.env.NODE_ENV !== "production"
+      ? [
+          CredentialsProvider({
+            name: "Password (local dev only)",
+            credentials: {
+              password: { label: "Password", type: "password" },
+            },
+            async authorize(credentials) {
+              if (!credentials?.password) return null;
 
-        const fallbackPassword = process.env.FALLBACK_PASSWORD;
-        if (fallbackPassword && credentials.password === fallbackPassword) {
-          return {
-            id: "1",
-            name: "Admin User",
-            email: "admin@nesr.com",
-          };
-        }
+              const fallbackPassword = process.env.FALLBACK_PASSWORD;
+              if (fallbackPassword && credentials.password === fallbackPassword) {
+                return {
+                  id: "local-dev",
+                  name: "Local Dev User",
+                  email: "local-dev@example.invalid",
+                };
+              }
 
-        return null;
-      },
-    }),
+              return null;
+            },
+          }),
+        ]
+      : []),
   ],
   pages: {
     signIn: "/login",

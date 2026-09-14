@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Client } from 'pg';
-import XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 const cwd = process.cwd();
 const envPath = path.join(cwd, '.env.local');
@@ -77,6 +77,47 @@ const parseDate = v => {
 };
 const maxIso = (...vals) => { const ds = vals.filter(Boolean).map(s => new Date(s).getTime()); return ds.length ? new Date(Math.max(...ds)).toISOString() : null; };
 
+// exceljs cell value -> the string form XLSX.utils.sheet_to_json({ raw: false }) produced.
+// Dates come back as real Date objects, rich text as a run array, formulas as { formula, result }.
+const xlCellText = v => {
+  if (v == null) return '';
+  if (v instanceof Date) {
+    return Number.isNaN(v.getTime())
+      ? ''
+      : `${v.getUTCFullYear()}-${String(v.getUTCMonth() + 1).padStart(2, '0')}-${String(v.getUTCDate()).padStart(2, '0')}`;
+  }
+  if (typeof v === 'object') {
+    if (Array.isArray(v.richText)) return v.richText.map(r => r.text ?? '').join('');
+    if ('formula' in v || 'sharedFormula' in v) return xlCellText(v.result ?? null);
+    if ('hyperlink' in v) return v.text != null ? String(v.text) : '';
+    if ('error' in v) return String(v.error);
+  }
+  return String(v);
+};
+
+// Row 1 is the header row; every header key is always present ('' when the cell is blank),
+// matching the old sheet_to_json({ defval: '' }) behaviour.
+const sheetToObjects = ws => {
+  if (!ws) return [];
+  const headerRow = ws.getRow(1);
+  const headers = [];
+  headerRow.eachCell({ includeEmpty: true }, (cell, col) => { headers[col - 1] = xlCellText(cell.value).trim(); });
+  const objs = [];
+  ws.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const obj = {};
+    let hasValue = false;
+    headers.forEach((h, i) => {
+      if (!h) return;
+      const text = xlCellText(row.getCell(i + 1).value);
+      if (text !== '') hasValue = true;
+      obj[h] = text;
+    });
+    if (hasValue) objs.push(obj);
+  });
+  return objs;
+};
+
 loadEnvFile(envPath);
 
 const client = new Client({
@@ -122,8 +163,9 @@ for (const r of csvData) {
 }
 
 /* ── Power BI export (dates, pending-with, on-behalf, comments) ── */
-const wb = XLSX.readFile(xlsxPath);
-const xlObjs = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { raw: false, defval: '' });
+const wb = new ExcelJS.Workbook();
+await wb.xlsx.readFile(xlsxPath);
+const xlObjs = sheetToObjects(wb.worksheets[0]);
 const xlMap = new Map();
 const orderedIds = [];
 for (const o of xlObjs) {

@@ -71,7 +71,7 @@ expediting_tool/
 │   │   │                                #   (coming soon placeholders)
 │   │   │
 │   │   ├── login/
-│   │   │   └── page.tsx                 # /login — Login page: SSO button + password fallback
+│   │   │   └── page.tsx                 # /login — Login page: Azure AD SSO button
 │   │   │
 │   │   ├── supplier-update/
 │   │   │   ├── layout.tsx               # Isolated layout for the supplier portal —
@@ -246,11 +246,12 @@ NEXTAUTH_URL=https://expediting-tool.vercel.app
 # Generate with: openssl rand -base64 32
 NEXTAUTH_SECRET=your-random-secret-here
 
-# ── Authentication: Password Fallback ─────────────────────────────────────────
-# Temporary static password for the credentials provider while SSO is pending.
-# Maps to the "Login with Password" button on the login page.
-# Remove or leave empty to disable password login once SSO is live.
-FALLBACK_PASSWORD=your-internal-password
+# ── Authentication: Local development only ───────────────────────────────────
+# Static password for the credentials provider, which is registered ONLY when
+# NODE_ENV !== 'production'. It signs in as local-dev@example.invalid, a
+# deliberately non-real address that is never a platform admin. It is NOT a
+# production login path and must not be relied on as one.
+FALLBACK_PASSWORD=your-local-dev-password
 
 # ── Authentication: Microsoft Entra ID (Azure AD) ────────────────────────────
 # App Registration is already created and shared with other NESR internal tools.
@@ -280,12 +281,51 @@ N8N_EXPEDITE_WEBHOOK_URL=https://n8n.nesr.com/webhook/expedite-email-dispatch
 | `DATABASE_URL` | `src/lib/db.ts` |
 | `NEXTAUTH_URL` | NextAuth internals (redirect URIs) |
 | `NEXTAUTH_SECRET` | NextAuth internals (JWT signing) |
-| `FALLBACK_PASSWORD` | `src/app/api/auth/[...nextauth]/route.ts` |
+| `FALLBACK_PASSWORD` | `src/app/api/auth/[...nextauth]/route.ts` (local development only) |
 | `AZURE_AD_CLIENT_ID` | `src/app/api/auth/[...nextauth]/route.ts` |
 | `AZURE_AD_CLIENT_SECRET` | `src/app/api/auth/[...nextauth]/route.ts` |
 | `AZURE_AD_TENANT_ID` | `src/app/api/auth/[...nextauth]/route.ts` |
 | `NEXT_PUBLIC_APP_URL` | `src/app/actions/expediteDispatch.ts` |
 | `N8N_EXPEDITE_WEBHOOK_URL` | `src/app/actions/expediteDispatch.ts` |
+| `CRON_SECRET` | `src/app/api/procure-guard/reminders/route.ts` |
+| `ALLOW_UNAUTHENTICATED_CRON` | `src/app/api/procure-guard/reminders/route.ts` (non-production escape hatch) |
+| `N8N_LAPTOP_PROCUREMENT_WEBHOOK_SECRET` | `src/app/api/laptop-procurement/requests/[id]/status/route.ts` |
+
+### Machine endpoints
+
+Two routes are called by machines rather than browsers, so `src/middleware.ts` exempts them
+from the session-cookie check via `MACHINE_PATHS`. Each authenticates itself with a shared
+secret instead, and **fails closed**: if its secret is not set the route returns 503.
+
+| Route | Caller | Credential |
+|---|---|---|
+| `/api/procure-guard/reminders` | Vercel Cron (daily 07:00 UTC, see `vercel.json`) | `Authorization: Bearer $CRON_SECRET` |
+| `/api/laptop-procurement/requests/<id>/status` | n8n | `x-laptop-procurement-secret` header |
+
+`CRON_SECRET` must be set in the Vercel project or the reminder cron will return 503.
+Vercel Cron sends the `Authorization: Bearer` header automatically. The secret is no longer
+accepted in the query string, because full URLs are written to platform logs.
+
+### Laptop Procurement approval emails
+
+`LAPTOP_APPROVAL_EMAIL_TEST_MODE` diverts every approval-stage notification to a test inbox
+instead of the real approver. It is **opt-in**: test mode is active only when the value is
+exactly `true`. Unset, empty or misspelled means real approvers are notified.
+
+When test mode is on, the test recipient for the stage being exercised must also be set, or
+the notification is skipped and an error is logged rather than being sent to the wrong person:
+
+| Stage | Variable |
+|---|---|
+| IT Manager | `LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL`, `LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL` |
+| Country Manager | `LAPTOP_APPROVAL_TEST_CM_EMAIL` |
+| IT Director | `LAPTOP_APPROVAL_TEST_ITD_EMAIL` |
+| Supply Chain Director | `LAPTOP_APPROVAL_TEST_SCD_EMAIL` |
+| Requester updates | `LAPTOP_APPROVAL_TEST_REQUESTER_EMAIL` |
+
+Previously the default was inverted, so unless an environment explicitly set the value to the
+string `false` every approval email went to a hardcoded personal inbox and the real approvers
+were never notified.
 
 ---
 
@@ -344,8 +384,9 @@ Header shows NESR logo, app title, user display name, and sign-out button. Greet
 
 Dark-themed login screen with two authentication paths:
 
-1. **"Continue with SSO"** — triggers `signIn('azure-ad', { callbackUrl: '/home' })`. Configured but not yet live (pending IT subdomain and App Registration redirect URI).
-2. **"Login with Password"** — credentials form that calls `signIn('credentials', { password, redirect: false })` and redirects to `/home` on success. Controlled by `FALLBACK_PASSWORD` env var.
+1. **"Continue with SSO"** — triggers `signIn('azure-ad', { callbackUrl: '/home' })`. This is the only sign-in path in production.
+
+The login page no longer offers a password form. A credentials provider still exists for local development, but it is registered only when `NODE_ENV !== 'production'` and can be reached solely by POSTing to `/api/auth/callback/credentials`.
 
 Branding (colours, logo, text) is driven by `src/config/site.ts`.
 
@@ -615,11 +656,11 @@ Items are compared by composite key to handle edge cases where fields may be und
 **File:** `src/app/api/auth/[...nextauth]/route.ts`  
 **Strategy:** JWT (no database session storage)
 
-### Provider 1: Credentials (active)
+### Provider 1: Credentials (local development only)
 
-Static password fallback via `FALLBACK_PASSWORD` env var. On correct password: session created as `{ id: '1', name: 'Admin User', email: 'admin@nesr.com' }`. Used while SSO is pending IT approval.
+Registered only when `NODE_ENV !== 'production'`. On the correct `FALLBACK_PASSWORD`, it creates a session as `{ id: 'local-dev', name: 'Local Dev User', email: 'local-dev@example.invalid' }` — an address that cannot appear in `ADMIN_EMAILS` or match a real employee. It is never registered in production, so it is not a production sign-in path.
 
-### Provider 2: Azure AD / Microsoft Entra ID (configured, not yet live)
+### Provider 2: Azure AD / Microsoft Entra ID
 
 Uses `next-auth/providers/azure-ad` with NESR App Registration credentials. Fully configured in code. Inactive because:
 1. IT has not yet provisioned the `expediting.nesr.com` CNAME
@@ -787,7 +828,7 @@ DATABASE_URL=postgresql://postgres:password@0.tcp.ngrok.io:PORT/expediting_db
 npm run dev
 ```
 
-App available at `http://localhost:3000`. Log in with the password set in `FALLBACK_PASSWORD`.
+App available at `http://localhost:3000`. Sign in with Azure AD, or locally with the password set in `FALLBACK_PASSWORD` (development builds only).
 
 **4. Production build**
 ```bash
