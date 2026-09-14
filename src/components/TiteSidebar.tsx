@@ -37,7 +37,6 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
       onClose={onClose}
       storageKey={PIN_KEY}
       bodyClass={PIN_KEY}
-      defaultPinned={false}
     >
       {({ pinned, togglePin, closeOnNav }) => (
         <>

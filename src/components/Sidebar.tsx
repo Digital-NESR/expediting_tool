@@ -33,7 +33,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       onClose={onClose}
       storageKey={PIN_KEY}
       bodyClass={PIN_KEY}
-      defaultPinned={false}
     >
       {({ pinned, togglePin, closeOnNav }) => {
         const NavLink = ({ href, icon, label, badge }: { href: string; icon: React.ReactNode; label: string; exact?: boolean; badge?: number }) => {
