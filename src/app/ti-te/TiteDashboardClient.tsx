@@ -253,7 +253,7 @@ export default function TiteDashboardClient({
                     return (
                       <tr key={s.id} onClick={() => router.push(`/ti-te/shipments/${s.id}`)} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
                         <td className="px-4 py-2.5">
-                          <div className="font-semibold text-slate-900">#{String(s.id).padStart(3, '0')} · {s.segment}</div>
+                          <div className="font-semibold text-slate-900"><span className="font-mono">{s.reference_number || `#${String(s.id).padStart(3, '0')}`}</span>{s.segment ? ` · ${s.segment}` : ''}</div>
                           <div className="text-[11px] text-slate-400 truncate max-w-[200px]">{(s.description || '').slice(0, 48)}{(s.description || '').length > 48 ? '…' : ''}</div>
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
