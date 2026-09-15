@@ -144,7 +144,7 @@ export default function ConfirmDispatchPage() {
           success: false,
           error: 'The dispatch failed before any email was sent. Nothing was saved — please try again.',
         })),
-        webhook: { triggered: false, ok: false, payloadSizeKB: 0, suppliers: 0 },
+        webhook: { triggered: false, ok: false, payloadSizeKB: 0, suppliers: 0, message: 'Dispatch failed before the webhook was reached — no emails were sent.' },
       });
     }
   }
@@ -179,7 +179,7 @@ export default function ConfirmDispatchPage() {
             error: 'The retry failed before any email was sent. Nothing was saved — please try again.',
           })),
         ],
-        webhook: { triggered: false, ok: false, payloadSizeKB: 0, suppliers: 0 },
+        webhook: { triggered: false, ok: false, payloadSizeKB: 0, suppliers: 0, message: 'Dispatch failed before the webhook was reached — no emails were sent.' },
       });
     }
   }
