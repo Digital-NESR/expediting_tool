@@ -8,6 +8,7 @@ import { useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import type { LaptopAccessView } from '@/types/laptopProcurement';
 import LaptopProcurementLogo from './LaptopProcurementLogo';
+import { shortDate } from '@/lib/format';
 
 /* ── Shared design tokens (flat ProcureGuard look) ────────────── */
 export const GLASS = 'rounded-2xl border border-slate-200 bg-white shadow-sm';
@@ -316,11 +317,7 @@ export default function LaptopShell({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const today = new Date().toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  const today = shortDate(new Date());
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">

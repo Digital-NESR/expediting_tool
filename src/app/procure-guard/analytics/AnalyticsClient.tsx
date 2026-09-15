@@ -23,6 +23,7 @@ import type {
   ProcureGuardReviewDurationMetric,
   ProcureGuardVendorMetric,
 } from '@/types/procureGuard';
+import { shortMonthYear } from '@/lib/format';
 
 type RequestScope = 'all' | 'adhoc' | 'advance';
 
@@ -56,9 +57,7 @@ function monthSortKey(iso: string): string {
 
 function monthLabel(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? '—'
-    : d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+  return Number.isNaN(d.getTime()) ? '—' : shortMonthYear(d);
 }
 
 function bump(map: Map<string, ProcureGuardAnalyticsMetric>, label: string, amount: number) {

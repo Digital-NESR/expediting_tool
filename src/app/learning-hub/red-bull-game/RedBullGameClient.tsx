@@ -8,6 +8,7 @@ import {
   getRedBullLeaderboard,
   type RedBullLeaderboard,
 } from '@/app/actions/learning-game';
+import { shortDayMonth, shortTime } from '@/lib/format';
 
 const GREEN = '#307c4c';
 
@@ -328,7 +329,7 @@ export default function RedBullGameClient({
 function fmtDate(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+  return `${shortDayMonth(d)} ${shortTime(d)}`;
 }
 
 function StatsStrip({ me }: { me: RedBullLeaderboard['me'] }) {

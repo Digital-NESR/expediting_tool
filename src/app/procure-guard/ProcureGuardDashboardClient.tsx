@@ -20,6 +20,7 @@ import type {
   AdvancePaymentRequest,
   ProcureGuardDashboardData,
 } from '@/types/procureGuard';
+import { shortDate } from '@/lib/format';
 
 function DbError() {
   return (
@@ -266,11 +267,7 @@ export default function ProcureGuardDashboardClient({
 
   const { stats, activity } = data;
 
-  const today = new Date().toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  const today = shortDate(new Date());
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">

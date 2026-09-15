@@ -6,6 +6,7 @@ import type {
   ProcureGuardRequestType,
   ProcureGuardStatus,
 } from '@/types/procureGuard';
+import { shortDate, shortDateTime } from '@/lib/format';
 
 // Advance payments at or below this USD value are fully approved by the country finance
 // controller alone — the request goes straight to Approved with no further sign-off.
@@ -782,30 +783,16 @@ export function getCountryControllerEmail(country: string | null | undefined): s
 
 export function fmtDate(value: string | null | undefined): string {
   if (!value) return '-';
-  try {
-    return new Date(value).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return value;
-  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return shortDate(d);
 }
 
 export function fmtDateTime(value: string | null | undefined): string {
   if (!value) return '-';
-  try {
-    return new Date(value).toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return value;
-  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return shortDateTime(d);
 }
 
 export function timeAgo(value: string | null | undefined): string {

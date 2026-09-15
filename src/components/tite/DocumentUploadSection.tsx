@@ -5,6 +5,7 @@ import { uploadShipmentDocument, deleteShipmentDocument } from '@/app/actions/ti
 import { DOCUMENT_STAGES } from '@/lib/tite-stage-config';
 import type { PendingUpload } from '@/lib/tite-stage-config';
 import type { ShipmentDocument } from '@/types/tite';
+import { shortDate } from '@/lib/format';
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
@@ -57,15 +58,9 @@ function fmtBytes(n: number): string {
 }
 
 function fmtDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return shortDate(d);
 }
 
 function FileBadge({ mime }: { mime: string }) {

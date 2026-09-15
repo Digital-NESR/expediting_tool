@@ -17,6 +17,7 @@ import {
 } from '@/lib/tite-utils';
 import type { Shipment, ShipmentStats } from '@/types/tite';
 import type { RecentActivityRow } from '@/app/actions/tite';
+import { shortDate } from '@/lib/format';
 
 /* ─── DB error / empty states ────────────────────────────────── */
 
@@ -174,11 +175,7 @@ export default function TiteDashboardClient({
   if (shipments === null || stats === null) return <DbError />;
   if (shipments.length === 0) return <EmptyState viewOnly={viewOnly} />;
 
-  const today = new Date().toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  const today = shortDate(new Date());
   const open = shipments.filter((s) => isOpenStatus(s.status));
 
   const activeCount = open.length;

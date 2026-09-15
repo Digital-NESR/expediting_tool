@@ -6,6 +6,7 @@ import type {
   LaptopRequestPriority,
   LaptopRequestStatus,
 } from '@/types/laptopProcurement';
+import { shortDate, shortDateTime } from '@/lib/format';
 
 export const LAPTOP_GREEN = '#307c4c';
 
@@ -569,30 +570,16 @@ export function getStatusOptions(): LaptopRequestStatus[] {
 
 export function fmtDate(value: string | null | undefined): string {
   if (!value) return '-';
-  try {
-    return new Date(value).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return value;
-  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return shortDate(d);
 }
 
 export function fmtDateTime(value: string | null | undefined): string {
   if (!value) return '-';
-  try {
-    return new Date(value).toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return value;
-  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return shortDateTime(d);
 }
 
 export function timeAgo(value: string | null | undefined): string {

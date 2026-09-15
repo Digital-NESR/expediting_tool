@@ -25,20 +25,15 @@ import {
   sql,
 } from './internals';
 import { normalisePaymentCountries } from './validation';
+import { shortDate } from '@/lib/format';
 
 const log = logger('procure-guard');
 
 function fmtDelegationDate(value: string | null): string {
   if (!value) return '';
-  try {
-    return new Date(value).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return value;
-  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return shortDate(d);
 }
 
 export type DelegationOpenItem = {

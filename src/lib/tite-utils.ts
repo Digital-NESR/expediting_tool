@@ -1,4 +1,5 @@
 import type { Shipment } from '@/types/tite';
+import { shortDate } from '@/lib/format';
 
 export const ALERT_LABEL: Record<string, string> = {
   overdue: 'Overdue',
@@ -42,15 +43,9 @@ export const BUCKET_HEX: Record<string, string> = {
 
 export function fmtDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return '—';
-  }
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return '—';
+  return shortDate(d);
 }
 
 export function sarFmt(n: number | string | null | undefined): string {

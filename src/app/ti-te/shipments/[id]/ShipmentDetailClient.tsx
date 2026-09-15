@@ -19,6 +19,7 @@ import { DOCUMENT_STAGES, getNextStatusOptions } from '@/lib/tite-stage-config';
 import { updateShipmentStatus } from '@/app/actions/tite';
 import type { NotificationLogRow } from '@/app/actions/tite';
 import type { Shipment, ShipmentDocument, ActivityLogRow, NotificationContact } from '@/types/tite';
+import { shortDateTime } from '@/lib/format';
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
@@ -129,17 +130,9 @@ function StatusPill({ level }: { level: string }) {
 }
 
 function fmtTs(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return shortDateTime(d);
 }
 
 function fmtBytes(n: number | null): string {

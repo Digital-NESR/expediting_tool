@@ -37,6 +37,7 @@ import { StatusTiles } from './_components/StatusTiles';
 import { SkeletonRows, SortIcon } from './_components/table-chrome';
 
 import { PAGE_SIZE } from './_lib/constants';
+import { shortWeekdayDate } from '@/lib/format';
 
 export default function Dashboard() {
   const [rows, setRows] = useState<PurchaseOrder[]>([]);
@@ -350,12 +351,7 @@ export default function Dashboard() {
   }, [filtered]);
 
   /* Today label -------------------------------------------- */
-  const todayLabel = new Date().toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  const todayLabel = shortWeekdayDate(new Date());
 
   /* ── Render ─────────────────────────────────────────────── */
   return (

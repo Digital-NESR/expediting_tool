@@ -281,8 +281,11 @@ describe('status badges', () => {
 });
 
 describe('formatting', () => {
+  /* This used to be a regex tolerating both "Sep" and "Sept", because the spelling came from
+     whatever ICU data happened to be installed. It comes from a fixed table now, so it can be
+     asserted exactly. */
   it('formats a date with a padded day and short month', () => {
-    expect(fmtDate('2026-09-14')).toMatch(/^14 Sept? 2026$/);
+    expect(fmtDate('2026-09-14')).toBe('14 Sep 2026');
     expect(fmtDate('2026-01-05T00:00:00Z')).toBe('05 Jan 2026');
   });
 
@@ -292,10 +295,12 @@ describe('formatting', () => {
     expect(fmtDate('')).toBe('—');
   });
 
-  it('does not fall back for an unparseable date — toLocaleDateString does not throw', () => {
-    // The try/catch in fmtDate is dead code: an invalid Date formats as the
-    // literal string "Invalid Date" rather than raising.
-    expect(fmtDate('not-a-date')).toBe('Invalid Date');
+  /* This test used to pin the opposite, and was right to: the try/catch was dead code, because
+     toLocaleDateString formats an invalid Date as the literal "Invalid Date" instead of
+     throwing, and that string went to the screen. Now that the date is checked rather than
+     caught, a shipment with a corrupt date shows an em dash like an absent one. */
+  it('renders an em dash for an unparseable date, not the words Invalid Date', () => {
+    expect(fmtDate('not-a-date')).toBe('—');
   });
 
   it('formats SAR and USD amounts to two decimals with thousands separators', () => {

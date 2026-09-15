@@ -5,6 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import { saveBuyerComment, getMyExpeditingSessions } from '@/app/actions/reconciliation';
 import type { SessionData, SupplierGroup, LineData } from '@/app/actions/reconciliation';
 import { DS_DESCRIPTIONS, dsTone } from '@/lib/ds-codes';
+import { shortDate, shortDateUTC, shortTime } from '@/lib/format';
 
 /* ─── DS-code colour sets ────────────────────────────────────── */
 
@@ -14,43 +15,13 @@ function formatDate(raw: string | null | undefined): string {
   if (!raw) return '—';
   const d = new Date(raw);
   if (isNaN(d.getTime())) return String(raw);
-  const MONTHS = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return shortDate(d);
 }
 
 function formatSessionDate(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  const MONTHS = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  const date = `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  return `${date} ${time}`;
+  return `${shortDate(d)} ${shortTime(d)}`;
 }
 
 function formatCurrency(val: number | null | undefined): string {
@@ -70,22 +41,10 @@ function toSapDate(raw: string | null | undefined): string {
   return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
 }
 
+/* `15Sep2026`, for an export filename — the same spelling as everywhere else, with the spaces
+   taken out so it survives a download. */
 function toFileDate(d: Date): string {
-  const MONTHS = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return `${String(d.getDate()).padStart(2, '0')}${MONTHS[d.getMonth()]}${d.getFullYear()}`;
+  return shortDate(d).split(' ').join('');
 }
 
 interface ExportRow {
@@ -831,12 +790,7 @@ export default function ReconciliationClient({ userName }: { userName: string })
   /* ── Per-session Excel export ────────────────────────────── */
   async function exportSessionExcel(session: SessionData) {
     const today = new Date();
-    const exportDate = today.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      timeZone: 'UTC',
-    });
+    const exportDate = shortDateUTC(today);
 
     const rows: ExportRow[] = [];
 
@@ -867,12 +821,7 @@ export default function ReconciliationClient({ userName }: { userName: string })
     if (selectedList.length === 0) return;
 
     const today = new Date();
-    const exportDate = today.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      timeZone: 'UTC',
-    });
+    const exportDate = shortDateUTC(today);
 
     // Deduplicate by po_number + po_line — keep row from most recent session
     const lineMap = new Map<

@@ -14,7 +14,15 @@ const DAY = 86_400_000;
 /** A date `n` days from now, as the ISO string the API hands the dashboard. */
 const inDays = (n: number) => new Date(Date.now() + n * DAY).toISOString();
 
-function row(over: Partial<PurchaseOrder> = {}): PurchaseOrder {
+/**
+ * `PurchaseOrder` types these columns as plain strings, but /api/pos selects them straight out
+ * of Postgres and nullable columns arrive as null. The helpers under test know it — they guard
+ * with `?? ''` and `if (code)` — so the overrides here are deliberately looser than the type,
+ * to exercise the input the code actually receives.
+ */
+type RowOverride = Partial<Record<keyof PurchaseOrder, string | number | null | undefined>>;
+
+function row(over: RowOverride = {}): PurchaseOrder {
   return {
     'PO Number': '4500001',
     'PO Line': '10',
@@ -25,7 +33,7 @@ function row(over: Partial<PurchaseOrder> = {}): PurchaseOrder {
     'Delivery Code': 'DS04',
     'Account Classification Description': 'Materials',
     ...over,
-  } as PurchaseOrder;
+  } as unknown as PurchaseOrder;
 }
 
 describe('daysDiff', () => {
@@ -95,7 +103,7 @@ describe('rowMatchesSearch', () => {
       'Supplier Name': null,
       'Supplier ID': null,
       'SAP MAT ID': null,
-    } as Partial<PurchaseOrder>);
+    });
     expect(rowMatchesSearch(blank, 'anything')).toBe(false);
   });
 });
@@ -108,7 +116,7 @@ describe('rowMatchesAccountType', () => {
   it('matches the trimmed classification', () => {
     const r = row({
       'Account Classification Description': '  Materials  ',
-    } as Partial<PurchaseOrder>);
+    });
     expect(rowMatchesAccountType(r, ['Materials'])).toBe(true);
   });
 
@@ -171,16 +179,13 @@ describe('getPOMajorityDSCode', () => {
 
   it('ignores lines with no code', () => {
     expect(
-      getPOMajorityDSCode([
-        row({ 'Delivery Code': null } as Partial<PurchaseOrder>),
-        row({ 'Delivery Code': 'DS11' }),
-      ]),
+      getPOMajorityDSCode([row({ 'Delivery Code': null }), row({ 'Delivery Code': 'DS11' })]),
     ).toBe('DS11');
   });
 
   it.each([
     ['an empty PO', [] as PurchaseOrder[]],
-    ['a PO where no line has a code', [row({ 'Delivery Code': null } as Partial<PurchaseOrder>)]],
+    ['a PO where no line has a code', [row({ 'Delivery Code': null })]],
   ])('returns null for %s', (_why, lines) => {
     expect(getPOMajorityDSCode(lines)).toBeNull();
   });
@@ -213,13 +218,11 @@ describe('formatting', () => {
     expect(formatCurrency(raw)).toBe('—');
   });
 
-  /* Note the four-letter "Sept". This helper goes through toLocaleDateString, which abbreviates
-     September that way, while the shared formatter in '@/lib/format' uses a hand-written month
-     table and renders "Sep". So the dashboard and the analytics screens spell one month
-     differently. Asserted as it behaves rather than as it ought to: changing it is a visible
-     change to every buyer's screen and belongs in its own commit, not in a refactor. */
+  /* Three letters for every month, September included. This used to read "15 Sept 2026" here
+     and "15 Sep 2026" on the analytics screens, because one went through toLocaleDateString and
+     the other through a fixed table. Everything goes through the table now. */
   it('formats a date as day, short month, year', () => {
-    expect(formatDate('2026-09-15T00:00:00Z')).toBe('15 Sept 2026');
+    expect(formatDate('2026-09-15T00:00:00Z')).toBe('15 Sep 2026');
     expect(formatDate('2026-08-15T00:00:00Z')).toBe('15 Aug 2026');
   });
 

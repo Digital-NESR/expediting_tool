@@ -3,6 +3,7 @@
 // No DB or React here — safe to import from both server actions and client components.
 
 import type { CatalogRole, CatalogStatus, SpendType } from '@/types/catalog-manager';
+import { shortDate } from '@/lib/format';
 
 /* ---------------- seed master data (NESR operating countries + currencies) ---------------- */
 
@@ -311,7 +312,7 @@ export function fmtDateNice(dateStr: string | null): string {
   if (!dateStr) return '—';
   const d = new Date(`${dateStr.slice(0, 10)}T00:00:00`);
   if (Number.isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return shortDate(d);
 }
 
 export function daysUntil(dateStr: string | null, today: Date = new Date()): number | null {

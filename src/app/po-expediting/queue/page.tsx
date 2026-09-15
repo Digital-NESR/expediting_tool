@@ -10,6 +10,7 @@ import type { PurchaseOrder } from '@/types/po';
 import { addAdditionalSupplierEmail, getSupplierContacts } from '@/app/actions/supplier-actions';
 import EmployeeSearchInput from '@/components/EmployeeSearchInput';
 import type { Employee } from '@/components/EmployeeSearchInput';
+import { shortDate } from '@/lib/format';
 
 /* ─── Helpers ─────────────────────────────────────────────── */
 function formatCurrency(val: number | string | undefined | null) {
@@ -28,11 +29,7 @@ function formatDate(dateStr: string | undefined | null) {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
   if (isNaN(d.valueOf())) return dateStr;
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(d);
+  return shortDate(d);
 }
 
 function isValidEmail(v: string) {

@@ -4,6 +4,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import type { PortalData, LineUpdate } from '@/app/actions/supplierPortal';
 import { submitSupplierUpdates } from '@/app/actions/supplierPortal';
 import { SELECTABLE_DS_CODES, dsLabel } from '@/lib/ds-codes';
+import { shortDate } from '@/lib/format';
 
 /* ─── DS code list ───────────────────────────────────────── */
 /* The statuses a supplier may choose come from the one DS catalogue, not a copy. This
@@ -26,11 +27,7 @@ function formatDate(dateStr: string | null | undefined) {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
   if (isNaN(d.valueOf())) return dateStr;
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(d);
+  return shortDate(d);
 }
 
 function toInputDate(dateStr: string | null | undefined) {
