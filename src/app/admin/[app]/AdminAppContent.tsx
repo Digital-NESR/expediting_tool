@@ -132,6 +132,7 @@ const LaptopApproverMatrixClient = dynamic(() => import('../LaptopApproverMatrix
 const LaptopAccessApprovalsClient = dynamic(() => import('../LaptopAccessApprovalsClient'), {
   loading,
 });
+const LaptopCostCentersClient = dynamic(() => import('../LaptopCostCentersClient'), { loading });
 
 /* ── Learning Hub ── */
 const LearningHubAdminClient = dynamic(() => import('../../learning-hub/admin/AdminClient'), {
@@ -219,6 +220,8 @@ export default function AdminAppContent(props: AdminAppContentProps) {
       return <LaptopAdminClient data={props.laptopAdminData ?? null} embedded />;
     case 'laptop/analytics':
       return <LaptopAnalyticsClient data={props.laptopAnalyticsData ?? null} embedded />;
+    case 'laptop/cost-centers':
+      return <LaptopCostCentersClient />;
     case 'laptop/access':
       return (
         <div className="space-y-8">

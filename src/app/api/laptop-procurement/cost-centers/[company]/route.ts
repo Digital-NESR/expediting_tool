@@ -3,14 +3,16 @@ import { getProcureGuardUser } from '@/lib/auth';
 import { getDepartmentsForCompany } from '@/lib/laptopCostCenters.server';
 
 /**
- * Departments + cost centers for ONE company from the Cost Center Mapping workbook.
+ * Departments + cost centers for ONE company from the Cost Center Mapping.
  *
- * The whole mapping is ~138 KB and used to be bundled into the request form's client chunk,
- * even though the form only ever shows the departments of the single company currently
+ * The whole mapping is ~2,300 rows and used to be bundled into the request form's client
+ * chunk, even though the form only ever shows the departments of the single company currently
  * selected (the largest company's slice is under 7 KB). The form prefetches its opening
  * company server-side and hits this route only when the user picks a different one.
  *
- * Static reference data, so it is cached hard — but `private`, since the route is auth-gated.
+ * Reference data that changes a few times a year, so it is cached hard — but `private`, since
+ * the route is auth-gated. The cost of that: an admin edit on /admin/laptop can take up to an
+ * hour to reach a browser that already fetched the company it touched. A reload clears it.
  */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ company: string }> }) {
   const user = await getProcureGuardUser();
@@ -20,8 +22,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ com
 
   const { company } = await params;
   // Unknown codes legitimately yield [] — that is exactly what the old in-bundle
-  // getDepartmentsForCompany() returned, so the form's behaviour is unchanged.
-  return NextResponse.json(getDepartmentsForCompany(company), {
+  // getDepartmentsForCompany() returned, so the form's behaviour is unchanged. So does a
+  // database that is briefly unreachable: the read swallows that and returns nothing rather
+  // than 500-ing the dropdown.
+  return NextResponse.json(await getDepartmentsForCompany(company), {
     headers: { 'Cache-Control': 'private, max-age=3600, stale-while-revalidate=86400' },
   });
 }

@@ -13,6 +13,6 @@ package-lock.json
 # Generated static artifact — vendored build output, not source
 public/red-bull-game/
 
-# Generated data files (~9k lines each); reformatting them is pure churn
-src/lib/laptopCostCenterMapping.ts
-src/lib/catalog-taxonomy.ts
+# Generated and source data; reformatting it is pure churn and, for the CSV, would corrupt it
+src/data/
+data/source/

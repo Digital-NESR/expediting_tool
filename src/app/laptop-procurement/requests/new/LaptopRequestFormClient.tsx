@@ -18,6 +18,7 @@ import {
   getCompaniesForRequestorCountry,
   getCompanyByCode,
   type CostCenterDepartment,
+  type CostCenterFormData,
 } from '@/lib/laptopCostCenters';
 import type { EmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import type {
@@ -134,6 +135,7 @@ export default function LaptopRequestFormClient({
   accessView,
   editRequest,
   directoryDefaults,
+  costCenterData,
   initialDepartments,
 }: {
   requesterName: string;
@@ -142,8 +144,15 @@ export default function LaptopRequestFormClient({
   editRequest?: LaptopRequest;
   directoryDefaults?: EmployeeDirectoryDefaults | null;
   /**
+   * The company list and the country map, read from the database by the server page. They used
+   * to be a JSON import in this file, which meant every correction to the mapping needed a
+   * deploy; they are now edited at /admin/laptop?section=cost-centers. Small enough (56 rows)
+   * to arrive as a prop, and this way the form only ever sees the companies that are active.
+   */
+  costCenterData: CostCenterFormData;
+  /**
    * Departments + cost centers for the company this form opens on, prefetched by the server page.
-   * The full 56-company table is ~138 KB and used to be bundled into this component; the form only
+   * The full table is ~2,300 rows and used to be bundled into this component; the form only
    * ever needs one company at a time, so the opening company arrives here (keeping the auto-fill
    * paths synchronous, exactly as before) and any company the user picks afterwards is fetched
    * from /api/laptop-procurement/cost-centers/<code>.
@@ -188,8 +197,8 @@ export default function LaptopRequestFormClient({
   const isSelfRequest = requestType === 'Upgrade/Replacement' || isUnit;
 
   // Companies available in the Cost Allocation dropdown for New Employee, filtered by
-  // the requestor's own country (from the Excel-derived mapping in laptopCostCenters).
-  const availableCompanies = getCompaniesForRequestorCountry(country);
+  // the requestor's own country through the admin-maintained country map.
+  const availableCompanies = getCompaniesForRequestorCountry(costCenterData, country);
   // Departments (and their cost centers) available for whichever company is currently
   // selected — drives both the New Employee "Computer For" department dropdown and the
   // Cost Center auto-fill. Keyed by company code and seeded with the server-prefetched
@@ -269,7 +278,7 @@ export default function LaptopRequestFormClient({
     if (nextDepartment !== department) setDepartment(nextDepartment);
     if (nextCompanyCode !== companyCode) setCompanyCode(nextCompanyCode);
 
-    const company = getCompanyByCode(nextCompanyCode);
+    const company = getCompanyByCode(costCenterData, nextCompanyCode);
     if (company) setCompanyName(company.name);
 
     const nextCostCenter = costCenter.trim()
@@ -299,7 +308,7 @@ export default function LaptopRequestFormClient({
   // company invalidates whatever department/cost center was picked for the old one.
   function handleCompanyChange(code: string) {
     setCompanyCode(code);
-    const company = getCompanyByCode(code);
+    const company = getCompanyByCode(costCenterData, code);
     setCompanyName(company?.name ?? '');
     setDepartment('');
     setCostCenter('');
@@ -308,7 +317,9 @@ export default function LaptopRequestFormClient({
   function handleCountryChange(value: string) {
     setCountry(value);
     if (!isNewEmployee) return;
-    const validCodes = new Set(getCompaniesForRequestorCountry(value).map((c) => c.code));
+    const validCodes = new Set(
+      getCompaniesForRequestorCountry(costCenterData, value).map((c) => c.code),
+    );
     if (companyCode && !validCodes.has(companyCode)) {
       setCompanyCode('');
       setCompanyName('');

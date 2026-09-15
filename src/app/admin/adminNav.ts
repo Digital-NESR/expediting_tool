@@ -108,6 +108,7 @@ export const ADMIN_APPS: AdminApp[] = [
     sections: [
       { id: 'admin', label: 'Admin Panel' },
       { id: 'analytics', label: 'Analytics' },
+      { id: 'cost-centers', label: 'Cost Centers' },
       { id: 'access', label: 'Approval Access', countKey: 'laptop' },
     ],
   },
@@ -166,6 +167,7 @@ export const LEGACY_TOOL_MAP: Record<string, { app: string; section: string }> =
   'sns-reference': { app: 'sns', section: 'reference' },
   'laptop-procurement-admin': { app: 'laptop', section: 'admin' },
   'laptop-procurement-analytics': { app: 'laptop', section: 'analytics' },
+  'laptop-procurement-cost-centers': { app: 'laptop', section: 'cost-centers' },
   'laptop-procurement-access': { app: 'laptop', section: 'access' },
   'learning-hub-admin': { app: 'learning-hub', section: 'admin' },
   'learning-hub-access': { app: 'learning-hub', section: 'access' },

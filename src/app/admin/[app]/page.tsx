@@ -83,8 +83,8 @@ export default async function AdminAppPage({
       base.learningHubAnalytics = await getLearningHubAnalytics();
       break;
     default:
-      // Access-approvals, SourceGuide, Catalog, SNS, TI-TE migration /
-      // default-notifiers: the panels self-fetch — no server data needed.
+      // Access-approvals, SourceGuide, Catalog, SNS, laptop cost centers, TI-TE
+      // migration / default-notifiers: the panels self-fetch — no server data needed.
       break;
   }
 

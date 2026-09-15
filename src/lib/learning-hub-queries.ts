@@ -1071,9 +1071,7 @@ export async function getMyWorkData(): Promise<MyWorkData> {
    is_correct until submitQuizAttempt() grades the attempt server-side, so the
    answer key never ships to the client before the quiz is submitted. ── */
 
-export async function loadModuleQuizRaw(
-  moduleId: number,
-): Promise<{
+export async function loadModuleQuizRaw(moduleId: number): Promise<{
   quiz: QueryResultRow;
   questions: QueryResultRow[];
   optionsByQuestion: Map<number, QueryResultRow[]>;

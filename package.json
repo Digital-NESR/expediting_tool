@@ -17,6 +17,7 @@
     "format:check": "prettier --check .",
     "prepare": "husky",
     "laptop:db:seed": "node --env-file=.env.local scripts/laptop-seed-data.mjs",
+    "laptop:cost-centers:seed": "node scripts/seed-laptop-cost-centers.mjs",
     "sns:db:init": "node scripts/sns-init-db.mjs"
   },
   "lint-staged": {
