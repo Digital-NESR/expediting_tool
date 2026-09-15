@@ -21,7 +21,8 @@ import type {
   ProcureGuardStatus,
 } from '@/types/procureGuard';
 
-export type QueryParam = string | number | boolean | null | Date | Buffer | number[] | string[] | undefined;
+export type QueryParam =
+  string | number | boolean | null | Date | Buffer | number[] | string[] | undefined;
 export type QueryParams = QueryParam[];
 export type { ExecResult } from '@/lib/db/sql';
 
@@ -38,45 +39,49 @@ let paymentRequestColumnsEnsured: Promise<void> | null = null;
 export async function ensureProcureGuardPaymentRequestColumns(): Promise<void> {
   if (paymentRequestColumnsEnsured) return paymentRequestColumnsEnsured;
   paymentRequestColumnsEnsured = (async () => {
-  async function execSchema(statement: string) {
-    try {
-      await exec(statement);
-    } catch (err) {
-      const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
-      if (code !== '23505' && code !== '42P07' && code !== '42710' && code !== '42701') throw err;
+    async function execSchema(statement: string) {
+      try {
+        await exec(statement);
+      } catch (err) {
+        const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
+        if (code !== '23505' && code !== '42P07' && code !== '42710' && code !== '42701') throw err;
+      }
     }
-  }
 
-  // Add all columns per table in a single ALTER (one round-trip, one lock), and run the two tables
-  // in parallel — collapses the cold-start cost from ~8 sequential round-trips to ~1.
-  await Promise.all([
-    execSchema(`ALTER TABLE procure_guard_adhoc_payments
+    // Add all columns per table in a single ALTER (one round-trip, one lock), and run the two tables
+    // in parallel — collapses the cold-start cost from ~8 sequential round-trips to ~1.
+    await Promise.all([
+      execSchema(`ALTER TABLE procure_guard_adhoc_payments
       ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
       ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
       ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB,
       ADD COLUMN IF NOT EXISTS reminder_7d_sent_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS reminder_14d_sent_at TIMESTAMPTZ`),
-    execSchema(`ALTER TABLE procure_guard_advance_payments
+      execSchema(`ALTER TABLE procure_guard_advance_payments
       ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
       ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
       ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB,
       ADD COLUMN IF NOT EXISTS reminder_7d_sent_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS reminder_14d_sent_at TIMESTAMPTZ`),
-    // Delegation attribution: when a delegate acts using someone else's authority, record who.
-    execSchema(`ALTER TABLE procure_guard_activity_log
+      // Delegation attribution: when a delegate acts using someone else's authority, record who.
+      execSchema(`ALTER TABLE procure_guard_activity_log
       ADD COLUMN IF NOT EXISTS on_behalf_of_name TEXT,
       ADD COLUMN IF NOT EXISTS on_behalf_of_email TEXT`),
-  ]);
-  // Indexes after the columns exist (they depend on requester_notification_emails); both in parallel.
-  await Promise.all([
-    execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_adhoc_requester_notification_emails ON procure_guard_adhoc_payments USING GIN (requester_notification_emails)`),
-    execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_advance_requester_notification_emails ON procure_guard_advance_payments USING GIN (requester_notification_emails)`),
-  ]);
-  // Note: the reference_number UNIQUE index is ensured in the insert path
-  // (insertProcureGuardPaymentRequest), not here — read-only page loads don't need it.
-  })().catch(err => {
+    ]);
+    // Indexes after the columns exist (they depend on requester_notification_emails); both in parallel.
+    await Promise.all([
+      execSchema(
+        `CREATE INDEX IF NOT EXISTS idx_procure_guard_adhoc_requester_notification_emails ON procure_guard_adhoc_payments USING GIN (requester_notification_emails)`,
+      ),
+      execSchema(
+        `CREATE INDEX IF NOT EXISTS idx_procure_guard_advance_requester_notification_emails ON procure_guard_advance_payments USING GIN (requester_notification_emails)`,
+      ),
+    ]);
+    // Note: the reference_number UNIQUE index is ensured in the insert path
+    // (insertProcureGuardPaymentRequest), not here — read-only page loads don't need it.
+  })().catch((err) => {
     paymentRequestColumnsEnsured = null; // allow a retry on the next request if it genuinely failed
     throw err;
   });
@@ -97,11 +102,13 @@ export function stripEnvQuotes(value: string): string {
 function isTlsCertificateError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err ?? '');
   const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
-  return code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
-    || code === 'SELF_SIGNED_CERT_IN_CHAIN'
-    || code === 'DEPTH_ZERO_SELF_SIGNED_CERT'
-    || message.toLowerCase().includes('unable to verify')
-    || message.toLowerCase().includes('self-signed certificate');
+  return (
+    code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+    code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
+    code === 'DEPTH_ZERO_SELF_SIGNED_CERT' ||
+    message.toLowerCase().includes('unable to verify') ||
+    message.toLowerCase().includes('self-signed certificate')
+  );
 }
 
 export function procureGuardWebhookErrorMessage(err: unknown): string {
@@ -128,8 +135,12 @@ export async function ensureProcureGuardDelegationTable(): Promise<void> {
         created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`);
-      await exec(`CREATE INDEX IF NOT EXISTS idx_pg_delegations_delegate ON procure_guard_delegations (LOWER(delegate_email))`);
-      await exec(`CREATE INDEX IF NOT EXISTS idx_pg_delegations_delegator ON procure_guard_delegations (LOWER(delegator_email))`);
+      await exec(
+        `CREATE INDEX IF NOT EXISTS idx_pg_delegations_delegate ON procure_guard_delegations (LOWER(delegate_email))`,
+      );
+      await exec(
+        `CREATE INDEX IF NOT EXISTS idx_pg_delegations_delegator ON procure_guard_delegations (LOWER(delegator_email))`,
+      );
     } catch (err) {
       delegationTableEnsured = null; // allow a later retry
       log.error('delegationTable.ensureFailed', err);
@@ -140,7 +151,9 @@ export async function ensureProcureGuardDelegationTable(): Promise<void> {
 
 // All active (non-expired) delegations grouped by delegator email (lowercased). Fail-safe → {}.
 // Shared by the initial approval notification and the reminder job so a delegate is emailed by both.
-export async function getActiveDelegatesByDelegator(): Promise<Record<string, ProcureGuardDelegation[]>> {
+export async function getActiveDelegatesByDelegator(): Promise<
+  Record<string, ProcureGuardDelegation[]>
+> {
   const map: Record<string, ProcureGuardDelegation[]> = {};
   try {
     await ensureProcureGuardDelegationTable();
@@ -206,7 +219,9 @@ export function getAppBaseUrl(): string {
     process.env.CLIENT_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXTAUTH_URL ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '') ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : '') ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
 
   const base = stripEnvQuotes(configured || '').replace(/\/$/, '');
@@ -234,11 +249,15 @@ export function countryRecipientKeys(country: string | null | undefined): string
   const normalized = raw.toLowerCase();
   if (normalized === 'saudi arabia (ksa)' || normalized === 'ksa') keys.add('Saudi Arabia');
   if (normalized === 'saudi arabia') keys.add('Saudi Arabia (KSA)');
-  if (normalized === 'united arab emirates (uae)' || normalized === 'united arab emirates') keys.add('UAE');
+  if (normalized === 'united arab emirates (uae)' || normalized === 'united arab emirates')
+    keys.add('UAE');
   if (normalized === 'uae') keys.add('United Arab Emirates (UAE)');
   // 'Indonesia + Malaysia' is one combined country in the UI; its notification recipients are
   // still stored per-country, so match both. getProcureGuardNotificationRecipients dedupes by email.
-  if (normalized === 'indonesia + malaysia') { keys.add('Indonesia'); keys.add('Malaysia'); }
+  if (normalized === 'indonesia + malaysia') {
+    keys.add('Indonesia');
+    keys.add('Malaysia');
+  }
   return [...keys];
 }
 
@@ -265,14 +284,19 @@ export function escapeHtml(value: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
-export function formatWebhookAmount(amount: number | string | null | undefined, currency: string | null | undefined): string {
+export function formatWebhookAmount(
+  amount: number | string | null | undefined,
+  currency: string | null | undefined,
+): string {
   const value = Number(amount || 0);
   return `${currency || 'USD'} ${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 }
 
 // Email table rows for the requester-entered identifiers (the PR / PO number approvers recognise in
 // SAP), so recipients can tie the email to the source document. Renders nothing when both are blank.
-export function procureGuardRefRowsHtml(request: Pick<ProcureGuardWebhookRequest, 'requisition_number' | 'po_number'>): string {
+export function procureGuardRefRowsHtml(
+  request: Pick<ProcureGuardWebhookRequest, 'requisition_number' | 'po_number'>,
+): string {
   const row = (label: string, value: string) =>
     `<tr><td style="padding:9px;border-bottom:1px solid #e5e7eb;font-weight:600;width:170px;">${label}</td><td style="padding:9px;border-bottom:1px solid #e5e7eb;">${escapeHtml(value)}</td></tr>`;
   const rows: string[] = [];
@@ -335,13 +359,12 @@ export async function getProcureGuardNotificationRecipients(input: {
   );
 
   const seen = new Set<string>();
-  return asSerialised<ProcureGuardNotificationRecipient[]>(rows)
-    .filter(row => {
-      const key = row.email.trim().toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+  return asSerialised<ProcureGuardNotificationRecipient[]>(rows).filter((row) => {
+    const key = row.email.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**
@@ -368,9 +391,9 @@ export async function getProcureGuardNotificationRecipientsForStatuses(input: {
     return result;
   }
 
-  const statuses = [...new Set(input.steps.map(step => step.status))];
-  const ownerLabels = [...new Set(input.steps.map(step => step.ownerLabel))];
-  const globalLabels = ownerLabels.filter(label => GLOBAL_APPROVER_OWNER_LABELS.has(label));
+  const statuses = [...new Set(input.steps.map((step) => step.status))];
+  const ownerLabels = [...new Set(input.steps.map((step) => step.ownerLabel))];
+  const globalLabels = ownerLabels.filter((label) => GLOBAL_APPROVER_OWNER_LABELS.has(label));
 
   const countryPlaceholders = countries.map(() => '?').join(', ');
   const statusPlaceholders = statuses.map(() => '?').join(', ');
@@ -403,22 +426,25 @@ export async function getProcureGuardNotificationRecipientsForStatuses(input: {
   for (const step of input.steps) {
     const ownerLower = step.ownerLabel.toLowerCase();
     const isGlobalOwner = GLOBAL_APPROVER_OWNER_LABELS.has(step.ownerLabel);
-    const matched = candidates.filter(row => {
+    const matched = candidates.filter((row) => {
       const roleLower = (row.notification_role ?? '').toLowerCase();
-      const countryMatch = countryKeys.has(row.country)
-        && (row.approval_status === step.status || roleLower === ownerLower);
+      const countryMatch =
+        countryKeys.has(row.country) &&
+        (row.approval_status === step.status || roleLower === ownerLower);
       return countryMatch || (isGlobalOwner && roleLower === ownerLower);
     });
     // Array.prototype.sort is stable, so re-sorting the already correctly ordered candidate list by
     // the single step-dependent key reproduces the original three-key SQL ORDER BY exactly.
-    matched.sort((a, b) =>
-      (a.approval_status === step.status ? 0 : 1) - (b.approval_status === step.status ? 0 : 1));
+    matched.sort(
+      (a, b) =>
+        (a.approval_status === step.status ? 0 : 1) - (b.approval_status === step.status ? 0 : 1),
+    );
 
     const seen = new Set<string>();
     result.set(
       step.status,
       matched
-        .filter(row => {
+        .filter((row) => {
           const key = row.email.trim().toLowerCase();
           if (seen.has(key)) return false;
           seen.add(key);
@@ -441,28 +467,31 @@ export async function postProcureGuardWebhook(
   const isHttps = url.protocol === 'https:';
 
   return new Promise((resolve, reject) => {
-    const request = (isHttps ? httpsRequest : httpRequest)({
-      method: 'POST',
-      protocol: url.protocol,
-      hostname: url.hostname,
-      port: url.port ? Number(url.port) : undefined,
-      path: `${url.pathname}${url.search}`,
-      headers: {
-        ...headers,
-        'Content-Length': Buffer.byteLength(body),
+    const request = (isHttps ? httpsRequest : httpRequest)(
+      {
+        method: 'POST',
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port ? Number(url.port) : undefined,
+        path: `${url.pathname}${url.search}`,
+        headers: {
+          ...headers,
+          'Content-Length': Buffer.byteLength(body),
+        },
+        rejectUnauthorized: isHttps ? false : undefined,
       },
-      rejectUnauthorized: isHttps ? false : undefined,
-    }, response => {
-      response.resume();
-      response.on('end', () => {
-        const status = response.statusCode ?? 0;
-        resolve({
-          ok: status >= 200 && status < 300,
-          status,
-          statusText: response.statusMessage ?? '',
+      (response) => {
+        response.resume();
+        response.on('end', () => {
+          const status = response.statusCode ?? 0;
+          resolve({
+            ok: status >= 200 && status < 300,
+            status,
+            statusText: response.statusMessage ?? '',
+          });
         });
-      });
-    });
+      },
+    );
 
     request.setTimeout(15000, () => {
       request.destroy(new Error('ProcureGuard n8n webhook timed out.'));

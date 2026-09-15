@@ -51,7 +51,9 @@ export function normaliseScopeValue(value: string | null | undefined): string {
 /** The per-request viewer list (a TEXT[] column), lowercased. Anything else is treated as empty. */
 export function requesterNotificationEmailsOf(request: ProcureGuardRequesterSideScope): string[] {
   return Array.isArray(request.requester_notification_emails)
-    ? request.requester_notification_emails.map(email => String(email).trim().toLowerCase()).filter(Boolean)
+    ? request.requester_notification_emails
+        .map((email) => String(email).trim().toLowerCase())
+        .filter(Boolean)
     : [];
 }
 
@@ -60,7 +62,17 @@ export function actorReviewGrants(actor: ProcureGuardActor): ProcureGuardReviewG
   if (actor.reviewGrants) return actor.reviewGrants;
   // Backward-compatible fallback for actors built without delegation resolution.
   return actor.permissions.canViewAll
-    ? [{ source: 'self', fromEmail: actor.email, fromName: actor.name, role: actor.role, country: actor.country ?? null, segment: actor.segment ?? null, isAdmin: actor.role === 'Admin' }]
+    ? [
+        {
+          source: 'self',
+          fromEmail: actor.email,
+          fromName: actor.name,
+          role: actor.role,
+          country: actor.country ?? null,
+          segment: actor.segment ?? null,
+          isAdmin: actor.role === 'Admin',
+        },
+      ]
     : [];
 }
 
@@ -75,26 +87,40 @@ export function actorReviewGrants(actor: ProcureGuardActor): ProcureGuardReviewG
  * An empty country scope means "every country", but only for roles that are not country-scoped:
  * a Country Controller / SCM Manager with no country recorded covers nothing at all.
  */
-export function grantCoversRequest(grant: ProcureGuardReviewGrant, request: ProcureGuardRequestScope): boolean {
+export function grantCoversRequest(
+  grant: ProcureGuardReviewGrant,
+  request: ProcureGuardRequestScope,
+): boolean {
   if (grant.isAdmin) return true;
   if (roleRequiresProcureGuardCountryScope(grant.role) && !grant.country) return false;
   const scopedCountries = getProcureGuardCountryScopeCountries(grant.country);
   const requestCountry = normalizeProcureGuardCountry(request.country);
-  const countryOk = scopedCountries.length === 0 || (requestCountry ? scopedCountries.includes(requestCountry) : false);
-  const segmentOk = !grant.segment || normaliseScopeValue(grant.segment) === normaliseScopeValue(request.segment);
+  const countryOk =
+    scopedCountries.length === 0 ||
+    (requestCountry ? scopedCountries.includes(requestCountry) : false);
+  const segmentOk =
+    !grant.segment || normaliseScopeValue(grant.segment) === normaliseScopeValue(request.segment);
   return countryOk && segmentOk;
 }
 
 /** True if any review grant (own or delegated) covers this request's scope. */
-export function actorCanAccessRequestScope(actor: ProcureGuardActor, request: ProcureGuardRequestScope): boolean {
-  return actorReviewGrants(actor).some(grant => grantCoversRequest(grant, request));
+export function actorCanAccessRequestScope(
+  actor: ProcureGuardActor,
+  request: ProcureGuardRequestScope,
+): boolean {
+  return actorReviewGrants(actor).some((grant) => grantCoversRequest(grant, request));
 }
 
 /** True if the actor raised this request or was granted per-request view access to it. */
-export function actorCanAccessRequesterSideRequest(actor: ProcureGuardActor, request: ProcureGuardRequesterSideScope): boolean {
+export function actorCanAccessRequesterSideRequest(
+  actor: ProcureGuardActor,
+  request: ProcureGuardRequesterSideScope,
+): boolean {
   const actorEmail = actor.email.toLowerCase();
-  return request.requested_by_email?.toLowerCase() === actorEmail
-    || requesterNotificationEmailsOf(request).includes(actorEmail);
+  return (
+    request.requested_by_email?.toLowerCase() === actorEmail ||
+    requesterNotificationEmailsOf(request).includes(actorEmail)
+  );
 }
 
 /**
@@ -102,8 +128,13 @@ export function actorCanAccessRequesterSideRequest(actor: ProcureGuardActor, req
  * attachment upload/delete actions and the document download route. Visibility only — approving,
  * uploading and deleting each add their own extra requirements on top of it.
  */
-export function canActorViewRequest(actor: ProcureGuardActor, request: ProcureGuardViewableRequest): boolean {
-  return actorCanAccessRequesterSideRequest(actor, request) || actorCanAccessRequestScope(actor, request);
+export function canActorViewRequest(
+  actor: ProcureGuardActor,
+  request: ProcureGuardViewableRequest,
+): boolean {
+  return (
+    actorCanAccessRequesterSideRequest(actor, request) || actorCanAccessRequestScope(actor, request)
+  );
 }
 
 /**
@@ -113,7 +144,8 @@ export function canActorViewRequest(actor: ProcureGuardActor, request: ProcureGu
  */
 export function scopedRequestWhere(actor: ProcureGuardActor): { where: string; params: string[] } {
   const email = actor.email.toLowerCase();
-  const ownClause = '(LOWER(requested_by_email) = ? OR ? = ANY(COALESCE(requester_notification_emails, ARRAY[]::TEXT[])))';
+  const ownClause =
+    '(LOWER(requested_by_email) = ? OR ? = ANY(COALESCE(requester_notification_emails, ARRAY[]::TEXT[])))';
   const grants = actorReviewGrants(actor);
 
   // Everyone can always see their own requests.
@@ -124,7 +156,10 @@ export function scopedRequestWhere(actor: ProcureGuardActor): { where: string; p
   const clauses = [ownClause];
   const params: string[] = [email, email];
   for (const grant of grants) {
-    if (grant.isAdmin || (!roleRequiresProcureGuardCountryScope(grant.role) && !grant.country && !grant.segment)) {
+    if (
+      grant.isAdmin ||
+      (!roleRequiresProcureGuardCountryScope(grant.role) && !grant.country && !grant.segment)
+    ) {
       // A full-scope grant (admin or unscoped reviewer) can see everything.
       return { where: '', params: [] };
     }
@@ -135,7 +170,10 @@ export function scopedRequestWhere(actor: ProcureGuardActor): { where: string; p
       parts.push(`country IN (${scopedCountries.map(() => '?').join(', ')})`);
       params.push(...scopedCountries);
     }
-    if (grant.segment) { parts.push('segment = ?'); params.push(grant.segment); }
+    if (grant.segment) {
+      parts.push('segment = ?');
+      params.push(grant.segment);
+    }
     if (parts.length === 0) continue;
     clauses.push(`(${parts.join(' AND ')})`);
   }

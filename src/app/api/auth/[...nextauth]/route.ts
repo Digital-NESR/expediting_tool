@@ -1,16 +1,16 @@
-import NextAuth, { NextAuthOptions } from "next-auth";
-import AzureADProvider from "next-auth/providers/azure-ad";
-import CredentialsProvider from "next-auth/providers/credentials";
-import pool from "@/lib/db";
-import titePool from "@/lib/db-tite";
-import sourceGuidePool from "@/lib/db-sourceguide";
-import procureGuardPool from "@/lib/db-procureguard";
-import snsPool from "@/lib/db-sns";
-import learningHubPool from "@/lib/db-learning-hub";
-import { getPermissionProfile } from "@/lib/procureGuard-utils";
-import { isPlatformAdminEmail, isToolAdminEmail, normalizeEmail } from "@/lib/require-access";
-import { saveUserPhoto, parseDataUri } from "@/lib/user-photo";
-import type { ProcureGuardPermissionRole } from "@/types/procureGuard";
+import NextAuth, { NextAuthOptions } from 'next-auth';
+import AzureADProvider from 'next-auth/providers/azure-ad';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import pool from '@/lib/db';
+import titePool from '@/lib/db-tite';
+import sourceGuidePool from '@/lib/db-sourceguide';
+import procureGuardPool from '@/lib/db-procureguard';
+import snsPool from '@/lib/db-sns';
+import learningHubPool from '@/lib/db-learning-hub';
+import { getPermissionProfile } from '@/lib/procureGuard-utils';
+import { isPlatformAdminEmail, isToolAdminEmail, normalizeEmail } from '@/lib/require-access';
+import { saveUserPhoto, parseDataUri } from '@/lib/user-photo';
+import type { ProcureGuardPermissionRole } from '@/types/procureGuard';
 
 /* Emails whose legacy inline avatar this process has already copied into
    user_photos. A token keeps its data: URI until the cookie is next
@@ -41,12 +41,12 @@ const toolAccessCache = new Map<string, CachedToolAccess>();
 export const authOptions: NextAuthOptions = {
   providers: [
     AzureADProvider({
-      clientId: process.env.AZURE_AD_CLIENT_ID || "",
-      clientSecret: process.env.AZURE_AD_CLIENT_SECRET || "",
-      tenantId: process.env.AZURE_AD_TENANT_ID || "",
+      clientId: process.env.AZURE_AD_CLIENT_ID || '',
+      clientSecret: process.env.AZURE_AD_CLIENT_SECRET || '',
+      tenantId: process.env.AZURE_AD_TENANT_ID || '',
       authorization: {
         params: {
-          scope: "openid profile email User.Read",
+          scope: 'openid profile email User.Read',
         },
       },
     }),
@@ -57,12 +57,12 @@ export const authOptions: NextAuthOptions = {
        bypass of every requireUser() gate in the app. It is therefore registered
        only outside production, and the identity it returns is a non-routable test
        address that can never collide with a real user or an ADMIN_EMAILS entry. */
-    ...(process.env.NODE_ENV !== "production"
+    ...(process.env.NODE_ENV !== 'production'
       ? [
           CredentialsProvider({
-            name: "Password (local dev only)",
+            name: 'Password (local dev only)',
             credentials: {
-              password: { label: "Password", type: "password" },
+              password: { label: 'Password', type: 'password' },
             },
             async authorize(credentials) {
               if (!credentials?.password) return null;
@@ -70,9 +70,9 @@ export const authOptions: NextAuthOptions = {
               const fallbackPassword = process.env.FALLBACK_PASSWORD;
               if (fallbackPassword && credentials.password === fallbackPassword) {
                 return {
-                  id: "local-dev",
-                  name: "Local Dev User",
-                  email: "local-dev@example.invalid",
+                  id: 'local-dev',
+                  name: 'Local Dev User',
+                  email: 'local-dev@example.invalid',
                 };
               }
 
@@ -83,19 +83,19 @@ export const authOptions: NextAuthOptions = {
       : []),
   ],
   pages: {
-    signIn: "/login",
+    signIn: '/login',
   },
   session: {
-    strategy: "jwt",
+    strategy: 'jwt',
   },
   callbacks: {
     async jwt({ token, account, trigger }) {
-      if (account?.provider === "azure-ad" && account.access_token) {
+      if (account?.provider === 'azure-ad' && account.access_token) {
         // Fetch additional profile fields from Microsoft Graph
         try {
           const res = await fetch(
-            "https://graph.microsoft.com/v1.0/me?$select=displayName,jobTitle,mail,userPrincipalName,department,country",
-            { headers: { Authorization: `Bearer ${account.access_token}` } }
+            'https://graph.microsoft.com/v1.0/me?$select=displayName,jobTitle,mail,userPrincipalName,department,country',
+            { headers: { Authorization: `Bearer ${account.access_token}` } },
           );
           if (res.ok) {
             const gp = await res.json();
@@ -116,17 +116,16 @@ export const authOptions: NextAuthOptions = {
            middleware each time. The token now carries one boolean and the
            image is served by /api/me/photo. */
         try {
-          const photoRes = await fetch(
-            "https://graph.microsoft.com/v1.0/me/photos/48x48/$value",
-            { headers: { Authorization: `Bearer ${account.access_token}` } }
-          );
+          const photoRes = await fetch('https://graph.microsoft.com/v1.0/me/photos/48x48/$value', {
+            headers: { Authorization: `Bearer ${account.access_token}` },
+          });
           if (photoRes.ok) {
             const buf = Buffer.from(await photoRes.arrayBuffer());
             const photoEmail = normalizeEmail(token.email as string | null | undefined);
             token.hasPhoto = await saveUserPhoto(
               photoEmail,
               buf,
-              photoRes.headers.get("content-type") ?? "image/jpeg",
+              photoRes.headers.get('content-type') ?? 'image/jpeg',
             );
           } else {
             token.hasPhoto = false;
@@ -137,8 +136,8 @@ export const authOptions: NextAuthOptions = {
         delete token.picture;
       }
 
-      if (account?.provider === "credentials") {
-        token.jobTitle = "Developer";
+      if (account?.provider === 'credentials') {
+        token.jobTitle = 'Developer';
         token.department = undefined;
         token.country = undefined;
         token.hasPhoto = false;
@@ -149,7 +148,7 @@ export const authOptions: NextAuthOptions = {
          their cookie still holds the inline data: URI. Move those bytes into
          the store and drop the field, so already-signed-in users keep their
          avatar (and get the smaller cookie) without having to re-login. */
-      if (typeof token.picture === "string" && token.picture.startsWith("data:")) {
+      if (typeof token.picture === 'string' && token.picture.startsWith('data:')) {
         const legacyEmail = normalizeEmail(token.email as string | null | undefined);
         if (legacyEmail && migratedPhotos.has(legacyEmail)) {
           token.hasPhoto = true;
@@ -195,35 +194,55 @@ export const authOptions: NextAuthOptions = {
           // Query each tool's access table in parallel. Every predicate is
           // LOWER(column) = $1 against the already-lowercased `email`, so rows
           // stored with mixed case still match their owner.
-          const [poResult, titeResult, sgChampResult, sgAccessResult, pgPermResult, snsResult, lhResult] = await Promise.all([
+          const [
+            poResult,
+            titeResult,
+            sgChampResult,
+            sgAccessResult,
+            pgPermResult,
+            snsResult,
+            lhResult,
+          ] = await Promise.all([
             pool.query(
               `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
-              [email]
+              [email],
             ),
             titePool.query(
               `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
-              [email]
+              [email],
             ),
-            sourceGuidePool.query(
-              `SELECT country_code FROM sg_champions WHERE email IS NOT NULL AND LOWER(email) = $1`,
-              [email]
-            ).catch(() => ({ rows: [] as { country_code: string }[] })),
-            sourceGuidePool.query(
-              `SELECT status FROM access_requests WHERE LOWER(user_email) = $1`,
-              [email]
-            ).catch(() => ({ rows: [] as { status: string }[] })),
-            procureGuardPool.query(
-              `SELECT role FROM procure_guard_permissions WHERE LOWER(email) = $1 LIMIT 1`,
-              [email]
-            ).catch(() => ({ rows: [] as { role: string }[] })),
-            snsPool.query(
-              `SELECT status, approved_role, approved_countries FROM sns_access_requests WHERE LOWER(user_email) = $1`,
-              [email]
-            ).catch(() => ({ rows: [] as { status: string; approved_role: string | null; approved_countries: string[] }[] })),
-            learningHubPool.query(
-              `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
-              [email]
-            ).catch(() => ({ rows: [] as { status: string; approved_countries: string[] }[] })),
+            sourceGuidePool
+              .query(
+                `SELECT country_code FROM sg_champions WHERE email IS NOT NULL AND LOWER(email) = $1`,
+                [email],
+              )
+              .catch(() => ({ rows: [] as { country_code: string }[] })),
+            sourceGuidePool
+              .query(`SELECT status FROM access_requests WHERE LOWER(user_email) = $1`, [email])
+              .catch(() => ({ rows: [] as { status: string }[] })),
+            procureGuardPool
+              .query(`SELECT role FROM procure_guard_permissions WHERE LOWER(email) = $1 LIMIT 1`, [
+                email,
+              ])
+              .catch(() => ({ rows: [] as { role: string }[] })),
+            snsPool
+              .query(
+                `SELECT status, approved_role, approved_countries FROM sns_access_requests WHERE LOWER(user_email) = $1`,
+                [email],
+              )
+              .catch(() => ({
+                rows: [] as {
+                  status: string;
+                  approved_role: string | null;
+                  approved_countries: string[];
+                }[],
+              })),
+            learningHubPool
+              .query(
+                `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
+                [email],
+              )
+              .catch(() => ({ rows: [] as { status: string; approved_countries: string[] }[] })),
           ]);
 
           // PO Expediting access
@@ -233,11 +252,16 @@ export const authOptions: NextAuthOptions = {
             const row = poResult.rows[0];
             const s = row.status.toLowerCase();
             poStatus =
-              s === 'pending'  ? 'pending'  :
-              s === 'approved' ? 'approved' :
-              s === 'revoked'  ? 'revoked'  :
-              s === 'rejected' ? 'rejected' : 'denied';
-            poCountries = poStatus === 'approved' ? (row.approved_countries || []) : [];
+              s === 'pending'
+                ? 'pending'
+                : s === 'approved'
+                  ? 'approved'
+                  : s === 'revoked'
+                    ? 'revoked'
+                    : s === 'rejected'
+                      ? 'rejected'
+                      : 'denied';
+            poCountries = poStatus === 'approved' ? row.approved_countries || [] : [];
           } else {
             poStatus = 'new';
             poCountries = [];
@@ -250,11 +274,16 @@ export const authOptions: NextAuthOptions = {
             const tr = titeResult.rows[0];
             const ts = tr.status.toLowerCase();
             titeStatus =
-              ts === 'pending'  ? 'pending'  :
-              ts === 'approved' ? 'approved' :
-              ts === 'revoked'  ? 'revoked'  :
-              ts === 'rejected' ? 'rejected' : 'denied';
-            titeCountries = titeStatus === 'approved' ? (tr.approved_countries || []) : [];
+              ts === 'pending'
+                ? 'pending'
+                : ts === 'approved'
+                  ? 'approved'
+                  : ts === 'revoked'
+                    ? 'revoked'
+                    : ts === 'rejected'
+                      ? 'rejected'
+                      : 'denied';
+            titeCountries = titeStatus === 'approved' ? tr.approved_countries || [] : [];
           } else {
             titeStatus = 'new';
             titeCountries = [];
@@ -276,10 +305,13 @@ export const authOptions: NextAuthOptions = {
           const pgRole = (pgPermResult.rows[0]?.role ?? '').trim() as ProcureGuardPermissionRole;
           const pgProfile = getPermissionProfile(pgRole);
           const procureGuardAccessType: 'requester' | 'approver' | 'viewer' | 'admin' =
-            token.isAdmin || pgProfile.accessView === 'admin' ? 'admin'
-            : pgProfile.accessView === 'reviewer' ? 'approver'
-            : pgProfile.accessView === 'viewer' ? 'viewer'
-            : 'requester';
+            token.isAdmin || pgProfile.accessView === 'admin'
+              ? 'admin'
+              : pgProfile.accessView === 'reviewer'
+                ? 'approver'
+                : pgProfile.accessView === 'viewer'
+                  ? 'viewer'
+                  : 'requester';
 
           // SourceGuide access: admin (env) > champion (sg_champions) > user (access_requests)
           // For champions, approvedCountries = the countries they may EDIT.
@@ -291,14 +323,19 @@ export const authOptions: NextAuthOptions = {
             sgCountries = [];
           } else if (sgChampResult.rows.length > 0) {
             sgStatus = 'approved';
-            sgCountries = [...new Set(sgChampResult.rows.map(r => r.country_code))];
+            sgCountries = [...new Set(sgChampResult.rows.map((r) => r.country_code))];
           } else if (sgAccessResult.rows.length > 0) {
             const ss = sgAccessResult.rows[0].status.toLowerCase();
             sgStatus =
-              ss === 'pending'  ? 'pending'  :
-              ss === 'approved' ? 'approved' :
-              ss === 'revoked'  ? 'revoked'  :
-              ss === 'rejected' ? 'rejected' : 'denied';
+              ss === 'pending'
+                ? 'pending'
+                : ss === 'approved'
+                  ? 'approved'
+                  : ss === 'revoked'
+                    ? 'revoked'
+                    : ss === 'rejected'
+                      ? 'rejected'
+                      : 'denied';
             sgCountries = [];
           } else {
             sgStatus = 'new';
@@ -319,11 +356,16 @@ export const authOptions: NextAuthOptions = {
             const sr = snsResult.rows[0];
             const st = String(sr.status).toLowerCase();
             snsStatus =
-              st === 'pending'  ? 'pending'  :
-              st === 'approved' ? 'approved' :
-              st === 'revoked'  ? 'revoked'  :
-              st === 'rejected' ? 'rejected' : 'denied';
-            snsCountries = snsStatus === 'approved' ? (sr.approved_countries || []) : [];
+              st === 'pending'
+                ? 'pending'
+                : st === 'approved'
+                  ? 'approved'
+                  : st === 'revoked'
+                    ? 'revoked'
+                    : st === 'rejected'
+                      ? 'rejected'
+                      : 'denied';
+            snsCountries = snsStatus === 'approved' ? sr.approved_countries || [] : [];
             snsRole = sr.approved_role ?? undefined;
           } else {
             snsStatus = 'new';
@@ -335,22 +377,31 @@ export const authOptions: NextAuthOptions = {
           if (lhResult.rows.length > 0) {
             const ls = String(lhResult.rows[0].status).toLowerCase();
             lhStatus =
-              ls === 'pending'  ? 'pending'  :
-              ls === 'approved' ? 'approved' :
-              ls === 'revoked'  ? 'revoked'  :
-              ls === 'rejected' ? 'rejected' : 'denied';
+              ls === 'pending'
+                ? 'pending'
+                : ls === 'approved'
+                  ? 'approved'
+                  : ls === 'revoked'
+                    ? 'revoked'
+                    : ls === 'rejected'
+                      ? 'rejected'
+                      : 'denied';
           } else {
             lhStatus = 'new';
           }
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (token as any).toolAccess = {
-            po_expediting: { status: poStatus,   approvedCountries: poCountries   },
-            tite:          { status: titeStatus, approvedCountries: titeCountries },
-            procure_guard: { status: procureGuardStatus, approvedCountries: [], accessType: procureGuardAccessType },
-            sourceguide:   { status: sgStatus, approvedCountries: sgCountries },
-            sns_registry:  { status: snsStatus, approvedCountries: snsCountries, snsRole },
-            learning_hub:  { status: lhStatus, approvedCountries: [] },
+            po_expediting: { status: poStatus, approvedCountries: poCountries },
+            tite: { status: titeStatus, approvedCountries: titeCountries },
+            procure_guard: {
+              status: procureGuardStatus,
+              approvedCountries: [],
+              accessType: procureGuardAccessType,
+            },
+            sourceguide: { status: sgStatus, approvedCountries: sgCountries },
+            sns_registry: { status: snsStatus, approvedCountries: snsCountries, snsRole },
+            learning_hub: { status: lhStatus, approvedCountries: [] },
           };
           token.titeViewOnly = titeViewOnly;
 
@@ -366,11 +417,11 @@ export const authOptions: NextAuthOptions = {
           if (!token.toolAccess) {
             token.toolAccess = {
               po_expediting: { status: 'new', approvedCountries: [] },
-              tite:          { status: 'new', approvedCountries: [] },
+              tite: { status: 'new', approvedCountries: [] },
               procure_guard: { status: 'new', approvedCountries: [] },
-              sourceguide:   { status: 'new', approvedCountries: [] },
-              sns_registry:  { status: 'new', approvedCountries: [] },
-              learning_hub:  { status: 'new', approvedCountries: [] },
+              sourceguide: { status: 'new', approvedCountries: [] },
+              sns_registry: { status: 'new', approvedCountries: [] },
+              learning_hub: { status: 'new', approvedCountries: [] },
             };
           }
         }
@@ -380,26 +431,48 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.name       = (token.name    as string) ?? session.user.name;
-        session.user.email      = (token.email   as string) ?? session.user.email;
+        session.user.name = (token.name as string) ?? session.user.name;
+        session.user.email = (token.email as string) ?? session.user.email;
         /* A URL, not the image. Every consumer renders
            `session.user.image ? <img src={…}> : <initials/>`, so pointing at
            the route keeps both branches behaving exactly as before while the
            bytes stay out of the cookie. Null when the user has no avatar, so
            the initials fallback still triggers. */
-        session.user.image      = token.hasPhoto ? '/api/me/photo' : null;
-        session.user.jobTitle   = token.jobTitle   as string | undefined;
+        session.user.image = token.hasPhoto ? '/api/me/photo' : null;
+        session.user.jobTitle = token.jobTitle as string | undefined;
         session.user.department = token.department as string | undefined;
-        session.user.country    = token.country    as string | undefined;
-        session.user.isAdmin    = token.isAdmin    as boolean | undefined;
-        session.user.toolAccess = token.toolAccess as {
-          po_expediting?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
-          tite?:          { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
-          procure_guard?: { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[]; accessType?: 'requester' | 'approver' | 'viewer' | 'admin' };
-          sourceguide?:   { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
-          sns_registry?:  { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[]; snsRole?: string };
-          learning_hub?:  { status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected'; approvedCountries: string[] };
-        } | undefined;
+        session.user.country = token.country as string | undefined;
+        session.user.isAdmin = token.isAdmin as boolean | undefined;
+        session.user.toolAccess = token.toolAccess as
+          | {
+              po_expediting?: {
+                status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
+                approvedCountries: string[];
+              };
+              tite?: {
+                status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
+                approvedCountries: string[];
+              };
+              procure_guard?: {
+                status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
+                approvedCountries: string[];
+                accessType?: 'requester' | 'approver' | 'viewer' | 'admin';
+              };
+              sourceguide?: {
+                status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
+                approvedCountries: string[];
+              };
+              sns_registry?: {
+                status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
+                approvedCountries: string[];
+                snsRole?: string;
+              };
+              learning_hub?: {
+                status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
+                approvedCountries: string[];
+              };
+            }
+          | undefined;
         session.user.titeViewOnly = token.titeViewOnly as boolean | undefined;
       }
       return session;

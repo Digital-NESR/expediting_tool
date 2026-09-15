@@ -29,24 +29,24 @@ export interface TiteCountryOption {
 }
 
 export const TITE_COUNTRIES: readonly TiteCountryOption[] = [
-  { value: 'Saudi Arabia (KSA)',         label: 'Saudi Arabia (KSA)' },
+  { value: 'Saudi Arabia (KSA)', label: 'Saudi Arabia (KSA)' },
   { value: 'United Arab Emirates (UAE)', label: 'United Arab Emirates (UAE)' },
-  { value: 'Qatar',                      label: 'Qatar' },
-  { value: 'Kuwait',                     label: 'Kuwait' },
-  { value: 'Oman',                       label: 'Oman' },
-  { value: 'Bahrain',                    label: 'Bahrain' },
-  { value: 'Egypt',                      label: 'Egypt' },
-  { value: 'Algeria',                    label: 'Algeria' },
-  { value: 'Iraq',                       label: 'Iraq' },
-  { value: 'Libya',                      label: 'Libya' },
-  { value: 'Indonesia',                  label: 'Indonesia' },
-  { value: 'Chad',                       label: 'Chad' },
-  { value: 'Congo',                      label: 'Congo' },
-  { value: 'Other',                      label: 'Other' },
+  { value: 'Qatar', label: 'Qatar' },
+  { value: 'Kuwait', label: 'Kuwait' },
+  { value: 'Oman', label: 'Oman' },
+  { value: 'Bahrain', label: 'Bahrain' },
+  { value: 'Egypt', label: 'Egypt' },
+  { value: 'Algeria', label: 'Algeria' },
+  { value: 'Iraq', label: 'Iraq' },
+  { value: 'Libya', label: 'Libya' },
+  { value: 'Indonesia', label: 'Indonesia' },
+  { value: 'Chad', label: 'Chad' },
+  { value: 'Congo', label: 'Congo' },
+  { value: 'Other', label: 'Other' },
 ];
 
 /** Just the stored values, in display order. */
-export const TITE_COUNTRY_VALUES: readonly string[] = TITE_COUNTRIES.map(c => c.value);
+export const TITE_COUNTRY_VALUES: readonly string[] = TITE_COUNTRIES.map((c) => c.value);
 
 /**
  * The sentinel country that grants read-everything, write-nothing. Lives here,
@@ -59,20 +59,20 @@ export const TITE_VIEW_ALL_COUNTRIES = 'All Countries - View Only';
 
 /** Operating country (as stored in `shipments.country`) → ISO3-style code. */
 export const TITE_COUNTRY_CODE: Record<string, string> = {
-  'Saudi Arabia (KSA)':          'KSA',
-  'United Arab Emirates (UAE)':  'UAE',
-  'Qatar':                        'QAT',
-  'Kuwait':                       'KWT',
-  'Oman':                         'OMN',
-  'Bahrain':                      'BHR',
-  'Egypt':                        'EGY',
-  'Algeria':                      'DZA',
-  'Iraq':                         'IRQ',
-  'Libya':                        'LBY',
-  'Indonesia':                    'IDN',
-  'Chad':                         'TCD',
-  'Congo':                        'COG',
-  'Other':                        'OTH',
+  'Saudi Arabia (KSA)': 'KSA',
+  'United Arab Emirates (UAE)': 'UAE',
+  Qatar: 'QAT',
+  Kuwait: 'KWT',
+  Oman: 'OMN',
+  Bahrain: 'BHR',
+  Egypt: 'EGY',
+  Algeria: 'DZA',
+  Iraq: 'IRQ',
+  Libya: 'LBY',
+  Indonesia: 'IDN',
+  Chad: 'TCD',
+  Congo: 'COG',
+  Other: 'OTH',
 };
 
 /**
@@ -81,9 +81,9 @@ export const TITE_COUNTRY_CODE: Record<string, string> = {
  */
 const TITE_COUNTRY_ALIASES: Record<string, string> = {
   'saudi arabia': 'Saudi Arabia (KSA)',
-  'ksa':          'Saudi Arabia (KSA)',
+  ksa: 'Saudi Arabia (KSA)',
   'united arab emirates': 'United Arab Emirates (UAE)',
-  'uae':          'United Arab Emirates (UAE)',
+  uae: 'United Arab Emirates (UAE)',
 };
 
 /**
@@ -97,12 +97,12 @@ const TITE_COUNTRY_ALIASES: Record<string, string> = {
 export function canonicalTiteCountry(country?: string | null): string | null {
   const raw = (country ?? '').trim();
   if (!raw) return null;
-  const exact = TITE_COUNTRIES.find(c => c.value === raw);
+  const exact = TITE_COUNTRIES.find((c) => c.value === raw);
   if (exact) return exact.value;
   const lower = raw.toLowerCase();
   const alias = TITE_COUNTRY_ALIASES[lower];
   if (alias) return alias;
-  const ci = TITE_COUNTRIES.find(c => c.value.toLowerCase() === lower);
+  const ci = TITE_COUNTRIES.find((c) => c.value.toLowerCase() === lower);
   return ci ? ci.value : null;
 }
 

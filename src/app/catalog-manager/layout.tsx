@@ -11,7 +11,9 @@ export default async function CatalogManagerLayout({ children }: { children: Rea
   if (!session?.user?.email) redirect('/login');
 
   const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
   const isAdmin = adminEmails.includes(session.user.email.toLowerCase());
 
   // Env-gated admin preview: only configured admins may enter; everyone else is

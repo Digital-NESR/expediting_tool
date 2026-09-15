@@ -7,7 +7,10 @@
  */
 
 export function norm(s: string): string {
-  return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return (s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 
 export function tokenize(s: string): string[] {
@@ -18,7 +21,8 @@ export function tokenize(s: string): string[] {
 /** Classic Levenshtein edit distance (iterative, two-row). */
 export function levenshtein(a: string, b: string): number {
   if (a === b) return 0;
-  const al = a.length, bl = b.length;
+  const al = a.length,
+    bl = b.length;
   if (!al) return bl;
   if (!bl) return al;
   let prev = new Array<number>(bl + 1);
@@ -54,7 +58,10 @@ function bestTokenScore(qt: string, tokens: string[]): number {
   let best = 0;
   for (const ht of tokens) {
     const s = tokenScore(qt, ht);
-    if (s > best) { best = s; if (best >= 1) break; }
+    if (s > best) {
+      best = s;
+      if (best >= 1) break;
+    }
   }
   return best;
 }
@@ -76,7 +83,9 @@ export function matchScore(query: string, primary: string, extra = ''): number {
   const extraTokens = extra ? tokenize(extra) : [];
   const allTokens = extraTokens.length ? primaryTokens.concat(extraTokens) : primaryTokens;
 
-  let covered = 0, primarySum = 0, allSum = 0;
+  let covered = 0,
+    primarySum = 0,
+    allSum = 0;
   for (const qt of qTokens) {
     const bAll = bestTokenScore(qt, allTokens);
     const bPrimary = extraTokens.length ? bestTokenScore(qt, primaryTokens) : bAll;

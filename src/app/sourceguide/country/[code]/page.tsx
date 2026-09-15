@@ -5,7 +5,11 @@ import CountryDashboardClient from './CountryDashboardClient';
 
 export const metadata: Metadata = { title: 'NESR | Country Guide - SourceGuide' };
 
-export default async function CountryDashboardPage({ params }: { params: Promise<{ code: string }> }) {
+export default async function CountryDashboardPage({
+  params,
+}: {
+  params: Promise<{ code: string }>;
+}) {
   const { code } = await params;
   const data = await getCountryDashboard(decodeURIComponent(code));
   if (!data) notFound();

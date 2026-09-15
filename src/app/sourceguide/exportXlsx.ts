@@ -3,7 +3,10 @@
 
 /** exceljs rejects these characters in a sheet name; xlsx silently allowed some of them. */
 function safeSheetName(name: string): string {
-  const cleaned = name.replace(/[[\]*?/\\:]/g, '_').replace(/^'+|'+$/g, '').slice(0, 31);
+  const cleaned = name
+    .replace(/[[\]*?/\\:]/g, '_')
+    .replace(/^'+|'+$/g, '')
+    .slice(0, 31);
   return cleaned || 'Sheet1';
 }
 
@@ -16,7 +19,11 @@ function toCellValue(v: unknown): string | number | boolean | Date | null {
   return String(v);
 }
 
-export async function downloadXlsx(filename: string, rows: Record<string, unknown>[], sheetName = 'SourceGuide') {
+export async function downloadXlsx(
+  filename: string,
+  rows: Record<string, unknown>[],
+  sheetName = 'SourceGuide',
+) {
   const ExcelJS = await import('exceljs');
   const data = rows.length ? rows : [{ '': 'No data' }];
 
@@ -37,6 +44,8 @@ export async function downloadXlsx(filename: string, rows: Record<string, unknow
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
+  a.href = url;
+  a.download = filename;
+  a.click();
   URL.revokeObjectURL(url);
 }

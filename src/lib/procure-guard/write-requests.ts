@@ -15,7 +15,11 @@
  * auth guards. The SQL is carried over byte-for-byte from the old actions file.
  */
 import { toUsd } from '@/lib/procureGuard-utils';
-import type { CreateAdhocPaymentInput, CreateAdvancePaymentInput, ProcureGuardStatus } from '@/types/procureGuard';
+import type {
+  CreateAdhocPaymentInput,
+  CreateAdvancePaymentInput,
+  ProcureGuardStatus,
+} from '@/types/procureGuard';
 import { exec } from './internals';
 import type { ExecResult } from './internals';
 import { insertProcureGuardPaymentRequest } from './schema';
@@ -79,10 +83,21 @@ export function normaliseAdhocInput(
   const vendorName = requireText(input.vendor_name, 'ADHOC vendor name');
   const vendorTaxId = requireText(input.vendor_tax_id, 'Vendor tax ID');
   const spendCategory = requireText(input.spend_category, 'Spend category');
-  const reason = requireText(input.payment_reason || input.justification, 'Reason / justification of exception');
-  if (options.requireAcknowledgement && !input.acknowledged) throw new Error('Acknowledgement is required.');
-  const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, options.requesterEmail);
-  const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
+  const reason = requireText(
+    input.payment_reason || input.justification,
+    'Reason / justification of exception',
+  );
+  if (options.requireAcknowledgement && !input.acknowledged)
+    throw new Error('Acknowledgement is required.');
+  const requesterNotificationEmails = normalizeRequesterNotificationEmails(
+    input.requester_notification_emails,
+    options.requesterEmail,
+  );
+  const emailTestRouting = validateEmailTestRouting(
+    input.email_test_mode,
+    input.email_test_recipients,
+    input.email_test_recipient_overrides,
+  );
 
   return {
     amount,
@@ -113,20 +128,42 @@ export function normaliseAdvanceInput(
   const sapVendorId = requireText(input.sap_vendor_id || input.vendor_code, 'SAP vendor ID');
   const vendorName = requireText(input.vendor_name, 'SAP vendor name');
   const spendCategory = requireText(input.spend_category, 'Spend category');
-  const paymentTermsDays = validateNonNegativeNumber(input.current_payment_terms_days, 'Current payment terms in days');
-  const creditLimitUsd = validateNonNegativeNumber(input.current_credit_limit_usd, 'Current credit limit in USD');
-  const reason = requireText(input.advance_purpose || input.justification, 'Reason / justification for exception');
-  const requesterNotificationEmails = normalizeRequesterNotificationEmails(input.requester_notification_emails, options.requesterEmail);
-  const emailTestRouting = validateEmailTestRouting(input.email_test_mode, input.email_test_recipients, input.email_test_recipient_overrides);
+  const paymentTermsDays = validateNonNegativeNumber(
+    input.current_payment_terms_days,
+    'Current payment terms in days',
+  );
+  const creditLimitUsd = validateNonNegativeNumber(
+    input.current_credit_limit_usd,
+    'Current credit limit in USD',
+  );
+  const reason = requireText(
+    input.advance_purpose || input.justification,
+    'Reason / justification for exception',
+  );
+  const requesterNotificationEmails = normalizeRequesterNotificationEmails(
+    input.requester_notification_emails,
+    options.requesterEmail,
+  );
+  const emailTestRouting = validateEmailTestRouting(
+    input.email_test_mode,
+    input.email_test_recipients,
+    input.email_test_recipient_overrides,
+  );
 
   // Neither of these can throw, so computing them here matches all three old call sites regardless
   // of where in the block they used to sit.
-  const contractValue = input.contract_value === undefined || input.contract_value === null || Number.isNaN(Number(input.contract_value))
-    ? null
-    : Number(input.contract_value);
-  const advancePercentage = input.advance_percentage === undefined || input.advance_percentage === null || Number.isNaN(Number(input.advance_percentage))
-    ? null
-    : Number(input.advance_percentage);
+  const contractValue =
+    input.contract_value === undefined ||
+    input.contract_value === null ||
+    Number.isNaN(Number(input.contract_value))
+      ? null
+      : Number(input.contract_value);
+  const advancePercentage =
+    input.advance_percentage === undefined ||
+    input.advance_percentage === null ||
+    Number.isNaN(Number(input.advance_percentage))
+      ? null
+      : Number(input.advance_percentage);
 
   return {
     amount,
@@ -194,9 +231,8 @@ export async function insertAdhocRequest(params: {
   requestedByEmail: string;
 }): Promise<ExecResult & { reference: string }> {
   const { input, normalised: n } = params;
-  const result = await insertProcureGuardPaymentRequest('ADH', reference => exec(
-    adhocInsertSql(params.status === null ? `'Submitted'` : '?'),
-    [
+  const result = await insertProcureGuardPaymentRequest('ADH', (reference) =>
+    exec(adhocInsertSql(params.status === null ? `'Submitted'` : '?'), [
       reference,
       n.requisitionNumber,
       ...(params.status === null ? [] : [params.status]),
@@ -231,8 +267,8 @@ export async function insertAdhocRequest(params: {
       JSON.stringify(n.emailTestRouting.overrides),
       params.requestedByName,
       params.requestedByEmail,
-    ],
-  ));
+    ]),
+  );
   await writeRequesterComments('procure_guard_adhoc_payments', result.insertId, input);
   return result;
 }
@@ -247,9 +283,8 @@ export async function insertAdvanceRequest(params: {
   requestedByEmail: string;
 }): Promise<ExecResult & { reference: string }> {
   const { input, normalised: n } = params;
-  const result = await insertProcureGuardPaymentRequest('ADV', reference => exec(
-    advanceInsertSql(params.status === null ? `'Submitted'` : '?'),
-    [
+  const result = await insertProcureGuardPaymentRequest('ADV', (reference) =>
+    exec(advanceInsertSql(params.status === null ? `'Submitted'` : '?'), [
       reference,
       n.requisitionNumber,
       ...(params.status === null ? [] : [params.status]),
@@ -288,13 +323,17 @@ export async function insertAdvanceRequest(params: {
       JSON.stringify(n.emailTestRouting.overrides),
       params.requestedByName,
       params.requestedByEmail,
-    ],
-  ));
+    ]),
+  );
   await writeRequesterComments('procure_guard_advance_payments', result.insertId, input);
   return result;
 }
 
-export async function updateAdhocRequest(id: number, input: CreateAdhocPaymentInput, n: NormalisedAdhocInput): Promise<void> {
+export async function updateAdhocRequest(
+  id: number,
+  input: CreateAdhocPaymentInput,
+  n: NormalisedAdhocInput,
+): Promise<void> {
   await exec(
     `UPDATE procure_guard_adhoc_payments
        SET requisition_number = ?,
@@ -347,7 +386,11 @@ export async function updateAdhocRequest(id: number, input: CreateAdhocPaymentIn
   );
 }
 
-export async function updateAdvanceRequest(id: number, input: CreateAdvancePaymentInput, n: NormalisedAdvanceInput): Promise<void> {
+export async function updateAdvanceRequest(
+  id: number,
+  input: CreateAdvancePaymentInput,
+  n: NormalisedAdvanceInput,
+): Promise<void> {
   await exec(
     `UPDATE procure_guard_advance_payments
        SET requisition_number = ?,

@@ -28,22 +28,43 @@ import {
   getStatusBadge,
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
-import type { LaptopAdminData, LaptopDelegatableRole, LaptopDelegationRow, LaptopDeviceCatalogRow, LaptopPermissionListItem, LaptopPermissionRole } from '@/types/laptopProcurement';
+import type {
+  LaptopAdminData,
+  LaptopDelegatableRole,
+  LaptopDelegationRow,
+  LaptopDeviceCatalogRow,
+  LaptopPermissionListItem,
+  LaptopPermissionRole,
+} from '@/types/laptopProcurement';
 
 // IT Manager can hold up to 3 named slots (co-managers) for the same country — these
 // two extra options exist only in this admin form/display, mapped to
 // { stage: 'IT Manager', slot: 2|3 } before hitting the server actions, which only ever
 // deal in the functional 4-stage LaptopApprovalStage plus a numeric slot.
 type RoleSelectValue = LaptopPermissionRole | 'IT Manager 2' | 'IT Manager 3';
-const MATRIX_ROLE_SELECT_SET: Set<RoleSelectValue> = new Set([...APPROVER_MATRIX_ROLES, 'IT Manager 2', 'IT Manager 3']);
-const ROLE_SELECT_OPTIONS: RoleSelectValue[] = PERMISSION_ROLE_OPTIONS.flatMap(r =>
+const MATRIX_ROLE_SELECT_SET: Set<RoleSelectValue> = new Set([
+  ...APPROVER_MATRIX_ROLES,
+  'IT Manager 2',
+  'IT Manager 3',
+]);
+const ROLE_SELECT_OPTIONS: RoleSelectValue[] = PERMISSION_ROLE_OPTIONS.flatMap((r) =>
   r === 'IT Manager' ? (['IT Manager', 'IT Manager 2', 'IT Manager 3'] as const) : [r],
 );
 // The fixed display order for the country cards below — every non-IT-Manager role has
 // exactly one slot.
-const MATRIX_DISPLAY_ROLES: RoleSelectValue[] = ['IT Manager', 'IT Manager 2', 'IT Manager 3', 'Country Manager', 'IT Director', 'Supply Chain Director'];
+const MATRIX_DISPLAY_ROLES: RoleSelectValue[] = [
+  'IT Manager',
+  'IT Manager 2',
+  'IT Manager 3',
+  'Country Manager',
+  'IT Director',
+  'Supply Chain Director',
+];
 
-function roleSelectToStageSlot(value: RoleSelectValue): { role: LaptopApprovalStage; slot: number } {
+function roleSelectToStageSlot(value: RoleSelectValue): {
+  role: LaptopApprovalStage;
+  slot: number;
+} {
   if (value === 'IT Manager 2') return { role: 'IT Manager', slot: 2 };
   if (value === 'IT Manager 3') return { role: 'IT Manager', slot: 3 };
   return { role: value as LaptopApprovalStage, slot: 1 };
@@ -58,14 +79,17 @@ function matrixItemDisplayRole(item: LaptopPermissionListItem): RoleSelectValue 
   return item.role as RoleSelectValue;
 }
 
-const INP = 'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
+const INP =
+  'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
 
 function DbError() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 p-6">
       <div className="max-w-sm rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
         <p className="mb-1 font-semibold text-slate-900">Admin data unavailable</p>
-        <p className="text-sm text-slate-500">Admin access is required, or the database is unreachable.</p>
+        <p className="text-sm text-slate-500">
+          Admin access is required, or the database is unreachable.
+        </p>
       </div>
     </div>
   );
@@ -89,9 +113,11 @@ function usePendingAction(): [boolean, (fn: () => Promise<void>) => void] {
 }
 
 function delegationIsLive(d: LaptopDelegationRow): boolean {
-  return d.is_active
-    && (!d.starts_at || new Date(d.starts_at).getTime() <= Date.now())
-    && (!d.expires_at || new Date(d.expires_at).getTime() > Date.now());
+  return (
+    d.is_active &&
+    (!d.starts_at || new Date(d.starts_at).getTime() <= Date.now()) &&
+    (!d.expires_at || new Date(d.expires_at).getTime() > Date.now())
+  );
 }
 
 function delegationIsScheduled(d: LaptopDelegationRow): boolean {
@@ -100,7 +126,9 @@ function delegationIsScheduled(d: LaptopDelegationRow): boolean {
 
 // Combines a role's stage + country into one string key for checkbox state and back.
 const ROLE_KEY_SEP = '||';
-function roleKey(stage: string, country: string): string { return `${stage}${ROLE_KEY_SEP}${country}`; }
+function roleKey(stage: string, country: string): string {
+  return `${stage}${ROLE_KEY_SEP}${country}`;
+}
 function parseRoleKey(key: string): { stage: LaptopApprovalStage; country: string } {
   const [stage, country] = key.split(ROLE_KEY_SEP);
   return { stage: stage as LaptopApprovalStage, country };
@@ -129,17 +157,27 @@ function DelegationsPanel({
 
   const delegationsPageCount = Math.max(1, Math.ceil(delegations.length / REQUESTS_PAGE_SIZE));
   const currentDelegationsPage = Math.min(delegationsPage, delegationsPageCount - 1);
-  const pagedDelegations = delegations.slice(currentDelegationsPage * REQUESTS_PAGE_SIZE, (currentDelegationsPage + 1) * REQUESTS_PAGE_SIZE);
+  const pagedDelegations = delegations.slice(
+    currentDelegationsPage * REQUESTS_PAGE_SIZE,
+    (currentDelegationsPage + 1) * REQUESTS_PAGE_SIZE,
+  );
 
   // Step 1 picks a person; step 2 (below) narrows to exactly which of their roles to
   // hand over — never "everything this person holds" implicitly.
-  const distinctDelegators = [...new Map(delegatableRoles.map(r => [r.email.toLowerCase(), { email: r.email, name: r.name }])).values()];
-  const rolesForDelegator = delegatableRoles.filter(r => r.email.toLowerCase() === delegatorEmail.toLowerCase());
+  const distinctDelegators = [
+    ...new Map(
+      delegatableRoles.map((r) => [r.email.toLowerCase(), { email: r.email, name: r.name }]),
+    ).values(),
+  ];
+  const rolesForDelegator = delegatableRoles.filter(
+    (r) => r.email.toLowerCase() === delegatorEmail.toLowerCase(),
+  );
 
   function toggleRole(key: string) {
-    setSelectedRoleKeys(prev => {
+    setSelectedRoleKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
@@ -147,13 +185,30 @@ function DelegationsPanel({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (selectedRoleKeys.size === 0) { setError('Select at least one role to delegate.'); return; }
+    if (selectedRoleKeys.size === 0) {
+      setError('Select at least one role to delegate.');
+      return;
+    }
     const roles = [...selectedRoleKeys].map(parseRoleKey);
     startTransition(async () => {
-      const result = await adminGrantLaptopDelegation({ delegatorEmail, delegateEmail, delegateName, roles, startsAt: startsAt || null, endsAt: endsAt || null });
+      const result = await adminGrantLaptopDelegation({
+        delegatorEmail,
+        delegateEmail,
+        delegateName,
+        roles,
+        startsAt: startsAt || null,
+        endsAt: endsAt || null,
+      });
       if (result.success) {
-        onDone(`Delegated ${roles.length === 1 ? `${roles[0].stage} (${roles[0].country})` : `${roles.length} roles`} from ${delegatorEmail} to ${delegateEmail}.`);
-        setDelegatorEmail(''); setSelectedRoleKeys(new Set()); setDelegateEmail(''); setDelegateName(''); setStartsAt(''); setEndsAt('');
+        onDone(
+          `Delegated ${roles.length === 1 ? `${roles[0].stage} (${roles[0].country})` : `${roles.length} roles`} from ${delegatorEmail} to ${delegateEmail}.`,
+        );
+        setDelegatorEmail('');
+        setSelectedRoleKeys(new Set());
+        setDelegateEmail('');
+        setDelegateName('');
+        setStartsAt('');
+        setEndsAt('');
         await onMutated();
       } else {
         setError(result.error ?? 'Failed to create delegation.');
@@ -178,20 +233,34 @@ function DelegationsPanel({
     <div className="space-y-5">
       <section className={`${GLASS} p-5`}>
         <h3 className="text-[15px] font-bold">Set up a delegation</h3>
-        <p className="mt-0.5 text-xs text-slate-500">Hand an approver&apos;s authority to a delegate on their behalf. The delegate inherits the approver&apos;s scope until the end date or until you revoke it.</p>
-        {error && <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>}
+        <p className="mt-0.5 text-xs text-slate-500">
+          Hand an approver&apos;s authority to a delegate on their behalf. The delegate inherits the
+          approver&apos;s scope until the end date or until you revoke it.
+        </p>
+        {error && (
+          <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+            {error}
+          </div>
+        )}
         <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">Approver (delegator)</label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">
+              Approver (delegator)
+            </label>
             <select
               className={INP}
               value={delegatorEmail}
-              onChange={e => { setDelegatorEmail(e.target.value); setSelectedRoleKeys(new Set()); }}
+              onChange={(e) => {
+                setDelegatorEmail(e.target.value);
+                setSelectedRoleKeys(new Set());
+              }}
               required
             >
               <option value="">Select an approver…</option>
-              {distinctDelegators.map(a => (
-                <option key={a.email} value={a.email}>{a.name ? `${a.name} (${a.email})` : a.email}</option>
+              {distinctDelegators.map((a) => (
+                <option key={a.email} value={a.email}>
+                  {a.name ? `${a.name} (${a.email})` : a.email}
+                </option>
               ))}
             </select>
           </div>
@@ -199,8 +268,14 @@ function DelegationsPanel({
             <label className="mb-1 block text-xs font-semibold text-slate-500">Delegate</label>
             <EmployeeAutocomplete
               value={delegateEmail}
-              onChange={v => { setDelegateEmail(v); setDelegateName(''); }}
-              onSelect={emp => { setDelegateEmail(emp.email); setDelegateName(emp.name); }}
+              onChange={(v) => {
+                setDelegateEmail(v);
+                setDelegateName('');
+              }}
+              onSelect={(emp) => {
+                setDelegateEmail(emp.email);
+                setDelegateName(emp.name);
+              }}
               inputClassName={INP}
               placeholder="Search by name or email…"
             />
@@ -208,30 +283,56 @@ function DelegationsPanel({
           </div>
           {delegatorEmail && (
             <div className="md:col-span-2">
-              <label className="mb-1 block text-xs font-semibold text-slate-500">Which role(s) to delegate</label>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">
+                Which role(s) to delegate
+              </label>
               <div className="flex flex-wrap gap-2">
-                {rolesForDelegator.map(r => {
+                {rolesForDelegator.map((r) => {
                   const key = roleKey(r.stage, r.country);
                   const checked = selectedRoleKeys.has(key);
                   return (
-                    <label key={key} className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${checked ? 'border-[#307c4c]/40 bg-[#307c4c]/10 text-[#307c4c]' : 'border-slate-200 bg-white text-slate-600'}`}>
-                      <input type="checkbox" checked={checked} onChange={() => toggleRole(key)} className="h-3.5 w-3.5 rounded border-slate-300 text-[#307c4c] focus:ring-[#307c4c]" />
+                    <label
+                      key={key}
+                      className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${checked ? 'border-[#307c4c]/40 bg-[#307c4c]/10 text-[#307c4c]' : 'border-slate-200 bg-white text-slate-600'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleRole(key)}
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-[#307c4c] focus:ring-[#307c4c]"
+                      />
                       {r.stage} — {r.country}
                     </label>
                   );
                 })}
               </div>
-              <p className="mt-1.5 text-xs text-slate-500/80">Only the roles checked here are handed over — not anything else this approver holds.</p>
+              <p className="mt-1.5 text-xs text-slate-500/80">
+                Only the roles checked here are handed over — not anything else this approver holds.
+              </p>
             </div>
           )}
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">Start date (optional)</label>
-            <input type="date" className={INP} value={startsAt} onChange={e => setStartsAt(e.target.value)} />
+            <label className="mb-1 block text-xs font-semibold text-slate-500">
+              Start date (optional)
+            </label>
+            <input
+              type="date"
+              className={INP}
+              value={startsAt}
+              onChange={(e) => setStartsAt(e.target.value)}
+            />
             <p className="mt-1 text-xs text-slate-500/80">Leave blank to start immediately.</p>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">End date (optional)</label>
-            <input type="date" className={INP} value={endsAt} onChange={e => setEndsAt(e.target.value)} />
+            <label className="mb-1 block text-xs font-semibold text-slate-500">
+              End date (optional)
+            </label>
+            <input
+              type="date"
+              className={INP}
+              value={endsAt}
+              onChange={(e) => setEndsAt(e.target.value)}
+            />
           </div>
           <div className="flex items-end md:col-span-2">
             <button type="submit" disabled={isPending} className={`${CTA} disabled:opacity-60`}>
@@ -240,72 +341,94 @@ function DelegationsPanel({
           </div>
         </form>
         {distinctDelegators.length === 0 && (
-          <p className="mt-3 text-xs text-slate-500/80">No approvers found. Assign approval access from the Permissions tab first.</p>
+          <p className="mt-3 text-xs text-slate-500/80">
+            No approvers found. Assign approval access from the Permissions tab first.
+          </p>
         )}
       </section>
 
       <section className={`${GLASS} divide-y divide-slate-100 overflow-hidden`}>
         <div className="p-5">
           <h3 className="text-[15px] font-bold">All delegations</h3>
-          <p className="mt-0.5 text-xs text-slate-500">Every delegation across approvers. Revoke any active one to remove the delegate&apos;s access immediately.</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Every delegation across approvers. Revoke any active one to remove the delegate&apos;s
+            access immediately.
+          </p>
         </div>
         {delegations.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500">No delegations have been set up.</div>
-        ) : pagedDelegations.map(d => {
-          const live = delegationIsLive(d);
-          const scheduled = delegationIsScheduled(d);
-          return (
-            <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold text-slate-900">{d.delegator_name || d.delegator_email}</span>
-                  <span className="text-slate-400">→</span>
-                  <span className="text-sm font-semibold text-slate-900">{d.delegate_name || d.delegate_email}</span>
-                  {d.stage && d.country && (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">{d.stage} — {d.country}</span>
-                  )}
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${live ? 'bg-[#307c4c]/10 text-[#307c4c]' : scheduled ? 'bg-amber-500/10 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {live ? 'Active' : scheduled ? 'Scheduled' : 'Inactive'}
-                  </span>
+          <div className="p-8 text-center text-sm text-slate-500">
+            No delegations have been set up.
+          </div>
+        ) : (
+          pagedDelegations.map((d) => {
+            const live = delegationIsLive(d);
+            const scheduled = delegationIsScheduled(d);
+            return (
+              <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-900">
+                      {d.delegator_name || d.delegator_email}
+                    </span>
+                    <span className="text-slate-400">→</span>
+                    <span className="text-sm font-semibold text-slate-900">
+                      {d.delegate_name || d.delegate_email}
+                    </span>
+                    {d.stage && d.country && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                        {d.stage} — {d.country}
+                      </span>
+                    )}
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${live ? 'bg-[#307c4c]/10 text-[#307c4c]' : scheduled ? 'bg-amber-500/10 text-amber-700' : 'bg-slate-100 text-slate-500'}`}
+                    >
+                      {live ? 'Active' : scheduled ? 'Scheduled' : 'Inactive'}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-slate-500">
+                    {d.delegator_email} → {d.delegate_email}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-slate-500/80">
+                    Granted {fmtDate(d.created_at)}
+                    {d.starts_at ? ` · starts ${fmtDate(d.starts_at)}` : ''}
+                    {d.expires_at ? ` · ends ${fmtDate(d.expires_at)}` : ''}
+                    {d.revoked_at ? ` · revoked ${fmtDate(d.revoked_at)}` : ''}
+                  </p>
                 </div>
-                <p className="mt-0.5 truncate text-xs text-slate-500">{d.delegator_email} → {d.delegate_email}</p>
-                <p className="mt-0.5 text-[11px] text-slate-500/80">
-                  Granted {fmtDate(d.created_at)}
-                  {d.starts_at ? ` · starts ${fmtDate(d.starts_at)}` : ''}
-                  {d.expires_at ? ` · ends ${fmtDate(d.expires_at)}` : ''}
-                  {d.revoked_at ? ` · revoked ${fmtDate(d.revoked_at)}` : ''}
-                </p>
+                {(live || scheduled) && (
+                  <button
+                    onClick={() => revoke(d.id, d.delegate_name || d.delegate_email)}
+                    disabled={isPending}
+                    className="shrink-0 rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60"
+                  >
+                    Revoke
+                  </button>
+                )}
               </div>
-              {(live || scheduled) && (
-                <button
-                  onClick={() => revoke(d.id, d.delegate_name || d.delegate_email)}
-                  disabled={isPending}
-                  className="shrink-0 rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60"
-                >
-                  Revoke
-                </button>
-              )}
-            </div>
-          );
-        })}
+            );
+          })
+        )}
         {delegations.length > 0 && (
           <div className="flex items-center justify-between px-5 py-3">
             <p className="text-xs text-slate-500/80">
-              Showing {currentDelegationsPage * REQUESTS_PAGE_SIZE + 1}
-              –{Math.min((currentDelegationsPage + 1) * REQUESTS_PAGE_SIZE, delegations.length)} of {delegations.length} delegations
+              Showing {currentDelegationsPage * REQUESTS_PAGE_SIZE + 1}–
+              {Math.min((currentDelegationsPage + 1) * REQUESTS_PAGE_SIZE, delegations.length)} of{' '}
+              {delegations.length} delegations
             </p>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setDelegationsPage(p => Math.max(0, p - 1))}
+                onClick={() => setDelegationsPage((p) => Math.max(0, p - 1))}
                 disabled={currentDelegationsPage === 0}
                 aria-label="Previous page"
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 ‹
               </button>
-              <span className="text-xs font-semibold text-slate-600">Page {currentDelegationsPage + 1} of {delegationsPageCount}</span>
+              <span className="text-xs font-semibold text-slate-600">
+                Page {currentDelegationsPage + 1} of {delegationsPageCount}
+              </span>
               <button
-                onClick={() => setDelegationsPage(p => Math.min(delegationsPageCount - 1, p + 1))}
+                onClick={() => setDelegationsPage((p) => Math.min(delegationsPageCount - 1, p + 1))}
                 disabled={currentDelegationsPage >= delegationsPageCount - 1}
                 aria-label="Next page"
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
@@ -340,12 +463,18 @@ function DevicesPanel({
 
   const devicesPageCount = Math.max(1, Math.ceil(devices.length / REQUESTS_PAGE_SIZE));
   const currentDevicesPage = Math.min(devicesPage, devicesPageCount - 1);
-  const pagedDevices = devices.slice(currentDevicesPage * REQUESTS_PAGE_SIZE, (currentDevicesPage + 1) * REQUESTS_PAGE_SIZE);
+  const pagedDevices = devices.slice(
+    currentDevicesPage * REQUESTS_PAGE_SIZE,
+    (currentDevicesPage + 1) * REQUESTS_PAGE_SIZE,
+  );
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!model.trim()) { setError('Model is required.'); return; }
+    if (!model.trim()) {
+      setError('Model is required.');
+      return;
+    }
     startTransition(async () => {
       const result = await addLaptopDevice({ type_of_device: typeOfDevice, model: model.trim() });
       if (result.success) {
@@ -367,9 +496,15 @@ function DevicesPanel({
 
   function saveEdit(id: number) {
     setError('');
-    if (!editModel.trim()) { setError('Model is required.'); return; }
+    if (!editModel.trim()) {
+      setError('Model is required.');
+      return;
+    }
     startTransition(async () => {
-      const result = await updateLaptopDevice(id, { type_of_device: editType, model: editModel.trim() });
+      const result = await updateLaptopDevice(id, {
+        type_of_device: editType,
+        model: editModel.trim(),
+      });
       if (result.success) {
         setEditingId(null);
         onDone('Device updated.');
@@ -410,18 +545,38 @@ function DevicesPanel({
     <div className="space-y-5">
       <section className={`${GLASS} p-5`}>
         <h3 className="text-[15px] font-bold">Add a device</h3>
-        <p className="mt-0.5 text-xs text-slate-500">Approved laptop / desktop models shown on the &quot;Requested Device&quot; step of the request form.</p>
-        {error && <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>}
+        <p className="mt-0.5 text-xs text-slate-500">
+          Approved laptop / desktop models shown on the &quot;Requested Device&quot; step of the
+          request form.
+        </p>
+        {error && (
+          <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+            {error}
+          </div>
+        )}
         <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">Type of Device</label>
-            <select className={INP} value={typeOfDevice} onChange={e => setTypeOfDevice(e.target.value)}>
-              {DEVICE_TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
+            <label className="mb-1 block text-xs font-semibold text-slate-500">
+              Type of Device
+            </label>
+            <select
+              className={INP}
+              value={typeOfDevice}
+              onChange={(e) => setTypeOfDevice(e.target.value)}
+            >
+              {DEVICE_TYPE_OPTIONS.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
             </select>
           </div>
           <div className="md:col-span-2">
             <label className="mb-1 block text-xs font-semibold text-slate-500">Model</label>
-            <input className={INP} value={model} onChange={e => setModel(e.target.value)} placeholder="e.g. Dell Latitude 5000 series - Core i5" />
+            <input
+              className={INP}
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="e.g. Dell Latitude 5000 series - Core i5"
+            />
           </div>
           <div className="flex items-end md:col-span-3">
             <button type="submit" disabled={isPending} className={`${CTA} disabled:opacity-60`}>
@@ -434,69 +589,125 @@ function DevicesPanel({
       <section className={`${GLASS} divide-y divide-slate-100 overflow-hidden`}>
         <div className="p-5">
           <h3 className="text-[15px] font-bold">Approved devices</h3>
-          <p className="mt-0.5 text-xs text-slate-500">Deactivate or delete a model to remove it from the request form immediately.</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Deactivate or delete a model to remove it from the request form immediately.
+          </p>
         </div>
         {devices.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500">No devices in the catalog yet.</div>
-        ) : pagedDevices.map(d => (
-          <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4">
-            {editingId === d.id ? (
-              <div className="flex flex-1 flex-wrap items-end gap-3">
-                <div>
-                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Type of Device</label>
-                  <select className={INP} value={editType} onChange={e => setEditType(e.target.value)}>
-                    {DEVICE_TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="min-w-[14rem] flex-1">
-                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Model</label>
-                  <input className={INP} value={editModel} onChange={e => setEditModel(e.target.value)} />
-                </div>
-                <button type="button" disabled={isPending} onClick={() => saveEdit(d.id)} className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60">
-                  {isPending ? 'Saving...' : 'Save'}
-                </button>
-                <button type="button" disabled={isPending} onClick={() => setEditingId(null)} className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">Cancel</button>
-              </div>
-            ) : (
-              <>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-900">{d.model}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${d.active ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'bg-slate-100 text-slate-500'}`}>
-                      {d.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-xs text-slate-500">{d.type_of_device}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button type="button" onClick={() => toggleActive(d)} disabled={isPending} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60">
-                    {d.active ? 'Deactivate' : 'Reactivate'}
-                  </button>
-                  <button type="button" onClick={() => startEdit(d)} disabled={isPending} className="rounded-lg border border-[#307c4c]/30 bg-white px-3 py-1.5 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60">Edit</button>
-                  <button type="button" onClick={() => remove(d)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Delete</button>
-                </div>
-              </>
-            )}
+          <div className="p-8 text-center text-sm text-slate-500">
+            No devices in the catalog yet.
           </div>
-        ))}
+        ) : (
+          pagedDevices.map((d) => (
+            <div key={d.id} className="flex items-center justify-between gap-4 px-5 py-4">
+              {editingId === d.id ? (
+                <div className="flex flex-1 flex-wrap items-end gap-3">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      Type of Device
+                    </label>
+                    <select
+                      className={INP}
+                      value={editType}
+                      onChange={(e) => setEditType(e.target.value)}
+                    >
+                      {DEVICE_TYPE_OPTIONS.map((t) => (
+                        <option key={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="min-w-[14rem] flex-1">
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      Model
+                    </label>
+                    <input
+                      className={INP}
+                      value={editModel}
+                      onChange={(e) => setEditModel(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => saveEdit(d.id)}
+                    className="rounded-lg bg-[#307c4c] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#307c4c]/80 disabled:opacity-60"
+                  >
+                    {isPending ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => setEditingId(null)}
+                    className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-900">{d.model}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${d.active ? 'bg-[#307c4c]/10 text-[#307c4c]' : 'bg-slate-100 text-slate-500'}`}
+                      >
+                        {d.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-500">{d.type_of_device}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleActive(d)}
+                      disabled={isPending}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-white disabled:opacity-60"
+                    >
+                      {d.active ? 'Deactivate' : 'Reactivate'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => startEdit(d)}
+                      disabled={isPending}
+                      className="rounded-lg border border-[#307c4c]/30 bg-white px-3 py-1.5 text-xs font-bold text-[#307c4c] transition hover:bg-white disabled:opacity-60"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => remove(d)}
+                      disabled={isPending}
+                      className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))
+        )}
         {devices.length > 0 && (
           <div className="flex items-center justify-between px-5 py-3">
             <p className="text-xs text-slate-500/80">
-              Showing {currentDevicesPage * REQUESTS_PAGE_SIZE + 1}
-              –{Math.min((currentDevicesPage + 1) * REQUESTS_PAGE_SIZE, devices.length)} of {devices.length} devices
+              Showing {currentDevicesPage * REQUESTS_PAGE_SIZE + 1}–
+              {Math.min((currentDevicesPage + 1) * REQUESTS_PAGE_SIZE, devices.length)} of{' '}
+              {devices.length} devices
             </p>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setDevicesPage(p => Math.max(0, p - 1))}
+                onClick={() => setDevicesPage((p) => Math.max(0, p - 1))}
                 disabled={currentDevicesPage === 0}
                 aria-label="Previous page"
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 ‹
               </button>
-              <span className="text-xs font-semibold text-slate-600">Page {currentDevicesPage + 1} of {devicesPageCount}</span>
+              <span className="text-xs font-semibold text-slate-600">
+                Page {currentDevicesPage + 1} of {devicesPageCount}
+              </span>
               <button
-                onClick={() => setDevicesPage(p => Math.min(devicesPageCount - 1, p + 1))}
+                onClick={() => setDevicesPage((p) => Math.min(devicesPageCount - 1, p + 1))}
                 disabled={currentDevicesPage >= devicesPageCount - 1}
                 aria-label="Next page"
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
@@ -511,8 +722,16 @@ function DevicesPanel({
   );
 }
 
-export default function LaptopAdminClient({ data: initialData, embedded = false }: { data: LaptopAdminData | null; embedded?: boolean }) {
-  const [tab, setTab] = useState<'permissions' | 'requests' | 'activity' | 'delegations' | 'devices'>('permissions');
+export default function LaptopAdminClient({
+  data: initialData,
+  embedded = false,
+}: {
+  data: LaptopAdminData | null;
+  embedded?: boolean;
+}) {
+  const [tab, setTab] = useState<
+    'permissions' | 'requests' | 'activity' | 'delegations' | 'devices'
+  >('permissions');
   const [isPending, startTransition] = usePendingAction();
   const [banner, setBanner] = useState('');
   // Owned entirely by this component after mount — every mutation below refetches
@@ -541,7 +760,16 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   const [editingApproverEmail, setEditingApproverEmail] = useState<string | null>(null);
 
   if (!data) return <DbError />;
-  const { actor, requests, activity, permissionsList, delegations, deviceCatalog, stats, delegatableRoles } = data;
+  const {
+    actor,
+    requests,
+    activity,
+    permissionsList,
+    delegations,
+    deviceCatalog,
+    stats,
+    delegatableRoles,
+  } = data;
   const isMatrixRole = MATRIX_ROLE_SELECT_SET.has(role);
 
   // Requests are paginated server-side (see getLaptopAdminData) — `requests` here is
@@ -553,26 +781,42 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   // country, one row per role) — see matrixCountryGroups below. Requester/Admin
   // entries aren't country-based in the same way, so they stay in a flat,
   // paginated list beneath the country cards.
-  const otherPermissions = permissionsList.filter(p => p.source !== 'matrix');
+  const otherPermissions = permissionsList.filter((p) => p.source !== 'matrix');
   const permissionsPageCount = Math.max(1, Math.ceil(otherPermissions.length / REQUESTS_PAGE_SIZE));
   const currentPermissionsPage = Math.min(permissionsPage, permissionsPageCount - 1);
-  const pagedPermissions = otherPermissions.slice(currentPermissionsPage * REQUESTS_PAGE_SIZE, (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE);
+  const pagedPermissions = otherPermissions.slice(
+    currentPermissionsPage * REQUESTS_PAGE_SIZE,
+    (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE,
+  );
 
   const activityPageCount = Math.max(1, Math.ceil(activity.length / REQUESTS_PAGE_SIZE));
   const currentActivityPage = Math.min(activityPage, activityPageCount - 1);
-  const pagedActivity = activity.slice(currentActivityPage * REQUESTS_PAGE_SIZE, (currentActivityPage + 1) * REQUESTS_PAGE_SIZE);
+  const pagedActivity = activity.slice(
+    currentActivityPage * REQUESTS_PAGE_SIZE,
+    (currentActivityPage + 1) * REQUESTS_PAGE_SIZE,
+  );
 
   // Explode each matrix-role item (which can span several countries) into one
   // row per (country, slot), then group those rows by country so every country shows
   // all six slots (IT Manager x3, Country Manager, IT Director, Supply Chain Director)
   // together, matching how the matrix actually grants authority (per-country, not one
   // flat list).
-  const matrixCountryGroups: Array<{ country: string; roles: Array<{ role: RoleSelectValue; items: LaptopPermissionListItem[] }> }> = (() => {
+  const matrixCountryGroups: Array<{
+    country: string;
+    roles: Array<{ role: RoleSelectValue; items: LaptopPermissionListItem[] }>;
+  }> = (() => {
     const byCountry = new Map<string, Map<RoleSelectValue, LaptopPermissionListItem[]>>();
     for (const item of permissionsList) {
       if (item.source !== 'matrix') continue;
       const displayRole = matrixItemDisplayRole(item);
-      const countries = item.countries.length ? item.countries : (item.country ? item.country.split(',').map(c => c.trim()).filter(Boolean) : []);
+      const countries = item.countries.length
+        ? item.countries
+        : item.country
+          ? item.country
+              .split(',')
+              .map((c) => c.trim())
+              .filter(Boolean)
+          : [];
       for (const c of countries) {
         if (!byCountry.has(c)) byCountry.set(c, new Map());
         const roleMap = byCountry.get(c)!;
@@ -580,10 +824,12 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
         roleMap.get(displayRole)!.push(item);
       }
     }
-    const countries = [...new Set([...COUNTRY_OPTIONS, ...byCountry.keys()])].filter(c => byCountry.has(c));
-    return countries.map(c => ({
+    const countries = [...new Set([...COUNTRY_OPTIONS, ...byCountry.keys()])].filter((c) =>
+      byCountry.has(c),
+    );
+    return countries.map((c) => ({
       country: c,
-      roles: MATRIX_DISPLAY_ROLES.map(role => ({
+      roles: MATRIX_DISPLAY_ROLES.map((role) => ({
         role,
         items: byCountry.get(c)!.get(role) ?? [],
       })),
@@ -606,13 +852,25 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   }
 
   function resetPermissionForm() {
-    setEmail(''); setName(''); setRole('Requester'); setCountry(''); setSegment(''); setMatrixCountries([]); setEditingApproverEmail(null);
+    setEmail('');
+    setName('');
+    setRole('Requester');
+    setCountry('');
+    setSegment('');
+    setMatrixCountries([]);
+    setEditingApproverEmail(null);
   }
 
   function savePermission() {
     setBanner('');
-    if (!email.trim()) { setBanner('Email is required.'); return; }
-    if (isMatrixRole && matrixCountries.length === 0) { setBanner('At least one country is required.'); return; }
+    if (!email.trim()) {
+      setBanner('Email is required.');
+      return;
+    }
+    if (isMatrixRole && matrixCountries.length === 0) {
+      setBanner('At least one country is required.');
+      return;
+    }
     startTransition(async () => {
       // IT Manager/Country Manager/IT Director/Supply Chain Director authority lives in
       // the approver matrix, not laptop_permissions — see saveApproverMatrixRole.
@@ -624,7 +882,13 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
             ...roleSelectToStageSlot(role),
             countries: matrixCountries,
           })
-        : await updateLaptopPermission({ email, name, role: role as LaptopPermissionRole, country, segment });
+        : await updateLaptopPermission({
+            email,
+            name,
+            role: role as LaptopPermissionRole,
+            country,
+            segment,
+          });
       if (result.success) {
         setBanner(`Saved permission for ${email}.`);
         resetPermissionForm();
@@ -639,11 +903,14 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
     setBanner('');
     setEmail(item.email);
     setName(item.name ?? '');
-    setRole(item.source === 'matrix' ? matrixItemDisplayRole(item) : (item.role as LaptopPermissionRole));
+    setRole(
+      item.source === 'matrix' ? matrixItemDisplayRole(item) : (item.role as LaptopPermissionRole),
+    );
     if (item.source === 'matrix') {
       setEditingApproverEmail(item.email);
       setMatrixCountries(item.countries);
-      setCountry(''); setSegment('');
+      setCountry('');
+      setSegment('');
     } else {
       setEditingApproverEmail(null);
       setCountry(item.country ?? '');
@@ -651,7 +918,9 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
       setMatrixCountries([]);
     }
     requestAnimationFrame(() => {
-      document.getElementById('permission-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document
+        .getElementById('permission-form')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -660,21 +929,30 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   // in the general form from scratch.
   function startAddForRole(role: RoleSelectValue, country: string) {
     setBanner('');
-    setEmail(''); setName('');
+    setEmail('');
+    setName('');
     setRole(role);
     setEditingApproverEmail(null);
     setMatrixCountries([country]);
-    setCountry(''); setSegment('');
+    setCountry('');
+    setSegment('');
     requestAnimationFrame(() => {
-      document.getElementById('permission-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document
+        .getElementById('permission-form')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
   function removePermission(item: LaptopPermissionListItem) {
     startTransition(async () => {
-      const result = item.source === 'matrix'
-        ? await removeApproverMatrixRole({ email: item.email, role: item.role as LaptopApprovalStage, slot: item.matrixSlot ?? 1 })
-        : await deleteLaptopPermission(item.email);
+      const result =
+        item.source === 'matrix'
+          ? await removeApproverMatrixRole({
+              email: item.email,
+              role: item.role as LaptopApprovalStage,
+              slot: item.matrixSlot ?? 1,
+            })
+          : await deleteLaptopPermission(item.email);
       if (result.success) {
         if (editingApproverEmail === item.email) resetPermissionForm();
         await refreshAdminData();
@@ -687,7 +965,10 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   function removeRequest(id: number) {
     startTransition(async () => {
       const result = await deleteLaptopRecord('request', id);
-      if (!result.success) { setBanner(result.error ?? 'Failed to delete request.'); return; }
+      if (!result.success) {
+        setBanner(result.error ?? 'Failed to delete request.');
+        return;
+      }
       let page = currentRequestsPage;
       let fresh = await refreshAdminData(page);
       // Deleted the last item on the last page — step back one so the view isn't blank.
@@ -709,296 +990,303 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
   ];
 
   const content = (
-      <div className="space-y-5">
-        {banner && <div className="rounded-2xl border border-[#307c4c]/25 bg-[#307c4c]/10 px-4 py-3 text-sm font-semibold text-[#307c4c]">{banner}</div>}
-
-        <div className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`rounded-md px-4 py-2 text-sm font-bold transition ${
-                tab === t.id
-                  ? 'bg-[#307c4c] text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-white'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+    <div className="space-y-5">
+      {banner && (
+        <div className="rounded-2xl border border-[#307c4c]/25 bg-[#307c4c]/10 px-4 py-3 text-sm font-semibold text-[#307c4c]">
+          {banner}
         </div>
+      )}
 
-        {tab === 'permissions' && (
-          <>
-            <section id="permission-form" className={`${GLASS} relative z-20 p-5`}>
-              <h2 className="mb-4 text-[15px] font-bold">Add / Update Permission</h2>
-              {editingApproverEmail && (
-                <p className="mb-3 text-xs font-semibold text-[#307c4c]">
-                  Editing {editingApproverEmail} as {role} — <button type="button" onClick={resetPermissionForm} className="underline hover:no-underline">Cancel</button>
-                </p>
-              )}
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Email</label>
-                  <EmployeeAutocomplete
-                    value={email}
-                    onChange={setEmail}
-                    onSelect={emp => { setEmail(emp.email); setName(emp.name); }}
-                    placeholder="user@nesr.com"
-                    inputClassName={INP}
-                  />
-                </div>
-                <div><label className="mb-1 block text-xs font-semibold text-slate-500">Name</label><input className={INP} value={name} onChange={e => setName(e.target.value)} /></div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Role</label>
-                  <select
-                    className={INP}
-                    value={role}
-                    onChange={e => {
-                      const nextRole = e.target.value as RoleSelectValue;
-                      setRole(nextRole);
-                      if (!MATRIX_ROLE_SELECT_SET.has(nextRole)) { setMatrixCountries([]); setEditingApproverEmail(null); }
-                    }}
-                  >
-                    {ROLE_SELECT_OPTIONS.map(r => <option key={r}>{r}</option>)}
-                  </select>
-                </div>
-                {isMatrixRole ? (
-                  <div className="md:col-span-2 xl:col-span-3">
-                    <label className="mb-1 block text-xs font-semibold text-slate-500">Countries (required)</label>
-                    {/* Includes any country already assigned even if it's not one of the
+      <div className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`rounded-md px-4 py-2 text-sm font-bold transition ${
+              tab === t.id ? 'bg-[#307c4c] text-white shadow-sm' : 'text-slate-600 hover:bg-white'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'permissions' && (
+        <>
+          <section id="permission-form" className={`${GLASS} relative z-20 p-5`}>
+            <h2 className="mb-4 text-[15px] font-bold">Add / Update Permission</h2>
+            {editingApproverEmail && (
+              <p className="mb-3 text-xs font-semibold text-[#307c4c]">
+                Editing {editingApproverEmail} as {role} —{' '}
+                <button
+                  type="button"
+                  onClick={resetPermissionForm}
+                  className="underline hover:no-underline"
+                >
+                  Cancel
+                </button>
+              </p>
+            )}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-500">Email</label>
+                <EmployeeAutocomplete
+                  value={email}
+                  onChange={setEmail}
+                  onSelect={(emp) => {
+                    setEmail(emp.email);
+                    setName(emp.name);
+                  }}
+                  placeholder="user@nesr.com"
+                  inputClassName={INP}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-500">Name</label>
+                <input className={INP} value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-500">Role</label>
+                <select
+                  className={INP}
+                  value={role}
+                  onChange={(e) => {
+                    const nextRole = e.target.value as RoleSelectValue;
+                    setRole(nextRole);
+                    if (!MATRIX_ROLE_SELECT_SET.has(nextRole)) {
+                      setMatrixCountries([]);
+                      setEditingApproverEmail(null);
+                    }
+                  }}
+                >
+                  {ROLE_SELECT_OPTIONS.map((r) => (
+                    <option key={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              {isMatrixRole ? (
+                <div className="md:col-span-2 xl:col-span-3">
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">
+                    Countries (required)
+                  </label>
+                  {/* Includes any country already assigned even if it's not one of the
                         standard COUNTRY_OPTIONS (e.g. legacy matrix entries like EOS/
                         Jordan/Malaysia) — otherwise editing would silently drop it, since
                         saving only keeps whatever's checked here. */}
-                    <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4">
-                      {[...new Set([...COUNTRY_OPTIONS, ...matrixCountries])].map(c => (
-                        <label key={c} className="flex items-center gap-1.5 text-xs text-slate-900">
-                          <input
-                            type="checkbox"
-                            checked={matrixCountries.includes(c)}
-                            onChange={e => setMatrixCountries(prev => e.target.checked ? [...prev, c] : prev.filter(x => x !== c))}
-                          />
-                          {c}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold text-slate-500">Country (scope)</label>
-                      <select className={INP} value={country} onChange={e => setCountry(e.target.value)}>
-                        <option value="">All countries</option>
-                        {COUNTRY_OPTIONS.map(c => <option key={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold text-slate-500">Segment (scope)</label>
-                      <select className={INP} value={segment} onChange={e => setSegment(e.target.value)}>
-                        <option value="">All segments</option>
-                        {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
-                      </select>
-                    </div>
-                  </>
-                )}
-              </div>
-              <p className="mt-3 text-xs text-slate-500">
-                {isMatrixRole
-                  ? `Sets this person as the named ${role} for every checked country in the Approver Matrix — the actual source of that authority.`
-                  : PERMISSION_PROFILES[role as LaptopPermissionRole].description}
-              </p>
-              <button onClick={savePermission} disabled={isPending} className={`mt-4 ${CTA} disabled:opacity-60`}>
-                {isPending ? 'Saving...' : 'Save Permission'}
-              </button>
-            </section>
-
-            <div className="space-y-4">
-              {matrixCountryGroups.length === 0 && (
-                <section className={`${GLASS} p-5 text-sm text-slate-500`}>No approver matrix countries configured yet.</section>
-              )}
-              {matrixCountryGroups.map(group => (
-                <section key={group.country} className={`${GLASS} overflow-hidden`}>
-                  <h3 className="border-b border-slate-100 px-5 py-3 text-[13px] font-bold text-slate-900">{group.country}</h3>
-                  <div className="divide-y divide-slate-100">
-                    {group.roles.map(({ role, items }) => (
-                      items.length > 0 ? items.map(item => (
-                        <div key={`${role}-${item.email}`} className="flex flex-wrap items-center gap-3 px-5 py-3">
-                          <span className="w-44 shrink-0 text-xs font-bold uppercase tracking-wide text-slate-500">{role}</span>
-                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{item.name || '—'}</span>
-                          <span className="min-w-0 flex-1 truncate text-sm text-slate-600">{item.email}</span>
-                          <div className="ml-auto flex shrink-0 gap-2">
-                            <button onClick={() => startEditPermission(item)} disabled={isPending} className="rounded-lg border border-[#307c4c]/30 bg-[#307c4c]/10 px-3 py-1 text-xs font-bold text-[#307c4c] transition hover:bg-[#307c4c]/20 disabled:opacity-60">Edit</button>
-                            <button onClick={() => removePermission(item)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Remove</button>
-                          </div>
-                        </div>
-                      )) : (
-                        <div key={role} className="flex flex-wrap items-center gap-3 px-5 py-3">
-                          <span className="w-44 shrink-0 text-xs font-bold uppercase tracking-wide text-slate-500">{role}</span>
-                          <span className="flex-1 text-sm italic text-slate-400">Not assigned</span>
-                          <button onClick={() => startAddForRole(role, group.country)} disabled={isPending} className="ml-auto shrink-0 rounded-lg border border-[#307c4c]/30 bg-[#307c4c]/10 px-3 py-1 text-xs font-bold text-[#307c4c] transition hover:bg-[#307c4c]/20 disabled:opacity-60">Add</button>
-                        </div>
-                      )
+                  <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4">
+                    {[...new Set([...COUNTRY_OPTIONS, ...matrixCountries])].map((c) => (
+                      <label key={c} className="flex items-center gap-1.5 text-xs text-slate-900">
+                        <input
+                          type="checkbox"
+                          checked={matrixCountries.includes(c)}
+                          onChange={(e) =>
+                            setMatrixCountries((prev) =>
+                              e.target.checked ? [...prev, c] : prev.filter((x) => x !== c),
+                            )
+                          }
+                        />
+                        {c}
+                      </label>
                     ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-
-            <section className={`${GLASS} overflow-hidden`}>
-              <h2 className="border-b border-slate-100 px-5 py-3 text-[13px] font-bold text-slate-900">Other Permissions</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-[11px] uppercase tracking-wider text-slate-500">
-                    <tr className="border-b border-slate-100">
-                      <th className="px-5 py-3 text-left font-semibold">Email</th>
-                      <th className="px-5 py-3 text-left font-semibold">Name</th>
-                      <th className="px-5 py-3 text-left font-semibold">Role</th>
-                      <th className="px-5 py-3 text-left font-semibold">Scope</th>
-                      <th className="px-5 py-3 text-right font-semibold">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {pagedPermissions.map(p => (
-                      <tr key={`${p.source}-${p.email}-${p.role}`} className="transition-colors hover:bg-white">
-                        <td className="px-5 py-3 font-semibold text-slate-900">{p.email}</td>
-                        <td className="px-5 py-3 text-slate-600">{p.name || '—'}</td>
-                        <td className="px-5 py-3">
-                          <span className="inline-flex rounded-full border border-[#307c4c]/30 bg-[#307c4c]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#307c4c]">{p.role}</span>
-                        </td>
-                        <td className="px-5 py-3 text-xs text-slate-600">{[p.country, p.segment].filter(Boolean).join(' · ') || 'All'}</td>
-                        <td className="px-5 py-3 text-right">
-                          <div className="inline-flex gap-2">
-                            <button onClick={() => startEditPermission(p)} disabled={isPending} className="rounded-lg border border-[#307c4c]/30 bg-[#307c4c]/10 px-3 py-1 text-xs font-bold text-[#307c4c] transition hover:bg-[#307c4c]/20 disabled:opacity-60">Edit</button>
-                            <button onClick={() => removePermission(p)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Remove</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {otherPermissions.length > 0 && (
-                <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
-                  <p className="text-xs text-slate-500/80">
-                    Showing {currentPermissionsPage * REQUESTS_PAGE_SIZE + 1}
-                    –{Math.min((currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE, otherPermissions.length)} of {otherPermissions.length} permissions
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPermissionsPage(p => Math.max(0, p - 1))}
-                      disabled={currentPermissionsPage === 0}
-                      aria-label="Previous page"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      ‹
-                    </button>
-                    <span className="text-xs font-semibold text-slate-600">Page {currentPermissionsPage + 1} of {permissionsPageCount}</span>
-                    <button
-                      onClick={() => setPermissionsPage(p => Math.min(permissionsPageCount - 1, p + 1))}
-                      disabled={currentPermissionsPage >= permissionsPageCount - 1}
-                      aria-label="Next page"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      ›
-                    </button>
                   </div>
                 </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-500">
+                      Country (scope)
+                    </label>
+                    <select
+                      className={INP}
+                      value={country}
+                      onChange={(e) => setCountry(e.target.value)}
+                    >
+                      <option value="">All countries</option>
+                      {COUNTRY_OPTIONS.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-500">
+                      Segment (scope)
+                    </label>
+                    <select
+                      className={INP}
+                      value={segment}
+                      onChange={(e) => setSegment(e.target.value)}
+                    >
+                      <option value="">All segments</option>
+                      {SEGMENT_OPTIONS.map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
               )}
-            </section>
-          </>
-        )}
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              {isMatrixRole
+                ? `Sets this person as the named ${role} for every checked country in the Approver Matrix — the actual source of that authority.`
+                : PERMISSION_PROFILES[role as LaptopPermissionRole].description}
+            </p>
+            <button
+              onClick={savePermission}
+              disabled={isPending}
+              className={`mt-4 ${CTA} disabled:opacity-60`}
+            >
+              {isPending ? 'Saving...' : 'Save Permission'}
+            </button>
+          </section>
 
-        {tab === 'requests' && (
+          <div className="space-y-4">
+            {matrixCountryGroups.length === 0 && (
+              <section className={`${GLASS} p-5 text-sm text-slate-500`}>
+                No approver matrix countries configured yet.
+              </section>
+            )}
+            {matrixCountryGroups.map((group) => (
+              <section key={group.country} className={`${GLASS} overflow-hidden`}>
+                <h3 className="border-b border-slate-100 px-5 py-3 text-[13px] font-bold text-slate-900">
+                  {group.country}
+                </h3>
+                <div className="divide-y divide-slate-100">
+                  {group.roles.map(({ role, items }) =>
+                    items.length > 0 ? (
+                      items.map((item) => (
+                        <div
+                          key={`${role}-${item.email}`}
+                          className="flex flex-wrap items-center gap-3 px-5 py-3"
+                        >
+                          <span className="w-44 shrink-0 text-xs font-bold uppercase tracking-wide text-slate-500">
+                            {role}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">
+                            {item.name || '—'}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-sm text-slate-600">
+                            {item.email}
+                          </span>
+                          <div className="ml-auto flex shrink-0 gap-2">
+                            <button
+                              onClick={() => startEditPermission(item)}
+                              disabled={isPending}
+                              className="rounded-lg border border-[#307c4c]/30 bg-[#307c4c]/10 px-3 py-1 text-xs font-bold text-[#307c4c] transition hover:bg-[#307c4c]/20 disabled:opacity-60"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => removePermission(item)}
+                              disabled={isPending}
+                              className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div key={role} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                        <span className="w-44 shrink-0 text-xs font-bold uppercase tracking-wide text-slate-500">
+                          {role}
+                        </span>
+                        <span className="flex-1 text-sm italic text-slate-400">Not assigned</span>
+                        <button
+                          onClick={() => startAddForRole(role, group.country)}
+                          disabled={isPending}
+                          className="ml-auto shrink-0 rounded-lg border border-[#307c4c]/30 bg-[#307c4c]/10 px-3 py-1 text-xs font-bold text-[#307c4c] transition hover:bg-[#307c4c]/20 disabled:opacity-60"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </section>
+            ))}
+          </div>
+
           <section className={`${GLASS} overflow-hidden`}>
+            <h2 className="border-b border-slate-100 px-5 py-3 text-[13px] font-bold text-slate-900">
+              Other Permissions
+            </h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-[11px] uppercase tracking-wider text-slate-500">
                   <tr className="border-b border-slate-100">
-                    <th className="px-5 py-3 text-left font-semibold">Reference</th>
-                    <th className="px-5 py-3 text-left font-semibold">Requester</th>
-                    <th className="px-5 py-3 text-left font-semibold">Status</th>
-                    <th className="px-5 py-3 text-left font-semibold">Created</th>
+                    <th className="px-5 py-3 text-left font-semibold">Email</th>
+                    <th className="px-5 py-3 text-left font-semibold">Name</th>
+                    <th className="px-5 py-3 text-left font-semibold">Role</th>
+                    <th className="px-5 py-3 text-left font-semibold">Scope</th>
                     <th className="px-5 py-3 text-right font-semibold">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {requests.map(r => {
-                    const badge = getStatusBadge(r.status);
-                    return (
-                      <tr key={r.id} className="transition-colors hover:bg-white">
-                        <td className="px-5 py-3"><Link href={`/laptop-procurement/requests/${r.id}`} className="font-bold text-[#307c4c] hover:underline">{r.reference_number}</Link></td>
-                        <td className="px-5 py-3 text-slate-600">{r.requested_by_name || r.requested_by_email}</td>
-                        <td className="px-5 py-3"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}>{badge.label}</span></td>
-                        <td className="px-5 py-3 text-xs text-slate-500">{fmtDate(r.created_at)}</td>
-                        <td className="px-5 py-3 text-right">
-                          <button onClick={() => removeRequest(r.id)} disabled={isPending} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60">Delete</button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {pagedPermissions.map((p) => (
+                    <tr
+                      key={`${p.source}-${p.email}-${p.role}`}
+                      className="transition-colors hover:bg-white"
+                    >
+                      <td className="px-5 py-3 font-semibold text-slate-900">{p.email}</td>
+                      <td className="px-5 py-3 text-slate-600">{p.name || '—'}</td>
+                      <td className="px-5 py-3">
+                        <span className="inline-flex rounded-full border border-[#307c4c]/30 bg-[#307c4c]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#307c4c]">
+                          {p.role}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-xs text-slate-600">
+                        {[p.country, p.segment].filter(Boolean).join(' · ') || 'All'}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <div className="inline-flex gap-2">
+                          <button
+                            onClick={() => startEditPermission(p)}
+                            disabled={isPending}
+                            className="rounded-lg border border-[#307c4c]/30 bg-[#307c4c]/10 px-3 py-1 text-xs font-bold text-[#307c4c] transition hover:bg-[#307c4c]/20 disabled:opacity-60"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => removePermission(p)}
+                            disabled={isPending}
+                            className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
-              <p className="text-xs text-slate-500/80">
-                Showing {data.requestsTotal === 0 ? 0 : currentRequestsPage * REQUESTS_PAGE_SIZE + 1}
-                –{Math.min((currentRequestsPage + 1) * REQUESTS_PAGE_SIZE, data.requestsTotal)} of {data.requestsTotal} requests
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => goToRequestsPage(currentRequestsPage - 1)}
-                  disabled={currentRequestsPage === 0 || isPending}
-                  aria-label="Previous page"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  ‹
-                </button>
-                <span className="text-xs font-semibold text-slate-600">Page {currentRequestsPage + 1} of {requestsPageCount}</span>
-                <button
-                  onClick={() => goToRequestsPage(currentRequestsPage + 1)}
-                  disabled={currentRequestsPage >= requestsPageCount - 1 || isPending}
-                  aria-label="Next page"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  ›
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {tab === 'activity' && (
-          <section className={`${GLASS} overflow-hidden`}>
-            <div className="divide-y divide-slate-100">
-              {activity.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-500">No activity recorded.</div>
-              ) : pagedActivity.map(item => (
-                <div key={item.id} className="px-5 py-4">
-                  <p className="text-sm font-semibold text-slate-900">{item.action}</p>
-                  <p className="mt-1 text-xs text-slate-500">{item.reference_number} · {item.actor_name || item.actor_email || 'System'} · {fmtDate(item.created_at)}</p>
-                  {item.notes && <p className="mt-1 rounded-xl bg-white p-2 text-xs text-slate-600">{item.notes}</p>}
-                </div>
-              ))}
-            </div>
-            {activity.length > 0 && (
+            {otherPermissions.length > 0 && (
               <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
                 <p className="text-xs text-slate-500/80">
-                  Showing {currentActivityPage * REQUESTS_PAGE_SIZE + 1}
-                  –{Math.min((currentActivityPage + 1) * REQUESTS_PAGE_SIZE, activity.length)} of {activity.length}
+                  Showing {currentPermissionsPage * REQUESTS_PAGE_SIZE + 1}–
+                  {Math.min(
+                    (currentPermissionsPage + 1) * REQUESTS_PAGE_SIZE,
+                    otherPermissions.length,
+                  )}{' '}
+                  of {otherPermissions.length} permissions
                 </p>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setActivityPage(p => Math.max(0, p - 1))}
-                    disabled={currentActivityPage === 0}
+                    onClick={() => setPermissionsPage((p) => Math.max(0, p - 1))}
+                    disabled={currentPermissionsPage === 0}
                     aria-label="Previous page"
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     ‹
                   </button>
-                  <span className="text-xs font-semibold text-slate-600">Page {currentActivityPage + 1} of {activityPageCount}</span>
+                  <span className="text-xs font-semibold text-slate-600">
+                    Page {currentPermissionsPage + 1} of {permissionsPageCount}
+                  </span>
                   <button
-                    onClick={() => setActivityPage(p => Math.min(activityPageCount - 1, p + 1))}
-                    disabled={currentActivityPage >= activityPageCount - 1}
+                    onClick={() =>
+                      setPermissionsPage((p) => Math.min(permissionsPageCount - 1, p + 1))
+                    }
+                    disabled={currentPermissionsPage >= permissionsPageCount - 1}
                     aria-label="Next page"
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -1008,16 +1296,160 @@ export default function LaptopAdminClient({ data: initialData, embedded = false 
               </div>
             )}
           </section>
-        )}
+        </>
+      )}
 
-        {tab === 'delegations' && (
-          <DelegationsPanel delegations={delegations} delegatableRoles={delegatableRoles} onDone={setBanner} onMutated={refreshAdminData} />
-        )}
+      {tab === 'requests' && (
+        <section className={`${GLASS} overflow-hidden`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-[11px] uppercase tracking-wider text-slate-500">
+                <tr className="border-b border-slate-100">
+                  <th className="px-5 py-3 text-left font-semibold">Reference</th>
+                  <th className="px-5 py-3 text-left font-semibold">Requester</th>
+                  <th className="px-5 py-3 text-left font-semibold">Status</th>
+                  <th className="px-5 py-3 text-left font-semibold">Created</th>
+                  <th className="px-5 py-3 text-right font-semibold">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {requests.map((r) => {
+                  const badge = getStatusBadge(r.status);
+                  return (
+                    <tr key={r.id} className="transition-colors hover:bg-white">
+                      <td className="px-5 py-3">
+                        <Link
+                          href={`/laptop-procurement/requests/${r.id}`}
+                          className="font-bold text-[#307c4c] hover:underline"
+                        >
+                          {r.reference_number}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-3 text-slate-600">
+                        {r.requested_by_name || r.requested_by_email}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span
+                          className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}
+                        >
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-xs text-slate-500">{fmtDate(r.created_at)}</td>
+                      <td className="px-5 py-3 text-right">
+                        <button
+                          onClick={() => removeRequest(r.id)}
+                          disabled={isPending}
+                          className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+            <p className="text-xs text-slate-500/80">
+              Showing {data.requestsTotal === 0 ? 0 : currentRequestsPage * REQUESTS_PAGE_SIZE + 1}–
+              {Math.min((currentRequestsPage + 1) * REQUESTS_PAGE_SIZE, data.requestsTotal)} of{' '}
+              {data.requestsTotal} requests
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => goToRequestsPage(currentRequestsPage - 1)}
+                disabled={currentRequestsPage === 0 || isPending}
+                aria-label="Previous page"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ‹
+              </button>
+              <span className="text-xs font-semibold text-slate-600">
+                Page {currentRequestsPage + 1} of {requestsPageCount}
+              </span>
+              <button
+                onClick={() => goToRequestsPage(currentRequestsPage + 1)}
+                disabled={currentRequestsPage >= requestsPageCount - 1 || isPending}
+                aria-label="Next page"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
-        {tab === 'devices' && (
-          <DevicesPanel devices={deviceCatalog} onDone={setBanner} onMutated={refreshAdminData} />
-        )}
-      </div>
+      {tab === 'activity' && (
+        <section className={`${GLASS} overflow-hidden`}>
+          <div className="divide-y divide-slate-100">
+            {activity.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500">No activity recorded.</div>
+            ) : (
+              pagedActivity.map((item) => (
+                <div key={item.id} className="px-5 py-4">
+                  <p className="text-sm font-semibold text-slate-900">{item.action}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {item.reference_number} · {item.actor_name || item.actor_email || 'System'} ·{' '}
+                    {fmtDate(item.created_at)}
+                  </p>
+                  {item.notes && (
+                    <p className="mt-1 rounded-xl bg-white p-2 text-xs text-slate-600">
+                      {item.notes}
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+          {activity.length > 0 && (
+            <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+              <p className="text-xs text-slate-500/80">
+                Showing {currentActivityPage * REQUESTS_PAGE_SIZE + 1}–
+                {Math.min((currentActivityPage + 1) * REQUESTS_PAGE_SIZE, activity.length)} of{' '}
+                {activity.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActivityPage((p) => Math.max(0, p - 1))}
+                  disabled={currentActivityPage === 0}
+                  aria-label="Previous page"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ‹
+                </button>
+                <span className="text-xs font-semibold text-slate-600">
+                  Page {currentActivityPage + 1} of {activityPageCount}
+                </span>
+                <button
+                  onClick={() => setActivityPage((p) => Math.min(activityPageCount - 1, p + 1))}
+                  disabled={currentActivityPage >= activityPageCount - 1}
+                  aria-label="Next page"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === 'delegations' && (
+        <DelegationsPanel
+          delegations={delegations}
+          delegatableRoles={delegatableRoles}
+          onDone={setBanner}
+          onMutated={refreshAdminData}
+        />
+      )}
+
+      {tab === 'devices' && (
+        <DevicesPanel devices={deviceCatalog} onDone={setBanner} onMutated={refreshAdminData} />
+      )}
+    </div>
   );
 
   if (embedded) return content;

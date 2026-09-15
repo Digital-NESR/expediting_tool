@@ -19,10 +19,7 @@ import AccessRequestTable from './_components/AccessRequestTable';
    `access_requests.approved_countries` and compared against `shipments.country`, so
    they have to be the same list the app and the migration use — an approval written
    in a different spelling silently matches nothing. */
-const TITE_FALLBACK_COUNTRIES = [
-  TITE_VIEW_ALL_COUNTRIES,
-  ...TITE_COUNTRY_VALUES,
-];
+const TITE_FALLBACK_COUNTRIES = [TITE_VIEW_ALL_COUNTRIES, ...TITE_COUNTRY_VALUES];
 
 /* The reviewer identity is taken from the session inside each server action, so this
    panel no longer passes (or needs) the signed-in user's email. */
@@ -37,7 +34,7 @@ export default function TiteAccessApprovalsClient({
       subtitle="Review and manage user access requests for TI-TE country-level data."
       emptyPendingLabel="No pending TI-TE access requests."
       emptyAllLabel="No TI-TE access requests found."
-      revokeConfirm={email => `Revoke TI-TE access for ${email}?`}
+      revokeConfirm={(email) => `Revoke TI-TE access for ${email}?`}
       loadRequests={getTiteAccessRequests}
       options={TITE_FALLBACK_COUNTRIES}
       /* TI-TE's approve takes an object and carries a reviewer `notes` field the

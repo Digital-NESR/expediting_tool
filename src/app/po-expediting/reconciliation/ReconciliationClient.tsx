@@ -7,9 +7,9 @@ import type { SessionData, SupplierGroup, LineData } from '@/app/actions/reconci
 import { DS_DESCRIPTIONS } from '@/lib/constants';
 
 /* ─── DS-code colour sets ────────────────────────────────────── */
-const DS_GREEN  = new Set(['DS04', 'DS12', 'DS13', 'DS14', 'DS19']);
-const DS_AMBER  = new Set(['DS05', 'DS15', 'DS16', 'DS17', 'DS18']);
-const DS_RED    = new Set(['DS01', 'DS02', 'DS03', 'DS06', 'DS07', 'DS08', 'DS09', 'DS10', 'DS11']);
+const DS_GREEN = new Set(['DS04', 'DS12', 'DS13', 'DS14', 'DS19']);
+const DS_AMBER = new Set(['DS05', 'DS15', 'DS16', 'DS17', 'DS18']);
+const DS_RED = new Set(['DS01', 'DS02', 'DS03', 'DS06', 'DS07', 'DS08', 'DS09', 'DS10', 'DS11']);
 
 /* ─── Helper functions ───────────────────────────────────────── */
 
@@ -17,24 +17,52 @@ function formatDate(raw: string | null | undefined): string {
   if (!raw) return '—';
   const d = new Date(raw);
   if (isNaN(d.getTime())) return String(raw);
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const MONTHS = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   return `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function formatSessionDate(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const date = `${String(d.getDate()).padStart(2,'0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-  const time = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  const MONTHS = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  const date = `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   return `${date} ${time}`;
 }
 
 function formatCurrency(val: number | null | undefined): string {
   if (val == null) return '—';
   return new Intl.NumberFormat('en-US', {
-    style: 'currency', currency: 'USD',
-    minimumFractionDigits: 0, maximumFractionDigits: 0,
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(val);
 }
 
@@ -42,12 +70,25 @@ function toSapDate(raw: string | null | undefined): string {
   if (!raw) return '';
   const d = new Date(raw);
   if (isNaN(d.getTime())) return '';
-  return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
 }
 
 function toFileDate(d: Date): string {
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${String(d.getDate()).padStart(2,'0')}${MONTHS[d.getMonth()]}${d.getFullYear()}`;
+  const MONTHS = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return `${String(d.getDate()).padStart(2, '0')}${MONTHS[d.getMonth()]}${d.getFullYear()}`;
 }
 
 interface ExportRow {
@@ -61,26 +102,26 @@ interface ExportRow {
 async function exportToExcel(rows: ExportRow[], filename: string) {
   // Loaded on demand so exceljs stays out of this page's initial client chunk.
   const ExcelJS = await import('exceljs');
-  const workbook  = new ExcelJS.Workbook();
+  const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Expediting Export');
 
   worksheet.addTable({
-    name:       'ExpeditingExport',
-    ref:        'A1',
-    headerRow:  true,
-    totalsRow:  false,
+    name: 'ExpeditingExport',
+    ref: 'A1',
+    headerRow: true,
+    totalsRow: false,
     style: {
-      theme:          'TableStyleMedium2',
+      theme: 'TableStyleMedium2',
       showRowStripes: true,
     },
     columns: [
-      { name: 'Purchase Order',        filterButton: true },
-      { name: 'Purchase Order Item',   filterButton: true },
-      { name: 'Delivery Date',         filterButton: true },
-      { name: 'Delivery Status Code',  filterButton: true },
-      { name: 'Delivery Comments',     filterButton: true },
+      { name: 'Purchase Order', filterButton: true },
+      { name: 'Purchase Order Item', filterButton: true },
+      { name: 'Delivery Date', filterButton: true },
+      { name: 'Delivery Status Code', filterButton: true },
+      { name: 'Delivery Comments', filterButton: true },
     ],
-    rows: rows.map(row => [
+    rows: rows.map((row) => [
       row.poNumber,
       row.poLine,
       row.deliveryDate,
@@ -96,12 +137,14 @@ async function exportToExcel(rows: ExportRow[], filename: string) {
   worksheet.getColumn(5).width = 60;
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const blob   = new Blob([buffer], {
+  const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url = URL.createObjectURL(blob);
-  const a   = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -118,9 +161,14 @@ function Chevron({ open }: { open: boolean }) {
   return (
     <svg
       className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
-      viewBox="0 0 20 20" fill="currentColor"
+      viewBox="0 0 20 20"
+      fill="currentColor"
     >
-      <path fillRule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+      <path
+        fillRule="evenodd"
+        d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"
+        clipRule="evenodd"
+      />
     </svg>
   );
 }
@@ -137,39 +185,74 @@ function DsStatusBadge({ code }: { code: string | null }) {
   }
   const base = code.split(' ')[0].toUpperCase();
   const tooltip = DS_DESCRIPTIONS[base];
-  if (DS_GREEN.has(base)) return (
-    <span title={tooltip} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap cursor-help">{base}</span>
-  );
-  if (DS_AMBER.has(base)) return (
-    <span title={tooltip} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap cursor-help">{base}</span>
-  );
-  if (DS_RED.has(base)) return (
-    <span title={tooltip} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200 whitespace-nowrap cursor-help">{base}</span>
-  );
+  if (DS_GREEN.has(base))
+    return (
+      <span
+        title={tooltip}
+        className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap cursor-help"
+      >
+        {base}
+      </span>
+    );
+  if (DS_AMBER.has(base))
+    return (
+      <span
+        title={tooltip}
+        className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap cursor-help"
+      >
+        {base}
+      </span>
+    );
+  if (DS_RED.has(base))
+    return (
+      <span
+        title={tooltip}
+        className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200 whitespace-nowrap cursor-help"
+      >
+        {base}
+      </span>
+    );
   return (
-    <span title={tooltip} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap cursor-help">{code}</span>
+    <span
+      title={tooltip}
+      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap cursor-help"
+    >
+      {code}
+    </span>
   );
 }
 
-function ResponseRateBadge({ responded, total, rate }: { responded: number; total: number; rate: number }) {
-  const cls = rate >= 70
-    ? 'bg-[#307c4c]/10 text-[#307c4c] border-[#307c4c]/20'
-    : rate >= 30
-      ? 'bg-amber-100 text-amber-700 border-amber-200'
-      : 'bg-red-100 text-red-700 border-red-200';
+function ResponseRateBadge({
+  responded,
+  total,
+  rate,
+}: {
+  responded: number;
+  total: number;
+  rate: number;
+}) {
+  const cls =
+    rate >= 70
+      ? 'bg-[#307c4c]/10 text-[#307c4c] border-[#307c4c]/20'
+      : rate >= 30
+        ? 'bg-amber-100 text-amber-700 border-amber-200'
+        : 'bg-red-100 text-red-700 border-red-200';
   return (
-    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${cls} whitespace-nowrap`}>
+    <span
+      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${cls} whitespace-nowrap`}
+    >
       {responded} / {total} lines responded ({rate}%)
     </span>
   );
 }
 
 function WorkflowBadge({ state }: { state: string }) {
-  if (state === 'Submitted') return (
-    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap">
-      Submitted
-    </span>
-  );
+  if (state === 'Submitted')
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap">
+        Submitted
+      </span>
+    );
   return (
     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">
       Email Sent
@@ -195,7 +278,7 @@ function BuyerCommentCell({
     <div className="min-w-[140px]">
       <textarea
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
         rows={2}
         placeholder="Add comments…"
@@ -203,11 +286,15 @@ function BuyerCommentCell({
       />
       <div className="h-3.5 mt-0.5">
         {saveStatus === 'saving' && <span className="text-[10px] text-slate-400">Saving…</span>}
-        {saveStatus === 'saved'  && <span className="text-[10px] text-[#307c4c] font-medium">Saved ✓</span>}
-        {saveStatus === 'error'  && <span className="text-[10px] text-red-500">Failed to save</span>}
+        {saveStatus === 'saved' && (
+          <span className="text-[10px] text-[#307c4c] font-medium">Saved ✓</span>
+        )}
+        {saveStatus === 'error' && <span className="text-[10px] text-red-500">Failed to save</span>}
       </div>
       {showHint && (
-        <span className="text-[11px] text-gray-400">[DATE] will be replaced with today&apos;s date on export</span>
+        <span className="text-[11px] text-gray-400">
+          [DATE] will be replaced with today&apos;s date on export
+        </span>
       )}
     </div>
   );
@@ -251,7 +338,7 @@ function SupplierSection({
   }, [supplier.lines]);
 
   const lineCount = supplier.lines.length;
-  const poCount   = poGroups.length;
+  const poCount = poGroups.length;
 
   return (
     <div className="border-t border-slate-100 first:border-t-0">
@@ -269,125 +356,148 @@ function SupplierSection({
       </button>
 
       {/* ── PO groups ── */}
-      {isExpanded && poGroups.map(({ po_number, lines, totalValue }) => {
-        const poKey      = `${po_number}|${supplier.expedite_token}`;
-        const isPOOpen   = expandedPOs.has(poKey);
+      {isExpanded &&
+        poGroups.map(({ po_number, lines, totalValue }) => {
+          const poKey = `${po_number}|${supplier.expedite_token}`;
+          const isPOOpen = expandedPOs.has(poKey);
 
-        return (
-          <div key={po_number}>
-            {/* PO parent row */}
-            <div
-              onClick={() => togglePO(poKey)}
-              className="flex items-center gap-3 px-4 py-[10px] bg-[#f8fafc] border-b border-[#e2e8f0] cursor-pointer hover:bg-slate-100/80 transition-colors select-none"
-            >
-              <Chevron open={isPOOpen} />
-              <span className="text-[13px] font-bold text-slate-700 font-mono whitespace-nowrap">{po_number}</span>
-              <span className="px-2 py-0.5 bg-slate-200/80 text-slate-500 text-[10px] font-medium rounded-full whitespace-nowrap">
-                {lines.length} line{lines.length !== 1 ? 's' : ''}
-              </span>
-              <span className="ml-auto text-[13px] font-semibold text-[#307c4c] whitespace-nowrap">
-                {formatCurrency(totalValue)}
-              </span>
-            </div>
-
-            {/* Line item rows */}
-            {isPOOpen && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse" style={{ minWidth: '1380px' }}>
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                      <th className="py-2.5 pl-10 pr-3 whitespace-nowrap">PO Number</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">Line</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">SAP MAT ID</th>
-                      <th className="py-2.5 px-3">Description</th>
-                      <th className="py-2.5 px-3 text-right whitespace-nowrap">Open QTY</th>
-                      <th className="py-2.5 px-3 text-right whitespace-nowrap">Value (USD)</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">Original Del. Date</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">New Del. Date</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">DS Status</th>
-                      <th className="py-2.5 px-3">Supplier Comments</th>
-                      <th className="py-2.5 px-3">Buyer Comments</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {lines.map((line) => {
-                      /* Unique per (token, PO, line) — an index key remounted the
-                         wrong row's comment box whenever the list re-ordered. */
-                      const commentKey = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
-                      return (
-                        <tr key={commentKey} className="hover:bg-[#307c4c]/5 transition-colors">
-                          {/* PO Number — 32px left indent */}
-                          <td className="py-3 pl-10 pr-3 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
-                            {line.po_number}
-                          </td>
-                          {/* Line */}
-                          <td className="py-3 px-3 text-xs text-slate-500 whitespace-nowrap">
-                            {line.po_line || '—'}
-                          </td>
-                          {/* SAP MAT ID */}
-                          <td className="py-3 px-3 font-mono text-xs text-slate-500 whitespace-nowrap">
-                            {line.sap_mat_id?.trim()
-                              ? line.sap_mat_id
-                              : <span className="text-gray-400 italic text-xs">{line.account_classification_description?.trim() || 'N/A'}</span>}
-                          </td>
-                          {/* Description */}
-                          <td className="py-3 px-3 text-xs text-slate-600 max-w-[200px]">
-                            <span className="block truncate" title={line.item_description ?? ''}>
-                              {line.item_description || '—'}
-                            </span>
-                          </td>
-                          {/* Open QTY */}
-                          <td className="py-3 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
-                            {line.open_qty != null ? line.open_qty.toLocaleString() : '—'}
-                          </td>
-                          {/* Value USD */}
-                          <td className="py-3 px-3 text-xs text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
-                            {formatCurrency(line.open_po_value_usd)}
-                          </td>
-                          {/* Original Del. Date */}
-                          <td className="py-3 px-3 text-xs text-slate-600 whitespace-nowrap">
-                            {formatDate(line.delivery_date)}
-                          </td>
-                          {/* New Del. Date */}
-                          <td className="py-3 px-3 text-xs whitespace-nowrap">
-                            {line.new_delivery_date
-                              ? <span className="font-medium text-[#307c4c]">{formatDate(line.new_delivery_date)}</span>
-                              : <span className="text-slate-400">—</span>}
-                          </td>
-                          {/* DS Status */}
-                          <td className="py-3 px-3 whitespace-nowrap">
-                            <DsStatusBadge code={line.current_status} />
-                          </td>
-                          {/* Supplier Comments */}
-                          <td className="py-3 px-3 text-xs text-slate-600 max-w-[180px]">
-                            <span className="block whitespace-pre-wrap break-words leading-relaxed">
-                              {line.supplier_comments || <span className="text-slate-400 italic">—</span>}
-                            </span>
-                          </td>
-                          {/* Buyer Comments — editable */}
-                          <td className="py-3 px-3 align-top">
-                            <BuyerCommentCell
-                              value={buyerComments[commentKey] ?? ''}
-                              onChange={val => onCommentChange(commentKey, val)}
-                              onBlur={() => onCommentBlur(commentKey, line.po_number, line.po_line, supplier.expedite_token)}
-                              saveStatus={saveStates[commentKey] ?? 'idle'}
-                            />
-                          </td>
-                          {/* Actions */}
-                          <td className="py-3 px-3 whitespace-nowrap">
-                            <span className="text-slate-300 text-xs">—</span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          return (
+            <div key={po_number}>
+              {/* PO parent row */}
+              <div
+                onClick={() => togglePO(poKey)}
+                className="flex items-center gap-3 px-4 py-[10px] bg-[#f8fafc] border-b border-[#e2e8f0] cursor-pointer hover:bg-slate-100/80 transition-colors select-none"
+              >
+                <Chevron open={isPOOpen} />
+                <span className="text-[13px] font-bold text-slate-700 font-mono whitespace-nowrap">
+                  {po_number}
+                </span>
+                <span className="px-2 py-0.5 bg-slate-200/80 text-slate-500 text-[10px] font-medium rounded-full whitespace-nowrap">
+                  {lines.length} line{lines.length !== 1 ? 's' : ''}
+                </span>
+                <span className="ml-auto text-[13px] font-semibold text-[#307c4c] whitespace-nowrap">
+                  {formatCurrency(totalValue)}
+                </span>
               </div>
-            )}
-          </div>
-        );
-      })}
+
+              {/* Line item rows */}
+              {isPOOpen && (
+                <div className="overflow-x-auto">
+                  <table
+                    className="w-full text-left border-collapse"
+                    style={{ minWidth: '1380px' }}
+                  >
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                        <th className="py-2.5 pl-10 pr-3 whitespace-nowrap">PO Number</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Line</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">SAP MAT ID</th>
+                        <th className="py-2.5 px-3">Description</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Open QTY</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Value (USD)</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Original Del. Date</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">New Del. Date</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">DS Status</th>
+                        <th className="py-2.5 px-3">Supplier Comments</th>
+                        <th className="py-2.5 px-3">Buyer Comments</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {lines.map((line) => {
+                        /* Unique per (token, PO, line) — an index key remounted the
+                         wrong row's comment box whenever the list re-ordered. */
+                        const commentKey = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
+                        return (
+                          <tr key={commentKey} className="hover:bg-[#307c4c]/5 transition-colors">
+                            {/* PO Number — 32px left indent */}
+                            <td className="py-3 pl-10 pr-3 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
+                              {line.po_number}
+                            </td>
+                            {/* Line */}
+                            <td className="py-3 px-3 text-xs text-slate-500 whitespace-nowrap">
+                              {line.po_line || '—'}
+                            </td>
+                            {/* SAP MAT ID */}
+                            <td className="py-3 px-3 font-mono text-xs text-slate-500 whitespace-nowrap">
+                              {line.sap_mat_id?.trim() ? (
+                                line.sap_mat_id
+                              ) : (
+                                <span className="text-gray-400 italic text-xs">
+                                  {line.account_classification_description?.trim() || 'N/A'}
+                                </span>
+                              )}
+                            </td>
+                            {/* Description */}
+                            <td className="py-3 px-3 text-xs text-slate-600 max-w-[200px]">
+                              <span className="block truncate" title={line.item_description ?? ''}>
+                                {line.item_description || '—'}
+                              </span>
+                            </td>
+                            {/* Open QTY */}
+                            <td className="py-3 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+                              {line.open_qty != null ? line.open_qty.toLocaleString() : '—'}
+                            </td>
+                            {/* Value USD */}
+                            <td className="py-3 px-3 text-xs text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                              {formatCurrency(line.open_po_value_usd)}
+                            </td>
+                            {/* Original Del. Date */}
+                            <td className="py-3 px-3 text-xs text-slate-600 whitespace-nowrap">
+                              {formatDate(line.delivery_date)}
+                            </td>
+                            {/* New Del. Date */}
+                            <td className="py-3 px-3 text-xs whitespace-nowrap">
+                              {line.new_delivery_date ? (
+                                <span className="font-medium text-[#307c4c]">
+                                  {formatDate(line.new_delivery_date)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            {/* DS Status */}
+                            <td className="py-3 px-3 whitespace-nowrap">
+                              <DsStatusBadge code={line.current_status} />
+                            </td>
+                            {/* Supplier Comments */}
+                            <td className="py-3 px-3 text-xs text-slate-600 max-w-[180px]">
+                              <span className="block whitespace-pre-wrap break-words leading-relaxed">
+                                {line.supplier_comments || (
+                                  <span className="text-slate-400 italic">—</span>
+                                )}
+                              </span>
+                            </td>
+                            {/* Buyer Comments — editable */}
+                            <td className="py-3 px-3 align-top">
+                              <BuyerCommentCell
+                                value={buyerComments[commentKey] ?? ''}
+                                onChange={(val) => onCommentChange(commentKey, val)}
+                                onBlur={() =>
+                                  onCommentBlur(
+                                    commentKey,
+                                    line.po_number,
+                                    line.po_line,
+                                    supplier.expedite_token,
+                                  )
+                                }
+                                saveStatus={saveStates[commentKey] ?? 'idle'}
+                              />
+                            </td>
+                            {/* Actions */}
+                            <td className="py-3 px-3 whitespace-nowrap">
+                              <span className="text-slate-300 text-xs">—</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })}
     </div>
   );
 }
@@ -430,12 +540,12 @@ function SessionCard({
   onExportExcel: () => void;
 }) {
   const exportableCount = session.suppliers.reduce(
-    (s, sup) => s + sup.lines.filter(isExportable).length, 0
+    (s, sup) => s + sup.lines.filter(isExportable).length,
+    0,
   );
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-shadow duration-200 hover:shadow-md">
-
       {/* ── Card header ── */}
       <div className="px-5 py-4 flex items-start sm:items-center justify-between gap-3 flex-col sm:flex-row">
         <div className="flex items-center gap-3 min-w-0">
@@ -444,14 +554,11 @@ function SessionCard({
             type="checkbox"
             checked={isSelected}
             onChange={onSelectToggle}
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
             className="h-4 w-4 rounded border-slate-300 text-[#307c4c] focus:ring-[#307c4c] cursor-pointer shrink-0"
           />
           {/* Session expand toggle */}
-          <button
-            onClick={onToggle}
-            className="flex items-center gap-2 text-left group min-w-0"
-          >
+          <button onClick={onToggle} className="flex items-center gap-2 text-left group min-w-0">
             <Chevron open={isExpanded} />
             <span className="text-sm font-semibold text-slate-800 group-hover:text-[#307c4c] transition-colors truncate">
               Session — {formatSessionDate(session.dispatched_at)}
@@ -460,14 +567,20 @@ function SessionCard({
           {/* Expand All / Collapse All */}
           <span className="hidden sm:flex items-center gap-1.5 ml-1">
             <button
-              onClick={e => { e.stopPropagation(); onExpandAll(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onExpandAll();
+              }}
               className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors cursor-pointer px-1"
             >
               Expand All
             </button>
             <span className="text-gray-300 select-none text-xs">·</span>
             <button
-              onClick={e => { e.stopPropagation(); onCollapseAll(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCollapseAll();
+              }}
               className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors cursor-pointer px-1"
             >
               Collapse All
@@ -499,7 +612,7 @@ function SessionCard({
       {/* ── Expandable body ── */}
       {isExpanded && (
         <div className="border-t border-slate-100">
-          {session.suppliers.map(supplier => {
+          {session.suppliers.map((supplier) => {
             const supplierKey = `${session.session_ref}|${supplier.expedite_token}`;
             return (
               <SupplierSection
@@ -525,14 +638,23 @@ function SessionCard({
               className="inline-flex items-center gap-2 px-4 py-2 bg-[#307c4c] hover:bg-[#26663e] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-95 shadow-sm"
             >
               {exportableCount > 0 && (
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <svg
+                  className="w-4 h-4 shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
                 </svg>
               )}
               {exportableCount === 0
                 ? 'No supplier updates to export'
-                : `Export Excel (${exportableCount} updated line${exportableCount !== 1 ? 's' : ''})`
-              }
+                : `Export Excel (${exportableCount} updated line${exportableCount !== 1 ? 's' : ''})`}
             </button>
           </div>
         </div>
@@ -547,20 +669,22 @@ export default function ReconciliationClient({ userName }: { userName: string })
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // All three collapse sets start empty (everything collapsed)
-  const [expandedSessions,  setExpandedSessions]  = useState<Set<string>>(new Set());
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
   const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set());
-  const [expandedPOs,       setExpandedPOs]       = useState<Set<string>>(new Set());
+  const [expandedPOs, setExpandedPOs] = useState<Set<string>>(new Set());
 
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
 
   /* ── Session data — fetched client-side so refresh is possible ── */
-  const [sessions, setSessions]           = useState<SessionData[]>([]);
-  const [isRefreshing, setIsRefreshing]   = useState(false);
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   /* ── Buyer comment state ── */
   const [buyerComments, setBuyerComments] = useState<Record<string, string>>({});
-  const [saveStates, setSaveStates]       = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
+  const [saveStates, setSaveStates] = useState<
+    Record<string, 'idle' | 'saving' | 'saved' | 'error'>
+  >({});
 
   /* ── Fetch / refresh sessions ─────────────────────────────── */
   const fetchSessions = useCallback(async () => {
@@ -587,12 +711,15 @@ export default function ReconciliationClient({ userName }: { userName: string })
     }
   }, [userName]);
 
-  useEffect(() => { fetchSessions(); }, [fetchSessions]);
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
   /* ── Select-all logic ─────────────────────────────────────── */
-  const selectAllRef    = useRef<HTMLInputElement>(null);
-  const allSelected     = sessions.length > 0 && sessions.every(s => selectedSessions.has(s.session_ref));
-  const someSelected    = sessions.some(s => selectedSessions.has(s.session_ref));
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const allSelected =
+    sessions.length > 0 && sessions.every((s) => selectedSessions.has(s.session_ref));
+  const someSelected = sessions.some((s) => selectedSessions.has(s.session_ref));
   const isIndeterminate = someSelected && !allSelected;
 
   useEffect(() => {
@@ -602,51 +729,51 @@ export default function ReconciliationClient({ userName }: { userName: string })
   }, [isIndeterminate]);
 
   function handleSelectAll(e: React.ChangeEvent<HTMLInputElement>) {
-    setSelectedSessions(e.target.checked
-      ? new Set(sessions.map(s => s.session_ref))
-      : new Set()
-    );
+    setSelectedSessions(e.target.checked ? new Set(sessions.map((s) => s.session_ref)) : new Set());
   }
 
   /* ── Collapse/expand toggles ──────────────────────────────── */
   function toggleSession(ref: string) {
-    setExpandedSessions(prev => {
+    setExpandedSessions((prev) => {
       const next = new Set(prev);
-      if (next.has(ref)) next.delete(ref); else next.add(ref);
+      if (next.has(ref)) next.delete(ref);
+      else next.add(ref);
       return next;
     });
   }
 
   function toggleSupplier(key: string) {
-    setExpandedSuppliers(prev => {
+    setExpandedSuppliers((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
   function togglePO(key: string) {
-    setExpandedPOs(prev => {
+    setExpandedPOs((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
   /* ── Expand All / Collapse All for a session ─────────────── */
   function expandAllForSession(session: SessionData) {
-    setExpandedSessions(prev => new Set([...prev, session.session_ref]));
-    setExpandedSuppliers(prev => {
+    setExpandedSessions((prev) => new Set([...prev, session.session_ref]));
+    setExpandedSuppliers((prev) => {
       const next = new Set(prev);
       for (const sup of session.suppliers) {
         next.add(`${session.session_ref}|${sup.expedite_token}`);
       }
       return next;
     });
-    setExpandedPOs(prev => {
+    setExpandedPOs((prev) => {
       const next = new Set(prev);
       for (const sup of session.suppliers) {
-        const poNumbers = new Set(sup.lines.map(l => l.po_number));
+        const poNumbers = new Set(sup.lines.map((l) => l.po_number));
         for (const po of poNumbers) {
           next.add(`${po}|${sup.expedite_token}`);
         }
@@ -656,22 +783,22 @@ export default function ReconciliationClient({ userName }: { userName: string })
   }
 
   function collapseAllForSession(session: SessionData) {
-    setExpandedSessions(prev => {
+    setExpandedSessions((prev) => {
       const next = new Set(prev);
       next.delete(session.session_ref);
       return next;
     });
-    setExpandedSuppliers(prev => {
+    setExpandedSuppliers((prev) => {
       const next = new Set(prev);
       for (const sup of session.suppliers) {
         next.delete(`${session.session_ref}|${sup.expedite_token}`);
       }
       return next;
     });
-    setExpandedPOs(prev => {
+    setExpandedPOs((prev) => {
       const next = new Set(prev);
       for (const sup of session.suppliers) {
-        const poNumbers = new Set(sup.lines.map(l => l.po_number));
+        const poNumbers = new Set(sup.lines.map((l) => l.po_number));
         for (const po of poNumbers) {
           next.delete(`${po}|${sup.expedite_token}`);
         }
@@ -682,34 +809,35 @@ export default function ReconciliationClient({ userName }: { userName: string })
 
   /* ── Buyer comment handlers ───────────────────────────────── */
   const handleCommentChange = useCallback((key: string, val: string) => {
-    setBuyerComments(prev => ({ ...prev, [key]: val }));
+    setBuyerComments((prev) => ({ ...prev, [key]: val }));
   }, []);
 
-  const handleCommentBlur = useCallback(async (
-    key: string,
-    po_number: string,
-    po_line: string,
-    expedite_token: string,
-  ) => {
-    const comment = buyerComments[key] ?? '';
-    setSaveStates(prev => ({ ...prev, [key]: 'saving' }));
-    const result = await saveBuyerComment(po_number, po_line, expedite_token, comment);
-    setSaveStates(prev => ({ ...prev, [key]: result.success ? 'saved' : 'error' }));
-    if (result.success) {
-      setTimeout(() => {
-        setSaveStates(prev => {
-          if (prev[key] === 'saved') return { ...prev, [key]: 'idle' };
-          return prev;
-        });
-      }, 2000);
-    }
-  }, [buyerComments]);
+  const handleCommentBlur = useCallback(
+    async (key: string, po_number: string, po_line: string, expedite_token: string) => {
+      const comment = buyerComments[key] ?? '';
+      setSaveStates((prev) => ({ ...prev, [key]: 'saving' }));
+      const result = await saveBuyerComment(po_number, po_line, expedite_token, comment);
+      setSaveStates((prev) => ({ ...prev, [key]: result.success ? 'saved' : 'error' }));
+      if (result.success) {
+        setTimeout(() => {
+          setSaveStates((prev) => {
+            if (prev[key] === 'saved') return { ...prev, [key]: 'idle' };
+            return prev;
+          });
+        }, 2000);
+      }
+    },
+    [buyerComments],
+  );
 
   /* ── Per-session Excel export ────────────────────────────── */
   async function exportSessionExcel(session: SessionData) {
     const today = new Date();
     const exportDate = today.toLocaleDateString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
     });
 
     const rows: ExportRow[] = [];
@@ -717,14 +845,14 @@ export default function ReconciliationClient({ userName }: { userName: string })
     for (const supplier of session.suppliers) {
       for (const line of supplier.lines) {
         if (!isExportable(line)) continue;
-        const key       = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
+        const key = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
         const buyerNote = (buyerComments[key] ?? '').replace('[DATE]', exportDate);
-        const parts     = [line.supplier_comments, buyerNote].filter(Boolean);
+        const parts = [line.supplier_comments, buyerNote].filter(Boolean);
         rows.push({
-          poNumber:         line.po_number,
-          poLine:           line.po_line,
-          deliveryDate:     toSapDate(line.new_delivery_date || line.delivery_date),
-          statusCode:       line.current_status ?? '',
+          poNumber: line.po_number,
+          poLine: line.po_line,
+          deliveryDate: toSapDate(line.new_delivery_date || line.delivery_date),
+          statusCode: line.current_status ?? '',
           deliveryComments: parts.join(' | '),
         });
       }
@@ -737,25 +865,35 @@ export default function ReconciliationClient({ userName }: { userName: string })
 
   /* ── Multi-session Excel export (with deduplication) ─────── */
   async function exportSelectedExcel() {
-    const selectedList = sessions.filter(s => selectedSessions.has(s.session_ref));
+    const selectedList = sessions.filter((s) => selectedSessions.has(s.session_ref));
     if (selectedList.length === 0) return;
 
     const today = new Date();
     const exportDate = today.toLocaleDateString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
     });
 
     // Deduplicate by po_number + po_line — keep row from most recent session
-    const lineMap = new Map<string, { line: LineData; expedite_token: string; dispatched_at: string }>();
+    const lineMap = new Map<
+      string,
+      { line: LineData; expedite_token: string; dispatched_at: string }
+    >();
 
     for (const session of selectedList) {
       for (const supplier of session.suppliers) {
         for (const line of supplier.lines) {
           if (!isExportable(line)) continue;
-          const key      = `${line.po_number}|${line.po_line}`;
+          const key = `${line.po_number}|${line.po_line}`;
           const existing = lineMap.get(key);
           if (!existing || session.dispatched_at > existing.dispatched_at) {
-            lineMap.set(key, { line, expedite_token: supplier.expedite_token, dispatched_at: session.dispatched_at });
+            lineMap.set(key, {
+              line,
+              expedite_token: supplier.expedite_token,
+              dispatched_at: session.dispatched_at,
+            });
           }
         }
       }
@@ -763,22 +901,25 @@ export default function ReconciliationClient({ userName }: { userName: string })
 
     const rows: ExportRow[] = [];
     for (const { line, expedite_token } of lineMap.values()) {
-      const key       = `${line.po_number}|${line.po_line}|${expedite_token}`;
+      const key = `${line.po_number}|${line.po_line}|${expedite_token}`;
       const buyerNote = (buyerComments[key] ?? '').replace('[DATE]', exportDate);
-      const parts     = [line.supplier_comments, buyerNote].filter(Boolean);
+      const parts = [line.supplier_comments, buyerNote].filter(Boolean);
       rows.push({
-        poNumber:         line.po_number,
-        poLine:           line.po_line,
-        deliveryDate:     toSapDate(line.new_delivery_date || line.delivery_date),
-        statusCode:       line.current_status ?? '',
+        poNumber: line.po_number,
+        poLine: line.po_line,
+        deliveryDate: toSapDate(line.new_delivery_date || line.delivery_date),
+        statusCode: line.current_status ?? '',
         deliveryComments: parts.join(' | '),
       });
     }
 
-    const dateStr    = toFileDate(today);
+    const dateStr = toFileDate(today);
     const sessionCnt = selectedSessions.size;
-    const lineCnt    = rows.length;
-    await exportToExcel(rows, `NESR_Expediting_${dateStr}_${sessionCnt}sessions_${lineCnt}lines.xlsx`);
+    const lineCnt = rows.length;
+    await exportToExcel(
+      rows,
+      `NESR_Expediting_${dateStr}_${sessionCnt}sessions_${lineCnt}lines.xlsx`,
+    );
   }
 
   const selectedCount = selectedSessions.size;
@@ -809,7 +950,6 @@ export default function ReconciliationClient({ userName }: { userName: string })
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       <main className="flex-1 flex flex-col h-full relative bg-white">
-
         {/* ── Sticky header ── */}
         <header className="h-14 md:h-16 px-4 md:px-8 flex items-center justify-between border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-10 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -817,12 +957,26 @@ export default function ReconciliationClient({ userName }: { userName: string })
               onClick={() => setIsSidebarOpen(true)}
               className="mr-2 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors focus:ring-2 focus:ring-[#307c4c]/50 focus:outline-none"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#307c4c] shrink-0">
-              <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                className="w-4 h-4 text-white"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                 <path d="M15 3h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
                 <line x1="12" y1="3" x2="12" y2="21" />
@@ -830,13 +984,14 @@ export default function ReconciliationClient({ userName }: { userName: string })
             </span>
             <span className="text-lg font-bold text-gray-900 tracking-tight">NESR</span>
             <span className="hidden sm:inline text-gray-300 select-none">·</span>
-            <span className="hidden sm:inline text-sm font-medium text-gray-500">Reconciliation</span>
+            <span className="hidden sm:inline text-sm font-medium text-gray-500">
+              Reconciliation
+            </span>
           </div>
         </header>
 
         {/* ── Scrollable body ── */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 scroll-smooth">
-
           {/* Page title */}
           <div className="mb-6">
             <div className="flex items-center justify-between gap-3">
@@ -848,9 +1003,16 @@ export default function ReconciliationClient({ userName }: { userName: string })
               >
                 <svg
                   className={`w-3.5 h-3.5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`}
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
                 </svg>
                 {isRefreshing ? 'Refreshing…' : 'Refresh'}
               </button>
@@ -860,7 +1022,12 @@ export default function ReconciliationClient({ userName }: { userName: string })
             </p>
             {lastRefreshed && (
               <p className="text-[12px] text-gray-400 mt-0.5">
-                Last updated: {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                Last updated:{' '}
+                {lastRefreshed.toLocaleTimeString('en-GB', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                })}
               </p>
             )}
           </div>
@@ -870,11 +1037,23 @@ export default function ReconciliationClient({ userName }: { userName: string })
             <div className="flex justify-center mt-16 animate-in fade-in duration-500">
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 max-w-md w-full text-center">
                 <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  <svg
+                    className="w-7 h-7 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.75}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    />
                   </svg>
                 </div>
-                <p className="text-base font-semibold text-slate-800">No expediting sessions found.</p>
+                <p className="text-base font-semibold text-slate-800">
+                  No expediting sessions found.
+                </p>
                 <p className="text-sm text-slate-500 mt-2 leading-relaxed">
                   Sessions appear here after you send emails from the Confirm &amp; Dispatch page.
                 </p>
@@ -906,28 +1085,38 @@ export default function ReconciliationClient({ userName }: { userName: string })
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-150 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed bg-[#307c4c] hover:bg-[#26663e] text-white shadow-sm hover:scale-[1.02] active:scale-95"
                   >
                     {!(selectedCount > 0 && selectedExportableCount === 0) && (
-                      <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <svg
+                        className="w-4 h-4 shrink-0"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
                       </svg>
                     )}
                     {selectedCount === 0
                       ? 'Export Excel'
                       : selectedExportableCount === 0
                         ? 'No supplier updates to export'
-                        : `Export Excel (${selectedExportableCount} line${selectedExportableCount !== 1 ? 's' : ''} across ${selectedCount} session${selectedCount !== 1 ? 's' : ''})`
-                    }
+                        : `Export Excel (${selectedExportableCount} line${selectedExportableCount !== 1 ? 's' : ''} across ${selectedCount} session${selectedCount !== 1 ? 's' : ''})`}
                   </button>
                 </div>
 
                 {/* Info note */}
                 <p className="mt-2.5 text-[11px] text-slate-400 leading-relaxed">
-                  Duplicate PO lines across sessions use the most recent supplier response. Only responded lines are included.
+                  Duplicate PO lines across sessions use the most recent supplier response. Only
+                  responded lines are included.
                 </p>
               </div>
 
               {/* ── Session cards ── */}
               <div className="space-y-4 animate-in fade-in duration-500">
-                {sessions.map(session => (
+                {sessions.map((session) => (
                   <SessionCard
                     key={session.session_ref}
                     session={session}
@@ -937,7 +1126,7 @@ export default function ReconciliationClient({ userName }: { userName: string })
                     onCollapseAll={() => collapseAllForSession(session)}
                     isSelected={selectedSessions.has(session.session_ref)}
                     onSelectToggle={() => {
-                      setSelectedSessions(prev => {
+                      setSelectedSessions((prev) => {
                         const next = new Set(prev);
                         if (next.has(session.session_ref)) next.delete(session.session_ref);
                         else next.add(session.session_ref);

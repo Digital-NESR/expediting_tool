@@ -3,13 +3,29 @@
 import sourceGuidePool from '@/lib/db-sourceguide';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { AccessError, isToolAdminEmail, normalizeEmail, withAccessFallback } from '@/lib/require-access';
+import {
+  AccessError,
+  isToolAdminEmail,
+  normalizeEmail,
+  withAccessFallback,
+} from '@/lib/require-access';
 import { getToolScope, type ToolAccessStatus } from '@/lib/tool-scope';
 import { matchScore, MATCH_THRESHOLD, norm } from '@/lib/sg-fuzzy';
 import type {
-  SgCountry, SgCommodity, SgSupplier, SgMapping, SgCategory, SgStats,
-  SgCommodityResult, SgSupplierProfile, SgCommodityDetail, SgGuide,
-  SgActivityEntry, SgSearchFilters, SgFacets, Tier,
+  SgCountry,
+  SgCommodity,
+  SgSupplier,
+  SgMapping,
+  SgCategory,
+  SgStats,
+  SgCommodityResult,
+  SgSupplierProfile,
+  SgCommodityDetail,
+  SgGuide,
+  SgActivityEntry,
+  SgSearchFilters,
+  SgFacets,
+  Tier,
 } from '@/types/sourceguide';
 import type { AccessStatus, StoredAccessStatus } from '@/types/access';
 import { logger } from '@/lib/logger';
@@ -83,7 +99,8 @@ async function getSgUser(): Promise<SgUser | null> {
 async function requireSgReader(): Promise<SgUser> {
   const user = await getSgUser();
   if (!user) throw new AccessError('Sign in required.', 401);
-  if (!user.isAdmin && user.status !== 'approved') throw new AccessError('SourceGuide access required.');
+  if (!user.isAdmin && user.status !== 'approved')
+    throw new AccessError('SourceGuide access required.');
   return user;
 }
 
@@ -102,12 +119,18 @@ async function requireSgAdmin(): Promise<SgUser> {
  * otherwise the overlay the user is supposed to see never reaches them.
  */
 async function canRead(): Promise<boolean> {
-  return withAccessFallback(async () => { await requireSgReader(); return true; }, false);
+  return withAccessFallback(async () => {
+    await requireSgReader();
+    return true;
+  }, false);
 }
 
 /** Same, for the admin-only reads (analytics, audit, access requests). */
 async function canReadAdmin(): Promise<boolean> {
-  return withAccessFallback(async () => { await requireSgAdmin(); return true; }, false);
+  return withAccessFallback(async () => {
+    await requireSgAdmin();
+    return true;
+  }, false);
 }
 
 /**
@@ -120,19 +143,38 @@ async function readUser(): Promise<SgUser | null> {
   return withAccessFallback<SgUser | null>(async () => requireSgReader(), null);
 }
 
-function buildPath(c: { category: string; subCategory: string | null; family: string | null; name: string }): string[] {
+function buildPath(c: {
+  category: string;
+  subCategory: string | null;
+  family: string | null;
+  name: string;
+}): string[] {
   return [c.category, c.subCategory, c.family, c.name].filter(Boolean) as string[];
 }
 
 interface CommodityRow {
-  id: number; code: string; name: string; category: string; category_id: string;
-  sub_category: string | null; family: string | null; spend_type: string; description: string;
+  id: number;
+  code: string;
+  name: string;
+  category: string;
+  category_id: string;
+  sub_category: string | null;
+  family: string | null;
+  spend_type: string;
+  description: string;
 }
 
 function rowToCommodity(r: CommodityRow): SgCommodity {
   const c: SgCommodity = {
-    id: r.id, code: r.code, name: r.name, category: r.category, categoryId: r.category_id,
-    subCategory: r.sub_category, family: r.family, spendType: r.spend_type, description: r.description,
+    id: r.id,
+    code: r.code,
+    name: r.name,
+    category: r.category,
+    categoryId: r.category_id,
+    subCategory: r.sub_category,
+    family: r.family,
+    spendType: r.spend_type,
+    description: r.description,
     path: [],
   };
   c.path = buildPath(c);
@@ -153,14 +195,15 @@ export async function getCountries(): Promise<SgCountry[]> {
        GROUP BY c.code, c.name, c.tone, c.sort_order
        ORDER BY c.sort_order, c.name`,
     );
-    return rows.map(r => ({ code: r.code, name: r.name, champion: r.champion, tone: r.tone }));
+    return rows.map((r) => ({ code: r.code, name: r.name, champion: r.champion, tone: r.tone }));
   } catch (err) {
     readFailed('getCountries', err);
   }
 }
 
 export async function getStats(): Promise<SgStats> {
-  if (!(await canRead())) return { commodities: 0, suppliers: 0, mappings: 0, countries: 0, categories: 0 };
+  if (!(await canRead()))
+    return { commodities: 0, suppliers: 0, mappings: 0, countries: 0, categories: 0 };
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT
@@ -172,8 +215,11 @@ export async function getStats(): Promise<SgStats> {
     `);
     const r = rows[0];
     return {
-      commodities: Number(r.commodities), suppliers: Number(r.suppliers),
-      mappings: Number(r.mappings), countries: Number(r.countries), categories: Number(r.categories),
+      commodities: Number(r.commodities),
+      suppliers: Number(r.suppliers),
+      mappings: Number(r.mappings),
+      countries: Number(r.countries),
+      categories: Number(r.categories),
     };
   } catch (err) {
     readFailed('getStats', err);
@@ -192,9 +238,12 @@ export async function getCategories(): Promise<SgCategory[]> {
       GROUP BY category_id, category
       ORDER BY count DESC
     `);
-    return rows.map(r => ({
-      id: r.category_id, name: r.category, spendType: r.spend_type,
-      count: Number(r.count), subs: (r.subs || []).filter(Boolean),
+    return rows.map((r) => ({
+      id: r.category_id,
+      name: r.category,
+      spendType: r.spend_type,
+      count: Number(r.count),
+      subs: (r.subs || []).filter(Boolean),
     }));
   } catch (err) {
     readFailed('getCategories', err);
@@ -217,9 +266,9 @@ export async function getSearchFacets(): Promise<SgFacets> {
         FROM sg_mappings WHERE status='Active' GROUP BY tier`),
     ]);
     return {
-      countries: countryRes.rows.map(r => ({ code: r.country_code, count: Number(r.count) })),
-      spendTypes: spendRes.rows.map(r => ({ type: r.spend_type, count: Number(r.count) })),
-      tiers: tierRes.rows.map(r => ({ tier: r.tier as Tier, count: Number(r.count) })),
+      countries: countryRes.rows.map((r) => ({ code: r.country_code, count: Number(r.count) })),
+      spendTypes: spendRes.rows.map((r) => ({ type: r.spend_type, count: Number(r.count) })),
+      tiers: tierRes.rows.map((r) => ({ tier: r.tier as Tier, count: Number(r.count) })),
     };
   } catch (err) {
     readFailed('getSearchFacets', err);
@@ -232,7 +281,7 @@ export async function getSpendTypes(): Promise<string[]> {
     const { rows } = await sourceGuidePool.query(
       `SELECT DISTINCT spend_type FROM sg_commodities WHERE spend_type IS NOT NULL ORDER BY spend_type`,
     );
-    return rows.map(r => r.spend_type);
+    return rows.map((r) => r.spend_type);
   } catch (err) {
     readFailed('getSpendTypes', err);
   }
@@ -242,7 +291,9 @@ export async function getSpendTypes(): Promise<string[]> {
 
 /* ─── cached search indexes (fuzzy matching runs in the app layer) ── */
 
-interface CommodityIndexRow extends CommodityRow { keywords: string | null }
+interface CommodityIndexRow extends CommodityRow {
+  keywords: string | null;
+}
 const INDEX_TTL_MS = 60_000;
 
 let _comCache: { rows: CommodityIndexRow[]; at: number } | null = null;
@@ -257,7 +308,11 @@ async function getCommodityIndex(): Promise<CommodityIndexRow[]> {
   return _comCache.rows;
 }
 
-interface SupplierIndexRow { code: string; name: string; countries: string[] }
+interface SupplierIndexRow {
+  code: string;
+  name: string;
+  countries: string[];
+}
 let _supCache: { rows: SupplierIndexRow[]; at: number } | null = null;
 async function getMappedSupplierIndex(): Promise<SupplierIndexRow[]> {
   if (_supCache && Date.now() - _supCache.at < INDEX_TTL_MS) return _supCache.rows;
@@ -268,7 +323,10 @@ async function getMappedSupplierIndex(): Promise<SupplierIndexRow[]> {
      JOIN sg_mappings m ON m.supplier_code = a.supplier_code AND m.status='Active'
      GROUP BY a.supplier_code, a.name`,
   );
-  _supCache = { rows: rows.map(r => ({ code: r.supplier_code, name: r.name, countries: r.countries || [] })), at: Date.now() };
+  _supCache = {
+    rows: rows.map((r) => ({ code: r.supplier_code, name: r.name, countries: r.countries || [] })),
+    at: Date.now(),
+  };
   return _supCache.rows;
 }
 
@@ -276,14 +334,17 @@ let _avlCache: { rows: { code: string; name: string }[]; at: number } | null = n
 async function getAvlIndex(): Promise<{ code: string; name: string }[]> {
   if (_avlCache && Date.now() - _avlCache.at < INDEX_TTL_MS) return _avlCache.rows;
   const { rows } = await sourceGuidePool.query(`SELECT supplier_code, name FROM supplier_avl`);
-  _avlCache = { rows: rows.map(r => ({ code: r.supplier_code, name: r.name })), at: Date.now() };
+  _avlCache = { rows: rows.map((r) => ({ code: r.supplier_code, name: r.name })), at: Date.now() };
   return _avlCache.rows;
 }
 
-let _ctryCache: { rows: { code: string; name: string; tone: string | null }[]; at: number } | null = null;
+let _ctryCache: { rows: { code: string; name: string; tone: string | null }[]; at: number } | null =
+  null;
 async function getCountriesLite(): Promise<{ code: string; name: string; tone: string | null }[]> {
   if (_ctryCache && Date.now() - _ctryCache.at < INDEX_TTL_MS) return _ctryCache.rows;
-  const { rows } = await sourceGuidePool.query(`SELECT code, name, tone FROM sg_countries ORDER BY sort_order, name`);
+  const { rows } = await sourceGuidePool.query(
+    `SELECT code, name, tone FROM sg_countries ORDER BY sort_order, name`,
+  );
   _ctryCache = { rows, at: Date.now() };
   return _ctryCache.rows;
 }
@@ -324,7 +385,8 @@ export async function searchCommodities(
         let s = matchScore(q, r.name, commodityExtra(r));
         if (s < MATCH_THRESHOLD) {
           // last-resort description substring match
-          if (nq.length >= 3 && r.description && norm(r.description).includes(nq)) s = MATCH_THRESHOLD;
+          if (nq.length >= 3 && r.description && norm(r.description).includes(nq))
+            s = MATCH_THRESHOLD;
           else continue;
         }
         scored.push({ r, score: s });
@@ -332,11 +394,13 @@ export async function searchCommodities(
         scored.push({ r, score: 0 });
       }
     }
-    scored.sort((a, b) => q ? (b.score - a.score || a.r.name.localeCompare(b.r.name)) : a.r.name.localeCompare(b.r.name));
-    const rows = scored.map(s => s.r);
+    scored.sort((a, b) =>
+      q ? b.score - a.score || a.r.name.localeCompare(b.r.name) : a.r.name.localeCompare(b.r.name),
+    );
+    const rows = scored.map((s) => s.r);
     if (!rows.length) return [];
 
-    const ids = rows.map(r => r.id);
+    const ids = rows.map((r) => r.id);
     const mapRes = await sourceGuidePool.query(
       `SELECT m.commodity_id, m.country_code, m.tier, m.supplier_code, a.name AS supplier_name
        FROM sg_mappings m
@@ -345,11 +409,21 @@ export async function searchCommodities(
       [ids],
     );
 
-    interface MiniMap { country: string; tier: Tier; supplierCode: string | null; supplierName: string; }
+    interface MiniMap {
+      country: string;
+      tier: Tier;
+      supplierCode: string | null;
+      supplierName: string;
+    }
     const byCom = new Map<number, MiniMap[]>();
     for (const m of mapRes.rows) {
       const arr = byCom.get(m.commodity_id) ?? [];
-      arr.push({ country: m.country_code, tier: m.tier, supplierCode: m.supplier_code, supplierName: m.supplier_name });
+      arr.push({
+        country: m.country_code,
+        tier: m.tier,
+        supplierCode: m.supplier_code,
+        supplierName: m.supplier_name,
+      });
       byCom.set(m.commodity_id, arr);
     }
 
@@ -359,26 +433,32 @@ export async function searchCommodities(
 
     for (const r of rows) {
       const maps = byCom.get(r.id) ?? [];
-      const countries = [...new Set(maps.map(m => m.country))];
+      const countries = [...new Set(maps.map((m) => m.country))];
 
-      if (fc.length && !maps.some(m => fc.includes(m.country))) continue;
+      if (fc.length && !maps.some((m) => fc.includes(m.country))) continue;
       if (ft.length) {
-        const ok = maps.some(m => ft.includes(m.tier) && (!fc.length || fc.includes(m.country)));
+        const ok = maps.some((m) => ft.includes(m.tier) && (!fc.length || fc.includes(m.country)));
         if (!ok) continue;
       }
 
-      const displayCountry = fc.find(c => countries.includes(c)) || countries[0] || null;
+      const displayCountry = fc.find((c) => countries.includes(c)) || countries[0] || null;
       const pref = displayCountry
-        ? maps.find(m => m.country === displayCountry && m.tier === 'Preferred')
+        ? maps.find((m) => m.country === displayCountry && m.tier === 'Preferred')
         : undefined;
       const backupCount = displayCountry
-        ? maps.filter(m => m.country === displayCountry && m.tier === 'Backup').length
+        ? maps.filter((m) => m.country === displayCountry && m.tier === 'Backup').length
         : 0;
 
       results.push({
         ...rowToCommodity(r),
         countries,
-        preferred: pref ? { supplierCode: pref.supplierCode, supplierName: pref.supplierName, country: displayCountry! } : null,
+        preferred: pref
+          ? {
+              supplierCode: pref.supplierCode,
+              supplierName: pref.supplierName,
+              country: displayCountry!,
+            }
+          : null,
         backupCount,
       });
       if (results.length >= limit) break;
@@ -406,38 +486,45 @@ export async function globalSearch(query: string): Promise<SgGlobalResults> {
   if (!q) return { commodities: [], suppliers: [], categories: [], countries: [] };
   try {
     const [index, suppliers, countries] = await Promise.all([
-      getCommodityIndex(), getMappedSupplierIndex(), getCountriesLite(),
+      getCommodityIndex(),
+      getMappedSupplierIndex(),
+      getCountriesLite(),
     ]);
 
     const commodities = index
-      .map(r => ({ r, score: matchScore(q, r.name, commodityExtra(r)) }))
-      .filter(x => x.score >= MATCH_THRESHOLD)
+      .map((r) => ({ r, score: matchScore(q, r.name, commodityExtra(r)) }))
+      .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score || a.r.name.localeCompare(b.r.name))
       .slice(0, 7)
-      .map(x => ({ id: x.r.id, name: x.r.name, category: x.r.category, subCategory: x.r.sub_category }));
+      .map((x) => ({
+        id: x.r.id,
+        name: x.r.name,
+        category: x.r.category,
+        subCategory: x.r.sub_category,
+      }));
 
     const sup = suppliers
-      .map(s => ({ s, score: Math.max(matchScore(q, s.name), s.code.includes(q) ? 1.5 : 0) }))
-      .filter(x => x.score >= MATCH_THRESHOLD)
+      .map((s) => ({ s, score: Math.max(matchScore(q, s.name), s.code.includes(q) ? 1.5 : 0) }))
+      .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score || a.s.name.localeCompare(b.s.name))
       .slice(0, 5)
-      .map(x => ({ code: x.s.code, name: x.s.name }));
+      .map((x) => ({ code: x.s.code, name: x.s.name }));
 
     const catMap = new Map<string, string>();
     for (const r of index) if (!catMap.has(r.category_id)) catMap.set(r.category_id, r.category);
     const cats = [...catMap.entries()]
       .map(([id, name]) => ({ id, name, score: matchScore(q, name) }))
-      .filter(x => x.score >= MATCH_THRESHOLD)
+      .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score)
       .slice(0, 4)
-      .map(x => ({ id: x.id, name: x.name }));
+      .map((x) => ({ id: x.id, name: x.name }));
 
     const ctry = countries
-      .map(c => ({ c, score: matchScore(q, c.name) }))
-      .filter(x => x.score >= MATCH_THRESHOLD)
+      .map((c) => ({ c, score: matchScore(q, c.name) }))
+      .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score)
       .slice(0, 4)
-      .map(x => ({ code: x.c.code, name: x.c.name, tone: x.c.tone }));
+      .map((x) => ({ code: x.c.code, name: x.c.name, tone: x.c.tone }));
 
     return { commodities, suppliers: sup, categories: cats, countries: ctry };
   } catch (err) {
@@ -461,11 +548,11 @@ export async function searchSuppliers(query: string, limit = 6): Promise<SgSuppl
     // Fuzzy-rank suppliers that are actually mapped somewhere (cached, joined to the AVL by code)
     const suppliers = await getMappedSupplierIndex();
     return suppliers
-      .map(s => ({ s, score: Math.max(matchScore(q, s.name), s.code.includes(q) ? 1.5 : 0) }))
-      .filter(x => x.score >= MATCH_THRESHOLD)
+      .map((s) => ({ s, score: Math.max(matchScore(q, s.name), s.code.includes(q) ? 1.5 : 0) }))
+      .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score || a.s.name.localeCompare(b.s.name))
       .slice(0, limit)
-      .map(x => ({ code: x.s.code, name: x.s.name, countries: x.s.countries }));
+      .map((x) => ({ code: x.s.code, name: x.s.name, countries: x.s.countries }));
   } catch (err) {
     log.error('searchSuppliers.failed', err);
     return [];
@@ -499,10 +586,14 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
     const mappingsByCountry: Record<string, SgMapping[]> = {};
     for (const m of mapRes.rows) {
       const mapping: SgMapping = {
-        id: m.id, commodityId: m.commodity_id,
-        supplierName: m.supplier_name ?? '', supplierCode: m.supplier_code,
+        id: m.id,
+        commodityId: m.commodity_id,
+        supplierName: m.supplier_name ?? '',
+        supplierCode: m.supplier_code,
         supplierEmail: m.supplier_email ?? null,
-        country: m.country_code, tier: m.tier, status: m.status,
+        country: m.country_code,
+        tier: m.tier,
+        status: m.status,
       };
       (mappingsByCountry[m.country_code] ??= []).push(mapping);
     }
@@ -535,13 +626,17 @@ export async function getSupplierProfile(supplierCode: string): Promise<SgSuppli
        ORDER BY m.country_code`,
       [supplierCode],
     );
-    const mappings: SgMapping[] = mapRes.rows.map(m => ({
-      id: m.id, commodityId: m.commodity_id,
-      supplierName: s.name, supplierCode: m.supplier_code,
-      country: m.country_code, tier: m.tier, status: m.status,
+    const mappings: SgMapping[] = mapRes.rows.map((m) => ({
+      id: m.id,
+      commodityId: m.commodity_id,
+      supplierName: s.name,
+      supplierCode: m.supplier_code,
+      country: m.country_code,
+      tier: m.tier,
+      status: m.status,
     }));
 
-    const countries = [...new Set(mappings.map(m => m.country))];
+    const countries = [...new Set(mappings.map((m) => m.country))];
     const champRes = await sourceGuidePool.query(
       `SELECT DISTINCT name FROM sg_champions WHERE country_code = ANY($1) AND COALESCE(TRIM(name),'') <> ''`,
       [countries],
@@ -549,10 +644,13 @@ export async function getSupplierProfile(supplierCode: string): Promise<SgSuppli
 
     void logUsage('view', 'supplier', s.name, s.supplier_code, viewer);
     return {
-      code: s.supplier_code, name: s.name, email: s.email ?? null, countries,
-      totalCommodities: new Set(mappings.map(m => m.commodityId)).size,
-      preferredCount: mappings.filter(m => m.tier === 'Preferred').length,
-      champions: champRes.rows.map(r => r.name),
+      code: s.supplier_code,
+      name: s.name,
+      email: s.email ?? null,
+      countries,
+      totalCommodities: new Set(mappings.map((m) => m.commodityId)).size,
+      preferredCount: mappings.filter((m) => m.tier === 'Preferred').length,
+      champions: champRes.rows.map((r) => r.name),
       mappings,
     };
   } catch (err) {
@@ -587,8 +685,8 @@ export interface SgCatalogRow {
   categoryId: string;
   subCategory: string | null;
   family: string | null;
-  suppliers: number;   // active supplier mappings
-  countries: number;   // distinct countries mapped
+  suppliers: number; // active supplier mappings
+  countries: number; // distinct countries mapped
 }
 
 /* ─── taxonomy decomposition fact table ──────────────────────── */
@@ -606,7 +704,7 @@ export async function getTaxonomyFacts(): Promise<SgTaxonomyRow[]> {
              name
       FROM sg_commodities
     `);
-    return rows.map(r => [r.spend_type, r.category, r.sub, r.fam, r.name] as SgTaxonomyRow);
+    return rows.map((r) => [r.spend_type, r.category, r.sub, r.fam, r.name] as SgTaxonomyRow);
   } catch (err) {
     readFailed('getTaxonomyFacts', err);
   }
@@ -627,11 +725,17 @@ export async function getCommodityCatalog(): Promise<SgCatalogRow[]> {
       ) mc ON mc.commodity_id = c.id
       ORDER BY c.category, c.sub_category NULLS FIRST, c.family NULLS FIRST, c.name
     `);
-    return rows.map(r => ({
-      id: r.id, name: r.name, code: r.code, spendType: r.spend_type,
-      category: r.category, categoryId: r.category_id,
-      subCategory: r.sub_category, family: r.family,
-      suppliers: Number(r.suppliers), countries: Number(r.countries),
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      code: r.code,
+      spendType: r.spend_type,
+      category: r.category,
+      categoryId: r.category_id,
+      subCategory: r.sub_category,
+      family: r.family,
+      suppliers: Number(r.suppliers),
+      countries: Number(r.countries),
     }));
   } catch (err) {
     readFailed('getCommodityCatalog', err);
@@ -640,10 +744,27 @@ export async function getCommodityCatalog(): Promise<SgCatalogRow[]> {
 
 /* ─── browse taxonomy ────────────────────────────────────────── */
 
-export interface SgTaxonomyLeaf { id: number; name: string; code: string; countries: number; }
-export interface SgTaxonomyFamily { name: string; items: SgTaxonomyLeaf[]; }
-export interface SgTaxonomySub { name: string; count: number; families: SgTaxonomyFamily[]; }
-export interface SgTaxonomyCategory { id: string; name: string; count: number; subs: SgTaxonomySub[]; }
+export interface SgTaxonomyLeaf {
+  id: number;
+  name: string;
+  code: string;
+  countries: number;
+}
+export interface SgTaxonomyFamily {
+  name: string;
+  items: SgTaxonomyLeaf[];
+}
+export interface SgTaxonomySub {
+  name: string;
+  count: number;
+  families: SgTaxonomyFamily[];
+}
+export interface SgTaxonomyCategory {
+  id: string;
+  name: string;
+  count: number;
+  subs: SgTaxonomySub[];
+}
 
 export async function getTaxonomy(): Promise<SgTaxonomyCategory[]> {
   if (!(await canRead())) return [];
@@ -664,13 +785,23 @@ export async function getTaxonomy(): Promise<SgTaxonomyCategory[]> {
     const catMap = new Map<string, SgTaxonomyCategory>();
     for (const r of rows) {
       let cat = catMap.get(r.category);
-      if (!cat) { cat = { id: r.category_id, name: r.category, count: 0, subs: [] }; catMap.set(r.category, cat); }
-      let sub = cat.subs.find(s => s.name === r.sub_category);
-      if (!sub) { sub = { name: r.sub_category, count: 0, families: [] }; cat.subs.push(sub); }
-      let fam = sub.families.find(f => f.name === r.family);
-      if (!fam) { fam = { name: r.family, items: [] }; sub.families.push(fam); }
+      if (!cat) {
+        cat = { id: r.category_id, name: r.category, count: 0, subs: [] };
+        catMap.set(r.category, cat);
+      }
+      let sub = cat.subs.find((s) => s.name === r.sub_category);
+      if (!sub) {
+        sub = { name: r.sub_category, count: 0, families: [] };
+        cat.subs.push(sub);
+      }
+      let fam = sub.families.find((f) => f.name === r.family);
+      if (!fam) {
+        fam = { name: r.family, items: [] };
+        sub.families.push(fam);
+      }
       fam.items.push({ id: r.id, name: r.name, code: r.code, countries: r.countries });
-      sub.count++; cat.count++;
+      sub.count++;
+      cat.count++;
     }
     return [...catMap.values()].sort((a, b) => b.count - a.count);
   } catch (err) {
@@ -680,7 +811,9 @@ export async function getTaxonomy(): Promise<SgTaxonomyCategory[]> {
 
 /* ─── mapping workspace (champion / admin) ───────────────────── */
 
-export async function getCountryMappingSummary(country: string): Promise<{ mappings: number; commodities: number }> {
+export async function getCountryMappingSummary(
+  country: string,
+): Promise<{ mappings: number; commodities: number }> {
   if (!(await canRead())) return { mappings: 0, commodities: 0 };
   try {
     const { rows } = await sourceGuidePool.query(
@@ -710,24 +843,37 @@ export async function getMappingEditList(
   try {
     const q = (query || '').trim();
     const params: unknown[] = [];
-    const P = (v: unknown) => { params.push(v); return `$${params.length}`; };
+    const P = (v: unknown) => {
+      params.push(v);
+      return `$${params.length}`;
+    };
     const conds: string[] = [];
 
     if (mode === 'no-preferred') {
       const c1 = P(country);
-      conds.push(`EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active')`);
-      conds.push(`NOT EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active' AND m.tier='Preferred')`);
+      conds.push(
+        `EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active')`,
+      );
+      conds.push(
+        `NOT EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active' AND m.tier='Preferred')`,
+      );
     } else if (mode === 'missing') {
       // any catalogue commodity not mapped in this country
       const c1 = P(country);
-      conds.push(`NOT EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active')`);
+      conds.push(
+        `NOT EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active')`,
+      );
     } else if (!q) {
       const c1 = P(country);
-      conds.push(`EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active')`);
+      conds.push(
+        `EXISTS (SELECT 1 FROM sg_mappings m WHERE m.commodity_id=c.id AND m.country_code=${c1} AND m.status='Active')`,
+      );
     }
     if (q) {
       const lk = P(`%${q}%`);
-      conds.push(`(c.name ILIKE ${lk} OR c.category ILIKE ${lk} OR c.sub_category ILIKE ${lk} OR c.family ILIKE ${lk} OR c.code ILIKE ${lk} OR c.keywords ILIKE ${lk})`);
+      conds.push(
+        `(c.name ILIKE ${lk} OR c.category ILIKE ${lk} OR c.sub_category ILIKE ${lk} OR c.family ILIKE ${lk} OR c.code ILIKE ${lk} OR c.keywords ILIKE ${lk})`,
+      );
     }
 
     const comFilter = `
@@ -740,7 +886,7 @@ export async function getMappingEditList(
 
     const comRes = await sourceGuidePool.query(comFilter, params);
     if (!comRes.rows.length) return [];
-    const ids = comRes.rows.map(r => r.id);
+    const ids = comRes.rows.map((r) => r.id);
 
     const mapRes = await sourceGuidePool.query(
       `SELECT m.id, m.commodity_id, m.supplier_code, m.country_code, m.tier, m.status,
@@ -753,13 +899,20 @@ export async function getMappingEditList(
     const byCom = new Map<number, SgMapping[]>();
     for (const m of mapRes.rows) {
       (byCom.get(m.commodity_id) ?? byCom.set(m.commodity_id, []).get(m.commodity_id)!).push({
-        id: m.id, commodityId: m.commodity_id,
-        supplierName: m.supplier_name ?? '', supplierCode: m.supplier_code,
-        country: m.country_code, tier: m.tier, status: m.status,
+        id: m.id,
+        commodityId: m.commodity_id,
+        supplierName: m.supplier_name ?? '',
+        supplierCode: m.supplier_code,
+        country: m.country_code,
+        tier: m.tier,
+        status: m.status,
       });
     }
 
-    return comRes.rows.map(r => ({ commodity: rowToCommodity(r), mappings: byCom.get(r.id) ?? [] }));
+    return comRes.rows.map((r) => ({
+      commodity: rowToCommodity(r),
+      mappings: byCom.get(r.id) ?? [],
+    }));
   } catch (err) {
     log.error('getMappingEditList.failed', err);
     return [];
@@ -772,12 +925,12 @@ export interface SgCoverageGap {
   country: string;
   name: string;
   tone: string | null;
-  catalogueTotal: number;  // all commodities in the taxonomy
-  covered: number;         // of those, mapped in this country
-  missing: number;         // catalogue commodities not mapped here
-  noPreferred: number;     // mapped here with a backup but no preferred
-  noBackup: number;        // mapped here with a preferred but no backup (no fallback)
-  coverage: number;        // covered / catalogueTotal (0..1)
+  catalogueTotal: number; // all commodities in the taxonomy
+  covered: number; // of those, mapped in this country
+  missing: number; // catalogue commodities not mapped here
+  noPreferred: number; // mapped here with a backup but no preferred
+  noBackup: number; // mapped here with a preferred but no backup (no fallback)
+  coverage: number; // covered / catalogueTotal (0..1)
 }
 
 /** Per-country coverage gaps, measured against the full commodity taxonomy. */
@@ -798,14 +951,17 @@ export async function getCoverageGapsSummary(): Promise<SgCoverageGap[]> {
       GROUP BY c.code, c.name, c.tone, c.sort_order
       ORDER BY c.sort_order, c.name
     `);
-    return rows.map(r => {
+    return rows.map((r) => {
       const catalogueTotal = Number(r.catalogue_total);
       const covered = Number(r.covered);
       const withPref = Number(r.with_pref);
       const withBackup = Number(r.with_backup);
       return {
-        country: r.code, name: r.name, tone: r.tone,
-        catalogueTotal, covered,
+        country: r.code,
+        name: r.name,
+        tone: r.tone,
+        catalogueTotal,
+        covered,
         missing: Math.max(0, catalogueTotal - covered),
         noPreferred: Math.max(0, covered - withPref),
         noBackup: Math.max(0, covered - withBackup),
@@ -848,10 +1004,18 @@ export async function getCountryGuideRows(code: string): Promise<SgGuideRow[]> {
        ORDER BY c.category, c.sub_category NULLS FIRST, c.family NULLS FIRST, c.name, (m.tier='Preferred') DESC, a.name`,
       [code],
     );
-    return rows.map(r => ({
-      country: code, spendType: r.spend_type, category: r.category, subCategory: r.sub_category,
-      family: r.family, commodity: r.commodity, unspsc: r.unspsc, tier: r.tier,
-      supplierCode: r.supplier_code, supplierName: r.supplier_name, supplierEmail: r.supplier_email,
+    return rows.map((r) => ({
+      country: code,
+      spendType: r.spend_type,
+      category: r.category,
+      subCategory: r.sub_category,
+      family: r.family,
+      commodity: r.commodity,
+      unspsc: r.unspsc,
+      tier: r.tier,
+      supplierCode: r.supplier_code,
+      supplierName: r.supplier_name,
+      supplierEmail: r.supplier_email,
     }));
   } catch (err) {
     log.error('getCountryGuideRows.failed', err, { code });
@@ -860,7 +1024,11 @@ export async function getCountryGuideRows(code: string): Promise<SgGuideRow[]> {
 }
 
 /** Approved-vendor picker for the mapping workspace — fuzzy over the full AVL. */
-export async function supplierOptions(country: string, prefix: string, limit = 8): Promise<SgSupplier[]> {
+export async function supplierOptions(
+  country: string,
+  prefix: string,
+  limit = 8,
+): Promise<SgSupplier[]> {
   if (!(await canRead())) return [];
   try {
     const p = (prefix || '').trim();
@@ -868,14 +1036,14 @@ export async function supplierOptions(country: string, prefix: string, limit = 8
     const avl = await getAvlIndex();
     // fuzzy-rank the whole AVL by name (or exact code), keep a few extra to re-rank by in-country
     const top = avl
-      .map(a => ({ a, score: Math.max(matchScore(p, a.name), a.code.includes(p) ? 1.5 : 0) }))
-      .filter(x => x.score >= MATCH_THRESHOLD)
+      .map((a) => ({ a, score: Math.max(matchScore(p, a.name), a.code.includes(p) ? 1.5 : 0) }))
+      .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((x, y) => y.score - x.score || x.a.name.localeCompare(y.a.name))
       .slice(0, limit * 4);
     if (!top.length) return [];
 
     // which of these candidates are already mapped in this country
-    const codes = top.map(x => x.a.code);
+    const codes = top.map((x) => x.a.code);
     const inCountry = new Set<string>();
     const { rows } = await sourceGuidePool.query(
       `SELECT DISTINCT supplier_code FROM sg_mappings WHERE country_code=$1 AND status='Active' AND supplier_code = ANY($2)`,
@@ -884,9 +1052,17 @@ export async function supplierOptions(country: string, prefix: string, limit = 8
     for (const r of rows) inCountry.add(r.supplier_code);
 
     return top
-      .sort((x, y) => (inCountry.has(y.a.code) ? 1 : 0) - (inCountry.has(x.a.code) ? 1 : 0) || y.score - x.score)
+      .sort(
+        (x, y) =>
+          (inCountry.has(y.a.code) ? 1 : 0) - (inCountry.has(x.a.code) ? 1 : 0) ||
+          y.score - x.score,
+      )
       .slice(0, limit)
-      .map(x => ({ code: x.a.code, name: x.a.name, countries: inCountry.has(x.a.code) ? [country] : [] }));
+      .map((x) => ({
+        code: x.a.code,
+        name: x.a.name,
+        countries: inCountry.has(x.a.code) ? [country] : [],
+      }));
   } catch (err) {
     log.error('supplierOptions.failed', err, { country });
     return [];
@@ -902,8 +1078,12 @@ async function canEdit(user: SgUser, country: string): Promise<boolean> {
 }
 
 async function logActivity(
-  country: string | null, commodityId: number | null,
-  action: string, details: string, by: string, byEmail: string | null = null,
+  country: string | null,
+  commodityId: number | null,
+  action: string,
+  details: string,
+  by: string,
+  byEmail: string | null = null,
 ): Promise<void> {
   await sourceGuidePool.query(
     `INSERT INTO sg_activity_log (country_code, commodity_id, action, details, performed_by, performed_by_email)
@@ -914,8 +1094,12 @@ async function logActivity(
 
 /** Best-effort audit log: never let a logging failure break the underlying mutation. */
 async function logSafe(
-  country: string | null, commodityId: number | null,
-  action: string, details: string, by: string | null, byEmail: string | null = null,
+  country: string | null,
+  commodityId: number | null,
+  action: string,
+  details: string,
+  by: string | null,
+  byEmail: string | null = null,
 ): Promise<void> {
   try {
     await logActivity(country, commodityId, action, details, by ?? 'System', byEmail);
@@ -931,11 +1115,14 @@ async function logSafe(
  * the page no longer waits on a round trip it does not use.
  */
 async function logUsage(
-  eventType: 'view' | 'search', target: string, label: string | null, ref: string | null,
+  eventType: 'view' | 'search',
+  target: string,
+  label: string | null,
+  ref: string | null,
   known?: SgUser | null,
 ): Promise<void> {
   try {
-    const u = known ?? await getSgUser();
+    const u = known ?? (await getSgUser());
     if (!u) return;
     await sourceGuidePool.query(
       `INSERT INTO sg_usage_log (user_email, user_name, event_type, target, label, ref)
@@ -957,19 +1144,28 @@ export async function recordSearch(query: string): Promise<void> {
 }
 
 export async function addMapping(input: {
-  commodityId: number; country: string; tier: Tier; supplierCode: string;
+  commodityId: number;
+  country: string;
+  tier: Tier;
+  supplierCode: string;
 }): Promise<{ success: boolean; error?: string }> {
   const user = await getSgUser();
   if (!user) return { success: false, error: 'Unauthorized' };
-  if (!(await canEdit(user, input.country))) return { success: false, error: 'You cannot edit this country.' };
+  if (!(await canEdit(user, input.country)))
+    return { success: false, error: 'You cannot edit this country.' };
 
   const code = (input.supplierCode || '').trim();
-  if (!code) return { success: false, error: 'Please pick a supplier from the Approved Vendor List.' };
+  if (!code)
+    return { success: false, error: 'Please pick a supplier from the Approved Vendor List.' };
 
   try {
     // supplier must exist in the AVL
-    const avl = await sourceGuidePool.query(`SELECT name FROM supplier_avl WHERE supplier_code = $1`, [code]);
-    if (!avl.rows.length) return { success: false, error: 'That supplier code is not in the Approved Vendor List.' };
+    const avl = await sourceGuidePool.query(
+      `SELECT name FROM supplier_avl WHERE supplier_code = $1`,
+      [code],
+    );
+    if (!avl.rows.length)
+      return { success: false, error: 'That supplier code is not in the Approved Vendor List.' };
     const supplierName = avl.rows[0].name;
 
     // upsert the mapping (keyed by vendor code)
@@ -978,7 +1174,10 @@ export async function addMapping(input: {
       [input.commodityId, input.country, code],
     );
     if (existing.rows.length) {
-      await sourceGuidePool.query(`UPDATE sg_mappings SET tier=$2 WHERE id=$1`, [existing.rows[0].id, input.tier]);
+      await sourceGuidePool.query(`UPDATE sg_mappings SET tier=$2 WHERE id=$1`, [
+        existing.rows[0].id,
+        input.tier,
+      ]);
     } else {
       await sourceGuidePool.query(
         `INSERT INTO sg_mappings (commodity_id, supplier_code, country_code, tier, status)
@@ -988,9 +1187,17 @@ export async function addMapping(input: {
     }
 
     invalidateMappingCaches();
-    const com = await sourceGuidePool.query(`SELECT name FROM sg_commodities WHERE id=$1`, [input.commodityId]);
-    await logActivity(input.country, input.commodityId, 'Add',
-      `${input.tier} · ${supplierName} → ${com.rows[0]?.name ?? ''}`, user.name, user.email);
+    const com = await sourceGuidePool.query(`SELECT name FROM sg_commodities WHERE id=$1`, [
+      input.commodityId,
+    ]);
+    await logActivity(
+      input.country,
+      input.commodityId,
+      'Add',
+      `${input.tier} · ${supplierName} → ${com.rows[0]?.name ?? ''}`,
+      user.name,
+      user.email,
+    );
     return { success: true };
   } catch (err) {
     log.error('addMapping.failed', err);
@@ -1012,12 +1219,19 @@ export async function removeMapping(mapId: number): Promise<{ success: boolean; 
     );
     if (!m.rows.length) return { success: false, error: 'Mapping not found.' };
     const row = m.rows[0];
-    if (!(await canEdit(user, row.country_code))) return { success: false, error: 'You cannot edit this country.' };
+    if (!(await canEdit(user, row.country_code)))
+      return { success: false, error: 'You cannot edit this country.' };
 
     await sourceGuidePool.query(`UPDATE sg_mappings SET status='Inactive' WHERE id=$1`, [mapId]);
     invalidateMappingCaches();
-    await logActivity(row.country_code, row.commodity_id, 'Deactivate',
-      `${row.tier} · ${row.supplier_name} ✕ ${row.com_name}`, user.name, user.email);
+    await logActivity(
+      row.country_code,
+      row.commodity_id,
+      'Deactivate',
+      `${row.tier} · ${row.supplier_name} ✕ ${row.com_name}`,
+      user.name,
+      user.email,
+    );
     return { success: true };
   } catch (err) {
     log.error('removeMapping.failed', err, { mapId });
@@ -1025,7 +1239,10 @@ export async function removeMapping(mapId: number): Promise<{ success: boolean; 
   }
 }
 
-export async function changeTier(mapId: number, tier: Tier): Promise<{ success: boolean; error?: string }> {
+export async function changeTier(
+  mapId: number,
+  tier: Tier,
+): Promise<{ success: boolean; error?: string }> {
   const user = await getSgUser();
   if (!user) return { success: false, error: 'Unauthorized' };
   try {
@@ -1039,12 +1256,19 @@ export async function changeTier(mapId: number, tier: Tier): Promise<{ success: 
     );
     if (!m.rows.length) return { success: false, error: 'Mapping not found.' };
     const row = m.rows[0];
-    if (!(await canEdit(user, row.country_code))) return { success: false, error: 'You cannot edit this country.' };
+    if (!(await canEdit(user, row.country_code)))
+      return { success: false, error: 'You cannot edit this country.' };
 
     await sourceGuidePool.query(`UPDATE sg_mappings SET tier=$2 WHERE id=$1`, [mapId, tier]);
     invalidateMappingCaches();
-    await logActivity(row.country_code, row.commodity_id, 'Edit tier',
-      `${row.supplier_name}: ${row.tier} → ${tier} (${row.com_name})`, user.name, user.email);
+    await logActivity(
+      row.country_code,
+      row.commodity_id,
+      'Edit tier',
+      `${row.supplier_name}: ${row.tier} → ${tier} (${row.com_name})`,
+      user.name,
+      user.email,
+    );
     return { success: true };
   } catch (err) {
     log.error('changeTier.failed', err, { mapId, tier });
@@ -1052,7 +1276,10 @@ export async function changeTier(mapId: number, tier: Tier): Promise<{ success: 
   }
 }
 
-export async function getActivityLog(country: string | null, limit = 20): Promise<SgActivityEntry[]> {
+export async function getActivityLog(
+  country: string | null,
+  limit = 20,
+): Promise<SgActivityEntry[]> {
   if (!(await canRead())) return [];
   try {
     const sql = country
@@ -1060,9 +1287,13 @@ export async function getActivityLog(country: string | null, limit = 20): Promis
       : `SELECT * FROM sg_activity_log ORDER BY performed_at DESC LIMIT $1`;
     const params = country ? [country, limit] : [limit];
     const { rows } = await sourceGuidePool.query(sql, params);
-    return rows.map(r => ({
-      id: r.id, country: r.country_code, commodityId: r.commodity_id,
-      action: r.action, details: r.details, performedBy: r.performed_by,
+    return rows.map((r) => ({
+      id: r.id,
+      country: r.country_code,
+      commodityId: r.commodity_id,
+      action: r.action,
+      details: r.details,
+      performedBy: r.performed_by,
       performedAt: isoOf(r.performed_at),
     }));
   } catch (err) {
@@ -1097,10 +1328,17 @@ export async function getGuides(): Promise<SgGuide[]> {
       ) mp ON mp.country_code = c.code
       ORDER BY c.sort_order, c.name
     `);
-    return rows.map(r => ({
-      country: r.code, name: r.name, champion: r.champion, tone: r.tone,
-      version: r.version, status: r.status, updatedAt: isoOf(r.updated_at), updatedBy: r.updated_by,
-      mappings: Number(r.mappings), commodities: Number(r.commodities),
+    return rows.map((r) => ({
+      country: r.code,
+      name: r.name,
+      champion: r.champion,
+      tone: r.tone,
+      version: r.version,
+      status: r.status,
+      updatedAt: isoOf(r.updated_at),
+      updatedBy: r.updated_by,
+      mappings: Number(r.mappings),
+      commodities: Number(r.commodities),
     }));
   } catch (err) {
     log.error('getGuides.failed', err);
@@ -1135,7 +1373,9 @@ export async function getCountryDashboard(code: string): Promise<SgCountryDashbo
               COALESCE((SELECT ARRAY_AGG(name ORDER BY name) FROM sg_champions WHERE country_code = c.code), '{}') AS champions
        FROM sg_countries c
        LEFT JOIN sg_guide_meta g ON g.country_code = c.code
-       WHERE c.code = $1`, [code]);
+       WHERE c.code = $1`,
+      [code],
+    );
     if (!cRes.rows.length) return null;
     const c = cRes.rows[0];
 
@@ -1145,26 +1385,50 @@ export async function getCountryDashboard(code: string): Promise<SgCountryDashbo
                 COUNT(DISTINCT commodity_id)::int AS commodities,
                 COUNT(*) FILTER (WHERE tier='Preferred')::int AS preferred,
                 COUNT(DISTINCT supplier_code)::int AS suppliers
-         FROM sg_mappings WHERE country_code = $1 AND status='Active'`, [code]),
+         FROM sg_mappings WHERE country_code = $1 AND status='Active'`,
+        [code],
+      ),
       sourceGuidePool.query(
         `SELECT c.category_id, c.category, COUNT(DISTINCT m.commodity_id)::int AS commodities
          FROM sg_mappings m JOIN sg_commodities c ON c.id = m.commodity_id
          WHERE m.country_code = $1 AND m.status='Active'
-         GROUP BY c.category_id, c.category ORDER BY commodities DESC`, [code]),
+         GROUP BY c.category_id, c.category ORDER BY commodities DESC`,
+        [code],
+      ),
       sourceGuidePool.query(
         `SELECT a.supplier_code, a.name, COUNT(m.id)::int AS mappings
          FROM sg_mappings m JOIN supplier_avl a ON a.supplier_code = m.supplier_code
          WHERE m.country_code = $1 AND m.status='Active'
-         GROUP BY a.supplier_code, a.name ORDER BY mappings DESC LIMIT 8`, [code]),
+         GROUP BY a.supplier_code, a.name ORDER BY mappings DESC LIMIT 8`,
+        [code],
+      ),
     ]);
     const s = statsRes.rows[0];
     void logUsage('view', 'country', c.name, c.code, viewer);
     return {
-      code: c.code, name: c.name, tone: c.tone, champions: c.champions || [],
-      version: c.version, status: c.status, updatedAt: isoOf(c.updated_at),
-      stats: { mappings: Number(s.mappings), commodities: Number(s.commodities), preferred: Number(s.preferred), suppliers: Number(s.suppliers) },
-      categories: catRes.rows.map(r => ({ id: r.category_id, name: r.category, commodities: Number(r.commodities) })),
-      topSuppliers: supRes.rows.map(r => ({ code: r.supplier_code, name: r.name, mappings: Number(r.mappings) })),
+      code: c.code,
+      name: c.name,
+      tone: c.tone,
+      champions: c.champions || [],
+      version: c.version,
+      status: c.status,
+      updatedAt: isoOf(c.updated_at),
+      stats: {
+        mappings: Number(s.mappings),
+        commodities: Number(s.commodities),
+        preferred: Number(s.preferred),
+        suppliers: Number(s.suppliers),
+      },
+      categories: catRes.rows.map((r) => ({
+        id: r.category_id,
+        name: r.category,
+        commodities: Number(r.commodities),
+      })),
+      topSuppliers: supRes.rows.map((r) => ({
+        code: r.supplier_code,
+        name: r.name,
+        mappings: Number(r.mappings),
+      })),
     };
   } catch (err) {
     readFailed('getCountryDashboard', err, { code });
@@ -1173,14 +1437,23 @@ export async function getCountryDashboard(code: string): Promise<SgCountryDashbo
 
 export interface SgAnalytics {
   stats: SgStats;
-  perCountry: { country: string; name: string; tone: string | null; mappings: number; commodities: number; preferred: number }[];
+  perCountry: {
+    country: string;
+    name: string;
+    tone: string | null;
+    mappings: number;
+    commodities: number;
+    preferred: number;
+  }[];
   topSuppliers: { code: string; name: string; mappings: number; countries: number }[];
   spendTypeBreakdown: { spendType: string; count: number }[];
 }
 
 const EMPTY_ANALYTICS: SgAnalytics = {
   stats: { commodities: 0, suppliers: 0, mappings: 0, countries: 0, categories: 0 },
-  perCountry: [], topSuppliers: [], spendTypeBreakdown: [],
+  perCountry: [],
+  topSuppliers: [],
+  spendTypeBreakdown: [],
 };
 
 export async function getSourceGuideAnalytics(): Promise<SgAnalytics> {
@@ -1216,14 +1489,24 @@ export async function getSourceGuideAnalytics(): Promise<SgAnalytics> {
     ]);
     return {
       stats,
-      perCountry: perCountryRes.rows.map(r => ({
-        country: r.code, name: r.name, tone: r.tone,
-        mappings: Number(r.mappings), commodities: Number(r.commodities), preferred: Number(r.preferred),
+      perCountry: perCountryRes.rows.map((r) => ({
+        country: r.code,
+        name: r.name,
+        tone: r.tone,
+        mappings: Number(r.mappings),
+        commodities: Number(r.commodities),
+        preferred: Number(r.preferred),
       })),
-      topSuppliers: topSuppliersRes.rows.map(r => ({
-        code: r.supplier_code, name: r.name, mappings: Number(r.mappings), countries: Number(r.countries),
+      topSuppliers: topSuppliersRes.rows.map((r) => ({
+        code: r.supplier_code,
+        name: r.name,
+        mappings: Number(r.mappings),
+        countries: Number(r.countries),
       })),
-      spendTypeBreakdown: spendRes.rows.map(r => ({ spendType: r.spend_type, count: Number(r.count) })),
+      spendTypeBreakdown: spendRes.rows.map((r) => ({
+        spendType: r.spend_type,
+        count: Number(r.count),
+      })),
     };
   } catch (err) {
     log.error('getSourceGuideAnalytics.failed', err);
@@ -1247,23 +1530,31 @@ export interface SgInsights {
 }
 
 const EMPTY_INSIGHTS: SgInsights = {
-  tier: { preferred: 0, backup: 0 }, avl: { total: 0, mapped: 0 },
+  tier: { preferred: 0, backup: 0 },
+  avl: { total: 0, mapped: 0 },
   coverageOverall: { catalogue: 0, coveredAnywhere: 0 },
-  multiCountrySuppliers: 0, singleSourcePairs: 0, noPreferredPairs: 0,
+  multiCountrySuppliers: 0,
+  singleSourcePairs: 0,
+  noPreferredPairs: 0,
   champions: { countriesTotal: 0, withChampion: 0, withEmail: 0 },
-  categoryCoverage: [], topMultiCountry: [], activity30d: 0,
+  categoryCoverage: [],
+  topMultiCountry: [],
+  activity30d: 0,
 };
 
 export async function getSourceGuideInsights(): Promise<SgInsights> {
   if (!(await canReadAdmin())) return EMPTY_INSIGHTS;
   try {
-    const [tierRes, avlRes, covRes, pairRes, champRes, catRes, multiRes, actRes, multiCountRes] = await Promise.all([
-      sourceGuidePool.query(`SELECT tier, COUNT(*)::int AS n FROM sg_mappings WHERE status='Active' GROUP BY tier`),
-      sourceGuidePool.query(`SELECT (SELECT COUNT(*)::int FROM supplier_avl) AS total,
+    const [tierRes, avlRes, covRes, pairRes, champRes, catRes, multiRes, actRes, multiCountRes] =
+      await Promise.all([
+        sourceGuidePool.query(
+          `SELECT tier, COUNT(*)::int AS n FROM sg_mappings WHERE status='Active' GROUP BY tier`,
+        ),
+        sourceGuidePool.query(`SELECT (SELECT COUNT(*)::int FROM supplier_avl) AS total,
         (SELECT COUNT(DISTINCT m.supplier_code)::int FROM sg_mappings m JOIN supplier_avl a ON a.supplier_code = m.supplier_code WHERE m.status='Active') AS mapped`),
-      sourceGuidePool.query(`SELECT (SELECT COUNT(*)::int FROM sg_commodities) AS catalogue,
+        sourceGuidePool.query(`SELECT (SELECT COUNT(*)::int FROM sg_commodities) AS catalogue,
         (SELECT COUNT(DISTINCT commodity_id)::int FROM sg_mappings WHERE status='Active') AS covered`),
-      sourceGuidePool.query(`
+        sourceGuidePool.query(`
         SELECT
           COUNT(*) FILTER (WHERE n = 1)::int AS single_source,
           COUNT(*) FILTER (WHERE prefs = 0)::int AS no_preferred
@@ -1273,17 +1564,17 @@ export async function getSourceGuideInsights(): Promise<SgInsights> {
           FROM sg_mappings WHERE status='Active'
           GROUP BY country_code, commodity_id
         ) t`),
-      sourceGuidePool.query(`SELECT
+        sourceGuidePool.query(`SELECT
         (SELECT COUNT(*)::int FROM sg_countries) AS countries_total,
         (SELECT COUNT(DISTINCT country_code)::int FROM sg_champions) AS with_champion,
         (SELECT COUNT(DISTINCT country_code)::int FROM sg_champions WHERE email IS NOT NULL AND email <> '') AS with_email`),
-      sourceGuidePool.query(`
+        sourceGuidePool.query(`
         SELECT c.category, COUNT(*)::int AS catalogue,
                COUNT(*) FILTER (WHERE mp.commodity_id IS NOT NULL)::int AS covered
         FROM sg_commodities c
         LEFT JOIN (SELECT DISTINCT commodity_id FROM sg_mappings WHERE status='Active') mp ON mp.commodity_id = c.id
         GROUP BY c.category ORDER BY catalogue DESC`),
-      sourceGuidePool.query(`
+        sourceGuidePool.query(`
         SELECT a.supplier_code, a.name,
                COUNT(DISTINCT m.country_code)::int AS countries, COUNT(m.id)::int AS mappings
         FROM supplier_avl a
@@ -1291,20 +1582,25 @@ export async function getSourceGuideInsights(): Promise<SgInsights> {
         GROUP BY a.supplier_code, a.name
         HAVING COUNT(DISTINCT m.country_code) > 1
         ORDER BY countries DESC, mappings DESC LIMIT 10`),
-      sourceGuidePool.query(`SELECT COUNT(*)::int AS n FROM sg_activity_log WHERE performed_at > NOW() - INTERVAL '30 days'`),
-      sourceGuidePool.query(`
+        sourceGuidePool.query(
+          `SELECT COUNT(*)::int AS n FROM sg_activity_log WHERE performed_at > NOW() - INTERVAL '30 days'`,
+        ),
+        sourceGuidePool.query(`
         SELECT COUNT(*)::int AS n FROM (
           SELECT supplier_code FROM sg_mappings WHERE status='Active'
           GROUP BY supplier_code HAVING COUNT(DISTINCT country_code) > 1
         ) t`),
-    ]);
+      ]);
 
-    const tierMap = new Map(tierRes.rows.map(r => [r.tier, Number(r.n)]));
+    const tierMap = new Map(tierRes.rows.map((r) => [r.tier, Number(r.n)]));
 
     return {
       tier: { preferred: tierMap.get('Preferred') ?? 0, backup: tierMap.get('Backup') ?? 0 },
       avl: { total: Number(avlRes.rows[0].total), mapped: Number(avlRes.rows[0].mapped) },
-      coverageOverall: { catalogue: Number(covRes.rows[0].catalogue), coveredAnywhere: Number(covRes.rows[0].covered) },
+      coverageOverall: {
+        catalogue: Number(covRes.rows[0].catalogue),
+        coveredAnywhere: Number(covRes.rows[0].covered),
+      },
       multiCountrySuppliers: Number(multiCountRes.rows[0]?.n ?? 0),
       singleSourcePairs: Number(pairRes.rows[0]?.single_source ?? 0),
       noPreferredPairs: Number(pairRes.rows[0]?.no_preferred ?? 0),
@@ -1313,8 +1609,17 @@ export async function getSourceGuideInsights(): Promise<SgInsights> {
         withChampion: Number(champRes.rows[0].with_champion),
         withEmail: Number(champRes.rows[0].with_email),
       },
-      categoryCoverage: catRes.rows.map(r => ({ category: r.category, catalogue: Number(r.catalogue), covered: Number(r.covered) })),
-      topMultiCountry: multiRes.rows.map(r => ({ code: r.supplier_code, name: r.name, countries: Number(r.countries), mappings: Number(r.mappings) })),
+      categoryCoverage: catRes.rows.map((r) => ({
+        category: r.category,
+        catalogue: Number(r.catalogue),
+        covered: Number(r.covered),
+      })),
+      topMultiCountry: multiRes.rows.map((r) => ({
+        code: r.supplier_code,
+        name: r.name,
+        countries: Number(r.countries),
+        mappings: Number(r.mappings),
+      })),
       activity30d: Number(actRes.rows[0].n),
     };
   } catch (err) {
@@ -1350,11 +1655,17 @@ export async function getSourceGuideAuditLog(limit = 500): Promise<SgAuditEntry[
        ORDER BY l.performed_at DESC LIMIT $1`,
       [limit],
     );
-    return rows.map(r => ({
-      id: r.id, action: r.action, details: r.details,
-      country: r.country_code, countryName: r.country_name, tone: r.tone,
-      commodityId: r.commodity_id, commodityName: r.commodity_name,
-      performedBy: r.performed_by, performedAt: isoOf(r.performed_at),
+    return rows.map((r) => ({
+      id: r.id,
+      action: r.action,
+      details: r.details,
+      country: r.country_code,
+      countryName: r.country_name,
+      tone: r.tone,
+      commodityId: r.commodity_id,
+      commodityName: r.commodity_name,
+      performedBy: r.performed_by,
+      performedAt: isoOf(r.performed_at),
     }));
   } catch (err) {
     log.error('getSourceGuideAuditLog.failed', err);
@@ -1368,7 +1679,7 @@ export interface SgUserActivity {
   user: string;
   views: number;
   searches: number;
-  edits: number;       // recorded change-log entries
+  edits: number; // recorded change-log entries
   mappings: number;
   champions: number;
   access: number;
@@ -1409,24 +1720,46 @@ export async function getUserActivity(): Promise<SgUserActivity[]> {
     const map = new Map<string, SgUserActivity>();
     const ensure = (key: string, name: string): SgUserActivity => {
       let r = map.get(key);
-      if (!r) { r = { user: name || key, views: 0, searches: 0, edits: 0, mappings: 0, champions: 0, access: 0, countries: 0, lastActive: '' }; map.set(key, r); }
+      if (!r) {
+        r = {
+          user: name || key,
+          views: 0,
+          searches: 0,
+          edits: 0,
+          mappings: 0,
+          champions: 0,
+          access: 0,
+          countries: 0,
+          lastActive: '',
+        };
+        map.set(key, r);
+      }
       // prefer a human name over an email/key for display
       else if (name && (!r.user || r.user.includes('@')) && !name.includes('@')) r.user = name;
       return r;
     };
     for (const a of actRes.rows) {
       const r = ensure(a.key, a.name);
-      r.edits = Number(a.edits); r.mappings = Number(a.mappings);
-      r.champions = Number(a.champions); r.access = Number(a.access); r.countries = Number(a.countries);
-      const la = isoOf(a.last_active); if (la > r.lastActive) r.lastActive = la;
+      r.edits = Number(a.edits);
+      r.mappings = Number(a.mappings);
+      r.champions = Number(a.champions);
+      r.access = Number(a.access);
+      r.countries = Number(a.countries);
+      const la = isoOf(a.last_active);
+      if (la > r.lastActive) r.lastActive = la;
     }
     for (const u of useRes.rows) {
       const r = ensure(u.key, u.name);
-      r.views = Number(u.views); r.searches = Number(u.searches);
-      const la = isoOf(u.last_active); if (la > r.lastActive) r.lastActive = la;
+      r.views = Number(u.views);
+      r.searches = Number(u.searches);
+      const la = isoOf(u.last_active);
+      if (la > r.lastActive) r.lastActive = la;
     }
-    return [...map.values()].sort((a, b) =>
-      (b.views + b.searches + b.edits) - (a.views + a.searches + a.edits) || b.lastActive.localeCompare(a.lastActive));
+    return [...map.values()].sort(
+      (a, b) =>
+        b.views + b.searches + b.edits - (a.views + a.searches + a.edits) ||
+        b.lastActive.localeCompare(a.lastActive),
+    );
   } catch (err) {
     log.error('getUserActivity.failed', err);
     return [];
@@ -1435,8 +1768,18 @@ export async function getUserActivity(): Promise<SgUserActivity[]> {
 
 /* ─── champions (admin-managed, per country) ─────────────────── */
 
-export interface SgChampion { id: number; countryCode: string; name: string; email: string | null; }
-export interface SgCountryChampions { country: string; name: string; tone: string | null; champions: SgChampion[]; }
+export interface SgChampion {
+  id: number;
+  countryCode: string;
+  name: string;
+  email: string | null;
+}
+export interface SgCountryChampions {
+  country: string;
+  name: string;
+  tone: string | null;
+  champions: SgChampion[];
+}
 
 export async function getChampionsByCountry(): Promise<SgCountryChampions[]> {
   if (!(await canReadAdmin())) return [];
@@ -1447,17 +1790,27 @@ export async function getChampionsByCountry(): Promise<SgCountryChampions[]> {
     ]);
     const byCountry = new Map<string, SgChampion[]>();
     for (const r of champs.rows) {
-      (byCountry.get(r.country_code) ?? byCountry.set(r.country_code, []).get(r.country_code)!)
-        .push({ id: r.id, countryCode: r.country_code, name: r.name, email: r.email });
+      (
+        byCountry.get(r.country_code) ?? byCountry.set(r.country_code, []).get(r.country_code)!
+      ).push({ id: r.id, countryCode: r.country_code, name: r.name, email: r.email });
     }
-    return countries.rows.map(c => ({ country: c.code, name: c.name, tone: c.tone, champions: byCountry.get(c.code) ?? [] }));
+    return countries.rows.map((c) => ({
+      country: c.code,
+      name: c.name,
+      tone: c.tone,
+      champions: byCountry.get(c.code) ?? [],
+    }));
   } catch (err) {
     log.error('getChampionsByCountry.failed', err);
     return [];
   }
 }
 
-export async function addChampion(countryCode: string, name: string, email: string | null): Promise<{ success: boolean; error?: string }> {
+export async function addChampion(
+  countryCode: string,
+  name: string,
+  email: string | null,
+): Promise<{ success: boolean; error?: string }> {
   const user = await getSgUser();
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   const n = (name || '').trim();
@@ -1466,12 +1819,24 @@ export async function addChampion(countryCode: string, name: string, email: stri
   try {
     if (e) {
       const dup = await sourceGuidePool.query(
-        `SELECT 1 FROM sg_champions WHERE country_code=$1 AND LOWER(email)=LOWER($2)`, [countryCode, e]);
-      if (dup.rows.length) return { success: false, error: 'That email is already a champion for this country.' };
+        `SELECT 1 FROM sg_champions WHERE country_code=$1 AND LOWER(email)=LOWER($2)`,
+        [countryCode, e],
+      );
+      if (dup.rows.length)
+        return { success: false, error: 'That email is already a champion for this country.' };
     }
     await sourceGuidePool.query(
-      `INSERT INTO sg_champions (country_code, name, email) VALUES ($1, $2, $3)`, [countryCode, n, e]);
-    await logSafe(countryCode, null, 'Champion added', `${n}${e ? ` (${e})` : ''}`, user.name, user.email);
+      `INSERT INTO sg_champions (country_code, name, email) VALUES ($1, $2, $3)`,
+      [countryCode, n, e],
+    );
+    await logSafe(
+      countryCode,
+      null,
+      'Champion added',
+      `${n}${e ? ` (${e})` : ''}`,
+      user.name,
+      user.email,
+    );
     return { success: true };
   } catch (err) {
     log.error('addChampion.failed', err, { countryCode });
@@ -1479,25 +1844,44 @@ export async function addChampion(countryCode: string, name: string, email: stri
   }
 }
 
-export async function updateChampion(id: number, name: string, email: string | null): Promise<{ success: boolean; error?: string }> {
+export async function updateChampion(
+  id: number,
+  name: string,
+  email: string | null,
+): Promise<{ success: boolean; error?: string }> {
   const user = await getSgUser();
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   const n = (name || '').trim();
   if (!n) return { success: false, error: 'Name is required.' };
   const e = normalizeEmail(email) || null;
   try {
-    const row = await sourceGuidePool.query(`SELECT country_code, name, email FROM sg_champions WHERE id=$1`, [id]);
+    const row = await sourceGuidePool.query(
+      `SELECT country_code, name, email FROM sg_champions WHERE id=$1`,
+      [id],
+    );
     if (!row.rows.length) return { success: false, error: 'Champion not found.' };
     const prev = row.rows[0];
     if (e) {
       const dup = await sourceGuidePool.query(
         `SELECT 1 FROM sg_champions WHERE country_code=$1 AND LOWER(email)=LOWER($2) AND id<>$3`,
-        [prev.country_code, e, id]);
-      if (dup.rows.length) return { success: false, error: 'That email is already a champion for this country.' };
+        [prev.country_code, e, id],
+      );
+      if (dup.rows.length)
+        return { success: false, error: 'That email is already a champion for this country.' };
     }
-    await sourceGuidePool.query(`UPDATE sg_champions SET name=$2, email=$3 WHERE id=$1`, [id, n, e]);
-    await logSafe(prev.country_code, null, 'Champion updated',
-      `${prev.name}${prev.email ? ` (${prev.email})` : ''} to ${n}${e ? ` (${e})` : ''}`, user.name, user.email);
+    await sourceGuidePool.query(`UPDATE sg_champions SET name=$2, email=$3 WHERE id=$1`, [
+      id,
+      n,
+      e,
+    ]);
+    await logSafe(
+      prev.country_code,
+      null,
+      'Champion updated',
+      `${prev.name}${prev.email ? ` (${prev.email})` : ''} to ${n}${e ? ` (${e})` : ''}`,
+      user.name,
+      user.email,
+    );
     return { success: true };
   } catch (err) {
     log.error('updateChampion.failed', err, { id });
@@ -1509,11 +1893,21 @@ export async function removeChampion(id: number): Promise<{ success: boolean; er
   const user = await getSgUser();
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   try {
-    const row = await sourceGuidePool.query(`SELECT country_code, name, email FROM sg_champions WHERE id=$1`, [id]);
+    const row = await sourceGuidePool.query(
+      `SELECT country_code, name, email FROM sg_champions WHERE id=$1`,
+      [id],
+    );
     await sourceGuidePool.query(`DELETE FROM sg_champions WHERE id=$1`, [id]);
     const prev = row.rows[0];
-    if (prev) await logSafe(prev.country_code, null, 'Champion removed',
-      `${prev.name}${prev.email ? ` (${prev.email})` : ''}`, user.name, user.email);
+    if (prev)
+      await logSafe(
+        prev.country_code,
+        null,
+        'Champion removed',
+        `${prev.name}${prev.email ? ` (${prev.email})` : ''}`,
+        user.name,
+        user.email,
+      );
     return { success: true };
   } catch (err) {
     log.error('removeChampion.failed', err, { id });
@@ -1535,7 +1929,9 @@ export interface SgAccessRequest {
   reviewed_at: string | null;
 }
 
-export async function getSourceGuideAccessRequest(userEmail: string): Promise<SgAccessRequest | null> {
+export async function getSourceGuideAccessRequest(
+  userEmail: string,
+): Promise<SgAccessRequest | null> {
   // Own record only, unless an admin is asking — this row carries PII.
   const caller = await getSgUser();
   if (!caller) return null;
@@ -1549,9 +1945,13 @@ export async function getSourceGuideAccessRequest(userEmail: string): Promise<Sg
     if (!rows.length) return null;
     const r = rows[0];
     return {
-      user_email: r.user_email, display_name: r.display_name, job_title: r.job_title,
-      status: r.status, requested_countries: r.requested_countries || [],
-      approved_countries: r.approved_countries || [], requested_at: isoOf(r.requested_at),
+      user_email: r.user_email,
+      display_name: r.display_name,
+      job_title: r.job_title,
+      status: r.status,
+      requested_countries: r.requested_countries || [],
+      approved_countries: r.approved_countries || [],
+      requested_at: isoOf(r.requested_at),
       reviewed_at: r.reviewed_at ? isoOf(r.reviewed_at) : null,
     };
   } catch (err) {
@@ -1562,14 +1962,21 @@ export async function getSourceGuideAccessRequest(userEmail: string): Promise<Sg
 
 /** Users request tool access (no country picking — approval grants all-country view). */
 export async function submitSourceGuideAccessRequest(input: {
-  userEmail: string; displayName: string; jobTitle?: string | null; department?: string | null;
+  userEmail: string;
+  displayName: string;
+  jobTitle?: string | null;
+  department?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
   if (!input.userEmail) return { success: false, error: 'Not signed in.' };
   const requesterEmail = normalizeEmail(input.userEmail);
   try {
     // Never demote an already-approved user (e.g. a mis-click before the session finished loading).
-    if (isToolAdminEmail(input.userEmail, process.env.SOURCEGUIDE_ADMIN_EMAILS)) return { success: true };
-    const existing = await sourceGuidePool.query<{ status: StoredAccessStatus }>(`SELECT status FROM access_requests WHERE LOWER(user_email) = $1`, [requesterEmail]);
+    if (isToolAdminEmail(input.userEmail, process.env.SOURCEGUIDE_ADMIN_EMAILS))
+      return { success: true };
+    const existing = await sourceGuidePool.query<{ status: StoredAccessStatus }>(
+      `SELECT status FROM access_requests WHERE LOWER(user_email) = $1`,
+      [requesterEmail],
+    );
     if (existing.rows[0]?.status === 'Approved') return { success: true };
 
     await sourceGuidePool.query(
@@ -1596,10 +2003,14 @@ export async function getSourceGuideAccessRequests(): Promise<SgAccessRequest[]>
       FROM access_requests
       ORDER BY CASE status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END, requested_at DESC
     `);
-    return rows.map(r => ({
-      user_email: r.user_email, display_name: r.display_name, job_title: r.job_title,
-      status: r.status, requested_countries: r.requested_countries || [],
-      approved_countries: r.approved_countries || [], requested_at: isoOf(r.requested_at),
+    return rows.map((r) => ({
+      user_email: r.user_email,
+      display_name: r.display_name,
+      job_title: r.job_title,
+      status: r.status,
+      requested_countries: r.requested_countries || [],
+      approved_countries: r.approved_countries || [],
+      requested_at: isoOf(r.requested_at),
       reviewed_at: r.reviewed_at ? isoOf(r.reviewed_at) : null,
     }));
   } catch (err) {
@@ -1611,7 +2022,9 @@ export async function getSourceGuideAccessRequests(): Promise<SgAccessRequest[]>
 export async function getSourceGuidePendingCount(): Promise<number> {
   if (!(await canReadAdmin())) return 0;
   try {
-    const { rows } = await sourceGuidePool.query(`SELECT COUNT(*) AS cnt FROM access_requests WHERE status='Pending'`);
+    const { rows } = await sourceGuidePool.query(
+      `SELECT COUNT(*) AS cnt FROM access_requests WHERE status='Pending'`,
+    );
     return Number(rows[0]?.cnt ?? 0);
   } catch (err) {
     log.error('getSourceGuidePendingCount.failed', err);
@@ -1620,7 +2033,9 @@ export async function getSourceGuidePendingCount(): Promise<number> {
 }
 
 /** Approve a user for all-country (read-only) access. */
-export async function approveSourceGuideAccessRequest(userEmail: string): Promise<{ success: boolean; error?: string }> {
+export async function approveSourceGuideAccessRequest(
+  userEmail: string,
+): Promise<{ success: boolean; error?: string }> {
   const user = await getSgUser();
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   try {
@@ -1636,7 +2051,11 @@ export async function approveSourceGuideAccessRequest(userEmail: string): Promis
   }
 }
 
-async function denyAccess(userEmail: string, action: 'Access denied' | 'Access revoked', status: Extract<AccessStatus, 'Rejected' | 'Revoked'>): Promise<{ success: boolean; error?: string }> {
+async function denyAccess(
+  userEmail: string,
+  action: 'Access denied' | 'Access revoked',
+  status: Extract<AccessStatus, 'Rejected' | 'Revoked'>,
+): Promise<{ success: boolean; error?: string }> {
   const user = await getSgUser();
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   try {
@@ -1652,15 +2071,22 @@ async function denyAccess(userEmail: string, action: 'Access denied' | 'Access r
   }
 }
 
-export async function rejectSourceGuideAccessRequest(userEmail: string): Promise<{ success: boolean; error?: string }> {
+export async function rejectSourceGuideAccessRequest(
+  userEmail: string,
+): Promise<{ success: boolean; error?: string }> {
   return denyAccess(userEmail, 'Access denied', 'Rejected');
 }
 
-export async function revokeSourceGuideAccess(userEmail: string): Promise<{ success: boolean; error?: string }> {
+export async function revokeSourceGuideAccess(
+  userEmail: string,
+): Promise<{ success: boolean; error?: string }> {
   return denyAccess(userEmail, 'Access revoked', 'Revoked');
 }
 
-export async function editSourceGuideAccess(userEmail: string, countries: string[]): Promise<{ success: boolean; error?: string }> {
+export async function editSourceGuideAccess(
+  userEmail: string,
+  countries: string[],
+): Promise<{ success: boolean; error?: string }> {
   const user = await getSgUser();
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   if (!countries.length) return { success: false, error: 'Please select at least one country.' };
@@ -1669,7 +2095,14 @@ export async function editSourceGuideAccess(userEmail: string, countries: string
       `UPDATE access_requests SET approved_countries=$2, reviewed_at=NOW() WHERE LOWER(user_email)=$1`,
       [normalizeEmail(userEmail), countries],
     );
-    await logSafe(null, null, 'Access updated', `${userEmail}: ${countries.join(', ')}`, user.name, user.email);
+    await logSafe(
+      null,
+      null,
+      'Access updated',
+      `${userEmail}: ${countries.join(', ')}`,
+      user.name,
+      user.email,
+    );
     return { success: true };
   } catch (err) {
     log.error('editSourceGuideAccess.failed', err);
@@ -1677,11 +2110,15 @@ export async function editSourceGuideAccess(userEmail: string, countries: string
   }
 }
 
-export async function deleteSourceGuideAccessRequest(userEmail: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteSourceGuideAccessRequest(
+  userEmail: string,
+): Promise<{ success: boolean; error?: string }> {
   const user = await getSgUser();
   if (!user?.isAdmin) return { success: false, error: 'Admins only.' };
   try {
-    await sourceGuidePool.query(`DELETE FROM access_requests WHERE LOWER(user_email)=$1`, [normalizeEmail(userEmail)]);
+    await sourceGuidePool.query(`DELETE FROM access_requests WHERE LOWER(user_email)=$1`, [
+      normalizeEmail(userEmail),
+    ]);
     await logSafe(null, null, 'Access request deleted', userEmail, user.name, user.email);
     return { success: true };
   } catch (err) {

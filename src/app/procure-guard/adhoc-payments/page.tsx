@@ -15,5 +15,10 @@ export default async function AdhocPaymentsStatusPage() {
     redirect('/procure-guard/analytics');
   }
   const data = await getAdhocPaymentsData();
-  return <><RefreshOnView renderId={crypto.randomUUID()} /><AdhocPaymentsStatusClient data={data} /></>;
+  return (
+    <>
+      <RefreshOnView renderId={crypto.randomUUID()} />
+      <AdhocPaymentsStatusClient data={data} />
+    </>
+  );
 }

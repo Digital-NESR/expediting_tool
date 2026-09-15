@@ -74,7 +74,9 @@ describe('currency conversion (toUsd)', () => {
     // tiered as 60,000 USD.
     expect(CURRENCY_TO_USD.XYZ).toBeUndefined();
     expect(toUsd(60_000, 'XYZ')).toBe(60_000);
-    expect(getNextApprovalStatus('advance', 'Submitted', 60_000, 'XYZ')).toBe('Approved by Country Controller');
+    expect(getNextApprovalStatus('advance', 'Submitted', 60_000, 'XYZ')).toBe(
+      'Approved by Country Controller',
+    );
   });
 
   it('coerces junk amounts to 0 rather than NaN', () => {
@@ -118,41 +120,59 @@ describe('the 50,000 USD country-controller-only gate', () => {
   });
 
   it('applies the same gate to legacy Under Review records', () => {
-    expect(getNextApprovalStatus('advance', 'Under Review', CONTROLLER_ONLY_MAX, 'USD')).toBe('Approved');
-    expect(getNextApprovalStatus('advance', 'Under Review', 50_001, 'USD')).toBe('Approved by Country Controller');
+    expect(getNextApprovalStatus('advance', 'Under Review', CONTROLLER_ONLY_MAX, 'USD')).toBe(
+      'Approved',
+    );
+    expect(getNextApprovalStatus('advance', 'Under Review', 50_001, 'USD')).toBe(
+      'Approved by Country Controller',
+    );
   });
 
   it.each([
     [49_999, 'canReviewAdvanceCountryController'],
     [CONTROLLER_ONLY_MAX, 'canReviewAdvanceCountryController'],
   ])('lets the country controller close out %d USD on their own', (amount, permission) => {
-    expect(getRequiredPermissionForTransition('advance', 'Submitted', 'Approved', amount, 'USD')).toBe(permission);
+    expect(
+      getRequiredPermissionForTransition('advance', 'Submitted', 'Approved', amount, 'USD'),
+    ).toBe(permission);
   });
 
   it.each([50_000.01, 50_001, 500_000])(
     'refuses a jump straight to Approved at %d USD — no permission can authorise it',
-    amount => {
-      expect(getRequiredPermissionForTransition('advance', 'Submitted', 'Approved', amount, 'USD')).toBeNull();
-      expect(getRequiredPermissionForTransition('advance', 'Under Review', 'Approved', amount, 'USD')).toBeNull();
+    (amount) => {
+      expect(
+        getRequiredPermissionForTransition('advance', 'Submitted', 'Approved', amount, 'USD'),
+      ).toBeNull();
+      expect(
+        getRequiredPermissionForTransition('advance', 'Under Review', 'Approved', amount, 'USD'),
+      ).toBeNull();
     },
   );
 
   it('applies the gate after currency conversion, not to the raw amount', () => {
     // 15,000 KWD = 48,750 USD -> under the gate; 20,000 KWD = 65,000 USD -> over it.
     expect(getNextApprovalStatus('advance', 'Submitted', 15_000, 'KWD')).toBe('Approved');
-    expect(getNextApprovalStatus('advance', 'Submitted', 20_000, 'KWD')).toBe('Approved by Country Controller');
+    expect(getNextApprovalStatus('advance', 'Submitted', 20_000, 'KWD')).toBe(
+      'Approved by Country Controller',
+    );
     // The raw number 20,000 would have been under the gate if it were read as USD.
     expect(getNextApprovalStatus('advance', 'Submitted', 20_000, 'USD')).toBe('Approved');
   });
 
   it('reads numeric strings the same as numbers at the boundary', () => {
     expect(getNextApprovalStatus('advance', 'Submitted', '50000', 'USD')).toBe('Approved');
-    expect(getNextApprovalStatus('advance', 'Submitted', '50001', 'USD')).toBe('Approved by Country Controller');
+    expect(getNextApprovalStatus('advance', 'Submitted', '50001', 'USD')).toBe(
+      'Approved by Country Controller',
+    );
   });
 
   it('defaults a missing currency to USD rather than throwing', () => {
-    expect(getNextApprovalStatus('advance', 'Submitted', 50_001, null)).toBe('Approved by Country Controller');
-    expect(getNextApprovalStatus('advance', 'Submitted', 50_001, undefined)).toBe('Approved by Country Controller');
+    expect(getNextApprovalStatus('advance', 'Submitted', 50_001, null)).toBe(
+      'Approved by Country Controller',
+    );
+    expect(getNextApprovalStatus('advance', 'Submitted', 50_001, undefined)).toBe(
+      'Approved by Country Controller',
+    );
   });
 });
 
@@ -165,12 +185,20 @@ describe('the 500,000 USD CFO gate', () => {
     [CFO_GATE, 'Approved by Corporate Controller'],
     [500_001, 'Approved by Corporate Controller'],
   ])('after Treasury, %d USD goes to %s', (amount, expected) => {
-    expect(getNextApprovalStatus('advance', 'Approved by Treasury Director', amount, 'USD')).toBe(expected);
+    expect(getNextApprovalStatus('advance', 'Approved by Treasury Director', amount, 'USD')).toBe(
+      expected,
+    );
   });
 
   it('lets the corporate controller release below 500,000 USD', () => {
     expect(
-      getRequiredPermissionForTransition('advance', 'Approved by Treasury Director', 'Approved', 499_999, 'USD'),
+      getRequiredPermissionForTransition(
+        'advance',
+        'Approved by Treasury Director',
+        'Approved',
+        499_999,
+        'USD',
+      ),
     ).toBe('canReviewAdvanceCorporateController');
   });
 
@@ -178,34 +206,60 @@ describe('the 500,000 USD CFO gate', () => {
     // The regression this whole suite exists for: at exactly the gate, no
     // permission may take a request from Treasury straight to Approved.
     expect(
-      getRequiredPermissionForTransition('advance', 'Approved by Treasury Director', 'Approved', CFO_GATE, 'USD'),
+      getRequiredPermissionForTransition(
+        'advance',
+        'Approved by Treasury Director',
+        'Approved',
+        CFO_GATE,
+        'USD',
+      ),
     ).toBeNull();
     expect(
-      getRequiredPermissionForTransition('advance', 'Approved by Treasury Director', 'Approved', 500_001, 'USD'),
+      getRequiredPermissionForTransition(
+        'advance',
+        'Approved by Treasury Director',
+        'Approved',
+        500_001,
+        'USD',
+      ),
     ).toBeNull();
     // ...and not from the Country Controller step either.
     expect(
-      getRequiredPermissionForTransition('advance', 'Approved by Country Controller', 'Approved', CFO_GATE, 'USD'),
+      getRequiredPermissionForTransition(
+        'advance',
+        'Approved by Country Controller',
+        'Approved',
+        CFO_GATE,
+        'USD',
+      ),
     ).toBeNull();
   });
 
   it('requires the CFO permission for the final release above the gate', () => {
     expect(
-      getRequiredPermissionForTransition('advance', 'Approved by Corporate Controller', 'Approved', CFO_GATE, 'USD'),
+      getRequiredPermissionForTransition(
+        'advance',
+        'Approved by Corporate Controller',
+        'Approved',
+        CFO_GATE,
+        'USD',
+      ),
     ).toBe('canReviewAdvanceCfo');
   });
 
   it('applies the CFO gate after currency conversion', () => {
     // 150,000 KWD = 487,500 USD (under); 200,000 KWD = 650,000 USD (over).
-    expect(getNextApprovalStatus('advance', 'Approved by Treasury Director', 150_000, 'KWD')).toBe('Approved');
+    expect(getNextApprovalStatus('advance', 'Approved by Treasury Director', 150_000, 'KWD')).toBe(
+      'Approved',
+    );
     expect(getNextApprovalStatus('advance', 'Approved by Treasury Director', 200_000, 'KWD')).toBe(
       'Approved by Corporate Controller',
     );
     // 1,875,000 SAR is exactly 500,000 USD.
     expect(toUsd(1_875_000, 'SAR')).toBe(CFO_GATE);
-    expect(getNextApprovalStatus('advance', 'Approved by Treasury Director', 1_875_000, 'SAR')).toBe(
-      'Approved by Corporate Controller',
-    );
+    expect(
+      getNextApprovalStatus('advance', 'Approved by Treasury Director', 1_875_000, 'SAR'),
+    ).toBe('Approved by Corporate Controller');
   });
 });
 
@@ -243,7 +297,7 @@ describe('advance approval chain', () => {
     ]);
   });
 
-  it.each<ProcureGuardStatus>(['Approved', 'Rejected', 'Cancelled'])('%s is terminal', status => {
+  it.each<ProcureGuardStatus>(['Approved', 'Rejected', 'Cancelled'])('%s is terminal', (status) => {
     expect(getNextApprovalStatus('advance', status, 1_000_000, 'USD')).toBeNull();
     expect(getNextApprovalStatus('adhoc', status, 1_000_000, 'USD')).toBeNull();
   });
@@ -263,50 +317,74 @@ describe('adhoc approval chain', () => {
 
   it('treats legacy Under Review like Submitted', () => {
     expect(getNextApprovalStatus('adhoc', 'Under Review', 1000, 'USD')).toBe('Approved by SCM');
-    expect(getRequiredPermissionForTransition('adhoc', 'Under Review', 'Approved by SCM', 1000, 'USD')).toBe(
-      'canReviewAdhocScm',
-    );
+    expect(
+      getRequiredPermissionForTransition('adhoc', 'Under Review', 'Approved by SCM', 1000, 'USD'),
+    ).toBe('canReviewAdhocScm');
   });
 
   it('maps each adhoc step to its owning permission', () => {
-    expect(getRequiredPermissionForTransition('adhoc', 'Submitted', 'Approved by SCM', 1000, 'USD')).toBe(
-      'canReviewAdhocScm',
-    );
-    expect(getRequiredPermissionForTransition('adhoc', 'Approved by SCM', 'Approved', 1000, 'USD')).toBe(
-      'canReviewAdhocDirector',
-    );
+    expect(
+      getRequiredPermissionForTransition('adhoc', 'Submitted', 'Approved by SCM', 1000, 'USD'),
+    ).toBe('canReviewAdhocScm');
+    expect(
+      getRequiredPermissionForTransition('adhoc', 'Approved by SCM', 'Approved', 1000, 'USD'),
+    ).toBe('canReviewAdhocDirector');
   });
 
   it('refuses an adhoc request that tries to skip the SCM step', () => {
-    expect(getRequiredPermissionForTransition('adhoc', 'Submitted', 'Approved', 1000, 'USD')).toBeNull();
+    expect(
+      getRequiredPermissionForTransition('adhoc', 'Submitted', 'Approved', 1000, 'USD'),
+    ).toBeNull();
   });
 
   it('never routes an adhoc request through an advance-only status', () => {
     expect(
-      getRequiredPermissionForTransition('adhoc', 'Submitted', 'Approved by Country Controller', 1000, 'USD'),
+      getRequiredPermissionForTransition(
+        'adhoc',
+        'Submitted',
+        'Approved by Country Controller',
+        1000,
+        'USD',
+      ),
     ).toBeNull();
   });
 });
 
 describe('rejection authority', () => {
   it('requires the permission of the step that currently owns the request', () => {
-    expect(getRequiredPermissionForTransition('advance', 'Submitted', 'Rejected', 1_000_000, 'USD')).toBe(
-      'canReviewAdvanceCountryController',
-    );
     expect(
-      getRequiredPermissionForTransition('advance', 'Approved by Treasury Director', 'Rejected', 1_000_000, 'USD'),
+      getRequiredPermissionForTransition('advance', 'Submitted', 'Rejected', 1_000_000, 'USD'),
+    ).toBe('canReviewAdvanceCountryController');
+    expect(
+      getRequiredPermissionForTransition(
+        'advance',
+        'Approved by Treasury Director',
+        'Rejected',
+        1_000_000,
+        'USD',
+      ),
     ).toBe('canReviewAdvanceCorporateController');
     expect(
-      getRequiredPermissionForTransition('advance', 'Approved by Corporate Controller', 'Rejected', 1_000_000, 'USD'),
+      getRequiredPermissionForTransition(
+        'advance',
+        'Approved by Corporate Controller',
+        'Rejected',
+        1_000_000,
+        'USD',
+      ),
     ).toBe('canReviewAdvanceCfo');
-    expect(getRequiredPermissionForTransition('adhoc', 'Approved by SCM', 'Rejected', 1000, 'USD')).toBe(
-      'canReviewAdhocDirector',
-    );
+    expect(
+      getRequiredPermissionForTransition('adhoc', 'Approved by SCM', 'Rejected', 1000, 'USD'),
+    ).toBe('canReviewAdhocDirector');
   });
 
   it('has no owner to reject an already-closed request', () => {
-    expect(getRequiredPermissionForTransition('advance', 'Approved', 'Rejected', 1_000_000, 'USD')).toBeNull();
-    expect(getRequiredPermissionForTransition('advance', 'Cancelled', 'Rejected', 1_000_000, 'USD')).toBeNull();
+    expect(
+      getRequiredPermissionForTransition('advance', 'Approved', 'Rejected', 1_000_000, 'USD'),
+    ).toBeNull();
+    expect(
+      getRequiredPermissionForTransition('advance', 'Cancelled', 'Rejected', 1_000_000, 'USD'),
+    ).toBeNull();
   });
 });
 
@@ -354,12 +432,20 @@ describe('role x status approval matrix', () => {
 
   it('does not let the Supply Chain Director act on an advance still at Submitted', () => {
     const scd = getPermissionProfile('Supply Chain Director');
-    expect(getProcureGuardAvailableActions(scd, 'advance', 'Submitted', 1_000_000, 'USD').canApprove).toBe(false);
+    expect(
+      getProcureGuardAvailableActions(scd, 'advance', 'Submitted', 1_000_000, 'USD').canApprove,
+    ).toBe(false);
   });
 
   it('does not let the Corporate Controller stand in for the CFO', () => {
     const cc = getPermissionProfile('Corporate Controller');
-    const actions = getProcureGuardAvailableActions(cc, 'advance', 'Approved by Corporate Controller', CFO_GATE, 'USD');
+    const actions = getProcureGuardAvailableActions(
+      cc,
+      'advance',
+      'Approved by Corporate Controller',
+      CFO_GATE,
+      'USD',
+    );
     expect(actions.requiredPermission).toBe('canReviewAdvanceCfo');
     expect(actions.canApprove).toBe(false);
   });
@@ -367,19 +453,26 @@ describe('role x status approval matrix', () => {
   it('does not let the CFO shortcut the Treasury step', () => {
     const cfo = getPermissionProfile('CFO');
     expect(
-      getProcureGuardAvailableActions(cfo, 'advance', 'Approved by Supply Chain Director', CFO_GATE, 'USD').canApprove,
+      getProcureGuardAvailableActions(
+        cfo,
+        'advance',
+        'Approved by Supply Chain Director',
+        CFO_GATE,
+        'USD',
+      ).canApprove,
     ).toBe(false);
   });
 
   it('owns adhoc steps with the SCM Manager then the Supply Chain Director', () => {
     for (const role of PERMISSION_ROLE_OPTIONS) {
       const profile = getPermissionProfile(role);
-      expect(getProcureGuardAvailableActions(profile, 'adhoc', 'Submitted', 1000, 'USD').canApprove).toBe(
-        role === 'SCM Manager' || role === 'Admin',
-      );
-      expect(getProcureGuardAvailableActions(profile, 'adhoc', 'Approved by SCM', 1000, 'USD').canApprove).toBe(
-        role === 'Supply Chain Director' || role === 'Admin',
-      );
+      expect(
+        getProcureGuardAvailableActions(profile, 'adhoc', 'Submitted', 1000, 'USD').canApprove,
+      ).toBe(role === 'SCM Manager' || role === 'Admin');
+      expect(
+        getProcureGuardAvailableActions(profile, 'adhoc', 'Approved by SCM', 1000, 'USD')
+          .canApprove,
+      ).toBe(role === 'Supply Chain Director' || role === 'Admin');
     }
   });
 
@@ -399,23 +492,39 @@ describe('role x status approval matrix', () => {
 
   it('labels the current owner of each advance step', () => {
     const admin = getPermissionProfile('Admin');
-    expect(getProcureGuardAvailableActions(admin, 'advance', 'Submitted', 1_000_000, 'USD').ownerLabel).toBe(
-      'Country Controller',
-    );
     expect(
-      getProcureGuardAvailableActions(admin, 'advance', 'Approved by Corporate Controller', 1_000_000, 'USD')
-        .ownerLabel,
+      getProcureGuardAvailableActions(admin, 'advance', 'Submitted', 1_000_000, 'USD').ownerLabel,
+    ).toBe('Country Controller');
+    expect(
+      getProcureGuardAvailableActions(
+        admin,
+        'advance',
+        'Approved by Corporate Controller',
+        1_000_000,
+        'USD',
+      ).ownerLabel,
     ).toBe('CFO');
-    expect(getProcureGuardAvailableActions(admin, 'adhoc', 'Approved by SCM', 1000, 'USD').ownerLabel).toBe(
-      'Supply Chain Director',
-    );
+    expect(
+      getProcureGuardAvailableActions(admin, 'adhoc', 'Approved by SCM', 1000, 'USD').ownerLabel,
+    ).toBe('Supply Chain Director');
   });
 
   it('never lets a Requester or a Viewer approve or reject anything', () => {
-    for (const role of ['Requester', 'Viewer', 'Analyst', 'Read Only'] as ProcureGuardPermissionRole[]) {
+    for (const role of [
+      'Requester',
+      'Viewer',
+      'Analyst',
+      'Read Only',
+    ] as ProcureGuardPermissionRole[]) {
       const profile = getPermissionProfile(role);
       for (const status of APPROVAL_ACTIVE_STATUSES) {
-        const advance = getProcureGuardAvailableActions(profile, 'advance', status, 1_000_000, 'USD');
+        const advance = getProcureGuardAvailableActions(
+          profile,
+          'advance',
+          status,
+          1_000_000,
+          'USD',
+        );
         const adhoc = getProcureGuardAvailableActions(profile, 'adhoc', status, 1000, 'USD');
         expect(advance.canApprove || advance.canReject).toBe(false);
         expect(adhoc.canApprove || adhoc.canReject).toBe(false);
@@ -450,7 +559,7 @@ describe('permission profiles', () => {
       'canReviewAdvanceCfo',
     ] as const;
     const count = (role: ProcureGuardPermissionRole) =>
-      reviewKeys.filter(k => PERMISSION_PROFILES[role][k]).length;
+      reviewKeys.filter((k) => PERMISSION_PROFILES[role][k]).length;
 
     expect(count('SCM Manager')).toBe(1);
     expect(count('Country Controller')).toBe(1);
@@ -502,19 +611,19 @@ describe('access views and page predicates', () => {
 
   const views: ProcureGuardAccessView[] = ['requester', 'analyst', 'viewer', 'reviewer', 'admin'];
 
-  it.each(views)('gates the admin pages for the %s view', view => {
+  it.each(views)('gates the admin pages for the %s view', (view) => {
     expect(canUseProcureGuardAdmin(view)).toBe(view === 'admin');
   });
 
-  it.each(views)('gates analytics for the %s view', view => {
+  it.each(views)('gates analytics for the %s view', (view) => {
     expect(canUseProcureGuardAnalytics(view)).toBe(view !== 'requester');
   });
 
-  it.each(views)('gates the operational pages for the %s view', view => {
+  it.each(views)('gates the operational pages for the %s view', (view) => {
     expect(canUseProcureGuardOperationalPages(view)).toBe(view !== 'analyst');
   });
 
-  it.each(views)('gates the reviewer queue for the %s view', view => {
+  it.each(views)('gates the reviewer queue for the %s view', (view) => {
     expect(canUseProcureGuardReviewerQueue(view)).toBe(view === 'reviewer' || view === 'admin');
   });
 
@@ -600,21 +709,26 @@ describe('country scope', () => {
 describe('workflow steps', () => {
   it('shows a fixed four-step adhoc workflow', () => {
     const steps = getWorkflowSteps('adhoc', 5_000_000, 'USD');
-    expect(steps.map(s => s.status)).toEqual(['Submitted', 'Under Review', 'Approved by SCM', 'Approved']);
+    expect(steps.map((s) => s.status)).toEqual([
+      'Submitted',
+      'Under Review',
+      'Approved by SCM',
+      'Approved',
+    ]);
   });
 
   it('collapses to country finance only at or below the 50k gate', () => {
     for (const amount of [0, 49_999, CONTROLLER_ONLY_MAX]) {
       const steps = getWorkflowSteps('advance', amount, 'USD');
-      expect(steps.map(s => s.status)).toEqual(['Submitted', 'Under Review', 'Approved']);
-      expect(steps.some(s => s.owner === 'CFO')).toBe(false);
+      expect(steps.map((s) => s.status)).toEqual(['Submitted', 'Under Review', 'Approved']);
+      expect(steps.some((s) => s.owner === 'CFO')).toBe(false);
     }
   });
 
   it('opens the full chain one cent above the 50k gate', () => {
     const steps = getWorkflowSteps('advance', 50_000.01, 'USD');
-    expect(steps.map(s => s.status)).toContain('Approved by Country Controller');
-    expect(steps.some(s => s.owner === 'CFO')).toBe(false);
+    expect(steps.map((s) => s.status)).toContain('Approved by Country Controller');
+    expect(steps.some((s) => s.owner === 'CFO')).toBe(false);
   });
 
   it.each([
@@ -623,12 +737,14 @@ describe('workflow steps', () => {
     [500_001, true],
   ])('includes the CFO step for %d USD: %s', (amount, expected) => {
     const steps = getWorkflowSteps('advance', amount, 'USD');
-    expect(steps.some(s => s.status === 'Approved by Corporate Controller' && s.owner === 'CFO')).toBe(expected);
+    expect(
+      steps.some((s) => s.status === 'Approved by Corporate Controller' && s.owner === 'CFO'),
+    ).toBe(expected);
   });
 
   it('agrees with getNextApprovalStatus about whether the CFO is involved', () => {
     for (const amount of [10_000, 50_000, 50_001, 499_999, CFO_GATE, 1_000_000]) {
-      const hasCfoStep = getWorkflowSteps('advance', amount, 'USD').some(s => s.owner === 'CFO');
+      const hasCfoStep = getWorkflowSteps('advance', amount, 'USD').some((s) => s.owner === 'CFO');
       const reachesCorporateController =
         getNextApprovalStatus('advance', 'Approved by Treasury Director', amount, 'USD') ===
         'Approved by Corporate Controller';
@@ -661,7 +777,9 @@ describe('status helpers', () => {
 
   it('relabels intermediate "Approved by" statuses so they do not read as final', () => {
     expect(formatProcureGuardStatusLabel('Approved by SCM')).toBe('Approval by SCM');
-    expect(formatProcureGuardStatusLabel('Approved by Treasury Director')).toBe('Approval by Treasury Director');
+    expect(formatProcureGuardStatusLabel('Approved by Treasury Director')).toBe(
+      'Approval by Treasury Director',
+    );
     expect(formatProcureGuardStatusLabel('Approved')).toBe('Approved');
     expect(formatProcureGuardStatusLabel(null)).toBe('-');
     expect(formatProcureGuardStatusLabel('')).toBe('-');
@@ -735,7 +853,10 @@ function reviewGrant(overrides: Partial<ProcureGuardReviewGrant> = {}): ProcureG
   };
 }
 
-function actorWith(grants: ProcureGuardReviewGrant[], overrides: Partial<ProcureGuardActor> = {}): ProcureGuardActor {
+function actorWith(
+  grants: ProcureGuardReviewGrant[],
+  overrides: Partial<ProcureGuardActor> = {},
+): ProcureGuardActor {
   const role = overrides.role ?? grants[0]?.role ?? 'Requester';
   return {
     email: 'approver@nesr.com',
@@ -772,7 +893,9 @@ describe('grantCoversRequest', () => {
   });
 
   it('accepts separators and aliases inside a multi-country scope', () => {
-    expect(grantCoversRequest(reviewGrant({ country: 'EOS + Chad + Congo' }), { country: 'Chad' })).toBe(true);
+    expect(
+      grantCoversRequest(reviewGrant({ country: 'EOS + Chad + Congo' }), { country: 'Chad' }),
+    ).toBe(true);
     const aliased = reviewGrant({ country: 'ksa, uae' });
     expect(grantCoversRequest(aliased, { country: 'Saudi Arabia (KSA)' })).toBe(true);
     expect(grantCoversRequest(aliased, { country: 'United Arab Emirates (UAE)' })).toBe(true);
@@ -780,19 +903,35 @@ describe('grantCoversRequest', () => {
   });
 
   it('an admin grant covers everything; a country-scoped grant with NO country covers nothing', () => {
-    expect(grantCoversRequest(reviewGrant({ role: 'Admin', isAdmin: true }), { country: 'Qatar' })).toBe(true);
-    expect(grantCoversRequest(reviewGrant({ role: 'Country Controller', country: null }), { country: 'Qatar' })).toBe(false);
-    expect(grantCoversRequest(reviewGrant({ role: 'SCM Manager', country: '' }), { country: 'Qatar' })).toBe(false);
+    expect(
+      grantCoversRequest(reviewGrant({ role: 'Admin', isAdmin: true }), { country: 'Qatar' }),
+    ).toBe(true);
+    expect(
+      grantCoversRequest(reviewGrant({ role: 'Country Controller', country: null }), {
+        country: 'Qatar',
+      }),
+    ).toBe(false);
+    expect(
+      grantCoversRequest(reviewGrant({ role: 'SCM Manager', country: '' }), { country: 'Qatar' }),
+    ).toBe(false);
   });
 
   it('an unscoped non-country role covers every country', () => {
-    expect(grantCoversRequest(reviewGrant({ role: 'CFO', country: null }), { country: 'Qatar' })).toBe(true);
-    expect(grantCoversRequest(reviewGrant({ role: 'Treasury Director', country: null }), { country: null })).toBe(true);
+    expect(
+      grantCoversRequest(reviewGrant({ role: 'CFO', country: null }), { country: 'Qatar' }),
+    ).toBe(true);
+    expect(
+      grantCoversRequest(reviewGrant({ role: 'Treasury Director', country: null }), {
+        country: null,
+      }),
+    ).toBe(true);
   });
 
   it('narrows by segment as well as country', () => {
     const segmented = reviewGrant({ country: 'EOS, Chad, Congo', segment: 'Production Solutions' });
-    expect(grantCoversRequest(segmented, { country: 'Chad', segment: 'Production Solutions' })).toBe(true);
+    expect(
+      grantCoversRequest(segmented, { country: 'Chad', segment: 'Production Solutions' }),
+    ).toBe(true);
     expect(grantCoversRequest(segmented, { country: 'Chad', segment: 'Drilling' })).toBe(false);
     expect(grantCoversRequest(segmented, { country: 'Chad', segment: null })).toBe(false);
   });
@@ -802,38 +941,60 @@ describe('canActorViewRequest', () => {
   const scoped = actorWith([reviewGrant({ country: 'EOS, Chad, Congo' })]);
 
   it('lets a scoped reviewer see requests inside their scope and not outside it', () => {
-    expect(canActorViewRequest(scoped, { country: 'Chad', requested_by_email: 'someone@nesr.com' })).toBe(true);
-    expect(canActorViewRequest(scoped, { country: 'Qatar', requested_by_email: 'someone@nesr.com' })).toBe(false);
+    expect(
+      canActorViewRequest(scoped, { country: 'Chad', requested_by_email: 'someone@nesr.com' }),
+    ).toBe(true);
+    expect(
+      canActorViewRequest(scoped, { country: 'Qatar', requested_by_email: 'someone@nesr.com' }),
+    ).toBe(false);
   });
 
   it('THE INCIDENT: a scoped reviewer can still open a request they raised OUTSIDE their scope', () => {
     // The detail page used to check the requester side only for actors WITHOUT canViewAll, so this
     // returned 404 on a row the actor's own list had just shown them.
-    expect(canActorViewRequest(scoped, { country: 'Qatar', requested_by_email: 'approver@nesr.com' })).toBe(true);
+    expect(
+      canActorViewRequest(scoped, { country: 'Qatar', requested_by_email: 'approver@nesr.com' }),
+    ).toBe(true);
   });
 
   it('honours per-request viewer grants regardless of scope, case-insensitively', () => {
-    expect(canActorViewRequest(scoped, {
-      country: 'Qatar',
-      requested_by_email: 'someone@nesr.com',
-      requester_notification_emails: ['Approver@NESR.com'],
-    })).toBe(true);
+    expect(
+      canActorViewRequest(scoped, {
+        country: 'Qatar',
+        requested_by_email: 'someone@nesr.com',
+        requester_notification_emails: ['Approver@NESR.com'],
+      }),
+    ).toBe(true);
   });
 
   it('covers a DELEGATE through the delegator multi-country scope', () => {
     // A delegate holds no scope of their own; the delegation grant carries the delegator's.
     const delegate = actorWith(
-      [reviewGrant({ source: 'delegation', fromEmail: 'controller@nesr.com', country: 'EOS, Chad, Congo' })],
+      [
+        reviewGrant({
+          source: 'delegation',
+          fromEmail: 'controller@nesr.com',
+          country: 'EOS, Chad, Congo',
+        }),
+      ],
       { email: 'delegate@nesr.com', name: 'Delegate' },
     );
-    expect(canActorViewRequest(delegate, { country: 'Congo', requested_by_email: 'someone@nesr.com' })).toBe(true);
-    expect(canActorViewRequest(delegate, { country: 'Qatar', requested_by_email: 'someone@nesr.com' })).toBe(false);
+    expect(
+      canActorViewRequest(delegate, { country: 'Congo', requested_by_email: 'someone@nesr.com' }),
+    ).toBe(true);
+    expect(
+      canActorViewRequest(delegate, { country: 'Qatar', requested_by_email: 'someone@nesr.com' }),
+    ).toBe(false);
   });
 
   it('a plain requester sees only their own requests', () => {
     const requester = actorWith([], { email: 'requester@nesr.com', role: 'Requester' });
-    expect(canActorViewRequest(requester, { country: 'Chad', requested_by_email: 'requester@nesr.com' })).toBe(true);
-    expect(canActorViewRequest(requester, { country: 'Chad', requested_by_email: 'someone@nesr.com' })).toBe(false);
+    expect(
+      canActorViewRequest(requester, { country: 'Chad', requested_by_email: 'requester@nesr.com' }),
+    ).toBe(true);
+    expect(
+      canActorViewRequest(requester, { country: 'Chad', requested_by_email: 'someone@nesr.com' }),
+    ).toBe(false);
   });
 });
 
@@ -842,12 +1003,22 @@ describe('scopedRequestWhere', () => {
     const scoped = scopedRequestWhere(actorWith([reviewGrant({ country: 'EOS, Chad, Congo' })]));
     expect(scoped.where).toContain('LOWER(requested_by_email) = ?');
     expect(scoped.where).toContain('country IN (?, ?, ?)');
-    expect(scoped.params).toEqual(['approver@nesr.com', 'approver@nesr.com', 'EOS', 'Chad', 'Congo']);
+    expect(scoped.params).toEqual([
+      'approver@nesr.com',
+      'approver@nesr.com',
+      'EOS',
+      'Chad',
+      'Congo',
+    ]);
   });
 
   it('does not restrict an admin, and restricts a requester to their own rows', () => {
-    expect(scopedRequestWhere(actorWith([reviewGrant({ role: 'Admin', isAdmin: true })])).where).toBe('');
-    const requester = scopedRequestWhere(actorWith([], { email: 'requester@nesr.com', role: 'Requester' }));
+    expect(
+      scopedRequestWhere(actorWith([reviewGrant({ role: 'Admin', isAdmin: true })])).where,
+    ).toBe('');
+    const requester = scopedRequestWhere(
+      actorWith([], { email: 'requester@nesr.com', role: 'Requester' }),
+    );
     expect(requester.params).toEqual(['requester@nesr.com', 'requester@nesr.com']);
   });
 
@@ -855,25 +1026,33 @@ describe('scopedRequestWhere', () => {
     const actor = actorWith([reviewGrant({ country: 'EOS, Chad, Congo' })]);
     const sqlCountries = scopedRequestWhere(actor).params.slice(2);
     for (const country of ['EOS', 'Chad', 'Congo', 'Qatar']) {
-      expect(canActorViewRequest(actor, { country, requested_by_email: 'someone@nesr.com' }))
-        .toBe(sqlCountries.includes(country));
+      expect(canActorViewRequest(actor, { country, requested_by_email: 'someone@nesr.com' })).toBe(
+        sqlCountries.includes(country),
+      );
     }
   });
 });
 
 describe('procureGuardThreshold', () => {
   it('prefers the server-computed USD value over the entered amount/currency', () => {
-    expect(procureGuardThreshold({ amount: 90_000, currency: 'EUR', spend_value_usd: 97_200 }))
-      .toEqual({ amount: 97_200, currency: 'USD' });
+    expect(
+      procureGuardThreshold({ amount: 90_000, currency: 'EUR', spend_value_usd: 97_200 }),
+    ).toEqual({ amount: 97_200, currency: 'USD' });
     expect(thresholdUsd({ amount: 90_000, currency: 'EUR', spend_value_usd: 97_200 })).toBe(97_200);
   });
 
   it('falls back to the entered amount on a legacy row with no stored USD value', () => {
-    expect(procureGuardThreshold({ amount: 1_000, currency: 'EUR', spend_value_usd: null }))
-      .toEqual({ amount: 1_000, currency: 'EUR' });
-    expect(thresholdUsd({ amount: 1_000, currency: 'EUR', spend_value_usd: null })).toBeCloseTo(1_080, 6);
-    expect(procureGuardThreshold({ amount: 500, currency: null, spend_value_usd: null }))
-      .toEqual({ amount: 500, currency: 'USD' });
+    expect(
+      procureGuardThreshold({ amount: 1_000, currency: 'EUR', spend_value_usd: null }),
+    ).toEqual({ amount: 1_000, currency: 'EUR' });
+    expect(thresholdUsd({ amount: 1_000, currency: 'EUR', spend_value_usd: null })).toBeCloseTo(
+      1_080,
+      6,
+    );
+    expect(procureGuardThreshold({ amount: 500, currency: null, spend_value_usd: null })).toEqual({
+      amount: 500,
+      currency: 'USD',
+    });
   });
 
   it('files a request under the same approver that routing picked', () => {
@@ -881,9 +1060,14 @@ describe('procureGuardThreshold', () => {
     // so the two land in different threshold buckets. Analytics used to read amount+currency and
     // routing the stored USD value, filing the request under an approver nobody was waiting on.
     const row = { amount: 30_000, currency: 'USD', spend_value_usd: 97_200 };
-    const nextStatus = (amount: number | string | null, currency: string) => getProcureGuardAvailableActions(
-      getPermissionProfile('Admin'), 'advance', 'Submitted', amount, currency,
-    ).nextStatus;
+    const nextStatus = (amount: number | string | null, currency: string) =>
+      getProcureGuardAvailableActions(
+        getPermissionProfile('Admin'),
+        'advance',
+        'Submitted',
+        amount,
+        currency,
+      ).nextStatus;
     expect(thresholdUsd(row)).toBeGreaterThan(ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD);
     const stored = procureGuardThreshold(row);
     expect(nextStatus(stored.amount, stored.currency)).toBe(nextStatus(97_200, 'USD'));

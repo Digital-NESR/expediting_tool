@@ -20,8 +20,16 @@ import {
   procureGuardThreshold,
 } from '@/lib/procureGuard-utils';
 import type { ProcureGuardAvailableActions } from '@/lib/procureGuard-utils';
-import type { ProcureGuardActor, ProcureGuardRequestType, ProcureGuardStatus } from '@/types/procureGuard';
-import { actorCanAccessRequestScope, normaliseScopeValue, scopedRequestWhere as scopedWhere } from './access';
+import type {
+  ProcureGuardActor,
+  ProcureGuardRequestType,
+  ProcureGuardStatus,
+} from '@/types/procureGuard';
+import {
+  actorCanAccessRequestScope,
+  normaliseScopeValue,
+  scopedRequestWhere as scopedWhere,
+} from './access';
 import { resolveProcureGuardActorScope } from './actor-scope';
 import { ProcureGuardAccessError } from './constants';
 import { isProcureGuardAdminEmail } from './validation';
@@ -60,7 +68,10 @@ export const getActor = cache(async (): Promise<ProcureGuardActor> => {
 // hold no review grant (scopedWhere would collapse them to their own requests) yet the role exists
 // solely to read cross-country analytics — they get the global set, narrowed by any country /
 // segment recorded on their permission row.
-export function analyticsScopedWhere(actor: ProcureGuardActor): { where: string; params: string[] } {
+export function analyticsScopedWhere(actor: ProcureGuardActor): {
+  where: string;
+  params: string[];
+} {
   if (actor.permissions.accessView !== 'analyst') return scopedWhere(actor);
   const parts: string[] = [];
   const params: string[] = [];
@@ -88,7 +99,10 @@ export function getScopeRestrictionMessage(
   const actorCountries = getProcureGuardCountryScopeCountries(actorCountry);
   const normalizedRequestCountry = normalizeProcureGuardCountry(request.country);
 
-  if (actorCountries.length > 0 && (!normalizedRequestCountry || !actorCountries.includes(normalizedRequestCountry))) {
+  if (
+    actorCountries.length > 0 &&
+    (!normalizedRequestCountry || !actorCountries.includes(normalizedRequestCountry))
+  ) {
     return `${actor.role} access is limited to ${actorCountry}. This request is for ${requestCountry}.`;
   }
   if (actorSegment && normaliseScopeValue(actorSegment) !== normaliseScopeValue(request.segment)) {
@@ -100,10 +114,23 @@ export function getScopeRestrictionMessage(
 export function getScopedProcureGuardAvailableActions(
   actor: ProcureGuardActor,
   requestType: ProcureGuardRequestType,
-  request: { status: ProcureGuardStatus; amount?: number | string | null; currency?: string | null; spend_value_usd?: number | string | null; country?: string | null; segment?: string | null },
+  request: {
+    status: ProcureGuardStatus;
+    amount?: number | string | null;
+    currency?: string | null;
+    spend_value_usd?: number | string | null;
+    country?: string | null;
+    segment?: string | null;
+  },
 ): ProcureGuardAvailableActions {
   const { amount: thresholdAmount, currency: thresholdCurrency } = procureGuardThreshold(request);
-  const actions = getProcureGuardAvailableActions(actor.permissions, requestType, request.status, thresholdAmount, thresholdCurrency);
+  const actions = getProcureGuardAvailableActions(
+    actor.permissions,
+    requestType,
+    request.status,
+    thresholdAmount,
+    thresholdCurrency,
+  );
   if (actorCanAccessRequestScope(actor, request)) return actions;
 
   return {
@@ -115,7 +142,10 @@ export function getScopedProcureGuardAvailableActions(
 
 export async function requireAdminActor(): Promise<ProcureGuardActor> {
   const actor = await getActor();
-  if (!canUseProcureGuardAdmin(getProcureGuardAccessView(actor.role)) && !isProcureGuardAdminEmail(actor.email)) {
+  if (
+    !canUseProcureGuardAdmin(getProcureGuardAccessView(actor.role)) &&
+    !isProcureGuardAdminEmail(actor.email)
+  ) {
     throw new Error('Admin access is required.');
   }
   return actor;

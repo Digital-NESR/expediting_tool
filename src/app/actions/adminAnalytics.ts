@@ -115,7 +115,8 @@ export async function getBuyerDetail(buyerEmail: string): Promise<BuyerSessionRo
   };
   if (!(await hasPoTeamAccess())) return [];
   try {
-    const res = await pool.query(`
+    const res = await pool.query(
+      `
       SELECT
         es.session_ref,
         es.dispatched_at,
@@ -132,20 +133,22 @@ export async function getBuyerDetail(buyerEmail: string): Promise<BuyerSessionRo
       JOIN user_profiles up ON up.email = es.dispatched_by
       WHERE LOWER(es.dispatched_by) = $1
       ORDER BY es.dispatched_at DESC
-    `, [normalizeEmail(buyerEmail)]);
+    `,
+      [normalizeEmail(buyerEmail)],
+    );
 
-    return res.rows.map(r => ({
-      session_ref:         String(r.session_ref ?? ''),
-      dispatched_at:       toStr(r.dispatched_at) ?? '',
-      total_suppliers:     Number(r.total_suppliers ?? 0),
-      total_po_lines:      Number(r.total_po_lines ?? 0),
-      total_emails_sent:   Number(r.total_emails_sent ?? 0),
+    return res.rows.map((r) => ({
+      session_ref: String(r.session_ref ?? ''),
+      dispatched_at: toStr(r.dispatched_at) ?? '',
+      total_suppliers: Number(r.total_suppliers ?? 0),
+      total_po_lines: Number(r.total_po_lines ?? 0),
+      total_emails_sent: Number(r.total_emails_sent ?? 0),
       suppliers_responded: r.suppliers_responded != null ? Number(r.suppliers_responded) : null,
-      lines_responded:     r.lines_responded != null ? Number(r.lines_responded) : null,
-      response_rate_pct:   r.response_rate_pct != null ? Number(r.response_rate_pct) : null,
-      fully_closed:        r.fully_closed != null ? Boolean(r.fully_closed) : null,
-      display_name:        toStr(r.display_name),
-      job_title:           toStr(r.job_title),
+      lines_responded: r.lines_responded != null ? Number(r.lines_responded) : null,
+      response_rate_pct: r.response_rate_pct != null ? Number(r.response_rate_pct) : null,
+      fully_closed: r.fully_closed != null ? Boolean(r.fully_closed) : null,
+      display_name: toStr(r.display_name),
+      job_title: toStr(r.job_title),
     }));
   } catch (err) {
     console.error('[getBuyerDetail]', err);
@@ -175,7 +178,9 @@ export interface AdminSupplierDetailLine {
   buyer_display_name: string | null;
 }
 
-export async function getAdminSupplierDetail(supplierName: string): Promise<AdminSupplierDetailLine[]> {
+export async function getAdminSupplierDetail(
+  supplierName: string,
+): Promise<AdminSupplierDetailLine[]> {
   const toStr = (v: unknown): string | null => {
     if (v === null || v === undefined) return null;
     if (v instanceof Date) return v.toISOString();
@@ -189,7 +194,8 @@ export async function getAdminSupplierDetail(supplierName: string): Promise<Admi
        the live SAP delivery code). Matching on s.supplier_name through an INNER
        JOIN used to drop every line whose PO had since closed, so this drill-down
        showed fewer lines than the supplier breakdown that opened it. */
-    const res = await pool.query(`
+    const res = await pool.query(
+      `
       SELECT
         ae.po_number,
         ae.po_line,
@@ -214,26 +220,28 @@ export async function getAdminSupplierDetail(supplierName: string): Promise<Admi
       LEFT JOIN user_profiles up ON up.email = ae.dispatched_by
       WHERE COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name) = $1
       ORDER BY ae.po_number, ae.po_line
-    `, [supplierName]);
+    `,
+      [supplierName],
+    );
 
-    return res.rows.map(r => ({
-      po_number:             String(r.po_number ?? ''),
-      po_line:               String(r.po_line ?? ''),
-      expedite_token:        String(r.expedite_token ?? ''),
-      workflow_state:        String(r.workflow_state ?? ''),
-      current_status:        toStr(r.current_status),
-      new_delivery_date:     toStr(r.new_delivery_date),
-      supplier_comments:     toStr(r.supplier_comments),
-      buyer_comments:        toStr(r.buyer_comments),
-      dispatched_at:         toStr(r.dispatched_at) ?? '',
-      item_description:      toStr(r.item_description),
-      sap_mat_id:            toStr(r.sap_mat_id),
-      open_qty:              r.open_qty != null ? Number(r.open_qty) : null,
-      open_po_value_usd:     r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
+    return res.rows.map((r) => ({
+      po_number: String(r.po_number ?? ''),
+      po_line: String(r.po_line ?? ''),
+      expedite_token: String(r.expedite_token ?? ''),
+      workflow_state: String(r.workflow_state ?? ''),
+      current_status: toStr(r.current_status),
+      new_delivery_date: toStr(r.new_delivery_date),
+      supplier_comments: toStr(r.supplier_comments),
+      buyer_comments: toStr(r.buyer_comments),
+      dispatched_at: toStr(r.dispatched_at) ?? '',
+      item_description: toStr(r.item_description),
+      sap_mat_id: toStr(r.sap_mat_id),
+      open_qty: r.open_qty != null ? Number(r.open_qty) : null,
+      open_po_value_usd: r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
       original_delivery_date: toStr(r.original_delivery_date),
-      sap_delivery_code:     toStr(r.sap_delivery_code),
-      buyer_email:           String(r.buyer_email ?? ''),
-      buyer_display_name:    toStr(r.buyer_display_name),
+      sap_delivery_code: toStr(r.sap_delivery_code),
+      buyer_email: String(r.buyer_email ?? ''),
+      buyer_display_name: toStr(r.buyer_display_name),
     }));
   } catch (err) {
     console.error('[getAdminSupplierDetail]', err);
@@ -270,7 +278,8 @@ export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSe
   if (!(await hasPoTeamAccess())) return [];
   try {
     await ensureActiveExpeditingColumns();
-    const res = await pool.query(`
+    const res = await pool.query(
+      `
       SELECT
         ae.po_number,
         ae.po_line,
@@ -292,24 +301,26 @@ export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSe
         ON ae.po_number = s.po_number AND ae.po_line = s.po_line
       WHERE ae.session_ref = $1::uuid
       ORDER BY COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name, 'Unknown Supplier'), ae.po_number, ae.po_line
-    `, [sessionRef]);
+    `,
+      [sessionRef],
+    );
 
-    return res.rows.map(r => ({
-      po_number:             String(r.po_number ?? ''),
-      po_line:               String(r.po_line ?? ''),
-      workflow_state:        String(r.workflow_state ?? ''),
-      current_status:        toStr(r.current_status),
-      new_delivery_date:     toStr(r.new_delivery_date),
-      supplier_comments:     toStr(r.supplier_comments),
-      buyer_comments:        toStr(r.buyer_comments),
-      expedite_token:        String(r.expedite_token ?? ''),
-      supplier_name:         String(r.supplier_name ?? ''),
-      item_description:      toStr(r.item_description),
-      sap_mat_id:            toStr(r.sap_mat_id),
-      open_qty:              r.open_qty != null ? Number(r.open_qty) : null,
-      open_po_value_usd:     r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
+    return res.rows.map((r) => ({
+      po_number: String(r.po_number ?? ''),
+      po_line: String(r.po_line ?? ''),
+      workflow_state: String(r.workflow_state ?? ''),
+      current_status: toStr(r.current_status),
+      new_delivery_date: toStr(r.new_delivery_date),
+      supplier_comments: toStr(r.supplier_comments),
+      buyer_comments: toStr(r.buyer_comments),
+      expedite_token: String(r.expedite_token ?? ''),
+      supplier_name: String(r.supplier_name ?? ''),
+      item_description: toStr(r.item_description),
+      sap_mat_id: toStr(r.sap_mat_id),
+      open_qty: r.open_qty != null ? Number(r.open_qty) : null,
+      open_po_value_usd: r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
       original_delivery_date: toStr(r.original_delivery_date),
-      sap_delivery_code:     toStr(r.sap_delivery_code),
+      sap_delivery_code: toStr(r.sap_delivery_code),
     }));
   } catch (err) {
     console.error('[getAdminSessionDetail]', err);

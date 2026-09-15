@@ -47,15 +47,17 @@ export async function getAccessRequests(): Promise<AccessRequestRow[]> {
           ar.requested_at DESC
       `);
       log.debug('access_requests.read', { count: rows.length });
-      return rows.map(r => ({
-        user_email:          String(r.user_email),
-        display_name:        r.display_name ? String(r.display_name) : null,
-        job_title:           r.job_title    ? String(r.job_title)    : null,
-        status:              r.status as StoredAccessStatus,
+      return rows.map((r) => ({
+        user_email: String(r.user_email),
+        display_name: r.display_name ? String(r.display_name) : null,
+        job_title: r.job_title ? String(r.job_title) : null,
+        status: r.status as StoredAccessStatus,
         requested_countries: r.requested_countries || [],
-        approved_countries:  r.approved_countries  || [],
-        requested_at:        r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),
-        reviewed_at:         r.reviewed_at  instanceof Date ? r.reviewed_at.toISOString()  : (r.reviewed_at ?? null),
+        approved_countries: r.approved_countries || [],
+        requested_at:
+          r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),
+        reviewed_at:
+          r.reviewed_at instanceof Date ? r.reviewed_at.toISOString() : (r.reviewed_at ?? null),
       }));
     } catch (err) {
       log.error('access_requests.read_failed', err);
@@ -101,7 +103,11 @@ export async function approveAccessRequest(
         WHERE LOWER(user_email) = $1`,
       [normalizeEmail(userEmail), countries, actor.email],
     );
-    log.info('access.approved', { subject: normalizeEmail(userEmail), actor: actor.email, countries: countries.length });
+    log.info('access.approved', {
+      subject: normalizeEmail(userEmail),
+      actor: actor.email,
+      countries: countries.length,
+    });
     return { success: true };
   } catch (err) {
     log.error('access.approve_failed', err, { subject: normalizeEmail(userEmail) });
@@ -140,10 +146,9 @@ export async function deleteAccessRequest(
 ): Promise<{ success: boolean; error?: string }> {
   await requireAdmin();
   try {
-    await pool.query(
-      `DELETE FROM access_requests WHERE LOWER(user_email) = $1`,
-      [normalizeEmail(userEmail)],
-    );
+    await pool.query(`DELETE FROM access_requests WHERE LOWER(user_email) = $1`, [
+      normalizeEmail(userEmail),
+    ]);
     log.info('access.request_deleted', { subject: normalizeEmail(userEmail) });
     return { success: true };
   } catch (err) {
@@ -195,7 +200,11 @@ export async function editUserAccess(
         WHERE LOWER(user_email) = $1`,
       [normalizeEmail(userEmail), countries, actor.email],
     );
-    log.info('access.edited', { subject: normalizeEmail(userEmail), actor: actor.email, countries: countries.length });
+    log.info('access.edited', {
+      subject: normalizeEmail(userEmail),
+      actor: actor.email,
+      countries: countries.length,
+    });
     return { success: true };
   } catch (err) {
     log.error('access.edit_failed', err, { subject: normalizeEmail(userEmail) });

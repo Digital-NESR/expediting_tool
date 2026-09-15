@@ -41,15 +41,14 @@ export default function TiteAccessOverlay({
   const [refreshing, setRefreshing] = useState(false);
 
   const filtered = useMemo(
-    () => TITE_COUNTRIES.filter(c => c.toLowerCase().includes(search.toLowerCase())),
+    () => TITE_COUNTRIES.filter((c) => c.toLowerCase().includes(search.toLowerCase())),
     [search],
   );
 
-  const allVisibleSelected =
-    filtered.length > 0 && filtered.every(c => selected.has(c));
+  const allVisibleSelected = filtered.length > 0 && filtered.every((c) => selected.has(c));
 
   function toggleCountry(c: string) {
-    setSelected(prev => {
+    setSelected((prev) => {
       const next = new Set(prev);
       next.has(c) ? next.delete(c) : next.add(c);
       return next;
@@ -57,12 +56,12 @@ export default function TiteAccessOverlay({
   }
 
   function toggleAll() {
-    setSelected(prev => {
+    setSelected((prev) => {
       const next = new Set(prev);
       if (allVisibleSelected) {
-        filtered.forEach(c => next.delete(c));
+        filtered.forEach((c) => next.delete(c));
       } else {
-        filtered.forEach(c => next.add(c));
+        filtered.forEach((c) => next.add(c));
       }
       return next;
     });
@@ -80,8 +79,8 @@ export default function TiteAccessOverlay({
       const result = await submitTiteAccessRequest({
         userEmail,
         displayName: userName,
-        jobTitle:    jobTitle    ?? null,
-        department:  department  ?? null,
+        jobTitle: jobTitle ?? null,
+        department: department ?? null,
         requestedCountries: [...selected],
       });
       if (result.success) {
@@ -102,7 +101,6 @@ export default function TiteAccessOverlay({
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col font-sans text-slate-900">
-
       {/* Header */}
       <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center gap-3 shrink-0">
         <div
@@ -114,14 +112,25 @@ export default function TiteAccessOverlay({
         <span className="font-semibold text-slate-900 text-sm">TI-TE Portal</span>
         <div className="ml-auto flex items-center gap-4">
           <span className="text-xs text-slate-500 hidden sm:block truncate max-w-[200px]">
-            {userName !== userEmail ? `${userName} · ` : ''}{userEmail}
+            {userName !== userEmail ? `${userName} · ` : ''}
+            {userEmail}
           </span>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
             className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            <svg
+              className="w-3.5 h-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+              />
             </svg>
             Sign Out
           </button>
@@ -131,7 +140,6 @@ export default function TiteAccessOverlay({
       {/* Body */}
       <div className="flex-1 flex items-start justify-center px-4 pt-14 pb-16">
         <div className="w-full max-w-md">
-
           {/* Branding */}
           <div className="flex items-center gap-3 mb-8">
             <Image
@@ -142,7 +150,9 @@ export default function TiteAccessOverlay({
               className="rounded-full"
             />
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">NESR Supply Chain</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                NESR Supply Chain
+              </p>
               <p className="text-sm font-bold text-slate-800">TI-TE Portal</p>
             </div>
           </div>
@@ -161,11 +171,20 @@ export default function TiteAccessOverlay({
               </div>
 
               <div className="px-6 py-5 flex flex-col gap-4">
-
                 {errorMsg && (
                   <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 text-sm text-red-700">
-                    <svg className="w-4 h-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    <svg
+                      className="w-4 h-4 shrink-0 text-red-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                      />
                     </svg>
                     {errorMsg}
                   </div>
@@ -173,14 +192,24 @@ export default function TiteAccessOverlay({
 
                 {/* Search */}
                 <div className="relative">
-                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
+                  <svg
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"
+                    />
                   </svg>
                   <input
                     type="text"
                     placeholder="Search countries…"
                     value={search}
-                    onChange={e => setSearch(e.target.value)}
+                    onChange={(e) => setSearch(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#006B0C]/20 focus:border-[#006B0C] placeholder:text-slate-400"
                   />
                 </div>
@@ -207,7 +236,7 @@ export default function TiteAccessOverlay({
                     <p className="text-sm text-slate-400 text-center py-8">No countries found.</p>
                   ) : (
                     <div className="divide-y divide-slate-100">
-                      {filtered.map(c => (
+                      {filtered.map((c) => (
                         <label
                           key={c}
                           className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors"
@@ -241,13 +270,24 @@ export default function TiteAccessOverlay({
           {status === 'pending' && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
               <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-5">
-                <svg className="w-7 h-7 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-7 h-7 text-amber-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.75}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
               </div>
               <h1 className="text-lg font-bold text-slate-900">Access Request Pending</h1>
               <p className="text-sm text-slate-500 mt-2 leading-relaxed max-w-xs mx-auto">
-                Your request is under review. You&apos;ll have access once an administrator approves it.
+                Your request is under review. You&apos;ll have access once an administrator approves
+                it.
               </p>
               <div className="flex flex-col gap-2 mt-6">
                 <button
@@ -272,8 +312,18 @@ export default function TiteAccessOverlay({
           {(status === 'rejected' || status === 'revoked' || status === 'denied') && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
               <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5">
-                <svg className="w-7 h-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                <svg
+                  className="w-7 h-7 text-red-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.75}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                  />
                 </svg>
               </div>
               <h1 className="text-lg font-bold text-slate-900">
@@ -286,7 +336,12 @@ export default function TiteAccessOverlay({
               </p>
               <div className="flex flex-col gap-2 mt-6">
                 <button
-                  onClick={() => { setSelected(new Set()); setSearch(''); setErrorMsg(''); setStatus('new'); }}
+                  onClick={() => {
+                    setSelected(new Set());
+                    setSearch('');
+                    setErrorMsg('');
+                    setStatus('new');
+                  }}
                   className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all active:scale-95"
                   style={{ background: BRAND }}
                 >
@@ -301,7 +356,6 @@ export default function TiteAccessOverlay({
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>

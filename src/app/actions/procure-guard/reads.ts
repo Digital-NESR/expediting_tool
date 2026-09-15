@@ -145,28 +145,36 @@ export async function getProcureGuardWorkQueueData(): Promise<ProcureGuardWorkQu
     await ensureProcureGuardPaymentRequestColumns();
     const scope = scopedWhere(actor);
     const [adhocRows, advanceRows] = await Promise.all([
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM procure_guard_adhoc_payments ${scope.where} ORDER BY created_at DESC`,
+        scope.params,
+      ),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM procure_guard_advance_payments ${scope.where} ORDER BY created_at DESC`,
+        scope.params,
+      ),
     ]);
     const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
     const advance = normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(advanceRows));
     const items = [
-      ...adhoc.map(request => ({
+      ...adhoc.map((request) => ({
         request_type: 'adhoc' as const,
         request,
         actions: getScopedProcureGuardAvailableActions(actor, 'adhoc', request),
       })),
-      ...advance.map(request => ({
+      ...advance.map((request) => ({
         request_type: 'advance' as const,
         request,
         actions: getScopedProcureGuardAvailableActions(actor, 'advance', request),
       })),
     ]
-      .filter(item => item.actions.canApprove || item.actions.canReject)
+      .filter((item) => item.actions.canApprove || item.actions.canReject)
       .sort((a, b) => {
         const priorityRank: Record<string, number> = { Critical: 0, High: 1, Normal: 2, Low: 3 };
-        return (priorityRank[a.request.priority] ?? 2) - (priorityRank[b.request.priority] ?? 2)
-          || new Date(a.request.created_at).getTime() - new Date(b.request.created_at).getTime();
+        return (
+          (priorityRank[a.request.priority] ?? 2) - (priorityRank[b.request.priority] ?? 2) ||
+          new Date(a.request.created_at).getTime() - new Date(b.request.created_at).getTime()
+        );
       });
 
     return {
@@ -174,9 +182,9 @@ export async function getProcureGuardWorkQueueData(): Promise<ProcureGuardWorkQu
       items,
       stats: {
         total: items.length,
-        adhoc: items.filter(item => item.request_type === 'adhoc').length,
-        advance: items.filter(item => item.request_type === 'advance').length,
-        approval: items.filter(item => item.actions.canApprove || item.actions.canReject).length,
+        adhoc: items.filter((item) => item.request_type === 'adhoc').length,
+        advance: items.filter((item) => item.request_type === 'advance').length,
+        approval: items.filter((item) => item.actions.canApprove || item.actions.canReject).length,
       },
     };
   } catch (err) {
@@ -216,26 +224,29 @@ export async function getProcureGuardRequestDetail(
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
     await ensureProcureGuardPaymentRequestColumns();
-    const table = requestType === 'adhoc'
-      ? 'procure_guard_adhoc_payments'
-      : 'procure_guard_advance_payments';
-    const rows = await sql<QueryResultRow[]>(
-      `SELECT * FROM ${table} WHERE id = ? LIMIT 1`,
-      [id],
-    );
+    const table =
+      requestType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM ${table} WHERE id = ? LIMIT 1`, [id]);
 
     if (!rows[0]) {
       log.info('requestDetail.notFound', { requestType, id });
       return null;
     }
 
-    const request = normalisePaymentCountry(serialise<AdhocPaymentRequest | AdvancePaymentRequest>(rows[0]));
+    const request = normalisePaymentCountry(
+      serialise<AdhocPaymentRequest | AdvancePaymentRequest>(rows[0]),
+    );
     // ONE view predicate, shared with the list SQL and the document download route. The detail page
     // used to check the requester side ONLY for actors without canViewAll, so a country-scoped
     // reviewer opening a request they had raised themselves (or been added as a viewer on) outside
     // their review scope got a 404 on a row their own list had just shown them.
     if (!canActorViewRequest(actor, request)) {
-      log.info('requestDetail.denied', { requestType, id, actor: actor.email, reason: 'out of scope' });
+      log.info('requestDetail.denied', {
+        requestType,
+        id,
+        actor: actor.email,
+        reason: 'out of scope',
+      });
       return null;
     }
 
@@ -265,7 +276,7 @@ export async function getProcureGuardRequestDetail(
           `SELECT * FROM procure_guard_delegations
            WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
            ORDER BY created_at DESC`,
-        ).catch(err => {
+        ).catch((err) => {
           log.error('requestDetail.delegationsFailed', err, { requestType, id });
           return [] as QueryResultRow[];
         }),

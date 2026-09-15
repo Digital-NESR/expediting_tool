@@ -126,22 +126,22 @@ describe('alertLevelFor', () => {
   it.each([
     // overdue | ... | urgent
     ['2026-08-15', -30, 'overdue'],
-    ['2026-09-12',  -2, 'overdue'],
-    ['2026-09-13',  -1, 'overdue'],
-    ['2026-09-14',   0, 'urgent'],
-    ['2026-09-15',   1, 'urgent'],
+    ['2026-09-12', -2, 'overdue'],
+    ['2026-09-13', -1, 'overdue'],
+    ['2026-09-14', 0, 'urgent'],
+    ['2026-09-15', 1, 'urgent'],
     // urgent | action
-    ['2026-09-21',   7, 'urgent'],
-    ['2026-09-22',   8, 'action'],
+    ['2026-09-21', 7, 'urgent'],
+    ['2026-09-22', 8, 'action'],
     // action | plan
-    ['2026-09-28',  14, 'action'],
-    ['2026-09-29',  15, 'plan'],
+    ['2026-09-28', 14, 'action'],
+    ['2026-09-29', 15, 'plan'],
     // plan | info
-    ['2026-10-14',  30, 'plan'],
-    ['2026-10-15',  31, 'info'],
+    ['2026-10-14', 30, 'plan'],
+    ['2026-10-15', 31, 'info'],
     // info | ok
-    ['2026-11-13',  60, 'info'],
-    ['2026-11-14',  61, 'ok'],
+    ['2026-11-13', 60, 'info'],
+    ['2026-11-14', 61, 'ok'],
     ['2027-09-14', 365, 'ok'],
   ])('%s (%d days) falls in the %s bucket', (date, days, bucket) => {
     expect(calcDays(shipment(date), TODAY)).toBe(days);
@@ -162,7 +162,16 @@ describe('alertLevelFor', () => {
   });
 
   it('only ever returns one of the seven presentation buckets', () => {
-    const dates = [null, '', '2020-01-01', '2026-09-14', '2026-09-22', '2026-10-01', '2026-11-01', '2030-01-01'];
+    const dates = [
+      null,
+      '',
+      '2020-01-01',
+      '2026-09-14',
+      '2026-09-22',
+      '2026-10-01',
+      '2026-11-01',
+      '2030-01-01',
+    ];
     for (const d of dates) {
       for (const status of ['Open', 'Open - Extended', 'Closed', '']) {
         const l = alertLevelFor(d, null, status, TODAY);
@@ -205,7 +214,11 @@ describe('alertLevelFor', () => {
   });
 
   it('shipmentAlertLevel reads the three fields off a row', () => {
-    const row = { expiry_date: '2026-09-13', extended_date: '2026-10-14', status: 'Open - Extended' } as Shipment;
+    const row = {
+      expiry_date: '2026-09-13',
+      extended_date: '2026-10-14',
+      status: 'Open - Extended',
+    } as Shipment;
     expect(shipmentAlertLevel(row, TODAY)).toBe('plan');
     expect(shipmentAlertLevel({ ...row, status: 'Closed' }, TODAY)).toBe('closed');
   });

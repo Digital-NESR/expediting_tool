@@ -25,10 +25,7 @@ function secretsMatch(provided: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const secret = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_SECRET?.trim();
   if (!secret) {
     console.error(

@@ -1,1 +1,153 @@
-{"countries":["Algeria","Bahrain","Chad","EOS JAFZA","Egypt","HQ Dubai","HQ Houston","India","Indonesia","Iraq","Jordon","KSA","Kuwait","Libya","Oman","Qatar","UAE","Yemen"],"companies":[{"code":"2554","name":"Action Energy (CPVEN) Kuwait","countries":["Kuwait"]},{"code":"2112","name":"Energy Oilfield Supplies DMCC","countries":["KSA"]},{"code":"2113","name":"Energy Oilfield Supplies JAFZA","countries":["EOS JAFZA"]},{"code":"2555","name":"Gulf Energy LLC","countries":["Kuwait"]},{"code":"2440","name":"Gulf Energy SAOC","countries":["Oman"]},{"code":"3380","name":"Gulf Energy SAOC Representative Office Algeria","countries":["Algeria"]},{"code":"2869","name":"Gulf Energy Services , Yemen Branch – Mukalla","countries":["Yemen"]},{"code":"2868","name":"Gulf Energy Services , Yemen Branch – Sanaa","countries":["Yemen"]},{"code":"2441","name":"Gulf Energy Services LLC","countries":["Oman"]},{"code":"2334","name":"Gulf Energy Services LLC KSA","countries":["KSA"]},{"code":"2442","name":"Integrated Petroleum Services LLC","countries":["Oman"]},{"code":"2443","name":"Makamen Petroleum LLC","countries":["Oman"]},{"code":"2331","name":"National Drilling Company KSA","countries":["KSA"]},{"code":"2552","name":"National Gulf Petroleum Services","countries":["Kuwait"]},{"code":"4190","name":"National Oil Well Maintenance Company India","countries":["India"]},{"code":"3277","name":"National Petroleum Services JSC Libya","countries":["Libya"]},{"code":"2330","name":"National Petroleum Technology Company Limited KSA","countries":["KSA"]},{"code":"1101","name":"NESR BVI","countries":["HQ Houston"]},{"code":"2111","name":"NESR DMCC","countries":["HQ Dubai"]},{"code":"2765","name":"NESR DMCC- Iraq South","countries":["Iraq"]},{"code":"2118","name":"NESR Energy Services  HQ","countries":["HQ Dubai"]},{"code":"2115","name":"NESR Energy Services LLC","countries":["UAE"]},{"code":"2661","name":"NESR Oil and Gas Services - Qatar","countries":["Qatar"]},{"code":"1102","name":"NESR TEXAS","countries":["HQ Houston"]},{"code":"2222","name":"NESR WLL","countries":["HQ Dubai"]},{"code":"1104","name":"NESR-UK","countries":["HQ Houston"]},{"code":"1103","name":"NESR-USA","countries":["HQ Houston"]},{"code":"2117","name":"NNG Reinsurance Limited","countries":["HQ Dubai"]},{"code":"2660","name":"NOWMCO","countries":["Qatar"]},{"code":"2764","name":"NPS Bahrain for Oil & Gas Well Services WLL- North Iraq","countries":["Iraq"]},{"code":"3275","name":"NPS Bahrain for Oil & Gas Wells Services Libya bra","countries":["Libya"]},{"code":"2220","name":"NPS Bahrain for Oil and Gas Well Services WLL","countries":["KSA"]},{"code":"4192","name":"NPS Bahrain for Oil and Gas Well Services WLL","countries":["India"]},{"code":"3381","name":"NPS Bahrain for Oil and Gas Well Services WLL- Alg","countries":["Algeria"]},{"code":"2332","name":"NPS Bahrain for Oil and Gas Well Services WLL-BH Operation","countries":["KSA"]},{"code":"2550","name":"NPS Bahrain For Oil and Gas Wells Services WLL - K","countries":["Kuwait"]},{"code":"3587","name":"NPS Bahrain-Congo","countries":["Bahrain"]},{"code":"2221","name":"NPS Energy Holding WLL","countries":["HQ Dubai"]},{"code":"3485","name":"NPS Energy Holding WLL, SUCCURSAL","countries":["Chad"]},{"code":"4191","name":"NPS Energy India Private Limited","countries":["India"]},{"code":"2110","name":"NPS Holdings Limited DIFC","countries":["HQ Dubai"]},{"code":"2925","name":"NPS Jordan","countries":["Jordon"]},{"code":"4293","name":"PT DFI ASIA ENERGI","countries":["Indonesia"]},{"code":"4294","name":"PT NPS Energy Indonesia","countries":["Indonesia"]},{"code":"4295","name":"PT Tiger Energy Services ROI","countries":["Indonesia"]},{"code":"3174","name":"Sahara for Maint & Oper. Service LLC","countries":["Egypt"]},{"code":"2553","name":"Sahara Petroleum Service - Kuwait Project","countries":["Kuwait"]},{"code":"3276","name":"Sahara Petroleum Service - Libya Branch","countries":["Libya"]},{"code":"3170","name":"Sahara Petroleum Service - SAPESCO","countries":["Egypt"]},{"code":"2116","name":"SAPESCO","countries":["UAE"]},{"code":"2333","name":"SAPESCO Arabia for Petroleum Service","countries":["KSA"]},{"code":"3382","name":"SARL NESR ALGERIA","countries":["Algeria"]},{"code":"2444","name":"Sino Gulf Energy Enterprises LLC","countries":["Oman"]},{"code":"2551","name":"Sino Gulf Energy Enterprises LLC - Kuwait","countries":["Kuwait"]},{"code":"2446","name":"Sledgehammer Gulf LLC","countries":["Oman"]},{"code":"2114","name":"Taqaat Prof Services DMCC","countries":["HQ Dubai"]}],"countryMap":{"Saudi Arabia":["KSA"],"Abu Dhabi":["UAE","EOS JAFZA"],"HQ Dubai":["HQ Dubai"],"Qatar":["Qatar"],"Kuwait":["Kuwait"],"Oman":["Oman"],"Bahrain":["Bahrain"],"Egypt":["Egypt"],"Algeria":["Algeria"],"Iraq":["Iraq"],"Libya":["Libya"],"Yemen":["Yemen"],"Chad":["Chad"],"India":["India"],"Indonesia":["Indonesia"]}}
+{
+  "countries": [
+    "Algeria",
+    "Bahrain",
+    "Chad",
+    "EOS JAFZA",
+    "Egypt",
+    "HQ Dubai",
+    "HQ Houston",
+    "India",
+    "Indonesia",
+    "Iraq",
+    "Jordon",
+    "KSA",
+    "Kuwait",
+    "Libya",
+    "Oman",
+    "Qatar",
+    "UAE",
+    "Yemen"
+  ],
+  "companies": [
+    { "code": "2554", "name": "Action Energy (CPVEN) Kuwait", "countries": ["Kuwait"] },
+    { "code": "2112", "name": "Energy Oilfield Supplies DMCC", "countries": ["KSA"] },
+    { "code": "2113", "name": "Energy Oilfield Supplies JAFZA", "countries": ["EOS JAFZA"] },
+    { "code": "2555", "name": "Gulf Energy LLC", "countries": ["Kuwait"] },
+    { "code": "2440", "name": "Gulf Energy SAOC", "countries": ["Oman"] },
+    {
+      "code": "3380",
+      "name": "Gulf Energy SAOC Representative Office Algeria",
+      "countries": ["Algeria"]
+    },
+    {
+      "code": "2869",
+      "name": "Gulf Energy Services , Yemen Branch – Mukalla",
+      "countries": ["Yemen"]
+    },
+    {
+      "code": "2868",
+      "name": "Gulf Energy Services , Yemen Branch – Sanaa",
+      "countries": ["Yemen"]
+    },
+    { "code": "2441", "name": "Gulf Energy Services LLC", "countries": ["Oman"] },
+    { "code": "2334", "name": "Gulf Energy Services LLC KSA", "countries": ["KSA"] },
+    { "code": "2442", "name": "Integrated Petroleum Services LLC", "countries": ["Oman"] },
+    { "code": "2443", "name": "Makamen Petroleum LLC", "countries": ["Oman"] },
+    { "code": "2331", "name": "National Drilling Company KSA", "countries": ["KSA"] },
+    { "code": "2552", "name": "National Gulf Petroleum Services", "countries": ["Kuwait"] },
+    {
+      "code": "4190",
+      "name": "National Oil Well Maintenance Company India",
+      "countries": ["India"]
+    },
+    { "code": "3277", "name": "National Petroleum Services JSC Libya", "countries": ["Libya"] },
+    {
+      "code": "2330",
+      "name": "National Petroleum Technology Company Limited KSA",
+      "countries": ["KSA"]
+    },
+    { "code": "1101", "name": "NESR BVI", "countries": ["HQ Houston"] },
+    { "code": "2111", "name": "NESR DMCC", "countries": ["HQ Dubai"] },
+    { "code": "2765", "name": "NESR DMCC- Iraq South", "countries": ["Iraq"] },
+    { "code": "2118", "name": "NESR Energy Services  HQ", "countries": ["HQ Dubai"] },
+    { "code": "2115", "name": "NESR Energy Services LLC", "countries": ["UAE"] },
+    { "code": "2661", "name": "NESR Oil and Gas Services - Qatar", "countries": ["Qatar"] },
+    { "code": "1102", "name": "NESR TEXAS", "countries": ["HQ Houston"] },
+    { "code": "2222", "name": "NESR WLL", "countries": ["HQ Dubai"] },
+    { "code": "1104", "name": "NESR-UK", "countries": ["HQ Houston"] },
+    { "code": "1103", "name": "NESR-USA", "countries": ["HQ Houston"] },
+    { "code": "2117", "name": "NNG Reinsurance Limited", "countries": ["HQ Dubai"] },
+    { "code": "2660", "name": "NOWMCO", "countries": ["Qatar"] },
+    {
+      "code": "2764",
+      "name": "NPS Bahrain for Oil & Gas Well Services WLL- North Iraq",
+      "countries": ["Iraq"]
+    },
+    {
+      "code": "3275",
+      "name": "NPS Bahrain for Oil & Gas Wells Services Libya bra",
+      "countries": ["Libya"]
+    },
+    {
+      "code": "2220",
+      "name": "NPS Bahrain for Oil and Gas Well Services WLL",
+      "countries": ["KSA"]
+    },
+    {
+      "code": "4192",
+      "name": "NPS Bahrain for Oil and Gas Well Services WLL",
+      "countries": ["India"]
+    },
+    {
+      "code": "3381",
+      "name": "NPS Bahrain for Oil and Gas Well Services WLL- Alg",
+      "countries": ["Algeria"]
+    },
+    {
+      "code": "2332",
+      "name": "NPS Bahrain for Oil and Gas Well Services WLL-BH Operation",
+      "countries": ["KSA"]
+    },
+    {
+      "code": "2550",
+      "name": "NPS Bahrain For Oil and Gas Wells Services WLL - K",
+      "countries": ["Kuwait"]
+    },
+    { "code": "3587", "name": "NPS Bahrain-Congo", "countries": ["Bahrain"] },
+    { "code": "2221", "name": "NPS Energy Holding WLL", "countries": ["HQ Dubai"] },
+    { "code": "3485", "name": "NPS Energy Holding WLL, SUCCURSAL", "countries": ["Chad"] },
+    { "code": "4191", "name": "NPS Energy India Private Limited", "countries": ["India"] },
+    { "code": "2110", "name": "NPS Holdings Limited DIFC", "countries": ["HQ Dubai"] },
+    { "code": "2925", "name": "NPS Jordan", "countries": ["Jordon"] },
+    { "code": "4293", "name": "PT DFI ASIA ENERGI", "countries": ["Indonesia"] },
+    { "code": "4294", "name": "PT NPS Energy Indonesia", "countries": ["Indonesia"] },
+    { "code": "4295", "name": "PT Tiger Energy Services ROI", "countries": ["Indonesia"] },
+    { "code": "3174", "name": "Sahara for Maint & Oper. Service LLC", "countries": ["Egypt"] },
+    {
+      "code": "2553",
+      "name": "Sahara Petroleum Service - Kuwait Project",
+      "countries": ["Kuwait"]
+    },
+    { "code": "3276", "name": "Sahara Petroleum Service - Libya Branch", "countries": ["Libya"] },
+    { "code": "3170", "name": "Sahara Petroleum Service - SAPESCO", "countries": ["Egypt"] },
+    { "code": "2116", "name": "SAPESCO", "countries": ["UAE"] },
+    { "code": "2333", "name": "SAPESCO Arabia for Petroleum Service", "countries": ["KSA"] },
+    { "code": "3382", "name": "SARL NESR ALGERIA", "countries": ["Algeria"] },
+    { "code": "2444", "name": "Sino Gulf Energy Enterprises LLC", "countries": ["Oman"] },
+    {
+      "code": "2551",
+      "name": "Sino Gulf Energy Enterprises LLC - Kuwait",
+      "countries": ["Kuwait"]
+    },
+    { "code": "2446", "name": "Sledgehammer Gulf LLC", "countries": ["Oman"] },
+    { "code": "2114", "name": "Taqaat Prof Services DMCC", "countries": ["HQ Dubai"] }
+  ],
+  "countryMap": {
+    "Saudi Arabia": ["KSA"],
+    "Abu Dhabi": ["UAE", "EOS JAFZA"],
+    "HQ Dubai": ["HQ Dubai"],
+    "Qatar": ["Qatar"],
+    "Kuwait": ["Kuwait"],
+    "Oman": ["Oman"],
+    "Bahrain": ["Bahrain"],
+    "Egypt": ["Egypt"],
+    "Algeria": ["Algeria"],
+    "Iraq": ["Iraq"],
+    "Libya": ["Libya"],
+    "Yemen": ["Yemen"],
+    "Chad": ["Chad"],
+    "India": ["India"],
+    "Indonesia": ["Indonesia"]
+  }
+}

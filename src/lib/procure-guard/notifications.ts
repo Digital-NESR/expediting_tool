@@ -42,25 +42,34 @@ import { emailTestRecipientOverridesOf, emailTestRecipientsOf } from './validati
 
 const log = logger('procure-guard');
 
-export type ProcureGuardWorkflowEvent = 'request.submitted' | 'request.status_changed' | 'request.requester_status_changed';
+export type ProcureGuardWorkflowEvent =
+  'request.submitted' | 'request.status_changed' | 'request.requester_status_changed';
 
 // Expand a role-based approver list to also include each approver's active delegate(s), deduped by email.
-export function withDelegateRecipients<T extends { email: string; display_name: string; notification_role: string; approval_status: string | null; country: string }>(
-  recipients: T[],
-  delegatesByDelegator: Record<string, ProcureGuardDelegation[]>,
-): T[] {
-  const delegateRecipients = recipients.flatMap(r =>
-    (delegatesByDelegator[r.email.trim().toLowerCase()] ?? []).map(d => ({
-      display_name: d.delegate_name || d.delegate_email,
-      email: d.delegate_email,
-      notification_role: `Delegate of ${r.display_name || r.email}`,
-      approval_status: r.approval_status,
-      country: r.country,
-      source_column: 'delegation',
-    } as unknown as T)),
+export function withDelegateRecipients<
+  T extends {
+    email: string;
+    display_name: string;
+    notification_role: string;
+    approval_status: string | null;
+    country: string;
+  },
+>(recipients: T[], delegatesByDelegator: Record<string, ProcureGuardDelegation[]>): T[] {
+  const delegateRecipients = recipients.flatMap((r) =>
+    (delegatesByDelegator[r.email.trim().toLowerCase()] ?? []).map(
+      (d) =>
+        ({
+          display_name: d.delegate_name || d.delegate_email,
+          email: d.delegate_email,
+          notification_role: `Delegate of ${r.display_name || r.email}`,
+          approval_status: r.approval_status,
+          country: r.country,
+          source_column: 'delegation',
+        }) as unknown as T,
+    ),
   );
   const seen = new Set<string>();
-  return [...recipients, ...delegateRecipients].filter(r => {
+  return [...recipients, ...delegateRecipients].filter((r) => {
     const key = r.email.trim().toLowerCase();
     if (!key || seen.has(key)) return false;
     seen.add(key);
@@ -74,8 +83,10 @@ function getNotificationPreviewStatuses(
   currency?: string | null,
 ): ProcureGuardStatus[] {
   return getWorkflowSteps(requestType, amount, currency || 'USD')
-    .map(step => step.status)
-    .filter((status): status is ProcureGuardStatus => status !== 'Submitted' && status !== 'Approved');
+    .map((step) => step.status)
+    .filter(
+      (status): status is ProcureGuardStatus => status !== 'Submitted' && status !== 'Approved',
+    );
 }
 
 export async function getProcureGuardNotificationContactPreviewRows(input: {
@@ -96,9 +107,15 @@ export async function getProcureGuardNotificationContactPreviewRows(input: {
   // One query for ALL steps instead of one per step (the loop used to cost 3-5 round-trips on the
   // request detail page); the per-step matching/ordering rules are unchanged, just applied in JS.
   const profile = getPermissionProfile(null); // ownerLabel derives from the status only, not the profile
-  const steps = statuses.map(status => ({
+  const steps = statuses.map((status) => ({
     status,
-    ownerLabel: getProcureGuardAvailableActions(profile, input.requestType, status, input.amount, input.currency).ownerLabel,
+    ownerLabel: getProcureGuardAvailableActions(
+      profile,
+      input.requestType,
+      status,
+      input.amount,
+      input.currency,
+    ).ownerLabel,
   }));
   const recipientsByStatus = await getProcureGuardNotificationRecipientsForStatuses({
     requestType: input.requestType,
@@ -107,32 +124,38 @@ export async function getProcureGuardNotificationContactPreviewRows(input: {
   });
   // Group each recipient under THIS step's status: a role-tagged row may carry a null/other
   // stored approval_status, and the contacts panel groups + highlights the step by approval_status.
-  const perStep = steps.map(step =>
-    (recipientsByStatus.get(step.status) ?? []).map((row, index): ProcureGuardNotificationContact => ({
-      id: index,
-      country: row.country,
-      request_type: input.requestType,
-      notification_role: row.notification_role,
-      approval_status: step.status,
-      source_column: row.source_column,
-      display_name: row.display_name,
-      email: row.email,
-    })),
+  const perStep = steps.map((step) =>
+    (recipientsByStatus.get(step.status) ?? []).map(
+      (row, index): ProcureGuardNotificationContact => ({
+        id: index,
+        country: row.country,
+        request_type: input.requestType,
+        notification_role: row.notification_role,
+        approval_status: step.status,
+        source_column: row.source_column,
+        display_name: row.display_name,
+        email: row.email,
+      }),
+    ),
   );
 
   const statusRank = new Map(statuses.map((status, index) => [status, index]));
   const seen = new Set<string>();
   return perStep
     .flat()
-    .filter(contact => {
+    .filter((contact) => {
       const key = `${contact.approval_status || 'none'}:${contact.email.trim().toLowerCase()}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     })
-    .sort((a, b) => (statusRank.get(a.approval_status as ProcureGuardStatus) ?? 99) - (statusRank.get(b.approval_status as ProcureGuardStatus) ?? 99)
-      || a.notification_role.localeCompare(b.notification_role)
-      || a.display_name.localeCompare(b.display_name));
+    .sort(
+      (a, b) =>
+        (statusRank.get(a.approval_status as ProcureGuardStatus) ?? 99) -
+          (statusRank.get(b.approval_status as ProcureGuardStatus) ?? 99) ||
+        a.notification_role.localeCompare(b.notification_role) ||
+        a.display_name.localeCompare(b.display_name),
+    );
 }
 
 function buildProcureGuardNotificationEmail(input: {
@@ -148,7 +171,8 @@ function buildProcureGuardNotificationEmail(input: {
 }) {
   const typeLabel = input.requestType === 'adhoc' ? 'Adhoc PO' : 'Advance Payment';
   const article = /^[aeiou]/i.test(typeLabel) ? 'An' : 'A';
-  const actionLabel = input.event === 'request.submitted' ? 'New request submitted' : 'Request moved forward';
+  const actionLabel =
+    input.event === 'request.submitted' ? 'New request submitted' : 'Request moved forward';
   const subject = `ProcureGuard: ${input.request.reference_number} needs ${input.ownerLabel} review`;
   const comment = input.comment || input.request.requester_comments || '';
   const statusLine = input.previousStatus
@@ -213,7 +237,11 @@ function buildProcureGuardRequesterStageEmail(input: {
       : 'The approval workflow is complete.';
   const comment = input.comment || '';
   const accent = isRejected ? '#b42318' : isCancelled ? '#475569' : '#006B0C';
-  const eyebrow = isRejected ? 'Request rejected' : isCancelled ? 'Request cancelled' : 'Requester status update';
+  const eyebrow = isRejected
+    ? 'Request rejected'
+    : isCancelled
+      ? 'Request cancelled'
+      : 'Requester status update';
   const heading = isRejected
     ? `${input.request.reference_number} has been rejected`
     : isCancelled
@@ -224,8 +252,16 @@ function buildProcureGuardRequesterStageEmail(input: {
     : isCancelled
       ? `Your ${typeLabel} request has been cancelled. ${nextLine}`
       : `Your ${typeLabel} request changed stage. ${nextLine}`;
-  const nextStepText = isTerminalStop ? 'No further action' : (input.nextStatus ? formatProcureGuardStatusLabel(input.nextStatus) : 'Approved');
-  const commentLabel = isRejected ? 'Rejection reason' : isCancelled ? 'Cancellation note' : 'Reviewer comment';
+  const nextStepText = isTerminalStop
+    ? 'No further action'
+    : input.nextStatus
+      ? formatProcureGuardStatusLabel(input.nextStatus)
+      : 'Approved';
+  const commentLabel = isRejected
+    ? 'Rejection reason'
+    : isCancelled
+      ? 'Cancellation note'
+      : 'Reviewer comment';
   const subject = isRejected
     ? `ProcureGuard: ${input.request.reference_number} was rejected`
     : isCancelled
@@ -272,12 +308,18 @@ export async function notifyProcureGuardNextApprover(input: {
 }): Promise<void> {
   const webhookUrl = process.env.N8N_PROCUREGUARD_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    log.warn('webhook.unconfigured', { reason: 'N8N_PROCUREGUARD_WEBHOOK_URL is not set', requestType: input.requestType, requestId: input.requestId });
+    log.warn('webhook.unconfigured', {
+      reason: 'N8N_PROCUREGUARD_WEBHOOK_URL is not set',
+      requestType: input.requestType,
+      requestId: input.requestId,
+    });
     return;
   }
 
   try {
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM ${input.table} WHERE id = ? LIMIT 1`, [input.requestId]);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM ${input.table} WHERE id = ? LIMIT 1`, [
+      input.requestId,
+    ]);
     const request = rows[0] ? serialise<ProcureGuardWebhookRequest>(rows[0]) : null;
     if (!request) return;
 
@@ -312,7 +354,9 @@ export async function notifyProcureGuardNextApprover(input: {
       requested_by_email: request.requested_by_email,
       requester_notification_emails: requesterNotificationEmailsOf(request),
       email_test_mode: isEmailTestMode,
-      email_test_recipients: emailTestRecipientsOf(request, input.actor.email).map(row => row.email),
+      email_test_recipients: emailTestRecipientsOf(request, input.actor.email).map(
+        (row) => row.email,
+      ),
       email_test_recipient_overrides: emailTestRecipientOverrides,
       requester_comments: request.requester_comments,
       created_at: request.created_at,
@@ -329,9 +373,11 @@ export async function notifyProcureGuardNextApprover(input: {
     if (secret) headers['x-procureguard-secret'] = secret;
 
     if (
-      (input.event === 'request.status_changed' || input.event === 'request.submitted')
-      && (isRequesterAcceptedStage(request.status) || request.status === 'Rejected' || request.status === 'Cancelled')
-      && request.requested_by_email?.trim()
+      (input.event === 'request.status_changed' || input.event === 'request.submitted') &&
+      (isRequesterAcceptedStage(request.status) ||
+        request.status === 'Rejected' ||
+        request.status === 'Cancelled') &&
+      request.requested_by_email?.trim()
     ) {
       const requesterEmail = buildProcureGuardRequesterStageEmail({
         requestType: input.requestType,
@@ -353,7 +399,7 @@ export async function notifyProcureGuardNextApprover(input: {
           country: request.country,
           source_column: 'requested_by_email',
         },
-        ...requesterNotificationEmailsOf(request).map(email => ({
+        ...requesterNotificationEmailsOf(request).map((email) => ({
           name: email,
           email,
           role: 'Requester notification',
@@ -363,7 +409,9 @@ export async function notifyProcureGuardNextApprover(input: {
         })),
       ];
       const requesterTestRole = 'Requester Updates';
-      const routedRequesterRecipients = isEmailTestMode ? emailTestRecipientsOf(request, input.actor.email, requesterTestRole) : requesterSideRecipients;
+      const routedRequesterRecipients = isEmailTestMode
+        ? emailTestRecipientsOf(request, input.actor.email, requesterTestRole)
+        : requesterSideRecipients;
       const requesterPayload = {
         event: 'request.requester_status_changed' as ProcureGuardWorkflowEvent,
         source: 'procureguard-local',
@@ -380,7 +428,7 @@ export async function notifyProcureGuardNextApprover(input: {
         },
         actor: actorPayload,
         comment: input.comment ?? null,
-        intended_recipients: requesterSideRecipients.map(row => ({
+        intended_recipients: requesterSideRecipients.map((row) => ({
           name: row.name,
           email: row.email,
           role: row.role,
@@ -388,7 +436,7 @@ export async function notifyProcureGuardNextApprover(input: {
           country: request.country,
           source_column: row.source_column,
         })),
-        recipients: routedRequesterRecipients.map(row => ({
+        recipients: routedRequesterRecipients.map((row) => ({
           name: row.name,
           email: row.email,
           role: row.role,
@@ -399,15 +447,19 @@ export async function notifyProcureGuardNextApprover(input: {
         email: {
           subject: requesterEmail.subject,
           body_html: requesterEmail.bodyHtml,
-          to: routedRequesterRecipients.map(row => row.email),
-          to_recipients: routedRequesterRecipients.map(row => ({
+          to: routedRequesterRecipients.map((row) => row.email),
+          to_recipients: routedRequesterRecipients.map((row) => ({
             emailAddress: { address: row.email, name: row.name },
           })),
         },
       };
 
       try {
-        const requesterResponse = await postProcureGuardWebhook(webhookUrl, headers, requesterPayload);
+        const requesterResponse = await postProcureGuardWebhook(
+          webhookUrl,
+          headers,
+          requesterPayload,
+        );
         if (!requesterResponse.ok) {
           log.error('webhook.requester.failed', null, {
             requestType: input.requestType,
@@ -442,9 +494,13 @@ export async function notifyProcureGuardNextApprover(input: {
     // (matches the reminder job). Deduped by email.
     const delegatesByDelegator = await getActiveDelegatesByDelegator();
     const recipients = withDelegateRecipients(baseRecipients, delegatesByDelegator);
-    const approverTestRecipients = emailTestRecipientsOf(request, input.actor.email, actions.ownerLabel);
+    const approverTestRecipients = emailTestRecipientsOf(
+      request,
+      input.actor.email,
+      actions.ownerLabel,
+    );
     const routedRecipients = isEmailTestMode
-      ? approverTestRecipients.map(row => ({
+      ? approverTestRecipients.map((row) => ({
           display_name: row.name,
           email: row.email,
           notification_role: row.role,
@@ -492,7 +548,7 @@ export async function notifyProcureGuardNextApprover(input: {
       },
       actor: actorPayload,
       comment: input.comment ?? null,
-      intended_recipients: recipients.map(row => ({
+      intended_recipients: recipients.map((row) => ({
         name: row.display_name,
         email: row.email,
         role: row.notification_role,
@@ -500,7 +556,7 @@ export async function notifyProcureGuardNextApprover(input: {
         country: row.country,
         source_column: row.source_column,
       })),
-      recipients: routedRecipients.map(row => ({
+      recipients: routedRecipients.map((row) => ({
         name: row.display_name,
         email: row.email,
         role: row.notification_role,
@@ -511,8 +567,8 @@ export async function notifyProcureGuardNextApprover(input: {
       email: {
         subject: email.subject,
         body_html: email.bodyHtml,
-        to: routedRecipients.map(row => row.email),
-        to_recipients: routedRecipients.map(row => ({
+        to: routedRecipients.map((row) => row.email),
+        to_recipients: routedRecipients.map((row) => ({
           emailAddress: { address: row.email, name: row.display_name },
         })),
       },

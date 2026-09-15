@@ -44,7 +44,11 @@ const log = logger('learning-hub');
    layout. The Learning Hub itself is deliberately open to all employees:
    learner actions need an actor, only the CMS needs an admin. ── */
 
-async function getLearningHubActor(): Promise<{ email: string; name: string; isAdmin: boolean } | null> {
+async function getLearningHubActor(): Promise<{
+  email: string;
+  name: string;
+  isAdmin: boolean;
+} | null> {
   const actor = await currentActor();
   if (!actor) return null;
   return {
@@ -55,7 +59,11 @@ async function getLearningHubActor(): Promise<{ email: string; name: string; isA
 }
 
 /** CMS gate. Throws {@link AccessError}, so a denied call can never reach a write. */
-async function requireLearningHubAdmin(): Promise<{ email: string; name: string; isAdmin: boolean }> {
+async function requireLearningHubAdmin(): Promise<{
+  email: string;
+  name: string;
+  isAdmin: boolean;
+}> {
   const actor = await getLearningHubActor();
   if (!actor?.isAdmin) throw new AccessError('Admins only.');
   return actor;
@@ -91,7 +99,9 @@ function sanitiseVideoUrl(raw: string | null | undefined): string | null {
     throw new AccessError('Video URL must use https.', 400);
   }
   const host = parsed.hostname.toLowerCase();
-  const allowed = VIDEO_EMBED_HOSTS.has(host) || VIDEO_EMBED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
+  const allowed =
+    VIDEO_EMBED_HOSTS.has(host) ||
+    VIDEO_EMBED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
   if (!allowed) {
     throw new AccessError(`"${host}" is not an approved video embed host.`, 400);
   }
@@ -101,9 +111,24 @@ function sanitiseVideoUrl(raw: string | null | undefined): string | null {
 /* ── Admin analytics ──────────────────────────────────────────────────── */
 
 const EMPTY_ANALYTICS: LearningHubAnalytics = {
-  overview: { learners: 0, lessonCompletions: 0, courseCompletions: 0, trackCount: 0, courseCount: 0, lessonCount: 0 },
+  overview: {
+    learners: 0,
+    lessonCompletions: 0,
+    courseCompletions: 0,
+    trackCount: 0,
+    courseCount: 0,
+    lessonCount: 0,
+  },
   tracks: [],
-  redBull: { totalPlays: 0, uniquePlayers: 0, avgScore: null, bestScore: null, soloPlays: 0, teamPlays: 0, top: [] },
+  redBull: {
+    totalPlays: 0,
+    uniquePlayers: 0,
+    avgScore: null,
+    bestScore: null,
+    soloPlays: 0,
+    teamPlays: 0,
+    top: [],
+  },
 };
 
 export async function getLearningHubAnalytics(): Promise<LearningHubAnalytics> {
@@ -182,7 +207,9 @@ export async function getLearningHubAnalytics(): Promise<LearningHubAnalytics> {
         key: String(t.key),
         name: String(t.name),
         color: (t.color as string) ?? null,
-        learners: Number(trackLearnerRows.find((r) => Number(r.track_id) === Number(t.id))?.learners ?? 0),
+        learners: Number(
+          trackLearnerRows.find((r) => Number(r.track_id) === Number(t.id))?.learners ?? 0,
+        ),
         lessonCount: courses.reduce((s, c) => s + c.lessonCount, 0),
         lessonCompletions: courses.reduce((s, c) => s + c.lessonCompletions, 0),
         completedLearners: courses.reduce((s, c) => s + c.completedLearners, 0),
@@ -228,13 +255,19 @@ export async function markLessonIncomplete(lessonId: number): Promise<{ success:
   const actor = await getLearningHubActor();
   if (!actor) throw new AccessError('Sign in required.', 401);
   await ensureLearningHubReady();
-  await exec(`DELETE FROM learning_lesson_progress WHERE user_email = ? AND lesson_id = ?`, [actor.email, lessonId]);
+  await exec(`DELETE FROM learning_lesson_progress WHERE user_email = ? AND lesson_id = ?`, [
+    actor.email,
+    lessonId,
+  ]);
   return { success: true };
 }
 
 // Grade a lesson quiz server-side (answer key never ships to the client), persist the best
 // result, and on a pass (>= pass_pct) mark the lesson complete so the next one unlocks.
-export async function submitLessonQuiz(quizId: number, answers: QuizAnswerInput[]): Promise<LessonQuizAttemptResult | null> {
+export async function submitLessonQuiz(
+  quizId: number,
+  answers: QuizAnswerInput[],
+): Promise<LessonQuizAttemptResult | null> {
   try {
     const actor = await getLearningHubActor();
     if (!actor) return null;
@@ -247,12 +280,14 @@ export async function submitLessonQuiz(quizId: number, answers: QuizAnswerInput[
       [quizId],
     );
     const correctByQ = new Map<number, number>();
-    for (const r of rows) if (r.is_correct) correctByQ.set(Number(r.question_id), Number(r.option_id));
+    for (const r of rows)
+      if (r.is_correct) correctByQ.set(Number(r.question_id), Number(r.option_id));
     const total = correctByQ.size;
     if (total === 0) return null;
 
     const answerMap = new Map<number, number | null>();
-    for (const a of answers) answerMap.set(Number(a.questionId), a.optionId != null ? Number(a.optionId) : null);
+    for (const a of answers)
+      answerMap.set(Number(a.questionId), a.optionId != null ? Number(a.optionId) : null);
 
     let correctCount = 0;
     const results = [...correctByQ.entries()].map(([questionId, correctOptionId]) => {
@@ -263,7 +298,10 @@ export async function submitLessonQuiz(quizId: number, answers: QuizAnswerInput[
     });
     const scorePct = Math.round((correctCount / total) * 100);
 
-    const meta = await sql<QueryResultRow[]>(`SELECT pass_pct, lesson_id FROM learning_quizzes WHERE id = ?`, [quizId]);
+    const meta = await sql<QueryResultRow[]>(
+      `SELECT pass_pct, lesson_id FROM learning_quizzes WHERE id = ?`,
+      [quizId],
+    );
     const passPct = Number(meta[0]?.pass_pct ?? DEFAULT_QUIZ_PASS_PCT);
     const lessonId = meta[0]?.lesson_id != null ? Number(meta[0].lesson_id) : null;
     const passed = scorePct >= passPct;
@@ -304,9 +342,15 @@ export async function getLearningHubAdminData(): Promise<LearningHubAdminData> {
   // Five independent selects: one round trip instead of five serial ones.
   const [tracks, courses, modules, lessons, quizRows] = await Promise.all([
     sql<LearningTrack[]>(`SELECT * FROM learning_tracks ORDER BY order_index ASC, id ASC`),
-    sql<LearningCourse[]>(`SELECT * FROM learning_courses ORDER BY track_id ASC, order_index ASC, id ASC`),
-    sql<LearningModule[]>(`SELECT * FROM learning_modules ORDER BY course_id ASC, order_index ASC, id ASC`),
-    sql<LearningLesson[]>(`SELECT * FROM learning_lessons ORDER BY module_id ASC, order_index ASC, id ASC`),
+    sql<LearningCourse[]>(
+      `SELECT * FROM learning_courses ORDER BY track_id ASC, order_index ASC, id ASC`,
+    ),
+    sql<LearningModule[]>(
+      `SELECT * FROM learning_modules ORDER BY course_id ASC, order_index ASC, id ASC`,
+    ),
+    sql<LearningLesson[]>(
+      `SELECT * FROM learning_lessons ORDER BY module_id ASC, order_index ASC, id ASC`,
+    ),
     sql<QueryResultRow[]>(`SELECT module_id FROM learning_quizzes`),
   ]);
   const quizModuleIds = new Set(quizRows.map((r) => Number(r.module_id)));
@@ -333,11 +377,14 @@ export async function getLearningHubAdminData(): Promise<LearningHubAdminData> {
 // Destructive: it deletes the track's courses, which cascades to learner progress. applySeedTrack
 // runs the whole replacement in one locked transaction, so a failure here leaves the track as it was
 // rather than emptied, and it cannot interleave with a cold-start sync of the same track.
-export async function resyncTrackFromSeed(trackKey: string): Promise<{ success: boolean; message: string }> {
+export async function resyncTrackFromSeed(
+  trackKey: string,
+): Promise<{ success: boolean; message: string }> {
   const actor = await requireLearningHubAdmin();
   await ensureLearningHubReady();
   const seedTrack = SEED_TRACKS.find((t) => t.key === trackKey);
-  if (!seedTrack) return { success: false, message: `No seed content defined for track "${trackKey}".` };
+  if (!seedTrack)
+    return { success: false, message: `No seed content defined for track "${trackKey}".` };
 
   log.info('cms.track.resync.requested', { track: trackKey, actor: actor.email });
   await applySeedTrack(seedTrack, SEED_TRACKS.indexOf(seedTrack), true);
@@ -352,7 +399,10 @@ export async function createCourse(
 ): Promise<{ id: number }> {
   await requireLearningHubAdmin();
   await ensureLearningHubReady();
-  const maxRows = await sql<QueryResultRow[]>(`SELECT COALESCE(MAX(order_index), -1) + 1 AS next FROM learning_courses WHERE track_id = ?`, [trackId]);
+  const maxRows = await sql<QueryResultRow[]>(
+    `SELECT COALESCE(MAX(order_index), -1) + 1 AS next FROM learning_courses WHERE track_id = ?`,
+    [trackId],
+  );
   const nextOrder = Number(maxRows[0]?.next ?? 0);
   const result = await exec(
     `INSERT INTO learning_courses (track_id, title, description, order_index, status) VALUES (?, ?, ?, ?, ?) RETURNING id`,
@@ -401,13 +451,15 @@ export async function deleteCourse(id: number): Promise<void> {
 export async function createModule(courseId: number, title: string): Promise<{ id: number }> {
   await requireLearningHubAdmin();
   await ensureLearningHubReady();
-  const maxRows = await sql<QueryResultRow[]>(`SELECT COALESCE(MAX(order_index), -1) + 1 AS next FROM learning_modules WHERE course_id = ?`, [courseId]);
+  const maxRows = await sql<QueryResultRow[]>(
+    `SELECT COALESCE(MAX(order_index), -1) + 1 AS next FROM learning_modules WHERE course_id = ?`,
+    [courseId],
+  );
   const nextOrder = Number(maxRows[0]?.next ?? 0);
-  const result = await exec(`INSERT INTO learning_modules (course_id, title, order_index) VALUES (?, ?, ?) RETURNING id`, [
-    courseId,
-    title,
-    nextOrder,
-  ]);
+  const result = await exec(
+    `INSERT INTO learning_modules (course_id, title, order_index) VALUES (?, ?, ?) RETURNING id`,
+    [courseId, title, nextOrder],
+  );
   return { id: result.insertId };
 }
 
@@ -454,7 +506,10 @@ export async function createLesson(
   await requireLearningHubAdmin();
   await ensureLearningHubReady();
   const safeVideoUrl = sanitiseVideoUrl(videoUrl);
-  const maxRows = await sql<QueryResultRow[]>(`SELECT COALESCE(MAX(order_index), -1) + 1 AS next FROM learning_lessons WHERE module_id = ?`, [moduleId]);
+  const maxRows = await sql<QueryResultRow[]>(
+    `SELECT COALESCE(MAX(order_index), -1) + 1 AS next FROM learning_lessons WHERE module_id = ?`,
+    [moduleId],
+  );
   const nextOrder = Number(maxRows[0]?.next ?? 0);
   const result = await exec(
     `INSERT INTO learning_lessons (module_id, title, body, video_url, duration_minutes, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
@@ -465,7 +520,12 @@ export async function createLesson(
 
 export async function updateLesson(
   id: number,
-  fields: { title: string; body: string; video_url: string | null; duration_minutes: number | null },
+  fields: {
+    title: string;
+    body: string;
+    video_url: string | null;
+    duration_minutes: number | null;
+  },
 ): Promise<void> {
   await requireLearningHubAdmin();
   await ensureLearningHubReady();
@@ -505,7 +565,12 @@ const PARENT_COLUMN: Record<ReorderTable, string> = {
 // sharing one order_index and the list silently reorders itself. The SELECT takes FOR UPDATE so two
 // admins reordering the same parent queue up instead of both swapping against the same stale read.
 // Callers are the move* actions below, which run requireLearningHubAdmin() before getting here.
-async function moveOrderIndex(table: ReorderTable, parentId: number, id: number, direction: 'up' | 'down'): Promise<void> {
+async function moveOrderIndex(
+  table: ReorderTable,
+  parentId: number,
+  id: number,
+  direction: 'up' | 'down',
+): Promise<void> {
   const parentColumn = PARENT_COLUMN[table];
   await withTransaction(learningHubPool, async (client) => {
     const rows = await sqlOn<QueryResultRow[]>(
@@ -519,22 +584,40 @@ async function moveOrderIndex(table: ReorderTable, parentId: number, id: number,
     if (swapIdx < 0 || swapIdx >= rows.length) return;
     const a = rows[idx];
     const b = rows[swapIdx];
-    await execOn(client, `UPDATE ${table} SET order_index = ? WHERE id = ?`, [Number(b.order_index), Number(a.id)]);
-    await execOn(client, `UPDATE ${table} SET order_index = ? WHERE id = ?`, [Number(a.order_index), Number(b.id)]);
+    await execOn(client, `UPDATE ${table} SET order_index = ? WHERE id = ?`, [
+      Number(b.order_index),
+      Number(a.id),
+    ]);
+    await execOn(client, `UPDATE ${table} SET order_index = ? WHERE id = ?`, [
+      Number(a.order_index),
+      Number(b.id),
+    ]);
   });
 }
 
-export async function moveCourse(trackId: number, id: number, direction: 'up' | 'down'): Promise<void> {
+export async function moveCourse(
+  trackId: number,
+  id: number,
+  direction: 'up' | 'down',
+): Promise<void> {
   await requireLearningHubAdmin();
   await ensureLearningHubReady();
   await moveOrderIndex('learning_courses', trackId, id, direction);
 }
-export async function moveModule(courseId: number, id: number, direction: 'up' | 'down'): Promise<void> {
+export async function moveModule(
+  courseId: number,
+  id: number,
+  direction: 'up' | 'down',
+): Promise<void> {
   await requireLearningHubAdmin();
   await ensureLearningHubReady();
   await moveOrderIndex('learning_modules', courseId, id, direction);
 }
-export async function moveLesson(moduleId: number, id: number, direction: 'up' | 'down'): Promise<void> {
+export async function moveLesson(
+  moduleId: number,
+  id: number,
+  direction: 'up' | 'down',
+): Promise<void> {
   await requireLearningHubAdmin();
   await ensureLearningHubReady();
   await moveOrderIndex('learning_lessons', moduleId, id, direction);
@@ -547,7 +630,9 @@ export async function moveLesson(moduleId: number, id: number, direction: 'up' |
 
 // Answer key. Admin-only: degrade to null rather than throwing, the editor
 // treats null as "no quiz yet".
-export async function getModuleQuizForAdmin(moduleId: number): Promise<ModuleQuizWithAnswers | null> {
+export async function getModuleQuizForAdmin(
+  moduleId: number,
+): Promise<ModuleQuizWithAnswers | null> {
   const actor = await getLearningHubActor();
   if (!actor?.isAdmin) return null;
   await ensureLearningHubReady();
@@ -583,14 +668,26 @@ export async function saveModuleQuiz(
   // through used to leave the module with a half-saved quiz (or none at all, with the title row
   // still claiming there is one). All of it now commits together or not at all.
   await withTransaction(learningHubPool, async (client) => {
-    const existing = await sqlOn<QueryResultRow[]>(client, `SELECT id FROM learning_quizzes WHERE module_id = ?`, [moduleId]);
+    const existing = await sqlOn<QueryResultRow[]>(
+      client,
+      `SELECT id FROM learning_quizzes WHERE module_id = ?`,
+      [moduleId],
+    );
     let quizId: number;
     if (existing[0]) {
       quizId = Number(existing[0].id);
-      await execOn(client, `UPDATE learning_quizzes SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [title, quizId]);
+      await execOn(
+        client,
+        `UPDATE learning_quizzes SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [title, quizId],
+      );
       await execOn(client, `DELETE FROM learning_quiz_questions WHERE quiz_id = ?`, [quizId]);
     } else {
-      const result = await execOn(client, `INSERT INTO learning_quizzes (module_id, title) VALUES (?, ?) RETURNING id`, [moduleId, title]);
+      const result = await execOn(
+        client,
+        `INSERT INTO learning_quizzes (module_id, title) VALUES (?, ?) RETURNING id`,
+        [moduleId, title],
+      );
       quizId = result.insertId;
     }
 
@@ -621,7 +718,10 @@ export async function deleteModuleQuiz(moduleId: number): Promise<void> {
 
 const EMPTY_ATTEMPT: QuizAttemptResult = { total: 0, correctCount: 0, scorePct: 0, results: [] };
 
-export async function submitQuizAttempt(quizId: number, answers: QuizAnswerInput[]): Promise<QuizAttemptResult> {
+export async function submitQuizAttempt(
+  quizId: number,
+  answers: QuizAnswerInput[],
+): Promise<QuizAttemptResult> {
   // Grading reveals the answer key, so an actor is required even though module
   // knowledge checks are feedback-only.
   const actor = await getLearningHubActor();
@@ -640,10 +740,20 @@ export async function submitQuizAttempt(quizId: number, answers: QuizAnswerInput
   const results = Array.from(correctByQuestion.entries()).map(([questionId, correctOptionId]) => {
     const submitted = answers.find((a) => a.questionId === questionId);
     const selectedOptionId = submitted?.optionId ?? null;
-    return { questionId, selectedOptionId, correctOptionId, correct: selectedOptionId === correctOptionId };
+    return {
+      questionId,
+      selectedOptionId,
+      correctOptionId,
+      correct: selectedOptionId === correctOptionId,
+    };
   });
   const correctCount = results.filter((r) => r.correct).length;
   const total = results.length;
 
-  return { total, correctCount, scorePct: total > 0 ? Math.round((correctCount / total) * 100) : 0, results };
+  return {
+    total,
+    correctCount,
+    scorePct: total > 0 ? Math.round((correctCount / total) * 100) : 0,
+    results,
+  };
 }

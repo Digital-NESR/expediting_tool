@@ -24,7 +24,11 @@ export function requestMonth(value: string | null | undefined): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export function addMetric(map: Map<string, ProcureGuardAnalyticsMetric>, label: string | null | undefined, amount: unknown) {
+export function addMetric(
+  map: Map<string, ProcureGuardAnalyticsMetric>,
+  label: string | null | undefined,
+  amount: unknown,
+) {
   const key = label?.trim() || 'Unspecified';
   const current = map.get(key) ?? { label: key, count: 0, amount: 0 };
   current.count += 1;
@@ -32,10 +36,11 @@ export function addMetric(map: Map<string, ProcureGuardAnalyticsMetric>, label: 
   map.set(key, current);
 }
 
-export function topMetrics(map: Map<string, ProcureGuardAnalyticsMetric>, limit = 8): ProcureGuardAnalyticsMetric[] {
-  return [...map.values()]
-    .sort((a, b) => b.count - a.count || b.amount - a.amount)
-    .slice(0, limit);
+export function topMetrics(
+  map: Map<string, ProcureGuardAnalyticsMetric>,
+  limit = 8,
+): ProcureGuardAnalyticsMetric[] {
+  return [...map.values()].sort((a, b) => b.count - a.count || b.amount - a.amount).slice(0, limit);
 }
 
 function hoursBetween(startValue: string | null | undefined, endMs: number): number {
@@ -55,8 +60,8 @@ export function buildReviewDurationMetrics(
   const groups = new Map<string, ReviewDurationDraft>();
 
   for (const row of [
-    ...adhoc.map(request => ({ requestType: 'adhoc' as const, request })),
-    ...advance.map(request => ({ requestType: 'advance' as const, request })),
+    ...adhoc.map((request) => ({ requestType: 'adhoc' as const, request })),
+    ...advance.map((request) => ({ requestType: 'advance' as const, request })),
   ]) {
     if (!isActiveApprovalStatus(row.request.status)) continue;
 
@@ -99,14 +104,16 @@ export function buildReviewDurationMetrics(
       current.oldest_reference_number = row.request.reference_number;
       current.oldest_vendor_name = row.request.vendor_name;
       current.oldest_updated_at = enteredAt;
-      current.longestUpdatedAtMs = Number.isNaN(enteredAtMs) ? current.longestUpdatedAtMs : enteredAtMs;
+      current.longestUpdatedAtMs = Number.isNaN(enteredAtMs)
+        ? current.longestUpdatedAtMs
+        : enteredAtMs;
     }
 
     groups.set(groupKey, current);
   }
 
   return [...groups.values()]
-    .map(row => ({
+    .map((row) => ({
       request_type: row.request_type,
       status: row.status,
       owner_label: row.owner_label,
@@ -119,7 +126,12 @@ export function buildReviewDurationMetrics(
       oldest_vendor_name: row.oldest_vendor_name,
       oldest_updated_at: row.oldest_updated_at,
     }))
-    .sort((a, b) => b.total_hours - a.total_hours || b.average_hours - a.average_hours || a.owner_label.localeCompare(b.owner_label));
+    .sort(
+      (a, b) =>
+        b.total_hours - a.total_hours ||
+        b.average_hours - a.average_hours ||
+        a.owner_label.localeCompare(b.owner_label),
+    );
 }
 
 export function buildStats(adhoc: AdhocPaymentRequest[], advance: AdvancePaymentRequest[]) {
@@ -128,14 +140,17 @@ export function buildStats(adhoc: AdhocPaymentRequest[], advance: AdvancePayment
   return {
     adhoc_total: adhoc.length,
     advance_total: advance.length,
-    pending_review: all.filter(r => isActiveApprovalStatus(r.status)).length,
-    approved: all.filter(r => r.status === 'Approved').length,
-    rejected: all.filter(r => r.status === 'Rejected').length,
+    pending_review: all.filter((r) => isActiveApprovalStatus(r.status)).length,
+    approved: all.filter((r) => r.status === 'Approved').length,
+    rejected: all.filter((r) => r.status === 'Rejected').length,
     total_requested_amount: totalAmount,
     adhoc_requested_amount: adhoc.reduce((sum, r) => sum + toUsd(r.amount, r.currency), 0),
     advance_requested_amount: advance.reduce((sum, r) => sum + toUsd(r.amount, r.currency), 0),
     average_request_amount: all.length ? totalAmount / all.length : 0,
-    active_vendor_count: new Set(all.map(r => r.vendor_name.trim().toLowerCase()).filter(Boolean)).size,
-    active_requester_count: new Set(all.map(r => r.requested_by_email.trim().toLowerCase()).filter(Boolean)).size,
+    active_vendor_count: new Set(all.map((r) => r.vendor_name.trim().toLowerCase()).filter(Boolean))
+      .size,
+    active_requester_count: new Set(
+      all.map((r) => r.requested_by_email.trim().toLowerCase()).filter(Boolean),
+    ).size,
   };
 }

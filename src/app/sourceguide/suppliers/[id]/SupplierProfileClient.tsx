@@ -9,24 +9,34 @@ import { recordView, BookmarkButton } from '../../pins';
 import type { SgSupplierProfile, SgCommodity, SgCountry, SgMapping } from '@/types/sourceguide';
 
 export default function SupplierProfileClient({
-  profile, commodities, countries,
+  profile,
+  commodities,
+  countries,
 }: {
   profile: SgSupplierProfile;
   commodities: SgCommodity[];
   countries: SgCountry[];
 }) {
   const router = useRouter();
-  const comById = useMemo(() => new Map(commodities.map(c => [c.id, c])), [commodities]);
-  const countryByCode = useMemo(() => new Map(countries.map(c => [c.code, c])), [countries]);
+  const comById = useMemo(() => new Map(commodities.map((c) => [c.id, c])), [commodities]);
+  const countryByCode = useMemo(() => new Map(countries.map((c) => [c.code, c])), [countries]);
 
   const byCountry = useMemo(() => {
     const m: Record<string, SgMapping[]> = {};
-    profile.mappings.forEach(mp => { (m[mp.country] ??= []).push(mp); });
+    profile.mappings.forEach((mp) => {
+      (m[mp.country] ??= []).push(mp);
+    });
     return m;
   }, [profile.mappings]);
 
   useEffect(() => {
-    recordView({ kind: 'supplier', key: profile.code, name: profile.name, sub: `Vendor ${profile.code}`, href: `/sourceguide/suppliers/${encodeURIComponent(profile.code)}` });
+    recordView({
+      kind: 'supplier',
+      key: profile.code,
+      name: profile.name,
+      sub: `Vendor ${profile.code}`,
+      href: `/sourceguide/suppliers/${encodeURIComponent(profile.code)}`,
+    });
   }, [profile.code, profile.name]);
 
   return (
@@ -38,7 +48,15 @@ export default function SupplierProfileClient({
         >
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
-        <BookmarkButton item={{ kind: 'supplier', key: profile.code, name: profile.name, sub: `Vendor ${profile.code}`, href: `/sourceguide/suppliers/${encodeURIComponent(profile.code)}` }} />
+        <BookmarkButton
+          item={{
+            kind: 'supplier',
+            key: profile.code,
+            name: profile.name,
+            sub: `Vendor ${profile.code}`,
+            href: `/sourceguide/suppliers/${encodeURIComponent(profile.code)}`,
+          }}
+        />
       </div>
 
       <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-7">
@@ -48,15 +66,28 @@ export default function SupplierProfileClient({
             <h1 className="text-[24px] font-bold tracking-tight">{profile.name}</h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-[13.5px] text-slate-500">
               {profile.code && <span className="font-mono">Vendor {profile.code}</span>}
-              {profile.email && profile.email.split(/[,;]+/).map(e => e.trim()).filter(Boolean).map(addr => (
-                <a key={addr} href={`mailto:${addr}`} className="inline-flex items-center gap-1.5 font-medium hover:underline" style={{ color: SG_BRAND }}>
-                  <Mail className="h-3.5 w-3.5" /> {addr}
-                </a>
-              ))}
+              {profile.email &&
+                profile.email
+                  .split(/[,;]+/)
+                  .map((e) => e.trim())
+                  .filter(Boolean)
+                  .map((addr) => (
+                    <a
+                      key={addr}
+                      href={`mailto:${addr}`}
+                      className="inline-flex items-center gap-1.5 font-medium hover:underline"
+                      style={{ color: SG_BRAND }}
+                    >
+                      <Mail className="h-3.5 w-3.5" /> {addr}
+                    </a>
+                  ))}
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-[13.5px] text-slate-500">
               {profile.countries.length > 0 && <span className="text-slate-400">Used in:</span>}
-              {profile.countries.map(c => { const cc = countryByCode.get(c); return cc ? <CountryFlag key={c} country={cc} showName /> : null; })}
+              {profile.countries.map((c) => {
+                const cc = countryByCode.get(c);
+                return cc ? <CountryFlag key={c} country={cc} showName /> : null;
+              })}
             </div>
           </div>
           <div className="flex gap-6">
@@ -66,7 +97,8 @@ export default function SupplierProfileClient({
           </div>
         </div>
         <p className="mt-4 text-[11.5px] leading-relaxed text-slate-400">
-          Countries reflect where this vendor is approved and utilized for NESR — not necessarily where the supplier is located.
+          Countries reflect where this vendor is approved and utilized for NESR — not necessarily
+          where the supplier is located.
         </p>
         {profile.champions.length > 0 && (
           <>
@@ -80,18 +112,29 @@ export default function SupplierProfileClient({
         )}
       </div>
 
-      <div className="mb-3 ml-0.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: SG_BRAND }}>
+      <div
+        className="mb-3 ml-0.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]"
+        style={{ color: SG_BRAND }}
+      >
         Coverage by country · where this vendor is utilized
       </div>
-      {Object.keys(byCountry).map(code => {
+      {Object.keys(byCountry).map((code) => {
         const c = countryByCode.get(code);
         const rows = byCountry[code];
         return (
-          <div key={code} className="mb-3.5 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div
+            key={code}
+            className="mb-3.5 overflow-hidden rounded-2xl border border-slate-200 bg-white"
+          >
             <div className="flex items-center gap-2.5 border-b border-slate-100 bg-[#f5f6f5] px-5 py-3.5">
-              <span className="h-[14px] w-[20px] rounded-sm" style={{ background: c?.tone ?? '#999' }} />
+              <span
+                className="h-[14px] w-[20px] rounded-sm"
+                style={{ background: c?.tone ?? '#999' }}
+              />
               <span className="text-[15px] font-bold">{c?.name ?? code}</span>
-              <span className="ml-auto font-mono text-[12px] text-slate-400">{rows.length} mapping{rows.length === 1 ? '' : 's'}</span>
+              <span className="ml-auto font-mono text-[12px] text-slate-400">
+                {rows.length} mapping{rows.length === 1 ? '' : 's'}
+              </span>
             </div>
             <div>
               {rows.map((m, i) => {
@@ -105,9 +148,18 @@ export default function SupplierProfileClient({
                     <div className="min-w-0 flex-1">
                       <div className="text-[14px] font-semibold">
                         {com?.name ?? `Commodity #${m.commodityId}`}
-                        {com?.code && <span className="ml-1.5 font-mono text-[11.5px]" style={{ color: SG_BRAND }}>{com.code}</span>}
+                        {com?.code && (
+                          <span
+                            className="ml-1.5 font-mono text-[11.5px]"
+                            style={{ color: SG_BRAND }}
+                          >
+                            {com.code}
+                          </span>
+                        )}
                       </div>
-                      <div className="mt-0.5 text-[12px] text-slate-500">{com ? `${com.category} · ${com.family || com.subCategory || ''}` : ''}</div>
+                      <div className="mt-0.5 text-[12px] text-slate-500">
+                        {com ? `${com.category} · ${com.family || com.subCategory || ''}` : ''}
+                      </div>
                     </div>
                     <TierBadge tier={m.tier} />
                     <ChevronRight className="h-4 w-4 text-slate-300" />
@@ -125,7 +177,9 @@ export default function SupplierProfileClient({
 function Stat({ value, label, color }: { value: number; label: string; color?: string }) {
   return (
     <div className="text-center">
-      <div className="text-[24px] font-bold" style={color ? { color } : undefined}>{value}</div>
+      <div className="text-[24px] font-bold" style={color ? { color } : undefined}>
+        {value}
+      </div>
       <div className="text-[11.5px] text-slate-500">{label}</div>
     </div>
   );

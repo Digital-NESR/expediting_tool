@@ -76,7 +76,9 @@ export function mimeTypeFor(fileName: string, storedType?: string | null): strin
  * Note the precedence is the reverse of {@link mimeTypeFor}; both are intentional.
  */
 export function uploadMimeTypeFor(fileName: string, browserType?: string | null): string {
-  return DOCUMENT_MIME_TYPES[uploadExtensionOf(fileName)] || browserType || 'application/octet-stream';
+  return (
+    DOCUMENT_MIME_TYPES[uploadExtensionOf(fileName)] || browserType || 'application/octet-stream'
+  );
 }
 
 /**

@@ -29,8 +29,13 @@ export function DSTooltipBadge({ code }: { code: string | null }) {
   if (!code) return <span className="text-slate-400">—</span>;
 
   const description = DS_DESCRIPTIONS[code];
-  const show = () => { timer.current = setTimeout(() => setVisible(true), 150); };
-  const hide = () => { if (timer.current) clearTimeout(timer.current); setVisible(false); };
+  const show = () => {
+    timer.current = setTimeout(() => setVisible(true), 150);
+  };
+  const hide = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setVisible(false);
+  };
 
   return (
     <div className="relative inline-flex" onMouseEnter={show} onMouseLeave={hide}>
@@ -81,7 +86,9 @@ export function RateBadge({ rate }: { rate: number | null }) {
         ? 'bg-amber-100 text-amber-700 border-amber-200'
         : 'bg-red-100 text-red-700 border-red-200';
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${cls}`}>
+    <span
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${cls}`}
+    >
       {rate}%
     </span>
   );
@@ -104,7 +111,14 @@ export function ModalLoading() {
   return (
     <div className="flex items-center justify-center py-16 gap-3 text-slate-500">
       <svg className="w-5 h-5 animate-spin text-[#307c4c]" viewBox="0 0 24 24" fill="none">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <circle
+          className="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          strokeWidth="4"
+        />
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
       </svg>
       <span className="text-sm font-medium">Loading…</span>
@@ -115,8 +129,18 @@ export function ModalLoading() {
 export function ModalEmpty({ message }: { message: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-      <svg className="w-10 h-10 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      <svg
+        className="w-10 h-10 mb-3"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+        />
       </svg>
       <p className="text-sm font-medium">{message}</p>
     </div>
@@ -127,7 +151,9 @@ export function ModalEmpty({ message }: { message: string }) {
 
 export function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
   return (
-    <span className={`ml-1 inline-flex flex-col leading-none text-[9px] ${active ? 'text-[#307c4c]' : 'text-slate-300'}`}>
+    <span
+      className={`ml-1 inline-flex flex-col leading-none text-[9px] ${active ? 'text-[#307c4c]' : 'text-slate-300'}`}
+    >
       <span className={active && dir === 'asc' ? 'opacity-100' : 'opacity-40'}>▲</span>
       <span className={active && dir === 'desc' ? 'opacity-100' : 'opacity-40'}>▼</span>
     </span>
@@ -152,8 +178,11 @@ export function useSortable<T extends object>(
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultDir);
 
   function handleSort(key: string) {
-    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortKey(key); setSortDir('desc'); }
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
   }
 
   const sorted = useMemo(() => {

@@ -4,10 +4,7 @@ import laptopProcurementPool from '@/lib/db-laptop';
 import { fileDownloadResponse } from '@/lib/documents';
 import { canViewLaptopRequest } from '@/app/actions/laptopProcurement';
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getProcureGuardUser();
   if (!user?.email) {
     return new NextResponse('Unauthorized', { status: 401 });
@@ -50,11 +47,7 @@ export async function GET(
 
     // Note the content type still comes from the METADATA row read before the
     // authorization check — the second query deliberately fetches nothing but the blob.
-    return fileDownloadResponse(
-      fileContent,
-      doc.original_name || doc.document_name,
-      doc.file_type,
-    );
+    return fileDownloadResponse(fileContent, doc.original_name || doc.document_name, doc.file_type);
   } catch (err) {
     console.error('[Laptop Procurement] document download error:', err);
     return new NextResponse('Internal server error', { status: 500 });

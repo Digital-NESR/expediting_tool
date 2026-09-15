@@ -57,7 +57,7 @@ export async function getExpediteByToken(token: string): Promise<GetTokenResult>
     /* 1. Does this token exist at all? */
     const check = await pool.query<{ workflow_state: string }>(
       `SELECT workflow_state FROM active_expediting WHERE expedite_token = $1`,
-      [token]
+      [token],
     );
 
     if (check.rows.length === 0) return { notFound: true };
@@ -90,7 +90,7 @@ export async function getExpediteByToken(token: string): Promise<GetTokenResult>
         AND ae.po_line   = s.po_line
        WHERE ae.expedite_token = $1
        ORDER BY ae.po_number, ae.po_line`,
-      [token]
+      [token],
     );
 
     if (result.rows.length === 0) return { notFound: true };
@@ -143,7 +143,7 @@ function normalizeSupplierDate(value: string | null): string | null | undefined 
  */
 export async function submitSupplierUpdates(
   token: string,
-  updates: LineUpdate[]
+  updates: LineUpdate[],
 ): Promise<{ success: boolean; error?: string; expired?: boolean }> {
   /* ── Validate the payload before opening a transaction ── */
   if (typeof token !== 'string' || !token.trim() || token.length > 200) {
@@ -216,7 +216,7 @@ export async function submitSupplierUpdates(
       `SELECT id FROM active_expediting
        WHERE expedite_token = $1 AND workflow_state <> 'Submitted'
        FOR UPDATE`,
-      [token]
+      [token],
     );
 
     if (open.rowCount === 0) {
@@ -271,7 +271,7 @@ export async function submitSupplierUpdates(
         cleaned.map((u) => u.delivery_status_code),
         cleaned.map((u) => u.new_delivery_date || null),
         cleaned.map((u) => u.supplier_comments || null),
-      ]
+      ],
     );
 
     /* ── Update expediting_sessions response stats ── */
@@ -279,7 +279,7 @@ export async function submitSupplierUpdates(
       `SELECT session_ref FROM active_expediting
        WHERE expedite_token = $1 AND session_ref IS NOT NULL
        LIMIT 1`,
-      [token]
+      [token],
     );
 
     if (sessionRefResult.rows.length > 0) {
@@ -306,7 +306,7 @@ export async function submitSupplierUpdates(
            END
          FROM stats
          WHERE es.session_ref = $1`,
-        [sessionRef]
+        [sessionRef],
       );
     }
 

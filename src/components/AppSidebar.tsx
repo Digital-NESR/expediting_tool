@@ -74,10 +74,7 @@ function defaultAsideClassName({ isOpen, pinned }: { isOpen: boolean; pinned: bo
 function defaultBackdrop({ isOpen, pinned, onClose }: SidebarChromeContext) {
   if (!isOpen) return null;
   return (
-    <div
-      className={`${SIDEBAR_BACKDROP_CLASS} ${pinned ? 'lg:hidden' : ''}`}
-      onClick={onClose}
-    />
+    <div className={`${SIDEBAR_BACKDROP_CLASS} ${pinned ? 'lg:hidden' : ''}`} onClick={onClose} />
   );
 }
 
@@ -126,7 +123,9 @@ export default function AppSidebar({
     <>
       {backdrop(chrome)}
       <aside
-        className={typeof asideClassName === 'function' ? asideClassName({ isOpen, pinned }) : asideClassName}
+        className={
+          typeof asideClassName === 'function' ? asideClassName({ isOpen, pinned }) : asideClassName
+        }
         style={typeof asideStyle === 'function' ? asideStyle({ isOpen, pinned }) : asideStyle}
       >
         {children({ ...chrome, togglePin, closeOnNav })}
@@ -138,7 +137,16 @@ export default function AppSidebar({
 /** The pin glyph shared by PO Expediting, TI-TE and SourceGuide. */
 export function PinIcon({ filled }: { filled?: boolean }) {
   return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M12 17v5" />
       <path d="M9 10.76V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v5.76a2 2 0 0 0 .59 1.41l1 1A2 2 0 0 1 17 14.59V16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-1.41a2 2 0 0 1 .41-1.42l1-1A2 2 0 0 0 9 10.76z" />
     </svg>
@@ -149,7 +157,11 @@ export function PinIcon({ filled }: { filled?: boolean }) {
 export function SidebarCloseIcon() {
   return (
     <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+      <path
+        fillRule="evenodd"
+        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+        clipRule="evenodd"
+      />
     </svg>
   );
 }
@@ -157,8 +169,18 @@ export function SidebarCloseIcon() {
 /** The sign-out glyph shared by all five sidebars' footers. */
 export function SidebarSignOutIcon({ className = 'w-4 h-4' }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+      />
     </svg>
   );
 }
@@ -198,17 +220,27 @@ export function SidebarNavLink({
       ].join(' ')}
       style={active ? { background: `${accent}18` } : {}}
     >
-      {active && <div className="absolute left-0 top-1 bottom-1 w-1 rounded-r-md" style={{ background: accent }} />}
-      <span style={{ color: active ? accent : undefined }} className={active ? '' : 'text-slate-400 group-hover:text-slate-600'}>
+      {active && (
+        <div
+          className="absolute left-0 top-1 bottom-1 w-1 rounded-r-md"
+          style={{ background: accent }}
+        />
+      )}
+      <span
+        style={{ color: active ? accent : undefined }}
+        className={active ? '' : 'text-slate-400 group-hover:text-slate-600'}
+      >
         {icon}
       </span>
       <span className="flex-1 text-left">{label}</span>
       {badge !== undefined && badge > 0 && (
         <span
           className="text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[1.5rem] text-center"
-          style={badgeDanger
-            ? { background: '#fee2e2', color: '#b91c1c' }
-            : { background: `${accent}18`, color: accent }}
+          style={
+            badgeDanger
+              ? { background: '#fee2e2', color: '#b91c1c' }
+              : { background: `${accent}18`, color: accent }
+          }
         >
           {badge}
         </span>
@@ -237,13 +269,7 @@ export function SidebarProfileFooter({
       <div className="flex items-center gap-3 mb-4">
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={image}
-            alt={name}
-            width={40}
-            height={40}
-            className={avatar.imageClassName}
-          />
+          <img src={image} alt={name} width={40} height={40} className={avatar.imageClassName} />
         ) : (
           <div className={avatar.fallbackClassName} style={avatar.fallbackStyle}>
             {initials}

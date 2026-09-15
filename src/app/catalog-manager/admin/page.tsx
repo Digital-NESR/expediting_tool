@@ -26,7 +26,20 @@ export default async function AdminPage() {
   const actor = await getCatalogActor();
   if (!actor.canAdmin) redirect('/catalog-manager');
 
-  const [countries, currencies, uoms, suppliers, users, categories, approvers, thresholds, services, pendingCount, pirMeta, allEntries] = await Promise.all([
+  const [
+    countries,
+    currencies,
+    uoms,
+    suppliers,
+    users,
+    categories,
+    approvers,
+    thresholds,
+    services,
+    pendingCount,
+    pirMeta,
+    allEntries,
+  ] = await Promise.all([
     getCountries(),
     getCurrencies(),
     getUoms(),
@@ -52,7 +65,13 @@ export default async function AdminPage() {
       uoms={uoms}
       suppliers={suppliers}
       users={users}
-      categories={categories.map((c) => ({ id: c.id, name: c.name, type: c.type, status: c.status, subs: c.subs.map((s) => s.name) }))}
+      categories={categories.map((c) => ({
+        id: c.id,
+        name: c.name,
+        type: c.type,
+        status: c.status,
+        subs: c.subs.map((s) => s.name),
+      }))}
       approvers={approvers}
       thresholds={thresholds}
       services={services}

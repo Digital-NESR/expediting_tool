@@ -20,7 +20,7 @@ function normalizeDirectoryCountry(rawCountry: string | null): string | null {
   if (!rawCountry) return null;
   const trimmed = rawCountry.trim();
   if (!trimmed) return null;
-  const exact = COUNTRY_OPTIONS.find(o => o.toLowerCase() === trimmed.toLowerCase());
+  const exact = COUNTRY_OPTIONS.find((o) => o.toLowerCase() === trimmed.toLowerCase());
   if (exact) return exact;
   return COUNTRY_ALIASES[trimmed.toLowerCase()] ?? null;
 }
@@ -49,7 +49,7 @@ function normalizeDirectorySegment(rawServiceLine: string | null): string | null
   if (!rawServiceLine) return null;
   const trimmed = rawServiceLine.trim();
   if (!trimmed) return null;
-  const exact = SEGMENT_OPTIONS.find(o => o.toLowerCase() === trimmed.toLowerCase());
+  const exact = SEGMENT_OPTIONS.find((o) => o.toLowerCase() === trimmed.toLowerCase());
   if (exact) return exact;
   return SEGMENT_ALIASES[trimmed.toLowerCase()] ?? null;
 }
@@ -89,7 +89,7 @@ export async function searchEmployees(query: string): Promise<EmployeeDirectoryE
 
     // Re-rank across the deduped set (DISTINCT ON forces mail ordering first) and cap the list.
     const ranked = rows
-      .map(r => ({
+      .map((r) => ({
         name: (r.display_name as string) || (r.mail as string),
         email: r.mail as string,
         jobTitle: (r.job_title as string) ?? null,
@@ -103,8 +103,12 @@ export async function searchEmployees(query: string): Promise<EmployeeDirectoryE
         const aDirect = a.name.toLowerCase().includes(lq) || a.email.toLowerCase().includes(lq);
         const bDirect = b.name.toLowerCase().includes(lq) || b.email.toLowerCase().includes(lq);
         if (aDirect !== bDirect) return aDirect ? -1 : 1;
-        const aPrefix = a.email.toLowerCase().startsWith(q.toLowerCase()) || a.name.toLowerCase().startsWith(q.toLowerCase());
-        const bPrefix = b.email.toLowerCase().startsWith(q.toLowerCase()) || b.name.toLowerCase().startsWith(q.toLowerCase());
+        const aPrefix =
+          a.email.toLowerCase().startsWith(q.toLowerCase()) ||
+          a.name.toLowerCase().startsWith(q.toLowerCase());
+        const bPrefix =
+          b.email.toLowerCase().startsWith(q.toLowerCase()) ||
+          b.name.toLowerCase().startsWith(q.toLowerCase());
         if (aPrefix !== bPrefix) return aPrefix ? -1 : 1;
         return a.name.localeCompare(b.name);
       })
@@ -149,7 +153,9 @@ function blank(value: unknown): string | null {
 // normalizeDirectorySegment. Company name has no reliable source in this
 // table, so it isn't included; degrades to all-null if the directory DB is
 // unreachable or the person has no record on file.
-export async function getEmployeeDirectoryDefaults(email: string): Promise<EmployeeDirectoryDefaults> {
+export async function getEmployeeDirectoryDefaults(
+  email: string,
+): Promise<EmployeeDirectoryDefaults> {
   const mail = (email || '').trim();
   if (!mail) return EMPTY_DEFAULTS;
 

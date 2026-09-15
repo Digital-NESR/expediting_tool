@@ -16,6 +16,11 @@
 import taxonomy from '@/data/catalog-taxonomy.json';
 import type { TaxCategory } from '@/lib/catalog-taxonomy-types';
 
-export type { SpendTypeName, TaxCommodity, TaxSubcategory, TaxCategory } from '@/lib/catalog-taxonomy-types';
+export type {
+  SpendTypeName,
+  TaxCommodity,
+  TaxSubcategory,
+  TaxCategory,
+} from '@/lib/catalog-taxonomy-types';
 
 export const SPEND_TAXONOMY: TaxCategory[] = taxonomy as TaxCategory[];

@@ -23,19 +23,22 @@ export default async function AddEntriesPage({
   searchParams: Promise<{ country?: string; tab?: string }>;
 }) {
   const sp = await searchParams;
-  const [actor, countries, currencies, uoms, suppliers, services, pendingCount, thresholds] = await Promise.all([
-    getCatalogActor(),
-    getCountries(),
-    getCurrencies(),
-    getUoms(),
-    getSuppliers(),
-    getServiceActivities(),
-    getPendingApprovalCount(),
-    getApprovalThresholds(),
-  ]);
+  const [actor, countries, currencies, uoms, suppliers, services, pendingCount, thresholds] =
+    await Promise.all([
+      getCatalogActor(),
+      getCountries(),
+      getCurrencies(),
+      getUoms(),
+      getSuppliers(),
+      getServiceActivities(),
+      getPendingApprovalCount(),
+      getApprovalThresholds(),
+    ]);
   if (!actor.canCreate) redirect('/catalog-manager/catalog');
 
-  const managers = [...new Set(suppliers.map((s) => s.accountable_manager).filter(Boolean) as string[])].sort();
+  const managers = [
+    ...new Set(suppliers.map((s) => s.accountable_manager).filter(Boolean) as string[]),
+  ].sort();
 
   return (
     <AddEntriesClient

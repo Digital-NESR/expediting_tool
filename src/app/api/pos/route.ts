@@ -35,7 +35,7 @@ export async function GET() {
           segment             AS "Segment",
           account_classification_description AS "Account Classification Description"
          FROM sap_open_po_master
-         ORDER BY delivery_date ASC`
+         ORDER BY delivery_date ASC`,
       );
     } else if (poAccess?.status === 'approved' && poAccess.approvedCountries?.length) {
       // Approved users see only POs from their approved countries
@@ -62,7 +62,7 @@ export async function GET() {
          FROM sap_open_po_master
          WHERE country = ANY($1)
          ORDER BY delivery_date ASC`,
-        [poAccess.approvedCountries]
+        [poAccess.approvedCountries],
       );
     } else {
       return Response.json({ error: 'Access denied' }, { status: 403 });
@@ -71,9 +71,6 @@ export async function GET() {
     return Response.json({ data: result.rows });
   } catch (error) {
     console.error('[/api/pos] Database query failed:', error);
-    return Response.json(
-      { error: 'Failed to fetch purchase orders.' },
-      { status: 500 }
-    );
+    return Response.json({ error: 'Failed to fetch purchase orders.' }, { status: 500 });
   }
 }

@@ -58,11 +58,24 @@ export default function RefreshOnView({ renderId }: { renderId?: string }) {
 
     let wasHidden = document.visibilityState === 'hidden';
     const onVisible = () => {
-      if (document.visibilityState === 'hidden') { wasHidden = true; return; }
-      if (wasHidden) { wasHidden = false; refresh(); }
+      if (document.visibilityState === 'hidden') {
+        wasHidden = true;
+        return;
+      }
+      if (wasHidden) {
+        wasHidden = false;
+        refresh();
+      }
     };
-    const onBlur = () => { wasHidden = true; };
-    const onFocus = () => { if (wasHidden) { wasHidden = false; refresh(); } };
+    const onBlur = () => {
+      wasHidden = true;
+    };
+    const onFocus = () => {
+      if (wasHidden) {
+        wasHidden = false;
+        refresh();
+      }
+    };
 
     window.addEventListener('focus', onFocus);
     window.addEventListener('blur', onBlur);

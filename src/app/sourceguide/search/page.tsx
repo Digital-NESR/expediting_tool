@@ -7,11 +7,19 @@ export const metadata: Metadata = { title: 'NESR | Search - SourceGuide' };
 export default async function SourceGuideSearchPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string; cat?: string; country?: string; tier?: string; spend?: string }>;
+  searchParams?: Promise<{
+    q?: string;
+    cat?: string;
+    country?: string;
+    tier?: string;
+    spend?: string;
+  }>;
 }) {
   const sp = searchParams ? await searchParams : {};
   const [countries, categories, facets] = await Promise.all([
-    getCountries(), getCategories(), getSearchFacets(),
+    getCountries(),
+    getCategories(),
+    getSearchFacets(),
   ]);
 
   const initial = {

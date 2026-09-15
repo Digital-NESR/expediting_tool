@@ -24,7 +24,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // cannot view never leaks its reference number into the tab title.
   const data = await loadRequestDetail(numericId);
   const reference = data?.request.reference_number;
-  return { title: reference ? `NESR | ${reference} - Laptop Procurement` : 'NESR | Laptop Procurement' };
+  return {
+    title: reference ? `NESR | ${reference} - Laptop Procurement` : 'NESR | Laptop Procurement',
+  };
 }
 
 export default async function LaptopRequestDetailPage({ params }: PageProps) {
@@ -32,7 +34,10 @@ export default async function LaptopRequestDetailPage({ params }: PageProps) {
   const numericId = Number(id);
   if (!Number.isInteger(numericId) || numericId <= 0) notFound();
 
-  const [data, devices] = await Promise.all([loadRequestDetail(numericId), getLaptopDeviceOptions()]);
+  const [data, devices] = await Promise.all([
+    loadRequestDetail(numericId),
+    getLaptopDeviceOptions(),
+  ]);
   if (!data) notFound();
 
   return <LaptopRequestDetailClient data={data} devices={devices} />;

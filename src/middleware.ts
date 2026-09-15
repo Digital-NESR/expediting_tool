@@ -1,5 +1,5 @@
-import { getToken } from "next-auth/jwt";
-import { NextRequest, NextResponse } from "next/server";
+import { getToken } from 'next-auth/jwt';
+import { NextRequest, NextResponse } from 'next/server';
 
 const PUBLIC_PATHS = [
   '/login',
@@ -24,12 +24,12 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow public paths through without any auth check
-  if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
   // Machine endpoints authenticate themselves in the handler (shared secret)
-  if (MACHINE_PATHS.some(p => p.test(pathname))) {
+  if (MACHINE_PATHS.some((p) => p.test(pathname))) {
     return NextResponse.next();
   }
 
@@ -38,10 +38,10 @@ export async function middleware(req: NextRequest) {
 
   if (!token) {
     if (pathname.startsWith('/api/')) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
     return NextResponse.redirect(new URL('/login', req.url));
   }
@@ -75,6 +75,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|nesr-logo.jpg|nesr-logo-circle.png).*)",
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|nesr-logo.jpg|nesr-logo-circle.png).*)',
   ],
 };

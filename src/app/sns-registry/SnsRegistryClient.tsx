@@ -29,19 +29,43 @@ export default function SnsRegistryClient({
       {app.error && (
         <div
           role="alert"
-          style={{ background: '#F8DCDC', borderBottom: '1px solid #C99999', color: '#9B1C1C', fontSize: 12.5, padding: '11px 28px', display: 'flex', justifyContent: 'space-between', gap: 16 }}
+          style={{
+            background: '#F8DCDC',
+            borderBottom: '1px solid #C99999',
+            color: '#9B1C1C',
+            fontSize: 12.5,
+            padding: '11px 28px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
         >
           <span>{app.error}</span>
           <button
             onClick={() => app.setError(null)}
-            style={{ background: 'none', border: 0, color: '#9B1C1C', fontWeight: 'bold', cursor: 'pointer', fontSize: 12.5 }}
+            style={{
+              background: 'none',
+              border: 0,
+              color: '#9B1C1C',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: 12.5,
+            }}
           >
             Dismiss
           </button>
         </div>
       )}
 
-      <div style={{ flex: '1 1 auto', maxWidth: 1460, width: '100%', margin: '0 auto', padding: '26px 28px 64px' }}>
+      <div
+        style={{
+          flex: '1 1 auto',
+          maxWidth: 1460,
+          width: '100%',
+          margin: '0 auto',
+          padding: '26px 28px 64px',
+        }}
+      >
         {app.screen === 'registry' && <RegistryScreen app={app} />}
         {app.screen === 'detail' && <DetailScreen app={app} />}
         {app.screen === 'new' && <NewRecordWizard app={app} />}

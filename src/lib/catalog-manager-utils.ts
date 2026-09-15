@@ -53,12 +53,12 @@ export const SEED_CURRENCIES: SeedCurrency[] = [
   { code: 'KWD', decimals: 3, usd_rate: 3.25 },
   { code: 'OMR', decimals: 3, usd_rate: 2.6 },
   { code: 'BHD', decimals: 3, usd_rate: 2.65 },
-  { code: 'EGP', decimals: 2, usd_rate: 0.020 },
+  { code: 'EGP', decimals: 2, usd_rate: 0.02 },
   { code: 'DZD', decimals: 2, usd_rate: 0.0074 },
   { code: 'IQD', decimals: 3, usd_rate: 0.00076 },
   { code: 'JOD', decimals: 3, usd_rate: 1.41 },
   { code: 'LYD', decimals: 3, usd_rate: 0.205 },
-  { code: 'YER', decimals: 2, usd_rate: 0.0040 },
+  { code: 'YER', decimals: 2, usd_rate: 0.004 },
   { code: 'INR', decimals: 2, usd_rate: 0.012 },
   { code: 'IDR', decimals: 0, usd_rate: 0.000062 },
   { code: 'MYR', decimals: 2, usd_rate: 0.22 },
@@ -68,11 +68,27 @@ export const SEED_CURRENCIES: SeedCurrency[] = [
 ];
 
 export const SEED_UOMS = [
-  'Hour', 'Day', 'Per Well', 'Per Job', 'Per Stage', 'Lump Sum', 'MT',
-  'Per BBL', 'Per Foot', 'Month', 'Each', 'km', 'Per Person', 'Per Trip',
+  'Hour',
+  'Day',
+  'Per Well',
+  'Per Job',
+  'Per Stage',
+  'Lump Sum',
+  'MT',
+  'Per BBL',
+  'Per Foot',
+  'Month',
+  'Each',
+  'km',
+  'Per Person',
+  'Per Trip',
 ];
 
-export const PROOF_TYPES = ['Signed Rate Agreement', 'Supplier Quotation', 'Master Service Agreement'];
+export const PROOF_TYPES = [
+  'Signed Rate Agreement',
+  'Supplier Quotation',
+  'Master Service Agreement',
+];
 
 /** Incoterms 2020 — code + label. Used in the entry forms, bulk-import template dropdown, and detail view. */
 export const INCOTERMS: { code: string; label: string }[] = [
@@ -120,14 +136,17 @@ export function looksLikeFormula(value: string): boolean {
 
 /** Trim a text value, drop control characters, collapse whitespace. Returns null if empty. */
 export function sanitizeImportText(value: string | null | undefined): string | null {
-  const cleaned = (value ?? "").split("").filter((ch) => ch.charCodeAt(0) >= 32).join("");
-  const t = cleaned.replace(/ +/g, " ").trim();
-  return t === "" ? null : t;
+  const cleaned = (value ?? '')
+    .split('')
+    .filter((ch) => ch.charCodeAt(0) >= 32)
+    .join('');
+  const t = cleaned.replace(/ +/g, ' ').trim();
+  return t === '' ? null : t;
 }
 
 /** Neutralise a value for CSV/Excel export so it can never execute as a formula. */
 export function csvSafe(value: unknown): string {
-  const str = value == null ? "" : String(value);
+  const str = value == null ? '' : String(value);
   return looksLikeFormula(str) ? "'" + str : str;
 }
 
@@ -144,7 +163,8 @@ function utcYmd(year: number, month: number, day: number): string | null {
   const ms = Date.UTC(year, month - 1, day);
   const d = new Date(ms);
   // Date.UTC rolls 2026-02-30 forward to 2026-03-02; a round-trip check rejects that.
-  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return null;
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day)
+    return null;
   // The year is zero-padded too, so the DATE_MIN/DATE_MAX string comparison below stays a real
   // date comparison — an unpadded "202-01-01" would sort between them and slip through.
   const ymd = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -199,7 +219,13 @@ export function normalizeImportDate(raw: string | number | null | undefined): st
 /** The accepted date formats, for user-facing error messages. */
 export const IMPORT_DATE_FORMATS_HINT = `use YYYY-MM-DD, DD-MM-YYYY or DD/MM/YYYY, between ${DATE_MIN} and ${DATE_MAX}`;
 
-export const ALL_STATUSES: CatalogStatus[] = ['Active', 'Pending Approval', 'Draft', 'Expired', 'Rejected'];
+export const ALL_STATUSES: CatalogStatus[] = [
+  'Active',
+  'Pending Approval',
+  'Draft',
+  'Expired',
+  'Rejected',
+];
 export const ALL_ROLES: CatalogRole[] = ['Viewer', 'Contributor', 'Approver', 'Admin'];
 
 /** Annualized USD-equivalent threshold above which an entry needs Approver sign-off. */
@@ -227,7 +253,12 @@ export function usdRatesFrom(rows: { code: string; usd_rate: number | string }[]
 
 /** The configured rate for a currency, or null when it has none. */
 export function usdRateFor(ccy: string, rates: UsdRates): number | null {
-  const rate = rates[String(ccy ?? '').trim().toUpperCase()];
+  const rate =
+    rates[
+      String(ccy ?? '')
+        .trim()
+        .toUpperCase()
+    ];
   return typeof rate === 'number' && Number.isFinite(rate) && rate > 0 ? rate : null;
 }
 
@@ -242,16 +273,26 @@ export function usdRateFor(ccy: string, rates: UsdRates): number | null {
 export function toUsd(price: number, ccy: string, rates: UsdRates): number {
   const rate = usdRateFor(ccy, rates);
   if (rate === null) {
-    throw new Error(`No USD rate is configured for currency "${ccy}". Add it to the currency master data before using it.`);
+    throw new Error(
+      `No USD rate is configured for currency "${ccy}". Add it to the currency master data before using it.`,
+    );
   }
   return price * rate;
 }
 
-const DECIMALS_BY_CCY: Record<string, number> = Object.fromEntries(SEED_CURRENCIES.map((c) => [c.code, c.decimals]));
+const DECIMALS_BY_CCY: Record<string, number> = Object.fromEntries(
+  SEED_CURRENCIES.map((c) => [c.code, c.decimals]),
+);
 
 /** Display precision for a currency — a formatting default, never a conversion rate. */
 export function currencyDecimals(code: string): number {
-  return DECIMALS_BY_CCY[String(code ?? '').trim().toUpperCase()] ?? 2;
+  return (
+    DECIMALS_BY_CCY[
+      String(code ?? '')
+        .trim()
+        .toUpperCase()
+    ] ?? 2
+  );
 }
 
 export function fmtMoney(price: number, ccy: string): string {
@@ -284,7 +325,11 @@ export function daysUntil(dateStr: string | null, today: Date = new Date()): num
   return Math.round((d.getTime() - base.getTime()) / 86400000);
 }
 
-export function isExpiringSoon(status: CatalogStatus, expiry: string | null, today: Date = new Date()): boolean {
+export function isExpiringSoon(
+  status: CatalogStatus,
+  expiry: string | null,
+  today: Date = new Date(),
+): boolean {
   const d = daysUntil(expiry, today);
   return status === 'Active' && d !== null && d >= 0 && d <= 30;
 }
@@ -301,7 +346,10 @@ export function isExpiringSoon(status: CatalogStatus, expiry: string | null, tod
 export const TIER_1_LABEL = 'Tier 1 — Auto';
 export const TIER_2_LABEL = 'Tier 2 — Approver';
 
-export function approvalTier(usdEquivalent: number, thresholdUsd: number = APPROVAL_THRESHOLD_USD): { needsApproval: boolean; label: string } {
+export function approvalTier(
+  usdEquivalent: number,
+  thresholdUsd: number = APPROVAL_THRESHOLD_USD,
+): { needsApproval: boolean; label: string } {
   const needsApproval = usdEquivalent >= thresholdUsd;
   return { needsApproval, label: needsApproval ? TIER_2_LABEL : TIER_1_LABEL };
 }
@@ -370,10 +418,34 @@ export interface PermissionProfile {
 }
 
 export const PERMISSION_PROFILES: Record<CatalogRole, PermissionProfile> = {
-  Viewer: { role: 'Viewer', description: 'Internal Auditor / Finance — read-only', canCreate: false, canApprove: false, canAdmin: false },
-  Contributor: { role: 'Contributor', description: 'Procurement Officer', canCreate: true, canApprove: false, canAdmin: false },
-  Approver: { role: 'Approver', description: 'Country / SCM Manager', canCreate: true, canApprove: true, canAdmin: false },
-  Admin: { role: 'Admin', description: 'System Administrator', canCreate: true, canApprove: true, canAdmin: true },
+  Viewer: {
+    role: 'Viewer',
+    description: 'Internal Auditor / Finance — read-only',
+    canCreate: false,
+    canApprove: false,
+    canAdmin: false,
+  },
+  Contributor: {
+    role: 'Contributor',
+    description: 'Procurement Officer',
+    canCreate: true,
+    canApprove: false,
+    canAdmin: false,
+  },
+  Approver: {
+    role: 'Approver',
+    description: 'Country / SCM Manager',
+    canCreate: true,
+    canApprove: true,
+    canAdmin: false,
+  },
+  Admin: {
+    role: 'Admin',
+    description: 'System Administrator',
+    canCreate: true,
+    canApprove: true,
+    canAdmin: true,
+  },
 };
 
 export function getPermissionProfile(role: CatalogRole): PermissionProfile {

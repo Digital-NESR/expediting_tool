@@ -8,7 +8,11 @@ import {
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import SupplierProfileClient from './SupplierProfileClient';
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
   const { id } = await params;
   const p = await getSupplierProfile(Number(id));
   return { title: `NESR | ${p?.name ?? 'Supplier'} - Catalog Manager` };

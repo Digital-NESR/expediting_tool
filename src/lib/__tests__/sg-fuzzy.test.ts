@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { MATCH_THRESHOLD, levenshtein, matchScore, norm, tokenScore, tokenize } from '@/lib/sg-fuzzy';
+import {
+  MATCH_THRESHOLD,
+  levenshtein,
+  matchScore,
+  norm,
+  tokenScore,
+  tokenize,
+} from '@/lib/sg-fuzzy';
 
 describe('norm / tokenize', () => {
   it('lowercases and reduces punctuation to single spaces', () => {
@@ -29,7 +36,7 @@ describe('levenshtein', () => {
     expect(levenshtein('', '')).toBe(0);
   });
 
-  it('is the other string\'s length against an empty string', () => {
+  it("is the other string's length against an empty string", () => {
     expect(levenshtein('', 'valve')).toBe(5);
     expect(levenshtein('valve', '')).toBe(5);
   });
@@ -119,10 +126,10 @@ describe('matchScore ranking', () => {
       'Wireline Logging',
     ];
     const ranked = candidates
-      .map(name => ({ name, score: matchScore('valves', name) }))
-      .filter(x => x.score >= MATCH_THRESHOLD)
+      .map((name) => ({ name, score: matchScore('valves', name) }))
+      .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score)
-      .map(x => x.name);
+      .map((x) => x.name);
 
     expect(ranked).toEqual(['Valves', 'Valves and Fittings', 'Industrial Valves Package']);
   });
@@ -169,7 +176,9 @@ describe('matchScore ranking', () => {
   it('is deterministic — the same inputs always score the same', () => {
     const first = matchScore('drilling fluids', 'Drilling Fluids and Additives', 'chemicals');
     for (let i = 0; i < 5; i++) {
-      expect(matchScore('drilling fluids', 'Drilling Fluids and Additives', 'chemicals')).toBe(first);
+      expect(matchScore('drilling fluids', 'Drilling Fluids and Additives', 'chemicals')).toBe(
+        first,
+      );
     }
   });
 
@@ -179,7 +188,7 @@ describe('matchScore ranking', () => {
       'Valves',
       'Valves Valves Valves',
       'Assorted Industrial Valves and Fittings Package',
-    ].map(name => matchScore('valves', name));
+    ].map((name) => matchScore('valves', name));
     expect(scores[0]).toBeGreaterThanOrEqual(scores[1]);
     expect(scores[0]).toBeGreaterThan(scores[2]);
   });

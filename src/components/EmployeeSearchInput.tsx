@@ -62,13 +62,15 @@ export default function EmployeeSearchInput({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const excludeSet = useRef(new Set(excludeEmails.map(e => e.toLowerCase())));
+  const excludeSet = useRef(new Set(excludeEmails.map((e) => e.toLowerCase())));
   useEffect(() => {
-    excludeSet.current = new Set(excludeEmails.map(e => e.toLowerCase()));
+    excludeSet.current = new Set(excludeEmails.map((e) => e.toLowerCase()));
   }, [excludeEmails]);
 
   // Track mount for portal
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Update dropdown position
   const updatePosition = useCallback(() => {
@@ -103,8 +105,8 @@ export default function EmployeeSearchInput({
     try {
       const data = await searchEmployees(q);
       const filtered = data
-        .filter(e => !excludeSet.current.has(e.email.toLowerCase()))
-        .map<Employee>(e => ({
+        .filter((e) => !excludeSet.current.has(e.email.toLowerCase()))
+        .map<Employee>((e) => ({
           display_name: e.name,
           mail: e.email,
           job_title: e.jobTitle,
@@ -154,8 +156,10 @@ export default function EmployeeSearchInput({
     function handleOutside(e: MouseEvent) {
       const target = e.target as Node;
       if (
-        containerRef.current && !containerRef.current.contains(target) &&
-        dropdownRef.current && !dropdownRef.current.contains(target)
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
       ) {
         setOpen(false);
       }
@@ -166,7 +170,9 @@ export default function EmployeeSearchInput({
 
   // Cleanup debounce on unmount
   useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   const dropdown = open && mounted && (
@@ -189,7 +195,9 @@ export default function EmployeeSearchInput({
     >
       {results.length === 0 && !loading ? (
         <div className="px-3 py-4 text-center">
-          <p className="text-xs text-slate-400">No NESR employees found for &lsquo;{query}&rsquo;</p>
+          <p className="text-xs text-slate-400">
+            No NESR employees found for &lsquo;{query}&rsquo;
+          </p>
         </div>
       ) : (
         results.map((emp, idx) => (
@@ -237,7 +245,7 @@ export default function EmployeeSearchInput({
           ref={inputRef}
           type="text"
           value={query}
-          onChange={e => handleChange(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => {
             updatePosition();
@@ -248,8 +256,19 @@ export default function EmployeeSearchInput({
         />
         {loading && (
           <div className="absolute right-2 top-1/2 -translate-y-1/2">
-            <svg className="w-3.5 h-3.5 animate-spin text-slate-400" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <svg
+              className="w-3.5 h-3.5 animate-spin text-slate-400"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
           </div>

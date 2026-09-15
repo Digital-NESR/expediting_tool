@@ -7,7 +7,10 @@
  */
 import type { QueryResultRow } from 'pg';
 import { logger } from '@/lib/logger';
-import { normalizeProcureGuardCountry, roleRequiresProcureGuardCountryScope } from '@/lib/procureGuard-utils';
+import {
+  normalizeProcureGuardCountry,
+  roleRequiresProcureGuardCountryScope,
+} from '@/lib/procureGuard-utils';
 import type {
   ProcureGuardPermissionRole,
   ProcureGuardRequestType,
@@ -15,7 +18,10 @@ import type {
 } from '@/types/procureGuard';
 import { isValidEmail } from './constants';
 import { exec, sql } from './internals';
-import { ensureProcureGuardAccessRequestTable, ensureProcureGuardPermissionRoleValues } from './schema';
+import {
+  ensureProcureGuardAccessRequestTable,
+  ensureProcureGuardPermissionRoleValues,
+} from './schema';
 import { blankToNull, normalisePersonName, normaliseProcureGuardRole } from './validation';
 
 const log = logger('procure-guard');
@@ -40,7 +46,12 @@ const PROCURE_GUARD_REVIEW_ROLE_RANK: Record<ProcureGuardPermissionRole, number>
 // A permission row with one of these roles whose email is no longer an active recipient is a stale
 // approver grant — pruned on sync so a reassigned/removed approver cleanly loses authority + visibility.
 const PROCURE_GUARD_APPROVER_ROLES: ProcureGuardPermissionRole[] = [
-  'SCM Manager', 'Country Controller', 'Supply Chain Director', 'Treasury Director', 'Corporate Controller', 'CFO',
+  'SCM Manager',
+  'Country Controller',
+  'Supply Chain Director',
+  'Treasury Director',
+  'Corporate Controller',
+  'CFO',
 ];
 
 // Originally from "ProcureGuard - Sub (1).csv": approver name -> the countries their country-scoped
@@ -48,7 +59,10 @@ const PROCURE_GUARD_APPROVER_ROLES: ProcureGuardPermissionRole[] = [
 // sync actually reads (see loadRecipientCountryScopes). It is kept in source so a fresh database
 // still gets the right scopes on first sync — including the live 'EOS, Chad, Congo' Country
 // Controller scope, which must never be lost. Edit the TABLE, not this map, for new corrections.
-const PROCURE_GUARD_CSV_ROLE_COUNTRIES: Record<string, Partial<Record<ProcureGuardPermissionRole, string[]>>> = {
+const PROCURE_GUARD_CSV_ROLE_COUNTRIES: Record<
+  string,
+  Partial<Record<ProcureGuardPermissionRole, string[]>>
+> = {
   [normalisePersonName('Hichem Bezghoud')]: { 'SCM Manager': ['Algeria'] },
   [normalisePersonName('Wael Sharabash')]: { 'SCM Manager': ['Bahrain', 'Saudi Arabia (KSA)'] },
   [normalisePersonName('Belemel Riadinguem')]: { 'SCM Manager': ['Chad'] },
@@ -63,7 +77,9 @@ const PROCURE_GUARD_CSV_ROLE_COUNTRIES: Record<string, Partial<Record<ProcureGua
   [normalisePersonName('Abdallah Boulifa')]: { 'SCM Manager': ['Qatar'] },
   [normalisePersonName('Zied Fehri')]: { 'SCM Manager': ['United Arab Emirates (UAE)'] },
   [normalisePersonName('Ahmed Mouhoub')]: { 'Country Controller': ['Algeria'] },
-  [normalisePersonName('Mohamed Merghani')]: { 'Country Controller': ['Bahrain', 'Saudi Arabia (KSA)'] },
+  [normalisePersonName('Mohamed Merghani')]: {
+    'Country Controller': ['Bahrain', 'Saudi Arabia (KSA)'],
+  },
   [normalisePersonName('Muhammad Khan')]: { 'Country Controller': ['EOS', 'Chad', 'Congo'] },
   [normalisePersonName('Mahmoud El-Nady')]: { 'Country Controller': ['Egypt'] },
   [normalisePersonName('Ahmed Malik')]: { 'Country Controller': ['HQ Dubai'] },
@@ -117,7 +133,9 @@ async function loadRecipientCountryScopes(): Promise<RecipientCountryScopes> {
       }
     }
 
-    const existing = await sql<QueryResultRow[]>(`SELECT person_name, role, countries FROM procure_guard_recipient_country_scopes`);
+    const existing = await sql<QueryResultRow[]>(
+      `SELECT person_name, role, countries FROM procure_guard_recipient_country_scopes`,
+    );
     const scopes: RecipientCountryScopes = new Map();
     for (const row of existing) {
       const personName = normalisePersonName(String(row.person_name ?? ''));
@@ -135,9 +153,15 @@ async function loadRecipientCountryScopes(): Promise<RecipientCountryScopes> {
   }
 }
 
-function csvRoleCountriesForRecipient(scopes: RecipientCountryScopes, name: string, role: ProcureGuardPermissionRole): string[] {
+function csvRoleCountriesForRecipient(
+  scopes: RecipientCountryScopes,
+  name: string,
+  role: ProcureGuardPermissionRole,
+): string[] {
   const countries = scopes.get(normalisePersonName(name))?.[role] ?? [];
-  return countries.map(country => normalizeProcureGuardCountry(country)).filter((country): country is string => Boolean(country));
+  return countries
+    .map((country) => normalizeProcureGuardCountry(country))
+    .filter((country): country is string => Boolean(country));
 }
 
 function procureGuardRoleFromRecipient(row: {
@@ -150,7 +174,8 @@ function procureGuardRoleFromRecipient(row: {
   if (role.includes('corporate controller')) return 'Corporate Controller';
   if (role.includes('treasury')) return 'Treasury Director';
   if (role.includes('supply chain director')) return 'Supply Chain Director';
-  if (role.includes('country controller') || role.includes('country finance')) return 'Country Controller';
+  if (role.includes('country controller') || role.includes('country finance'))
+    return 'Country Controller';
   if (role.includes('scm') || role.includes('supply chain manager')) return 'SCM Manager';
 
   if (row.approval_status === 'Approved by Corporate Controller') return 'CFO';
@@ -190,15 +215,20 @@ export async function syncProcureGuardRecipientAccessApprovals(): Promise<void> 
       AND TRIM(email) <> ''
   `);
 
-  const byEmail = new Map<string, {
-    email: string;
-    name: string;
-    role: ProcureGuardPermissionRole;
-    countries: Set<string>;
-  }>();
+  const byEmail = new Map<
+    string,
+    {
+      email: string;
+      name: string;
+      role: ProcureGuardPermissionRole;
+      countries: Set<string>;
+    }
+  >();
 
   for (const row of rows) {
-    const email = String(row.email ?? '').trim().toLowerCase();
+    const email = String(row.email ?? '')
+      .trim()
+      .toLowerCase();
     if (!email || !isValidEmail(email)) continue;
     if (PROCURE_GUARD_LOCAL_TEST_EMAILS.includes(email)) continue;
 
@@ -211,10 +241,13 @@ export async function syncProcureGuardRecipientAccessApprovals(): Promise<void> 
 
     const current = byEmail.get(email);
     const currentRank = current ? PROCURE_GUARD_REVIEW_ROLE_RANK[current.role] : -1;
-    const nextRole = PROCURE_GUARD_REVIEW_ROLE_RANK[role] > currentRank ? role : current?.role ?? role;
+    const nextRole =
+      PROCURE_GUARD_REVIEW_ROLE_RANK[role] > currentRank ? role : (current?.role ?? role);
     const countries = current?.countries ?? new Set<string>();
     const displayName = String(row.display_name ?? '').trim();
-    const csvCountries = roleRequiresProcureGuardCountryScope(role) ? csvRoleCountriesForRecipient(countryScopes, displayName, role) : [];
+    const csvCountries = roleRequiresProcureGuardCountryScope(role)
+      ? csvRoleCountriesForRecipient(countryScopes, displayName, role)
+      : [];
     const country = normalizeProcureGuardCountry(row.country ? String(row.country) : null);
     if (csvCountries.length > 0) {
       countries.clear();
@@ -231,8 +264,15 @@ export async function syncProcureGuardRecipientAccessApprovals(): Promise<void> 
     });
   }
 
-  const existingRows = await sql<QueryResultRow[]>(`SELECT email, role FROM procure_guard_permissions`);
-  const existingRoleByEmail = new Map(existingRows.map(row => [String(row.email).toLowerCase(), normaliseProcureGuardRole(row.role)]));
+  const existingRows = await sql<QueryResultRow[]>(
+    `SELECT email, role FROM procure_guard_permissions`,
+  );
+  const existingRoleByEmail = new Map(
+    existingRows.map((row) => [
+      String(row.email).toLowerCase(),
+      normaliseProcureGuardRole(row.role),
+    ]),
+  );
 
   for (const recipient of byEmail.values()) {
     if (existingRoleByEmail.get(recipient.email) === 'Admin') continue;
@@ -247,9 +287,10 @@ export async function syncProcureGuardRecipientAccessApprovals(): Promise<void> 
           ? [...recipient.countries].join(', ')
           : null
       : null;
-    const syncNotes = roleRequiresProcureGuardCountryScope(recipient.role) && !country
-      ? 'Synced from notification recipients; country scope needs review'
-      : 'Synced from notification recipients';
+    const syncNotes =
+      roleRequiresProcureGuardCountryScope(recipient.role) && !country
+        ? 'Synced from notification recipients; country scope needs review'
+        : 'Synced from notification recipients';
     await exec(
       `INSERT INTO procure_guard_permissions (email, name, role, country, segment)
        VALUES (?, ?, ?, ?, NULL)
@@ -276,7 +317,14 @@ export async function syncProcureGuardRecipientAccessApprovals(): Promise<void> 
          reviewed_at = CURRENT_TIMESTAMP,
          reviewed_by = EXCLUDED.reviewed_by,
          notes = EXCLUDED.notes`,
-      [recipient.email, recipient.name, recipient.role, recipient.role, blankToNull(country), syncNotes],
+      [
+        recipient.email,
+        recipient.name,
+        recipient.role,
+        recipient.role,
+        blankToNull(country),
+        syncNotes,
+      ],
     );
   }
 
@@ -292,7 +340,9 @@ export async function syncProcureGuardRecipientAccessApprovals(): Promise<void> 
   const syncOwnedRows = await sql<QueryResultRow[]>(
     `SELECT user_email FROM procure_guard_access_requests WHERE reviewed_by = 'ProcureGuard recipient sync'`,
   );
-  const syncOwnedEmails = new Set(syncOwnedRows.map(row => String(row.user_email ?? '').toLowerCase()).filter(Boolean));
+  const syncOwnedEmails = new Set(
+    syncOwnedRows.map((row) => String(row.user_email ?? '').toLowerCase()).filter(Boolean),
+  );
   for (const existing of existingRows) {
     const email = String(existing.email ?? '').toLowerCase();
     if (!email) continue;

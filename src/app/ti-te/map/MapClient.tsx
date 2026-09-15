@@ -3,7 +3,14 @@
 import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import TiteSidebar from '@/components/TiteSidebar';
-import { ALERT_LABEL, BUCKET_HEX, usdFmt, isClosedStatus, isUrgentAlertLevel, TITE_OPEN_ALERT_LEVELS } from '@/lib/tite-utils';
+import {
+  ALERT_LABEL,
+  BUCKET_HEX,
+  usdFmt,
+  isClosedStatus,
+  isUrgentAlertLevel,
+  TITE_OPEN_ALERT_LEVELS,
+} from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
 
 /* Load Leaflet map client-side only — Leaflet requires window/document. */
@@ -14,64 +21,63 @@ const ALERT_LEVELS = TITE_OPEN_ALERT_LEVELS;
 /* Labels shown on filter badges (differ from table labels for compactness) */
 const FILTER_ALERT_LABEL: Record<string, string> = {
   overdue: 'Overdue',
-  urgent:  'Urgent ≤7d',
-  action:  'Action ≤14d',
-  plan:    'Plan ≤30d',
-  info:    'Monitor',
-  ok:      'On track',
+  urgent: 'Urgent ≤7d',
+  action: 'Action ≤14d',
+  plan: 'Plan ≤30d',
+  info: 'Monitor',
+  ok: 'On track',
 };
 
 const ALERT_BADGE_ACTIVE: Record<string, { bg: string; text: string; border: string }> = {
   overdue: { bg: '#fef2f2', text: '#b91c1c', border: '#fecaca' },
-  urgent:  { bg: '#fff7ed', text: '#c2410c', border: '#fed7aa' },
-  action:  { bg: '#fffbeb', text: '#b45309', border: '#fde68a' },
-  plan:    { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
-  info:    { bg: '#ecfeff', text: '#0e7490', border: '#a5f3fc' },
-  ok:      { bg: '#f0fdf4', text: '#15803d', border: '#bbf7d0' },
+  urgent: { bg: '#fff7ed', text: '#c2410c', border: '#fed7aa' },
+  action: { bg: '#fffbeb', text: '#b45309', border: '#fde68a' },
+  plan: { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
+  info: { bg: '#ecfeff', text: '#0e7490', border: '#a5f3fc' },
+  ok: { bg: '#f0fdf4', text: '#15803d', border: '#bbf7d0' },
 };
 
 const MOVEMENT_OPTIONS = ['Both', 'Temporary Import', 'Temporary Export'] as const;
-type MovementFilter = typeof MOVEMENT_OPTIONS[number];
+type MovementFilter = (typeof MOVEMENT_OPTIONS)[number];
 
 /* Custom chevron arrow for <select> elements */
-const SELECT_ARROW =
-  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`;
+const SELECT_ARROW = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`;
 
 export default function MapClient({ shipments }: { shipments: Shipment[] | null }) {
-  const [sidebarOpen,      setSidebarOpen]      = useState(false);
-  const [filterCountry,    setFilterCountry]    = useState('');
-  const [filterSegment,    setFilterSegment]    = useState('');
-  const [filterMovement,   setFilterMovement]   = useState<MovementFilter>('Both');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [filterCountry, setFilterCountry] = useState('');
+  const [filterSegment, setFilterSegment] = useState('');
+  const [filterMovement, setFilterMovement] = useState<MovementFilter>('Both');
   const [filterAlertLevels, setFilterAlertLevels] = useState<Set<string>>(
     new Set<string>(ALERT_LEVELS),
   );
 
   /* Active (non-closed) shipments — memoised so downstream memos stay stable */
   const open = useMemo(
-    () =>
-      (shipments ?? []).filter(s => !isClosedStatus(s.status)),
+    () => (shipments ?? []).filter((s) => !isClosedStatus(s.status)),
     [shipments],
   );
 
   /* Dynamic dropdown options derived from active shipments */
   const countries = useMemo(
-    () => [...new Set(open.map(s => s.country).filter((c): c is string => c != null))].sort(),
+    () => [...new Set(open.map((s) => s.country).filter((c): c is string => c != null))].sort(),
     [open],
   );
   const segments = useMemo(
-    () => [...new Set(open.map(s => s.segment).filter((c): c is string => c != null))].sort(),
+    () => [...new Set(open.map((s) => s.segment).filter((c): c is string => c != null))].sort(),
     [open],
   );
 
   /* Client-side filtered dataset — drives map, legend counts, and route table */
-  const filtered = useMemo(() =>
-    open.filter(s => {
-      if (filterCountry  && s.country       !== filterCountry)  return false;
-      if (filterSegment  && s.segment       !== filterSegment)  return false;
-      if (filterMovement !== 'Both' && s.movement_type !== filterMovement) return false;
-      if (!filterAlertLevels.has(s.alert_level))               return false;
-      return true;
-    }),
+  const filtered = useMemo(
+    () =>
+      open.filter((s) => {
+        if (filterCountry && s.country !== filterCountry) return false;
+        if (filterSegment && s.segment !== filterSegment) return false;
+        if (filterMovement !== 'Both' && s.movement_type !== filterMovement) return false;
+        if (!filterAlertLevels.has(s.alert_level)) return false;
+        return true;
+      }),
     [open, filterCountry, filterSegment, filterMovement, filterAlertLevels],
   );
 
@@ -89,7 +95,7 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
   }
 
   function toggleAlertLevel(level: string) {
-    setFilterAlertLevels(prev => {
+    setFilterAlertLevels((prev) => {
       if (prev.size === 1 && prev.has(level)) return prev; // keep at least one
       const next = new Set(prev);
       next.has(level) ? next.delete(level) : next.add(level);
@@ -103,8 +109,18 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
       <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50 p-6">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-10 text-center max-w-sm">
           <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <svg
+              className="w-6 h-6 text-red-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
             </svg>
           </div>
           <p className="font-semibold text-slate-900 mb-1">Database connection unavailable</p>
@@ -114,15 +130,18 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
     );
   }
 
-  const activeCount  = open.length;
-  const urgentCount  = open.filter(s => isUrgentAlertLevel(s.alert_level)).length;
-  const countrySet   = new Set(filtered.flatMap(s => [s.from_country, s.to_country].filter(Boolean)));
+  const activeCount = open.length;
+  const urgentCount = open.filter((s) => isUrgentAlertLevel(s.alert_level)).length;
+  const countrySet = new Set(
+    filtered.flatMap((s) => [s.from_country, s.to_country].filter(Boolean)),
+  );
 
   /* Route aggregation from filtered dataset */
   const routeMap: Record<string, { from: string; to: string; count: number; deposit: number }> = {};
-  filtered.forEach(s => {
+  filtered.forEach((s) => {
     const key = `${s.from_country}|${s.to_country}`;
-    if (!routeMap[key]) routeMap[key] = { from: s.from_country || '', to: s.to_country || '', count: 0, deposit: 0 };
+    if (!routeMap[key])
+      routeMap[key] = { from: s.from_country || '', to: s.to_country || '', count: 0, deposit: 0 };
     routeMap[key].count++;
     routeMap[key].deposit += Number(s.deposit_usd) || 0;
   });
@@ -136,15 +155,32 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
-      <TiteSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} activeCount={activeCount} urgentCount={urgentCount} />
+      <TiteSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        activeCount={activeCount}
+        urgentCount={urgentCount}
+      />
 
       <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center gap-3 sticky top-0 z-30">
-        <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0" style={{ background: '#006B0C' }}>
+        <div
+          className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
+          style={{ background: '#006B0C' }}
+        >
           <span className="text-white font-extrabold text-[10px] tracking-tight">TI·TE</span>
         </div>
         <span className="font-semibold text-slate-900 text-sm">Map View</span>
@@ -156,7 +192,8 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
           <p className="text-xs text-slate-400 mb-1">Home / Map view</p>
           <h1 className="text-2xl font-bold tracking-tight">Active movements — global view</h1>
           <p className="text-sm text-slate-500 mt-1">
-            {filtered.length} active flow{filtered.length !== 1 ? 's' : ''} across {countrySet.size} countr{countrySet.size !== 1 ? 'ies' : 'y'}
+            {filtered.length} active flow{filtered.length !== 1 ? 's' : ''} across {countrySet.size}{' '}
+            countr{countrySet.size !== 1 ? 'ies' : 'y'}
             {isFiltered && (
               <span className="ml-1.5 text-slate-400">(filtered from {open.length})</span>
             )}
@@ -166,18 +203,27 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
         {/* ── Filter bar ─────────────────────────────────────────────── */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm px-4 py-3 mb-5">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-
             {/* Country */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Country</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                Country
+              </span>
               <select
                 value={filterCountry}
-                onChange={e => setFilterCountry(e.target.value)}
+                onChange={(e) => setFilterCountry(e.target.value)}
                 className={selectCls}
-                style={{ backgroundImage: SELECT_ARROW, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
+                style={{
+                  backgroundImage: SELECT_ARROW,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 8px center',
+                }}
               >
                 <option value="">All Countries</option>
-                {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                {countries.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -185,15 +231,25 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
 
             {/* Segment */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Segment</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                Segment
+              </span>
               <select
                 value={filterSegment}
-                onChange={e => setFilterSegment(e.target.value)}
+                onChange={(e) => setFilterSegment(e.target.value)}
                 className={selectCls}
-                style={{ backgroundImage: SELECT_ARROW, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
+                style={{
+                  backgroundImage: SELECT_ARROW,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 8px center',
+                }}
               >
                 <option value="">All Segments</option>
-                {segments.map(s => <option key={s} value={s}>{s}</option>)}
+                {segments.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -201,7 +257,9 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
 
             {/* Movement type — segmented control */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Movement</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                Movement
+              </span>
               <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
                 {MOVEMENT_OPTIONS.map((opt, i) => (
                   <button
@@ -225,9 +283,11 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
 
             {/* Alert level — toggleable badge group */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Alert</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                Alert
+              </span>
               <div className="flex items-center gap-1 flex-wrap">
-                {ALERT_LEVELS.map(level => {
+                {ALERT_LEVELS.map((level) => {
                   const active = filterAlertLevels.has(level);
                   const s = ALERT_BADGE_ACTIVE[level];
                   return (
@@ -254,20 +314,26 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
               disabled={!isFiltered}
               className={[
                 'ml-auto text-[12px] underline underline-offset-2 whitespace-nowrap transition-colors',
-                isFiltered ? 'text-slate-500 hover:text-slate-800 cursor-pointer' : 'text-slate-300 cursor-default',
+                isFiltered
+                  ? 'text-slate-500 hover:text-slate-800 cursor-pointer'
+                  : 'text-slate-300 cursor-default',
               ].join(' ')}
             >
               Reset filters
             </button>
-
           </div>
         </div>
 
         {/* Interactive map */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-6" style={{ height: 460 }}>
+        <div
+          className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-6"
+          style={{ height: 460 }}
+        >
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-6">
-              <p className="text-sm text-slate-400">No active shipments match the current filters.</p>
+              <p className="text-sm text-slate-400">
+                No active shipments match the current filters.
+              </p>
             </div>
           ) : (
             <LeafletMap shipments={filtered} />
@@ -278,11 +344,17 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
         {filtered.length > 0 && (
           <div className="flex items-center gap-5 mb-5 px-1">
             <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
-              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: '#3b82f6' }} />
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ background: '#3b82f6' }}
+              />
               Temporary Import
             </span>
             <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
-              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: '#22c55e' }} />
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ background: '#22c55e' }}
+              />
               Temporary Export
             </span>
           </div>
@@ -293,7 +365,10 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col items-center justify-center py-16 text-center">
             <p className="text-sm text-slate-400">No active shipments match the current filters.</p>
             {isFiltered && (
-              <button onClick={resetFilters} className="mt-3 text-[12px] text-[#006B0C] underline underline-offset-2">
+              <button
+                onClick={resetFilters}
+                className="mt-3 text-[12px] text-[#006B0C] underline underline-offset-2"
+              >
                 Reset filters
               </button>
             )}
@@ -308,35 +383,63 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
                     {['Route', 'Count', 'Alert breakdown', 'Total deposit (USD)'].map((h, i) => (
-                      <th key={i} className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-4 py-2.5 whitespace-nowrap">{h}</th>
+                      <th
+                        key={i}
+                        className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-4 py-2.5 whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {routes.map((r, i) => {
-                    const items = filtered.filter(s => s.from_country === r.from && s.to_country === r.to);
+                    const items = filtered.filter(
+                      (s) => s.from_country === r.from && s.to_country === r.to,
+                    );
                     return (
-                      <tr key={i} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                      <tr
+                        key={i}
+                        className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors"
+                      >
                         <td className="px-4 py-2.5">
                           <span className="flex items-center gap-1 text-[12.5px] text-slate-700 whitespace-nowrap">
                             <span>{r.from || '—'}</span>
-                            <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+                            <svg
+                              className="w-3 h-3 text-slate-400"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M5 12h14M12 5l7 7-7 7"
+                              />
                             </svg>
                             <span>{r.to || '—'}</span>
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 font-mono text-[12.5px] text-slate-700 tabular-nums">{r.count}</td>
+                        <td className="px-4 py-2.5 font-mono text-[12.5px] text-slate-700 tabular-nums">
+                          {r.count}
+                        </td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center flex-wrap">
                             {(() => {
-                              const parts = ALERT_LEVELS
-                                .map(level => ({ level, count: items.filter(s => s.alert_level === level).length }))
-                                .filter(x => x.count > 0);
+                              const parts = ALERT_LEVELS.map((level) => ({
+                                level,
+                                count: items.filter((s) => s.alert_level === level).length,
+                              })).filter((x) => x.count > 0);
                               return parts.map((x, j) => (
                                 <span key={x.level} className="flex items-center">
-                                  {j > 0 && <span className="text-slate-300 mx-1 text-[11px]">·</span>}
-                                  <span style={{ color: BUCKET_HEX[x.level] || '#94a3b8' }} className="font-semibold text-[11.5px] whitespace-nowrap">
+                                  {j > 0 && (
+                                    <span className="text-slate-300 mx-1 text-[11px]">·</span>
+                                  )}
+                                  <span
+                                    style={{ color: BUCKET_HEX[x.level] || '#94a3b8' }}
+                                    className="font-semibold text-[11.5px] whitespace-nowrap"
+                                  >
                                     {x.count} {ALERT_LABEL[x.level] || x.level}
                                   </span>
                                 </span>
@@ -344,7 +447,9 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
                             })()}
                           </div>
                         </td>
-                        <td className="px-4 py-2.5 font-mono text-[12.5px] text-slate-700 tabular-nums">{usdFmt(r.deposit)}</td>
+                        <td className="px-4 py-2.5 font-mono text-[12.5px] text-slate-700 tabular-nums">
+                          {usdFmt(r.deposit)}
+                        </td>
                       </tr>
                     );
                   })}

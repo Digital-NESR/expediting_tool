@@ -55,34 +55,50 @@ export default function SnsReferenceDataClient() {
     void reload();
   }, [reload]);
 
-  const run = useCallback(async (fn: () => Promise<Result>) => {
-    setBusy(true);
-    setError(null);
-    const res = await fn();
-    setBusy(false);
-    if (!res.success) { setError(res.error ?? 'Action failed.'); return false; }
-    await reload();
-    return true;
-  }, [reload]);
+  const run = useCallback(
+    async (fn: () => Promise<Result>) => {
+      setBusy(true);
+      setError(null);
+      const res = await fn();
+      setBusy(false);
+      if (!res.success) {
+        setError(res.error ?? 'Action failed.');
+        return false;
+      }
+      await reload();
+      return true;
+    },
+    [reload],
+  );
 
-  if (!data) return <div className="py-16 text-center text-sm text-slate-400">Loading reference data…</div>;
+  if (!data)
+    return <div className="py-16 text-center text-sm text-slate-400">Loading reference data…</div>;
 
   return (
     <div>
-      <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">S&amp;S Registry · Reference Data</h2>
+      <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">
+        S&amp;S Registry · Reference Data
+      </h2>
       <p className="mb-5 max-w-3xl text-[13px] leading-relaxed text-slate-500">
-        The lists the New Record wizard picks from. <span className="font-semibold text-slate-600">Deactivating</span> hides
-        an entry from new records while leaving existing records intact — prefer it to deleting. Records store their scope as
-        text, so editing the taxonomy never rewrites a record that has already been submitted.
+        The lists the New Record wizard picks from.{' '}
+        <span className="font-semibold text-slate-600">Deactivating</span> hides an entry from new
+        records while leaving existing records intact — prefer it to deleting. Records store their
+        scope as text, so editing the taxonomy never rewrites a record that has already been
+        submitted.
       </p>
 
       <div className="mb-5 flex flex-wrap gap-1 border-b border-slate-200">
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => { setTab(t.key); setError(null); }}
+            onClick={() => {
+              setTab(t.key);
+              setError(null);
+            }}
             className={`-mb-px border-b-2 px-4 py-2 text-[13px] font-semibold transition-colors ${
-              tab === t.key ? 'border-[#2A7E4F] text-[#1d5b39]' : 'border-transparent text-slate-500 hover:text-slate-700'
+              tab === t.key
+                ? 'border-[#2A7E4F] text-[#1d5b39]'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             {t.label}
@@ -91,7 +107,9 @@ export default function SnsReferenceDataClient() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</div>
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+          {error}
+        </div>
       )}
 
       {tab === 'taxonomy' && <TaxonomyTab data={data} busy={busy} run={run} />}
@@ -109,7 +127,9 @@ type RunFn = (fn: () => Promise<Result>) => Promise<boolean>;
 function Pill({ active }: { active: boolean }) {
   if (active) return null;
   return (
-    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold text-slate-400">Inactive</span>
+    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold text-slate-400">
+      Inactive
+    </span>
   );
 }
 
@@ -133,7 +153,9 @@ function AddInline({
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void submit();
+        }}
         placeholder={placeholder}
         className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-[#2A7E4F]"
       />
@@ -176,7 +198,11 @@ function EditableRow({
   const [value, setValue] = useState(name);
 
   async function save() {
-    if (!value.trim() || value.trim() === name) { setEditing(false); setValue(name); return; }
+    if (!value.trim() || value.trim() === name) {
+      setEditing(false);
+      setValue(name);
+      return;
+    }
     if (await onRename(value.trim())) setEditing(false);
   }
 
@@ -188,11 +214,19 @@ function EditableRow({
             autoFocus
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') { setEditing(false); setValue(name); } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void save();
+              if (e.key === 'Escape') {
+                setEditing(false);
+                setValue(name);
+              }
+            }}
             className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-[12.5px] outline-none focus:border-[#2A7E4F]"
           />
         ) : (
-          <span className={`flex items-center gap-2 text-[12.5px] ${active ? 'text-slate-800' : 'text-slate-400'}`}>
+          <span
+            className={`flex items-center gap-2 text-[12.5px] ${active ? 'text-slate-800' : 'text-slate-400'}`}
+          >
             {name}
             {badge && (
               <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-slate-500">
@@ -206,18 +240,43 @@ function EditableRow({
         <div className="flex shrink-0 items-center gap-1.5">
           {editing ? (
             <>
-              <button disabled={busy} onClick={save} className="rounded px-2 py-1 text-[11.5px] font-semibold text-[#1d5b39] hover:bg-slate-50">Save</button>
-              <button onClick={() => { setEditing(false); setValue(name); }} className="rounded px-2 py-1 text-[11.5px] font-semibold text-slate-400 hover:bg-slate-50">Cancel</button>
+              <button
+                disabled={busy}
+                onClick={save}
+                className="rounded px-2 py-1 text-[11.5px] font-semibold text-[#1d5b39] hover:bg-slate-50"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  setEditing(false);
+                  setValue(name);
+                }}
+                className="rounded px-2 py-1 text-[11.5px] font-semibold text-slate-400 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
             </>
           ) : (
             <>
-              <button onClick={() => setEditing(true)} className="rounded px-2 py-1 text-[11.5px] font-semibold text-slate-500 hover:bg-slate-50">Rename</button>
-              <button disabled={busy} onClick={onToggle} className="rounded px-2 py-1 text-[11.5px] font-semibold text-slate-500 hover:bg-slate-50">
+              <button
+                onClick={() => setEditing(true)}
+                className="rounded px-2 py-1 text-[11.5px] font-semibold text-slate-500 hover:bg-slate-50"
+              >
+                Rename
+              </button>
+              <button
+                disabled={busy}
+                onClick={onToggle}
+                className="rounded px-2 py-1 text-[11.5px] font-semibold text-slate-500 hover:bg-slate-50"
+              >
                 {active ? 'Deactivate' : 'Reactivate'}
               </button>
               <button
                 disabled={busy}
-                onClick={() => { if (confirm(deleteWarning)) void onDelete(); }}
+                onClick={() => {
+                  if (confirm(deleteWarning)) void onDelete();
+                }}
                 className="rounded px-2 py-1 text-[11.5px] font-semibold text-red-500 hover:bg-red-50"
               >
                 Delete
@@ -233,7 +292,15 @@ function EditableRow({
 
 /* ─── Taxonomy ────────────────────────────────────────────────── */
 
-function TaxonomyTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: boolean; run: RunFn }) {
+function TaxonomyTab({
+  data,
+  busy,
+  run,
+}: {
+  data: SnsReferenceAdminData;
+  busy: boolean;
+  run: RunFn;
+}) {
   const [openCat, setOpenCat] = useState<number | null>(null);
   const [openSub, setOpenSub] = useState<number | null>(null);
   const [openFam, setOpenFam] = useState<number | null>(null);
@@ -260,14 +327,26 @@ function TaxonomyTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: b
           >
             <div className="mt-1.5 flex items-center justify-between gap-2">
               <button
-                onClick={() => { setOpenCat(c.id); setOpenSub(null); setOpenFam(null); }}
+                onClick={() => {
+                  setOpenCat(c.id);
+                  setOpenSub(null);
+                  setOpenFam(null);
+                }}
                 className={`text-[11.5px] font-semibold ${openCat === c.id ? 'text-[#1d5b39]' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 {c.subs.length} sub-categories →
               </button>
               <button
                 disabled={busy}
-                onClick={() => run(() => updateSnsCategory(c.id, c.name, c.spendType === 'Direct' ? 'Indirect' : 'Direct'))}
+                onClick={() =>
+                  run(() =>
+                    updateSnsCategory(
+                      c.id,
+                      c.name,
+                      c.spendType === 'Direct' ? 'Indirect' : 'Direct',
+                    ),
+                  )
+                }
                 title="Toggle spend type"
                 className="rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold text-slate-500 hover:bg-slate-200"
               >
@@ -283,14 +362,20 @@ function TaxonomyTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: b
                 key={t}
                 onClick={() => setNewCatType(t)}
                 className={`flex-1 rounded-lg border px-2 py-1 text-[11.5px] font-semibold ${
-                  newCatType === t ? 'border-[#2A7E4F] bg-[#2A7E4F] text-white' : 'border-slate-200 text-slate-500'
+                  newCatType === t
+                    ? 'border-[#2A7E4F] bg-[#2A7E4F] text-white'
+                    : 'border-slate-200 text-slate-500'
                 }`}
               >
                 {t}
               </button>
             ))}
           </div>
-          <AddInline placeholder="New category" busy={busy} onAdd={(v) => run(() => addSnsCategory(v, newCatType))} />
+          <AddInline
+            placeholder="New category"
+            busy={busy}
+            onAdd={(v) => run(() => addSnsCategory(v, newCatType))}
+          />
         </div>
       </Column>
 
@@ -308,7 +393,10 @@ function TaxonomyTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: b
             deleteWarning={`Delete "${s.name}" and everything beneath it?`}
           >
             <button
-              onClick={() => { setOpenSub(s.id); setOpenFam(null); }}
+              onClick={() => {
+                setOpenSub(s.id);
+                setOpenFam(null);
+              }}
               className={`mt-1.5 text-[11.5px] font-semibold ${openSub === s.id ? 'text-[#1d5b39]' : 'text-slate-400 hover:text-slate-600'}`}
             >
               {s.families.length} families →
@@ -317,7 +405,11 @@ function TaxonomyTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: b
         ))}
         {cat && (
           <div className="mt-2">
-            <AddInline placeholder="New sub-category" busy={busy} onAdd={(v) => run(() => addSnsSubCategory(cat.id, v))} />
+            <AddInline
+              placeholder="New sub-category"
+              busy={busy}
+              onAdd={(v) => run(() => addSnsSubCategory(cat.id, v))}
+            />
           </div>
         )}
       </Column>
@@ -345,7 +437,11 @@ function TaxonomyTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: b
         ))}
         {sub && (
           <div className="mt-2">
-            <AddInline placeholder="New family" busy={busy} onAdd={(v) => run(() => addSnsFamily(sub.id, v))} />
+            <AddInline
+              placeholder="New family"
+              busy={busy}
+              onAdd={(v) => run(() => addSnsFamily(sub.id, v))}
+            />
           </div>
         )}
       </Column>
@@ -366,7 +462,11 @@ function TaxonomyTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: b
         ))}
         {fam && (
           <div className="mt-2">
-            <AddInline placeholder="New commodity" busy={busy} onAdd={(v) => run(() => addSnsCommodity(fam.id, v))} />
+            <AddInline
+              placeholder="New commodity"
+              busy={busy}
+              onAdd={(v) => run(() => addSnsCommodity(fam.id, v))}
+            />
           </div>
         )}
       </Column>
@@ -374,10 +474,20 @@ function TaxonomyTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: b
   );
 }
 
-function Column({ title, empty, children }: { title: string; empty?: string; children?: React.ReactNode }) {
+function Column({
+  title,
+  empty,
+  children,
+}: {
+  title: string;
+  empty?: string;
+  children?: React.ReactNode;
+}) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <div className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-slate-500">{title}</div>
+      <div className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-slate-500">
+        {title}
+      </div>
       {empty ? (
         <div className="py-10 text-center text-[12px] text-slate-400">{empty}</div>
       ) : (
@@ -389,20 +499,32 @@ function Column({ title, empty, children }: { title: string; empty?: string; chi
 
 /* ─── Countries ───────────────────────────────────────────────── */
 
-function CountriesTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: boolean; run: RunFn }) {
+function CountriesTab({
+  data,
+  busy,
+  run,
+}: {
+  data: SnsReferenceAdminData;
+  busy: boolean;
+  run: RunFn;
+}) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
 
   async function add() {
     if (!code.trim() || !name.trim()) return;
-    if (await run(() => addSnsCountry(code.trim(), name.trim()))) { setCode(''); setName(''); }
+    if (await run(() => addSnsCountry(code.trim(), name.trim()))) {
+      setCode('');
+      setName('');
+    }
   }
 
   return (
     <div className="max-w-2xl">
       <p className="mb-3 text-[12.5px] leading-relaxed text-slate-500">
-        The code is embedded in every issued Registry ID (e.g. <code className="rounded bg-slate-100 px-1">SGL-KWT-2026-0001</code>),
-        so it cannot be changed after a country is created — only the display name can.
+        The code is embedded in every issued Registry ID (e.g.{' '}
+        <code className="rounded bg-slate-100 px-1">SGL-KWT-2026-0001</code>), so it cannot be
+        changed after a country is created — only the display name can.
       </p>
       <div className="space-y-1.5">
         {data.countries.map((c) => (
@@ -430,7 +552,9 @@ function CountriesTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: 
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void add(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void add();
+          }}
           placeholder="Country / entity name"
           className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-[#2A7E4F]"
         />
@@ -449,7 +573,15 @@ function CountriesTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: 
 
 /* ─── Segments ────────────────────────────────────────────────── */
 
-function SegmentsTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: boolean; run: RunFn }) {
+function SegmentsTab({
+  data,
+  busy,
+  run,
+}: {
+  data: SnsReferenceAdminData;
+  busy: boolean;
+  run: RunFn;
+}) {
   return (
     <div className="max-w-2xl">
       <div className="space-y-1.5">
@@ -467,7 +599,11 @@ function SegmentsTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: b
         ))}
       </div>
       <div className="mt-4">
-        <AddInline placeholder="New business segment" busy={busy} onAdd={(v) => run(() => addSnsSegment(v))} />
+        <AddInline
+          placeholder="New business segment"
+          busy={busy}
+          onAdd={(v) => run(() => addSnsSegment(v))}
+        />
       </div>
     </div>
   );
@@ -475,10 +611,22 @@ function SegmentsTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: b
 
 /* ─── Reason codes ────────────────────────────────────────────── */
 
-function ReasonsTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: boolean; run: RunFn }) {
+function ReasonsTab({
+  data,
+  busy,
+  run,
+}: {
+  data: SnsReferenceAdminData;
+  busy: boolean;
+  run: RunFn;
+}) {
   const groups: { cls: 'SGL' | 'SOL'; label: string; blurb: string }[] = [
     { cls: 'SGL', label: 'Single-source (SGL)', blurb: 'Why no alternative supplier exists.' },
-    { cls: 'SOL', label: 'Sole-source (SOL)', blurb: 'Why NESR has restricted sourcing to one vendor.' },
+    {
+      cls: 'SOL',
+      label: 'Sole-source (SOL)',
+      blurb: 'Why NESR has restricted sourcing to one vendor.',
+    },
   ];
   return (
     <div className="grid max-w-4xl gap-5 md:grid-cols-2">
@@ -487,21 +635,27 @@ function ReasonsTab({ data, busy, run }: { data: SnsReferenceAdminData; busy: bo
           <div className="text-[13px] font-bold text-slate-900">{g.label}</div>
           <div className="mb-2.5 text-[12px] text-slate-500">{g.blurb}</div>
           <div className="space-y-1.5">
-            {data.reasons.filter((r) => r.classification === g.cls).map((r) => (
-              <EditableRow
-                key={r.id}
-                name={r.name}
-                active={r.active}
-                busy={busy}
-                onRename={(v) => run(() => updateSnsReason(r.id, v))}
-                onToggle={() => run(() => setSnsReasonActive(r.id, !r.active))}
-                onDelete={() => run(() => deleteSnsReason(r.id))}
-                deleteWarning={`Delete reason code "${r.name}"? Existing records keep theirs.`}
-              />
-            ))}
+            {data.reasons
+              .filter((r) => r.classification === g.cls)
+              .map((r) => (
+                <EditableRow
+                  key={r.id}
+                  name={r.name}
+                  active={r.active}
+                  busy={busy}
+                  onRename={(v) => run(() => updateSnsReason(r.id, v))}
+                  onToggle={() => run(() => setSnsReasonActive(r.id, !r.active))}
+                  onDelete={() => run(() => deleteSnsReason(r.id))}
+                  deleteWarning={`Delete reason code "${r.name}"? Existing records keep theirs.`}
+                />
+              ))}
           </div>
           <div className="mt-3">
-            <AddInline placeholder={`New ${g.cls} reason code`} busy={busy} onAdd={(v) => run(() => addSnsReason(g.cls, v))} />
+            <AddInline
+              placeholder={`New ${g.cls} reason code`}
+              busy={busy}
+              onAdd={(v) => run(() => addSnsReason(g.cls, v))}
+            />
           </div>
         </div>
       ))}

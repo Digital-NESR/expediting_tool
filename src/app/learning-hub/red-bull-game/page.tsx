@@ -18,7 +18,9 @@ export default async function RedBullGamePage({
 
   // isAdmin is still passed to the game as ?admin=1 (kept for forward-compat with the mode gating).
   const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
   const isAdmin = adminEmails.includes(session.user.email.toLowerCase());
 
   // An invite link lands here as /learning-hub/red-bull-game?code=XXXXX, pass it into the game
@@ -26,7 +28,10 @@ export default async function RedBullGamePage({
   const sp = await searchParams;
   const codeParam = Array.isArray(sp.code) ? sp.code[0] : sp.code;
   const initialCode = codeParam
-    ? codeParam.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || undefined
+    ? codeParam
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 8) || undefined
     : undefined;
 
   const leaderboard = await getRedBullLeaderboard();
@@ -34,6 +39,11 @@ export default async function RedBullGamePage({
   const userName = session.user.name ?? session.user.email;
 
   return (
-    <RedBullGameClient isAdmin={isAdmin} initialLeaderboard={leaderboard} initialCode={initialCode} userName={userName} />
+    <RedBullGameClient
+      isAdmin={isAdmin}
+      initialLeaderboard={leaderboard}
+      initialCode={initialCode}
+      userName={userName}
+    />
   );
 }

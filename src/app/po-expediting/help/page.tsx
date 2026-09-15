@@ -19,12 +19,26 @@ export default function PoExpeditingHelpPage() {
               onClick={() => setIsSidebarOpen(true)}
               className="mr-2 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors focus:ring-2 focus:ring-[#307c4c]/50 focus:outline-none"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#307c4c]">
-              <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                className="w-4 h-4 text-white"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                 <path d="M15 3h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
                 <line x1="12" y1="3" x2="12" y2="21" />
@@ -32,13 +46,21 @@ export default function PoExpeditingHelpPage() {
             </span>
             <span className="text-lg font-bold text-gray-900 tracking-tight">NESR</span>
             <span className="hidden sm:inline text-gray-300 select-none">·</span>
-            <span className="hidden sm:inline text-sm font-medium text-gray-500">PO Expediting Help</span>
+            <span className="hidden sm:inline text-sm font-medium text-gray-500">
+              PO Expediting Help
+            </span>
           </div>
           <Link
             href="/po-expediting"
             className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[13px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-[#307c4c]"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
             Back to Dashboard

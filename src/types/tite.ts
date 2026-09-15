@@ -1,8 +1,4 @@
-export type ShipmentStatus =
-  | 'Open'
-  | 'Open - Extended'
-  | 'Closed'
-  | 'Closed - Refund Recovered';
+export type ShipmentStatus = 'Open' | 'Open - Extended' | 'Closed' | 'Closed - Refund Recovered';
 
 /* `isClosedStatus` / `isOpenStatus` live in `@/lib/tite-utils`, next to the
    alert-level rule that uses them. */
@@ -133,10 +129,10 @@ export interface NotificationContact {
   notify_60_days: boolean;
   notify_30_days: boolean;
   notify_14_days: boolean;
-  notify_7_days:  boolean;
-  notify_2_days:  boolean;
-  notify_1_day:   boolean;
-  notify_0_day:   boolean;
+  notify_7_days: boolean;
+  notify_2_days: boolean;
+  notify_1_day: boolean;
+  notify_0_day: boolean;
   notify_overdue: boolean;
 }
 

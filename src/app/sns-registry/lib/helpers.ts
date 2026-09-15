@@ -77,7 +77,12 @@ export function taxFamilies(tax: TaxCategory[], cat: string, sub: string): strin
   return s ? s.families.map((f) => f.name) : [];
 }
 
-export function taxCommodities(tax: TaxCategory[], cat: string, sub: string, fam: string): string[] {
+export function taxCommodities(
+  tax: TaxCategory[],
+  cat: string,
+  sub: string,
+  fam: string,
+): string[] {
   const c = tax.find((t) => t.name === cat);
   const s = c?.subs.find((x) => x.name === sub);
   const f = s?.families.find((x) => x.name === fam);

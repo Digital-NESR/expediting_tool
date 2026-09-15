@@ -20,7 +20,11 @@ import {
 } from '@/lib/procureGuard-utils';
 import { actorCanAccessRequestScope } from '@/lib/procure-guard/access';
 import { resolveDelegationAttribution, writeActivity } from '@/lib/procure-guard/activity';
-import { getActor, getScopeRestrictionMessage, requireProcureGuardOperationalAccess } from '@/lib/procure-guard/actor';
+import {
+  getActor,
+  getScopeRestrictionMessage,
+  requireProcureGuardOperationalAccess,
+} from '@/lib/procure-guard/actor';
 import { PROCUREGUARD_DATA_TAG } from '@/lib/procure-guard/constants';
 import { ensureProcureGuardPaymentRequestColumns, exec, sql } from '@/lib/procure-guard/internals';
 import { notifyProcureGuardNextApprover } from '@/lib/procure-guard/notifications';
@@ -43,13 +47,19 @@ import type {
 
 const log = logger('procure-guard');
 
-export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promise<ActionResult<{ id: number }>> {
+export async function createAdhocPayment(
+  input: CreateAdhocPaymentInput,
+): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
-    if (!actor.permissions.canCreateRequests) throw new Error('Request creation access is required.');
+    if (!actor.permissions.canCreateRequests)
+      throw new Error('Request creation access is required.');
     await ensureProcureGuardPaymentRequestColumns();
-    const normalised = normaliseAdhocInput(input, { requesterEmail: actor.email, requireAcknowledgement: true });
+    const normalised = normaliseAdhocInput(input, {
+      requesterEmail: actor.email,
+      requireAcknowledgement: true,
+    });
 
     const result = await insertAdhocRequest({
       input,
@@ -84,15 +94,21 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
     log.error('createAdhocPayment.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create adhoc PO request.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to create adhoc PO request.',
+    };
   }
 }
 
-export async function createAdvancePayment(input: CreateAdvancePaymentInput): Promise<ActionResult<{ id: number }>> {
+export async function createAdvancePayment(
+  input: CreateAdvancePaymentInput,
+): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
-    if (!actor.permissions.canCreateRequests) throw new Error('Request creation access is required.');
+    if (!actor.permissions.canCreateRequests)
+      throw new Error('Request creation access is required.');
     await ensureProcureGuardPaymentRequestColumns();
     const normalised = normaliseAdvanceInput(input, { requesterEmail: actor.email });
 
@@ -129,29 +145,45 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
     log.error('createAdvancePayment.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create advance payment request.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to create advance payment request.',
+    };
   }
 }
 
-export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPaymentInput): Promise<ActionResult<{ id: number }>> {
+export async function updateAdhocPaymentRequest(
+  id: number,
+  input: CreateAdhocPaymentInput,
+): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
     await ensureProcureGuardPaymentRequestColumns();
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT * FROM procure_guard_adhoc_payments WHERE id = ? LIMIT 1`,
+      [id],
+    );
     const existing = rows[0];
     if (!existing) return { success: false, error: 'Request not found.' };
     if (existing.status !== 'Submitted' && existing.status !== 'Rejected') {
-      return { success: false, error: 'This request can only be edited before review starts or after it is rejected.' };
+      return {
+        success: false,
+        error: 'This request can only be edited before review starts or after it is rejected.',
+      };
     }
     const wasRejected = existing.status === 'Rejected';
 
-    const ownsRequest = String(existing.requested_by_email).toLowerCase() === actor.email.toLowerCase();
+    const ownsRequest =
+      String(existing.requested_by_email).toLowerCase() === actor.email.toLowerCase();
     if (!ownsRequest && !actor.permissions.canManageData) {
       return { success: false, error: 'Only the requester can edit this request.' };
     }
 
-    const normalised = normaliseAdhocInput(input, { requesterEmail: existing.requested_by_email, requireAcknowledgement: true });
+    const normalised = normaliseAdhocInput(input, {
+      requesterEmail: existing.requested_by_email,
+      requireAcknowledgement: true,
+    });
 
     await updateAdhocRequest(id, input, normalised);
 
@@ -163,7 +195,9 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
       requestType: 'adhoc',
       requestId: id,
       referenceNumber: existing.reference_number,
-      action: wasRejected ? 'Adhoc PO resubmitted after rejection' : 'Adhoc PO edited before review',
+      action: wasRejected
+        ? 'Adhoc PO resubmitted after rejection'
+        : 'Adhoc PO edited before review',
       actor,
     });
 
@@ -185,29 +219,44 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
     return { success: true, data: { id }, reference_number: existing.reference_number };
   } catch (err) {
     log.error('updateAdhocPaymentRequest.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update adhoc PO request.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update adhoc PO request.',
+    };
   }
 }
 
-export async function updateAdvancePaymentRequest(id: number, input: CreateAdvancePaymentInput): Promise<ActionResult<{ id: number }>> {
+export async function updateAdvancePaymentRequest(
+  id: number,
+  input: CreateAdvancePaymentInput,
+): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
     await ensureProcureGuardPaymentRequestColumns();
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT * FROM procure_guard_advance_payments WHERE id = ? LIMIT 1`,
+      [id],
+    );
     const existing = rows[0];
     if (!existing) return { success: false, error: 'Request not found.' };
     if (existing.status !== 'Submitted' && existing.status !== 'Rejected') {
-      return { success: false, error: 'This request can only be edited before review starts or after it is rejected.' };
+      return {
+        success: false,
+        error: 'This request can only be edited before review starts or after it is rejected.',
+      };
     }
     const wasRejected = existing.status === 'Rejected';
 
-    const ownsRequest = String(existing.requested_by_email).toLowerCase() === actor.email.toLowerCase();
+    const ownsRequest =
+      String(existing.requested_by_email).toLowerCase() === actor.email.toLowerCase();
     if (!ownsRequest && !actor.permissions.canManageData) {
       return { success: false, error: 'Only the requester can edit this request.' };
     }
 
-    const normalised = normaliseAdvanceInput(input, { requesterEmail: existing.requested_by_email });
+    const normalised = normaliseAdvanceInput(input, {
+      requesterEmail: existing.requested_by_email,
+    });
 
     await updateAdvanceRequest(id, input, normalised);
 
@@ -219,7 +268,9 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
       requestType: 'advance',
       requestId: id,
       referenceNumber: existing.reference_number,
-      action: wasRejected ? 'Advance payment resubmitted after rejection' : 'Advance payment edited before review',
+      action: wasRejected
+        ? 'Advance payment resubmitted after rejection'
+        : 'Advance payment edited before review',
       actor,
     });
 
@@ -241,7 +292,10 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
     return { success: true, data: { id }, reference_number: existing.reference_number };
   } catch (err) {
     log.error('updateAdvancePaymentRequest.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update advance payment request.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update advance payment request.',
+    };
   }
 }
 
@@ -254,7 +308,9 @@ async function updateStatusCommon(input: {
 }): Promise<ActionResult> {
   const actor = await getActor();
 
-  const rows = await sql<QueryResultRow[]>(`SELECT * FROM ${input.table} WHERE id = ? LIMIT 1`, [input.id]);
+  const rows = await sql<QueryResultRow[]>(`SELECT * FROM ${input.table} WHERE id = ? LIMIT 1`, [
+    input.id,
+  ]);
   const row = rows[0];
   if (!row) return { success: false, error: 'Request not found.' };
 
@@ -271,7 +327,12 @@ async function updateStatusCommon(input: {
     }
   } else {
     const { amount: thresholdAmount, currency: thresholdCurrency } = procureGuardThreshold(row);
-    const expectedNextStatus = getNextApprovalStatus(input.requestType, row.status, thresholdAmount, thresholdCurrency);
+    const expectedNextStatus = getNextApprovalStatus(
+      input.requestType,
+      row.status,
+      thresholdAmount,
+      thresholdCurrency,
+    );
     const requiredPermission = getRequiredPermissionForTransition(
       input.requestType,
       row.status,
@@ -283,7 +344,10 @@ async function updateStatusCommon(input: {
     const validRejectMove = input.status === 'Rejected' && isActiveApprovalStatus(row.status);
 
     if (!validApprovalMove && !validRejectMove) {
-      return { success: false, error: `Cannot move ${row.reference_number} from ${formatProcureGuardStatusLabel(row.status)} to ${formatProcureGuardStatusLabel(input.status)}.` };
+      return {
+        success: false,
+        error: `Cannot move ${row.reference_number} from ${formatProcureGuardStatusLabel(row.status)} to ${formatProcureGuardStatusLabel(input.status)}.`,
+      };
     }
 
     if (!requiredPermission || !actor.permissions[requiredPermission]) {
@@ -300,7 +364,13 @@ async function updateStatusCommon(input: {
       };
     }
 
-    onBehalfOf = resolveDelegationAttribution(actor, input.requestType, row.status, input.status, row);
+    onBehalfOf = resolveDelegationAttribution(
+      actor,
+      input.requestType,
+      row.status,
+      input.status,
+      row,
+    );
   }
 
   const comment = typeof input.notes === 'string' ? input.notes.trim() : '';
@@ -345,7 +415,10 @@ async function updateStatusCommon(input: {
   );
 
   if (updateResult.rowCount === 0) {
-    return { success: false, error: 'This request was updated by someone else. Refresh and try again.' };
+    return {
+      success: false,
+      error: 'This request was updated by someone else. Refresh and try again.',
+    };
   }
 
   await writeActivity({
@@ -394,7 +467,10 @@ export async function updateAdhocPaymentStatus(
     });
   } catch (err) {
     log.error('updateAdhocPaymentStatus.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update adhoc PO status.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update adhoc PO status.',
+    };
   }
 }
 
@@ -413,6 +489,9 @@ export async function updateAdvancePaymentStatus(
     });
   } catch (err) {
     log.error('updateAdvancePaymentStatus.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update advance payment status.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update advance payment status.',
+    };
   }
 }

@@ -26,17 +26,27 @@ export default async function TiteDashboardPage() {
   // urgency rather than the stale stored alert_level column.
   let stats: ShipmentStats | null = null;
   if (shipments) {
-    const open = shipments.filter(s => isOpenStatus(s.status));
+    const open = shipments.filter((s) => isOpenStatus(s.status));
     stats = {
-      active_count:      open.length,
-      overdue_count:     open.filter(s => s.alert_level === 'overdue').length,
-      urgent_count:      open.filter(s => s.alert_level === 'urgent').length,
-      action_count:      open.filter(s => s.alert_level === 'action' || s.alert_level === 'plan').length,
+      active_count: open.length,
+      overdue_count: open.filter((s) => s.alert_level === 'overdue').length,
+      urgent_count: open.filter((s) => s.alert_level === 'urgent').length,
+      action_count: open.filter((s) => s.alert_level === 'action' || s.alert_level === 'plan')
+        .length,
       total_deposit_usd: open.reduce((sum, s) => sum + (Number(s.deposit_usd) || 0), 0),
-      import_count:      open.filter(s => (s.movement_type || '').toLowerCase().includes('import')).length,
-      export_count:      open.filter(s => (s.movement_type || '').toLowerCase().includes('export')).length,
+      import_count: open.filter((s) => (s.movement_type || '').toLowerCase().includes('import'))
+        .length,
+      export_count: open.filter((s) => (s.movement_type || '').toLowerCase().includes('export'))
+        .length,
     };
   }
 
-  return <TiteDashboardClient stats={stats} shipments={shipments} recentActivity={recentActivity} viewOnly={titeViewOnly} />;
+  return (
+    <TiteDashboardClient
+      stats={stats}
+      shipments={shipments}
+      recentActivity={recentActivity}
+      viewOnly={titeViewOnly}
+    />
+  );
 }

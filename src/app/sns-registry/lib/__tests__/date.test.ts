@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BUSINESS_TZ, addDays, daysFromToday, formatDate, parseISODate, toISODate, today, todayISO } from '../date';
+import {
+  BUSINESS_TZ,
+  addDays,
+  daysFromToday,
+  formatDate,
+  parseISODate,
+  toISODate,
+  today,
+  todayISO,
+} from '../date';
 
 /* The suite runs with TZ=Asia/Dubai (+04) while the registry's business
    timezone is Asia/Riyadh (+03) — see vitest.config.mts. That one-hour gap is
@@ -24,7 +33,9 @@ describe('today()', () => {
     vi.setSystemTime(new Date(2026, 8, 14, 17, 42, 31, 500));
     const t = today();
     expect([t.getFullYear(), t.getMonth(), t.getDate()]).toEqual([2026, 8, 14]);
-    expect([t.getHours(), t.getMinutes(), t.getSeconds(), t.getMilliseconds()]).toEqual([0, 0, 0, 0]);
+    expect([t.getHours(), t.getMinutes(), t.getSeconds(), t.getMilliseconds()]).toEqual([
+      0, 0, 0, 0,
+    ]);
     expect(todayISO()).toBe('2026-09-14');
   });
 

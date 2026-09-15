@@ -29,7 +29,7 @@ let usageTableEnsured: Promise<void> | null = null;
 
 async function ensureUsageTable(): Promise<void> {
   if (usageTableEnsured) return usageTableEnsured;
-  usageTableEnsured = runEnsureUsageTable().catch(err => {
+  usageTableEnsured = runEnsureUsageTable().catch((err) => {
     usageTableEnsured = null; // allow a retry on the next request if it genuinely failed
     throw err;
   });
@@ -64,14 +64,25 @@ async function runEnsureUsageTable(): Promise<void> {
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb
     )
   `);
-  await querySchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_occurred_at ON procure_guard_usage_events (occurred_at DESC)`);
-  await querySchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_path ON procure_guard_usage_events (path)`);
-  await querySchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_user ON procure_guard_usage_events (user_email)`);
-  await querySchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_type ON procure_guard_usage_events (event_type)`);
+  await querySchema(
+    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_occurred_at ON procure_guard_usage_events (occurred_at DESC)`,
+  );
+  await querySchema(
+    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_path ON procure_guard_usage_events (path)`,
+  );
+  await querySchema(
+    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_user ON procure_guard_usage_events (user_email)`,
+  );
+  await querySchema(
+    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_type ON procure_guard_usage_events (event_type)`,
+  );
 }
 
 function cleanText(value: unknown, fallback = ''): string {
-  return String(value ?? fallback).replace(/\s+/g, ' ').trim().slice(0, 500);
+  return String(value ?? fallback)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500);
 }
 
 function cleanOptionalText(value: unknown): string | null {
@@ -97,7 +108,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const payload = await request.json() as TrackingPayload;
+    const payload = (await request.json()) as TrackingPayload;
     const eventType = cleanText(payload.event_type);
     if (eventType !== 'page_view' && eventType !== 'click') {
       return NextResponse.json({ success: false, error: 'Invalid event type' }, { status: 400 });
@@ -106,7 +117,10 @@ export async function POST(request: Request) {
     const path = cleanText(payload.path, '/procure-guard');
     const sessionId = cleanText(payload.session_id);
     if (!sessionId || !path.startsWith('/procure-guard')) {
-      return NextResponse.json({ success: false, error: 'Invalid tracking event' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Invalid tracking event' },
+        { status: 400 },
+      );
     }
 
     await ensureUsageTable();

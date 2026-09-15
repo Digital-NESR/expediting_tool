@@ -20,10 +20,10 @@ export default async function NewShipmentPage() {
     const dbCountries = await getAllTiteCountries();
     countryOptions = [...new Set([...TITE_COUNTRY_VALUES, ...dbCountries])].sort();
   } else {
-    countryOptions = scope.approvedCountries.filter(c => scope.canEdit(c));
+    countryOptions = scope.approvedCountries.filter((c) => scope.canEdit(c));
   }
 
-  const creatorName  = session?.user?.name  ?? '';
+  const creatorName = session?.user?.name ?? '';
   const creatorEmail = session?.user?.email ?? '';
 
   return (

@@ -17,20 +17,24 @@ export default async function SourceGuideMappingsPage({
   if (!session?.user?.email) redirect('/login');
 
   const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
   const isAdmin = adminEmails.includes(session.user.email.toLowerCase());
 
-  const approved = (session.user.toolAccess?.sourceguide?.approvedCountries ?? [])
-    .filter(c => c !== VIEW_ONLY);
+  const approved = (session.user.toolAccess?.sourceguide?.approvedCountries ?? []).filter(
+    (c) => c !== VIEW_ONLY,
+  );
 
   // viewers (no editable countries, not admin) have nothing to manage
   if (!isAdmin && approved.length === 0) redirect('/sourceguide');
 
   const allCountries = await getCountries();
-  const editable = isAdmin ? allCountries : allCountries.filter(c => approved.includes(c.code));
+  const editable = isAdmin ? allCountries : allCountries.filter((c) => approved.includes(c.code));
 
   const sp = searchParams ? await searchParams : {};
-  const initialCountry = sp.country && editable.some(c => c.code === sp.country) ? sp.country : null;
+  const initialCountry =
+    sp.country && editable.some((c) => c.code === sp.country) ? sp.country : null;
   const gp = sp.gap;
   const initialMode: 'mapped' | 'no-preferred' | 'missing' =
     gp === 'missing' ? 'missing' : gp === 'no-preferred' ? 'no-preferred' : 'mapped';

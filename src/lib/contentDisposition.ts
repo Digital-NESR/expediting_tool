@@ -15,7 +15,7 @@
 export function attachmentContentDisposition(filename: string | null | undefined): string {
   const name = (filename ?? '').trim() || 'download';
   const ascii = [...name]
-    .map(ch => {
+    .map((ch) => {
       const code = ch.codePointAt(0) ?? 0;
       const printable = code >= 0x20 && code <= 0x7e;
       // A quote would close the quoted-string early; a backslash would escape whatever follows.

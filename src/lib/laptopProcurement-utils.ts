@@ -24,9 +24,17 @@ export const PERMISSION_ROLE_OPTIONS: LaptopPermissionRole[] = [
   'Viewer',
 ];
 
-export const APPROVER_MATRIX_ROLES: LaptopPermissionRole[] = ['IT Manager', 'Country Manager', 'IT Director', 'Supply Chain Director'];
+export const APPROVER_MATRIX_ROLES: LaptopPermissionRole[] = [
+  'IT Manager',
+  'Country Manager',
+  'IT Director',
+  'Supply Chain Director',
+];
 
-const BASE_PERMISSION_PROFILE: Omit<LaptopPermissionProfile, 'role' | 'label' | 'description' | 'accessView'> = {
+const BASE_PERMISSION_PROFILE: Omit<
+  LaptopPermissionProfile,
+  'role' | 'label' | 'description' | 'accessView'
+> = {
   canViewAll: false,
   canViewEveryCountry: false,
   canCreateRequests: true,
@@ -45,14 +53,16 @@ export const PERMISSION_PROFILES: Record<LaptopPermissionRole, LaptopPermissionP
     ...BASE_PERMISSION_PROFILE,
     role: 'Requester',
     label: 'Requester',
-    description: 'Can raise laptop / desktop procurement requests and cancel their own before review.',
+    description:
+      'Can raise laptop / desktop procurement requests and cancel their own before review.',
     accessView: 'requester',
   },
   'IT Manager': {
     ...BASE_PERMISSION_PROFILE,
     role: 'IT Manager',
     label: 'IT Manager',
-    description: 'Checks condition and inventory, then repairs, assigns from inventory, or sends for procurement approval.',
+    description:
+      'Checks condition and inventory, then repairs, assigns from inventory, or sends for procurement approval.',
     accessView: 'reviewer',
     canViewAll: true,
     canReject: true,
@@ -110,7 +120,8 @@ export const PERMISSION_PROFILES: Record<LaptopPermissionRole, LaptopPermissionP
     ...BASE_PERMISSION_PROFILE,
     role: 'Viewer',
     label: 'Viewer',
-    description: 'Read-only access to every request, the dashboard, and analytics, across every country — cannot create, approve, reject, or manage anything.',
+    description:
+      'Read-only access to every request, the dashboard, and analytics, across every country — cannot create, approve, reject, or manage anything.',
     accessView: 'viewer',
     canViewAll: true,
     canViewEveryCountry: true,
@@ -118,7 +129,10 @@ export const PERMISSION_PROFILES: Record<LaptopPermissionRole, LaptopPermissionP
   },
 };
 
-export type LaptopPermissionKey = keyof Omit<LaptopPermissionProfile, 'role' | 'label' | 'description' | 'accessView'>;
+export type LaptopPermissionKey = keyof Omit<
+  LaptopPermissionProfile,
+  'role' | 'label' | 'description' | 'accessView'
+>;
 
 const PERMISSION_OWNER_LABELS: Partial<Record<LaptopPermissionKey, string>> = {
   canReviewItManager: 'IT Manager',
@@ -128,7 +142,10 @@ const PERMISSION_OWNER_LABELS: Partial<Record<LaptopPermissionKey, string>> = {
 };
 
 export function getPermissionProfile(role: string | null | undefined): LaptopPermissionProfile {
-  return PERMISSION_PROFILES[(role || 'Requester') as LaptopPermissionRole] ?? PERMISSION_PROFILES.Requester;
+  return (
+    PERMISSION_PROFILES[(role || 'Requester') as LaptopPermissionRole] ??
+    PERMISSION_PROFILES.Requester
+  );
 }
 
 export function getLaptopAccessView(role: string | null | undefined): LaptopAccessView {
@@ -144,7 +161,12 @@ export function canUseLaptopAnalytics(accessView: LaptopAccessView): boolean {
 }
 
 export function canUseLaptopOperationalPages(accessView: LaptopAccessView): boolean {
-  return accessView === 'requester' || accessView === 'reviewer' || accessView === 'admin' || accessView === 'viewer';
+  return (
+    accessView === 'requester' ||
+    accessView === 'reviewer' ||
+    accessView === 'admin' ||
+    accessView === 'viewer'
+  );
 }
 
 // My Work and Delegate are both about acting on (or handing off authority over)
@@ -168,7 +190,10 @@ const ACCESS_VIEW_RANK: Record<LaptopAccessView, number> = {
  * Queue), not just act on individual requests.
  */
 export function bestAccessView(views: LaptopAccessView[]): LaptopAccessView {
-  return views.reduce((best, v) => (ACCESS_VIEW_RANK[v] > ACCESS_VIEW_RANK[best] ? v : best), 'requester' as LaptopAccessView);
+  return views.reduce(
+    (best, v) => (ACCESS_VIEW_RANK[v] > ACCESS_VIEW_RANK[best] ? v : best),
+    'requester' as LaptopAccessView,
+  );
 }
 
 /* ── Approval chain ───────────────────────────────────────────── */
@@ -275,7 +300,7 @@ export function resolveLaptopMatrixCountry(
 ): string | null {
   const target = normaliseLaptopCountry(value);
   if (!target) return null;
-  const match = (list: readonly string[]) => list.find(c => normaliseLaptopCountry(c) === target);
+  const match = (list: readonly string[]) => list.find((c) => normaliseLaptopCountry(c) === target);
   return match(existing) ?? match(COUNTRY_OPTIONS) ?? null;
 }
 
@@ -323,11 +348,17 @@ export function laptopHasAssignedUnit(request: {
 // procure_new_requested) so the final sign-off at Supply Chain Director can still tell
 // a genuine new-device procurement apart from a plain approval, even once both are
 // funneling through the same IT Director / SC Director steps.
-export function laptopIsProcureNewFlow(request: { procure_new_requested?: boolean | null }): boolean {
+export function laptopIsProcureNewFlow(request: {
+  procure_new_requested?: boolean | null;
+}): boolean {
   return Boolean(request.procure_new_requested);
 }
 
-export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAssignedUnit: boolean, isProcureNewFlow: boolean): LaptopRequestStatus | null {
+export function getNextApprovalStatus(
+  currentStatus: LaptopRequestStatus,
+  hasAssignedUnit: boolean,
+  isProcureNewFlow: boolean,
+): LaptopRequestStatus | null {
   const transitions: Partial<Record<LaptopRequestStatus, LaptopRequestStatus>> = {
     Submitted: 'CM Approval',
     'IT Approval': 'CM Approval',
@@ -336,7 +367,11 @@ export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAss
     // weigh in on brand-new device spend. Assigning from inventory (or, on the rare
     // legacy path, a plain approval with nothing procured or assigned at all) ends the
     // chain right here at Country Manager.
-    'CM Approval': isProcureNewFlow ? 'IT Director Approval' : (hasAssignedUnit ? 'Assign from Inventory' : 'Approved'),
+    'CM Approval': isProcureNewFlow
+      ? 'IT Director Approval'
+      : hasAssignedUnit
+        ? 'Assign from Inventory'
+        : 'Approved',
     // The CM confirming the exact new device IT Manager picked — always continues to
     // IT Director.
     'CM Confirm Device': 'IT Director Approval',
@@ -347,7 +382,11 @@ export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAss
     // see laptopHasAssignedUnit's callers); otherwise an assigned-inventory unit lands
     // on 'Assign from Inventory'; a plain approval (nothing procured or assigned) lands
     // on 'Approved'.
-    'Supply Chain Director Approval': isProcureNewFlow ? 'Procure New' : (hasAssignedUnit ? 'Assign from Inventory' : 'Approved'),
+    'Supply Chain Director Approval': isProcureNewFlow
+      ? 'Procure New'
+      : hasAssignedUnit
+        ? 'Assign from Inventory'
+        : 'Approved',
   };
   return transitions[currentStatus] ?? null;
 }
@@ -355,7 +394,9 @@ export function getNextApprovalStatus(currentStatus: LaptopRequestStatus, hasAss
 // Every rejection bounces the request back to the IT Manager to fix and resend, rather
 // than ending it — only the IT Manager themselves has no reject option (nothing to
 // bounce it back further to).
-export function getRejectStatusForStage(currentStatus: LaptopRequestStatus): LaptopRequestStatus | null {
+export function getRejectStatusForStage(
+  currentStatus: LaptopRequestStatus,
+): LaptopRequestStatus | null {
   switch (currentStatus) {
     case 'CM Approval':
     case 'CM Confirm Device':
@@ -367,7 +408,8 @@ export function getRejectStatusForStage(currentStatus: LaptopRequestStatus): Lap
   }
 }
 
-export type LaptopApprovalStage = 'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
+export type LaptopApprovalStage =
+  'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
 
 // Which human role currently owns a given status — used both to route the
 // approval-chain notification email and, via the read-only status-check API, to let
@@ -391,7 +433,9 @@ export function getLaptopApprovalStage(status: LaptopRequestStatus): LaptopAppro
   }
 }
 
-export function getRequiredPermissionForStage(currentStatus: LaptopRequestStatus): LaptopPermissionKey | null {
+export function getRequiredPermissionForStage(
+  currentStatus: LaptopRequestStatus,
+): LaptopPermissionKey | null {
   switch (currentStatus) {
     case 'Submitted':
     case 'IT Approval':
@@ -452,7 +496,9 @@ export function getLaptopAvailableActions(
     canMarkRepaired: isItManagerStage && ownsCurrentStep && requestType !== 'New Employee',
     canSubmitProcureDetails: isProcureDetailsStage && ownsCurrentStep,
     rejectStatus: getRejectStatusForStage(currentStatus),
-    ownerLabel: requiredPermission ? PERMISSION_OWNER_LABELS[requiredPermission] ?? 'Assigned approver' : 'No active owner',
+    ownerLabel: requiredPermission
+      ? (PERMISSION_OWNER_LABELS[requiredPermission] ?? 'Assigned approver')
+      : 'No active owner',
   };
 }
 
@@ -464,18 +510,55 @@ export type LaptopWorkflowStep = {
 };
 
 export const WORKFLOW_STEPS: LaptopWorkflowStep[] = [
-  { status: 'Submitted', label: 'IT Review', owner: 'IT Manager', description: 'IT checks the device condition and inventory, then repairs, assigns from stock, or sends for approval.' },
-  { status: 'CM Approval', label: 'Country Manager Approval', owner: 'Country Manager', description: 'Country Manager approves the request outright, or flags it for new-device procurement.' },
-  { status: 'Procure New Details', label: 'Device Details', owner: 'IT Manager', description: 'IT Team specifies the new device to be procured before the remaining approvals.' },
-  { status: 'CM Confirm Device', label: 'Country Manager Confirmation', owner: 'Country Manager', description: 'Country Manager confirms the specific device before it goes to IT Director.' },
-  { status: 'IT Director Approval', label: 'IT Director Approval', owner: 'IT Director', description: 'IT Director reviews the procurement request.' },
-  { status: 'Supply Chain Director Approval', label: 'Supply Chain Director Approval', owner: 'Supply Chain Director', description: 'Supply Chain Director gives the final procurement approval.' },
-  { status: 'Procure New', label: 'Procure New', owner: 'Workflow Complete', description: 'Approved — a new device will be procured.' },
+  {
+    status: 'Submitted',
+    label: 'IT Review',
+    owner: 'IT Manager',
+    description:
+      'IT checks the device condition and inventory, then repairs, assigns from stock, or sends for approval.',
+  },
+  {
+    status: 'CM Approval',
+    label: 'Country Manager Approval',
+    owner: 'Country Manager',
+    description:
+      'Country Manager approves the request outright, or flags it for new-device procurement.',
+  },
+  {
+    status: 'Procure New Details',
+    label: 'Device Details',
+    owner: 'IT Manager',
+    description: 'IT Team specifies the new device to be procured before the remaining approvals.',
+  },
+  {
+    status: 'CM Confirm Device',
+    label: 'Country Manager Confirmation',
+    owner: 'Country Manager',
+    description: 'Country Manager confirms the specific device before it goes to IT Director.',
+  },
+  {
+    status: 'IT Director Approval',
+    label: 'IT Director Approval',
+    owner: 'IT Director',
+    description: 'IT Director reviews the procurement request.',
+  },
+  {
+    status: 'Supply Chain Director Approval',
+    label: 'Supply Chain Director Approval',
+    owner: 'Supply Chain Director',
+    description: 'Supply Chain Director gives the final procurement approval.',
+  },
+  {
+    status: 'Procure New',
+    label: 'Procure New',
+    owner: 'Workflow Complete',
+    description: 'Approved — a new device will be procured.',
+  },
 ];
 
 export function getWorkflowStepIndex(status: LaptopRequestStatus): number {
   if (status === 'IT Approval') return 0;
-  return WORKFLOW_STEPS.findIndex(step => step.status === status);
+  return WORKFLOW_STEPS.findIndex((step) => step.status === status);
 }
 
 export function getStatusOptions(): LaptopRequestStatus[] {
@@ -487,7 +570,11 @@ export function getStatusOptions(): LaptopRequestStatus[] {
 export function fmtDate(value: string | null | undefined): string {
   if (!value) return '-';
   try {
-    return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(value).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
   } catch {
     return value;
   }
@@ -497,7 +584,11 @@ export function fmtDateTime(value: string | null | undefined): string {
   if (!value) return '-';
   try {
     return new Date(value).toLocaleString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   } catch {
     return value;
@@ -519,25 +610,99 @@ export function timeAgo(value: string | null | undefined): string {
 // Flat ProcureGuard pill styles: solid tinted fills with light borders.
 export function getStatusBadge(status: string): { label: string; className: string; dot: string } {
   const map: Record<string, { label: string; className: string; dot: string }> = {
-    Submitted: { label: 'Submitted', className: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
-    'IT Approval': { label: 'IT Review', className: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
-    'CM Approval': { label: 'Country Manager', className: 'bg-cyan-50 text-cyan-800 border-cyan-200', dot: 'bg-cyan-500' },
-    'Procure New Details': { label: 'New Device Details', className: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
-    'CM Confirm Device': { label: 'Country Manager (Confirm Device)', className: 'bg-cyan-50 text-cyan-800 border-cyan-200', dot: 'bg-cyan-500' },
-    'IT Director Approval': { label: 'IT Director', className: 'bg-teal-50 text-teal-800 border-teal-200', dot: 'bg-teal-500' },
-    'Supply Chain Director Approval': { label: 'SC Director', className: 'bg-indigo-50 text-indigo-800 border-indigo-200', dot: 'bg-indigo-500' },
-    'Procure New': { label: 'Procure New', className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-    Approved: { label: 'Approved', className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-    'Assign from Inventory': { label: 'Assign existing laptop', className: 'bg-lime-50 text-lime-800 border-lime-200', dot: 'bg-lime-500' },
-    'Assign from Inventory & Closed': { label: 'Assigned & Closed', className: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
-    'Repaired & Closed': { label: 'Repaired & Closed', className: 'bg-violet-50 text-violet-800 border-violet-200', dot: 'bg-violet-500' },
-    Rejected: { label: 'Rejected', className: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
-    'Rejected by CM': { label: 'Rejected by CM', className: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
-    'Rejected by ITD': { label: 'Rejected by ITD', className: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
-    'Rejected by SCD': { label: 'Rejected by SCD', className: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
-    Cancelled: { label: 'Cancelled', className: 'bg-slate-50 text-slate-600 border-slate-200', dot: 'bg-slate-400' },
+    Submitted: {
+      label: 'Submitted',
+      className: 'bg-blue-50 text-blue-700 border-blue-200',
+      dot: 'bg-blue-500',
+    },
+    'IT Approval': {
+      label: 'IT Review',
+      className: 'bg-amber-50 text-amber-700 border-amber-200',
+      dot: 'bg-amber-500',
+    },
+    'CM Approval': {
+      label: 'Country Manager',
+      className: 'bg-cyan-50 text-cyan-800 border-cyan-200',
+      dot: 'bg-cyan-500',
+    },
+    'Procure New Details': {
+      label: 'New Device Details',
+      className: 'bg-orange-50 text-orange-700 border-orange-200',
+      dot: 'bg-orange-500',
+    },
+    'CM Confirm Device': {
+      label: 'Country Manager (Confirm Device)',
+      className: 'bg-cyan-50 text-cyan-800 border-cyan-200',
+      dot: 'bg-cyan-500',
+    },
+    'IT Director Approval': {
+      label: 'IT Director',
+      className: 'bg-teal-50 text-teal-800 border-teal-200',
+      dot: 'bg-teal-500',
+    },
+    'Supply Chain Director Approval': {
+      label: 'SC Director',
+      className: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+      dot: 'bg-indigo-500',
+    },
+    'Procure New': {
+      label: 'Procure New',
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      dot: 'bg-emerald-500',
+    },
+    Approved: {
+      label: 'Approved',
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      dot: 'bg-emerald-500',
+    },
+    'Assign from Inventory': {
+      label: 'Assign existing laptop',
+      className: 'bg-lime-50 text-lime-800 border-lime-200',
+      dot: 'bg-lime-500',
+    },
+    'Assign from Inventory & Closed': {
+      label: 'Assigned & Closed',
+      className: 'bg-green-50 text-green-700 border-green-200',
+      dot: 'bg-green-500',
+    },
+    'Repaired & Closed': {
+      label: 'Repaired & Closed',
+      className: 'bg-violet-50 text-violet-800 border-violet-200',
+      dot: 'bg-violet-500',
+    },
+    Rejected: {
+      label: 'Rejected',
+      className: 'bg-red-50 text-red-700 border-red-200',
+      dot: 'bg-red-500',
+    },
+    'Rejected by CM': {
+      label: 'Rejected by CM',
+      className: 'bg-red-50 text-red-700 border-red-200',
+      dot: 'bg-red-500',
+    },
+    'Rejected by ITD': {
+      label: 'Rejected by ITD',
+      className: 'bg-red-50 text-red-700 border-red-200',
+      dot: 'bg-red-500',
+    },
+    'Rejected by SCD': {
+      label: 'Rejected by SCD',
+      className: 'bg-red-50 text-red-700 border-red-200',
+      dot: 'bg-red-500',
+    },
+    Cancelled: {
+      label: 'Cancelled',
+      className: 'bg-slate-50 text-slate-600 border-slate-200',
+      dot: 'bg-slate-400',
+    },
   };
-  return map[status] ?? { label: status, className: 'bg-slate-50 text-slate-600 border-slate-200', dot: 'bg-slate-400' };
+  return (
+    map[status] ?? {
+      label: status,
+      className: 'bg-slate-50 text-slate-600 border-slate-200',
+      dot: 'bg-slate-400',
+    }
+  );
 }
 
 export function getPriorityBadge(priority: string): string {

@@ -217,7 +217,15 @@ export async function getRedBullLeaderboard(): Promise<RedBullLeaderboard> {
         : Promise.resolve([] as QueryResultRow[]),
     ]);
 
-    let me: RedBullMeStats = { best: null, plays: 0, rank: null, avgScore: null, soloPlays: 0, teamPlays: 0, bestGrade: null };
+    let me: RedBullMeStats = {
+      best: null,
+      plays: 0,
+      rank: null,
+      avgScore: null,
+      soloPlays: 0,
+      teamPlays: 0,
+      bestGrade: null,
+    };
     let history: RedBullHistoryEntry[] = [];
     if (myEmail) {
       const best = mine[0]?.best == null ? null : Number(mine[0].best);
@@ -234,7 +242,9 @@ export async function getRedBullLeaderboard(): Promise<RedBullLeaderboard> {
         rank = Number(rankRow[0]?.ahead ?? 0) + 1;
       }
       me = {
-        best, plays, rank,
+        best,
+        plays,
+        rank,
         avgScore: mine[0]?.avg_score == null ? null : Number(mine[0].avg_score),
         soloPlays: Number(mine[0]?.solo_plays ?? 0),
         teamPlays: Number(mine[0]?.team_plays ?? 0),
@@ -255,7 +265,19 @@ export async function getRedBullLeaderboard(): Promise<RedBullLeaderboard> {
     return { top, me, history };
   } catch (err) {
     console.error('[getRedBullLeaderboard]', err);
-    return { top: [], me: { best: null, plays: 0, rank: null, avgScore: null, soloPlays: 0, teamPlays: 0, bestGrade: null }, history: [] };
+    return {
+      top: [],
+      me: {
+        best: null,
+        plays: 0,
+        rank: null,
+        avgScore: null,
+        soloPlays: 0,
+        teamPlays: 0,
+        bestGrade: null,
+      },
+      history: [],
+    };
   }
 }
 
@@ -302,6 +324,14 @@ export async function getRedBullGameStats(): Promise<RedBullGameStats> {
     };
   } catch (err) {
     console.error('[getRedBullGameStats]', err);
-    return { totalPlays: 0, uniquePlayers: 0, avgScore: null, bestScore: null, soloPlays: 0, teamPlays: 0, top: [] };
+    return {
+      totalPlays: 0,
+      uniquePlayers: 0,
+      avgScore: null,
+      bestScore: null,
+      soloPlays: 0,
+      teamPlays: 0,
+      top: [],
+    };
   }
 }

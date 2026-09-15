@@ -8,7 +8,13 @@ import TrackIcon from './TrackIcon';
 import { useLearningHubNavTracks } from './LearningHubNavContext';
 import { isComingSoon } from '@/lib/learning-hub-display';
 
-export default function LearningHubSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export default function LearningHubSidebar({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
   const pathname = usePathname();
   const { data: session } = useSession();
   // Track links come from the database (via the layout), so the sidebar can never link a
@@ -17,16 +23,20 @@ export default function LearningHubSidebar({ isOpen, onClose }: { isOpen: boolea
 
   const rawName = session?.user?.name || 'Unknown User';
   const nameParts = rawName.split(' ').filter(Boolean);
-  const initials = nameParts.length > 1
-    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
-    : rawName.substring(0, 2).toUpperCase();
+  const initials =
+    nameParts.length > 1
+      ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
+      : rawName.substring(0, 2).toUpperCase();
   const jobTitle = (session?.user as { jobTitle?: string })?.jobTitle || 'User';
 
   // The dashboard link is matched exactly - every Learning Hub route starts with it.
   const linkClass = (href: string) => {
-    const active = pathname === href || (href !== '/learning-hub' && pathname.startsWith(`${href}/`));
+    const active =
+      pathname === href || (href !== '/learning-hub' && pathname.startsWith(`${href}/`));
     return `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-      active ? 'bg-gradient-to-r from-[#307c4c] to-[#1d4f31] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+      active
+        ? 'bg-gradient-to-r from-[#307c4c] to-[#1d4f31] text-white shadow-sm'
+        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
     }`;
   };
 
@@ -44,12 +54,29 @@ export default function LearningHubSidebar({ isOpen, onClose }: { isOpen: boolea
       >
         <div className="flex h-16 items-center gap-3 bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-5 text-white">
           <p className="truncate text-sm font-bold tracking-tight">Learning Hub</p>
-          <button type="button" aria-label="Close menu" onClick={onClose} className="ml-auto rounded-lg p-2 text-white/70 hover:bg-white/15 hover:text-white">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={onClose}
+            className="ml-auto rounded-lg p-2 text-white/70 hover:bg-white/15 hover:text-white"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
         <nav className="flex-1 overflow-y-auto p-3">
-          <Link href="/home" onClick={onClose} className="mb-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:border-[#307c4c]/30 hover:bg-[#307c4c]/5 hover:text-[#307c4c]">
+          <Link
+            href="/home"
+            onClick={onClose}
+            className="mb-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:border-[#307c4c]/30 hover:bg-[#307c4c]/5 hover:text-[#307c4c]"
+          >
             Back to NESR Home
           </Link>
           <div className="space-y-1">
@@ -72,7 +99,11 @@ export default function LearningHubSidebar({ isOpen, onClose }: { isOpen: boolea
                 </Link>
               );
             })}
-            <Link href="/learning-hub/my-work" onClick={onClose} className={linkClass('/learning-hub/my-work')}>
+            <Link
+              href="/learning-hub/my-work"
+              onClick={onClose}
+              className={linkClass('/learning-hub/my-work')}
+            >
               <ListChecks className="h-4 w-4 shrink-0" />
               My Work
             </Link>

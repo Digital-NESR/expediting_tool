@@ -18,7 +18,9 @@ export default function ProcureGuardHero({
           <ProcureGuardLogo size="lg" />
           <div>
             <h1 className="text-lg font-bold tracking-tight sm:text-xl">{title}</h1>
-            {subtitle && <p className="mt-0.5 max-w-2xl text-xs text-white/80 sm:text-sm">{subtitle}</p>}
+            {subtitle && (
+              <p className="mt-0.5 max-w-2xl text-xs text-white/80 sm:text-sm">{subtitle}</p>
+            )}
           </div>
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}

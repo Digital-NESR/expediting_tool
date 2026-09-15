@@ -61,7 +61,8 @@ const AUDIENCES: AudienceMaterial[] = [
   {
     key: 'approver',
     label: 'For Approvers',
-    blurb: 'How to review, approve, or reject requests at your stage — IT Manager, Country Manager, IT Director, or Supply Chain Director.',
+    blurb:
+      'How to review, approve, or reject requests at your stage — IT Manager, Country Manager, IT Director, or Supply Chain Director.',
     sections: [
       {
         heading: 'The approval chain',
@@ -160,7 +161,9 @@ function HelpSectionCard({ section }: { section: HelpSection }) {
       <h3 className="text-sm font-bold text-slate-900">{section.heading}</h3>
       <div className="mt-2.5 space-y-2.5">
         {section.paragraphs?.map((p, i) => (
-          <p key={i} className="text-sm leading-relaxed text-slate-600">{p}</p>
+          <p key={i} className="text-sm leading-relaxed text-slate-600">
+            {p}
+          </p>
         ))}
         {section.bullets && (
           <ul className="space-y-1.5">
@@ -179,12 +182,12 @@ function HelpSectionCard({ section }: { section: HelpSection }) {
 
 export default function LaptopHelpContent() {
   const [audienceKey, setAudienceKey] = useState<AudienceKey>('requester');
-  const audience = AUDIENCES.find(a => a.key === audienceKey) ?? AUDIENCES[0];
+  const audience = AUDIENCES.find((a) => a.key === audienceKey) ?? AUDIENCES[0];
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap gap-2">
-        {AUDIENCES.map(a => {
+        {AUDIENCES.map((a) => {
           const active = a.key === audienceKey;
           return (
             <button
@@ -206,7 +209,7 @@ export default function LaptopHelpContent() {
       <p className="text-sm text-slate-500">{audience.blurb}</p>
 
       <div className="space-y-4">
-        {audience.sections.map(section => (
+        {audience.sections.map((section) => (
           <HelpSectionCard key={section.heading} section={section} />
         ))}
       </div>

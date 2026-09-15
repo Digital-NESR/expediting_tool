@@ -21,8 +21,10 @@ export {
   getCompanyByCode,
 } from '@/lib/laptopCostCenters';
 
-export const COMPANY_DEPARTMENTS: Record<string, CostCenterDepartment[]> =
-  departmentData as Record<string, CostCenterDepartment[]>;
+export const COMPANY_DEPARTMENTS: Record<string, CostCenterDepartment[]> = departmentData as Record<
+  string,
+  CostCenterDepartment[]
+>;
 
 /** Departments available for a company, in the workbook's own order. */
 export function getDepartmentsForCompany(code: string | null | undefined): CostCenterDepartment[] {
@@ -46,7 +48,9 @@ export function getCostCenterFor(
  * auto-fill read it synchronously — so that slice is prefetched here rather than fetched from
  * the API, keeping the form's behaviour identical to when the whole 138 KB table was bundled.
  */
-export function departmentsSeedFor(code: string | null | undefined): Record<string, CostCenterDepartment[]> {
+export function departmentsSeedFor(
+  code: string | null | undefined,
+): Record<string, CostCenterDepartment[]> {
   if (!code) return {};
   return { [code]: getDepartmentsForCompany(code) };
 }

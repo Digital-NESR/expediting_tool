@@ -14,9 +14,9 @@ export interface LineData {
   account_classification_description: string | null;
   open_qty: number | null;
   open_po_value_usd: number | null;
-  delivery_date: string | null;        // original from sap_open_po_master
-  current_status: string | null;       // DS code from active_expediting
-  new_delivery_date: string | null;    // from active_expediting
+  delivery_date: string | null; // original from sap_open_po_master
+  current_status: string | null; // DS code from active_expediting
+  new_delivery_date: string | null; // from active_expediting
   supplier_comments: string | null;
   buyer_comments: string | null;
   workflow_state: string;
@@ -25,13 +25,13 @@ export interface LineData {
 export interface SupplierGroup {
   supplier_name: string;
   expedite_token: string;
-  workflow_state: string;  // 'Submitted' if all lines submitted, else 'Email Sent'
+  workflow_state: string; // 'Submitted' if all lines submitted, else 'Email Sent'
   lines: LineData[];
 }
 
 export interface SessionData {
   session_ref: string;
-  dispatched_at: string;   // ISO string
+  dispatched_at: string; // ISO string
   total_suppliers: number;
   total_lines: number;
   responded_lines: number;
@@ -104,9 +104,10 @@ export async function getMyExpeditingSessions(): Promise<SessionData[]> {
         sessionOrder.push(ref);
         sessionMap.set(ref, {
           session_ref: ref,
-          dispatched_at: row.dispatched_at instanceof Date
-            ? row.dispatched_at.toISOString()
-            : String(row.dispatched_at),
+          dispatched_at:
+            row.dispatched_at instanceof Date
+              ? row.dispatched_at.toISOString()
+              : String(row.dispatched_at),
           total_suppliers: 0,
           total_lines: 0,
           responded_lines: 0,
@@ -117,7 +118,7 @@ export async function getMyExpeditingSessions(): Promise<SessionData[]> {
       }
 
       const session = sessionMap.get(ref)!;
-      let supplier = session.suppliers.find(s => s.expedite_token === row.expedite_token);
+      let supplier = session.suppliers.find((s) => s.expedite_token === row.expedite_token);
 
       if (!supplier) {
         supplier = {
@@ -130,19 +131,19 @@ export async function getMyExpeditingSessions(): Promise<SessionData[]> {
       }
 
       supplier.lines.push({
-        po_number:          String(row.po_number),
-        po_line:            String(row.po_line ?? ''),
-        item_description:   toStr(row.item_description),
-        sap_mat_id:                        toStr(row.sap_mat_id),
+        po_number: String(row.po_number),
+        po_line: String(row.po_line ?? ''),
+        item_description: toStr(row.item_description),
+        sap_mat_id: toStr(row.sap_mat_id),
         account_classification_description: toStr(row.account_classification_description),
-        open_qty:           row.open_qty != null ? Number(row.open_qty) : null,
-        open_po_value_usd:  row.open_po_value_usd != null ? Number(row.open_po_value_usd) : null,
-        delivery_date:      toStr(row.delivery_date),
-        current_status:     toStr(row.current_status),
-        new_delivery_date:  toStr(row.new_delivery_date),
-        supplier_comments:  toStr(row.supplier_comments),
-        buyer_comments:     toStr(row.buyer_comments),
-        workflow_state:     String(row.workflow_state),
+        open_qty: row.open_qty != null ? Number(row.open_qty) : null,
+        open_po_value_usd: row.open_po_value_usd != null ? Number(row.open_po_value_usd) : null,
+        delivery_date: toStr(row.delivery_date),
+        current_status: toStr(row.current_status),
+        new_delivery_date: toStr(row.new_delivery_date),
+        supplier_comments: toStr(row.supplier_comments),
+        buyer_comments: toStr(row.buyer_comments),
+        workflow_state: String(row.workflow_state),
       });
     }
 
@@ -152,20 +153,22 @@ export async function getMyExpeditingSessions(): Promise<SessionData[]> {
       session.total_suppliers = session.suppliers.length;
       session.total_lines = session.suppliers.reduce((s, g) => s + g.lines.length, 0);
       session.responded_lines = session.suppliers.reduce(
-        (s, g) => s + g.lines.filter(l => l.workflow_state === 'Submitted').length, 0,
+        (s, g) => s + g.lines.filter((l) => l.workflow_state === 'Submitted').length,
+        0,
       );
-      session.response_rate = session.total_lines > 0
-        ? Math.round((session.responded_lines / session.total_lines) * 100)
-        : 0;
+      session.response_rate =
+        session.total_lines > 0
+          ? Math.round((session.responded_lines / session.total_lines) * 100)
+          : 0;
 
       for (const sup of session.suppliers) {
-        sup.workflow_state = sup.lines.every(l => l.workflow_state === 'Submitted')
+        sup.workflow_state = sup.lines.every((l) => l.workflow_state === 'Submitted')
           ? 'Submitted'
           : 'Email Sent';
       }
     }
 
-    return sessionOrder.map(ref => sessionMap.get(ref)!);
+    return sessionOrder.map((ref) => sessionMap.get(ref)!);
   } catch (err) {
     console.error('[getMyExpeditingSessions]', err);
     return [];

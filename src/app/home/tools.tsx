@@ -7,7 +7,15 @@
    classes are spelled out as literals below. */
 
 import type { CSSProperties, ReactNode } from 'react';
-import { Laptop, Gavel, Building2, GraduationCap, Receipt, ShieldCheck, BarChart3 } from 'lucide-react';
+import {
+  Laptop,
+  Gavel,
+  Building2,
+  GraduationCap,
+  Receipt,
+  ShieldCheck,
+  BarChart3,
+} from 'lucide-react';
 
 export type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 
@@ -63,8 +71,8 @@ export interface ToolDef {
   openLabel?: string;
 }
 
-const HOVER_GREEN  = 'hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10';
-const HOVER_TITE   = 'hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10';
+const HOVER_GREEN = 'hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10';
+const HOVER_TITE = 'hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10';
 const HOVER_SOURCE = 'hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10';
 
 const NESR_GREEN = '#307c4c';
@@ -74,7 +82,6 @@ const SOURCE_GREEN = '#2A7E4F';
 const PREVIEW_GREY = '#6b7280';
 
 export const TOOLS: ToolDef[] = [
-
   /* ── Available (launched) — alphabetical ── */
 
   {
@@ -83,7 +90,8 @@ export const TOOLS: ToolDef[] = [
     keywords: 'laptop procurement asset request device approvals',
     name: 'Laptop Procurement',
     subtitle: 'Device Requests & Approvals',
-    description: 'Raise laptop and device requests and route IT → Country Manager → IT Director → SC Director approvals.',
+    description:
+      'Raise laptop and device requests and route IT → Country Manager → IT Director → SC Director approvals.',
     icon: <Laptop className="w-6 h-6 text-[#307c4c]" />,
     logoClass: 'bg-[#307c4c]/10',
     hoverClass: HOVER_GREEN,
@@ -100,10 +108,21 @@ export const TOOLS: ToolDef[] = [
     group: 'online',
     keywords: 'po expediting purchase orders monitor expedite supplier delivery',
     name: 'PO Expediting',
-    description: 'Monitor open purchase orders, expedite delayed lines, and collect supplier delivery updates.',
+    description:
+      'Monitor open purchase orders, expedite delayed lines, and collect supplier delivery updates.',
     icon: (
-      <svg className="w-6 h-6 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11" />
+      <svg
+        className="w-6 h-6 text-[#307c4c]"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.75}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11"
+        />
       </svg>
     ),
     logoClass: 'bg-[#307c4c]/10',
@@ -122,10 +141,21 @@ export const TOOLS: ToolDef[] = [
     keywords: 'procureguard payment request approvals procurement',
     name: 'ProcureGuard',
     subtitle: 'Payment Request Approvals',
-    description: 'Submit adhoc PO and advance payment requests and route them through multi-stage approvals, keeping approvers and requesters notified at each step.',
+    description:
+      'Submit adhoc PO and advance payment requests and route them through multi-stage approvals, keeping approvers and requesters notified at each step.',
     icon: (
-      <svg className="w-6 h-6 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
+      <svg
+        className="w-6 h-6 text-[#307c4c]"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.75}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"
+        />
       </svg>
     ),
     logoClass: 'bg-[#307c4c]/10',
@@ -144,7 +174,8 @@ export const TOOLS: ToolDef[] = [
     group: 'online',
     keywords: 'rfx officer rfx rfq rfp bidding tendering quotation award negotiation',
     name: 'RFx Officer',
-    description: 'AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.',
+    description:
+      'AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.',
     icon: <Gavel className="w-6 h-6 text-[#307c4c]" />,
     logoClass: 'bg-[#f0f9f4]',
     hoverClass: HOVER_GREEN,
@@ -164,7 +195,12 @@ export const TOOLS: ToolDef[] = [
     keywords: 'sourceguide sourcing intelligence suppliers commodity',
     name: 'SourceGuide',
     subtitle: 'Sourcing Intelligence',
-    description: <>Search NESR&apos;s preferred and backup suppliers across the full commodity taxonomy and every country guide.</>,
+    description: (
+      <>
+        Search NESR&apos;s preferred and backup suppliers across the full commodity taxonomy and
+        every country guide.
+      </>
+    ),
     icon: <Building2 className="h-6 w-6" style={{ color: SOURCE_GREEN }} />,
     logoClass: '',
     logoStyle: { background: '#2A7E4F18' },
@@ -182,10 +218,22 @@ export const TOOLS: ToolDef[] = [
     keywords: 'ti-te tite temporary import export customs shipments',
     name: 'TI-TE',
     subtitle: 'Temporary Import / Export',
-    description: 'Track temporary import and export shipments, manage customs deadlines, deposits, and re-export compliance.',
+    description:
+      'Track temporary import and export shipments, manage customs deadlines, deposits, and re-export compliance.',
     icon: (
-      <svg className="w-6 h-6" style={{ color: TITE_GREEN }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <svg
+        className="w-6 h-6"
+        style={{ color: TITE_GREEN }}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.75}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
       </svg>
     ),
     logoClass: '',
@@ -207,9 +255,16 @@ export const TOOLS: ToolDef[] = [
     keywords: 'catalog manager supplier service indirect item rates price catalog spend',
     name: 'Catalog Repo',
     subtitle: <>Supplier Service &amp; Indirect Item Rates</>,
-    description: 'Maintain country-segmented supplier price catalogs, route rate approvals, and keep an audit-ready record of agreed prices.',
+    description:
+      'Maintain country-segmented supplier price catalogs, route rate approvals, and keep an audit-ready record of agreed prices.',
     icon: (
-      <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+      <svg
+        className="h-6 w-6 text-gray-400"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.75}
+      >
         <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
       </svg>
     ),
@@ -230,7 +285,8 @@ export const TOOLS: ToolDef[] = [
     name: 'Learning Hub',
     pill: 'Under Development',
     subtitle: <>SAP, Supply Chain &amp; NESR Training</>,
-    description: 'Self-paced courses across three tracks: SAP, general Supply Chain fundamentals, and NESR-specific supply chain practice.',
+    description:
+      'Self-paced courses across three tracks: SAP, general Supply Chain fundamentals, and NESR-specific supply chain practice.',
     icon: <GraduationCap className="h-6 w-6 text-[#307c4c]" />,
     logoClass: 'bg-[#307c4c]/10',
     hoverClass: HOVER_GREEN,
@@ -248,7 +304,8 @@ export const TOOLS: ToolDef[] = [
     keywords: 's&s sns registry single sole source compliance single-quotation exception waiver',
     name: 'S&S Registry',
     subtitle: 'Single & Sole Source Compliance',
-    description: 'System of record for single-quotation compliance: register single and sole source cases, route them through two-level validation, and keep an audit trail against the 12-month expiry.',
+    description:
+      'System of record for single-quotation compliance: register single and sole source cases, route them through two-level validation, and keep an audit trail against the 12-month expiry.',
     icon: <ShieldCheck className="w-6 h-6 text-gray-400" />,
     logoClass: 'bg-gray-100',
     hoverClass: HOVER_GREEN,
@@ -263,10 +320,12 @@ export const TOOLS: ToolDef[] = [
   {
     id: 'soa-consolidation',
     group: 'development',
-    keywords: 'soa consolidation statement of account reconciliation vendor balance confirmation finance champion corporate rollup',
+    keywords:
+      'soa consolidation statement of account reconciliation vendor balance confirmation finance champion corporate rollup',
     name: 'SOA Consolidation',
     subtitle: 'Vendor Statement Reconciliation',
-    description: 'Coordinate country finance champions through vendor outreach, SOA collection, and consolidated handoff to corporate finance for quarterly account reconciliation.',
+    description:
+      'Coordinate country finance champions through vendor outreach, SOA collection, and consolidated handoff to corporate finance for quarterly account reconciliation.',
     icon: <Receipt className="w-6 h-6 text-gray-400" />,
     logoClass: 'bg-gray-100',
     hoverClass: HOVER_GREEN,
@@ -281,10 +340,12 @@ export const TOOLS: ToolDef[] = [
   {
     id: 'supply-chain-analytics',
     group: 'development',
-    keywords: 'supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management',
+    keywords:
+      'supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management',
     name: 'Supply Chain Analytics',
     subtitle: 'Power BI Dashboards',
-    description: 'Repository of all Supply Chain Power BI dashboards covering sourcing, procurement, logistics, inventory, and materials management.',
+    description:
+      'Repository of all Supply Chain Power BI dashboards covering sourcing, procurement, logistics, inventory, and materials management.',
     icon: <BarChart3 className="w-6 h-6 text-gray-400" />,
     logoClass: 'bg-gray-100',
     hoverClass: HOVER_GREEN,

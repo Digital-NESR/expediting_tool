@@ -60,7 +60,9 @@ export default function CatalogManagerShell({
   }
 
   return (
-    <div className={`bg-slate-50 font-sans text-slate-900 transition-[padding] duration-200 ${pinned ? 'md:pl-[280px]' : ''} ${fill ? 'flex h-[100dvh] flex-col overflow-hidden' : 'min-h-[100dvh]'}`}>
+    <div
+      className={`bg-slate-50 font-sans text-slate-900 transition-[padding] duration-200 ${pinned ? 'md:pl-[280px]' : ''} ${fill ? 'flex h-[100dvh] flex-col overflow-hidden' : 'min-h-[100dvh]'}`}
+    >
       <CatalogManagerSidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -78,15 +80,27 @@ export default function CatalogManagerShell({
           className={`rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 ${pinned ? 'md:hidden' : ''}`}
           aria-label="Open menu"
         >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
         </button>
         <CatalogManagerHomeButton />
 
         <div className="flex min-w-0 items-center gap-2.5">
           <CatalogManagerLogo size="sm" />
           <div className="hidden min-w-0 sm:block">
-            <p className="truncate text-[13px] font-bold leading-tight tracking-tight text-slate-900">{title}</p>
-            <p className="truncate text-[10.5px] font-medium leading-tight text-slate-400">NESR Catalog Repo</p>
+            <p className="truncate text-[13px] font-bold leading-tight tracking-tight text-slate-900">
+              {title}
+            </p>
+            <p className="truncate text-[10.5px] font-medium leading-tight text-slate-400">
+              NESR Catalog Repo
+            </p>
           </div>
         </div>
 
@@ -99,11 +113,16 @@ export default function CatalogManagerShell({
           >
             <Icon name="search" className="h-4 w-4 transition-colors group-hover:text-[#307c4c]" />
             <span className="hidden md:inline">Search catalog…</span>
-            <span className="ml-auto hidden lg:inline"><Kbd>⌘K</Kbd></span>
+            <span className="ml-auto hidden lg:inline">
+              <Kbd>⌘K</Kbd>
+            </span>
           </button>
           {showScope && countries && (
             <div className="relative">
-              <Icon name="globe" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#307c4c]" />
+              <Icon
+                name="globe"
+                className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#307c4c]"
+              />
               <select
                 value={scope ?? 'ALL'}
                 onChange={(e) => onScopeChange(e.target.value)}
@@ -111,17 +130,31 @@ export default function CatalogManagerShell({
               >
                 <option value="ALL">All operating countries</option>
                 {countries.map((c) => (
-                  <option key={c.code} value={c.code}>{c.flag ? `${c.flag} ` : ''}{c.name}</option>
+                  <option key={c.code} value={c.code}>
+                    {c.flag ? `${c.flag} ` : ''}
+                    {c.name}
+                  </option>
                 ))}
               </select>
-              <Icon name="chevRight" className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-slate-400" />
+              <Icon
+                name="chevRight"
+                className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-slate-400"
+              />
             </div>
           )}
           {headerAction}
         </div>
       </header>
 
-      <main className={fill ? 'cm-fade-in flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-5 sm:py-4 lg:overflow-hidden' : 'cm-fade-up mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8'}>{children}</main>
+      <main
+        className={
+          fill
+            ? 'cm-fade-in flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-5 sm:py-4 lg:overflow-hidden'
+            : 'cm-fade-up mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8'
+        }
+      >
+        {children}
+      </main>
       <CommandPalette />
     </div>
   );

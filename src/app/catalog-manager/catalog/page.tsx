@@ -14,7 +14,13 @@ export const dynamic = 'force-dynamic';
 export default async function CatalogListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ country?: string; status?: string; category?: string; expiring?: string; q?: string }>;
+  searchParams: Promise<{
+    country?: string;
+    status?: string;
+    category?: string;
+    expiring?: string;
+    q?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const country = sp.country ?? 'ALL';

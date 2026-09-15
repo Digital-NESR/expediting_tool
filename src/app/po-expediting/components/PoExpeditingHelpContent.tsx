@@ -17,7 +17,8 @@ const GUIDES: Guide[] = [
     key: 'full',
     label: 'Full Guide',
     title: 'PO Expediting, Full Guide',
-    blurb: 'A complete walkthrough of the tool: navigating the dashboard, filtering and sorting open POs, building an expedite queue, sending supplier update requests, and reconciling the responses that come back.',
+    blurb:
+      'A complete walkthrough of the tool: navigating the dashboard, filtering and sorting open POs, building an expedite queue, sending supplier update requests, and reconciling the responses that come back.',
     videoUrl:
       'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=784e6c40-b34f-409c-9b30-9bd26fdadbfc&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
   },
@@ -25,7 +26,8 @@ const GUIDES: Guide[] = [
     key: 'supplier',
     label: 'Supplier Guide',
     title: 'PO Expediting, Supplier Guide',
-    blurb: 'For suppliers: how to open the update link, review the purchase orders NESR is expediting, and submit delivery status and dates back to the team.',
+    blurb:
+      'For suppliers: how to open the update link, review the purchase orders NESR is expediting, and submit delivery status and dates back to the team.',
     videoUrl:
       'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=814d1093-6f25-4093-b2eb-aac7402dcc7c&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
   },
@@ -49,25 +51,31 @@ export default function PoExpeditingHelpContent() {
       {/* Heading */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Help &amp; Training</h1>
-        <p className="mt-1 text-sm text-slate-500">Everything you need to get up to speed on PO Expediting.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Everything you need to get up to speed on PO Expediting.
+        </p>
       </div>
 
       {/* About the tool */}
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-bold text-slate-900">About PO Expediting</h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          PO Expediting gives the supply chain team a live view of every open purchase order sourced from SAP, so
-          nothing slips through the cracks. Track delivery status against DS codes, filter and sort by due date, value,
-          supplier, or country, and see at a glance what is past due, due this week, or on track.
+          PO Expediting gives the supply chain team a live view of every open purchase order sourced
+          from SAP, so nothing slips through the cracks. Track delivery status against DS codes,
+          filter and sort by due date, value, supplier, or country, and see at a glance what is past
+          due, due this week, or on track.
         </p>
         <p className="mt-3 text-sm leading-relaxed text-slate-600">
-          Select the lines you need to chase, build an expedite queue, and send suppliers one consolidated update
-          request. Supplier responses flow back in and reconcile against the open POs, giving the whole team a single
-          place to drive on-time delivery.
+          Select the lines you need to chase, build an expedite queue, and send suppliers one
+          consolidated update request. Supplier responses flow back in and reconcile against the
+          open POs, giving the whole team a single place to drive on-time delivery.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           {FEATURES.map((f) => (
-            <span key={f} className="rounded-full bg-[#307c4c]/10 px-2.5 py-1 text-[11px] font-semibold text-[#307c4c]">
+            <span
+              key={f}
+              className="rounded-full bg-[#307c4c]/10 px-2.5 py-1 text-[11px] font-semibold text-[#307c4c]"
+            >
               {f}
             </span>
           ))}
@@ -83,7 +91,11 @@ export default function PoExpeditingHelpContent() {
               key={g.key}
               onClick={() => setKey(g.key)}
               className="border-b-2 -mb-px px-4 py-2.5 text-[13.5px] font-semibold transition-colors"
-              style={active ? { color: '#307c4c', borderColor: '#307c4c' } : { color: '#94a3b8', borderColor: 'transparent' }}
+              style={
+                active
+                  ? { color: '#307c4c', borderColor: '#307c4c' }
+                  : { color: '#94a3b8', borderColor: 'transparent' }
+              }
             >
               {g.label}
             </button>

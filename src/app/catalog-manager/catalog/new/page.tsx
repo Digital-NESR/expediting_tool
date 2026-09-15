@@ -22,18 +22,21 @@ export default async function NewCatalogEntryPage({
   searchParams: Promise<{ country?: string }>;
 }) {
   const { country = 'ALL' } = await searchParams;
-  const [actor, countries, currencies, uoms, suppliers, pendingCount, thresholds] = await Promise.all([
-    getCatalogActor(),
-    getCountries(),
-    getCurrencies(),
-    getUoms(),
-    getSuppliers(),
-    getPendingApprovalCount(),
-    getApprovalThresholds(),
-  ]);
+  const [actor, countries, currencies, uoms, suppliers, pendingCount, thresholds] =
+    await Promise.all([
+      getCatalogActor(),
+      getCountries(),
+      getCurrencies(),
+      getUoms(),
+      getSuppliers(),
+      getPendingApprovalCount(),
+      getApprovalThresholds(),
+    ]);
   if (!actor.canCreate) redirect('/catalog-manager/catalog');
 
-  const managers = [...new Set(suppliers.map((s) => s.accountable_manager).filter(Boolean) as string[])].sort();
+  const managers = [
+    ...new Set(suppliers.map((s) => s.accountable_manager).filter(Boolean) as string[]),
+  ].sort();
 
   return (
     <CatalogEntryFormClient

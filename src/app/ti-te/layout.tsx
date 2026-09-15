@@ -32,10 +32,15 @@ export default async function TiteLayout({ children }: { children: React.ReactNo
 
   if (rawStatus !== 'approved') {
     const overlayStatus: 'new' | 'pending' | 'rejected' | 'revoked' | 'denied' =
-      rawStatus === 'pending'  ? 'pending'  :
-      rawStatus === 'rejected' ? 'rejected' :
-      rawStatus === 'revoked'  ? 'revoked'  :
-      rawStatus === 'denied'   ? 'denied'   : 'new';
+      rawStatus === 'pending'
+        ? 'pending'
+        : rawStatus === 'rejected'
+          ? 'rejected'
+          : rawStatus === 'revoked'
+            ? 'revoked'
+            : rawStatus === 'denied'
+              ? 'denied'
+              : 'new';
 
     return (
       <TiteAccessOverlay

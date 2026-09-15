@@ -15,5 +15,10 @@ export default async function ProcureGuardDashboardPage() {
     redirect('/procure-guard/analytics');
   }
   const data = await getProcureGuardDashboardData();
-  return <><RefreshOnView renderId={crypto.randomUUID()} /><ProcureGuardDashboardClient data={data} /></>;
+  return (
+    <>
+      <RefreshOnView renderId={crypto.randomUUID()} />
+      <ProcureGuardDashboardClient data={data} />
+    </>
+  );
 }

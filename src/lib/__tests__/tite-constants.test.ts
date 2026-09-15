@@ -40,14 +40,14 @@ describe('titeCountryCode', () => {
     expect(titeCountryCode(input)).toBe(expected);
   });
 
-  it.each([null, undefined, '', '   ', '\t\n'])('falls back to OTH for blank input %j', input => {
+  it.each([null, undefined, '', '   ', '\t\n'])('falls back to OTH for blank input %j', (input) => {
     expect(titeCountryCode(input)).toBe(TITE_FALLBACK_COUNTRY_CODE);
     expect(titeCountryCode(input)).toBe('OTH');
   });
 
   it.each(['Narnia', 'KSA', 'UAE', 'Saudi', 'Arabia', 'United Arab', 'Oman (OMN)'])(
     'falls back to OTH for the unknown label %j',
-    input => {
+    (input) => {
       expect(titeCountryCode(input)).toBe('OTH');
     },
   );
@@ -98,7 +98,7 @@ describe('formatTiteReference', () => {
   });
 
   it('sorts lexicographically in numeric order within the padded range', () => {
-    const refs = [1, 2, 10, 20, 100, 999].map(n => formatTiteReference('OMN', n));
+    const refs = [1, 2, 10, 20, 100, 999].map((n) => formatTiteReference('OMN', n));
     expect([...refs].sort()).toEqual(refs);
   });
 });

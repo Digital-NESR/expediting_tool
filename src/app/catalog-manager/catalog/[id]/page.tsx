@@ -9,7 +9,11 @@ import {
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import CatalogEntryDetailClient from './CatalogEntryDetailClient';
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
   const { id } = await params;
   const entry = await getCatalogEntry(Number(id));
   return { title: `NESR | ${entry?.code ?? 'Entry'} - Catalog Manager` };
@@ -17,7 +21,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export const dynamic = 'force-dynamic';
 
-export default async function CatalogEntryDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CatalogEntryDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const [entry, actor, pendingCount] = await Promise.all([
     getCatalogEntry(Number(id)),

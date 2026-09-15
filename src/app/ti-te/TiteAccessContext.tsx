@@ -28,9 +28,7 @@ export function TiteAccessProvider({
   approvedCountries: string[];
 }) {
   return (
-    <TiteAccessContext.Provider
-      value={{ isAdmin, approvedCountries }}
-    >
+    <TiteAccessContext.Provider value={{ isAdmin, approvedCountries }}>
       {children}
     </TiteAccessContext.Provider>
   );

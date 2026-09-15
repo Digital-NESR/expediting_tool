@@ -30,10 +30,15 @@ export function detectMime(file: File): string {
   return uploadMimeTypeFor(file.name, file.type);
 }
 
-export function normalisePermissionCountryForRole(role: ProcureGuardPermissionRole, country: string | null | undefined): string | null {
+export function normalisePermissionCountryForRole(
+  role: ProcureGuardPermissionRole,
+  country: string | null | undefined,
+): string | null {
   const normalizedCountry = normalizeProcureGuardCountryScope(country);
   if (roleRequiresProcureGuardCountryScope(role) && !normalizedCountry) {
-    throw new Error(`${role} access must be limited to at least one country. Choose a country scope before saving.`);
+    throw new Error(
+      `${role} access must be limited to at least one country. Choose a country scope before saving.`,
+    );
   }
   return normalizedCountry;
 }
@@ -43,7 +48,7 @@ export function normalisePaymentCountry<T extends { country?: string | null }>(r
 }
 
 export function normalisePaymentCountries<T extends { country?: string | null }>(rows: T[]): T[] {
-  return rows.map(row => normalisePaymentCountry(row));
+  return rows.map((row) => normalisePaymentCountry(row));
 }
 
 export function requireCountryOption(value: string | null | undefined, label = 'Country'): string {
@@ -108,7 +113,10 @@ export function validateNonNegativeNumber(value: unknown, label: string) {
   return n;
 }
 
-export function normalizeRequesterNotificationEmails(value: unknown, requesterEmail?: string | null): string[] {
+export function normalizeRequesterNotificationEmails(
+  value: unknown,
+  requesterEmail?: string | null,
+): string[] {
   const rawValues = Array.isArray(value)
     ? value
     : typeof value === 'string'
@@ -118,7 +126,9 @@ export function normalizeRequesterNotificationEmails(value: unknown, requesterEm
   const emails = new Set<string>();
 
   for (const raw of rawValues) {
-    const email = String(raw ?? '').trim().toLowerCase();
+    const email = String(raw ?? '')
+      .trim()
+      .toLowerCase();
     if (!email) continue;
     if (!isValidEmail(email)) throw new Error(`Invalid notification email: ${email}`);
     if (email !== requester) emails.add(email);
@@ -141,23 +151,32 @@ export function normalizeEmailTestRecipientOverrides(value: unknown): Record<str
   );
 }
 
-export function validateEmailTestRouting(enabled: boolean | undefined, fallbackValue: unknown, overrideValue: unknown) {
+export function validateEmailTestRouting(
+  enabled: boolean | undefined,
+  fallbackValue: unknown,
+  overrideValue: unknown,
+) {
   if (!enabled) return { recipients: [] as string[], overrides: {} as Record<string, string[]> };
   const recipients = normalizeEmailTestRecipients(fallbackValue);
   const overrides = normalizeEmailTestRecipientOverrides(overrideValue);
-  const hasRoleRecipients = Object.values(overrides).some(emails => emails.length > 0);
+  const hasRoleRecipients = Object.values(overrides).some((emails) => emails.length > 0);
   if (recipients.length === 0 && !hasRoleRecipients) {
     throw new Error('Email test mode needs at least one fallback or role-specific test recipient.');
   }
   return { recipients, overrides };
 }
 
-export function emailTestRecipientOverridesOf(request: Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'email_test_recipient_overrides'>): Record<string, string[]> {
+export function emailTestRecipientOverridesOf(
+  request: Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'email_test_recipient_overrides'>,
+): Record<string, string[]> {
   return normalizeEmailTestRecipientOverrides(request.email_test_recipient_overrides);
 }
 
 export function emailTestRecipientsOf(
-  request: Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'email_test_mode' | 'email_test_recipients' | 'email_test_recipient_overrides'>,
+  request: Pick<
+    AdhocPaymentRequest | AdvancePaymentRequest,
+    'email_test_mode' | 'email_test_recipients' | 'email_test_recipient_overrides'
+  >,
   fallbackEmail?: string | null,
   roleLabel?: string | null,
 ) {
@@ -165,29 +184,34 @@ export function emailTestRecipientsOf(
   const overrides = emailTestRecipientOverridesOf(request);
   const normalizedRole = roleLabel?.trim().toLowerCase();
   const roleEmails = normalizedRole
-    ? Object.entries(overrides).find(([role]) => role.toLowerCase() === normalizedRole)?.[1] ?? []
+    ? (Object.entries(overrides).find(([role]) => role.toLowerCase() === normalizedRole)?.[1] ?? [])
     : [];
   const fallbackEmails = Array.isArray(request.email_test_recipients)
-    ? request.email_test_recipients.map(email => email.trim().toLowerCase()).filter(Boolean)
+    ? request.email_test_recipients.map((email) => email.trim().toLowerCase()).filter(Boolean)
     : [];
-  const routedEmails = roleEmails.length > 0
-    ? roleEmails
-    : fallbackEmails.length > 0
-      ? fallbackEmails
-      : (fallbackEmail ? [fallbackEmail.trim().toLowerCase()] : []);
-  return [...new Set(routedEmails)].map(email => ({
+  const routedEmails =
+    roleEmails.length > 0
+      ? roleEmails
+      : fallbackEmails.length > 0
+        ? fallbackEmails
+        : fallbackEmail
+          ? [fallbackEmail.trim().toLowerCase()]
+          : [];
+  return [...new Set(routedEmails)].map((email) => ({
     name: email,
     email,
     role: roleLabel ? `Email test recipient: ${roleLabel}` : 'Email test recipient',
     approval_status: null as ProcureGuardStatus | null,
     country: null as string | null,
-    source_column: roleLabel ? `email_test_recipient_overrides.${roleLabel}` : 'email_test_recipients',
+    source_column: roleLabel
+      ? `email_test_recipient_overrides.${roleLabel}`
+      : 'email_test_recipients',
   }));
 }
 
 export function normaliseProcureGuardRole(role: unknown): ProcureGuardPermissionRole {
   return PERMISSION_ROLE_OPTIONS.includes(role as ProcureGuardPermissionRole)
-    ? role as ProcureGuardPermissionRole
+    ? (role as ProcureGuardPermissionRole)
     : 'Requester';
 }
 

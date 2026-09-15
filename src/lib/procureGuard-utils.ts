@@ -1,4 +1,11 @@
-import type { ProcureGuardAccessView, ProcureGuardPermissionProfile, ProcureGuardPermissionRole, ProcureGuardPriority, ProcureGuardRequestType, ProcureGuardStatus } from '@/types/procureGuard';
+import type {
+  ProcureGuardAccessView,
+  ProcureGuardPermissionProfile,
+  ProcureGuardPermissionRole,
+  ProcureGuardPriority,
+  ProcureGuardRequestType,
+  ProcureGuardStatus,
+} from '@/types/procureGuard';
 
 // Advance payments at or below this USD value are fully approved by the country finance
 // controller alone — the request goes straight to Approved with no further sign-off.
@@ -17,13 +24,21 @@ export const PERMISSION_ROLE_OPTIONS: ProcureGuardPermissionRole[] = [
   'Admin',
 ];
 
-export const COUNTRY_SCOPED_PERMISSION_ROLES: ProcureGuardPermissionRole[] = ['SCM Manager', 'Country Controller'];
+export const COUNTRY_SCOPED_PERMISSION_ROLES: ProcureGuardPermissionRole[] = [
+  'SCM Manager',
+  'Country Controller',
+];
 
-export function roleRequiresProcureGuardCountryScope(role: ProcureGuardPermissionRole | string | null | undefined): boolean {
+export function roleRequiresProcureGuardCountryScope(
+  role: ProcureGuardPermissionRole | string | null | undefined,
+): boolean {
   return COUNTRY_SCOPED_PERMISSION_ROLES.includes((role ?? '') as ProcureGuardPermissionRole);
 }
 
-const BASE_PERMISSION_PROFILE: Omit<ProcureGuardPermissionProfile, 'role' | 'label' | 'description' | 'accessView'> = {
+const BASE_PERMISSION_PROFILE: Omit<
+  ProcureGuardPermissionProfile,
+  'role' | 'label' | 'description' | 'accessView'
+> = {
   canViewAll: false,
   canCreateRequests: true,
   canManageData: false,
@@ -39,7 +54,10 @@ const BASE_PERMISSION_PROFILE: Omit<ProcureGuardPermissionProfile, 'role' | 'lab
   canReviewAdvanceCfo: false,
 };
 
-export const PERMISSION_PROFILES: Record<ProcureGuardPermissionRole, ProcureGuardPermissionProfile> = {
+export const PERMISSION_PROFILES: Record<
+  ProcureGuardPermissionRole,
+  ProcureGuardPermissionProfile
+> = {
   Requester: {
     ...BASE_PERMISSION_PROFILE,
     role: 'Requester',
@@ -67,7 +85,8 @@ export const PERMISSION_PROFILES: Record<ProcureGuardPermissionRole, ProcureGuar
     ...BASE_PERMISSION_PROFILE,
     role: 'Viewer',
     label: 'Viewer',
-    description: 'Can view all requests and analytics and create their own requests, but cannot approve or access admin.',
+    description:
+      'Can view all requests and analytics and create their own requests, but cannot approve or access admin.',
     accessView: 'viewer',
     canViewAll: true,
     canCreateRequests: true,
@@ -96,7 +115,8 @@ export const PERMISSION_PROFILES: Record<ProcureGuardPermissionRole, ProcureGuar
     ...BASE_PERMISSION_PROFILE,
     role: 'Supply Chain Director',
     label: 'Supply Chain Director',
-    description: 'Can approve adhoc requests after SCM and advance requests after country controller approval.',
+    description:
+      'Can approve adhoc requests after SCM and advance requests after country controller approval.',
     accessView: 'reviewer',
     canViewAll: true,
     canReject: true,
@@ -117,7 +137,8 @@ export const PERMISSION_PROFILES: Record<ProcureGuardPermissionRole, ProcureGuar
     ...BASE_PERMISSION_PROFILE,
     role: 'Corporate Controller',
     label: 'Corporate Controller',
-    description: 'Can approve advance requests through corporate controller review and release sub-500k USD requests.',
+    description:
+      'Can approve advance requests through corporate controller review and release sub-500k USD requests.',
     accessView: 'reviewer',
     canViewAll: true,
     canReject: true,
@@ -155,7 +176,10 @@ export const PERMISSION_PROFILES: Record<ProcureGuardPermissionRole, ProcureGuar
   },
 };
 
-export type ProcureGuardPermissionKey = keyof Omit<ProcureGuardPermissionProfile, 'role' | 'label' | 'description' | 'accessView'>;
+export type ProcureGuardPermissionKey = keyof Omit<
+  ProcureGuardPermissionProfile,
+  'role' | 'label' | 'description' | 'accessView'
+>;
 
 export interface ProcureGuardAvailableActions {
   nextStatus: ProcureGuardStatus | null;
@@ -175,8 +199,13 @@ const PERMISSION_OWNER_LABELS: Partial<Record<ProcureGuardPermissionKey, string>
   canReviewAdvanceCfo: 'CFO',
 };
 
-export function getPermissionProfile(role: string | null | undefined): ProcureGuardPermissionProfile {
-  return PERMISSION_PROFILES[(role || 'Requester') as ProcureGuardPermissionRole] ?? PERMISSION_PROFILES.Requester;
+export function getPermissionProfile(
+  role: string | null | undefined,
+): ProcureGuardPermissionProfile {
+  return (
+    PERMISSION_PROFILES[(role || 'Requester') as ProcureGuardPermissionRole] ??
+    PERMISSION_PROFILES.Requester
+  );
 }
 
 export function getProcureGuardAccessView(role: string | null | undefined): ProcureGuardAccessView {
@@ -188,11 +217,21 @@ export function canUseProcureGuardAdmin(accessView: ProcureGuardAccessView): boo
 }
 
 export function canUseProcureGuardAnalytics(accessView: ProcureGuardAccessView): boolean {
-  return accessView === 'analyst' || accessView === 'viewer' || accessView === 'reviewer' || accessView === 'admin';
+  return (
+    accessView === 'analyst' ||
+    accessView === 'viewer' ||
+    accessView === 'reviewer' ||
+    accessView === 'admin'
+  );
 }
 
 export function canUseProcureGuardOperationalPages(accessView: ProcureGuardAccessView): boolean {
-  return accessView === 'requester' || accessView === 'viewer' || accessView === 'reviewer' || accessView === 'admin';
+  return (
+    accessView === 'requester' ||
+    accessView === 'viewer' ||
+    accessView === 'reviewer' ||
+    accessView === 'admin'
+  );
 }
 
 export function canUseProcureGuardReviewerQueue(accessView: ProcureGuardAccessView): boolean {
@@ -207,24 +246,48 @@ function getRequiredPermissionForApproval(
   currency?: string | null,
 ): ProcureGuardPermissionKey | null {
   if (requestType === 'adhoc') {
-    if (currentStatus === 'Submitted' && nextStatus === 'Approved by SCM') return 'canReviewAdhocScm';
-    if (currentStatus === 'Under Review' && nextStatus === 'Approved by SCM') return 'canReviewAdhocScm'; // legacy Under Review records
-    if (currentStatus === 'Approved by SCM' && nextStatus === 'Approved') return 'canReviewAdhocDirector';
+    if (currentStatus === 'Submitted' && nextStatus === 'Approved by SCM')
+      return 'canReviewAdhocScm';
+    if (currentStatus === 'Under Review' && nextStatus === 'Approved by SCM')
+      return 'canReviewAdhocScm'; // legacy Under Review records
+    if (currentStatus === 'Approved by SCM' && nextStatus === 'Approved')
+      return 'canReviewAdhocDirector';
     return null;
   }
 
   const spendUsd = toUsd(amount, currency || 'USD');
   // Low-value advances: the country finance controller approves straight to Approved.
-  if ((currentStatus === 'Submitted' || currentStatus === 'Under Review') && nextStatus === 'Approved') {
-    return spendUsd <= ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD ? 'canReviewAdvanceCountryController' : null;
+  if (
+    (currentStatus === 'Submitted' || currentStatus === 'Under Review') &&
+    nextStatus === 'Approved'
+  ) {
+    return spendUsd <= ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD
+      ? 'canReviewAdvanceCountryController'
+      : null;
   }
-  if (currentStatus === 'Submitted' && nextStatus === 'Approved by Country Controller') return 'canReviewAdvanceCountryController';
-  if (currentStatus === 'Under Review' && nextStatus === 'Approved by Country Controller') return 'canReviewAdvanceCountryController'; // legacy Under Review records
-  if (currentStatus === 'Approved by Country Controller' && nextStatus === 'Approved by Supply Chain Director') return 'canReviewAdvanceSupplyChainDirector';
-  if (currentStatus === 'Approved by Supply Chain Director' && nextStatus === 'Approved by Treasury Director') return 'canReviewAdvanceTreasuryDirector';
-  if (currentStatus === 'Approved by Treasury Director' && nextStatus === 'Approved') return spendUsd < 500000 ? 'canReviewAdvanceCorporateController' : null;
-  if (currentStatus === 'Approved by Treasury Director' && nextStatus === 'Approved by Corporate Controller') return 'canReviewAdvanceCorporateController';
-  if (currentStatus === 'Approved by Corporate Controller' && nextStatus === 'Approved') return 'canReviewAdvanceCfo';
+  if (currentStatus === 'Submitted' && nextStatus === 'Approved by Country Controller')
+    return 'canReviewAdvanceCountryController';
+  if (currentStatus === 'Under Review' && nextStatus === 'Approved by Country Controller')
+    return 'canReviewAdvanceCountryController'; // legacy Under Review records
+  if (
+    currentStatus === 'Approved by Country Controller' &&
+    nextStatus === 'Approved by Supply Chain Director'
+  )
+    return 'canReviewAdvanceSupplyChainDirector';
+  if (
+    currentStatus === 'Approved by Supply Chain Director' &&
+    nextStatus === 'Approved by Treasury Director'
+  )
+    return 'canReviewAdvanceTreasuryDirector';
+  if (currentStatus === 'Approved by Treasury Director' && nextStatus === 'Approved')
+    return spendUsd < 500000 ? 'canReviewAdvanceCorporateController' : null;
+  if (
+    currentStatus === 'Approved by Treasury Director' &&
+    nextStatus === 'Approved by Corporate Controller'
+  )
+    return 'canReviewAdvanceCorporateController';
+  if (currentStatus === 'Approved by Corporate Controller' && nextStatus === 'Approved')
+    return 'canReviewAdvanceCfo';
   return null;
 }
 
@@ -246,7 +309,8 @@ export function getRequiredPermissionForTransition(
   amount?: number | string | null,
   currency?: string | null,
 ): ProcureGuardPermissionKey | null {
-  if (nextStatus === 'Rejected') return getCurrentStepPermission(requestType, currentStatus, amount, currency);
+  if (nextStatus === 'Rejected')
+    return getCurrentStepPermission(requestType, currentStatus, amount, currency);
   return getRequiredPermissionForApproval(requestType, currentStatus, nextStatus, amount, currency);
 }
 
@@ -265,7 +329,9 @@ export function getProcureGuardAvailableActions(
     canApprove: Boolean(nextStatus && ownsCurrentApprovalStep),
     canReject: Boolean(nextStatus && ownsCurrentApprovalStep && permissions.canReject),
     requiredPermission,
-    ownerLabel: requiredPermission ? PERMISSION_OWNER_LABELS[requiredPermission] ?? 'Assigned approver' : 'No active owner',
+    ownerLabel: requiredPermission
+      ? (PERMISSION_OWNER_LABELS[requiredPermission] ?? 'Assigned approver')
+      : 'No active owner',
   };
 }
 export const STATUS_OPTIONS: ProcureGuardStatus[] = [
@@ -447,7 +513,7 @@ export function getProcureGuardCountryScopeCountries(value: string | null | unde
 
   const countries = raw
     .split(/\s*(?:,|;|\||\+|\band\b)\s*/i)
-    .map(part => normalizeProcureGuardCountry(part))
+    .map((part) => normalizeProcureGuardCountry(part))
     .filter((country): country is string => Boolean(country));
 
   return [...new Set(countries)];
@@ -494,7 +560,10 @@ export interface ProcureGuardThresholdRow {
  * used the stored USD value — so a non-USD request could be filed under a different approver in the
  * analytics than the one the workflow was actually waiting on.
  */
-export function procureGuardThreshold(row: ProcureGuardThresholdRow): { amount: number | string | null; currency: string } {
+export function procureGuardThreshold(row: ProcureGuardThresholdRow): {
+  amount: number | string | null;
+  currency: string;
+} {
   const hasStoredUsd = row.spend_value_usd !== null && row.spend_value_usd !== undefined;
   return hasStoredUsd
     ? { amount: row.spend_value_usd as number | string, currency: 'USD' }
@@ -507,7 +576,10 @@ export function thresholdUsd(row: ProcureGuardThresholdRow): number {
   return toUsd(amount, currency);
 }
 
-export function usdEquivalentFmt(value: number | string | null | undefined, currency = 'USD'): string {
+export function usdEquivalentFmt(
+  value: number | string | null | undefined,
+  currency = 'USD',
+): string {
   return usdFmt(toUsd(value, currency), 'USD');
 }
 
@@ -550,10 +622,30 @@ export function getWorkflowSteps(
 ): ProcureGuardWorkflowStep[] {
   if (requestType === 'adhoc') {
     return [
-      { status: 'Submitted', label: 'Country SCM Review', owner: 'Country Supply Chain Manager', description: 'New request submitted; awaiting country supply chain manager approval.' },
-      { status: 'Under Review', label: 'Country SCM Review', owner: 'Country Supply Chain Manager', description: 'Country supply chain manager reviews the exception.' },
-      { status: 'Approved by SCM', label: 'Supply Chain Director Review', owner: 'Supply Chain Director', description: 'Supply chain director reviews after SCM approval.' },
-      { status: 'Approved', label: 'Approved', owner: 'Workflow Complete', description: 'Request is fully approved.' },
+      {
+        status: 'Submitted',
+        label: 'Country SCM Review',
+        owner: 'Country Supply Chain Manager',
+        description: 'New request submitted; awaiting country supply chain manager approval.',
+      },
+      {
+        status: 'Under Review',
+        label: 'Country SCM Review',
+        owner: 'Country Supply Chain Manager',
+        description: 'Country supply chain manager reviews the exception.',
+      },
+      {
+        status: 'Approved by SCM',
+        label: 'Supply Chain Director Review',
+        owner: 'Supply Chain Director',
+        description: 'Supply chain director reviews after SCM approval.',
+      },
+      {
+        status: 'Approved',
+        label: 'Approved',
+        owner: 'Workflow Complete',
+        description: 'Request is fully approved.',
+      },
     ];
   }
 
@@ -562,18 +654,59 @@ export function getWorkflowSteps(
   // At or below the threshold, the country finance controller's approval is final.
   if (spendUsd <= ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD) {
     return [
-      { status: 'Submitted', label: 'Country Finance Review', owner: 'Country Finance Controller', description: 'New request submitted; awaiting country finance controller approval.' },
-      { status: 'Under Review', label: 'Country Finance Review', owner: 'Country Finance Controller', description: 'Country finance controller reviews the advance request.' },
-      { status: 'Approved', label: 'Approved', owner: 'Workflow Complete', description: 'Fully approved by the country finance controller (advances of 50,000 USD or less).' },
+      {
+        status: 'Submitted',
+        label: 'Country Finance Review',
+        owner: 'Country Finance Controller',
+        description: 'New request submitted; awaiting country finance controller approval.',
+      },
+      {
+        status: 'Under Review',
+        label: 'Country Finance Review',
+        owner: 'Country Finance Controller',
+        description: 'Country finance controller reviews the advance request.',
+      },
+      {
+        status: 'Approved',
+        label: 'Approved',
+        owner: 'Workflow Complete',
+        description:
+          'Fully approved by the country finance controller (advances of 50,000 USD or less).',
+      },
     ];
   }
 
   const steps: ProcureGuardWorkflowStep[] = [
-    { status: 'Submitted', label: 'Country Finance Review', owner: 'Country Finance Controller', description: 'New request submitted; awaiting country finance controller approval.' },
-    { status: 'Under Review', label: 'Country Finance Review', owner: 'Country Finance Controller', description: 'Country finance controller reviews the advance request.' },
-    { status: 'Approved by Country Controller', label: 'Supply Chain Director Review', owner: 'Supply Chain Director', description: 'Supply chain director reviews after country controller approval.' },
-    { status: 'Approved by Supply Chain Director', label: 'Treasury Director Review', owner: 'Treasury Director', description: 'Treasury director reviews funding and timing.' },
-    { status: 'Approved by Treasury Director', label: 'Corporate Controller Review', owner: 'Corporate Controller', description: 'Corporate controller reviews and checks the CFO threshold.' },
+    {
+      status: 'Submitted',
+      label: 'Country Finance Review',
+      owner: 'Country Finance Controller',
+      description: 'New request submitted; awaiting country finance controller approval.',
+    },
+    {
+      status: 'Under Review',
+      label: 'Country Finance Review',
+      owner: 'Country Finance Controller',
+      description: 'Country finance controller reviews the advance request.',
+    },
+    {
+      status: 'Approved by Country Controller',
+      label: 'Supply Chain Director Review',
+      owner: 'Supply Chain Director',
+      description: 'Supply chain director reviews after country controller approval.',
+    },
+    {
+      status: 'Approved by Supply Chain Director',
+      label: 'Treasury Director Review',
+      owner: 'Treasury Director',
+      description: 'Treasury director reviews funding and timing.',
+    },
+    {
+      status: 'Approved by Treasury Director',
+      label: 'Corporate Controller Review',
+      owner: 'Corporate Controller',
+      description: 'Corporate controller reviews and checks the CFO threshold.',
+    },
   ];
 
   if (spendUsd >= 500000) {
@@ -601,7 +734,11 @@ export function getNextApprovalStatus(
   amount?: number | string | null,
   currency?: string | null,
 ): ProcureGuardStatus | null {
-  if (currentStatus === 'Cancelled' || currentStatus === 'Rejected' || currentStatus === 'Approved') {
+  if (
+    currentStatus === 'Cancelled' ||
+    currentStatus === 'Rejected' ||
+    currentStatus === 'Approved'
+  ) {
     return null;
   }
 
@@ -616,21 +753,25 @@ export function getNextApprovalStatus(
 
   const spendUsd = toUsd(amount, currency || 'USD');
   // At or below the threshold, the country finance controller's approval is final.
-  const firstStep: ProcureGuardStatus = spendUsd <= ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD
-    ? 'Approved'
-    : 'Approved by Country Controller';
+  const firstStep: ProcureGuardStatus =
+    spendUsd <= ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD
+      ? 'Approved'
+      : 'Approved by Country Controller';
   const transitions: Partial<Record<ProcureGuardStatus, ProcureGuardStatus>> = {
     Submitted: firstStep,
     'Under Review': firstStep, // legacy Under Review records
     'Approved by Country Controller': 'Approved by Supply Chain Director',
     'Approved by Supply Chain Director': 'Approved by Treasury Director',
-    'Approved by Treasury Director': spendUsd < 500000 ? 'Approved' : 'Approved by Corporate Controller',
+    'Approved by Treasury Director':
+      spendUsd < 500000 ? 'Approved' : 'Approved by Corporate Controller',
     'Approved by Corporate Controller': 'Approved',
   };
   return transitions[currentStatus] ?? null;
 }
 
-export function getStatusOptionsForRequestType(requestType: 'adhoc' | 'advance'): ProcureGuardStatus[] {
+export function getStatusOptionsForRequestType(
+  requestType: 'adhoc' | 'advance',
+): ProcureGuardStatus[] {
   return requestType === 'adhoc' ? ADHOC_STATUS_OPTIONS : ADVANCE_STATUS_OPTIONS;
 }
 
@@ -737,11 +878,13 @@ export function getStatusBadge(status: string): { label: string; className: stri
       dot: 'bg-slate-400',
     },
   };
-  return map[status] ?? {
-    label: formatProcureGuardStatusLabel(status),
-    className: 'bg-slate-50 text-slate-600 border-slate-200',
-    dot: 'bg-slate-400',
-  };
+  return (
+    map[status] ?? {
+      label: formatProcureGuardStatusLabel(status),
+      className: 'bg-slate-50 text-slate-600 border-slate-200',
+      dot: 'bg-slate-400',
+    }
+  );
 }
 
 export function getPriorityBadge(priority: string): string {

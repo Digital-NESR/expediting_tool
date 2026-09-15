@@ -58,7 +58,8 @@ export function shapeRow(r: RegistryRecord): ShapedRow {
     supplierName: r.supplierName,
     supplierId: r.supplierId,
     scopeLabel: r.level + (leaves.length > 1 ? ' group (' + leaves.length + ')' : ''),
-    scopeDetail: leaves.slice(0, 2).join(', ') + (leaves.length > 2 ? ' +' + (leaves.length - 2) : ''),
+    scopeDetail:
+      leaves.slice(0, 2).join(', ') + (leaves.length > 2 ? ' +' + (leaves.length - 2) : ''),
     spendLabel: money(r.spend),
     status,
     statusBg: ss[0],

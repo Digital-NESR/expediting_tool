@@ -16,7 +16,10 @@ import AppSidebar, {
 const ACCENT = SG_BRAND;
 
 export default function SourceGuideSidebar({
-  isOpen, onClose, pinned, onTogglePin,
+  isOpen,
+  onClose,
+  pinned,
+  onTogglePin,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -30,10 +33,11 @@ export default function SourceGuideSidebar({
 
   const rawName = session?.user?.name || 'Unknown User';
   const initials = sidebarInitials(rawName);
-  const jobTitle = (session?.user as { jobTitle?: string })?.jobTitle
-    || (isAdmin ? 'Administrator' : 'User');
+  const jobTitle =
+    (session?.user as { jobTitle?: string })?.jobTitle || (isAdmin ? 'Administrator' : 'User');
 
-  const isActive = (href: string, exact?: boolean) => (exact ? pathname === href : pathname.startsWith(href));
+  const isActive = (href: string, exact?: boolean) =>
+    exact ? pathname === href : pathname.startsWith(href);
 
   return (
     <AppSidebar
@@ -48,12 +52,22 @@ export default function SourceGuideSidebar({
       {({ closeOnNav }) => (
         <>
           {/* Header */}
-          <div className="h-14 md:h-16 px-5 flex items-center justify-between shrink-0" style={{ background: ACCENT }}>
+          <div
+            className="h-14 md:h-16 px-5 flex items-center justify-between shrink-0"
+            style={{ background: ACCENT }}
+          >
             <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0" style={{ background: 'rgba(255,255,255,0.15)' }}>
-                <span className="text-white font-extrabold text-[11px] tracking-tight leading-none">SG</span>
+              <div
+                className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
+                style={{ background: 'rgba(255,255,255,0.15)' }}
+              >
+                <span className="text-white font-extrabold text-[11px] tracking-tight leading-none">
+                  SG
+                </span>
               </div>
-              <span className="text-white font-semibold text-sm tracking-tight leading-tight">SourceGuide</span>
+              <span className="text-white font-semibold text-sm tracking-tight leading-tight">
+                SourceGuide
+              </span>
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -85,7 +99,9 @@ export default function SourceGuideSidebar({
               icon={<LayoutGrid className="w-5 h-5" />}
             />
 
-            <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Navigate</p>
+            <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              Navigate
+            </p>
 
             <SidebarNavLink
               href="/sourceguide"
@@ -130,8 +146,10 @@ export default function SourceGuideSidebar({
             image={session?.user?.image}
             initials={initials}
             avatar={{
-              imageClassName: 'h-10 w-10 rounded-full object-cover border border-slate-200 shadow-sm shrink-0',
-              fallbackClassName: 'h-10 w-10 flex items-center justify-center rounded-full font-bold text-white shadow-sm shrink-0',
+              imageClassName:
+                'h-10 w-10 rounded-full object-cover border border-slate-200 shadow-sm shrink-0',
+              fallbackClassName:
+                'h-10 w-10 flex items-center justify-center rounded-full font-bold text-white shadow-sm shrink-0',
               fallbackStyle: { background: ACCENT },
             }}
           />

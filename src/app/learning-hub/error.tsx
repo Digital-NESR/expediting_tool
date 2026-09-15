@@ -11,10 +11,18 @@ import Link from 'next/link';
  * the reason only in the server log. Anything that escapes the inline handling in
  * AdminClient lands here instead, with a way back.
  */
-export default function LearningHubError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function LearningHubError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center">
-      <h2 className="text-lg font-semibold text-slate-900">Something went wrong in the Learning Hub</h2>
+      <h2 className="text-lg font-semibold text-slate-900">
+        Something went wrong in the Learning Hub
+      </h2>
       <p className="max-w-md text-sm text-slate-500">
         This page could not be loaded. Your progress is safe — nothing was changed by the failure.
       </p>

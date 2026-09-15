@@ -15,9 +15,26 @@ import {
   canEditTiteCountry,
   type TiteUser,
 } from '@/lib/tite-auth';
-import { AccessError, requireAdmin, forbidden, normalizeEmail, isAdminActor } from '@/lib/require-access';
+import {
+  AccessError,
+  requireAdmin,
+  forbidden,
+  normalizeEmail,
+  isAdminActor,
+} from '@/lib/require-access';
 import { logger } from '@/lib/logger';
-import type { Shipment, TiteListShipment, TiteAnalyticsShipment, ShipmentStats, ShipmentStatus, ShipmentDocument, ActivityLogRow, NotificationContact, CountryStakeholder, CountryStakeholderFull } from '@/types/tite';
+import type {
+  Shipment,
+  TiteListShipment,
+  TiteAnalyticsShipment,
+  ShipmentStats,
+  ShipmentStatus,
+  ShipmentDocument,
+  ActivityLogRow,
+  NotificationContact,
+  CountryStakeholder,
+  CountryStakeholderFull,
+} from '@/types/tite';
 import {
   dbInsertDocument,
   dbGetDocuments,
@@ -59,10 +76,10 @@ export interface CreateShipmentInput {
     notify_60_days?: boolean;
     notify_30_days?: boolean;
     notify_14_days?: boolean;
-    notify_7_days?:  boolean;
-    notify_2_days?:  boolean;
-    notify_1_day?:   boolean;
-    notify_0_day?:   boolean;
+    notify_7_days?: boolean;
+    notify_2_days?: boolean;
+    notify_1_day?: boolean;
+    notify_0_day?: boolean;
     notify_overdue?: boolean;
   }>;
 }
@@ -98,8 +115,8 @@ function effectiveCountryScope(user: TiteUser, requested?: string[]): string[] |
   const narrow = requested?.includes(VIEW_ALL_COUNTRIES) ? undefined : requested;
   if (allowed === null) return narrow != null && narrow.length > 0 ? narrow : null;
   if (narrow == null || narrow.length === 0) return allowed;
-  const lower = new Set(allowed.map(c => c.trim().toLowerCase()));
-  return narrow.filter(c => lower.has(c.trim().toLowerCase()));
+  const lower = new Set(allowed.map((c) => c.trim().toLowerCase()));
+  return narrow.filter((c) => lower.has(c.trim().toLowerCase()));
 }
 
 /** The country a shipment belongs to, or undefined when the row does not exist. */
@@ -146,8 +163,8 @@ export async function getAllShipments(approvedCountries?: string[]): Promise<Shi
   const user = await currentTiteUser();
   if (!isTiteApproved(user)) return null;
   try {
-    const scope     = effectiveCountryScope(user, approvedCountries);
-    const filtered  = scope !== null;
+    const scope = effectiveCountryScope(user, approvedCountries);
+    const filtered = scope !== null;
     const { rows } = await titePool.query<Shipment>(
       `SELECT ${SELECT_COLS}
        FROM shipments
@@ -169,9 +186,15 @@ export async function getAllShipments(approvedCountries?: string[]): Promise<Shi
     // Recalculate alert_level from the effective date rather than trusting the
     // stored column, which only updates on create/extend/close and goes stale.
     const ALERT_ORDER: Record<string, number> = {
-      overdue: 1, urgent: 2, action: 3, plan: 4, info: 5, ok: 6, closed: 7,
+      overdue: 1,
+      urgent: 2,
+      action: 3,
+      plan: 4,
+      info: 5,
+      ok: 6,
+      closed: 7,
     };
-    const fresh = rows.map(r => ({ ...r, alert_level: shipmentAlertLevel(r) }));
+    const fresh = rows.map((r) => ({ ...r, alert_level: shipmentAlertLevel(r) }));
     fresh.sort((a, b) => {
       const oa = ALERT_ORDER[a.alert_level] ?? 8;
       const ob = ALERT_ORDER[b.alert_level] ?? 8;
@@ -212,7 +235,7 @@ export async function getShipmentsForList(
   const user = await currentTiteUser();
   if (!isTiteApproved(user)) return null;
   try {
-    const scope    = effectiveCountryScope(user, approvedCountries);
+    const scope = effectiveCountryScope(user, approvedCountries);
     const filtered = scope !== null;
     const { rows } = await titePool.query<TiteListShipment>(
       `SELECT ${LIST_COLS}
@@ -233,9 +256,15 @@ export async function getShipmentsForList(
       filtered ? [scope] : [],
     );
     const ALERT_ORDER: Record<string, number> = {
-      overdue: 1, urgent: 2, action: 3, plan: 4, info: 5, ok: 6, closed: 7,
+      overdue: 1,
+      urgent: 2,
+      action: 3,
+      plan: 4,
+      info: 5,
+      ok: 6,
+      closed: 7,
     };
-    const fresh = rows.map(r => ({ ...r, alert_level: shipmentAlertLevel(r) }));
+    const fresh = rows.map((r) => ({ ...r, alert_level: shipmentAlertLevel(r) }));
     fresh.sort((a, b) => {
       const oa = ALERT_ORDER[a.alert_level] ?? 8;
       const ob = ALERT_ORDER[b.alert_level] ?? 8;
@@ -275,7 +304,7 @@ export async function getShipmentsForAnalytics(
   const user = await currentTiteUser();
   if (!isTiteApproved(user)) return null;
   try {
-    const scope    = effectiveCountryScope(user, approvedCountries);
+    const scope = effectiveCountryScope(user, approvedCountries);
     const filtered = scope !== null;
     const { rows } = await titePool.query<TiteAnalyticsShipment>(
       `SELECT ${ANALYTICS_COLS}
@@ -296,9 +325,15 @@ export async function getShipmentsForAnalytics(
       filtered ? [scope] : [],
     );
     const ALERT_ORDER: Record<string, number> = {
-      overdue: 1, urgent: 2, action: 3, plan: 4, info: 5, ok: 6, closed: 7,
+      overdue: 1,
+      urgent: 2,
+      action: 3,
+      plan: 4,
+      info: 5,
+      ok: 6,
+      closed: 7,
     };
-    const fresh = rows.map(r => ({ ...r, alert_level: shipmentAlertLevel(r) }));
+    const fresh = rows.map((r) => ({ ...r, alert_level: shipmentAlertLevel(r) }));
     fresh.sort((a, b) => {
       const oa = ALERT_ORDER[a.alert_level] ?? 8;
       const ob = ALERT_ORDER[b.alert_level] ?? 8;
@@ -337,9 +372,7 @@ export async function getShipmentById(id: number): Promise<Shipment | null> {
 
 /* ─── createShipment ──────────────────────────────────────────── */
 
-export async function createShipment(
-  input: CreateShipmentInput,
-): Promise<{ id: number } | null> {
+export async function createShipment(input: CreateShipmentInput): Promise<{ id: number } | null> {
   const user = await requireTiteUser();
   // The country decides who may create the row, so it is validated before any work.
   if (!canEditTiteCountry(user, input.country)) {
@@ -379,7 +412,7 @@ export async function createShipment(
       const reference_number = formatTiteReference(countryCode, Number(seqRows[0].next_no));
 
       const { rows } = await client.query<{ id: number }>(
-      `INSERT INTO shipments (
+        `INSERT INTO shipments (
         reference_number, segment, from_country, to_country,
         invoice_number, invoice_value_usd, customs_reference_number, description,
         mot, awb_number, po_number, movement_type,
@@ -394,30 +427,30 @@ export async function createShipment(
         $16,$17,$18,$19,$20,
         $21,$22
       ) RETURNING id`,
-      [
-        reference_number,
-        input.segment           ?? null,
-        input.from_country      ?? null,
-        input.to_country        ?? null,
-        input.invoice_number    ?? null,
-        input.invoice_value_usd          ?? null,
-        input.customs_reference_number   ?? null,
-        input.description       ?? null,
-        input.mot               ?? null,
-        input.awb_number        ?? null,
-        input.po_number         ?? null,
-        input.movement_type,
-        input.import_date       ?? null,
-        input.expiry_date       ?? null,
-        input.extended_date     ?? null,
-        input.deposit_usd       ?? null,
-        input.comments          ?? null,
-        input.customs_docs_location      ?? null,
-        status,
-        alert_level,
-        input.country           ?? null,
-        createdBy,
-      ],
+        [
+          reference_number,
+          input.segment ?? null,
+          input.from_country ?? null,
+          input.to_country ?? null,
+          input.invoice_number ?? null,
+          input.invoice_value_usd ?? null,
+          input.customs_reference_number ?? null,
+          input.description ?? null,
+          input.mot ?? null,
+          input.awb_number ?? null,
+          input.po_number ?? null,
+          input.movement_type,
+          input.import_date ?? null,
+          input.expiry_date ?? null,
+          input.extended_date ?? null,
+          input.deposit_usd ?? null,
+          input.comments ?? null,
+          input.customs_docs_location ?? null,
+          status,
+          alert_level,
+          input.country ?? null,
+          createdBy,
+        ],
       );
       const newId = rows[0].id;
 
@@ -425,8 +458,8 @@ export async function createShipment(
       const allTrue = [true, true, true, true, true, true, true, true];
       const insertContact = (
         email: string | null,
-        name:  string | null,
-        role:  string | null,
+        name: string | null,
+        role: string | null,
         prefs?: boolean[],
       ) =>
         client.query(
@@ -448,16 +481,16 @@ export async function createShipment(
       await insertContact(user.email, createdBy, 'Creator');
 
       // 3. Additional contacts (use per-contact prefs if provided, else default all true)
-      for (const c of (input.additionalContacts ?? [])) {
+      for (const c of input.additionalContacts ?? []) {
         if (!c.email) continue;
         const prefs = [
           c.notify_60_days ?? true,
           c.notify_30_days ?? true,
           c.notify_14_days ?? true,
-          c.notify_7_days  ?? true,
-          c.notify_2_days  ?? true,
-          c.notify_1_day   ?? true,
-          c.notify_0_day   ?? true,
+          c.notify_7_days ?? true,
+          c.notify_2_days ?? true,
+          c.notify_1_day ?? true,
+          c.notify_0_day ?? true,
           c.notify_overdue ?? true,
         ];
         await insertContact(c.email, c.name || null, c.role || null, prefs);
@@ -482,11 +515,13 @@ export async function createShipment(
 
 /* ─── getShipmentStats ────────────────────────────────────────── */
 
-export async function getShipmentStats(approvedCountries?: string[]): Promise<ShipmentStats | null> {
+export async function getShipmentStats(
+  approvedCountries?: string[],
+): Promise<ShipmentStats | null> {
   const user = await currentTiteUser();
   if (!isTiteApproved(user)) return null;
   try {
-    const scope    = effectiveCountryScope(user, approvedCountries);
+    const scope = effectiveCountryScope(user, approvedCountries);
     const filtered = scope !== null;
     const { rows } = await titePool.query(
       `SELECT
@@ -503,13 +538,13 @@ export async function getShipmentStats(approvedCountries?: string[]): Promise<Sh
     );
     const r = rows[0];
     return {
-      active_count:      Number(r.active_count),
-      overdue_count:     Number(r.overdue_count),
-      urgent_count:      Number(r.urgent_count),
-      action_count:      Number(r.action_count),
+      active_count: Number(r.active_count),
+      overdue_count: Number(r.overdue_count),
+      urgent_count: Number(r.urgent_count),
+      action_count: Number(r.action_count),
       total_deposit_usd: Number(r.total_deposit_usd),
-      import_count:      Number(r.import_count),
-      export_count:      Number(r.export_count),
+      import_count: Number(r.import_count),
+      export_count: Number(r.export_count),
     };
   } catch (err) {
     log.error('getShipmentStats.failed', err);
@@ -531,7 +566,7 @@ export async function getAllTiteCountries(): Promise<string[]> {
         ORDER BY country`,
       scope === null ? [] : [scope],
     );
-    return rows.map(r => String(r.country));
+    return rows.map((r) => String(r.country));
   } catch (err) {
     log.error('getAllTiteCountries.failed', err);
     return [];
@@ -558,10 +593,15 @@ export async function getTiteUserAccess(userEmail: string): Promise<{
     const r = rows[0];
     const s = String(r.status).toLowerCase();
     const status =
-      s === 'pending'  ? 'pending'  :
-      s === 'approved' ? 'approved' :
-      s === 'rejected' ? 'rejected' :
-      s === 'revoked'  ? 'revoked'  : 'new';
+      s === 'pending'
+        ? 'pending'
+        : s === 'approved'
+          ? 'approved'
+          : s === 'rejected'
+            ? 'rejected'
+            : s === 'revoked'
+              ? 'revoked'
+              : 'new';
     return {
       status,
       approvedCountries: status === 'approved' ? (r.approved_countries ?? []) : [],
@@ -596,7 +636,10 @@ export async function submitTiteAccessRequest(params: {
   try {
     // Never demote an already-approved user (e.g. a mis-click before the session finished loading).
     if (actor.isAdmin) return { success: true };
-    const existing = await titePool.query<{ status: string }>(`SELECT status FROM access_requests WHERE LOWER(user_email) = $1`, [userEmail]);
+    const existing = await titePool.query<{ status: string }>(
+      `SELECT status FROM access_requests WHERE LOWER(user_email) = $1`,
+      [userEmail],
+    );
     if (existing.rows[0]?.status === 'Approved') return { success: true };
 
     await titePool.query(
@@ -681,10 +724,9 @@ export async function deleteTiteAccessRequest(
 ): Promise<{ success: boolean; error?: string }> {
   await requireAdmin();
   try {
-    await titePool.query(
-      `DELETE FROM access_requests WHERE LOWER(user_email) = $1`,
-      [normalizeEmail(userEmail)],
-    );
+    await titePool.query(`DELETE FROM access_requests WHERE LOWER(user_email) = $1`, [
+      normalizeEmail(userEmail),
+    ]);
     return { success: true };
   } catch (err) {
     log.error('deleteTiteAccessRequest.failed', err);
@@ -759,17 +801,19 @@ export async function getTiteAccessRequests(): Promise<TiteAccessRequestRow[]> {
         CASE status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END,
         requested_at DESC
     `);
-    return rows.map(r => ({
-      user_email:          String(r.user_email),
-      display_name:        r.display_name ? String(r.display_name) : null,
-      job_title:           r.job_title    ? String(r.job_title)    : null,
-      status:              r.status as 'Pending' | 'Approved' | 'Rejected' | 'Revoked',
+    return rows.map((r) => ({
+      user_email: String(r.user_email),
+      display_name: r.display_name ? String(r.display_name) : null,
+      job_title: r.job_title ? String(r.job_title) : null,
+      status: r.status as 'Pending' | 'Approved' | 'Rejected' | 'Revoked',
       requested_countries: r.requested_countries || [],
-      approved_countries:  r.approved_countries  || [],
-      requested_at:        r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),
-      reviewed_at:         r.reviewed_at  instanceof Date ? r.reviewed_at.toISOString()  : (r.reviewed_at  ?? null),
-      reviewed_by:         r.reviewed_by  ?? null,
-      notes:               r.notes        ?? null,
+      approved_countries: r.approved_countries || [],
+      requested_at:
+        r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),
+      reviewed_at:
+        r.reviewed_at instanceof Date ? r.reviewed_at.toISOString() : (r.reviewed_at ?? null),
+      reviewed_by: r.reviewed_by ?? null,
+      notes: r.notes ?? null,
     }));
   } catch (err) {
     log.error('getTiteAccessRequests.failed', err);
@@ -794,9 +838,7 @@ export async function getTitePendingCount(): Promise<number> {
 
 /* ─── getShipmentDocuments ────────────────────────────────────── */
 
-export async function getShipmentDocuments(
-  shipmentId: number,
-): Promise<ShipmentDocument[]> {
+export async function getShipmentDocuments(shipmentId: number): Promise<ShipmentDocument[]> {
   const user = await currentTiteUser();
   if (!isTiteApproved(user)) return [];
   try {
@@ -815,12 +857,13 @@ export async function uploadShipmentDocument(
 ): Promise<{ success: boolean; document?: ShipmentDocument; error?: string }> {
   const user = await requireTiteUser();
   try {
-    const uploadedBy   = user.name;
-    const shipmentId   = Number(formData.get('shipment_id'));
-    const stage        = (formData.get('stage') as string) || 'creation';
-    const file         = formData.get('file') as File | null;
-    const customName   = ((formData.get('custom_name') as string) || '').trim() || file?.name || 'Untitled';
-    const docType      = (formData.get('document_type') as string | null) || null;
+    const uploadedBy = user.name;
+    const shipmentId = Number(formData.get('shipment_id'));
+    const stage = (formData.get('stage') as string) || 'creation';
+    const file = formData.get('file') as File | null;
+    const customName =
+      ((formData.get('custom_name') as string) || '').trim() || file?.name || 'Untitled';
+    const docType = (formData.get('document_type') as string | null) || null;
 
     if (!file || !shipmentId || !Number.isFinite(shipmentId)) {
       return { success: false, error: 'Missing required fields.' };
@@ -832,18 +875,18 @@ export async function uploadShipmentDocument(
     /* Detect MIME from extension — more reliable than browser-reported file.type */
     const detectedMime = uploadMimeTypeFor(file.name, file.type);
 
-    const arrayBuf   = await file.arrayBuffer();
-    const buffer     = Buffer.from(arrayBuf);
-    const doc        = await dbInsertDocument({
-      shipment_id:    shipmentId,
-      document_name:  customName,
-      original_name:  file.name !== customName ? file.name : null,
-      document_type:  docType,
+    const arrayBuf = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuf);
+    const doc = await dbInsertDocument({
+      shipment_id: shipmentId,
+      document_name: customName,
+      original_name: file.name !== customName ? file.name : null,
+      document_type: docType,
       document_stage: stage as 'creation' | 'extension' | 'closure' | 'refund',
-      file_type:      detectedMime,
-      file_size:      file.size,
-      file_content:   buffer,
-      uploaded_by:    uploadedBy,
+      file_type: detectedMime,
+      file_size: file.size,
+      file_content: buffer,
+      uploaded_by: uploadedBy,
     });
 
     return { success: true, document: doc };
@@ -879,9 +922,7 @@ export async function deleteShipmentDocument(
 
 /* ─── getShipmentActivityLog ──────────────────────────────────── */
 
-export async function getShipmentActivityLog(
-  shipmentId: number,
-): Promise<ActivityLogRow[]> {
+export async function getShipmentActivityLog(shipmentId: number): Promise<ActivityLogRow[]> {
   const user = await currentTiteUser();
   if (!isTiteApproved(user)) return [];
   try {
@@ -912,11 +953,11 @@ export async function extendShipment(params: {
       shipment_id: params.shipmentId,
       fields: {
         extended_date: params.extendedDate,
-        status:        'Open - Extended',
-        alert_level:   newAlertLevel,
+        status: 'Open - Extended',
+        alert_level: newAlertLevel,
       },
-      action:       'extended',
-      details:      `Extended to ${params.extendedDate}${params.notes ? `. ${params.notes}` : ''}`,
+      action: 'extended',
+      details: `Extended to ${params.extendedDate}${params.notes ? `. ${params.notes}` : ''}`,
       performed_by: performer,
       performed_by_email: user.email,
     });
@@ -942,11 +983,11 @@ export async function closeShipment(params: {
     await dbUpdateShipmentWithLog({
       shipment_id: params.shipmentId,
       fields: {
-        status:      'Closed',
+        status: 'Closed',
         alert_level: 'closed',
       },
-      action:       'closed',
-      details:      `File closed${params.notes ? `. ${params.notes}` : ''}`,
+      action: 'closed',
+      details: `File closed${params.notes ? `. ${params.notes}` : ''}`,
       performed_by: performer,
       performed_by_email: user.email,
     });
@@ -972,11 +1013,11 @@ export async function markRefundReceived(params: {
     await dbUpdateShipmentWithLog({
       shipment_id: params.shipmentId,
       fields: {
-        status:      'Closed - Refund Recovered',
+        status: 'Closed - Refund Recovered',
         alert_level: 'closed',
       },
-      action:       'refund_received',
-      details:      `Customs refund recovered${params.notes ? `. ${params.notes}` : ''}`,
+      action: 'refund_received',
+      details: `Customs refund recovered${params.notes ? `. ${params.notes}` : ''}`,
       performed_by: performer,
       performed_by_email: user.email,
     });
@@ -990,16 +1031,16 @@ export async function markRefundReceived(params: {
 /* ─── updateShipmentStatus ────────────────────────────────────── */
 
 export async function updateShipmentStatus(params: {
-  shipmentId:       number;
-  newStatus:        string;
-  newExpiryDate?:   string | null;
-  extensionNotes?:  string | null;
-  closureNotes?:    string | null;
+  shipmentId: number;
+  newStatus: string;
+  newExpiryDate?: string | null;
+  extensionNotes?: string | null;
+  closureNotes?: string | null;
   refundAmountUsd?: number | null;
-  refundDate?:      string | null;
-  refundNotes?:     string | null;
-  depositUsd?:      number | null;
-  justification?:   string | null;
+  refundDate?: string | null;
+  refundNotes?: string | null;
+  depositUsd?: number | null;
+  justification?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
   const user = await requireTiteUser();
   try {
@@ -1020,7 +1061,7 @@ export async function updateShipmentStatus(params: {
     }
 
     const fields: Record<string, unknown> = {
-      status:          params.newStatus,
+      status: params.newStatus,
       last_updated_by: performer,
     };
 
@@ -1031,7 +1072,7 @@ export async function updateShipmentStatus(params: {
         return { success: false, error: 'New expiry date is required.' };
       }
       fields.extended_date = params.newExpiryDate;
-      fields.alert_level   = alertLevelFor(undefined, params.newExpiryDate, 'Open - Extended');
+      fields.alert_level = alertLevelFor(undefined, params.newExpiryDate, 'Open - Extended');
       detailLines.push(`New expiry: ${params.newExpiryDate}`);
       if (params.extensionNotes) detailLines.push(`Notes: ${params.extensionNotes}`);
     } else if (params.newStatus === 'Closed') {
@@ -1039,21 +1080,24 @@ export async function updateShipmentStatus(params: {
       if (params.closureNotes) detailLines.push(`Notes: ${params.closureNotes}`);
     } else if (params.newStatus === 'Closed - Refund Recovered') {
       fields.alert_level = 'closed';
-      const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
-      if (params.refundAmountUsd != null) detailLines.push(`Refund: ${fmt(params.refundAmountUsd)}`);
-      if (params.depositUsd      != null) detailLines.push(`Original deposit: ${fmt(params.depositUsd)}`);
-      if (params.justification)           detailLines.push(`Justification: ${params.justification}`);
-      if (params.refundDate)              detailLines.push(`Refund date: ${params.refundDate}`);
-      if (params.refundNotes)             detailLines.push(`Notes: ${params.refundNotes}`);
+      const fmt = (n: number) =>
+        new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+      if (params.refundAmountUsd != null)
+        detailLines.push(`Refund: ${fmt(params.refundAmountUsd)}`);
+      if (params.depositUsd != null)
+        detailLines.push(`Original deposit: ${fmt(params.depositUsd)}`);
+      if (params.justification) detailLines.push(`Justification: ${params.justification}`);
+      if (params.refundDate) detailLines.push(`Refund date: ${params.refundDate}`);
+      if (params.refundNotes) detailLines.push(`Notes: ${params.refundNotes}`);
     } else {
       return { success: false, error: 'Invalid status transition.' };
     }
 
     await dbUpdateShipmentWithLog({
-      shipment_id:  params.shipmentId,
+      shipment_id: params.shipmentId,
       fields,
-      action:       'Status Updated',
-      details:      detailLines.join('\n'),
+      action: 'Status Updated',
+      details: detailLines.join('\n'),
       performed_by: performer,
       performed_by_email: user.email,
     });
@@ -1067,9 +1111,7 @@ export async function updateShipmentStatus(params: {
 
 /* ─── getCountryStakeholders ──────────────────────────────────── */
 
-export async function getCountryStakeholders(
-  country: string,
-): Promise<CountryStakeholder[]> {
+export async function getCountryStakeholders(country: string): Promise<CountryStakeholder[]> {
   const user = await currentTiteUser();
   if (!isTiteApproved(user) || !canViewTiteCountry(user, country)) return [];
   try {
@@ -1176,10 +1218,7 @@ export async function toggleStakeholderActive(
 ): Promise<{ success: boolean; error?: string }> {
   await requireAdmin();
   try {
-    await titePool.query(
-      `UPDATE country_stakeholders SET active = $1 WHERE id = $2`,
-      [active, id],
-    );
+    await titePool.query(`UPDATE country_stakeholders SET active = $1 WHERE id = $2`, [active, id]);
     return { success: true };
   } catch (err) {
     log.error('toggleStakeholderActive.failed', err);
@@ -1246,17 +1285,17 @@ export async function getShipmentNotificationContacts(
 
 export async function saveNotificationContacts(params: {
   shipmentId: number;
-  contacts:   Array<{
+  contacts: Array<{
     email: string;
     name: string;
     role: string | null;
     notify_60_days?: boolean;
     notify_30_days?: boolean;
     notify_14_days?: boolean;
-    notify_7_days?:  boolean;
-    notify_2_days?:  boolean;
-    notify_1_day?:   boolean;
-    notify_0_day?:   boolean;
+    notify_7_days?: boolean;
+    notify_2_days?: boolean;
+    notify_1_day?: boolean;
+    notify_0_day?: boolean;
     notify_overdue?: boolean;
   }>;
 }): Promise<{ success: boolean; error?: string }> {
@@ -1272,10 +1311,9 @@ export async function saveNotificationContacts(params: {
        leave the shipment with NO recipients, so nobody is alerted before the
        customs deadline. */
     await withTransaction(titePool, async (client) => {
-      await client.query(
-        `DELETE FROM shipment_notification_contacts WHERE shipment_id = $1`,
-        [params.shipmentId],
-      );
+      await client.query(`DELETE FROM shipment_notification_contacts WHERE shipment_id = $1`, [
+        params.shipmentId,
+      ]);
 
       for (const c of params.contacts) {
         if (!c.email) continue;
@@ -1287,26 +1325,32 @@ export async function saveNotificationContacts(params: {
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
            ON CONFLICT DO NOTHING`,
           [
-            params.shipmentId, c.email, c.name || null, c.role || null,
+            params.shipmentId,
+            c.email,
+            c.name || null,
+            c.role || null,
             c.notify_60_days ?? true,
             c.notify_30_days ?? true,
             c.notify_14_days ?? true,
-            c.notify_7_days  ?? true,
-            c.notify_2_days  ?? true,
-            c.notify_1_day   ?? true,
-            c.notify_0_day   ?? true,
+            c.notify_7_days ?? true,
+            c.notify_2_days ?? true,
+            c.notify_1_day ?? true,
+            c.notify_0_day ?? true,
             c.notify_overdue ?? true,
           ],
         );
       }
 
-      await dbInsertActivityLog({
-        shipment_id:  params.shipmentId,
-        action:       'Notification Contacts Updated',
-        details:      `Updated ${params.contacts.length} recipient${params.contacts.length !== 1 ? 's' : ''}`,
-        performed_by: performer,
-        performed_by_email: user.email,
-      }, client);
+      await dbInsertActivityLog(
+        {
+          shipment_id: params.shipmentId,
+          action: 'Notification Contacts Updated',
+          details: `Updated ${params.contacts.length} recipient${params.contacts.length !== 1 ? 's' : ''}`,
+          performed_by: performer,
+          performed_by_email: user.email,
+        },
+        client,
+      );
     });
 
     return { success: true };
@@ -1345,9 +1389,7 @@ export interface RecentActivityRow {
  *    WHERE sal.performed_by_email IS NULL
  *      AND LOWER(TRIM(sal.performed_by)) = LOWER(TRIM(ar.display_name));
  */
-export async function getRecentActivity(
-  days: number = 7,
-): Promise<RecentActivityRow[]> {
+export async function getRecentActivity(days: number = 7): Promise<RecentActivityRow[]> {
   const user = await currentTiteUser();
   if (!isTiteApproved(user)) return [];
   try {

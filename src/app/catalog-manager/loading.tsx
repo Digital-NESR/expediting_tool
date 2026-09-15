@@ -22,7 +22,10 @@ export default function CatalogManagerLoading() {
         {/* stat cards */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+            <div
+              key={i}
+              className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm"
+            >
               <span className="absolute inset-x-0 top-0 h-1 bg-slate-100" />
               <div className="flex items-start justify-between">
                 <span className="skeleton-shimmer h-3 w-24 rounded" />
@@ -36,7 +39,10 @@ export default function CatalogManagerLoading() {
         {/* content panels */}
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="space-y-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+            <div
+              key={i}
+              className="space-y-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm"
+            >
               <span className="skeleton-shimmer h-4 w-36 rounded" />
               {[0, 1, 2, 3].map((j) => (
                 <div key={j} className="flex items-center gap-3">

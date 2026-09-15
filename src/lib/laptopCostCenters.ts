@@ -33,15 +33,20 @@ export const COST_CENTER_COMPANIES: CostCenterCompany[] = companyData.companies;
 export const COUNTRY_TO_COST_CENTER_COUNTRIES: Record<string, string[]> = companyData.countryMap;
 
 /** Companies available to a given requestor country (COUNTRY_OPTIONS value). */
-export function getCompaniesForRequestorCountry(requestorCountry: string | null | undefined): CostCenterCompany[] {
-  const excelCountries = (requestorCountry && COUNTRY_TO_COST_CENTER_COUNTRIES[requestorCountry]) || [];
+export function getCompaniesForRequestorCountry(
+  requestorCountry: string | null | undefined,
+): CostCenterCompany[] {
+  const excelCountries =
+    (requestorCountry && COUNTRY_TO_COST_CENTER_COUNTRIES[requestorCountry]) || [];
   if (!excelCountries.length) return [];
-  return COST_CENTER_COMPANIES.filter(c => c.countries.some(ctry => excelCountries.includes(ctry)));
+  return COST_CENTER_COMPANIES.filter((c) =>
+    c.countries.some((ctry) => excelCountries.includes(ctry)),
+  );
 }
 
 export function getCompanyByCode(code: string | null | undefined): CostCenterCompany | null {
   if (!code) return null;
-  return COST_CENTER_COMPANIES.find(c => c.code === code) ?? null;
+  return COST_CENTER_COMPANIES.find((c) => c.code === code) ?? null;
 }
 
 /**
@@ -54,6 +59,8 @@ export function findCostCenter(
   department: string | null | undefined,
 ): string | null {
   if (!departments || !department) return null;
-  const dept = departments.find(d => d.department.toLowerCase() === department.trim().toLowerCase());
+  const dept = departments.find(
+    (d) => d.department.toLowerCase() === department.trim().toLowerCase(),
+  );
   return dept?.costCenter ?? null;
 }

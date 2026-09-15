@@ -15,18 +15,22 @@ function httpsPost(url: string, payload: unknown): void {
   const req = https.request(
     {
       hostname: parsedUrl.hostname,
-      port:     parsedUrl.port || 443,
-      path:     parsedUrl.pathname,
-      method:   'POST',
+      port: parsedUrl.port || 443,
+      path: parsedUrl.pathname,
+      method: 'POST',
       headers: {
-        'Content-Type':   'application/json',
+        'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(data),
       },
       rejectUnauthorized: false,
     },
-    res => { console.log('Access notification webhook status:', res.statusCode); },
+    (res) => {
+      console.log('Access notification webhook status:', res.statusCode);
+    },
   );
-  req.on('error', err => { console.error('Access notification webhook failed:', err.message); });
+  req.on('error', (err) => {
+    console.error('Access notification webhook failed:', err.message);
+  });
   req.write(data);
   req.end();
 }
@@ -52,7 +56,7 @@ export async function getCountries(): Promise<string[]> {
       WHERE country IS NOT NULL AND country <> ''
       ORDER BY country ASC
     `);
-    return rows.map(r => String(r.country));
+    return rows.map((r) => String(r.country));
   } catch (err) {
     console.error('[getCountries]', err);
     return [];
@@ -61,9 +65,7 @@ export async function getCountries(): Promise<string[]> {
 
 /* ─── getCurrentAccessRequest ────────────────────────────────── */
 
-export async function getCurrentAccessRequest(
-  userEmail: string,
-): Promise<AccessRequest | null> {
+export async function getCurrentAccessRequest(userEmail: string): Promise<AccessRequest | null> {
   try {
     const { rows } = await pool.query(
       `SELECT user_email, status, requested_countries, approved_countries,
@@ -75,11 +77,12 @@ export async function getCurrentAccessRequest(
     if (rows.length === 0) return null;
     const r = rows[0];
     return {
-      user_email:          String(r.user_email),
-      status:              r.status as StoredAccessStatus,
+      user_email: String(r.user_email),
+      status: r.status as StoredAccessStatus,
       requested_countries: r.requested_countries || [],
-      approved_countries:  r.approved_countries  || [],
-      requested_at:        r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),
+      approved_countries: r.approved_countries || [],
+      requested_at:
+        r.requested_at instanceof Date ? r.requested_at.toISOString() : String(r.requested_at),
     };
   } catch (err) {
     console.error('[getCurrentAccessRequest]', err);
@@ -110,7 +113,7 @@ export async function submitAccessRequest(
     if (existing.rows[0]?.status === 'Approved') return { success: true };
 
     const session = await getServerSession(authOptions);
-    const jobTitle   = session?.user?.jobTitle   ?? null;
+    const jobTitle = session?.user?.jobTitle ?? null;
     const department = session?.user?.department ?? null;
 
     await pool.query(
@@ -128,8 +131,9 @@ export async function submitAccessRequest(
       [normalizedEmail, countries, displayName, jobTitle, department],
     );
     // Fire-and-forget admin notification email
-    sendAdminNotificationEmail(displayName, userEmail, jobTitle, countries)
-      .catch(err => console.error('Admin notification failed:', err));
+    sendAdminNotificationEmail(displayName, userEmail, jobTitle, countries).catch((err) =>
+      console.error('Admin notification failed:', err),
+    );
     return { success: true };
   } catch (err) {
     console.error('[submitAccessRequest]', err);
@@ -155,7 +159,7 @@ async function sendAdminNotificationEmail(
 
   if (adminEmails.length === 0) return;
 
-  const toRecipients = adminEmails.map(email => ({
+  const toRecipients = adminEmails.map((email) => ({
     emailAddress: { address: email },
   }));
 
@@ -230,8 +234,8 @@ export async function notifyAdmin(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        event:        'access_request',
-        user_email:   userEmail,
+        event: 'access_request',
+        user_email: userEmail,
         display_name: displayName,
         countries,
         requested_at: new Date().toISOString(),

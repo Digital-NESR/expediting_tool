@@ -3,10 +3,7 @@ import { currentTiteUser, isTiteApproved, canViewTiteCountry } from '@/lib/tite-
 import titePool from '@/lib/db-tite';
 import { fileDownloadResponse } from '@/lib/documents';
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await currentTiteUser();
   if (!user) {
     return new NextResponse('Unauthorized', { status: 401 });

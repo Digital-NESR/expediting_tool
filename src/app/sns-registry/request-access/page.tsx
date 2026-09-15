@@ -19,10 +19,5 @@ export default async function SnsRequestAccessPage() {
   // Already approved — nothing to request.
   if (viewer) redirect('/sns-registry');
 
-  return (
-    <RequestAccessClient
-      myRequest={myRequest}
-      countries={countries}
-    />
-  );
+  return <RequestAccessClient myRequest={myRequest} countries={countries} />;
 }

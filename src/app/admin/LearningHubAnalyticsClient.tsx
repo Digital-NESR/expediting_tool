@@ -1,7 +1,17 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { GraduationCap, Users, CheckCircle2, BookOpen, PlayCircle, Trophy, Medal, User, UsersRound } from 'lucide-react';
+import {
+  GraduationCap,
+  Users,
+  CheckCircle2,
+  BookOpen,
+  PlayCircle,
+  Trophy,
+  Medal,
+  User,
+  UsersRound,
+} from 'lucide-react';
 import type { LearningHubAnalytics, LhTrackAnalytics } from '@/types/learning-hub';
 
 const GREEN = '#307c4c';
@@ -44,7 +54,9 @@ export default function LearningHubAnalyticsClient({ data }: { data: LearningHub
       </div>
 
       {tab === 'overview' && <Overview data={data} onOpenTrack={(k) => setTab(`track:${k}`)} />}
-      {data.tracks.map((t) => (tab === `track:${t.key}` ? <TrackPanel key={t.key} track={t} /> : null))}
+      {data.tracks.map((t) =>
+        tab === `track:${t.key}` ? <TrackPanel key={t.key} track={t} /> : null,
+      )}
       {tab === 'redbull' && <RedBullPanel stats={data.redBull} />}
     </div>
   );
@@ -52,7 +64,17 @@ export default function LearningHubAnalyticsClient({ data }: { data: LearningHub
 
 /* ─── shared bits ─────────────────────────────────────────────── */
 
-function StatTile({ icon, label, value, sub }: { icon: ReactNode; label: string; value: string | number; sub?: string }) {
+function StatTile({
+  icon,
+  label,
+  value,
+  sub,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string | number;
+  sub?: string;
+}) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
       <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -70,24 +92,53 @@ function StatTile({ icon, label, value, sub }: { icon: ReactNode; label: string;
 function Bar({ pct, color = GREEN }: { pct: number; color?: string }) {
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-      <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: color }} />
+      <div
+        className="h-full rounded-full"
+        style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: color }}
+      />
     </div>
   );
 }
 
 /* ─── Overview ────────────────────────────────────────────────── */
 
-function Overview({ data, onOpenTrack }: { data: LearningHubAnalytics; onOpenTrack: (key: string) => void }) {
+function Overview({
+  data,
+  onOpenTrack,
+}: {
+  data: LearningHubAnalytics;
+  onOpenTrack: (key: string) => void;
+}) {
   const o = data.overview;
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatTile icon={<Users className="h-3.5 w-3.5" />} label="Learners" value={o.learners} />
-        <StatTile icon={<CheckCircle2 className="h-3.5 w-3.5" />} label="Lessons done" value={o.lessonCompletions} />
-        <StatTile icon={<Trophy className="h-3.5 w-3.5" />} label="Courses completed" value={o.courseCompletions} />
-        <StatTile icon={<GraduationCap className="h-3.5 w-3.5" />} label="Modules" value={o.trackCount} />
-        <StatTile icon={<BookOpen className="h-3.5 w-3.5" />} label="Courses" value={o.courseCount} />
-        <StatTile icon={<PlayCircle className="h-3.5 w-3.5" />} label="Lessons" value={o.lessonCount} />
+        <StatTile
+          icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+          label="Lessons done"
+          value={o.lessonCompletions}
+        />
+        <StatTile
+          icon={<Trophy className="h-3.5 w-3.5" />}
+          label="Courses completed"
+          value={o.courseCompletions}
+        />
+        <StatTile
+          icon={<GraduationCap className="h-3.5 w-3.5" />}
+          label="Modules"
+          value={o.trackCount}
+        />
+        <StatTile
+          icon={<BookOpen className="h-3.5 w-3.5" />}
+          label="Courses"
+          value={o.courseCount}
+        />
+        <StatTile
+          icon={<PlayCircle className="h-3.5 w-3.5" />}
+          label="Lessons"
+          value={o.lessonCount}
+        />
       </div>
 
       <section>
@@ -107,10 +158,17 @@ function Overview({ data, onOpenTrack }: { data: LearningHubAnalytics; onOpenTra
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {data.tracks.map((t) => (
-                  <tr key={t.key} className="cursor-pointer hover:bg-slate-50" onClick={() => onOpenTrack(t.key)}>
+                  <tr
+                    key={t.key}
+                    className="cursor-pointer hover:bg-slate-50"
+                    onClick={() => onOpenTrack(t.key)}
+                  >
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-2 font-semibold text-slate-900">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: t.color || GREEN }} />
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ background: t.color || GREEN }}
+                        />
                         {t.name}
                       </span>
                     </td>
@@ -118,17 +176,26 @@ function Overview({ data, onOpenTrack }: { data: LearningHubAnalytics; onOpenTra
                     <td className="px-4 py-3 text-right text-slate-700">{t.courses.length}</td>
                     <td className="px-4 py-3 text-right text-slate-700">{t.lessonCount}</td>
                     <td className="px-4 py-3 text-right text-slate-700">{t.lessonCompletions}</td>
-                    <td className="px-4 py-3 text-right font-semibold" style={{ color: GREEN }}>{t.completedLearners}</td>
+                    <td className="px-4 py-3 text-right font-semibold" style={{ color: GREEN }}>
+                      {t.completedLearners}
+                    </td>
                   </tr>
                 ))}
                 {data.tracks.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No modules yet.</td></tr>
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                      No modules yet.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
           </div>
         </div>
-        <p className="mt-2 text-xs text-slate-400">Click a module to see its courses. &ldquo;Learners&rdquo; = people with at least one lesson completed.</p>
+        <p className="mt-2 text-xs text-slate-400">
+          Click a module to see its courses. &ldquo;Learners&rdquo; = people with at least one
+          lesson completed.
+        </p>
       </section>
     </div>
   );
@@ -140,10 +207,26 @@ function TrackPanel({ track }: { track: LhTrackAnalytics }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile icon={<Users className="h-3.5 w-3.5" />} label="Learners" value={track.learners} />
-        <StatTile icon={<BookOpen className="h-3.5 w-3.5" />} label="Courses" value={track.courses.length} />
-        <StatTile icon={<PlayCircle className="h-3.5 w-3.5" />} label="Lessons" value={track.lessonCount} />
-        <StatTile icon={<CheckCircle2 className="h-3.5 w-3.5" />} label="Lessons done" value={track.lessonCompletions} />
+        <StatTile
+          icon={<Users className="h-3.5 w-3.5" />}
+          label="Learners"
+          value={track.learners}
+        />
+        <StatTile
+          icon={<BookOpen className="h-3.5 w-3.5" />}
+          label="Courses"
+          value={track.courses.length}
+        />
+        <StatTile
+          icon={<PlayCircle className="h-3.5 w-3.5" />}
+          label="Lessons"
+          value={track.lessonCount}
+        />
+        <StatTile
+          icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+          label="Lessons done"
+          value={track.lessonCompletions}
+        />
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -164,7 +247,9 @@ function TrackPanel({ track }: { track: LhTrackAnalytics }) {
                   <td className="px-4 py-3">
                     <span className="font-semibold text-slate-900">{c.title}</span>
                     {c.status !== 'published' && (
-                      <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{c.status}</span>
+                      <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        {c.status}
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right text-slate-700">{c.lessonCount}</td>
@@ -172,20 +257,31 @@ function TrackPanel({ track }: { track: LhTrackAnalytics }) {
                   <td className="px-4 py-3 text-right text-slate-700">{c.completedLearners}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <div className="flex-1"><Bar pct={c.completionPct} color={track.color || GREEN} /></div>
-                      <span className="w-9 text-right text-xs font-semibold text-slate-600">{c.completionPct}%</span>
+                      <div className="flex-1">
+                        <Bar pct={c.completionPct} color={track.color || GREEN} />
+                      </div>
+                      <span className="w-9 text-right text-xs font-semibold text-slate-600">
+                        {c.completionPct}%
+                      </span>
                     </div>
                   </td>
                 </tr>
               ))}
               {track.courses.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No courses in this module.</td></tr>
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                    No courses in this module.
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
-      <p className="text-xs text-slate-400">&ldquo;Completed&rdquo; = learners who finished every lesson in the course. Completion % is of learners who started it.</p>
+      <p className="text-xs text-slate-400">
+        &ldquo;Completed&rdquo; = learners who finished every lesson in the course. Completion % is
+        of learners who started it.
+      </p>
     </div>
   );
 }
@@ -193,7 +289,11 @@ function TrackPanel({ track }: { track: LhTrackAnalytics }) {
 /* ─── Red Bull game ───────────────────────────────────────────── */
 
 function runLabel(e: { role: string | null; pattern: string | null; weeks: number | null }) {
-  const parts = [e.role, e.pattern ? `${e.pattern} demand` : null, e.weeks ? `${e.weeks} wks` : null].filter(Boolean);
+  const parts = [
+    e.role,
+    e.pattern ? `${e.pattern} demand` : null,
+    e.weeks ? `${e.weeks} wks` : null,
+  ].filter(Boolean);
   return parts.length ? parts.join(' · ') : '-';
 }
 
@@ -201,12 +301,38 @@ function RedBullPanel({ stats }: { stats: LearningHubAnalytics['redBull'] }) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatTile icon={<PlayCircle className="h-3.5 w-3.5" />} label="Total plays" value={stats.totalPlays} />
-        <StatTile icon={<Users className="h-3.5 w-3.5" />} label="Players" value={stats.uniquePlayers} />
-        <StatTile icon={<Trophy className="h-3.5 w-3.5" />} label="Best score" value={stats.bestScore ?? '—'} sub={stats.bestScore == null ? undefined : '/ 100'} />
-        <StatTile icon={<CheckCircle2 className="h-3.5 w-3.5" />} label="Average" value={stats.avgScore ?? '—'} sub={stats.avgScore == null ? undefined : '/ 100'} />
-        <StatTile icon={<User className="h-3.5 w-3.5" />} label="Solo runs" value={stats.soloPlays} />
-        <StatTile icon={<UsersRound className="h-3.5 w-3.5" />} label="Team runs" value={stats.teamPlays} />
+        <StatTile
+          icon={<PlayCircle className="h-3.5 w-3.5" />}
+          label="Total plays"
+          value={stats.totalPlays}
+        />
+        <StatTile
+          icon={<Users className="h-3.5 w-3.5" />}
+          label="Players"
+          value={stats.uniquePlayers}
+        />
+        <StatTile
+          icon={<Trophy className="h-3.5 w-3.5" />}
+          label="Best score"
+          value={stats.bestScore ?? '—'}
+          sub={stats.bestScore == null ? undefined : '/ 100'}
+        />
+        <StatTile
+          icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+          label="Average"
+          value={stats.avgScore ?? '—'}
+          sub={stats.avgScore == null ? undefined : '/ 100'}
+        />
+        <StatTile
+          icon={<User className="h-3.5 w-3.5" />}
+          label="Solo runs"
+          value={stats.soloPlays}
+        />
+        <StatTile
+          icon={<UsersRound className="h-3.5 w-3.5" />}
+          label="Team runs"
+          value={stats.teamPlays}
+        />
       </div>
 
       <section>
@@ -215,7 +341,9 @@ function RedBullPanel({ stats }: { stats: LearningHubAnalytics['redBull'] }) {
         </h3>
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           {stats.top.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-slate-500">No games recorded yet.</div>
+            <div className="px-5 py-10 text-center text-sm text-slate-500">
+              No games recorded yet.
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[520px] border-collapse text-sm">
@@ -233,13 +361,20 @@ function RedBullPanel({ stats }: { stats: LearningHubAnalytics['redBull'] }) {
                     <tr key={`${e.rank}-${e.player_name}`}>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1.5 font-bold text-slate-700">
-                          {e.rank <= 3 ? <Medal className="h-4 w-4" style={{ color: ['#C9A227', '#9AA0A6', '#B08D57'][e.rank - 1] }} /> : null}
+                          {e.rank <= 3 ? (
+                            <Medal
+                              className="h-4 w-4"
+                              style={{ color: ['#C9A227', '#9AA0A6', '#B08D57'][e.rank - 1] }}
+                            />
+                          ) : null}
                           {e.rank}
                         </span>
                       </td>
                       <td className="px-4 py-3 font-semibold text-slate-900">{e.player_name}</td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-base font-bold" style={{ color: GREEN }}>{e.score}</span>
+                        <span className="text-base font-bold" style={{ color: GREEN }}>
+                          {e.score}
+                        </span>
                         <span className="text-xs text-slate-400"> / 100</span>
                       </td>
                       <td className="px-4 py-3 text-slate-600">{e.grade || '-'}</td>

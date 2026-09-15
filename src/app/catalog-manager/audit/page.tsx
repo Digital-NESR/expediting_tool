@@ -1,5 +1,9 @@
 import type { Metadata } from 'next';
-import { getAuditLog, getCatalogActor, getPendingApprovalCount } from '@/app/actions/catalog-manager';
+import {
+  getAuditLog,
+  getCatalogActor,
+  getPendingApprovalCount,
+} from '@/app/actions/catalog-manager';
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import AuditClient from './AuditClient';
 

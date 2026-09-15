@@ -85,9 +85,9 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
        only the POs still open — the join silently dropped every line whose PO had
        since closed, so completed work vanished from these totals. */
     const [kpiRes, supplierRes, sessionsRes, weeklyRes, responseTimeRes] = await Promise.all([
-
       /* ── KPI block ── */
-      pool.query(`
+      pool.query(
+        `
         SELECT
           (SELECT COUNT(*)
              FROM active_expediting
@@ -105,10 +105,13 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
              COUNT(CASE WHEN workflow_state = 'Submitted' THEN 1 END) * 100.0
                / NULLIF(COUNT(*), 0), 1
            ) FROM active_expediting WHERE LOWER(dispatched_by) = $1) AS response_rate
-      `, [userEmail]),
+      `,
+        [userEmail],
+      ),
 
       /* ── My supplier breakdown ── */
-      pool.query(`
+      pool.query(
+        `
         SELECT
           ae.supplier_name,
           COUNT(DISTINCT ae.expedite_token)                                      AS times_expedited,
@@ -123,10 +126,13 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
         WHERE LOWER(ae.dispatched_by) = $1
         GROUP BY ae.supplier_name
         ORDER BY response_rate DESC NULLS LAST
-      `, [userEmail]),
+      `,
+        [userEmail],
+      ),
 
       /* ── My recent sessions ── */
-      pool.query(`
+      pool.query(
+        `
         SELECT
           session_ref,
           dispatched_at,
@@ -140,10 +146,13 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
         WHERE LOWER(dispatched_by) = $1
         ORDER BY dispatched_at DESC
         LIMIT 20
-      `, [userEmail]),
+      `,
+        [userEmail],
+      ),
 
       /* ── Weekly expediting vs responses trend ── */
-      pool.query(`
+      pool.query(
+        `
         SELECT
           DATE_TRUNC('week', dispatched_at)  AS week,
           SUM(total_po_lines)                AS lines_expedited,
@@ -154,12 +163,15 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
         WHERE LOWER(dispatched_by) = $1
         GROUP BY DATE_TRUNC('week', dispatched_at)
         ORDER BY week ASC
-      `, [userEmail]),
+      `,
+        [userEmail],
+      ),
 
       /* ── My avg response time by supplier ──
          responded_at, not updated_at: saveBuyerComment also bumps updated_at, so
          every buyer note used to shorten the supplier's apparent turnaround. */
-      pool.query(`
+      pool.query(
+        `
         SELECT
           ae.supplier_name,
           ROUND(AVG(
@@ -173,49 +185,51 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
           AND ae.responded_at IS NOT NULL
         GROUP BY ae.supplier_name
         ORDER BY avg_days_to_respond ASC
-      `, [userEmail]),
+      `,
+        [userEmail],
+      ),
     ]);
 
     const kpi = kpiRes.rows[0] ?? {};
 
     return {
-      totalLinesExpedited:     Number(kpi.total_lines ?? 0),
+      totalLinesExpedited: Number(kpi.total_lines ?? 0),
       totalSuppliersContacted: Number(kpi.total_suppliers ?? 0),
-      totalEmailsSent:         Number(kpi.total_emails ?? 0),
-      overallResponseRate:     kpi.response_rate != null ? Number(kpi.response_rate) : null,
+      totalEmailsSent: Number(kpi.total_emails ?? 0),
+      overallResponseRate: kpi.response_rate != null ? Number(kpi.response_rate) : null,
 
-      supplierBreakdown: supplierRes.rows.map(r => ({
-        supplier_name:   String(r.supplier_name ?? ''),
+      supplierBreakdown: supplierRes.rows.map((r) => ({
+        supplier_name: String(r.supplier_name ?? ''),
         times_expedited: Number(r.times_expedited ?? 0),
-        total_lines:     Number(r.total_lines ?? 0),
+        total_lines: Number(r.total_lines ?? 0),
         lines_responded: Number(r.lines_responded ?? 0),
-        response_rate:   r.response_rate != null ? Number(r.response_rate) : null,
-        last_response:   toStr(r.last_response),
+        response_rate: r.response_rate != null ? Number(r.response_rate) : null,
+        last_response: toStr(r.last_response),
       })),
 
-      recentSessions: sessionsRes.rows.map(r => ({
-        session_ref:         String(r.session_ref ?? ''),
-        dispatched_at:       toStr(r.dispatched_at) ?? '',
-        total_suppliers:     Number(r.total_suppliers ?? 0),
-        total_po_lines:      Number(r.total_po_lines ?? 0),
-        total_emails_sent:   Number(r.total_emails_sent ?? 0),
+      recentSessions: sessionsRes.rows.map((r) => ({
+        session_ref: String(r.session_ref ?? ''),
+        dispatched_at: toStr(r.dispatched_at) ?? '',
+        total_suppliers: Number(r.total_suppliers ?? 0),
+        total_po_lines: Number(r.total_po_lines ?? 0),
+        total_emails_sent: Number(r.total_emails_sent ?? 0),
         suppliers_responded: r.suppliers_responded != null ? Number(r.suppliers_responded) : null,
-        response_rate_pct:   r.response_rate_pct != null ? Number(r.response_rate_pct) : null,
-        fully_closed:        r.fully_closed != null ? Boolean(r.fully_closed) : null,
+        response_rate_pct: r.response_rate_pct != null ? Number(r.response_rate_pct) : null,
+        fully_closed: r.fully_closed != null ? Boolean(r.fully_closed) : null,
       })),
 
-      weeklyRateData: weeklyRes.rows.map(r => ({
-        week:              toStr(r.week) ?? '',
-        lines_expedited:   Number(r.lines_expedited ?? 0),
-        lines_responded:   Number(r.lines_responded ?? 0),
+      weeklyRateData: weeklyRes.rows.map((r) => ({
+        week: toStr(r.week) ?? '',
+        lines_expedited: Number(r.lines_expedited ?? 0),
+        lines_responded: Number(r.lines_responded ?? 0),
         avg_response_rate: r.avg_response_rate != null ? Number(r.avg_response_rate) : null,
-        sessions_count:    Number(r.sessions_count ?? 0),
+        sessions_count: Number(r.sessions_count ?? 0),
       })),
 
-      supplierResponseTime: responseTimeRes.rows.map(r => ({
-        supplier_name:       String(r.supplier_name ?? ''),
+      supplierResponseTime: responseTimeRes.rows.map((r) => ({
+        supplier_name: String(r.supplier_name ?? ''),
         avg_days_to_respond: Number(r.avg_days_to_respond ?? 0),
-        responses_count:     Number(r.responses_count ?? 0),
+        responses_count: Number(r.responses_count ?? 0),
       })),
     };
   } catch (err) {
@@ -244,9 +258,7 @@ export interface SupplierDetailLine {
   sap_delivery_code: string | null;
 }
 
-export async function getSupplierDetail(
-  supplierName: string,
-): Promise<SupplierDetailLine[]> {
+export async function getSupplierDetail(supplierName: string): Promise<SupplierDetailLine[]> {
   const toStr = (v: unknown): string | null => {
     if (v === null || v === undefined) return null;
     if (v instanceof Date) return v.toISOString();
@@ -262,7 +274,8 @@ export async function getSupplierDetail(
        two fields that are not snapshotted. The old INNER JOIN on s.supplier_name
        hid every line whose PO had since closed, so this drill-down showed fewer
        lines than the supplier row that opened it. */
-    const res = await pool.query(`
+    const res = await pool.query(
+      `
       SELECT
         ae.po_number,
         ae.po_line,
@@ -285,24 +298,26 @@ export async function getSupplierDetail(
       WHERE COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name) = $1
         AND LOWER(ae.dispatched_by) = $2
       ORDER BY ae.po_number, ae.po_line
-    `, [supplierName, userEmail]);
+    `,
+      [supplierName, userEmail],
+    );
 
-    return res.rows.map(r => ({
-      po_number:             String(r.po_number ?? ''),
-      po_line:               String(r.po_line ?? ''),
-      expedite_token:        String(r.expedite_token ?? ''),
-      workflow_state:        String(r.workflow_state ?? ''),
-      current_status:        toStr(r.current_status),
-      new_delivery_date:     toStr(r.new_delivery_date),
-      supplier_comments:     toStr(r.supplier_comments),
-      buyer_comments:        toStr(r.buyer_comments),
-      dispatched_at:         toStr(r.dispatched_at) ?? '',
-      item_description:      toStr(r.item_description),
-      sap_mat_id:            toStr(r.sap_mat_id),
-      open_qty:              r.open_qty != null ? Number(r.open_qty) : null,
-      open_po_value_usd:     r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
+    return res.rows.map((r) => ({
+      po_number: String(r.po_number ?? ''),
+      po_line: String(r.po_line ?? ''),
+      expedite_token: String(r.expedite_token ?? ''),
+      workflow_state: String(r.workflow_state ?? ''),
+      current_status: toStr(r.current_status),
+      new_delivery_date: toStr(r.new_delivery_date),
+      supplier_comments: toStr(r.supplier_comments),
+      buyer_comments: toStr(r.buyer_comments),
+      dispatched_at: toStr(r.dispatched_at) ?? '',
+      item_description: toStr(r.item_description),
+      sap_mat_id: toStr(r.sap_mat_id),
+      open_qty: r.open_qty != null ? Number(r.open_qty) : null,
+      open_po_value_usd: r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
       original_delivery_date: toStr(r.original_delivery_date),
-      sap_delivery_code:     toStr(r.sap_delivery_code),
+      sap_delivery_code: toStr(r.sap_delivery_code),
     }));
   } catch (err) {
     console.error('[getSupplierDetail]', err);
@@ -330,9 +345,7 @@ export interface SessionDetailLine {
   sap_delivery_code: string | null;
 }
 
-export async function getSessionDetail(
-  sessionRef: string,
-): Promise<SessionDetailLine[]> {
+export async function getSessionDetail(sessionRef: string): Promise<SessionDetailLine[]> {
   const toStr = (v: unknown): string | null => {
     if (v === null || v === undefined) return null;
     if (v instanceof Date) return v.toISOString();
@@ -344,7 +357,8 @@ export async function getSessionDetail(
   const userEmail = actor.email;
   try {
     await ensureActiveExpeditingColumns();
-    const res = await pool.query(`
+    const res = await pool.query(
+      `
       SELECT
         ae.po_number,
         ae.po_line,
@@ -368,24 +382,26 @@ export async function getSessionDetail(
         AND LOWER(ae.dispatched_by) = $2
       ORDER BY COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name, 'Unknown Supplier'),
                ae.po_number, ae.po_line
-    `, [sessionRef, userEmail]);
+    `,
+      [sessionRef, userEmail],
+    );
 
-    return res.rows.map(r => ({
-      po_number:             String(r.po_number ?? ''),
-      po_line:               String(r.po_line ?? ''),
-      workflow_state:        String(r.workflow_state ?? ''),
-      current_status:        toStr(r.current_status),
-      new_delivery_date:     toStr(r.new_delivery_date),
-      supplier_comments:     toStr(r.supplier_comments),
-      buyer_comments:        toStr(r.buyer_comments),
-      expedite_token:        String(r.expedite_token ?? ''),
-      supplier_name:         String(r.supplier_name ?? ''),
-      item_description:      toStr(r.item_description),
-      sap_mat_id:            toStr(r.sap_mat_id),
-      open_qty:              r.open_qty != null ? Number(r.open_qty) : null,
-      open_po_value_usd:     r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
+    return res.rows.map((r) => ({
+      po_number: String(r.po_number ?? ''),
+      po_line: String(r.po_line ?? ''),
+      workflow_state: String(r.workflow_state ?? ''),
+      current_status: toStr(r.current_status),
+      new_delivery_date: toStr(r.new_delivery_date),
+      supplier_comments: toStr(r.supplier_comments),
+      buyer_comments: toStr(r.buyer_comments),
+      expedite_token: String(r.expedite_token ?? ''),
+      supplier_name: String(r.supplier_name ?? ''),
+      item_description: toStr(r.item_description),
+      sap_mat_id: toStr(r.sap_mat_id),
+      open_qty: r.open_qty != null ? Number(r.open_qty) : null,
+      open_po_value_usd: r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
       original_delivery_date: toStr(r.original_delivery_date),
-      sap_delivery_code:     toStr(r.sap_delivery_code),
+      sap_delivery_code: toStr(r.sap_delivery_code),
     }));
   } catch (err) {
     console.error('[getSessionDetail]', err);

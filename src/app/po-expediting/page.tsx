@@ -12,25 +12,25 @@ import { SquareCheckbox } from '@/components/SquareCheckbox';
 const PAGE_SIZE = 50;
 
 const deliveryStatusMap: Record<string, string> = {
-  "DS01": "DS01 - PO Copy Not Received",
-  "DS02": "DS02 - PO Rejected",
-  "DS03": "DS03 - PO Pending Revision",
-  "DS04": "DS04 - PO Acknowledged - Delivery On Time",
-  "DS05": "DS05 - PO Acknowledged - Delivery Delay",
-  "DS06": "DS06 - Delivery On Hold - Pending Import Permit",
-  "DS07": "DS07 - PO Acknowledged - No response",
-  "DS08": "DS08 - Delivery On Hold - Pending LC",
-  "DS09": "DS09 - Delivery On Hold - Pending Advance Payment",
-  "DS10": "DS10 - Delivery On-Hold - Payment Issues",
-  "DS11": "DS11 - Delivery On Hold - Others",
-  "DS12": "DS12 - Delivered & Invoiced",
-  "DS13": "DS13 - Service Ongoing",
-  "DS14": "DS14 - Service Completed",
-  "DS15": "DS15 - Shipped - In Transit",
-  "DS16": "DS16 - Ready for Collection",
-  "DS17": "DS17 - Collected by Freight Forwarder",
-  "DS18": "DS18 - Customs Clearance",
-  "DS19": "DS19 - Products Delivered to Base"
+  DS01: 'DS01 - PO Copy Not Received',
+  DS02: 'DS02 - PO Rejected',
+  DS03: 'DS03 - PO Pending Revision',
+  DS04: 'DS04 - PO Acknowledged - Delivery On Time',
+  DS05: 'DS05 - PO Acknowledged - Delivery Delay',
+  DS06: 'DS06 - Delivery On Hold - Pending Import Permit',
+  DS07: 'DS07 - PO Acknowledged - No response',
+  DS08: 'DS08 - Delivery On Hold - Pending LC',
+  DS09: 'DS09 - Delivery On Hold - Pending Advance Payment',
+  DS10: 'DS10 - Delivery On-Hold - Payment Issues',
+  DS11: 'DS11 - Delivery On Hold - Others',
+  DS12: 'DS12 - Delivered & Invoiced',
+  DS13: 'DS13 - Service Ongoing',
+  DS14: 'DS14 - Service Completed',
+  DS15: 'DS15 - Shipped - In Transit',
+  DS16: 'DS16 - Ready for Collection',
+  DS17: 'DS17 - Collected by Freight Forwarder',
+  DS18: 'DS18 - Customs Clearance',
+  DS19: 'DS19 - Products Delivered to Base',
 };
 
 /* ─── Types ───────────────────────────────────────────────── */
@@ -76,11 +76,7 @@ function formatMatId(
   accountType: string | null | undefined,
 ): React.ReactNode {
   if (matId?.trim()) return matId;
-  return (
-    <span className="text-gray-400 italic text-xs">
-      {accountType?.trim() || 'N/A'}
-    </span>
-  );
+  return <span className="text-gray-400 italic text-xs">{accountType?.trim() || 'N/A'}</span>;
 }
 
 function daysDiff(raw: string | null | undefined): number {
@@ -91,9 +87,11 @@ function daysDiff(raw: string | null | undefined): number {
 }
 
 function compareValues(a: string, b: string): number {
-  const na = Number(a); const nb = Number(b);
+  const na = Number(a);
+  const nb = Number(b);
   if (!isNaN(na) && !isNaN(nb)) return na - nb;
-  const da = new Date(a).getTime(); const db = new Date(b).getTime();
+  const da = new Date(a).getTime();
+  const db = new Date(b).getTime();
   if (!isNaN(da) && !isNaN(db)) return da - db;
   return a.localeCompare(b);
 }
@@ -110,10 +108,18 @@ function rowMatchesSearch(r: PurchaseOrder, term: string): boolean {
   if (!term) return true;
   const t = term.toLowerCase();
   return (
-    String(r['PO Number'] ?? '').toLowerCase().includes(t) ||
-    String(r['Supplier Name'] ?? '').toLowerCase().includes(t) ||
-    String(r['Supplier ID'] ?? '').toLowerCase().includes(t) ||
-    String(r['SAP MAT ID'] ?? '').toLowerCase().includes(t)
+    String(r['PO Number'] ?? '')
+      .toLowerCase()
+      .includes(t) ||
+    String(r['Supplier Name'] ?? '')
+      .toLowerCase()
+      .includes(t) ||
+    String(r['Supplier ID'] ?? '')
+      .toLowerCase()
+      .includes(t) ||
+    String(r['SAP MAT ID'] ?? '')
+      .toLowerCase()
+      .includes(t)
   );
 }
 
@@ -123,14 +129,32 @@ function rowMatchesAccountType(r: PurchaseOrder, types: string[]): boolean {
   return types.includes(desc);
 }
 
-
 /* ─── Delivery Status Badge ───────────────────────────────── */
 function DeliveryBadge({ raw }: { raw: string | null | undefined }) {
   const diff = daysDiff(raw);
-  if (!raw) return <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-500">—</span>;
-  if (diff < 0) return <span className="bg-red-100/80 border border-red-200 text-red-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">Past Due</span>;
-  if (diff <= 7) return <span className="bg-amber-100/80 border border-amber-200 text-amber-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">Due Soon</span>;
-  return <span className="bg-[#307c4c]/10 border border-[#307c4c]/20 text-[#307c4c] text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">On Track</span>;
+  if (!raw)
+    return (
+      <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium border border-slate-200 text-slate-500">
+        —
+      </span>
+    );
+  if (diff < 0)
+    return (
+      <span className="bg-red-100/80 border border-red-200 text-red-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">
+        Past Due
+      </span>
+    );
+  if (diff <= 7)
+    return (
+      <span className="bg-amber-100/80 border border-amber-200 text-amber-700 text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">
+        Due Soon
+      </span>
+    );
+  return (
+    <span className="bg-[#307c4c]/10 border border-[#307c4c]/20 text-[#307c4c] text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap">
+      On Track
+    </span>
+  );
 }
 
 /* ─── PO-level status + DS helpers ───────────────────────── */
@@ -141,7 +165,9 @@ interface StatusSummary {
 }
 
 function getPOStatusSummary(lines: PurchaseOrder[]): StatusSummary {
-  let pastDue = 0, dueSoon = 0, onTrack = 0;
+  let pastDue = 0,
+    dueSoon = 0,
+    onTrack = 0;
   for (const line of lines) {
     const diff = daysDiff(line['Delivery Date']);
     if (diff < 0) pastDue++;
@@ -149,8 +175,11 @@ function getPOStatusSummary(lines: PurchaseOrder[]): StatusSummary {
     else onTrack++;
   }
   const majority =
-    pastDue >= dueSoon && pastDue >= onTrack ? 'PAST DUE' :
-    dueSoon >= onTrack ? 'DUE SOON' : 'ON TRACK';
+    pastDue >= dueSoon && pastDue >= onTrack
+      ? 'PAST DUE'
+      : dueSoon >= onTrack
+        ? 'DUE SOON'
+        : 'ON TRACK';
   return { majority, breakdown: { pastDue, dueSoon, onTrack } };
 }
 
@@ -161,8 +190,7 @@ function getPOMajorityDSCode(lines: PurchaseOrder[]): string | null {
     if (code) counts[code] = (counts[code] || 0) + 1;
   }
   if (Object.keys(counts).length === 0) return null;
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+  return Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
 }
 
 /* ─── Status Tooltip Badge ────────────────────────────────── */
@@ -171,37 +199,57 @@ function StatusTooltipBadge({ majority, breakdown }: StatusSummary) {
   const [visible, setVisible] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const show = () => { timer.current = setTimeout(() => setVisible(true), 150); };
-  const hide = () => { if (timer.current) clearTimeout(timer.current); setVisible(false); };
+  const show = () => {
+    timer.current = setTimeout(() => setVisible(true), 150);
+  };
+  const hide = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setVisible(false);
+  };
 
   const parts: string[] = [];
   if (breakdown.pastDue > 0) parts.push(`${breakdown.pastDue} Past Due`);
   if (breakdown.dueSoon > 0) parts.push(`${breakdown.dueSoon} Due Soon`);
   if (breakdown.onTrack > 0) parts.push(`${breakdown.onTrack} On Track`);
 
-  const label = majority === 'PAST DUE' ? 'Past Due' : majority === 'DUE SOON' ? 'Due Soon' : 'On Track';
-  const badgeCls = majority === 'PAST DUE'
-    ? 'bg-red-100/80 border border-red-200 text-red-700'
-    : majority === 'DUE SOON'
-    ? 'bg-amber-100/80 border border-amber-200 text-amber-700'
-    : 'bg-[#307c4c]/10 border border-[#307c4c]/20 text-[#307c4c]';
+  const label =
+    majority === 'PAST DUE' ? 'Past Due' : majority === 'DUE SOON' ? 'Due Soon' : 'On Track';
+  const badgeCls =
+    majority === 'PAST DUE'
+      ? 'bg-red-100/80 border border-red-200 text-red-700'
+      : majority === 'DUE SOON'
+        ? 'bg-amber-100/80 border border-amber-200 text-amber-700'
+        : 'bg-[#307c4c]/10 border border-[#307c4c]/20 text-[#307c4c]';
 
   return (
     <div className="relative inline-block" onMouseEnter={show} onMouseLeave={hide}>
-      <span className={`${badgeCls} text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap cursor-default select-none`}>
+      <span
+        className={`${badgeCls} text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap cursor-default select-none`}
+      >
         {label}
       </span>
       {visible && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none select-none">
           <div
             className="text-white whitespace-nowrap"
-            style={{ background: '#1f2937', fontSize: '12px', padding: '6px 10px', borderRadius: '6px' }}
+            style={{
+              background: '#1f2937',
+              fontSize: '12px',
+              padding: '6px 10px',
+              borderRadius: '6px',
+            }}
           >
             {parts.join(' · ')}
           </div>
           <div
             className="absolute top-full left-1/2 -translate-x-1/2"
-            style={{ width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1f2937' }}
+            style={{
+              width: 0,
+              height: 0,
+              borderLeft: '5px solid transparent',
+              borderRight: '5px solid transparent',
+              borderTop: '5px solid #1f2937',
+            }}
           />
         </div>
       )}
@@ -215,8 +263,13 @@ function DSTooltipBadge({ code }: { code: string }) {
   const [visible, setVisible] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const show = () => { timer.current = setTimeout(() => setVisible(true), 150); };
-  const hide = () => { if (timer.current) clearTimeout(timer.current); setVisible(false); };
+  const show = () => {
+    timer.current = setTimeout(() => setVisible(true), 150);
+  };
+  const hide = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setVisible(false);
+  };
 
   const description = DS_DESCRIPTIONS[code];
 
@@ -229,13 +282,24 @@ function DSTooltipBadge({ code }: { code: string }) {
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none select-none">
           <div
             className="text-white whitespace-nowrap"
-            style={{ background: '#1f2937', fontSize: '12px', padding: '6px 10px', borderRadius: '6px' }}
+            style={{
+              background: '#1f2937',
+              fontSize: '12px',
+              padding: '6px 10px',
+              borderRadius: '6px',
+            }}
           >
             {description}
           </div>
           <div
             className="absolute top-full left-1/2 -translate-x-1/2"
-            style={{ width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1f2937' }}
+            style={{
+              width: 0,
+              height: 0,
+              borderLeft: '5px solid transparent',
+              borderRight: '5px solid transparent',
+              borderTop: '5px solid #1f2937',
+            }}
           />
         </div>
       )}
@@ -246,7 +310,9 @@ function DSTooltipBadge({ code }: { code: string }) {
 /* ─── Sort Icon ───────────────────────────────────────────── */
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   return (
-    <span className={`ml-1 inline-flex flex-col leading-none text-[9px] ${active ? 'text-[#307c4c]' : 'text-slate-300'}`}>
+    <span
+      className={`ml-1 inline-flex flex-col leading-none text-[9px] ${active ? 'text-[#307c4c]' : 'text-slate-300'}`}
+    >
       <span className={active && dir === 'asc' ? 'text-[#307c4c]' : ''}>▲</span>
       <span className={active && dir === 'desc' ? 'text-[#307c4c]' : ''}>▼</span>
     </span>
@@ -258,9 +324,14 @@ function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
       className={`w-4 h-4 text-slate-400 transition-transform duration-200 ease-in-out ${open ? 'rotate-90' : ''}`}
-      viewBox="0 0 20 20" fill="currentColor"
+      viewBox="0 0 20 20"
+      fill="currentColor"
     >
-      <path fillRule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+      <path
+        fillRule="evenodd"
+        d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"
+        clipRule="evenodd"
+      />
     </svg>
   );
 }
@@ -284,10 +355,26 @@ function SkeletonRows({ cols }: { cols: number }) {
 }
 
 /* ─── KPI Card ────────────────────────────────────────────── */
-function KpiCard({ label, value, accent = false, warning = false, danger = false }: {
-  label: string; value: string; accent?: boolean; warning?: boolean; danger?: boolean;
+function KpiCard({
+  label,
+  value,
+  accent = false,
+  warning = false,
+  danger = false,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+  warning?: boolean;
+  danger?: boolean;
 }) {
-  const valueColor = danger ? 'text-red-600' : warning ? 'text-amber-600' : accent ? 'text-[#307c4c]' : 'text-slate-800';
+  const valueColor = danger
+    ? 'text-red-600'
+    : warning
+      ? 'text-amber-600'
+      : accent
+        ? 'text-[#307c4c]'
+        : 'text-slate-800';
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col gap-1 transition-shadow duration-300 hover:shadow-md">
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
@@ -297,8 +384,16 @@ function KpiCard({ label, value, accent = false, warning = false, danger = false
 }
 
 /* ─── Pagination Bar ──────────────────────────────────────── */
-function PaginationBar({ currentPage, totalPages, totalItems, setPage }: {
-  currentPage: number; totalPages: number; totalItems: number; setPage: (p: number) => void;
+function PaginationBar({
+  currentPage,
+  totalPages,
+  totalItems,
+  setPage,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  setPage: (p: number) => void;
 }) {
   const start = (currentPage - 1) * PAGE_SIZE + 1;
   const end = Math.min(currentPage * PAGE_SIZE, totalItems);
@@ -311,14 +406,19 @@ function PaginationBar({ currentPage, totalPages, totalItems, setPage }: {
     })
     .reduce<(number | '…')[]>((acc, p, idx, arr) => {
       if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push('…');
-      acc.push(p); return acc;
+      acc.push(p);
+      return acc;
     }, []);
 
   return (
     <div className="px-4 sm:px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
       <p className="text-sm text-slate-500">
-        Showing <span className="font-semibold text-slate-700">{start}–{end}</span> of{' '}
-        <span className="font-semibold text-slate-700">{totalItems.toLocaleString()}</span> purchase orders
+        Showing{' '}
+        <span className="font-semibold text-slate-700">
+          {start}–{end}
+        </span>{' '}
+        of <span className="font-semibold text-slate-700">{totalItems.toLocaleString()}</span>{' '}
+        purchase orders
       </p>
       <div className="flex items-center gap-2">
         <button
@@ -326,12 +426,16 @@ function PaginationBar({ currentPage, totalPages, totalItems, setPage }: {
           onClick={() => setPage(Math.max(1, currentPage - 1))}
           disabled={currentPage === 1}
           className="h-9 px-4 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
-        >← Previous</button>
+        >
+          ← Previous
+        </button>
 
         <div className="flex items-center gap-1">
           {pageNums.map((p, i) =>
             p === '…' ? (
-              <span key={`el-${i}`} className="px-2 text-slate-400 text-sm select-none">…</span>
+              <span key={`el-${i}`} className="px-2 text-slate-400 text-sm select-none">
+                …
+              </span>
             ) : (
               <button
                 key={p}
@@ -343,8 +447,10 @@ function PaginationBar({ currentPage, totalPages, totalItems, setPage }: {
                     ? 'bg-[#307c4c] text-white shadow-sm'
                     : 'border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:text-slate-900',
                 ].join(' ')}
-              >{p}</button>
-            )
+              >
+                {p}
+              </button>
+            ),
           )}
         </div>
 
@@ -353,7 +459,9 @@ function PaginationBar({ currentPage, totalPages, totalItems, setPage }: {
           onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage === totalPages}
           className="h-9 px-4 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
-        >Next →</button>
+        >
+          Next →
+        </button>
       </div>
     </div>
   );
@@ -371,17 +479,42 @@ const STATUS_TILES = [
   },
   {
     id: 'On Track',
-    activeClass: 'bg-[#307c4c]/10 border-[#307c4c]/30 text-[#307c4c] shadow-sm ring-1 ring-[#307c4c]/20',
+    activeClass:
+      'bg-[#307c4c]/10 border-[#307c4c]/30 text-[#307c4c] shadow-sm ring-1 ring-[#307c4c]/20',
   },
 ] as const;
 
 const ACCOUNT_TYPE_TILES = [
-  { id: 'Asset',               label: 'Asset',               activeClass: 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm ring-1 ring-blue-100' },
-  { id: 'Asset Services',      label: 'Asset Services',      activeClass: 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm ring-1 ring-indigo-100' },
-  { id: 'Direct Consumables',  label: 'Direct Consumables',  activeClass: 'bg-orange-50 border-orange-200 text-orange-700 shadow-sm ring-1 ring-orange-100' },
-  { id: 'Direct Order',        label: 'Direct Order',        activeClass: 'bg-purple-50 border-purple-200 text-purple-700 shadow-sm ring-1 ring-purple-100' },
-  { id: 'Inventory',           label: 'Inventory',           activeClass: 'bg-yellow-50 border-yellow-200 text-yellow-700 shadow-sm ring-1 ring-yellow-100' },
-  { id: 'Services',            label: 'Services',            activeClass: 'bg-teal-50 border-teal-200 text-teal-700 shadow-sm ring-1 ring-teal-100' },
+  {
+    id: 'Asset',
+    label: 'Asset',
+    activeClass: 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm ring-1 ring-blue-100',
+  },
+  {
+    id: 'Asset Services',
+    label: 'Asset Services',
+    activeClass: 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm ring-1 ring-indigo-100',
+  },
+  {
+    id: 'Direct Consumables',
+    label: 'Direct Consumables',
+    activeClass: 'bg-orange-50 border-orange-200 text-orange-700 shadow-sm ring-1 ring-orange-100',
+  },
+  {
+    id: 'Direct Order',
+    label: 'Direct Order',
+    activeClass: 'bg-purple-50 border-purple-200 text-purple-700 shadow-sm ring-1 ring-purple-100',
+  },
+  {
+    id: 'Inventory',
+    label: 'Inventory',
+    activeClass: 'bg-yellow-50 border-yellow-200 text-yellow-700 shadow-sm ring-1 ring-yellow-100',
+  },
+  {
+    id: 'Services',
+    label: 'Services',
+    activeClass: 'bg-teal-50 border-teal-200 text-teal-700 shadow-sm ring-1 ring-teal-100',
+  },
 ];
 
 function StatusTiles({
@@ -400,13 +533,16 @@ function StatusTiles({
     else onChange([...selected, id]);
   };
   const toggleAccountType = (id: string) => {
-    if (selectedAccountTypes.includes(id)) onAccountTypeChange(selectedAccountTypes.filter((s) => s !== id));
+    if (selectedAccountTypes.includes(id))
+      onAccountTypeChange(selectedAccountTypes.filter((s) => s !== id));
     else onAccountTypeChange([...selectedAccountTypes, id]);
   };
 
   return (
     <div className="px-4 sm:px-6 py-3 border-b border-slate-100 bg-white flex items-center gap-2 flex-wrap">
-      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Status:</span>
+      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">
+        Status:
+      </span>
       {STATUS_TILES.map((tile) => {
         const isActive = selected.includes(tile.id);
         return (
@@ -426,9 +562,14 @@ function StatusTiles({
       })}
 
       {/* Divider */}
-      <div className="shrink-0 self-center mx-3" style={{ width: '1px', height: '20px', backgroundColor: '#e5e7eb' }} />
+      <div
+        className="shrink-0 self-center mx-3"
+        style={{ width: '1px', height: '20px', backgroundColor: '#e5e7eb' }}
+      />
 
-      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Account Type:</span>
+      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">
+        Account Type:
+      </span>
       {ACCOUNT_TYPE_TILES.map((tile) => {
         const isActive = selectedAccountTypes.includes(tile.id);
         return (
@@ -449,7 +590,10 @@ function StatusTiles({
 
       {(selected.length > 0 || selectedAccountTypes.length > 0) && (
         <button
-          onClick={() => { onChange([]); onAccountTypeChange([]); }}
+          onClick={() => {
+            onChange([]);
+            onAccountTypeChange([]);
+          }}
           className="ml-1 text-xs text-slate-400 hover:text-slate-600 transition-colors px-2 py-1 rounded-lg hover:bg-slate-100"
         >
           Clear
@@ -461,32 +605,68 @@ function StatusTiles({
 
 /* ─── Filter Bar ──────────────────────────────────────────── */
 function FilterBar({
-  search, onSearch,
-  deliveryCode, onDeliveryCode, deliveryCodes,
-  country, onCountry, countries,
-  suppliers, onSuppliers, supplierList, supplierDisplayMap,
-  buyers, onBuyers, buyerList,
-  pGroup, onPGroup, pGroupList,
-  segment, onSegment, segmentList,
+  search,
+  onSearch,
+  deliveryCode,
+  onDeliveryCode,
+  deliveryCodes,
+  country,
+  onCountry,
+  countries,
+  suppliers,
+  onSuppliers,
+  supplierList,
+  supplierDisplayMap,
+  buyers,
+  onBuyers,
+  buyerList,
+  pGroup,
+  onPGroup,
+  pGroupList,
+  segment,
+  onSegment,
+  segmentList,
 }: {
-  search: string; onSearch: (v: string) => void;
-  deliveryCode: string[]; onDeliveryCode: (v: string[]) => void; deliveryCodes: string[];
-  country: string[]; onCountry: (v: string[]) => void; countries: string[];
-  suppliers: string[]; onSuppliers: (v: string[]) => void; supplierList: string[]; supplierDisplayMap: Record<string, string>;
-  buyers: string[]; onBuyers: (v: string[]) => void; buyerList: string[];
-  pGroup: string[]; onPGroup: (v: string[]) => void; pGroupList: string[];
-  segment: string[]; onSegment: (v: string[]) => void; segmentList: string[];
+  search: string;
+  onSearch: (v: string) => void;
+  deliveryCode: string[];
+  onDeliveryCode: (v: string[]) => void;
+  deliveryCodes: string[];
+  country: string[];
+  onCountry: (v: string[]) => void;
+  countries: string[];
+  suppliers: string[];
+  onSuppliers: (v: string[]) => void;
+  supplierList: string[];
+  supplierDisplayMap: Record<string, string>;
+  buyers: string[];
+  onBuyers: (v: string[]) => void;
+  buyerList: string[];
+  pGroup: string[];
+  onPGroup: (v: string[]) => void;
+  pGroupList: string[];
+  segment: string[];
+  onSegment: (v: string[]) => void;
+  segmentList: string[];
 }) {
-  const inputBase = 'bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-[#307c4c] focus:border-[#307c4c] outline-none transition-colors duration-150';
+  const inputBase =
+    'bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-[#307c4c] focus:border-[#307c4c] outline-none transition-colors duration-150';
 
   return (
     <div className="px-4 sm:px-6 py-4 border-b border-slate-100 bg-white">
       <div className="flex flex-col md:flex-row md:items-center gap-3">
-
         {/* ── Global Search ── */}
         <div className="relative w-full md:flex-none md:w-[360px]">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+              clipRule="evenodd"
+            />
           </svg>
           <input
             id="filter-search"
@@ -500,13 +680,44 @@ function FilterBar({
         </div>
 
         {/* ── Multi-Selects ── */}
-        <MultiSelectDropdown options={supplierList} selectedOptions={suppliers} onChange={onSuppliers} label="Supplier" displayMap={supplierDisplayMap} />
-        <MultiSelectDropdown options={buyerList} selectedOptions={buyers} onChange={onBuyers} label="Buyer Name" />
-        <MultiSelectDropdown options={deliveryCodes} selectedOptions={deliveryCode} onChange={onDeliveryCode} label="Delivery Status" displayMap={deliveryStatusMap} />
-        <MultiSelectDropdown options={countries} selectedOptions={country} onChange={onCountry} label="Country" />
-        <MultiSelectDropdown options={pGroupList} selectedOptions={pGroup} onChange={onPGroup} label="P Group" />
-        <MultiSelectDropdown options={segmentList} selectedOptions={segment} onChange={onSegment} label="Segment" />
-
+        <MultiSelectDropdown
+          options={supplierList}
+          selectedOptions={suppliers}
+          onChange={onSuppliers}
+          label="Supplier"
+          displayMap={supplierDisplayMap}
+        />
+        <MultiSelectDropdown
+          options={buyerList}
+          selectedOptions={buyers}
+          onChange={onBuyers}
+          label="Buyer Name"
+        />
+        <MultiSelectDropdown
+          options={deliveryCodes}
+          selectedOptions={deliveryCode}
+          onChange={onDeliveryCode}
+          label="Delivery Status"
+          displayMap={deliveryStatusMap}
+        />
+        <MultiSelectDropdown
+          options={countries}
+          selectedOptions={country}
+          onChange={onCountry}
+          label="Country"
+        />
+        <MultiSelectDropdown
+          options={pGroupList}
+          selectedOptions={pGroup}
+          onChange={onPGroup}
+          label="P Group"
+        />
+        <MultiSelectDropdown
+          options={segmentList}
+          selectedOptions={segment}
+          onChange={onSegment}
+          label="Segment"
+        />
       </div>
     </div>
   );
@@ -519,163 +730,189 @@ const PO_SORT_MAP: Record<PoSortKey, string> = {
 };
 
 /* ─── Memoized Line Item Component ────────────────────────── */
-const PoLineItemRow = memo(function PoLineItemRow({
-  line,
-  term,
-  isChecked,
-  isDrawerOpen,
-  onRowClick,
-  toggleSelection,
-}: {
-  line: PurchaseOrder;
-  term: string;
-  isChecked: boolean;
-  isDrawerOpen: boolean;
-  onRowClick: (line: PurchaseOrder) => void;
-  toggleSelection: (line: PurchaseOrder) => void;
-}) {
-  const diff = daysDiff(line['Delivery Date']);
-  const isMatch = term !== '' && (
-    String(line['SAP MAT ID'] ?? '').toLowerCase().includes(term) ||
-    String(line['PO Number'] ?? '').toLowerCase().includes(term) ||
-    String(line['Supplier Name'] ?? '').toLowerCase().includes(term) ||
-    String(line['Supplier ID'] ?? '').toLowerCase().includes(term)
-  );
+const PoLineItemRow = memo(
+  function PoLineItemRow({
+    line,
+    term,
+    isChecked,
+    isDrawerOpen,
+    onRowClick,
+    toggleSelection,
+  }: {
+    line: PurchaseOrder;
+    term: string;
+    isChecked: boolean;
+    isDrawerOpen: boolean;
+    onRowClick: (line: PurchaseOrder) => void;
+    toggleSelection: (line: PurchaseOrder) => void;
+  }) {
+    const diff = daysDiff(line['Delivery Date']);
+    const isMatch =
+      term !== '' &&
+      (String(line['SAP MAT ID'] ?? '')
+        .toLowerCase()
+        .includes(term) ||
+        String(line['PO Number'] ?? '')
+          .toLowerCase()
+          .includes(term) ||
+        String(line['Supplier Name'] ?? '')
+          .toLowerCase()
+          .includes(term) ||
+        String(line['Supplier ID'] ?? '')
+          .toLowerCase()
+          .includes(term));
 
-  return (
-    <tr
-      onClick={() => onRowClick(line)}
-      className={[
-        'transition-colors duration-150 cursor-pointer',
-        isChecked
-          ? 'bg-[#307c4c]/10'
-          : isDrawerOpen
-            ? 'bg-[#307c4c]/10 border-l-2 border-l-[#307c4c]'
-            : isMatch
-              ? 'bg-[#307c4c]/5 border-l-2 border-l-[#307c4c]/50'
-              : 'hover:bg-[#307c4c]/5',
-      ].join(' ')}
-    >
-      <td className="py-3 pl-6 pr-2 w-10" onClick={(e) => e.stopPropagation()}>
-        <SquareCheckbox
-          checked={isChecked}
-          onChange={() => toggleSelection(line)}
-          aria-label={`Select ${line['SAP MAT ID'] ?? 'line item'}`}
-        />
-      </td>
-      <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
-        {formatMatId(line['SAP MAT ID'], line['Account Classification Description'])}
-      </td>
-      <td className="py-3 px-4 text-sm text-slate-600 max-w-[280px] truncate" title={line['Item Description']}>
-        {line['Item Description'] ?? '—'}
-      </td>
-      <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
-        {Number(line['Open QTY'] ?? 0).toLocaleString()}
-      </td>
-      <td className="py-3 px-4 text-sm text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
-        {formatCurrency(line['Open PO Value USD'])}
-      </td>
-      <td className={`py-3 px-4 text-sm whitespace-nowrap font-medium ${diff < 0 ? 'text-red-600' : 'text-slate-600'}`}>
-        {formatDate(line['Delivery Date'])}
-      </td>
-      <td className="py-3 px-4 text-[13px] text-gray-500 whitespace-nowrap">
-        {formatDate(line['PO Release Date'])}
-      </td>
-      <td className="py-3 px-4 whitespace-nowrap">
-        {line['Delivery Code'] ? (
-          <DSTooltipBadge code={line['Delivery Code']} />
-        ) : (
-          <span className="text-slate-400">—</span>
-        )}
-      </td>
-      <td className="py-3 px-4 whitespace-nowrap">
-        <DeliveryBadge raw={line['Delivery Date']} />
-      </td>
-    </tr>
-  );
-}, (prev, next) => {
-  return prev.line === next.line &&
-    prev.term === next.term &&
-    prev.isChecked === next.isChecked &&
-    prev.isDrawerOpen === next.isDrawerOpen;
-});
+    return (
+      <tr
+        onClick={() => onRowClick(line)}
+        className={[
+          'transition-colors duration-150 cursor-pointer',
+          isChecked
+            ? 'bg-[#307c4c]/10'
+            : isDrawerOpen
+              ? 'bg-[#307c4c]/10 border-l-2 border-l-[#307c4c]'
+              : isMatch
+                ? 'bg-[#307c4c]/5 border-l-2 border-l-[#307c4c]/50'
+                : 'hover:bg-[#307c4c]/5',
+        ].join(' ')}
+      >
+        <td className="py-3 pl-6 pr-2 w-10" onClick={(e) => e.stopPropagation()}>
+          <SquareCheckbox
+            checked={isChecked}
+            onChange={() => toggleSelection(line)}
+            aria-label={`Select ${line['SAP MAT ID'] ?? 'line item'}`}
+          />
+        </td>
+        <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
+          {formatMatId(line['SAP MAT ID'], line['Account Classification Description'])}
+        </td>
+        <td
+          className="py-3 px-4 text-sm text-slate-600 max-w-[280px] truncate"
+          title={line['Item Description']}
+        >
+          {line['Item Description'] ?? '—'}
+        </td>
+        <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+          {Number(line['Open QTY'] ?? 0).toLocaleString()}
+        </td>
+        <td className="py-3 px-4 text-sm text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+          {formatCurrency(line['Open PO Value USD'])}
+        </td>
+        <td
+          className={`py-3 px-4 text-sm whitespace-nowrap font-medium ${diff < 0 ? 'text-red-600' : 'text-slate-600'}`}
+        >
+          {formatDate(line['Delivery Date'])}
+        </td>
+        <td className="py-3 px-4 text-[13px] text-gray-500 whitespace-nowrap">
+          {formatDate(line['PO Release Date'])}
+        </td>
+        <td className="py-3 px-4 whitespace-nowrap">
+          {line['Delivery Code'] ? (
+            <DSTooltipBadge code={line['Delivery Code']} />
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
+        </td>
+        <td className="py-3 px-4 whitespace-nowrap">
+          <DeliveryBadge raw={line['Delivery Date']} />
+        </td>
+      </tr>
+    );
+  },
+  (prev, next) => {
+    return (
+      prev.line === next.line &&
+      prev.term === next.term &&
+      prev.isChecked === next.isChecked &&
+      prev.isDrawerOpen === next.isDrawerOpen
+    );
+  },
+);
 
 /* ─── Memoized Parent PO Row Component ────────────────────── */
-const PoParentRow = memo(function PoParentRow({
-  group,
-  isOpen,
-  isChecked,
-  isIndeterminate,
-  togglePO,
-  selectMultipleLines,
-  deselectMultipleLines,
-}: {
-  group: PoGroup;
-  isOpen: boolean;
-  isChecked: boolean;
-  isIndeterminate: boolean;
-  togglePO: (poNumber: string) => void;
-  selectMultipleLines: (lines: PurchaseOrder[]) => void;
-  deselectMultipleLines: (lines: PurchaseOrder[]) => void;
-}) {
-  const diff = daysDiff(group.earliestDate);
-  const majorityDSCode = getPOMajorityDSCode(group.lines);
-  const statusSummary = getPOStatusSummary(group.lines);
-  return (
-    <tr
-      onClick={() => togglePO(group.poNumber)}
-      className="border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors duration-150 group"
-    >
-      <td className="p-4 pl-6 w-14" onClick={(e) => e.stopPropagation()}>
-        <SquareCheckbox
-          checked={isChecked}
-          indeterminate={isIndeterminate}
-          onChange={(e) => {
-            if (e.target.checked) selectMultipleLines(group.lines);
-            else deselectMultipleLines(group.lines);
-          }}
-          aria-label={`Select PO ${group.poNumber}`}
-        />
-      </td>
-      <td className="p-4 pl-2 w-8">
-        <ChevronIcon open={isOpen} />
-      </td>
-      <td className="p-4 pl-6 font-mono text-sm font-semibold text-slate-700 whitespace-nowrap">
-        {group.poNumber}
-      </td>
-      <td className="p-4 pl-6 text-sm text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
-        {formatCurrency(group.totalValue)}
-      </td>
-      <td className={`p-4 pl-6 text-sm whitespace-nowrap font-medium ${diff < 0 ? 'text-red-600' : 'text-slate-600'}`}>
-        {formatDate(group.earliestDate)}
-      </td>
-      <td className="p-4 pl-6 text-sm text-slate-700 max-w-[180px] truncate" title={group.supplierName}>
-        {group.supplierName}
-      </td>
-      <td className="p-4 pl-6 text-sm text-slate-600 whitespace-nowrap">
-        {group.country}
-      </td>
-      <td className="p-4 pl-6 whitespace-nowrap">
-        {majorityDSCode ? (
-          <DSTooltipBadge code={majorityDSCode} />
-        ) : (
-          <span className="text-slate-400">—</span>
-        )}
-      </td>
-      <td className="p-4 pl-6 text-sm text-right font-medium text-slate-600 tabular-nums">
-        {group.lineCount}
-      </td>
-      <td className="p-4 pl-6 whitespace-nowrap">
-        <StatusTooltipBadge {...statusSummary} />
-      </td>
-    </tr>
-  );
-}, (prev, next) => {
-  return prev.group === next.group &&
-    prev.isOpen === next.isOpen &&
-    prev.isChecked === next.isChecked &&
-    prev.isIndeterminate === next.isIndeterminate;
-});
+const PoParentRow = memo(
+  function PoParentRow({
+    group,
+    isOpen,
+    isChecked,
+    isIndeterminate,
+    togglePO,
+    selectMultipleLines,
+    deselectMultipleLines,
+  }: {
+    group: PoGroup;
+    isOpen: boolean;
+    isChecked: boolean;
+    isIndeterminate: boolean;
+    togglePO: (poNumber: string) => void;
+    selectMultipleLines: (lines: PurchaseOrder[]) => void;
+    deselectMultipleLines: (lines: PurchaseOrder[]) => void;
+  }) {
+    const diff = daysDiff(group.earliestDate);
+    const majorityDSCode = getPOMajorityDSCode(group.lines);
+    const statusSummary = getPOStatusSummary(group.lines);
+    return (
+      <tr
+        onClick={() => togglePO(group.poNumber)}
+        className="border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors duration-150 group"
+      >
+        <td className="p-4 pl-6 w-14" onClick={(e) => e.stopPropagation()}>
+          <SquareCheckbox
+            checked={isChecked}
+            indeterminate={isIndeterminate}
+            onChange={(e) => {
+              if (e.target.checked) selectMultipleLines(group.lines);
+              else deselectMultipleLines(group.lines);
+            }}
+            aria-label={`Select PO ${group.poNumber}`}
+          />
+        </td>
+        <td className="p-4 pl-2 w-8">
+          <ChevronIcon open={isOpen} />
+        </td>
+        <td className="p-4 pl-6 font-mono text-sm font-semibold text-slate-700 whitespace-nowrap">
+          {group.poNumber}
+        </td>
+        <td className="p-4 pl-6 text-sm text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+          {formatCurrency(group.totalValue)}
+        </td>
+        <td
+          className={`p-4 pl-6 text-sm whitespace-nowrap font-medium ${diff < 0 ? 'text-red-600' : 'text-slate-600'}`}
+        >
+          {formatDate(group.earliestDate)}
+        </td>
+        <td
+          className="p-4 pl-6 text-sm text-slate-700 max-w-[180px] truncate"
+          title={group.supplierName}
+        >
+          {group.supplierName}
+        </td>
+        <td className="p-4 pl-6 text-sm text-slate-600 whitespace-nowrap">{group.country}</td>
+        <td className="p-4 pl-6 whitespace-nowrap">
+          {majorityDSCode ? (
+            <DSTooltipBadge code={majorityDSCode} />
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
+        </td>
+        <td className="p-4 pl-6 text-sm text-right font-medium text-slate-600 tabular-nums">
+          {group.lineCount}
+        </td>
+        <td className="p-4 pl-6 whitespace-nowrap">
+          <StatusTooltipBadge {...statusSummary} />
+        </td>
+      </tr>
+    );
+  },
+  (prev, next) => {
+    return (
+      prev.group === next.group &&
+      prev.isOpen === next.isOpen &&
+      prev.isChecked === next.isChecked &&
+      prev.isIndeterminate === next.isIndeterminate
+    );
+  },
+);
 
 /* ─── Sub-table for expanded PO lines ────────────────────── */
 function PoSubTable({
@@ -734,43 +971,184 @@ function PoSubTable({
 
 /* ─── DS Code Reference Data ─────────────────────────────── */
 const DS_CODES = [
-  { code: 'DS01', name: 'PO Copy Not Received', description: 'The Vendor did not receive the PO copy', category: 'issue' },
-  { code: 'DS02', name: 'PO Rejected', description: 'The PO has been rejected by the vendor', category: 'issue' },
-  { code: 'DS03', name: 'PO Pending Revision', description: 'PO requires amendment', category: 'issue' },
-  { code: 'DS04', name: 'PO Acknowledged - Delivery On Time', description: 'Delivery will be done as per the Delivery Date confirmed', category: 'ontime' },
-  { code: 'DS05', name: 'PO Acknowledged - Delivery Delay', description: 'Delivery is delayed and revised delivery date is provided', category: 'delayed' },
-  { code: 'DS06', name: 'Delivery On Hold - Pending Import Permit', description: 'Pending Import permit to be provided', category: 'hold' },
-  { code: 'DS07', name: 'PO Acknowledged - No response', description: 'No response from Supplier', category: 'hold' },
-  { code: 'DS08', name: 'Delivery On Hold - Pending LC', description: 'Pending confirmation Letter of Credit', category: 'hold' },
-  { code: 'DS09', name: 'Delivery On Hold - Pending Advance Payment', description: 'Pending advance payment to be confirmed', category: 'hold' },
-  { code: 'DS10', name: 'Delivery On-Hold - Payment Issues', description: 'Delivery on Hold due to Pending Payment', category: 'hold' },
-  { code: 'DS11', name: 'Delivery On Hold - Others', description: 'Delivery on Hold due to reasons provided by Supplier', category: 'hold' },
-  { code: 'DS12', name: 'Delivered & Invoiced', description: 'The PO has been delivered and Invoiced', category: 'complete' },
-  { code: 'DS13', name: 'Service Ongoing', description: 'The services related to the process is ongoing.', category: 'complete' },
-  { code: 'DS14', name: 'Service Completed', description: 'The service has been completed and awaiting goods receipt', category: 'complete' },
-  { code: 'DS15', name: 'Shipped - In Transit', description: 'The items are currently in transit, meaning they are being transported from one location to another, but they have not yet reached their final destination.', category: 'complete' },
-  { code: 'DS16', name: 'Ready for Collection', description: 'The items are prepared and available for pickup by the freight forwarder or carrier.', category: 'complete' },
-  { code: 'DS17', name: 'Collected by Freight Forwarder', description: 'The items have been picked up by the freight forwarder or carrier and are en route to the next destination.', category: 'complete' },
-  { code: 'DS18', name: 'Customs Clearance', description: 'The items have reached the customs checkpoint and the necessary customs procedures and documentation are being processed for clearance before the items can continue their journey.', category: 'complete' },
-  { code: 'DS19', name: 'Products Delivered to Base', description: 'The items have been successfully delivered to the designated base or destination.', category: 'complete' },
+  {
+    code: 'DS01',
+    name: 'PO Copy Not Received',
+    description: 'The Vendor did not receive the PO copy',
+    category: 'issue',
+  },
+  {
+    code: 'DS02',
+    name: 'PO Rejected',
+    description: 'The PO has been rejected by the vendor',
+    category: 'issue',
+  },
+  {
+    code: 'DS03',
+    name: 'PO Pending Revision',
+    description: 'PO requires amendment',
+    category: 'issue',
+  },
+  {
+    code: 'DS04',
+    name: 'PO Acknowledged - Delivery On Time',
+    description: 'Delivery will be done as per the Delivery Date confirmed',
+    category: 'ontime',
+  },
+  {
+    code: 'DS05',
+    name: 'PO Acknowledged - Delivery Delay',
+    description: 'Delivery is delayed and revised delivery date is provided',
+    category: 'delayed',
+  },
+  {
+    code: 'DS06',
+    name: 'Delivery On Hold - Pending Import Permit',
+    description: 'Pending Import permit to be provided',
+    category: 'hold',
+  },
+  {
+    code: 'DS07',
+    name: 'PO Acknowledged - No response',
+    description: 'No response from Supplier',
+    category: 'hold',
+  },
+  {
+    code: 'DS08',
+    name: 'Delivery On Hold - Pending LC',
+    description: 'Pending confirmation Letter of Credit',
+    category: 'hold',
+  },
+  {
+    code: 'DS09',
+    name: 'Delivery On Hold - Pending Advance Payment',
+    description: 'Pending advance payment to be confirmed',
+    category: 'hold',
+  },
+  {
+    code: 'DS10',
+    name: 'Delivery On-Hold - Payment Issues',
+    description: 'Delivery on Hold due to Pending Payment',
+    category: 'hold',
+  },
+  {
+    code: 'DS11',
+    name: 'Delivery On Hold - Others',
+    description: 'Delivery on Hold due to reasons provided by Supplier',
+    category: 'hold',
+  },
+  {
+    code: 'DS12',
+    name: 'Delivered & Invoiced',
+    description: 'The PO has been delivered and Invoiced',
+    category: 'complete',
+  },
+  {
+    code: 'DS13',
+    name: 'Service Ongoing',
+    description: 'The services related to the process is ongoing.',
+    category: 'complete',
+  },
+  {
+    code: 'DS14',
+    name: 'Service Completed',
+    description: 'The service has been completed and awaiting goods receipt',
+    category: 'complete',
+  },
+  {
+    code: 'DS15',
+    name: 'Shipped - In Transit',
+    description:
+      'The items are currently in transit, meaning they are being transported from one location to another, but they have not yet reached their final destination.',
+    category: 'complete',
+  },
+  {
+    code: 'DS16',
+    name: 'Ready for Collection',
+    description:
+      'The items are prepared and available for pickup by the freight forwarder or carrier.',
+    category: 'complete',
+  },
+  {
+    code: 'DS17',
+    name: 'Collected by Freight Forwarder',
+    description:
+      'The items have been picked up by the freight forwarder or carrier and are en route to the next destination.',
+    category: 'complete',
+  },
+  {
+    code: 'DS18',
+    name: 'Customs Clearance',
+    description:
+      'The items have reached the customs checkpoint and the necessary customs procedures and documentation are being processed for clearance before the items can continue their journey.',
+    category: 'complete',
+  },
+  {
+    code: 'DS19',
+    name: 'Products Delivered to Base',
+    description:
+      'The items have been successfully delivered to the designated base or destination.',
+    category: 'complete',
+  },
 ] as const;
 
 const CATEGORY_LEGEND = [
-  { id: 'issue', label: 'Issues', dotClass: 'bg-red-500', pillBg: 'bg-red-50', pillText: 'text-red-700', pillBorder: 'border-red-200' },
-  { id: 'ontime', label: 'On Time', dotClass: 'bg-green-500', pillBg: 'bg-green-50', pillText: 'text-green-700', pillBorder: 'border-green-200' },
-  { id: 'delayed', label: 'Delayed', dotClass: 'bg-amber-500', pillBg: 'bg-amber-50', pillText: 'text-amber-700', pillBorder: 'border-amber-200' },
-  { id: 'hold', label: 'On Hold', dotClass: 'bg-orange-500', pillBg: 'bg-orange-50', pillText: 'text-orange-700', pillBorder: 'border-orange-200' },
-  { id: 'complete', label: 'Completed/In Progress', dotClass: 'bg-blue-500', pillBg: 'bg-blue-50', pillText: 'text-blue-700', pillBorder: 'border-blue-200' },
+  {
+    id: 'issue',
+    label: 'Issues',
+    dotClass: 'bg-red-500',
+    pillBg: 'bg-red-50',
+    pillText: 'text-red-700',
+    pillBorder: 'border-red-200',
+  },
+  {
+    id: 'ontime',
+    label: 'On Time',
+    dotClass: 'bg-green-500',
+    pillBg: 'bg-green-50',
+    pillText: 'text-green-700',
+    pillBorder: 'border-green-200',
+  },
+  {
+    id: 'delayed',
+    label: 'Delayed',
+    dotClass: 'bg-amber-500',
+    pillBg: 'bg-amber-50',
+    pillText: 'text-amber-700',
+    pillBorder: 'border-amber-200',
+  },
+  {
+    id: 'hold',
+    label: 'On Hold',
+    dotClass: 'bg-orange-500',
+    pillBg: 'bg-orange-50',
+    pillText: 'text-orange-700',
+    pillBorder: 'border-orange-200',
+  },
+  {
+    id: 'complete',
+    label: 'Completed/In Progress',
+    dotClass: 'bg-blue-500',
+    pillBg: 'bg-blue-50',
+    pillText: 'text-blue-700',
+    pillBorder: 'border-blue-200',
+  },
 ] as const;
 
 function getDSCodePillStyle(category: string) {
   switch (category) {
-    case 'issue': return 'bg-red-50 text-red-700 border border-red-200';
-    case 'ontime': return 'bg-green-50 text-green-700 border border-green-200';
-    case 'delayed': return 'bg-amber-50 text-amber-700 border border-amber-200';
-    case 'hold': return 'bg-orange-50 text-orange-700 border border-orange-200';
-    case 'complete': return 'bg-blue-50 text-blue-700 border border-blue-200';
-    default: return 'bg-slate-50 text-slate-700 border border-slate-200';
+    case 'issue':
+      return 'bg-red-50 text-red-700 border border-red-200';
+    case 'ontime':
+      return 'bg-green-50 text-green-700 border border-green-200';
+    case 'delayed':
+      return 'bg-amber-50 text-amber-700 border border-amber-200';
+    case 'hold':
+      return 'bg-orange-50 text-orange-700 border border-orange-200';
+    case 'complete':
+      return 'bg-blue-50 text-blue-700 border border-blue-200';
+    default:
+      return 'bg-slate-50 text-slate-700 border border-slate-200';
   }
 }
 
@@ -785,7 +1163,9 @@ function DSCodeReferenceModal({ open, onClose }: { open: boolean; onClose: () =>
     } else {
       document.body.style.overflow = '';
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [open]);
 
   useEffect(() => {
@@ -856,15 +1236,27 @@ function DSCodeReferenceModal({ open, onClose }: { open: boolean; onClose: () =>
             style={{ width: '32px', height: '32px', borderRadius: '50%' }}
           >
             <svg className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              <path
+                fillRule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
             </svg>
           </button>
         </div>
 
         {/* Search input */}
         <div className="relative mb-4">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+              clipRule="evenodd"
+            />
           </svg>
           <input
             type="text"
@@ -879,7 +1271,11 @@ function DSCodeReferenceModal({ open, onClose }: { open: boolean; onClose: () =>
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
               </svg>
             </button>
           )}
@@ -1001,12 +1397,22 @@ function DSCodeReferenceModal({ open, onClose }: { open: boolean; onClose: () =>
       {/* Animations */}
       <style jsx>{`
         @keyframes dsModalFadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
         }
         @keyframes dsModalSlideIn {
-          from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)); }
-          to { opacity: 1; transform: translate(-50%, -50%); }
+          from {
+            opacity: 0;
+            transform: translate(-50%, calc(-50% + 8px));
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, -50%);
+          }
         }
       `}</style>
     </>
@@ -1025,7 +1431,14 @@ export default function Dashboard() {
   const [dsCodeModalOpen, setDsCodeModalOpen] = useState(false);
 
   // Expedite cart — Zustand store
-  const { selectedItems, toggleSelection, isSelected, clearSelection, selectMultipleLines, deselectMultipleLines } = useExpediteStore();
+  const {
+    selectedItems,
+    toggleSelection,
+    isSelected,
+    clearSelection,
+    selectMultipleLines,
+    deselectMultipleLines,
+  } = useExpediteStore();
 
   // Filters
   const [search, setSearch] = useState('');
@@ -1050,14 +1463,17 @@ export default function Dashboard() {
   /* Fetch -------------------------------------------------- */
   useEffect(() => {
     const ctrl = new AbortController();
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     fetch('/api/pos', { signal: ctrl.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const json = await res.json();
         setRows(json.data ?? []);
       })
-      .catch((err) => { if (err.name !== 'AbortError') setError(err.message ?? 'Unknown error'); })
+      .catch((err) => {
+        if (err.name !== 'AbortError') setError(err.message ?? 'Unknown error');
+      })
       .finally(() => setLoading(false));
     return () => ctrl.abort();
   }, []);
@@ -1069,7 +1485,21 @@ export default function Dashboard() {
   }, [search]);
 
   /* Reset page when any filter/sort changes ---------------- */
-  useEffect(() => { setPoPage(1); }, [search, filterDelivCode, filterCountry, filterSuppliers, filterBuyers, filterStatus, filterAccountTypes, filterPGroup, filterSegment, poSortKey, poSortDir]);
+  useEffect(() => {
+    setPoPage(1);
+  }, [
+    search,
+    filterDelivCode,
+    filterCountry,
+    filterSuppliers,
+    filterBuyers,
+    filterStatus,
+    filterAccountTypes,
+    filterPGroup,
+    filterSegment,
+    poSortKey,
+    poSortDir,
+  ]);
 
   /* Clear all filters -------------------------------------- */
   function clearFilters() {
@@ -1084,17 +1514,29 @@ export default function Dashboard() {
     setFilterSegment([]);
   }
 
-  const activeFilterCount = (search ? 1 : 0) + filterDelivCode.length + filterCountry.length + filterSuppliers.length + filterBuyers.length + filterStatus.length + filterAccountTypes.length + filterPGroup.length + filterSegment.length;
+  const activeFilterCount =
+    (search ? 1 : 0) +
+    filterDelivCode.length +
+    filterCountry.length +
+    filterSuppliers.length +
+    filterBuyers.length +
+    filterStatus.length +
+    filterAccountTypes.length +
+    filterPGroup.length +
+    filterSegment.length;
 
   /* Remove Specific Filter ---------------------------------- */
-  function removeFilter(type: 'search' | 'deliv' | 'country' | 'supplier' | 'buyer' | 'pGroup' | 'segment', val?: string) {
+  function removeFilter(
+    type: 'search' | 'deliv' | 'country' | 'supplier' | 'buyer' | 'pGroup' | 'segment',
+    val?: string,
+  ) {
     if (type === 'search') setSearch('');
-    if (type === 'deliv' && val) setFilterDelivCode(p => p.filter(c => c !== val));
-    if (type === 'country' && val) setFilterCountry(p => p.filter(c => c !== val));
-    if (type === 'supplier' && val) setFilterSuppliers(p => p.filter(s => s !== val));
-    if (type === 'buyer' && val) setFilterBuyers(p => p.filter(b => b !== val));
-    if (type === 'pGroup' && val) setFilterPGroup(p => p.filter(g => g !== val));
-    if (type === 'segment' && val) setFilterSegment(p => p.filter(s => s !== val));
+    if (type === 'deliv' && val) setFilterDelivCode((p) => p.filter((c) => c !== val));
+    if (type === 'country' && val) setFilterCountry((p) => p.filter((c) => c !== val));
+    if (type === 'supplier' && val) setFilterSuppliers((p) => p.filter((s) => s !== val));
+    if (type === 'buyer' && val) setFilterBuyers((p) => p.filter((b) => b !== val));
+    if (type === 'pGroup' && val) setFilterPGroup((p) => p.filter((g) => g !== val));
+    if (type === 'segment' && val) setFilterSegment((p) => p.filter((s) => s !== val));
   }
 
   /* Toggle PO expand --------------------------------------- */
@@ -1108,8 +1550,11 @@ export default function Dashboard() {
 
   /* PO sort toggle ----------------------------------------- */
   function handlePoSort(key: PoSortKey) {
-    if (poSortKey === key) setPoSortDir((d) => d === 'asc' ? 'desc' : 'asc');
-    else { setPoSortKey(key); setPoSortDir('asc'); }
+    if (poSortKey === key) setPoSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setPoSortKey(key);
+      setPoSortDir('asc');
+    }
   }
 
   /* ── Cascading dropdown options ────────────────────────────
@@ -1120,19 +1565,28 @@ export default function Dashboard() {
   /* Trimmed filter look-ups, built once per filter change rather than
      re-allocated for every row inside the scan below. */
   const delivCodeSet = useMemo(() => new Set(filterDelivCode), [filterDelivCode]);
-  const countrySet   = useMemo(() => new Set(filterCountry), [filterCountry]);
-  const supplierSet  = useMemo(() => new Set(filterSuppliers.map(s => s.trim())), [filterSuppliers]);
-  const buyerSet     = useMemo(() => new Set(filterBuyers.map(b => b.trim())), [filterBuyers]);
-  const pGroupSet    = useMemo(() => new Set(filterPGroup), [filterPGroup]);
-  const segmentSet   = useMemo(() => new Set(filterSegment), [filterSegment]);
+  const countrySet = useMemo(() => new Set(filterCountry), [filterCountry]);
+  const supplierSet = useMemo(
+    () => new Set(filterSuppliers.map((s) => s.trim())),
+    [filterSuppliers],
+  );
+  const buyerSet = useMemo(() => new Set(filterBuyers.map((b) => b.trim())), [filterBuyers]);
+  const pGroupSet = useMemo(() => new Set(filterPGroup), [filterPGroup]);
+  const segmentSet = useMemo(() => new Set(filterSegment), [filterSegment]);
 
   /* One pass over `rows` produces all six option lists plus the filtered set.
      A row is recorded against every dropdown whose OWN filter is the only one
      it fails (and against all six when it fails none), which is exactly the
      cascading "all other filters" rule the six separate scans implemented. */
   const {
-    deliveryCodes, countries, supplierList, supplierDisplayMap,
-    buyerList, pGroupList, segmentList, filtered,
+    deliveryCodes,
+    countries,
+    supplierList,
+    supplierDisplayMap,
+    buyerList,
+    pGroupList,
+    segmentList,
+    filtered,
   } = useMemo(() => {
     const dc = new Set<string>();
     const co = new Set<string>();
@@ -1181,7 +1635,9 @@ export default function Dashboard() {
 
     const sortedNames = [...sp.keys()].sort();
     const displayMap: Record<string, string> = {};
-    sortedNames.forEach((name) => { displayMap[name] = sp.get(name)!; });
+    sortedNames.forEach((name) => {
+      displayMap[name] = sp.get(name)!;
+    });
 
     return {
       deliveryCodes: [...dc].sort(),
@@ -1193,8 +1649,18 @@ export default function Dashboard() {
       segmentList: [...sg].sort(),
       filtered: keep,
     };
-  }, [rows, debouncedSearch, filterStatus, filterAccountTypes, delivCodeSet, countrySet, supplierSet, buyerSet, pGroupSet, segmentSet]);
-
+  }, [
+    rows,
+    debouncedSearch,
+    filterStatus,
+    filterAccountTypes,
+    delivCodeSet,
+    countrySet,
+    supplierSet,
+    buyerSet,
+    pGroupSet,
+    segmentSet,
+  ]);
 
   /* PO grouping -------------------------------------------- */
   const groupedPOs = useMemo((): PoGroup[] => {
@@ -1220,7 +1686,8 @@ export default function Dashboard() {
       g.totalQty += Number(row['Open QTY'] ?? 0);
       g.totalValue += Number(row['Open PO Value USD'] ?? 0);
       if (row['Delivery Date'] && g.earliestDate) {
-        if (new Date(row['Delivery Date']) < new Date(g.earliestDate)) g.earliestDate = row['Delivery Date'];
+        if (new Date(row['Delivery Date']) < new Date(g.earliestDate))
+          g.earliestDate = row['Delivery Date'];
       } else if (row['Delivery Date']) {
         g.earliestDate = row['Delivery Date'];
       }
@@ -1228,30 +1695,48 @@ export default function Dashboard() {
     return Array.from(map.values());
   }, [filtered]);
 
-  const sortedPOs = useMemo(() =>
-    [...groupedPOs].sort((a, b) => {
-      let cmp = 0;
-      if (poSortKey === 'totalValue') cmp = a.totalValue - b.totalValue;
-      if (poSortKey === 'earliestDate') cmp = compareValues(a.earliestDate, b.earliestDate);
-      return poSortDir === 'asc' ? cmp : -cmp;
-    }), [groupedPOs, poSortKey, poSortDir]);
+  const sortedPOs = useMemo(
+    () =>
+      [...groupedPOs].sort((a, b) => {
+        let cmp = 0;
+        if (poSortKey === 'totalValue') cmp = a.totalValue - b.totalValue;
+        if (poSortKey === 'earliestDate') cmp = compareValues(a.earliestDate, b.earliestDate);
+        return poSortDir === 'asc' ? cmp : -cmp;
+      }),
+    [groupedPOs, poSortKey, poSortDir],
+  );
 
   const poPages = Math.max(1, Math.ceil(sortedPOs.length / PAGE_SIZE));
   const curPoPage = Math.min(poPage, poPages);
-  const pagePOs = useMemo(() => sortedPOs.slice((curPoPage - 1) * PAGE_SIZE, curPoPage * PAGE_SIZE), [sortedPOs, curPoPage]);
+  const pagePOs = useMemo(
+    () => sortedPOs.slice((curPoPage - 1) * PAGE_SIZE, curPoPage * PAGE_SIZE),
+    [sortedPOs, curPoPage],
+  );
 
   /* KPI stats — always derived from the fully-filtered dataset */
   const stats = useMemo(() => {
     const distinctPOs = new Set(filtered.map((r) => r['PO Number'])).size;
-    const pastDue     = new Set(filtered.filter((r) => daysDiff(r['Delivery Date']) < 0).map(r => r['PO Number'])).size;
-    const dueSoon     = new Set(filtered.filter((r) => { const d = daysDiff(r['Delivery Date']); return d >= 0 && d <= 7; }).map(r => r['PO Number'])).size;
-    const totalValue  = filtered.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
+    const pastDue = new Set(
+      filtered.filter((r) => daysDiff(r['Delivery Date']) < 0).map((r) => r['PO Number']),
+    ).size;
+    const dueSoon = new Set(
+      filtered
+        .filter((r) => {
+          const d = daysDiff(r['Delivery Date']);
+          return d >= 0 && d <= 7;
+        })
+        .map((r) => r['PO Number']),
+    ).size;
+    const totalValue = filtered.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
     return { distinctPOs, pastDue, dueSoon, totalValue };
   }, [filtered]);
 
   /* Today label -------------------------------------------- */
   const todayLabel = new Date().toLocaleDateString('en-GB', {
-    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
   });
 
   /* ── Render ─────────────────────────────────────────────── */
@@ -1266,7 +1751,6 @@ export default function Dashboard() {
         deliveryStatusMap={deliveryStatusMap}
       />
       <main className="flex-1 flex flex-col h-full relative bg-white">
-
         {/* ── Sticky top nav ── */}
         <header className="h-14 md:h-16 px-4 md:px-8 flex items-center justify-between border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-10 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -1274,12 +1758,26 @@ export default function Dashboard() {
               onClick={() => setIsSidebarOpen(true)}
               className="mr-2 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors focus:ring-2 focus:ring-[#307c4c]/50 focus:outline-none"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#307c4c]">
-              <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                className="w-4 h-4 text-white"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                 <path d="M15 3h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
                 <line x1="12" y1="3" x2="12" y2="21" />
@@ -1287,7 +1785,9 @@ export default function Dashboard() {
             </span>
             <span className="text-lg font-bold text-gray-900 tracking-tight">NESR</span>
             <span className="hidden sm:inline text-gray-300 select-none">·</span>
-            <span className="hidden sm:inline text-sm font-medium text-gray-500">PO Expediting Dashboard</span>
+            <span className="hidden sm:inline text-sm font-medium text-gray-500">
+              PO Expediting Dashboard
+            </span>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
             <Link
@@ -1296,7 +1796,15 @@ export default function Dashboard() {
               aria-label="Help & Training"
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#307c4c]"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <circle cx="12" cy="12" r="10" />
                 <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
                 <path d="M12 17h.01" />
@@ -1308,13 +1816,15 @@ export default function Dashboard() {
 
         {/* ── Scrollable body ── */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 scroll-smooth">
-
           {/* Page title */}
           <div className="mb-6 flex items-start justify-between">
             <div>
-              <h1 className="text-lg font-bold text-gray-900 tracking-tight">Open Purchase Orders</h1>
+              <h1 className="text-lg font-bold text-gray-900 tracking-tight">
+                Open Purchase Orders
+              </h1>
               <p className="text-sm text-slate-500 mt-0.5">
-                Live view of all open POs sourced from SAP — grouped by PO, sortable by delivery date or value.
+                Live view of all open POs sourced from SAP — grouped by PO, sortable by delivery
+                date or value.
               </p>
             </div>
             <button
@@ -1329,7 +1839,11 @@ export default function Dashboard() {
               }}
             >
               <svg className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <path
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                  clipRule="evenodd"
+                />
               </svg>
               DS Codes ?
             </button>
@@ -1338,93 +1852,203 @@ export default function Dashboard() {
           {/* ── KPI Cards ── */}
           {!loading && !error && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-in fade-in duration-500">
-              <KpiCard label="Distinct Open POs" value={stats.distinctPOs.toLocaleString()} accent />
-              <KpiCard label="Past Due" value={stats.pastDue.toLocaleString()} danger={stats.pastDue > 0} />
-              <KpiCard label="Due This Week" value={stats.dueSoon.toLocaleString()} warning={stats.dueSoon > 0} />
+              <KpiCard
+                label="Distinct Open POs"
+                value={stats.distinctPOs.toLocaleString()}
+                accent
+              />
+              <KpiCard
+                label="Past Due"
+                value={stats.pastDue.toLocaleString()}
+                danger={stats.pastDue > 0}
+              />
+              <KpiCard
+                label="Due This Week"
+                value={stats.dueSoon.toLocaleString()}
+                warning={stats.dueSoon > 0}
+              />
               <KpiCard label="Total Open Value" value={formatCurrency(stats.totalValue)} accent />
             </div>
           )}
 
           {/* ── Table card ── */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in duration-500">
-
             {/* ── Filter bar ── */}
             {!loading && !error && (
               <>
                 {/* ── Status + Type Tile Slicer ── */}
                 <StatusTiles
-                  selected={filterStatus} onChange={setFilterStatus}
-                  selectedAccountTypes={filterAccountTypes} onAccountTypeChange={setFilterAccountTypes}
+                  selected={filterStatus}
+                  onChange={setFilterStatus}
+                  selectedAccountTypes={filterAccountTypes}
+                  onAccountTypeChange={setFilterAccountTypes}
                 />
 
                 <FilterBar
-                  search={search} onSearch={setSearch}
-                  deliveryCode={filterDelivCode} onDeliveryCode={setFilterDelivCode} deliveryCodes={deliveryCodes}
-                  country={filterCountry} onCountry={setFilterCountry} countries={countries}
-                  suppliers={filterSuppliers} onSuppliers={setFilterSuppliers} supplierList={supplierList} supplierDisplayMap={supplierDisplayMap}
-                  buyers={filterBuyers} onBuyers={setFilterBuyers} buyerList={buyerList}
-                  pGroup={filterPGroup} onPGroup={setFilterPGroup} pGroupList={pGroupList}
-                  segment={filterSegment} onSegment={setFilterSegment} segmentList={segmentList}
+                  search={search}
+                  onSearch={setSearch}
+                  deliveryCode={filterDelivCode}
+                  onDeliveryCode={setFilterDelivCode}
+                  deliveryCodes={deliveryCodes}
+                  country={filterCountry}
+                  onCountry={setFilterCountry}
+                  countries={countries}
+                  suppliers={filterSuppliers}
+                  onSuppliers={setFilterSuppliers}
+                  supplierList={supplierList}
+                  supplierDisplayMap={supplierDisplayMap}
+                  buyers={filterBuyers}
+                  onBuyers={setFilterBuyers}
+                  buyerList={buyerList}
+                  pGroup={filterPGroup}
+                  onPGroup={setFilterPGroup}
+                  pGroupList={pGroupList}
+                  segment={filterSegment}
+                  onSegment={setFilterSegment}
+                  segmentList={segmentList}
                 />
 
                 {/* ── Active Filters Row ── */}
                 {activeFilterCount > 0 && (
                   <div className="px-4 sm:px-6 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-2">Active Filters:</span>
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-2">
+                        Active Filters:
+                      </span>
                       {search && (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
                           Search: {search}
-                          <button onClick={() => removeFilter('search')} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          <button
+                            onClick={() => removeFilter('search')}
+                            className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path
+                                fillRule="evenodd"
+                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
                           </button>
                         </span>
                       )}
-                      {filterDelivCode.map(c => (
-                        <span key={`deliv-${c}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
+                      {filterDelivCode.map((c) => (
+                        <span
+                          key={`deliv-${c}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm"
+                        >
                           Delivery Status: {deliveryStatusMap[c] || c}
-                          <button onClick={() => removeFilter('deliv', c)} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          <button
+                            onClick={() => removeFilter('deliv', c)}
+                            className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path
+                                fillRule="evenodd"
+                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
                           </button>
                         </span>
                       ))}
-                      {filterCountry.map(c => (
-                        <span key={`country-${c}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
+                      {filterCountry.map((c) => (
+                        <span
+                          key={`country-${c}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm"
+                        >
                           Country: {c}
-                          <button onClick={() => removeFilter('country', c)} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          <button
+                            onClick={() => removeFilter('country', c)}
+                            className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path
+                                fillRule="evenodd"
+                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
                           </button>
                         </span>
                       ))}
-                      {filterSuppliers.map(s => (
-                        <span key={`sup-${s}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#307c4c]/20 text-[#307c4c] text-xs font-medium rounded-full shadow-sm">
+                      {filterSuppliers.map((s) => (
+                        <span
+                          key={`sup-${s}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#307c4c]/20 text-[#307c4c] text-xs font-medium rounded-full shadow-sm"
+                        >
                           Supplier: {supplierDisplayMap[s] || s}
-                          <button onClick={() => removeFilter('supplier', s)} className="hover:bg-[#307c4c]/10 p-0.5 rounded-full text-[#307c4c]/60 hover:text-[#307c4c] transition-colors">
-                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          <button
+                            onClick={() => removeFilter('supplier', s)}
+                            className="hover:bg-[#307c4c]/10 p-0.5 rounded-full text-[#307c4c]/60 hover:text-[#307c4c] transition-colors"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path
+                                fillRule="evenodd"
+                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
                           </button>
                         </span>
                       ))}
-                      {filterBuyers.map(b => (
-                        <span key={`buy-${b}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#307c4c]/20 text-[#307c4c] text-xs font-medium rounded-full shadow-sm">
+                      {filterBuyers.map((b) => (
+                        <span
+                          key={`buy-${b}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#307c4c]/20 text-[#307c4c] text-xs font-medium rounded-full shadow-sm"
+                        >
                           Buyer: {b}
-                          <button onClick={() => removeFilter('buyer', b)} className="hover:bg-[#307c4c]/10 p-0.5 rounded-full text-[#307c4c]/60 hover:text-[#307c4c] transition-colors">
-                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          <button
+                            onClick={() => removeFilter('buyer', b)}
+                            className="hover:bg-[#307c4c]/10 p-0.5 rounded-full text-[#307c4c]/60 hover:text-[#307c4c] transition-colors"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path
+                                fillRule="evenodd"
+                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
                           </button>
                         </span>
                       ))}
-                      {filterPGroup.map(g => (
-                        <span key={`pg-${g}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
+                      {filterPGroup.map((g) => (
+                        <span
+                          key={`pg-${g}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm"
+                        >
                           P Group: {g}
-                          <button onClick={() => removeFilter('pGroup', g)} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          <button
+                            onClick={() => removeFilter('pGroup', g)}
+                            className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path
+                                fillRule="evenodd"
+                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
                           </button>
                         </span>
                       ))}
-                      {filterSegment.map(s => (
-                        <span key={`seg-${s}`} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm">
+                      {filterSegment.map((s) => (
+                        <span
+                          key={`seg-${s}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-full shadow-sm"
+                        >
                           Segment: {s}
-                          <button onClick={() => removeFilter('segment', s)} className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                          <button
+                            onClick={() => removeFilter('segment', s)}
+                            className="hover:bg-slate-100 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path
+                                fillRule="evenodd"
+                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
                           </button>
                         </span>
                       ))}
@@ -1448,14 +2072,17 @@ export default function Dashboard() {
                     {/* Master Checkbox col */}
                     <th className="p-4 pl-6 w-14">
                       <SquareCheckbox
-                        checked={pagePOs.length > 0 && pagePOs.every(group => group.lines.every(l => isSelected(l)))}
+                        checked={
+                          pagePOs.length > 0 &&
+                          pagePOs.every((group) => group.lines.every((l) => isSelected(l)))
+                        }
                         indeterminate={
                           pagePOs.length > 0 &&
-                          pagePOs.some(group => group.lines.some(l => isSelected(l))) &&
-                          !pagePOs.every(group => group.lines.every(l => isSelected(l)))
+                          pagePOs.some((group) => group.lines.some((l) => isSelected(l))) &&
+                          !pagePOs.every((group) => group.lines.every((l) => isSelected(l)))
                         }
                         onChange={(e) => {
-                          const visibleLines = pagePOs.flatMap(g => g.lines);
+                          const visibleLines = pagePOs.flatMap((g) => g.lines);
                           if (e.target.checked) selectMultipleLines(visibleLines);
                           else deselectMultipleLines(visibleLines);
                         }}
@@ -1478,7 +2105,9 @@ export default function Dashboard() {
                         <th
                           key={sk}
                           onClick={() => handlePoSort(sk)}
-                          aria-sort={active ? (poSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                          aria-sort={
+                            active ? (poSortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+                          }
                           className={[
                             'p-4 pl-6 font-medium whitespace-nowrap select-none cursor-pointer hover:text-[#307c4c] transition-colors duration-150',
                             align === 'right' ? 'text-right' : '',
@@ -1505,71 +2134,84 @@ export default function Dashboard() {
                   {loading && <SkeletonRows cols={9} />}
 
                   {!loading && error && (
-                    <tr><td colSpan={9} className="p-16 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <span className="text-4xl">⚠️</span>
-                        <p className="font-semibold text-slate-700">Could not load data</p>
-                        <p className="text-sm text-slate-400 max-w-sm">{error}</p>
-                      </div>
-                    </td></tr>
+                    <tr>
+                      <td colSpan={9} className="p-16 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <span className="text-4xl">⚠️</span>
+                          <p className="font-semibold text-slate-700">Could not load data</p>
+                          <p className="text-sm text-slate-400 max-w-sm">{error}</p>
+                        </div>
+                      </td>
+                    </tr>
                   )}
 
                   {!loading && !error && sortedPOs.length === 0 && (
-                    <tr><td colSpan={9} className="p-16 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <span className="text-4xl">🔍</span>
-                        <p className="font-semibold text-slate-700">No results found</p>
-                        <p className="text-sm text-slate-400">Try adjusting your search or filters.</p>
-                        {activeFilterCount > 0 && (
-                          <button
-                            onClick={clearFilters}
-                            className="mt-1 text-sm font-medium text-[#307c4c] hover:underline"
-                          >Clear all filters</button>
-                        )}
-                      </div>
-                    </td></tr>
+                    <tr>
+                      <td colSpan={9} className="p-16 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <span className="text-4xl">🔍</span>
+                          <p className="font-semibold text-slate-700">No results found</p>
+                          <p className="text-sm text-slate-400">
+                            Try adjusting your search or filters.
+                          </p>
+                          {activeFilterCount > 0 && (
+                            <button
+                              onClick={clearFilters}
+                              className="mt-1 text-sm font-medium text-[#307c4c] hover:underline"
+                            >
+                              Clear all filters
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
                   )}
 
-                  {!loading && !error && pagePOs.map((group) => {
-                    const isOpen = expandedPOs.has(group.poNumber);
-                    const isChecked = group.lines.every(l => isSelected(l));
-                    const isIndeterminate = group.lines.some(l => isSelected(l)) && !isChecked;
+                  {!loading &&
+                    !error &&
+                    pagePOs.map((group) => {
+                      const isOpen = expandedPOs.has(group.poNumber);
+                      const isChecked = group.lines.every((l) => isSelected(l));
+                      const isIndeterminate = group.lines.some((l) => isSelected(l)) && !isChecked;
 
-                    return (
-                      <React.Fragment key={group.poNumber}>
-                        {/* ── PO parent row ── */}
-                        <PoParentRow
-                          group={group}
-                          isOpen={isOpen}
-                          isChecked={isChecked}
-                          isIndeterminate={isIndeterminate}
-                          togglePO={togglePO}
-                          selectMultipleLines={selectMultipleLines}
-                          deselectMultipleLines={deselectMultipleLines}
-                        />
+                      return (
+                        <React.Fragment key={group.poNumber}>
+                          {/* ── PO parent row ── */}
+                          <PoParentRow
+                            group={group}
+                            isOpen={isOpen}
+                            isChecked={isChecked}
+                            isIndeterminate={isIndeterminate}
+                            togglePO={togglePO}
+                            selectMultipleLines={selectMultipleLines}
+                            deselectMultipleLines={deselectMultipleLines}
+                          />
 
-                        {/* ── Expandable sub-table row ── */}
-                        <tr key={`${group.poNumber}-expand`} className="border-b border-slate-100 p-0 hover:bg-transparent">
-                          <td colSpan={9} className="p-0">
-                            <div className={`expand-grid${isOpen ? ' open' : ''}`}>
-                              <div>
-                                <div className="border-t border-[#307c4c]/10 bg-slate-50/60">
-                                  <PoSubTable
-                                    lines={group.lines}
-                                    searchTerm={search}
-                                    onRowClick={setSelectedLineItem}
-                                    selectedLineItem={selectedLineItem}
-                                    toggleSelection={toggleSelection}
-                                    isSelected={isSelected}
-                                  />
+                          {/* ── Expandable sub-table row ── */}
+                          <tr
+                            key={`${group.poNumber}-expand`}
+                            className="border-b border-slate-100 p-0 hover:bg-transparent"
+                          >
+                            <td colSpan={9} className="p-0">
+                              <div className={`expand-grid${isOpen ? ' open' : ''}`}>
+                                <div>
+                                  <div className="border-t border-[#307c4c]/10 bg-slate-50/60">
+                                    <PoSubTable
+                                      lines={group.lines}
+                                      searchTerm={search}
+                                      onRowClick={setSelectedLineItem}
+                                      selectedLineItem={selectedLineItem}
+                                      toggleSelection={toggleSelection}
+                                      isSelected={isSelected}
+                                    />
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </td>
-                        </tr>
-                      </React.Fragment>
-                    );
-                  })}
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
@@ -1597,25 +2239,34 @@ export default function Dashboard() {
 
       {/* ── Floating Expedite Action Bar ──────────────────────────── */}
       {selectedItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 sm:px-8 py-4
+        <div
+          className="fixed bottom-0 left-0 right-0 z-40 px-4 sm:px-8 py-4
           bg-slate-900/95 backdrop-blur-md border-t border-slate-700/60
           shadow-[0_-4px_32px_rgba(0,0,0,0.25)]
-          animate-in slide-in-from-bottom-2 duration-200">
+          animate-in slide-in-from-bottom-2 duration-200"
+        >
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-
             {/* Left: selection summary */}
             <div className="flex items-center gap-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#307c4c] shrink-0">
-                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg
+                  className="w-4 h-4 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
                 </svg>
               </span>
               <div>
                 <p className="text-sm font-semibold text-white leading-tight">
-                  {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''} in Expedite Queue
+                  {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''} in Expedite
+                  Queue
                 </p>
                 <p className="text-xs text-slate-400 leading-tight">
-                  {new Set(selectedItems.map((i) => i['Supplier Name'])).size} supplier{new Set(selectedItems.map((i) => i['Supplier Name'])).size !== 1 ? 's' : ''}
+                  {new Set(selectedItems.map((i) => i['Supplier Name'])).size} supplier
+                  {new Set(selectedItems.map((i) => i['Supplier Name'])).size !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>
@@ -1637,7 +2288,11 @@ export default function Dashboard() {
               >
                 Expedite {selectedItems.length} Selected
                 <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  <path
+                    fillRule="evenodd"
+                    d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
                 </svg>
               </Link>
             </div>

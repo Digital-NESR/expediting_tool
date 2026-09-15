@@ -39,12 +39,13 @@ const MAX_ARRAY = 20;
 
 function redact(value: unknown, depth = 0): unknown {
   if (value == null) return value;
-  if (typeof value === 'string') return value.length > MAX_STRING ? `${value.slice(0, MAX_STRING)}…[${value.length}]` : value;
+  if (typeof value === 'string')
+    return value.length > MAX_STRING ? `${value.slice(0, MAX_STRING)}…[${value.length}]` : value;
   if (typeof value === 'number' || typeof value === 'boolean') return value;
   if (value instanceof Date) return value.toISOString();
   if (depth >= 4) return '[depth]';
   if (Array.isArray(value)) {
-    const head = value.slice(0, MAX_ARRAY).map(v => redact(v, depth + 1));
+    const head = value.slice(0, MAX_ARRAY).map((v) => redact(v, depth + 1));
     return value.length > MAX_ARRAY ? [...head, `…+${value.length - MAX_ARRAY} more`] : head;
   }
   if (typeof value === 'object') {
@@ -78,7 +79,14 @@ export interface Logger {
   with(fields: Record<string, unknown>): Logger;
 }
 
-function emit(level: LogLevel, tool: string, bound: Record<string, unknown>, event: string, fields?: Record<string, unknown>, err?: unknown): void {
+function emit(
+  level: LogLevel,
+  tool: string,
+  bound: Record<string, unknown>,
+  event: string,
+  fields?: Record<string, unknown>,
+  err?: unknown,
+): void {
   if (ORDER[level] > ORDER[activeLevel()]) return;
   const line: Record<string, unknown> = {
     level,

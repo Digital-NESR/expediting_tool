@@ -96,19 +96,34 @@ function parseCsv(input: string): string[][] {
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (inQuotes) {
-      if (ch !== '"') { field += ch; continue; }
-      if (text[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; }
+      if (ch !== '"') {
+        field += ch;
+        continue;
+      }
+      if (text[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else {
+        inQuotes = false;
+      }
     } else if (ch === '"') {
       inQuotes = true;
     } else if (ch === ',') {
-      row.push(field); field = '';
+      row.push(field);
+      field = '';
     } else if (ch === '\n') {
-      row.push(field); rows.push(trimTrailing(row)); row = []; field = '';
+      row.push(field);
+      rows.push(trimTrailing(row));
+      row = [];
+      field = '';
     } else if (ch !== '\r') {
       field += ch;
     }
   }
-  if (field !== '' || row.length > 0) { row.push(field); rows.push(trimTrailing(row)); }
+  if (field !== '' || row.length > 0) {
+    row.push(field);
+    rows.push(trimTrailing(row));
+  }
   return rows;
 }
 

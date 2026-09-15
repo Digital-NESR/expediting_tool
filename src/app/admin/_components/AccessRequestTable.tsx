@@ -86,8 +86,11 @@ function CountriesDisplay({ countries }: { countries: string[] }) {
   if (!countries.length) return <span className="text-slate-400 text-xs">—</span>;
   return (
     <div className="flex flex-wrap gap-1">
-      {countries.map(c => (
-        <span key={c} className="px-2 py-0.5 bg-slate-100 rounded text-[11px] font-medium text-slate-600 border border-slate-200">
+      {countries.map((c) => (
+        <span
+          key={c}
+          className="px-2 py-0.5 bg-slate-100 rounded text-[11px] font-medium text-slate-600 border border-slate-200"
+        >
           {c}
         </span>
       ))}
@@ -101,7 +104,14 @@ function SectionLoading() {
   return (
     <div className="flex items-center justify-center py-12 gap-3 text-slate-500">
       <svg className="w-5 h-5 animate-spin text-[#307c4c]" viewBox="0 0 24 24" fill="none">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <circle
+          className="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          strokeWidth="4"
+        />
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
       </svg>
       <span className="text-sm font-medium">Loading…</span>
@@ -118,9 +128,7 @@ function UserCell({ row }: { row: AccessRequestLike }) {
         {row.display_name ?? row.user_email}
       </p>
       <p className="text-xs text-slate-400 whitespace-nowrap">{row.user_email}</p>
-      {row.job_title && (
-        <p className="text-xs text-slate-400 whitespace-nowrap">{row.job_title}</p>
-      )}
+      {row.job_title && <p className="text-xs text-slate-400 whitespace-nowrap">{row.job_title}</p>}
     </td>
   );
 }
@@ -135,8 +143,18 @@ function DeleteButton({ onClick, disabled }: { onClick: () => void; disabled: bo
       className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       title="Delete request"
     >
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+        />
       </svg>
     </button>
   );
@@ -161,16 +179,16 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
   onDelete,
   onPendingCountChange,
 }: AccessRequestTableProps<TRow>) {
-  const [requests, setRequests]           = useState<TRow[]>([]);
-  const [countries, setCountries]         = useState<string[]>(initialOptions);
-  const [loading, setLoading]             = useState(true);
-  const [isRefreshing, setIsRefreshing]   = useState(false);
+  const [requests, setRequests] = useState<TRow[]>([]);
+  const [countries, setCountries] = useState<string[]>(initialOptions);
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   // Which row is in approve/edit expand mode: email | null
-  const [expandedEmail, setExpandedEmail]   = useState<string | null>(null);
-  const [expandMode, setExpandMode]         = useState<'approve' | 'edit' | null>(null);
-  const [isPending, startTransition]        = useTransition();
+  const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
+  const [expandMode, setExpandMode] = useState<'approve' | 'edit' | null>(null);
+  const [isPending, startTransition] = useTransition();
   const [processingEmail, setProcessingEmail] = useState<string | null>(null);
   /** Non-null whenever the last load or write failed. Cleared by the next success. */
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -182,7 +200,7 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
       setRequests(data);
       setLastRefreshed(new Date());
       setErrorMessage(null);
-      onPendingCountChange?.(data.filter(r => r.status === 'Pending').length);
+      onPendingCountChange?.(data.filter((r) => r.status === 'Pending').length);
     } catch {
       setErrorMessage('Could not refresh the list. The data below may be out of date.');
     } finally {
@@ -199,7 +217,7 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
         setRequests(reqs);
         if (ctrs) setCountries(ctrs);
         setLastRefreshed(new Date());
-        onPendingCountChange?.(reqs.filter(r => r.status === 'Pending').length);
+        onPendingCountChange?.(reqs.filter((r) => r.status === 'Pending').length);
       })
       /* Without this the spinner never stopped when the initial load threw. */
       .catch(() => setErrorMessage('Could not load access requests. Please refresh to try again.'))
@@ -207,7 +225,7 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onPendingCountChange]);
 
-  const pending  = useMemo(() => requests.filter(r => r.status === 'Pending'), [requests]);
+  const pending = useMemo(() => requests.filter((r) => r.status === 'Pending'), [requests]);
   const allUsers = requests; // already sorted by server: Pending → Approved → Denied
 
   function openExpand(email: string, mode: 'approve' | 'edit') {
@@ -239,7 +257,7 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
          does not sit there showing an outcome that never happened. The refresh
          clears the banner on success, so the write's failure is re-applied after. */
       await refreshData();
-      setErrorMessage(prev => failed ?? prev);
+      setErrorMessage((prev) => failed ?? prev);
       if (collapse && !failed) {
         setExpandedEmail(null);
         setExpandMode(null);
@@ -269,7 +287,6 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
 
   return (
     <div className="space-y-8">
-
       {/* ── Header row ── */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -277,7 +294,12 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
           <p className="text-[12px] text-gray-400 mt-0.5">{subtitle}</p>
           {lastRefreshed && (
             <p className="text-[12px] text-gray-400 mt-0.5">
-              Last updated: {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              Last updated:{' '}
+              {lastRefreshed.toLocaleTimeString('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })}
             </p>
           )}
         </div>
@@ -288,9 +310,16 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
         >
           <svg
             className={`w-3.5 h-3.5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`}
-            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.5}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
           </svg>
           {isRefreshing ? 'Refreshing…' : 'Refresh'}
         </button>
@@ -302,8 +331,18 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
           role="alert"
           className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3"
         >
-          <svg className="w-4 h-4 mt-0.5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          <svg
+            className="w-4 h-4 mt-0.5 shrink-0 text-red-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+            />
           </svg>
           <p className="text-[13px] text-red-700 flex-1">{errorMessage}</p>
           <button
@@ -332,8 +371,18 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
           <SectionLoading />
         ) : pending.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-12 text-center">
-            <svg className="w-10 h-10 text-slate-200 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-10 h-10 text-slate-200 mx-auto mb-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
             <p className="text-sm text-slate-400 font-medium">{emptyPendingLabel}</p>
           </div>
@@ -365,8 +414,11 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
                             options={countries}
                             preselected={r.requested_countries}
                             label="Select countries to approve:"
-                            onConfirm={selected => handleApprove(r.user_email, selected)}
-                            onCancel={() => { setExpandedEmail(null); setExpandMode(null); }}
+                            onConfirm={(selected) => handleApprove(r.user_email, selected)}
+                            onCancel={() => {
+                              setExpandedEmail(null);
+                              setExpandMode(null);
+                            }}
                             loading={isProcessing}
                           />
                         )}
@@ -390,7 +442,10 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
                           >
                             {isProcessing && !isExpanded ? 'Rejecting…' : 'Reject'}
                           </button>
-                          <DeleteButton onClick={() => handleDelete(r.user_email)} disabled={isProcessing} />
+                          <DeleteButton
+                            onClick={() => handleDelete(r.user_email)}
+                            disabled={isProcessing}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -448,8 +503,11 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
                             options={countries}
                             preselected={r.approved_countries}
                             label="Edit approved countries:"
-                            onConfirm={selected => handleEditAccess(r.user_email, selected)}
-                            onCancel={() => { setExpandedEmail(null); setExpandMode(null); }}
+                            onConfirm={(selected) => handleEditAccess(r.user_email, selected)}
+                            onCancel={() => {
+                              setExpandedEmail(null);
+                              setExpandMode(null);
+                            }}
                             loading={isProcessing}
                           />
                         )}
@@ -498,7 +556,10 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
                               </button>
                             </>
                           )}
-                          <DeleteButton onClick={() => handleDelete(r.user_email)} disabled={isProcessing} />
+                          <DeleteButton
+                            onClick={() => handleDelete(r.user_email)}
+                            disabled={isProcessing}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -509,7 +570,6 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
           </div>
         )}
       </div>
-
     </div>
   );
 }

@@ -26,8 +26,18 @@ import {
   PROCURE_GUARD_DOCUMENT_TYPES,
   PROCUREGUARD_DATA_TAG,
 } from '@/lib/procure-guard/constants';
-import { ensureProcureGuardPaymentRequestColumns, exec, serialise, sql } from '@/lib/procure-guard/internals';
-import { detectMime, fileBaseName, normalisePaymentCountry, requireText } from '@/lib/procure-guard/validation';
+import {
+  ensureProcureGuardPaymentRequestColumns,
+  exec,
+  serialise,
+  sql,
+} from '@/lib/procure-guard/internals';
+import {
+  detectMime,
+  fileBaseName,
+  normalisePaymentCountry,
+  requireText,
+} from '@/lib/procure-guard/validation';
 import type {
   ActionResult,
   AdhocPaymentRequest,
@@ -48,10 +58,18 @@ export async function uploadProcureGuardDocument(
     const requestType = formData.get('request_type') as ProcureGuardRequestType | null;
     const requestId = Number(formData.get('request_id'));
     const file = formData.get('file') as File | null;
-    const customName = (((formData.get('custom_name') as string) || '').trim() || (file ? fileBaseName(file.name) : 'Attachment')).slice(0, MAX_PROCURE_GUARD_DOCUMENT_NAME_CHARS);
+    const customName = (
+      ((formData.get('custom_name') as string) || '').trim() ||
+      (file ? fileBaseName(file.name) : 'Attachment')
+    ).slice(0, MAX_PROCURE_GUARD_DOCUMENT_NAME_CHARS);
     const documentType = ((formData.get('document_type') as string) || 'request_attachment').trim();
 
-    if ((requestType !== 'adhoc' && requestType !== 'advance') || !Number.isFinite(requestId) || requestId <= 0 || !file) {
+    if (
+      (requestType !== 'adhoc' && requestType !== 'advance') ||
+      !Number.isFinite(requestId) ||
+      requestId <= 0 ||
+      !file
+    ) {
       return { success: false, error: 'Missing required upload fields.' };
     }
 
@@ -63,15 +81,28 @@ export async function uploadProcureGuardDocument(
       return { success: false, error: 'File is too large. Maximum size is 10 MB.' };
     }
 
-    const table = requestType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
-    const requestRows = await sql<QueryResultRow[]>(`SELECT id, reference_number, requested_by_email, requester_notification_emails, country, segment FROM ${table} WHERE id = ? LIMIT 1`, [requestId]);
+    const table =
+      requestType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
+    const requestRows = await sql<QueryResultRow[]>(
+      `SELECT id, reference_number, requested_by_email, requester_notification_emails, country, segment FROM ${table} WHERE id = ? LIMIT 1`,
+      [requestId],
+    );
     if (!requestRows[0]) return { success: false, error: 'Request not found.' };
-    const request = normalisePaymentCountry(serialise<Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requested_by_email' | 'requester_notification_emails' | 'country' | 'segment'>>(requestRows[0]));
+    const request = normalisePaymentCountry(
+      serialise<
+        Pick<
+          AdhocPaymentRequest | AdvancePaymentRequest,
+          'requested_by_email' | 'requester_notification_emails' | 'country' | 'segment'
+        >
+      >(requestRows[0]),
+    );
     // Seeing the request is necessary but NOT sufficient: the read-only Viewer role can see a
     // request it may not attach anything to. (Requester-side access always carries upload rights,
     // including for a Viewer-role user on their own request.)
-    const canUpload = canActorViewRequest(actor, request)
-      && (actorCanAccessRequesterSideRequest(actor, request) || actor.permissions.accessView !== 'viewer');
+    const canUpload =
+      canActorViewRequest(actor, request) &&
+      (actorCanAccessRequesterSideRequest(actor, request) ||
+        actor.permissions.accessView !== 'viewer');
     if (!canUpload) {
       return { success: false, error: 'You do not have access to upload files to this request.' };
     }
@@ -114,7 +145,9 @@ export async function uploadProcureGuardDocument(
 
     revalidatePath('/procure-guard');
     revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
-    revalidatePath(`/procure-guard/${requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${requestId}`);
+    revalidatePath(
+      `/procure-guard/${requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${requestId}`,
+    );
     return { success: true, document: serialise<ProcureGuardDocument>(docs[0]) };
   } catch (err) {
     log.error('uploadProcureGuardDocument.failed', err);
@@ -144,20 +177,30 @@ export async function deleteProcureGuardDocument(documentId: number): Promise<Ac
 
     // Deleting an attachment destroys audit evidence, so it needs at least the access uploading
     // needs, plus one of: you uploaded it, you are on the requester side, or you hold delete rights.
-    const request = normalisePaymentCountry(serialise<Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'requested_by_email' | 'requester_notification_emails' | 'country' | 'segment'>>({
-      requested_by_email: doc.requested_by_email,
-      requester_notification_emails: doc.requester_notification_emails,
-      country: doc.country,
-      segment: doc.segment,
-    }));
-    const isUploader = normalizeEmail(doc.uploaded_by_email as string) === normalizeEmail(actor.email);
-    const hasScopedReviewAccess = canActorViewRequest(actor, request)
-      && actor.permissions.accessView !== 'viewer'
-      && !actorCanAccessRequesterSideRequest(actor, request);
-    const canDelete = isUploader
-      || actorCanAccessRequesterSideRequest(actor, request)
-      || actor.permissions.canDeleteRecords
-      || hasScopedReviewAccess;
+    const request = normalisePaymentCountry(
+      serialise<
+        Pick<
+          AdhocPaymentRequest | AdvancePaymentRequest,
+          'requested_by_email' | 'requester_notification_emails' | 'country' | 'segment'
+        >
+      >({
+        requested_by_email: doc.requested_by_email,
+        requester_notification_emails: doc.requester_notification_emails,
+        country: doc.country,
+        segment: doc.segment,
+      }),
+    );
+    const isUploader =
+      normalizeEmail(doc.uploaded_by_email as string) === normalizeEmail(actor.email);
+    const hasScopedReviewAccess =
+      canActorViewRequest(actor, request) &&
+      actor.permissions.accessView !== 'viewer' &&
+      !actorCanAccessRequesterSideRequest(actor, request);
+    const canDelete =
+      isUploader ||
+      actorCanAccessRequesterSideRequest(actor, request) ||
+      actor.permissions.canDeleteRecords ||
+      hasScopedReviewAccess;
     if (!canDelete) {
       return { success: false, error: 'You do not have access to delete this attachment.' };
     }
@@ -173,7 +216,9 @@ export async function deleteProcureGuardDocument(documentId: number): Promise<Ac
 
     revalidatePath('/procure-guard');
     revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
-    revalidatePath(`/procure-guard/${doc.request_type === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${doc.request_id}`);
+    revalidatePath(
+      `/procure-guard/${doc.request_type === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${doc.request_id}`,
+    );
     return { success: true };
   } catch (err) {
     log.error('deleteProcureGuardDocument.failed', err);
@@ -186,26 +231,44 @@ export async function deleteProcureGuardDocument(documentId: number): Promise<Ac
 // requester_notification_emails list (the same list that already confers requester-side visibility
 // and status updates). Read-only Viewer-role users cannot manage viewers.
 
-async function loadRequestForViewerManagement(actor: ProcureGuardActor, requestType: ProcureGuardRequestType, requestId: number) {
-  const table = requestType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
+async function loadRequestForViewerManagement(
+  actor: ProcureGuardActor,
+  requestType: ProcureGuardRequestType,
+  requestId: number,
+) {
+  const table =
+    requestType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
   await ensureProcureGuardPaymentRequestColumns();
   const rows = await sql<QueryResultRow[]>(
     `SELECT id, reference_number, requested_by_email, requester_notification_emails, country, segment FROM ${table} WHERE id = ? LIMIT 1`,
     [requestId],
   );
   if (!rows[0]) return { error: 'Request not found.' as const };
-  const request = serialise<Pick<AdhocPaymentRequest | AdvancePaymentRequest, 'id' | 'reference_number' | 'requested_by_email' | 'requester_notification_emails' | 'country' | 'segment'>>(rows[0]);
+  const request = serialise<
+    Pick<
+      AdhocPaymentRequest | AdvancePaymentRequest,
+      | 'id'
+      | 'reference_number'
+      | 'requested_by_email'
+      | 'requester_notification_emails'
+      | 'country'
+      | 'segment'
+    >
+  >(rows[0]);
 
   // Viewers can create their own requests, so they may manage viewers on those — but a pure Viewer
   // looking at someone else's request stays hands-off. Requesters/reviewers/admins keep their reach.
-  const ownsRequest = String(request.requested_by_email).toLowerCase() === actor.email.toLowerCase();
+  const ownsRequest =
+    String(request.requested_by_email).toLowerCase() === actor.email.toLowerCase();
   const isPureViewer = actor.permissions.accessView === 'viewer';
-  const canManage = ownsRequest || (!isPureViewer && (
-    actor.permissions.canViewAll
-      ? actorCanAccessRequestScope(actor, request)
-      : actorCanAccessRequesterSideRequest(actor, request)
-  ));
-  if (!canManage) return { error: 'You do not have access to manage viewers on this request.' as const };
+  const canManage =
+    ownsRequest ||
+    (!isPureViewer &&
+      (actor.permissions.canViewAll
+        ? actorCanAccessRequestScope(actor, request)
+        : actorCanAccessRequesterSideRequest(actor, request)));
+  if (!canManage)
+    return { error: 'You do not have access to manage viewers on this request.' as const };
   return { table, request };
 }
 
@@ -223,13 +286,18 @@ export async function addProcureGuardRequestViewer(input: {
 
     const email = requireText(input.email, 'Viewer email').toLowerCase();
     if (!isValidEmail(email)) return { success: false, error: 'Enter a valid email address.' };
-    if (email === String(request.requested_by_email).toLowerCase()) return { success: false, error: 'The requester can already view this request.' };
+    if (email === String(request.requested_by_email).toLowerCase())
+      return { success: false, error: 'The requester can already view this request.' };
 
     const existing = requesterNotificationEmailsOf(request);
-    if (existing.includes(email)) return { success: false, error: 'That person can already view this request.' };
+    if (existing.includes(email))
+      return { success: false, error: 'That person can already view this request.' };
     const updated = [...existing, email];
 
-    await exec(`UPDATE ${table} SET requester_notification_emails = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [updated, input.requestId]);
+    await exec(
+      `UPDATE ${table} SET requester_notification_emails = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [updated, input.requestId],
+    );
     await writeActivity({
       requestType: input.requestType,
       requestId: input.requestId,
@@ -240,7 +308,9 @@ export async function addProcureGuardRequestViewer(input: {
     });
 
     revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
-    revalidatePath(`/procure-guard/${input.requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${input.requestId}`);
+    revalidatePath(
+      `/procure-guard/${input.requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${input.requestId}`,
+    );
     return { success: true };
   } catch (err) {
     log.error('addProcureGuardRequestViewer.failed', err);
@@ -261,10 +331,14 @@ export async function removeProcureGuardRequestViewer(input: {
 
     const email = (input.email || '').trim().toLowerCase();
     const existing = requesterNotificationEmailsOf(request);
-    if (!existing.includes(email)) return { success: false, error: 'That viewer is not on this request.' };
-    const updated = existing.filter(e => e !== email);
+    if (!existing.includes(email))
+      return { success: false, error: 'That viewer is not on this request.' };
+    const updated = existing.filter((e) => e !== email);
 
-    await exec(`UPDATE ${table} SET requester_notification_emails = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [updated, input.requestId]);
+    await exec(
+      `UPDATE ${table} SET requester_notification_emails = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [updated, input.requestId],
+    );
     await writeActivity({
       requestType: input.requestType,
       requestId: input.requestId,
@@ -275,10 +349,15 @@ export async function removeProcureGuardRequestViewer(input: {
     });
 
     revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
-    revalidatePath(`/procure-guard/${input.requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${input.requestId}`);
+    revalidatePath(
+      `/procure-guard/${input.requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${input.requestId}`,
+    );
     return { success: true };
   } catch (err) {
     log.error('removeProcureGuardRequestViewer.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to remove viewer.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to remove viewer.',
+    };
   }
 }

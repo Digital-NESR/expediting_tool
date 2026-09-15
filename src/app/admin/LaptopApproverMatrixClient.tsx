@@ -9,11 +9,7 @@ import {
   setLaptopApproverCountryActive,
 } from '@/app/actions/laptopProcurement';
 import { type EmployeeDirectoryEntry } from '@/app/actions/employeeDirectory';
-import {
-  personInitials,
-  usePickerAnchor,
-  PickerPortal,
-} from './_components/EmployeePicker';
+import { personInitials, usePickerAnchor, PickerPortal } from './_components/EmployeePicker';
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
 import type { LaptopApproverMatrixRow } from '@/types/laptopProcurement';
 
@@ -32,15 +28,60 @@ interface MatrixColumn {
 }
 
 const COLUMNS: MatrixColumn[] = [
-  { key: 'itm1', label: 'IT Manager', role: 'IT Manager', slot: 1, nameCol: 'it_manager_name', emailCol: 'it_manager_email' },
-  { key: 'itm2', label: 'IT Manager 2', role: 'IT Manager', slot: 2, nameCol: 'it_manager_2_name', emailCol: 'it_manager_2_email' },
-  { key: 'itm3', label: 'IT Manager 3', role: 'IT Manager', slot: 3, nameCol: 'it_manager_3_name', emailCol: 'it_manager_3_email' },
-  { key: 'cm', label: 'Country Manager', role: 'Country Manager', slot: 1, nameCol: 'cm_name', emailCol: 'cm_email' },
-  { key: 'itd', label: 'IT Director', role: 'IT Director', slot: 1, nameCol: 'itd_name', emailCol: 'itd_email' },
-  { key: 'scd', label: 'SC Director', role: 'Supply Chain Director', slot: 1, nameCol: 'scd_name', emailCol: 'scd_email' },
+  {
+    key: 'itm1',
+    label: 'IT Manager',
+    role: 'IT Manager',
+    slot: 1,
+    nameCol: 'it_manager_name',
+    emailCol: 'it_manager_email',
+  },
+  {
+    key: 'itm2',
+    label: 'IT Manager 2',
+    role: 'IT Manager',
+    slot: 2,
+    nameCol: 'it_manager_2_name',
+    emailCol: 'it_manager_2_email',
+  },
+  {
+    key: 'itm3',
+    label: 'IT Manager 3',
+    role: 'IT Manager',
+    slot: 3,
+    nameCol: 'it_manager_3_name',
+    emailCol: 'it_manager_3_email',
+  },
+  {
+    key: 'cm',
+    label: 'Country Manager',
+    role: 'Country Manager',
+    slot: 1,
+    nameCol: 'cm_name',
+    emailCol: 'cm_email',
+  },
+  {
+    key: 'itd',
+    label: 'IT Director',
+    role: 'IT Director',
+    slot: 1,
+    nameCol: 'itd_name',
+    emailCol: 'itd_email',
+  },
+  {
+    key: 'scd',
+    label: 'SC Director',
+    role: 'Supply Chain Director',
+    slot: 1,
+    nameCol: 'scd_name',
+    emailCol: 'scd_email',
+  },
 ];
 
-function cellValue(row: LaptopApproverMatrixRow, col: MatrixColumn): { name: string; email: string } | null {
+function cellValue(
+  row: LaptopApproverMatrixRow,
+  col: MatrixColumn,
+): { name: string; email: string } | null {
   const email = ((row[col.emailCol] as string | null) ?? '').trim();
   if (!email) return null;
   const name = ((row[col.nameCol] as string | null) ?? '').trim();
@@ -90,8 +131,18 @@ function EditableApproverCell({
       <PickerPortal
         open={open}
         pos={pos}
-        onPick={emp => { close(); onAssign(emp); }}
-        onClear={cell ? () => { close(); onClear(); } : undefined}
+        onPick={(emp) => {
+          close();
+          onAssign(emp);
+        }}
+        onClear={
+          cell
+            ? () => {
+                close();
+                onClear();
+              }
+            : undefined
+        }
         onClose={close}
       />
     </>
@@ -126,7 +177,15 @@ function ColumnHeader({
           <Pencil className="h-3 w-3 shrink-0 text-slate-300 opacity-0 transition-opacity group-hover:opacity-100" />
         )}
       </button>
-      <PickerPortal open={open} pos={pos} onPick={emp => { close(); onAssign(emp); }} onClose={close} />
+      <PickerPortal
+        open={open}
+        pos={pos}
+        onPick={(emp) => {
+          close();
+          onAssign(emp);
+        }}
+        onClose={close}
+      />
     </>
   );
 }
@@ -153,11 +212,18 @@ export default function LaptopApproverMatrixClient() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   // Writes just this one cell, then patches local state so the matrix doesn't flash
   // through a full reload on every edit.
-  async function saveCell(row: LaptopApproverMatrixRow, col: MatrixColumn, name: string, email: string) {
+  async function saveCell(
+    row: LaptopApproverMatrixRow,
+    col: MatrixColumn,
+    name: string,
+    email: string,
+  ) {
     setSavingCell(`${row.id}|${col.key}`);
     setError('');
     const result = await setLaptopApproverCell({
@@ -172,40 +238,59 @@ export default function LaptopApproverMatrixClient() {
       setError(result.error ?? 'Failed to update approver.');
       return;
     }
-    setRows(prev => prev.map(r => (
-      r.id === row.id ? { ...r, [col.nameCol]: name || null, [col.emailCol]: email || null } : r
-    )));
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === row.id ? { ...r, [col.nameCol]: name || null, [col.emailCol]: email || null } : r,
+      ),
+    );
   }
 
   async function assignColumn(col: MatrixColumn, emp: EmployeeDirectoryEntry) {
     setSavingCol(col.key);
     setError('');
-    const result = await setLaptopApproverColumn({ role: col.role, slot: col.slot, email: emp.email, displayName: emp.name });
+    const result = await setLaptopApproverColumn({
+      role: col.role,
+      slot: col.slot,
+      email: emp.email,
+      displayName: emp.name,
+    });
     setSavingCol(null);
     if (!result.success) {
       setError(result.error ?? 'Failed to update this role for every country.');
       return;
     }
-    setRows(prev => prev.map(r => ({ ...r, [col.nameCol]: emp.name, [col.emailCol]: emp.email })));
+    setRows((prev) =>
+      prev.map((r) => ({ ...r, [col.nameCol]: emp.name, [col.emailCol]: emp.email })),
+    );
   }
 
   async function toggleActive(row: LaptopApproverMatrixRow) {
     setSavingActive(row.id);
     setError('');
-    const result = await setLaptopApproverCountryActive({ country: row.country, isActive: !row.is_active });
+    const result = await setLaptopApproverCountryActive({
+      country: row.country,
+      isActive: !row.is_active,
+    });
     setSavingActive(null);
     if (!result.success) {
       setError(result.error ?? 'Failed to update country status.');
       return;
     }
-    setRows(prev => prev.map(r => (r.id === row.id ? { ...r, is_active: !row.is_active } : r)));
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, is_active: !row.is_active } : r)));
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-3 py-12 text-slate-500">
         <svg className="h-5 w-5 animate-spin text-[#307c4c]" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
         </svg>
         <span className="text-sm font-medium">Loading approvers…</span>
@@ -217,11 +302,17 @@ export default function LaptopApproverMatrixClient() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold tracking-tight text-slate-900">Approvers by Country &amp; Role</h2>
+          <h2 className="text-lg font-bold tracking-tight text-slate-900">
+            Approvers by Country &amp; Role
+          </h2>
           <p className="mt-0.5 text-[12px] text-gray-400">
             Last updated:{' '}
             {lastRefreshed
-              ? lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              ? lastRefreshed.toLocaleTimeString('en-GB', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                })
               : '-'}
           </p>
         </div>
@@ -236,13 +327,16 @@ export default function LaptopApproverMatrixClient() {
       </div>
 
       <p className="text-[12px] text-slate-400">
-        The approver notified at each stage in each country, in order: IT Manager → Country Manager → IT Director → Supply
-        Chain Director. IT Manager has three interchangeable slots — anyone in them holds full IT Manager authority. Click any
-        cell to reassign from the employee directory, or a column heading to set that role for every country.
+        The approver notified at each stage in each country, in order: IT Manager → Country Manager
+        → IT Director → Supply Chain Director. IT Manager has three interchangeable slots — anyone
+        in them holds full IT Manager authority. Click any cell to reassign from the employee
+        directory, or a column heading to set that role for every country.
       </p>
 
       {error && (
-        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>
+        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+          {error}
+        </p>
       )}
 
       {rows.length === 0 ? (
@@ -256,24 +350,33 @@ export default function LaptopApproverMatrixClient() {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   <th className="sticky left-0 z-10 bg-slate-50 px-4 py-3">Country</th>
-                  {COLUMNS.map(col => (
+                  {COLUMNS.map((col) => (
                     <th key={col.key} className="px-3 py-3">
-                      <ColumnHeader col={col} busy={savingCol === col.key} onAssign={emp => void assignColumn(col, emp)} />
+                      <ColumnHeader
+                        col={col}
+                        busy={savingCol === col.key}
+                        onAssign={(emp) => void assignColumn(col, emp)}
+                      />
                     </th>
                   ))}
                   <th className="px-3 py-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map(row => (
-                  <tr key={row.id} className={`hover:bg-[#307c4c]/[0.03] ${row.is_active ? '' : 'opacity-60'}`}>
-                    <td className="sticky left-0 z-10 bg-white px-4 py-2 font-semibold text-slate-900">{row.country}</td>
-                    {COLUMNS.map(col => (
+                {rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className={`hover:bg-[#307c4c]/[0.03] ${row.is_active ? '' : 'opacity-60'}`}
+                  >
+                    <td className="sticky left-0 z-10 bg-white px-4 py-2 font-semibold text-slate-900">
+                      {row.country}
+                    </td>
+                    {COLUMNS.map((col) => (
                       <td key={col.key} className="min-w-[160px] px-2 py-1 align-top">
                         <EditableApproverCell
                           cell={cellValue(row, col)}
                           saving={savingCell === `${row.id}|${col.key}`}
-                          onAssign={emp => void saveCell(row, col, emp.name, emp.email)}
+                          onAssign={(emp) => void saveCell(row, col, emp.name, emp.email)}
                           onClear={() => void saveCell(row, col, '', '')}
                         />
                       </td>
@@ -283,14 +386,22 @@ export default function LaptopApproverMatrixClient() {
                         type="button"
                         disabled={savingActive === row.id}
                         onClick={() => void toggleActive(row)}
-                        title={row.is_active ? 'Click to deactivate this country' : 'Click to activate this country'}
+                        title={
+                          row.is_active
+                            ? 'Click to deactivate this country'
+                            : 'Click to activate this country'
+                        }
                         className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold transition disabled:opacity-50 ${
                           row.is_active
                             ? 'border-[#307c4c]/20 bg-[#307c4c]/10 text-[#307c4c] hover:bg-[#307c4c]/20'
                             : 'border-slate-200 bg-slate-100 text-slate-500 hover:bg-slate-200'
                         }`}
                       >
-                        {savingActive === row.id ? 'Saving…' : row.is_active ? 'Active' : 'Inactive'}
+                        {savingActive === row.id
+                          ? 'Saving…'
+                          : row.is_active
+                            ? 'Active'
+                            : 'Inactive'}
                       </button>
                     </td>
                   </tr>

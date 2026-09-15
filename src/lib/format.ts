@@ -8,7 +8,20 @@
  * is what the tabular layouts were sized for.
  */
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
 
 const EM_DASH = '—';
 
@@ -57,10 +70,7 @@ export function formatCurrency(val: number | string | null | undefined): string 
  * so it renders the account-classification description instead (falling back to
  * the literal `Service` when no classification is carried on the row).
  */
-export function formatMatId(
-  matId: string | null | undefined,
-  accountType?: string | null,
-): string {
+export function formatMatId(matId: string | null | undefined, accountType?: string | null): string {
   if (matId?.trim()) return matId;
   return accountType?.trim() || 'Service';
 }

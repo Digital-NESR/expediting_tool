@@ -32,8 +32,10 @@ function formatCurrency(val: number | string | null | undefined) {
   const n = Number(val);
   if (val == null || isNaN(n)) return '—';
   return new Intl.NumberFormat('en-US', {
-    style: 'currency', currency: 'USD',
-    minimumFractionDigits: 0, maximumFractionDigits: 0,
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(n);
 }
 
@@ -42,7 +44,9 @@ function formatDate(dateStr: string | null | undefined) {
   const d = new Date(dateStr);
   if (isNaN(d.valueOf())) return dateStr;
   return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit', month: 'short', year: 'numeric',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
   }).format(d);
 }
 
@@ -58,11 +62,7 @@ function formatMatId(
   accountType: string | null | undefined,
 ): React.ReactNode {
   if (matId?.trim()) return matId;
-  return (
-    <span className="text-gray-400 italic text-xs">
-      {accountType?.trim() || 'N/A'}
-    </span>
-  );
+  return <span className="text-gray-400 italic text-xs">{accountType?.trim() || 'N/A'}</span>;
 }
 
 function lineKey(po_number: string, po_line: string) {
@@ -100,11 +100,9 @@ export function SupplierPortalForm({ token, data }: Props) {
   /* ── Expanded POs — all start open ── */
   const allPONumbers = useMemo(
     () => [...new Set(data.lines.map((l) => l.po_number))],
-    [data.lines]
+    [data.lines],
   );
-  const [expandedPOs, setExpandedPOs] = useState<Set<string>>(
-    () => new Set(allPONumbers)
-  );
+  const [expandedPOs, setExpandedPOs] = useState<Set<string>>(() => new Set(allPONumbers));
 
   /* ── Validation errors — keyed by line key ── */
   const [errors, setErrors] = useState<Record<string, { status: boolean }>>({});
@@ -122,9 +120,11 @@ export function SupplierPortalForm({ token, data }: Props) {
 
   /* ── Bulk-apply state ── */
   const [bulkApplyPO, setBulkApplyPO] = useState<string | null>(null);
-  const [bulkForm, setBulkForm] = useState<{ status: string; date: string; comments: string }>(
-    { status: '', date: '', comments: '' }
-  );
+  const [bulkForm, setBulkForm] = useState<{ status: string; date: string; comments: string }>({
+    status: '',
+    date: '',
+    comments: '',
+  });
 
   /* ── PO groups ── */
   const poGroups = useMemo(() => {
@@ -165,7 +165,11 @@ export function SupplierPortalForm({ token, data }: Props) {
   }
 
   function openBulkApply(po_number: string, lines: typeof data.lines) {
-    const earliest = lines.map((l) => l.delivery_date).filter(Boolean).sort()[0] ?? '';
+    const earliest =
+      lines
+        .map((l) => l.delivery_date)
+        .filter(Boolean)
+        .sort()[0] ?? '';
     setBulkForm({ status: '', date: toInputDate(earliest), comments: '' });
     setBulkApplyPO(po_number);
     setExpandedPOs((prev) => new Set([...prev, po_number]));
@@ -251,9 +255,37 @@ export function SupplierPortalForm({ token, data }: Props) {
   /* ── Success state ── */
   if (submitted) {
     return (
-      <div style={{ maxWidth: '480px', margin: '80px auto', background: '#fff', borderRadius: '16px', padding: '48px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
-        <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f0fdf4', border: '2px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
-          <svg style={{ width: '24px', height: '24px' }} fill="none" viewBox="0 0 24 24" stroke="#059669" strokeWidth={2.5}>
+      <div
+        style={{
+          maxWidth: '480px',
+          margin: '80px auto',
+          background: '#fff',
+          borderRadius: '16px',
+          padding: '48px',
+          border: '1px solid #e5e7eb',
+          textAlign: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '50%',
+            background: '#f0fdf4',
+            border: '2px solid #bbf7d0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto',
+          }}
+        >
+          <svg
+            style={{ width: '24px', height: '24px' }}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="#059669"
+            strokeWidth={2.5}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
@@ -261,11 +293,13 @@ export function SupplierPortalForm({ token, data }: Props) {
           Updates Submitted Successfully
         </h2>
         <p style={{ fontSize: '14px', color: '#6b7280', lineHeight: '1.6', marginTop: '12px' }}>
-          Thank you, <strong style={{ color: '#374151' }}>{data.supplier_name}</strong>. Your delivery updates have been recorded and shared with the NESR procurement team.
+          Thank you, <strong style={{ color: '#374151' }}>{data.supplier_name}</strong>. Your
+          delivery updates have been recorded and shared with the NESR procurement team.
         </p>
         <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '24px 0' }} />
         <p style={{ fontSize: '13px', color: '#9ca3af', lineHeight: '1.6' }}>
-          This link has now been deactivated. If you need to make corrections, please contact your assigned buyer directly.
+          This link has now been deactivated. If you need to make corrections, please contact your
+          assigned buyer directly.
         </p>
         <div style={{ marginTop: '20px' }}>
           <img
@@ -281,14 +315,21 @@ export function SupplierPortalForm({ token, data }: Props) {
   /* ── Main render ── */
   return (
     <div className="pb-24">
-
       {/* Corner Help button */}
       <button
         type="button"
         onClick={() => setHelpOpen(true)}
         className="fixed right-4 top-3 z-40 inline-flex items-center gap-1.5 rounded-full border border-[#bbf7d0] bg-white px-3.5 py-2 text-sm font-semibold text-[#065f46] shadow-md transition-colors hover:bg-[#f0fdf4] sm:right-6"
       >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <circle cx="12" cy="12" r="10" />
           <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
           <path d="M12 17h.01" />
@@ -302,14 +343,23 @@ export function SupplierPortalForm({ token, data }: Props) {
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setHelpOpen(false)}
         >
-          <div className="my-6 w-full max-w-2xl rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="my-6 w-full max-w-2xl rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
               <button
                 type="button"
                 onClick={() => setHelpOpen(false)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#065f46]"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
                 Back
@@ -318,13 +368,18 @@ export function SupplierPortalForm({ token, data }: Props) {
               <span className="w-[68px]" aria-hidden="true" />
             </div>
             <div className="p-5">
-              <h2 className="text-base font-bold text-slate-900">Submitting your delivery updates</h2>
+              <h2 className="text-base font-bold text-slate-900">
+                Submitting your delivery updates
+              </h2>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                This portal is where you send NESR your latest delivery status for each purchase order line. For every
-                line, choose a delivery status, set the expected delivery date, and add any comments. When you have
-                updated every line, click <strong>Submit</strong> at the bottom to send them to your NESR buyer in one go.
+                This portal is where you send NESR your latest delivery status for each purchase
+                order line. For every line, choose a delivery status, set the expected delivery
+                date, and add any comments. When you have updated every line, click{' '}
+                <strong>Submit</strong> at the bottom to send them to your NESR buyer in one go.
               </p>
-              <p className="mt-3 text-sm leading-relaxed text-slate-600">The short video below walks you through it.</p>
+              <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                The short video below walks you through it.
+              </p>
               {/* referrerPolicy: the portal URL carries the supplier's write-capable token in
                   its query string, so this third-party embed must never receive a Referer. */}
               <div className="mt-4 aspect-video w-full overflow-hidden rounded-lg bg-black">
@@ -346,31 +401,39 @@ export function SupplierPortalForm({ token, data }: Props) {
       {/* Supplier info bar */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-6 text-sm text-gray-500">
         <span>
-          Updating for:{' '}
-          <span className="font-semibold text-gray-800">{data.supplier_name}</span>
+          Updating for: <span className="font-semibold text-gray-800">{data.supplier_name}</span>
         </span>
         <span className="text-gray-300">·</span>
         <span>
-          Buyer:{' '}
-          <span className="font-semibold text-gray-800">{data.buyer_name}</span>
+          Buyer: <span className="font-semibold text-gray-800">{data.buyer_name}</span>
         </span>
         <span className="text-gray-300">·</span>
         <span>
-          <span className="font-semibold text-gray-800">{data.lines.length}</span>{' '}
-          PO line{data.lines.length !== 1 ? 's' : ''} across{' '}
-          <span className="font-semibold text-gray-800">{uniquePOCount}</span>{' '}
-          PO{uniquePOCount !== 1 ? 's' : ''}
+          <span className="font-semibold text-gray-800">{data.lines.length}</span> PO line
+          {data.lines.length !== 1 ? 's' : ''} across{' '}
+          <span className="font-semibold text-gray-800">{uniquePOCount}</span> PO
+          {uniquePOCount !== 1 ? 's' : ''}
         </span>
       </div>
 
       {/* Instructions banner */}
       <div className="flex items-center gap-3 px-4 py-2.5 bg-[#f0fdf4] border border-[#bbf7d0] rounded-lg mb-6 text-sm text-[#065f46]">
-        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <svg
+          className="w-4 h-4 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
         </svg>
         <p>
-          Review the PO lines below and provide a delivery status update for each line.
-          All updates are submitted together when you click <strong>Submit</strong> at the bottom.
+          Review the PO lines below and provide a delivery status update for each line. All updates
+          are submitted together when you click <strong>Submit</strong> at the bottom.
         </p>
       </div>
 
@@ -385,8 +448,10 @@ export function SupplierPortalForm({ token, data }: Props) {
       <div className="w-full overflow-x-auto rounded-xl border border-[#e2e8f0] shadow-sm mb-6">
         <table style={{ width: '100%', minWidth: '1100px', borderCollapse: 'collapse' }}>
           <thead>
-            <tr className="bg-[#f1f5f9] text-[11px] font-semibold text-gray-500 uppercase tracking-[0.05em]"
-                style={{ borderBottom: '2px solid #e2e8f0' }}>
+            <tr
+              className="bg-[#f1f5f9] text-[11px] font-semibold text-gray-500 uppercase tracking-[0.05em]"
+              style={{ borderBottom: '2px solid #e2e8f0' }}
+            >
               <th className="py-2.5 px-3 w-8" />
               <th className="py-2.5 px-3 whitespace-nowrap text-left">Line</th>
               <th className="py-2.5 px-3 whitespace-nowrap text-left">SAP MAT ID</th>
@@ -395,7 +460,9 @@ export function SupplierPortalForm({ token, data }: Props) {
               <th className="py-2.5 px-3 whitespace-nowrap text-right">Value (USD)</th>
               <th className="py-2.5 px-3 whitespace-nowrap text-left">Current Delivery</th>
               <th className="py-2.5 px-3 whitespace-nowrap text-left min-w-[200px]">Status</th>
-              <th className="py-2.5 px-3 whitespace-nowrap text-left min-w-[140px]">New Del. Date</th>
+              <th className="py-2.5 px-3 whitespace-nowrap text-left min-w-[140px]">
+                New Del. Date
+              </th>
               <th className="py-2.5 px-3 whitespace-nowrap text-left min-w-[180px]">Comments</th>
             </tr>
           </thead>
@@ -416,7 +483,10 @@ export function SupplierPortalForm({ token, data }: Props) {
                       <div className="flex items-center gap-2.5">
                         <svg
                           className={`w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
-                          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2.5}
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
@@ -429,7 +499,10 @@ export function SupplierPortalForm({ token, data }: Props) {
                       </div>
                       <div className="flex items-center gap-4 ml-auto">
                         <button
-                          onClick={(e) => { e.stopPropagation(); openBulkApply(group.po_number, group.lines); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openBulkApply(group.po_number, group.lines);
+                          }}
                           className="text-xs font-medium text-[#059669] hover:text-[#047857] hover:underline transition-colors"
                         >
                           Set all lines →
@@ -456,18 +529,24 @@ export function SupplierPortalForm({ token, data }: Props) {
                             <label className="text-[11px] font-medium text-slate-500">Status</label>
                             <select
                               value={bulkForm.status}
-                              onChange={(e) => setBulkForm((p) => ({ ...p, status: e.target.value }))}
+                              onChange={(e) =>
+                                setBulkForm((p) => ({ ...p, status: e.target.value }))
+                              }
                               className="text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] min-w-[220px]"
                             >
                               <option value="">Select status…</option>
                               {DS_CODES.map((ds) => (
-                                <option key={ds.code} value={ds.code}>{ds.label}</option>
+                                <option key={ds.code} value={ds.code}>
+                                  {ds.label}
+                                </option>
                               ))}
                             </select>
                           </div>
                           {/* Date */}
                           <div className="flex flex-col gap-1">
-                            <label className="text-[11px] font-medium text-slate-500">New Delivery Date</label>
+                            <label className="text-[11px] font-medium text-slate-500">
+                              New Delivery Date
+                            </label>
                             <input
                               type="date"
                               value={bulkForm.date}
@@ -477,11 +556,15 @@ export function SupplierPortalForm({ token, data }: Props) {
                           </div>
                           {/* Comments */}
                           <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
-                            <label className="text-[11px] font-medium text-slate-500">Comments (optional)</label>
+                            <label className="text-[11px] font-medium text-slate-500">
+                              Comments (optional)
+                            </label>
                             <textarea
                               rows={1}
                               value={bulkForm.comments}
-                              onChange={(e) => setBulkForm((p) => ({ ...p, comments: e.target.value }))}
+                              onChange={(e) =>
+                                setBulkForm((p) => ({ ...p, comments: e.target.value }))
+                              }
                               placeholder="Optional comment…"
                               className="text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] placeholder-gray-300"
                             />
@@ -509,106 +592,114 @@ export function SupplierPortalForm({ token, data }: Props) {
                 )}
 
                 {/* Line item rows */}
-                {isExpanded && group.lines.map((line) => {
-                  const key = lineKey(line.po_number, line.po_line);
-                  const state = formState[key];
-                  const err = errors[key];
+                {isExpanded &&
+                  group.lines.map((line) => {
+                    const key = lineKey(line.po_number, line.po_line);
+                    const state = formState[key];
+                    const err = errors[key];
 
-                  return (
-                    <tr
-                      key={key}
-                      ref={(el) => {
-                        if (el) rowRefs.current.set(key, el);
-                        else rowRefs.current.delete(key);
-                      }}
-                      className={`transition-colors ${err ? 'bg-red-50/40' : 'bg-white hover:bg-[#fafafa]'}`}
-                      style={{ borderBottom: '1px solid #f1f5f9' }}
-                    >
-                      {/* Indent spacer */}
-                      <td className="py-2.5 px-3 w-8">
-                        <div className="w-5 h-4 border-l-2 border-gray-100 ml-2" />
-                      </td>
+                    return (
+                      <tr
+                        key={key}
+                        ref={(el) => {
+                          if (el) rowRefs.current.set(key, el);
+                          else rowRefs.current.delete(key);
+                        }}
+                        className={`transition-colors ${err ? 'bg-red-50/40' : 'bg-white hover:bg-[#fafafa]'}`}
+                        style={{ borderBottom: '1px solid #f1f5f9' }}
+                      >
+                        {/* Indent spacer */}
+                        <td className="py-2.5 px-3 w-8">
+                          <div className="w-5 h-4 border-l-2 border-gray-100 ml-2" />
+                        </td>
 
-                      {/* Line */}
-                      <td className="py-2.5 px-3 font-mono text-[13px] text-gray-500 whitespace-nowrap">
-                        {line.po_line || '—'}
-                      </td>
+                        {/* Line */}
+                        <td className="py-2.5 px-3 font-mono text-[13px] text-gray-500 whitespace-nowrap">
+                          {line.po_line || '—'}
+                        </td>
 
-                      {/* SAP MAT ID */}
-                      <td className="py-2.5 px-3 font-mono text-[13px] text-gray-500 whitespace-nowrap">
-                        {formatMatId(line.sap_mat_id, line.account_classification_description)}
-                      </td>
+                        {/* SAP MAT ID */}
+                        <td className="py-2.5 px-3 font-mono text-[13px] text-gray-500 whitespace-nowrap">
+                          {formatMatId(line.sap_mat_id, line.account_classification_description)}
+                        </td>
 
-                      {/* Description */}
-                      <td className="py-2.5 px-3 text-[13px] text-gray-500" style={{ minWidth: '200px' }}>
-                        {line.item_description || '—'}
-                      </td>
-
-                      {/* Open QTY */}
-                      <td className="py-2.5 px-3 text-[13px] text-gray-500 text-right tabular-nums whitespace-nowrap">
-                        {line.sap_mat_id?.trim()
-                          ? Number(line.open_qty ?? 0).toLocaleString()
-                          : <span className="text-gray-300">—</span>}
-                      </td>
-
-                      {/* Value */}
-                      <td className="py-2.5 px-3 text-[13px] text-gray-500 text-right tabular-nums whitespace-nowrap">
-                        {formatCurrency(line.open_po_value_usd)}
-                      </td>
-
-                      {/* Current Delivery */}
-                      <td className="py-2.5 px-3 text-[13px] text-gray-500 whitespace-nowrap">
-                        {formatDate(line.delivery_date)}
-                      </td>
-
-                      {/* Status select */}
-                      <td className="py-2 px-3">
-                        <select
-                          value={state.delivery_status_code}
-                          onChange={(e) => updateLine(key, 'delivery_status_code', e.target.value)}
-                          className={`w-full min-w-[200px] text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white transition-colors focus:outline-none focus:ring-2 focus:border-[#059669] focus:ring-[#059669]/20 ${
-                            err?.status
-                              ? 'border border-red-400 focus:ring-red-400/20'
-                              : 'border border-gray-300 hover:border-gray-400'
-                          }`}
+                        {/* Description */}
+                        <td
+                          className="py-2.5 px-3 text-[13px] text-gray-500"
+                          style={{ minWidth: '200px' }}
                         >
-                          <option value="">Select status…</option>
-                          {DS_CODES.map((ds) => (
-                            <option key={ds.code} value={ds.code}>
-                              {ds.label}
-                            </option>
-                          ))}
-                        </select>
-                        {err?.status && (
-                          <p className="mt-1 text-[11px] text-red-500 font-medium">
-                            Status required.
-                          </p>
-                        )}
-                      </td>
+                          {line.item_description || '—'}
+                        </td>
 
-                      {/* New delivery date */}
-                      <td className="py-2 px-3">
-                        <input
-                          type="date"
-                          value={state.new_delivery_date}
-                          onChange={(e) => updateLine(key, 'new_delivery_date', e.target.value)}
-                          className="w-full min-w-[140px] text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669]"
-                        />
-                      </td>
+                        {/* Open QTY */}
+                        <td className="py-2.5 px-3 text-[13px] text-gray-500 text-right tabular-nums whitespace-nowrap">
+                          {line.sap_mat_id?.trim() ? (
+                            Number(line.open_qty ?? 0).toLocaleString()
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
 
-                      {/* Comments */}
-                      <td className="py-2 px-3">
-                        <textarea
-                          rows={2}
-                          value={state.supplier_comments}
-                          onChange={(e) => updateLine(key, 'supplier_comments', e.target.value)}
-                          placeholder="Optional comment…"
-                          className="w-full min-w-[180px] text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 resize-none transition-colors focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] placeholder-gray-300"
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
+                        {/* Value */}
+                        <td className="py-2.5 px-3 text-[13px] text-gray-500 text-right tabular-nums whitespace-nowrap">
+                          {formatCurrency(line.open_po_value_usd)}
+                        </td>
+
+                        {/* Current Delivery */}
+                        <td className="py-2.5 px-3 text-[13px] text-gray-500 whitespace-nowrap">
+                          {formatDate(line.delivery_date)}
+                        </td>
+
+                        {/* Status select */}
+                        <td className="py-2 px-3">
+                          <select
+                            value={state.delivery_status_code}
+                            onChange={(e) =>
+                              updateLine(key, 'delivery_status_code', e.target.value)
+                            }
+                            className={`w-full min-w-[200px] text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white transition-colors focus:outline-none focus:ring-2 focus:border-[#059669] focus:ring-[#059669]/20 ${
+                              err?.status
+                                ? 'border border-red-400 focus:ring-red-400/20'
+                                : 'border border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            <option value="">Select status…</option>
+                            {DS_CODES.map((ds) => (
+                              <option key={ds.code} value={ds.code}>
+                                {ds.label}
+                              </option>
+                            ))}
+                          </select>
+                          {err?.status && (
+                            <p className="mt-1 text-[11px] text-red-500 font-medium">
+                              Status required.
+                            </p>
+                          )}
+                        </td>
+
+                        {/* New delivery date */}
+                        <td className="py-2 px-3">
+                          <input
+                            type="date"
+                            value={state.new_delivery_date}
+                            onChange={(e) => updateLine(key, 'new_delivery_date', e.target.value)}
+                            className="w-full min-w-[140px] text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669]"
+                          />
+                        </td>
+
+                        {/* Comments */}
+                        <td className="py-2 px-3">
+                          <textarea
+                            rows={2}
+                            value={state.supplier_comments}
+                            onChange={(e) => updateLine(key, 'supplier_comments', e.target.value)}
+                            placeholder="Optional comment…"
+                            className="w-full min-w-[180px] text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 resize-none transition-colors focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] placeholder-gray-300"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             );
           })}
@@ -616,8 +707,10 @@ export function SupplierPortalForm({ token, data }: Props) {
       </div>
 
       {/* Sticky bottom bar */}
-      <div className="sticky bottom-0 z-20 bg-white -mx-8 px-8 py-4"
-           style={{ borderTop: '1px solid #e5e7eb' }}>
+      <div
+        className="sticky bottom-0 z-20 bg-white -mx-8 px-8 py-4"
+        style={{ borderTop: '1px solid #e5e7eb' }}
+      >
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <p style={{ fontSize: '13px', color: '#9ca3af' }}>
             All changes are saved together on submit.{' '}
@@ -633,16 +726,37 @@ export function SupplierPortalForm({ token, data }: Props) {
             {isSubmitting ? (
               <>
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
                 </svg>
                 Submitting…
               </>
             ) : (
               <>
                 Submit Updates
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
                 </svg>
               </>
             )}

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { searchEmployees, type EmployeeDirectoryEntry } from '@/app/actions/employeeDirectory';
 
-const BOX = 'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20 placeholder:text-slate-400';
+const BOX =
+  'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20 placeholder:text-slate-400';
 
 /**
  * Directory search box. Type a name or email; pick a colleague from the Azure AD
@@ -61,7 +62,10 @@ export default function EmployeeAutocomplete({
       setOpen(true);
       setLoading(false);
     }, 220);
-    return () => { cancelled = true; clearTimeout(t); };
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [query]);
 
   useEffect(() => {
@@ -91,10 +95,18 @@ export default function EmployeeAutocomplete({
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (!open || results.length === 0) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(h => Math.min(h + 1, results.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight(h => Math.max(h - 1, 0)); }
-    else if (e.key === 'Enter') { e.preventDefault(); pick(results[highlight]); }
-    else if (e.key === 'Escape') { setOpen(false); }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlight((h) => Math.min(h + 1, results.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      pick(results[highlight]);
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
   }
 
   return (
@@ -104,8 +116,10 @@ export default function EmployeeAutocomplete({
         className={inputClassName ?? BOX}
         value={query}
         placeholder={placeholder}
-        onChange={e => setQuery(e.target.value)}
-        onFocus={() => { if (results.length) setOpen(true); }}
+        onChange={(e) => setQuery(e.target.value)}
+        onFocus={() => {
+          if (results.length) setOpen(true);
+        }}
         onKeyDown={onKeyDown}
         autoComplete="off"
       />

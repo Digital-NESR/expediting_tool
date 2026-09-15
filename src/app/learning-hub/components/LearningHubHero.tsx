@@ -1,6 +1,16 @@
 import LearningHubLogo from './LearningHubLogo';
 
-export default function LearningHubHero({ title, subtitle, actions, badge }: { title: string; subtitle?: string; actions?: React.ReactNode; badge?: React.ReactNode }) {
+export default function LearningHubHero({
+  title,
+  subtitle,
+  actions,
+  badge,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+  badge?: React.ReactNode;
+}) {
   return (
     <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#307c4c] to-[#1d4f31] p-5 text-white shadow-lg shadow-[#307c4c]/25 sm:p-6">
       <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-white/10 blur-2xl" />

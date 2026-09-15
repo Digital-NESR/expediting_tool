@@ -28,14 +28,20 @@ export async function ensureActiveExpeditingColumns(): Promise<void> {
     /* Dispatch-time snapshot of sap_open_po_master, mirroring that table's types. */
     await pool.query(`ALTER TABLE active_expediting ADD COLUMN IF NOT EXISTS country TEXT`);
     await pool.query(`ALTER TABLE active_expediting ADD COLUMN IF NOT EXISTS p_group TEXT`);
-    await pool.query(`ALTER TABLE active_expediting ADD COLUMN IF NOT EXISTS item_description TEXT`);
+    await pool.query(
+      `ALTER TABLE active_expediting ADD COLUMN IF NOT EXISTS item_description TEXT`,
+    );
     await pool.query(`ALTER TABLE active_expediting ADD COLUMN IF NOT EXISTS open_qty NUMERIC`);
-    await pool.query(`ALTER TABLE active_expediting ADD COLUMN IF NOT EXISTS open_po_value_usd NUMERIC`);
+    await pool.query(
+      `ALTER TABLE active_expediting ADD COLUMN IF NOT EXISTS open_po_value_usd NUMERIC`,
+    );
     /* The ORIGINAL SAP delivery date at dispatch — not the supplier's revised
        `new_delivery_date`, which already lives on this table. */
     await pool.query(`ALTER TABLE active_expediting ADD COLUMN IF NOT EXISTS delivery_date DATE`);
     /* When the SUPPLIER responded. Never touched by buyer edits. */
-    await pool.query(`ALTER TABLE active_expediting ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ`);
+    await pool.query(
+      `ALTER TABLE active_expediting ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ`,
+    );
   })().catch((err) => {
     activeExpeditingColumnsEnsured = null;
     throw err;

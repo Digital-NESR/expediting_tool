@@ -83,7 +83,12 @@ const REMINDER_MILESTONES = [
 // in the same stage for 7 days and again at 2 weeks. Idempotent per milestone via the
 // reminder_*_sent_at columns (which reset whenever the request moves to a new stage), so it is safe
 // to run daily. Intended to be triggered by a scheduled job (see /api/procure-guard/reminders).
-export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked: number; sent: number; skipped: number; errors: number }> {
+export async function sendProcureGuardOpenRequestReminders(): Promise<{
+  checked: number;
+  sent: number;
+  skipped: number;
+  errors: number;
+}> {
   const summary = { checked: 0, sent: 0, skipped: 0, errors: 0 };
   const webhookUrl = process.env.N8N_PROCUREGUARD_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
@@ -100,7 +105,10 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
   const delegatesByDelegator = await getActiveDelegatesByDelegator();
 
   const adminPermissions = getPermissionProfile('Admin');
-  const tables: Array<{ table: 'procure_guard_adhoc_payments' | 'procure_guard_advance_payments'; requestType: ProcureGuardRequestType }> = [
+  const tables: Array<{
+    table: 'procure_guard_adhoc_payments' | 'procure_guard_advance_payments';
+    requestType: ProcureGuardRequestType;
+  }> = [
     { table: 'procure_guard_adhoc_payments', requestType: 'adhoc' },
     { table: 'procure_guard_advance_payments', requestType: 'advance' },
   ];
@@ -134,13 +142,23 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
 
       const openedAt = new Date((raw.reviewed_at as string) ?? (raw.created_at as string));
       const ageDays = (Date.now() - openedAt.getTime()) / 86_400_000;
-      const milestone = REMINDER_MILESTONES.find(m => ageDays >= m.days && !raw[m.column]);
+      const milestone = REMINDER_MILESTONES.find((m) => ageDays >= m.days && !raw[m.column]);
       if (!milestone) continue;
 
-      const { amount: thresholdAmount, currency: thresholdCurrency } = procureGuardThreshold(request);
+      const { amount: thresholdAmount, currency: thresholdCurrency } =
+        procureGuardThreshold(request);
       const approvalStatus = getRecipientApprovalStatus(requestType, request);
-      const actions = getProcureGuardAvailableActions(adminPermissions, requestType, request.status, thresholdAmount, thresholdCurrency);
-      if (!approvalStatus || !actions.requiredPermission) { summary.skipped += 1; continue; }
+      const actions = getProcureGuardAvailableActions(
+        adminPermissions,
+        requestType,
+        request.status,
+        thresholdAmount,
+        thresholdCurrency,
+      );
+      if (!approvalStatus || !actions.requiredPermission) {
+        summary.skipped += 1;
+        continue;
+      }
 
       const recipients = await getProcureGuardNotificationRecipients({
         requestType,
@@ -148,8 +166,8 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
         approvalStatus,
         ownerLabel: actions.ownerLabel,
       });
-      const delegateRecipients = recipients.flatMap(r =>
-        (delegatesByDelegator[r.email.trim().toLowerCase()] ?? []).map(d => ({
+      const delegateRecipients = recipients.flatMap((r) =>
+        (delegatesByDelegator[r.email.trim().toLowerCase()] ?? []).map((d) => ({
           display_name: d.delegate_name || d.delegate_email,
           email: d.delegate_email,
           notification_role: `Delegate of ${r.display_name || r.email}`,
@@ -159,22 +177,36 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
         })),
       );
       const seen = new Set<string>();
-      const allRecipients = [...recipients, ...delegateRecipients].filter(r => {
+      const allRecipients = [...recipients, ...delegateRecipients].filter((r) => {
         const key = r.email.trim().toLowerCase();
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
-      if (allRecipients.length === 0) { summary.skipped += 1; continue; }
+      if (allRecipients.length === 0) {
+        summary.skipped += 1;
+        continue;
+      }
 
       const detailUrl = getRequestDetailUrl(requestType, request.id);
-      const email = buildProcureGuardReminderEmail({ requestType, request, detailUrl, ownerLabel: actions.ownerLabel, ageLabel: milestone.label, ageDays });
+      const email = buildProcureGuardReminderEmail({
+        requestType,
+        request,
+        detailUrl,
+        ownerLabel: actions.ownerLabel,
+        ageLabel: milestone.label,
+        ageDays,
+      });
       const payload = {
         event: 'request.reminder',
         source: 'procureguard-local',
         occurred_at: new Date().toISOString(),
         request_type: requestType,
-        reminder: { milestone_days: milestone.days, milestone_label: milestone.label, days_open: Math.floor(ageDays) },
+        reminder: {
+          milestone_days: milestone.days,
+          milestone_label: milestone.label,
+          days_open: Math.floor(ageDays),
+        },
         request: {
           id: request.id,
           reference_number: request.reference_number,
@@ -190,31 +222,59 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
           updated_at: request.updated_at,
           detail_url: detailUrl,
         },
-        workflow: { owner_role: actions.ownerLabel, required_permission: actions.requiredPermission, decision_status: approvalStatus, next_status: actions.nextStatus },
-        recipients: allRecipients.map(r => ({ name: r.display_name, email: r.email, role: r.notification_role, approval_status: r.approval_status, country: r.country, source_column: r.source_column })),
+        workflow: {
+          owner_role: actions.ownerLabel,
+          required_permission: actions.requiredPermission,
+          decision_status: approvalStatus,
+          next_status: actions.nextStatus,
+        },
+        recipients: allRecipients.map((r) => ({
+          name: r.display_name,
+          email: r.email,
+          role: r.notification_role,
+          approval_status: r.approval_status,
+          country: r.country,
+          source_column: r.source_column,
+        })),
         email: {
           subject: email.subject,
           body_html: email.bodyHtml,
-          to: allRecipients.map(r => r.email),
-          to_recipients: allRecipients.map(r => ({ emailAddress: { address: r.email, name: r.display_name } })),
+          to: allRecipients.map((r) => r.email),
+          to_recipients: allRecipients.map((r) => ({
+            emailAddress: { address: r.email, name: r.display_name },
+          })),
         },
       };
 
       try {
         const response = await postProcureGuardWebhook(webhookUrl, headers, payload);
-        if (!response.ok) { log.error('reminders.webhookFailed', null, { table, requestId: request.id, status: response.status, statusText: response.statusText }); summary.errors += 1; continue; }
+        if (!response.ok) {
+          log.error('reminders.webhookFailed', null, {
+            table,
+            requestId: request.id,
+            status: response.status,
+            statusText: response.statusText,
+          });
+          summary.errors += 1;
+          continue;
+        }
         summary.sent += 1;
       } catch (err) {
-        log.error('reminders.webhookFailed', err, { table, requestId: request.id, reason: procureGuardWebhookErrorMessage(err) });
+        log.error('reminders.webhookFailed', err, {
+          table,
+          requestId: request.id,
+          reason: procureGuardWebhookErrorMessage(err),
+        });
         summary.errors += 1;
         continue;
       }
 
       // Mark this milestone sent. When firing the 14-day one, also stamp the 7-day column so a
       // late 7-day reminder can never fire afterwards.
-      const setCols = milestone.days >= 14
-        ? 'reminder_14d_sent_at = CURRENT_TIMESTAMP, reminder_7d_sent_at = COALESCE(reminder_7d_sent_at, CURRENT_TIMESTAMP)'
-        : 'reminder_7d_sent_at = CURRENT_TIMESTAMP';
+      const setCols =
+        milestone.days >= 14
+          ? 'reminder_14d_sent_at = CURRENT_TIMESTAMP, reminder_7d_sent_at = COALESCE(reminder_7d_sent_at, CURRENT_TIMESTAMP)'
+          : 'reminder_7d_sent_at = CURRENT_TIMESTAMP';
       try {
         await exec(`UPDATE ${table} SET ${setCols} WHERE id = ?`, [request.id]);
       } catch (err) {

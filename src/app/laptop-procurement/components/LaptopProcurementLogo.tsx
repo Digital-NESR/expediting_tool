@@ -3,12 +3,24 @@
 
 export function LaptopLogoMark({ className = '' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <svg
+      viewBox="0 0 64 64"
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
       {/* Laptop screen */}
       <rect x="18" y="4" width="28" height="18" rx="2.5" fill="#307c4c" />
       <rect x="21" y="7" width="22" height="12" rx="1.5" fill="#ffffff" />
       {/* Recycle symbol (three chasing arrows) */}
-      <g transform="translate(26.7 7.7) scale(0.44)" fill="none" stroke="#1f1f1d" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+      <g
+        transform="translate(26.7 7.7) scale(0.44)"
+        fill="none"
+        stroke="#1f1f1d"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5" />
         <path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12" />
         <path d="m14 16-3 3 3 3" />
@@ -53,7 +65,9 @@ export default function LaptopProcurementLogo({
   };
 
   return (
-    <div className={`${sizes[size]} flex shrink-0 items-center justify-center overflow-hidden border border-[#307c4c]/15 bg-white p-1 shadow-sm ${className}`}>
+    <div
+      className={`${sizes[size]} flex shrink-0 items-center justify-center overflow-hidden border border-[#307c4c]/15 bg-white p-1 shadow-sm ${className}`}
+    >
       <LaptopLogoMark className="h-full w-full" />
     </div>
   );

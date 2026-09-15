@@ -20,24 +20,82 @@ interface ParsedFile {
 /* ─── Format reference data ─────────────────────────────────── */
 
 const FORMAT_COLUMNS = [
-  { col: 'A (0)',  header: 'No.',                       field: 'reference_number',         notes: 'Numeric. Blank or non-numeric rows are skipped. Padded to 3 digits and prefixed with the country code — e.g. KSA-001.' },
-  { col: 'B (1)',  header: 'Segment',                   field: 'segment',                  notes: 'Text — e.g. Coiled Tubing, ESP.' },
-  { col: 'C (2)',  header: 'From Country',              field: 'from_country',             notes: 'Origin country name.' },
-  { col: 'D (3)',  header: 'To Country',                field: 'to_country',               notes: 'Destination country name.' },
-  { col: 'E (4)',  header: 'Invoice number',            field: 'invoice_number',           notes: 'Text.' },
-  { col: 'F (5)',  header: 'Invoice value (USD)',       field: 'invoice_value_usd',        notes: 'Numeric. Cells starting with = are treated as null.' },
-  { col: 'G (6)',  header: 'Customs Reference Number',  field: 'customs_reference_number', notes: 'Text. Multi-line cells — only the first line is used.' },
-  { col: 'H (7)',  header: 'Description',               field: 'description',              notes: 'Text.' },
-  { col: 'I (8)',  header: 'MOT',                       field: 'mot',                      notes: 'Mode of transport. "Lnad" and "Lnd" are auto-corrected to "Land".' },
-  { col: 'J (9)',  header: 'AWB / BL Number',           field: 'awb_number',               notes: 'Air waybill or Bill of Lading number. Text.' },
-  { col: 'K (10)', header: 'PO Number',                 field: 'po_number',                notes: 'Text.' },
-  { col: 'L (11)', header: 'Movement type',             field: 'movement_type',            notes: 'Text — e.g. Import, Export. Extra whitespace is collapsed.' },
-  { col: 'M (12)', header: 'Import Date',               field: 'import_date',              notes: 'Date. Accepts YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, DD/Mon/YY, DD-Mon-YYYY and Excel date serials.' },
-  { col: 'N (13)', header: 'Expiry Date',               field: 'expiry_date',              notes: 'Date. Same formats as Import Date. Cells starting with = are null.' },
-  { col: 'O (14)', header: 'Extended Expiry Date',       field: 'extended_date',            notes: 'Date. Same formats as Import Date. Cells starting with = or empty are null.' },
-  { col: 'P (15)', header: 'Deposit (USD)',             field: 'deposit_usd',              notes: 'Numeric. USD deposit amount. Currency symbols are stripped automatically.' },
-  { col: 'Q (16)', header: 'Comments',                  field: 'comments',                 notes: 'Text.' },
-  { col: 'R (17)', header: 'Status',                    field: 'status',                   notes: 'Open / Open - Extended / Closed / Closed - Refund Recovered. "refund" → Closed - Refund Recovered; "extended"/"extension" → Open - Extended; "closed"/"close" → Closed; "active" → Open. Default: Open.' },
+  {
+    col: 'A (0)',
+    header: 'No.',
+    field: 'reference_number',
+    notes:
+      'Numeric. Blank or non-numeric rows are skipped. Padded to 3 digits and prefixed with the country code — e.g. KSA-001.',
+  },
+  { col: 'B (1)', header: 'Segment', field: 'segment', notes: 'Text — e.g. Coiled Tubing, ESP.' },
+  { col: 'C (2)', header: 'From Country', field: 'from_country', notes: 'Origin country name.' },
+  { col: 'D (3)', header: 'To Country', field: 'to_country', notes: 'Destination country name.' },
+  { col: 'E (4)', header: 'Invoice number', field: 'invoice_number', notes: 'Text.' },
+  {
+    col: 'F (5)',
+    header: 'Invoice value (USD)',
+    field: 'invoice_value_usd',
+    notes: 'Numeric. Cells starting with = are treated as null.',
+  },
+  {
+    col: 'G (6)',
+    header: 'Customs Reference Number',
+    field: 'customs_reference_number',
+    notes: 'Text. Multi-line cells — only the first line is used.',
+  },
+  { col: 'H (7)', header: 'Description', field: 'description', notes: 'Text.' },
+  {
+    col: 'I (8)',
+    header: 'MOT',
+    field: 'mot',
+    notes: 'Mode of transport. "Lnad" and "Lnd" are auto-corrected to "Land".',
+  },
+  {
+    col: 'J (9)',
+    header: 'AWB / BL Number',
+    field: 'awb_number',
+    notes: 'Air waybill or Bill of Lading number. Text.',
+  },
+  { col: 'K (10)', header: 'PO Number', field: 'po_number', notes: 'Text.' },
+  {
+    col: 'L (11)',
+    header: 'Movement type',
+    field: 'movement_type',
+    notes: 'Text — e.g. Import, Export. Extra whitespace is collapsed.',
+  },
+  {
+    col: 'M (12)',
+    header: 'Import Date',
+    field: 'import_date',
+    notes:
+      'Date. Accepts YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, DD/Mon/YY, DD-Mon-YYYY and Excel date serials.',
+  },
+  {
+    col: 'N (13)',
+    header: 'Expiry Date',
+    field: 'expiry_date',
+    notes: 'Date. Same formats as Import Date. Cells starting with = are null.',
+  },
+  {
+    col: 'O (14)',
+    header: 'Extended Expiry Date',
+    field: 'extended_date',
+    notes: 'Date. Same formats as Import Date. Cells starting with = or empty are null.',
+  },
+  {
+    col: 'P (15)',
+    header: 'Deposit (USD)',
+    field: 'deposit_usd',
+    notes: 'Numeric. USD deposit amount. Currency symbols are stripped automatically.',
+  },
+  { col: 'Q (16)', header: 'Comments', field: 'comments', notes: 'Text.' },
+  {
+    col: 'R (17)',
+    header: 'Status',
+    field: 'status',
+    notes:
+      'Open / Open - Extended / Closed / Closed - Refund Recovered. "refund" → Closed - Refund Recovered; "extended"/"extension" → Open - Extended; "closed"/"close" → Closed; "active" → Open. Default: Open.',
+  },
 ];
 
 /* ─── Inline helper ──────────────────────────────────────────── */
@@ -56,24 +114,27 @@ function Code({ children }: { children: React.ReactNode }) {
 // A column is "matched" if the detected header at that position
 // contains at least one of its keywords (case-insensitive).
 const EXPECTED_MATCHERS: { label: string; keywords: string[] }[] = [
-  { label: 'No.',                  keywords: ['no.', 'no ', 'number', 'serial', '#'] },
-  { label: 'Segment',              keywords: ['segment', 'seg'] },
-  { label: 'From Country',         keywords: ['from'] },
-  { label: 'To Country',           keywords: ['to'] },
-  { label: 'Invoice Number',       keywords: ['invoice number', 'invoice no', 'inv no', 'inv num'] },
-  { label: 'Invoice Value (USD)',   keywords: ['invoice value', 'inv value', 'inv val'] },
-  { label: 'Customs Ref. No.',     keywords: ['customs reference', 'customs ref', 'bayan', 'declaration', 'entry no'] },
-  { label: 'Description',          keywords: ['description', 'desc'] },
-  { label: 'MOT',                  keywords: ['mot', 'mode of transport', 'mode'] },
-  { label: 'AWB / BL Number',      keywords: ['awb', 'bl number', 'bill of lading'] },
-  { label: 'PO Number',            keywords: ['po', 'purchase order', 'po number', 'po no'] },
-  { label: 'Movement Type',        keywords: ['movement type', 'movement'] },
-  { label: 'Import Date',          keywords: ['import date', 'import'] },
-  { label: 'Expiry Date',          keywords: ['expiry date', 'expiry', 'expiration'] },
+  { label: 'No.', keywords: ['no.', 'no ', 'number', 'serial', '#'] },
+  { label: 'Segment', keywords: ['segment', 'seg'] },
+  { label: 'From Country', keywords: ['from'] },
+  { label: 'To Country', keywords: ['to'] },
+  { label: 'Invoice Number', keywords: ['invoice number', 'invoice no', 'inv no', 'inv num'] },
+  { label: 'Invoice Value (USD)', keywords: ['invoice value', 'inv value', 'inv val'] },
+  {
+    label: 'Customs Ref. No.',
+    keywords: ['customs reference', 'customs ref', 'bayan', 'declaration', 'entry no'],
+  },
+  { label: 'Description', keywords: ['description', 'desc'] },
+  { label: 'MOT', keywords: ['mot', 'mode of transport', 'mode'] },
+  { label: 'AWB / BL Number', keywords: ['awb', 'bl number', 'bill of lading'] },
+  { label: 'PO Number', keywords: ['po', 'purchase order', 'po number', 'po no'] },
+  { label: 'Movement Type', keywords: ['movement type', 'movement'] },
+  { label: 'Import Date', keywords: ['import date', 'import'] },
+  { label: 'Expiry Date', keywords: ['expiry date', 'expiry', 'expiration'] },
   { label: 'Extended Expiry Date', keywords: ['extended date', 'extended', 'extension'] },
-  { label: 'Deposit (USD)',        keywords: ['deposit', 'deposit usd', 'deposit value'] },
-  { label: 'Comments',             keywords: ['comments', 'comment', 'remarks', 'remark', 'notes'] },
-  { label: 'Status',               keywords: ['status'] },
+  { label: 'Deposit (USD)', keywords: ['deposit', 'deposit usd', 'deposit value'] },
+  { label: 'Comments', keywords: ['comments', 'comment', 'remarks', 'remark', 'notes'] },
+  { label: 'Status', keywords: ['status'] },
 ];
 
 interface ColMatch {
@@ -86,9 +147,7 @@ function calcColumnMatch(headers: string[]): { matches: ColMatch[]; score: numbe
   const matches: ColMatch[] = EXPECTED_MATCHERS.map((exp, i) => {
     const detected = (headers[i] ?? '').trim();
     const norm = detected.toLowerCase();
-    const matched =
-      detected !== '' &&
-      exp.keywords.some((kw) => norm.includes(kw));
+    const matched = detected !== '' && exp.keywords.some((kw) => norm.includes(kw));
     return { expected: exp.label, detected, matched };
   });
   const score = Math.round(
@@ -105,7 +164,8 @@ async function parseExcel(file: File): Promise<ParsedFile> {
   const sheet =
     sheets.find(
       (s) =>
-        s.name.includes('KSA') || s.name.includes('UAE') ||
+        s.name.includes('KSA') ||
+        s.name.includes('UAE') ||
         s.name.toLowerCase().includes('portal') ||
         s.name.toLowerCase().includes('data'),
     ) ??
@@ -115,9 +175,7 @@ async function parseExcel(file: File): Promise<ParsedFile> {
   if (!sheet) throw new Error('The workbook contains no readable sheets.');
   const rawRows: string[][] = sheet.rows;
 
-  const headers: string[] = (rawRows[1] ?? []).map((h) =>
-    h != null ? String(h).trim() : '',
-  );
+  const headers: string[] = (rawRows[1] ?? []).map((h) => (h != null ? String(h).trim() : ''));
 
   const previewSource = rawRows.slice(2, 5);
   const preview: string[][] = previewSource.map((row) =>
@@ -176,20 +234,14 @@ async function parseExcel(file: File): Promise<ParsedFile> {
         to_country: row[3] ? String(row[3]).trim() || null : null,
         invoice_number: row[4] ? String(row[4]).trim() || null : null,
         invoice_value_usd: parseNum(row[5]),
-        customs_reference_number: row[6]
-          ? String(row[6]).trim().split('\n')[0] || null
-          : null,
+        customs_reference_number: row[6] ? String(row[6]).trim().split('\n')[0] || null : null,
         description: row[7] ? String(row[7]).trim() || null : null,
         mot: row[8]
-          ? String(row[8]).trim()
-              .replace(/lnad/i, 'Land')
-              .replace(/lnd/i, 'Land') || null
+          ? String(row[8]).trim().replace(/lnad/i, 'Land').replace(/lnd/i, 'Land') || null
           : null,
         awb_number: row[9] ? String(row[9]).trim() || null : null,
         po_number: row[10] ? String(row[10]).trim() || null : null,
-        movement_type: row[11]
-          ? String(row[11]).trim().replace(/\s+/g, ' ') || null
-          : null,
+        movement_type: row[11] ? String(row[11]).trim().replace(/\s+/g, ' ') || null : null,
         import_date: rawCell(row[12]),
         expiry_date: rawCell(row[13]),
         extended_date: rawCell(row[14]),
@@ -213,8 +265,7 @@ function formatBytes(bytes: number): string {
 function formatDateTime(raw: string): string {
   const d = new Date(raw);
   if (isNaN(d.getTime())) return raw;
-  const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const hh = String(d.getUTCHours()).padStart(2, '0');
   const mm = String(d.getUTCMinutes()).padStart(2, '0');
   return `${String(d.getUTCDate()).padStart(2, '0')} ${M[d.getUTCMonth()]} ${d.getUTCFullYear()} ${hh}:${mm}`;
@@ -233,18 +284,19 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 /* ─── Migration log table ────────────────────────────────────── */
 
-function MigrationLogTable({
-  rows,
-  loading,
-}: {
-  rows: MigrationLogRow[];
-  loading: boolean;
-}) {
+function MigrationLogTable({ rows, loading }: { rows: MigrationLogRow[]; loading: boolean }) {
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-8 justify-center text-slate-400 text-sm">
         <svg className="w-4 h-4 animate-spin text-[#307c4c]" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
         </svg>
         Loading history…
@@ -252,11 +304,7 @@ function MigrationLogTable({
     );
   }
   if (rows.length === 0) {
-    return (
-      <div className="py-10 text-center text-sm text-slate-400">
-        No migrations yet.
-      </div>
-    );
+    return <div className="py-10 text-center text-sm text-slate-400">No migrations yet.</div>;
   }
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -264,21 +312,45 @@ function MigrationLogTable({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-              {['Country', 'File', 'Inserted', 'Skipped', 'Errors', 'Migrated By', 'Date'].map((h) => (
-                <th key={h} className="py-3 px-4 whitespace-nowrap">{h}</th>
-              ))}
+              {['Country', 'File', 'Inserted', 'Skipped', 'Errors', 'Migrated By', 'Date'].map(
+                (h) => (
+                  <th key={h} className="py-3 px-4 whitespace-nowrap">
+                    {h}
+                  </th>
+                ),
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((r, i) => (
-              <tr key={r.id} className={`hover:bg-[#307c4c]/5 transition-colors ${i % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}>
-                <td className="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">{r.country}</td>
-                <td className="py-3 px-4 text-xs text-slate-500 max-w-[200px] truncate" title={r.filename}>{r.filename}</td>
-                <td className="py-3 px-4 text-sm font-semibold text-[#307c4c] tabular-nums">{r.rows_inserted.toLocaleString()}</td>
-                <td className="py-3 px-4 text-sm font-medium text-amber-600 tabular-nums">{r.rows_skipped.toLocaleString()}</td>
-                <td className="py-3 px-4 text-sm font-medium text-red-500 tabular-nums">{r.rows_errored.toLocaleString()}</td>
-                <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">{r.migrated_by}</td>
-                <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">{formatDateTime(r.migrated_at)}</td>
+              <tr
+                key={r.id}
+                className={`hover:bg-[#307c4c]/5 transition-colors ${i % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+              >
+                <td className="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">
+                  {r.country}
+                </td>
+                <td
+                  className="py-3 px-4 text-xs text-slate-500 max-w-[200px] truncate"
+                  title={r.filename}
+                >
+                  {r.filename}
+                </td>
+                <td className="py-3 px-4 text-sm font-semibold text-[#307c4c] tabular-nums">
+                  {r.rows_inserted.toLocaleString()}
+                </td>
+                <td className="py-3 px-4 text-sm font-medium text-amber-600 tabular-nums">
+                  {r.rows_skipped.toLocaleString()}
+                </td>
+                <td className="py-3 px-4 text-sm font-medium text-red-500 tabular-nums">
+                  {r.rows_errored.toLocaleString()}
+                </td>
+                <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">
+                  {r.migrated_by}
+                </td>
+                <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">
+                  {formatDateTime(r.migrated_at)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -314,7 +386,11 @@ export default function TiteMigrationClient() {
   const [phase, setPhase] = useState<Phase>('form');
   const [importError, setImportError] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
-  const [result, setResult] = useState<{ inserted: number; skipped: number; errors: number } | null>(null);
+  const [result, setResult] = useState<{
+    inserted: number;
+    skipped: number;
+    errors: number;
+  } | null>(null);
 
   /* history */
   const [history, setHistory] = useState<MigrationLogRow[]>([]);
@@ -354,7 +430,9 @@ export default function TiteMigrationClient() {
 
   const handleFile = useCallback(async (f: File) => {
     if (!f.name.match(/\.xlsx$/i)) {
-      setParseError('Only .xlsx files are accepted. Open a legacy .xls workbook in Excel and save it as .xlsx.');
+      setParseError(
+        'Only .xlsx files are accepted. Open a legacy .xls workbook in Excel and save it as .xlsx.',
+      );
       return;
     }
     setFile(f);
@@ -406,7 +484,9 @@ export default function TiteMigrationClient() {
       setPhase('form');
     } finally {
       // Refresh history either way: a failed import still tells us the last good one.
-      getMigrationLog().then(setHistory).catch(() => {});
+      getMigrationLog()
+        .then(setHistory)
+        .catch(() => {});
     }
   };
 
@@ -428,7 +508,6 @@ export default function TiteMigrationClient() {
   /* ── Render ── */
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
-
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -442,8 +521,18 @@ export default function TiteMigrationClient() {
           onClick={handleDownloadTemplate}
           className="shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:border-[#307c4c]/40 hover:text-[#307c4c] transition-all duration-150 shadow-sm"
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          <svg
+            className="w-3.5 h-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+            />
           </svg>
           Download Template
         </button>
@@ -452,12 +541,21 @@ export default function TiteMigrationClient() {
       {/* ── Form phase ── */}
       {phase === 'form' && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6 max-w-2xl">
-
           {/* Failed import — the file was rolled back, so the form is safe to retry */}
           {importError && (
             <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-              <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <svg
+                className="w-4 h-4 text-red-500 shrink-0 mt-0.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                />
               </svg>
               <p className="text-xs text-red-700 leading-relaxed">{importError}</p>
             </div>
@@ -471,13 +569,22 @@ export default function TiteMigrationClient() {
             <div className="relative" ref={dropdownRef}>
               <button
                 type="button"
-                onClick={() => { setDropdownOpen((o) => !o); setCountrySearch(''); }}
+                onClick={() => {
+                  setDropdownOpen((o) => !o);
+                  setCountrySearch('');
+                }}
                 className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 hover:border-[#307c4c]/50 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 transition-all"
               >
                 <span className={country ? 'text-slate-900 font-medium' : 'text-slate-400'}>
                   {country || 'Select a country…'}
                 </span>
-                <svg className={`w-4 h-4 text-slate-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg
+                  className={`w-4 h-4 text-slate-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -502,7 +609,10 @@ export default function TiteMigrationClient() {
                       <button
                         key={c.value}
                         type="button"
-                        onClick={() => { setCountry(c.value); setDropdownOpen(false); }}
+                        onClick={() => {
+                          setCountry(c.value);
+                          setDropdownOpen(false);
+                        }}
                         className={`w-full px-4 py-2.5 text-sm text-left hover:bg-[#307c4c]/5 transition-colors ${country === c.value ? 'bg-[#307c4c]/10 text-[#307c4c] font-semibold' : 'text-slate-700'}`}
                       >
                         {c.label}
@@ -522,26 +632,40 @@ export default function TiteMigrationClient() {
 
             {!file ? (
               <div
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={`flex flex-col items-center justify-center gap-3 rounded-xl cursor-pointer transition-all select-none
-                  ${isDragging
-                    ? 'border-2 border-[#307c4c] bg-[#307c4c]/5'
-                    : 'border-2 border-dashed border-slate-200 bg-slate-50 hover:border-[#307c4c]/40 hover:bg-[#307c4c]/5'
+                  ${
+                    isDragging
+                      ? 'border-2 border-[#307c4c] bg-[#307c4c]/5'
+                      : 'border-2 border-dashed border-slate-200 bg-slate-50 hover:border-[#307c4c]/40 hover:bg-[#307c4c]/5'
                   }`}
                 style={{ padding: 32 }}
               >
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${isDragging ? 'bg-[#307c4c]/20' : 'bg-slate-100'}`}>
-                  <svg className={`w-5 h-5 ${isDragging ? 'text-[#307c4c]' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${isDragging ? 'bg-[#307c4c]/20' : 'bg-slate-100'}`}
+                >
+                  <svg
+                    className={`w-5 h-5 ${isDragging ? 'text-[#307c4c]' : 'text-slate-400'}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
                   </svg>
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-medium text-slate-600">
-                    Drop your Excel file here
-                  </p>
+                  <p className="text-sm font-medium text-slate-600">Drop your Excel file here</p>
                   <p className="text-xs text-slate-400 mt-0.5">
                     or{' '}
                     <span className="text-[#307c4c] font-semibold underline underline-offset-2">
@@ -554,8 +678,18 @@ export default function TiteMigrationClient() {
             ) : (
               <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-[#307c4c]/30 bg-[#307c4c]/5">
                 <div className="w-9 h-9 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
-                  <svg className="w-4 h-4 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    className="w-4 h-4 text-[#307c4c]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -572,7 +706,13 @@ export default function TiteMigrationClient() {
                   }}
                   className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors shrink-0"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -584,13 +724,26 @@ export default function TiteMigrationClient() {
               type="file"
               accept=".xlsx"
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFile(f);
+              }}
             />
 
             {parseError && (
               <p className="mt-2 text-xs text-red-500 flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <svg
+                  className="w-3.5 h-3.5 shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                  />
                 </svg>
                 {parseError}
               </p>
@@ -598,131 +751,141 @@ export default function TiteMigrationClient() {
           </div>
 
           {/* Step 3 — Column preview */}
-          {parsed && (() => {
-            const { matches, score } = calcColumnMatch(parsed.headers);
-            const barColor =
-              score >= 80 ? '#307c4c' : score >= 50 ? '#d97706' : '#ef4444';
-            const scoreLabel =
-              score >= 80 ? 'Good match' : score >= 50 ? 'Partial match' : 'Poor match';
-            const scoreBg =
-              score >= 80
-                ? 'bg-[#307c4c]/10 text-[#307c4c] border-[#307c4c]/20'
-                : score >= 50
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-red-50 text-red-600 border-red-200';
-            return (
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-                Step 3 — Column Mapping Preview
-              </label>
+          {parsed &&
+            (() => {
+              const { matches, score } = calcColumnMatch(parsed.headers);
+              const barColor = score >= 80 ? '#307c4c' : score >= 50 ? '#d97706' : '#ef4444';
+              const scoreLabel =
+                score >= 80 ? 'Good match' : score >= 50 ? 'Partial match' : 'Poor match';
+              const scoreBg =
+                score >= 80
+                  ? 'bg-[#307c4c]/10 text-[#307c4c] border-[#307c4c]/20'
+                  : score >= 50
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-red-50 text-red-600 border-red-200';
+              return (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                    Step 3 — Column Mapping Preview
+                  </label>
 
-              {/* ── Match bar ── */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-slate-600">
-                    Column match
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">
-                      {matches.filter((m) => m.matched).length} / {EXPECTED_MATCHERS.length} columns
-                    </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${scoreBg}`}>
-                      {scoreLabel}
-                    </span>
-                  </div>
-                </div>
-                {/* Bar */}
-                <div className="h-2 bg-slate-200 rounded-full overflow-hidden mb-3">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${score}%`, background: barColor }}
-                  />
-                </div>
-                {/* Per-column chips */}
-                <div className="flex flex-wrap gap-1.5">
-                  {matches.map((m, i) => (
-                    <div
-                      key={i}
-                      title={m.matched ? `Matched: "${m.detected}"` : m.detected ? `"${m.detected}" didn't match expected "${m.expected}"` : `Column ${i + 1} is empty — expected "${m.expected}"`}
-                      className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border cursor-default ${
-                        m.matched
-                          ? 'bg-[#307c4c]/8 border-[#307c4c]/25 text-[#307c4c]'
-                          : m.detected
-                            ? 'bg-amber-50 border-amber-200 text-amber-700'
-                            : 'bg-slate-100 border-slate-200 text-slate-400'
-                      }`}
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${m.matched ? 'bg-[#307c4c]' : m.detected ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                      {m.expected}
+                  {/* ── Match bar ── */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-slate-600">Column match</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">
+                          {matches.filter((m) => m.matched).length} / {EXPECTED_MATCHERS.length}{' '}
+                          columns
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${scoreBg}`}
+                        >
+                          {scoreLabel}
+                        </span>
+                      </div>
                     </div>
-                  ))}
-                </div>
-                {matches.some((m) => !m.matched) && (
-                  <p className="text-[10px] text-slate-400 mt-2">
-                    Hover a chip to see what was detected. Amber = column present but header name didn&apos;t match. Gray = column missing.
-                  </p>
-                )}
-              </div>
-
-              {/* Detected header pills */}
-              <p className="text-xs text-slate-500 mb-2">Detected columns:</p>
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {parsed.headers.map((h, i) =>
-                  h ? (
-                    <span
-                      key={i}
-                      className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
-                        matches[i]?.matched
-                          ? 'bg-[#307c4c]/8 border-[#307c4c]/25 text-[#307c4c]'
-                          : 'bg-slate-100 border-slate-200 text-slate-500'
-                      }`}
-                    >
-                      {h}
-                    </span>
-                  ) : null,
-                )}
-              </div>
-              {parsed.preview.length > 0 && (
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
-                  <div className="overflow-x-auto max-h-40">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                          {parsed.headers.map((h, i) => (
-                            <th
-                              key={i}
-                              className="py-2 px-3 font-semibold text-slate-500 whitespace-nowrap"
-                            >
-                              {h || `Col ${i + 1}`}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {parsed.preview.map((row, ri) => (
-                          <tr key={ri} className={ri % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}>
-                            {row.map((cell, ci) => (
-                              <td
-                                key={ci}
-                                className="py-2 px-3 text-slate-600 whitespace-nowrap max-w-[140px] truncate"
-                                title={cell}
-                              >
-                                {cell || <span className="text-slate-300">—</span>}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    {/* Bar */}
+                    <div className="h-2 bg-slate-200 rounded-full overflow-hidden mb-3">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${score}%`, background: barColor }}
+                      />
+                    </div>
+                    {/* Per-column chips */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {matches.map((m, i) => (
+                        <div
+                          key={i}
+                          title={
+                            m.matched
+                              ? `Matched: "${m.detected}"`
+                              : m.detected
+                                ? `"${m.detected}" didn't match expected "${m.expected}"`
+                                : `Column ${i + 1} is empty — expected "${m.expected}"`
+                          }
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border cursor-default ${
+                            m.matched
+                              ? 'bg-[#307c4c]/8 border-[#307c4c]/25 text-[#307c4c]'
+                              : m.detected
+                                ? 'bg-amber-50 border-amber-200 text-amber-700'
+                                : 'bg-slate-100 border-slate-200 text-slate-400'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${m.matched ? 'bg-[#307c4c]' : m.detected ? 'bg-amber-400' : 'bg-slate-300'}`}
+                          />
+                          {m.expected}
+                        </div>
+                      ))}
+                    </div>
+                    {matches.some((m) => !m.matched) && (
+                      <p className="text-[10px] text-slate-400 mt-2">
+                        Hover a chip to see what was detected. Amber = column present but header
+                        name didn&apos;t match. Gray = column missing.
+                      </p>
+                    )}
                   </div>
+
+                  {/* Detected header pills */}
+                  <p className="text-xs text-slate-500 mb-2">Detected columns:</p>
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {parsed.headers.map((h, i) =>
+                      h ? (
+                        <span
+                          key={i}
+                          className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
+                            matches[i]?.matched
+                              ? 'bg-[#307c4c]/8 border-[#307c4c]/25 text-[#307c4c]'
+                              : 'bg-slate-100 border-slate-200 text-slate-500'
+                          }`}
+                        >
+                          {h}
+                        </span>
+                      ) : null,
+                    )}
+                  </div>
+                  {parsed.preview.length > 0 && (
+                    <div className="rounded-xl border border-slate-200 overflow-hidden">
+                      <div className="overflow-x-auto max-h-40">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200">
+                              {parsed.headers.map((h, i) => (
+                                <th
+                                  key={i}
+                                  className="py-2 px-3 font-semibold text-slate-500 whitespace-nowrap"
+                                >
+                                  {h || `Col ${i + 1}`}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {parsed.preview.map((row, ri) => (
+                              <tr key={ri} className={ri % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}>
+                                {row.map((cell, ci) => (
+                                  <td
+                                    key={ci}
+                                    className="py-2 px-3 text-slate-600 whitespace-nowrap max-w-[140px] truncate"
+                                    title={cell}
+                                  >
+                                    {cell || <span className="text-slate-300">—</span>}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-400 mt-2">
+                    {parsed.rows.length} data rows detected (first 3 shown above)
+                  </p>
                 </div>
-              )}
-              <p className="text-xs text-slate-400 mt-2">
-                {parsed.rows.length} data rows detected (first 3 shown above)
-              </p>
-            </div>
-            );
-          })()}
+              );
+            })()}
 
           {/* Import button */}
           <div className="pt-1">
@@ -732,8 +895,18 @@ export default function TiteMigrationClient() {
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100"
               style={{ background: canImport ? '#307c4c' : undefined }}
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                />
               </svg>
               {canImport
                 ? `Import ${parsed!.rows.length.toLocaleString()} rows from ${country}`
@@ -747,8 +920,19 @@ export default function TiteMigrationClient() {
       {phase === 'running' && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-w-2xl space-y-5">
           <div className="flex items-center gap-3">
-            <svg className="w-5 h-5 animate-spin text-[#307c4c] shrink-0" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <svg
+              className="w-5 h-5 animate-spin text-[#307c4c] shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
             <div>
@@ -756,7 +940,8 @@ export default function TiteMigrationClient() {
                 Importing {parsed?.rows.length.toLocaleString() ?? ''} rows…
               </p>
               <p className="text-xs text-slate-400">
-                The whole file is imported in one transaction — it either lands completely or not at all.
+                The whole file is imported in one transaction — it either lands completely or not at
+                all.
               </p>
             </div>
           </div>
@@ -764,7 +949,10 @@ export default function TiteMigrationClient() {
           {/* Indeterminate bar — the import is one server call, so there is no
               honest percentage to show. */}
           <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full w-full rounded-full animate-pulse" style={{ background: '#307c4c' }} />
+            <div
+              className="h-full w-full rounded-full animate-pulse"
+              style={{ background: '#307c4c' }}
+            />
           </div>
 
           {/* Log (populated when the call returns) */}
@@ -793,36 +981,72 @@ export default function TiteMigrationClient() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-w-2xl space-y-5">
           {/* Header */}
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${result.errors === 0 ? 'bg-[#307c4c]/10' : 'bg-amber-50'}`}>
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${result.errors === 0 ? 'bg-[#307c4c]/10' : 'bg-amber-50'}`}
+            >
               {result.errors === 0 ? (
-                <svg className="w-5 h-5 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-5 h-5 text-[#307c4c]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
               ) : (
-                <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <svg
+                  className="w-5 h-5 text-amber-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                  />
                 </svg>
               )}
             </div>
             <div>
               <p className="text-base font-bold text-slate-900">Migration Complete</p>
-              <p className="text-xs text-slate-400">{country} · {file?.name}</p>
+              <p className="text-xs text-slate-400">
+                {country} · {file?.name}
+              </p>
             </div>
           </div>
 
           {/* Summary */}
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Inserted</p>
-              <p className="text-2xl font-bold text-[#307c4c] tabular-nums mt-0.5">{result.inserted.toLocaleString()}</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Inserted
+              </p>
+              <p className="text-2xl font-bold text-[#307c4c] tabular-nums mt-0.5">
+                {result.inserted.toLocaleString()}
+              </p>
             </div>
             <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Skipped</p>
-              <p className="text-2xl font-bold text-amber-500 tabular-nums mt-0.5">{result.skipped.toLocaleString()}</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Skipped
+              </p>
+              <p className="text-2xl font-bold text-amber-500 tabular-nums mt-0.5">
+                {result.skipped.toLocaleString()}
+              </p>
             </div>
             <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Errors</p>
-              <p className="text-2xl font-bold text-red-500 tabular-nums mt-0.5">{result.errors.toLocaleString()}</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Errors
+              </p>
+              <p className="text-2xl font-bold text-red-500 tabular-nums mt-0.5">
+                {result.errors.toLocaleString()}
+              </p>
             </div>
           </div>
 
@@ -836,7 +1060,11 @@ export default function TiteMigrationClient() {
                   : line.startsWith('❌')
                     ? 'text-red-400'
                     : 'text-slate-400';
-              return <div key={i} className={color}>{line}</div>;
+              return (
+                <div key={i} className={color}>
+                  {line}
+                </div>
+              );
             })}
           </div>
 
@@ -846,8 +1074,18 @@ export default function TiteMigrationClient() {
               onClick={reset}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
               </svg>
               Import Another File
             </button>
@@ -857,7 +1095,13 @@ export default function TiteMigrationClient() {
               style={{ background: '#307c4c' }}
             >
               View Shipments
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </Link>
@@ -869,20 +1113,24 @@ export default function TiteMigrationClient() {
       <div>
         <SectionTitle>Expected Excel Format</SectionTitle>
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-
           {/* Sheet rule */}
           <div className="px-5 py-4 border-b border-slate-100">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Sheet selection</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Sheet selection
+            </p>
             <p className="text-sm text-slate-600 leading-relaxed">
-              The parser looks for the first sheet whose name contains{' '}
-              <Code>KSA</Code>, <Code>UAE</Code>, <Code>portal</Code>, or <Code>data</Code> (case-insensitive).
-              If none match it falls back to the <span className="font-semibold text-slate-800">2nd sheet</span>, then the 1st.
+              The parser looks for the first sheet whose name contains <Code>KSA</Code>,{' '}
+              <Code>UAE</Code>, <Code>portal</Code>, or <Code>data</Code> (case-insensitive). If
+              none match it falls back to the{' '}
+              <span className="font-semibold text-slate-800">2nd sheet</span>, then the 1st.
             </p>
           </div>
 
           {/* Row layout */}
           <div className="px-5 py-4 border-b border-slate-100">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Row layout</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+              Row layout
+            </p>
             <div className="flex flex-col gap-1.5 text-sm">
               {[
                 { row: 'Row 1', desc: 'Title / any label — skipped entirely' },
@@ -913,7 +1161,9 @@ export default function TiteMigrationClient() {
               <tbody className="divide-y divide-slate-100 text-sm">
                 {FORMAT_COLUMNS.map((col, i) => (
                   <tr key={col.col} className={i % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}>
-                    <td className="py-2.5 px-4 font-mono text-[12px] font-semibold text-slate-700 whitespace-nowrap">{col.col}</td>
+                    <td className="py-2.5 px-4 font-mono text-[12px] font-semibold text-slate-700 whitespace-nowrap">
+                      {col.col}
+                    </td>
                     <td className="py-2.5 px-4 whitespace-nowrap">
                       <Code>{col.header}</Code>
                     </td>
@@ -926,7 +1176,9 @@ export default function TiteMigrationClient() {
                         </span>
                       )}
                     </td>
-                    <td className="py-2.5 px-4 text-xs text-slate-500 leading-relaxed">{col.notes}</td>
+                    <td className="py-2.5 px-4 text-xs text-slate-500 leading-relaxed">
+                      {col.notes}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -935,7 +1187,9 @@ export default function TiteMigrationClient() {
 
           {/* Key rules */}
           <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/60">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">Key rules</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">
+              Key rules
+            </p>
             <ul className="space-y-1.5 text-xs text-slate-600">
               {[
                 'Column P (Deposit USD) — enter the deposit amount in USD. Currency symbols ($, SAR, AED, etc.) are stripped automatically.',

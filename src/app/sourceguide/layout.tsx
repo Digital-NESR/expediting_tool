@@ -23,8 +23,15 @@ export default async function SourceGuideLayout({ children }: { children: React.
 
   if (scope.isAdmin) {
     return (
-      <SourceGuideAccessProvider isAdmin approvedCountries={[]} viewOnly={false} userName={userName}>
-        <SourceGuideShell userName={userName} userEmail={session.user.email}>{children}</SourceGuideShell>
+      <SourceGuideAccessProvider
+        isAdmin
+        approvedCountries={[]}
+        viewOnly={false}
+        userName={userName}
+      >
+        <SourceGuideShell userName={userName} userEmail={session.user.email}>
+          {children}
+        </SourceGuideShell>
       </SourceGuideAccessProvider>
     );
   }
@@ -34,10 +41,15 @@ export default async function SourceGuideLayout({ children }: { children: React.
   // Champions + approved users are 'approved'; everyone else sees the request overlay.
   if (rawStatus !== 'approved') {
     const overlayStatus: 'new' | 'pending' | 'rejected' | 'revoked' | 'denied' =
-      rawStatus === 'pending'  ? 'pending'  :
-      rawStatus === 'rejected' ? 'rejected' :
-      rawStatus === 'revoked'  ? 'revoked'  :
-      rawStatus === 'denied'   ? 'denied'   : 'new';
+      rawStatus === 'pending'
+        ? 'pending'
+        : rawStatus === 'rejected'
+          ? 'rejected'
+          : rawStatus === 'revoked'
+            ? 'revoked'
+            : rawStatus === 'denied'
+              ? 'denied'
+              : 'new';
     return (
       <SourceGuideAccessOverlay
         status={overlayStatus}
@@ -51,8 +63,15 @@ export default async function SourceGuideLayout({ children }: { children: React.
 
   // approvedCountries: champions get their editable country codes; users get [] (view-all, no edit)
   return (
-    <SourceGuideAccessProvider isAdmin={false} approvedCountries={scope.approvedCountries} viewOnly={scope.viewOnly} userName={userName}>
-      <SourceGuideShell userName={userName} userEmail={session.user.email}>{children}</SourceGuideShell>
+    <SourceGuideAccessProvider
+      isAdmin={false}
+      approvedCountries={scope.approvedCountries}
+      viewOnly={scope.viewOnly}
+      userName={userName}
+    >
+      <SourceGuideShell userName={userName} userEmail={session.user.email}>
+        {children}
+      </SourceGuideShell>
     </SourceGuideAccessProvider>
   );
 }

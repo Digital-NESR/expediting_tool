@@ -25,13 +25,46 @@ async function requireAdmin(): Promise<string | null> {
 
 /* ═══ Shapes ═════════════════════════════════════════════════════ */
 
-export interface RefCommodity { id: number; name: string; active: boolean }
-export interface RefFamily { id: number; name: string; active: boolean; commodities: RefCommodity[] }
-export interface RefSub { id: number; name: string; active: boolean; families: RefFamily[] }
-export interface RefCategory { id: number; name: string; spendType: 'Direct' | 'Indirect'; active: boolean; subs: RefSub[] }
-export interface RefCountry { code: string; name: string; active: boolean }
-export interface RefSegment { id: number; name: string; active: boolean }
-export interface RefReason { id: number; classification: 'SGL' | 'SOL'; name: string; active: boolean }
+export interface RefCommodity {
+  id: number;
+  name: string;
+  active: boolean;
+}
+export interface RefFamily {
+  id: number;
+  name: string;
+  active: boolean;
+  commodities: RefCommodity[];
+}
+export interface RefSub {
+  id: number;
+  name: string;
+  active: boolean;
+  families: RefFamily[];
+}
+export interface RefCategory {
+  id: number;
+  name: string;
+  spendType: 'Direct' | 'Indirect';
+  active: boolean;
+  subs: RefSub[];
+}
+export interface RefCountry {
+  code: string;
+  name: string;
+  active: boolean;
+}
+export interface RefSegment {
+  id: number;
+  name: string;
+  active: boolean;
+}
+export interface RefReason {
+  id: number;
+  classification: 'SGL' | 'SOL';
+  name: string;
+  active: boolean;
+}
 
 export interface SnsReferenceAdminData {
   categories: RefCategory[];
@@ -48,13 +81,23 @@ export async function getSnsReferenceAdminData(): Promise<SnsReferenceAdminData>
   const empty: SnsReferenceAdminData = { categories: [], countries: [], segments: [], reasons: [] };
   try {
     const [cats, subs, fams, coms, countries, segments, reasons] = await Promise.all([
-      snsPool.query(`SELECT id, name, spend_type, active FROM sns_category ORDER BY sort_order, name`),
-      snsPool.query(`SELECT id, category_id, name, active FROM sns_sub_category ORDER BY sort_order, name`),
-      snsPool.query(`SELECT id, sub_category_id, name, active FROM sns_family ORDER BY sort_order, name`),
-      snsPool.query(`SELECT id, family_id, name, active FROM sns_commodity ORDER BY sort_order, name`),
+      snsPool.query(
+        `SELECT id, name, spend_type, active FROM sns_category ORDER BY sort_order, name`,
+      ),
+      snsPool.query(
+        `SELECT id, category_id, name, active FROM sns_sub_category ORDER BY sort_order, name`,
+      ),
+      snsPool.query(
+        `SELECT id, sub_category_id, name, active FROM sns_family ORDER BY sort_order, name`,
+      ),
+      snsPool.query(
+        `SELECT id, family_id, name, active FROM sns_commodity ORDER BY sort_order, name`,
+      ),
       snsPool.query(`SELECT code, name, active FROM sns_country ORDER BY sort_order, name`),
       snsPool.query(`SELECT id, name, active FROM sns_segment ORDER BY sort_order, name`),
-      snsPool.query(`SELECT id, classification, name, active FROM sns_reason ORDER BY classification, sort_order, name`),
+      snsPool.query(
+        `SELECT id, classification, name, active FROM sns_reason ORDER BY classification, sort_order, name`,
+      ),
     ]);
 
     const comsBy = new Map<number, RefCommodity[]>();
@@ -66,13 +109,23 @@ export async function getSnsReferenceAdminData(): Promise<SnsReferenceAdminData>
     const famsBy = new Map<number, RefFamily[]>();
     for (const f of fams.rows) {
       const list = famsBy.get(f.sub_category_id) ?? [];
-      list.push({ id: Number(f.id), name: String(f.name), active: Boolean(f.active), commodities: comsBy.get(f.id) ?? [] });
+      list.push({
+        id: Number(f.id),
+        name: String(f.name),
+        active: Boolean(f.active),
+        commodities: comsBy.get(f.id) ?? [],
+      });
       famsBy.set(f.sub_category_id, list);
     }
     const subsBy = new Map<number, RefSub[]>();
     for (const s of subs.rows) {
       const list = subsBy.get(s.category_id) ?? [];
-      list.push({ id: Number(s.id), name: String(s.name), active: Boolean(s.active), families: famsBy.get(s.id) ?? [] });
+      list.push({
+        id: Number(s.id),
+        name: String(s.name),
+        active: Boolean(s.active),
+        families: famsBy.get(s.id) ?? [],
+      });
       subsBy.set(s.category_id, list);
     }
 
@@ -84,8 +137,16 @@ export async function getSnsReferenceAdminData(): Promise<SnsReferenceAdminData>
         active: Boolean(c.active),
         subs: subsBy.get(c.id) ?? [],
       })),
-      countries: countries.rows.map((c) => ({ code: String(c.code), name: String(c.name), active: Boolean(c.active) })),
-      segments: segments.rows.map((s) => ({ id: Number(s.id), name: String(s.name), active: Boolean(s.active) })),
+      countries: countries.rows.map((c) => ({
+        code: String(c.code),
+        name: String(c.name),
+        active: Boolean(c.active),
+      })),
+      segments: segments.rows.map((s) => ({
+        id: Number(s.id),
+        name: String(s.name),
+        active: Boolean(s.active),
+      })),
       reasons: reasons.rows.map((r) => ({
         id: Number(r.id),
         classification: r.classification as 'SGL' | 'SOL',
@@ -108,7 +169,11 @@ export async function getSnsReferenceAdminData(): Promise<SnsReferenceAdminData>
  * uniqueness constraint on its name, so that is always "this name is taken"
  * rather than an unexpected failure, and gets a readable message.
  */
-async function mutate(label: string, target: Record<string, unknown>, fn: () => Promise<void>): Promise<ActionResult> {
+async function mutate(
+  label: string,
+  target: Record<string, unknown>,
+  fn: () => Promise<void>,
+): Promise<ActionResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: 'Admins only.' };
   try {
@@ -132,7 +197,10 @@ function clean(s: string): string {
 
 /* ═══ Taxonomy ═══════════════════════════════════════════════════ */
 
-export async function addSnsCategory(name: string, spendType: 'Direct' | 'Indirect'): Promise<ActionResult> {
+export async function addSnsCategory(
+  name: string,
+  spendType: 'Direct' | 'Indirect',
+): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
   return mutate('addSnsCategory', { name, spendType }, async () => {
     await snsPool.query(
@@ -143,10 +211,18 @@ export async function addSnsCategory(name: string, spendType: 'Direct' | 'Indire
   });
 }
 
-export async function updateSnsCategory(id: number, name: string, spendType: 'Direct' | 'Indirect'): Promise<ActionResult> {
+export async function updateSnsCategory(
+  id: number,
+  name: string,
+  spendType: 'Direct' | 'Indirect',
+): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
   return mutate('updateSnsCategory', { id, name, spendType }, async () => {
-    await snsPool.query(`UPDATE sns_category SET name = $2, spend_type = $3 WHERE id = $1`, [id, clean(name), spendType]);
+    await snsPool.query(`UPDATE sns_category SET name = $2, spend_type = $3 WHERE id = $1`, [
+      id,
+      clean(name),
+      spendType,
+    ]);
   });
 }
 
@@ -285,7 +361,10 @@ export async function deleteSnsCountry(code: string): Promise<ActionResult> {
       [code],
     );
     if (Number(rows[0]?.n ?? 0) > 0) {
-      return { success: false, error: 'Records exist for this country — deactivate it instead of deleting.' };
+      return {
+        success: false,
+        error: 'Records exist for this country — deactivate it instead of deleting.',
+      };
     }
     await snsPool.query(`DELETE FROM sns_country WHERE code = $1`, [code]);
     revalidatePath('/admin');
@@ -331,7 +410,10 @@ export async function deleteSnsSegment(id: number): Promise<ActionResult> {
 
 /* ═══ Reason codes ═══════════════════════════════════════════════ */
 
-export async function addSnsReason(classification: 'SGL' | 'SOL', name: string): Promise<ActionResult> {
+export async function addSnsReason(
+  classification: 'SGL' | 'SOL',
+  name: string,
+): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
   return mutate('addSnsReason', { classification, name }, async () => {
     await snsPool.query(

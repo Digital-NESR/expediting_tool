@@ -3,13 +3,7 @@ export type Classification = 'SGL' | 'SOL';
 export type ScopeLevel = 'Family' | 'Commodity';
 
 export type BaseStatus =
-  | 'Draft'
-  | 'Pending Level 1'
-  | 'Pending Level 2'
-  | 'Active'
-  | 'Extended'
-  | 'Expired'
-  | 'Rejected';
+  'Draft' | 'Pending Level 1' | 'Pending Level 2' | 'Active' | 'Extended' | 'Expired' | 'Rejected';
 
 export type DisplayStatus = BaseStatus | 'Expiring soon';
 

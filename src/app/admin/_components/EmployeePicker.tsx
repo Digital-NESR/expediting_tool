@@ -42,7 +42,10 @@ export function EmployeePicker({
   clearLabel?: string;
 }) {
   const [q, setQ] = useState('');
-  const [answered, setAnswered] = useState<{ query: string; rows: EmployeeDirectoryEntry[] } | null>(null);
+  const [answered, setAnswered] = useState<{
+    query: string;
+    rows: EmployeeDirectoryEntry[];
+  } | null>(null);
 
   const query = q.trim();
   const tooShort = query.length < 2;
@@ -66,13 +69,15 @@ export function EmployeePicker({
     <div
       className="fixed z-50 w-72 rounded-lg border border-slate-200 bg-white p-2 shadow-xl"
       style={{ top: pos.top, left: pos.left }}
-      onClick={e => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
       <input
         autoFocus
         value={q}
-        onChange={e => setQ(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onClose();
+        }}
         placeholder={placeholder}
         className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-[#307c4c]"
       />
@@ -84,7 +89,7 @@ export function EmployeePicker({
         ) : rows.length === 0 ? (
           <div className="px-2 py-3 text-xs text-slate-400">{noMatchesLabel}</div>
         ) : (
-          rows.map(emp => (
+          rows.map((emp) => (
             <button
               key={emp.email}
               type="button"
@@ -95,7 +100,9 @@ export function EmployeePicker({
                 {personInitials(emp.name)}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium text-slate-800">{emp.name}</span>
+                <span className="block truncate text-[13px] font-medium text-slate-800">
+                  {emp.name}
+                </span>
                 <span className="block truncate text-[11px] text-slate-400">{emp.email}</span>
               </span>
             </button>
@@ -121,7 +128,7 @@ export function usePickerAnchor() {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const toggle = useCallback(() => {
-    setOpen(o => {
+    setOpen((o) => {
       if (o) return false;
       const r = btnRef.current?.getBoundingClientRect();
       if (r) {

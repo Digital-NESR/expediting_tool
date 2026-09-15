@@ -39,7 +39,9 @@ export function SourceGuideAccessProvider({
     return approvedCountries.includes(countryCode);
   };
   return (
-    <SourceGuideAccessContext.Provider value={{ isAdmin, approvedCountries, viewOnly, userName, canEdit }}>
+    <SourceGuideAccessContext.Provider
+      value={{ isAdmin, approvedCountries, viewOnly, userName, canEdit }}
+    >
       {children}
     </SourceGuideAccessContext.Provider>
   );

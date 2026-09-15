@@ -11,16 +11,9 @@ export default async function SnsRegistryPage() {
   // showing an empty shell they cannot use.
   if (!viewer) redirect('/sns-registry/request-access');
 
-  const [reference, initialRecords] = await Promise.all([
-    getSnsReferenceData(),
-    getSnsRecords(),
-  ]);
+  const [reference, initialRecords] = await Promise.all([getSnsReferenceData(), getSnsRecords()]);
 
   return (
-    <SnsRegistryClient
-      viewer={viewer}
-      reference={reference}
-      initialRecords={initialRecords}
-    />
+    <SnsRegistryClient viewer={viewer} reference={reference} initialRecords={initialRecords} />
   );
 }

@@ -25,7 +25,7 @@ function ensureTable(): Promise<void> {
   if (!ensured) {
     ensured = pool.query(DDL).then(
       () => undefined,
-      err => {
+      (err) => {
         // Let the next caller retry rather than caching a failure forever.
         ensured = null;
         throw err;

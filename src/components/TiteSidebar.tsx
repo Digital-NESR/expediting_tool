@@ -21,7 +21,12 @@ interface TiteSidebarProps {
 const ACCENT = '#006B0C';
 const PIN_KEY = 'tite-sidebar-pinned';
 
-export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount }: TiteSidebarProps) {
+export default function TiteSidebar({
+  isOpen,
+  onClose,
+  activeCount,
+  urgentCount,
+}: TiteSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
 
@@ -29,15 +34,11 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
   const initials = sidebarInitials(rawName);
   const jobTitle = (session?.user as { jobTitle?: string })?.jobTitle || 'User';
 
-  const isActive = (href: string, exact?: boolean) => (exact ? pathname === href : pathname.startsWith(href));
+  const isActive = (href: string, exact?: boolean) =>
+    exact ? pathname === href : pathname.startsWith(href);
 
   return (
-    <AppSidebar
-      isOpen={isOpen}
-      onClose={onClose}
-      storageKey={PIN_KEY}
-      bodyClass={PIN_KEY}
-    >
+    <AppSidebar isOpen={isOpen} onClose={onClose} storageKey={PIN_KEY} bodyClass={PIN_KEY}>
       {({ pinned, togglePin, closeOnNav }) => (
         <>
           {/* Header */}
@@ -50,7 +51,9 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
                 className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
                 style={{ background: 'rgba(255,255,255,0.15)' }}
               >
-                <span className="text-white font-extrabold text-[11px] tracking-tight leading-none">TI·TE</span>
+                <span className="text-white font-extrabold text-[11px] tracking-tight leading-none">
+                  TI·TE
+                </span>
               </div>
               <span className="text-white font-semibold text-sm tracking-tight leading-tight">
                 Temporary Import / Export
@@ -83,8 +86,18 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
               onNavigate={closeOnNav}
               label="All Tools"
               icon={
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                  />
                 </svg>
               }
             />
@@ -100,7 +113,13 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
               onNavigate={closeOnNav}
               label="Dashboard"
               icon={
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
                   <rect x="3" y="3" width="7" height="9" rx="1.5" />
                   <rect x="14" y="3" width="7" height="5" rx="1.5" />
                   <rect x="14" y="12" width="7" height="9" rx="1.5" />
@@ -117,7 +136,13 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
               label="Shipments"
               badge={activeCount}
               icon={
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
                   <line x1="8" y1="6" x2="21" y2="6" />
                   <line x1="8" y1="12" x2="21" y2="12" />
                   <line x1="8" y1="18" x2="21" y2="18" />
@@ -137,9 +162,23 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
               badge={urgentCount}
               badgeDanger
               icon={
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M10.3 21a1.94 1.94 0 0 0 3.4 0"
+                  />
                 </svg>
               }
             />
@@ -151,7 +190,13 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
               onNavigate={closeOnNav}
               label="Map View"
               icon={
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
                   <polygon points="3 6 9 4 15 6 21 4 21 18 15 20 9 18 3 20" />
                   <line x1="9" y1="4" x2="9" y2="18" />
                   <line x1="15" y1="6" x2="15" y2="20" />
@@ -171,7 +216,6 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
               label="Help"
               icon={<HelpCircle className="w-5 h-5" />}
             />
-
           </nav>
 
           {/* Profile Block */}
@@ -181,8 +225,10 @@ export default function TiteSidebar({ isOpen, onClose, activeCount, urgentCount 
             image={session?.user?.image}
             initials={initials}
             avatar={{
-              imageClassName: 'h-10 w-10 rounded-full object-cover border border-slate-200 shadow-sm shrink-0',
-              fallbackClassName: 'h-10 w-10 flex items-center justify-center rounded-full font-bold text-white shadow-sm shrink-0',
+              imageClassName:
+                'h-10 w-10 rounded-full object-cover border border-slate-200 shadow-sm shrink-0',
+              fallbackClassName:
+                'h-10 w-10 flex items-center justify-center rounded-full font-bold text-white shadow-sm shrink-0',
               fallbackStyle: { background: ACCENT },
             }}
           />

@@ -117,7 +117,7 @@ export function usePinnedSidebar(
     };
   }, [lockScroll, isOpen, pinned]);
 
-  const togglePin = useCallback(() => setPinned(p => !p), []);
+  const togglePin = useCallback(() => setPinned((p) => !p), []);
 
   return { pinned, setPinned, togglePin };
 }

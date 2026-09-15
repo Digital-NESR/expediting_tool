@@ -67,11 +67,29 @@ export interface MigrationLogRow {
 
 /** Month abbreviation / full-name → zero-padded 2-digit number. */
 const MONTH_NUM: Record<string, string> = {
-  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
-  jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
-  january: '01', february: '02', march: '03', april: '04',
-  june: '06', july: '07', august: '08', september: '09',
-  october: '10', november: '11', december: '12',
+  jan: '01',
+  feb: '02',
+  mar: '03',
+  apr: '04',
+  may: '05',
+  jun: '06',
+  jul: '07',
+  aug: '08',
+  sep: '09',
+  oct: '10',
+  nov: '11',
+  dec: '12',
+  january: '01',
+  february: '02',
+  march: '03',
+  april: '04',
+  june: '06',
+  july: '07',
+  august: '08',
+  september: '09',
+  october: '10',
+  november: '11',
+  december: '12',
 };
 
 /** Build a YYYY-MM-DD string and validate it. Returns null if the date is invalid. */
@@ -161,11 +179,27 @@ function parseDateFlexible(value: unknown): string | null {
 
 /** The 21 columns a migrated shipment row writes, in bind order. */
 const SHIPMENT_COLS = [
-  'reference_number', 'segment', 'from_country', 'to_country',
-  'invoice_number', 'invoice_value_usd', 'customs_reference_number', 'description',
-  'mot', 'awb_number', 'po_number', 'movement_type',
-  'import_date', 'expiry_date', 'extended_date',
-  'deposit_usd', 'comments', 'status', 'alert_level', 'country', 'created_by',
+  'reference_number',
+  'segment',
+  'from_country',
+  'to_country',
+  'invoice_number',
+  'invoice_value_usd',
+  'customs_reference_number',
+  'description',
+  'mot',
+  'awb_number',
+  'po_number',
+  'movement_type',
+  'import_date',
+  'expiry_date',
+  'extended_date',
+  'deposit_usd',
+  'comments',
+  'status',
+  'alert_level',
+  'country',
+  'created_by',
 ] as const;
 
 interface PreparedRow {
@@ -179,8 +213,9 @@ interface PreparedRow {
 /** `($1,$2,…,$21),($22,…)` for `count` rows of `SHIPMENT_COLS.length` columns. */
 function valuePlaceholders(count: number): string {
   const width = SHIPMENT_COLS.length;
-  return Array.from({ length: count }, (_, r) =>
-    `(${Array.from({ length: width }, (_, c) => `$${r * width + c + 1}`).join(',')})`,
+  return Array.from(
+    { length: count },
+    (_, r) => `(${Array.from({ length: width }, (_, c) => `$${r * width + c + 1}`).join(',')})`,
   ).join(',');
 }
 
@@ -215,17 +250,19 @@ export async function importShipments(params: {
       inserted: 0,
       skipped: 0,
       errors: rows.length,
-      log: [`❌ Too many rows in one call (${rows.length}). The limit is ${MAX_IMPORT_ROWS}; split the file into smaller batches.`],
+      log: [
+        `❌ Too many rows in one call (${rows.length}). The limit is ${MAX_IMPORT_ROWS}; split the file into smaller batches.`,
+      ],
     };
   }
 
   /* ── Phase 1: prepare every row in memory. No DB connection is held here. ── */
 
-  const lines = new Map<number, string>();   // rowIndex → log line, emitted in order
+  const lines = new Map<number, string>(); // rowIndex → log line, emitted in order
   const prepared: PreparedRow[] = [];
   const seenRefs = new Set<string>();
   let skipped = 0;
-  let errors  = 0;
+  let errors = 0;
 
   const created_by = `migration-${country
     .toLowerCase()
@@ -252,8 +289,8 @@ export async function importShipments(params: {
     seenRefs.add(reference_number);
 
     // Dates are parsed HERE and only here. The client sends raw cell values.
-    const importDate   = parseDateFlexible(row.import_date);
-    const expiryDate   = parseDateFlexible(row.expiry_date);
+    const importDate = parseDateFlexible(row.import_date);
+    const expiryDate = parseDateFlexible(row.expiry_date);
     const extendedDate = parseDateFlexible(row.extended_date);
 
     prepared.push({
@@ -306,10 +343,10 @@ export async function importShipments(params: {
         try {
           const res = await client.query<{ id: number; reference_number: string }>(
             insertSql(chunk.length),
-            chunk.flatMap(p => p.values),
+            chunk.flatMap((p) => p.values),
           );
           await client.query(`RELEASE SAVEPOINT ${sp}`);
-          const landed = new Map(res.rows.map(r => [r.reference_number, r.id]));
+          const landed = new Map(res.rows.map((r) => [r.reference_number, r.id]));
           for (const p of chunk) {
             const id = landed.get(p.reference_number);
             if (id == null) {

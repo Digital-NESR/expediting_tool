@@ -18,7 +18,13 @@ export default async function PirCatalogPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    q?: string; country?: string; porg?: string; plant?: string; mgroup?: string; sort?: string; page?: string;
+    q?: string;
+    country?: string;
+    porg?: string;
+    plant?: string;
+    mgroup?: string;
+    sort?: string;
+    page?: string;
   }>;
 }) {
   const sp = await searchParams;

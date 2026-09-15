@@ -47,25 +47,44 @@ export default function QuizClient({ data }: { data: ModuleQuizPageData }) {
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
       <LearningHubSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200/70 bg-white/80 px-4 backdrop-blur-md md:h-16 md:px-8">
-        <button onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100">
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
+        >
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
         </button>
         <LearningHubBackButton href={`/learning-hub/${track.key}/${course.id}`} />
         <LearningHubHomeButton />
         <LearningHubLogo size="sm" />
-        <Link href={`/learning-hub/${track.key}/${course.id}`} className="truncate text-sm font-medium text-slate-400 hover:text-slate-600">
+        <Link
+          href={`/learning-hub/${track.key}/${course.id}`}
+          className="truncate text-sm font-medium text-slate-400 hover:text-slate-600"
+        >
           {course.title}
         </Link>
       </header>
       <main className="mx-auto max-w-[720px] space-y-6 px-4 py-8 sm:px-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wider" style={{ color }}>
+          <div
+            className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wider"
+            style={{ color }}
+          >
             <ClipboardCheck className="h-4 w-4" />
             <span>{mod.title}</span>
           </div>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{quiz.title}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {result ? 'Here’s how you did, retake anytime, this doesn’t affect your progress.' : 'Answer every question, then submit to see your score.'}
+            {result
+              ? 'Here’s how you did, retake anytime, this doesn’t affect your progress.'
+              : 'Answer every question, then submit to see your score.'}
           </p>
 
           <div className="mt-6 space-y-6">
@@ -73,7 +92,9 @@ export default function QuizClient({ data }: { data: ModuleQuizPageData }) {
               const qResult = resultByQuestion.get(q.id);
               return (
                 <div key={q.id}>
-                  <p className="text-sm font-semibold text-slate-900">{qIdx + 1}. {q.question_text}</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {qIdx + 1}. {q.question_text}
+                  </p>
                   <div className="mt-3 space-y-2">
                     {q.options.map((opt) => {
                       const selected = answers[q.id] === opt.id;
@@ -98,14 +119,23 @@ export default function QuizClient({ data }: { data: ModuleQuizPageData }) {
                           }`}
                         >
                           {result ? (
-                            isCorrectOption ? <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
-                              : isWrongSelected ? <XCircle className="h-4 w-4 shrink-0 text-red-500" />
-                              : <span className="h-4 w-4 shrink-0" />
+                            isCorrectOption ? (
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+                            ) : isWrongSelected ? (
+                              <XCircle className="h-4 w-4 shrink-0 text-red-500" />
+                            ) : (
+                              <span className="h-4 w-4 shrink-0" />
+                            )
                           ) : (
                             <span
                               className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${selected ? 'border-[#307c4c]' : 'border-slate-300'}`}
                             >
-                              {selected && <span className="h-2 w-2 rounded-full" style={{ background: color }} />}
+                              {selected && (
+                                <span
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ background: color }}
+                                />
+                              )}
                             </span>
                           )}
                           <span className="flex-1">{opt.option_text}</span>
@@ -122,7 +152,11 @@ export default function QuizClient({ data }: { data: ModuleQuizPageData }) {
             {result ? (
               <>
                 <div className="text-sm font-semibold text-slate-900">
-                  Score: <span style={{ color }}>{result.correctCount}/{result.total}</span> ({result.scorePct}%)
+                  Score:{' '}
+                  <span style={{ color }}>
+                    {result.correctCount}/{result.total}
+                  </span>{' '}
+                  ({result.scorePct}%)
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -142,7 +176,9 @@ export default function QuizClient({ data }: { data: ModuleQuizPageData }) {
               </>
             ) : (
               <>
-                <span className="text-xs text-slate-400">{Object.keys(answers).length}/{quiz.questions.length} answered</span>
+                <span className="text-xs text-slate-400">
+                  {Object.keys(answers).length}/{quiz.questions.length} answered
+                </span>
                 <button
                   onClick={submit}
                   disabled={!allAnswered || isPending}

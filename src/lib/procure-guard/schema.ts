@@ -39,10 +39,18 @@ export async function ensureProcureGuardUsageTables(): Promise<void> {
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb
     )
   `);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_occurred_at ON procure_guard_usage_events (occurred_at DESC)`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_path ON procure_guard_usage_events (path)`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_user ON procure_guard_usage_events (user_email)`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_type ON procure_guard_usage_events (event_type)`);
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_occurred_at ON procure_guard_usage_events (occurred_at DESC)`,
+  );
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_path ON procure_guard_usage_events (path)`,
+  );
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_user ON procure_guard_usage_events (user_email)`,
+  );
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_type ON procure_guard_usage_events (event_type)`,
+  );
 }
 
 export async function ensureProcureGuardAccessRequestTable(): Promise<void> {
@@ -63,8 +71,12 @@ export async function ensureProcureGuardAccessRequestTable(): Promise<void> {
       notes TEXT
     )
   `);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_access_requests_status ON procure_guard_access_requests (status)`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_procure_guard_access_requests_requested_at ON procure_guard_access_requests (requested_at DESC)`);
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_procure_guard_access_requests_status ON procure_guard_access_requests (status)`,
+  );
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_procure_guard_access_requests_requested_at ON procure_guard_access_requests (requested_at DESC)`,
+  );
 }
 
 export async function ensureProcureGuardPermissionRoleValues(): Promise<void> {
@@ -93,11 +105,16 @@ export async function ensureProcureGuardReferenceUniqueness(): Promise<void> {
       await exec(`CREATE SEQUENCE IF NOT EXISTS procure_guard_adhoc_reference_seq`);
       await exec(`CREATE SEQUENCE IF NOT EXISTS procure_guard_advance_reference_seq`);
     } catch (err) {
-      log.warn('reference.sequenceEnsureFailed', { reason: err instanceof Error ? err.message : String(err) });
+      log.warn('reference.sequenceEnsureFailed', {
+        reason: err instanceof Error ? err.message : String(err),
+      });
     }
     const targets = [
       { table: 'procure_guard_adhoc_payments', index: 'uq_procure_guard_adhoc_reference_number' },
-      { table: 'procure_guard_advance_payments', index: 'uq_procure_guard_advance_reference_number' },
+      {
+        table: 'procure_guard_advance_payments',
+        index: 'uq_procure_guard_advance_reference_number',
+      },
     ];
     for (const { table, index } of targets) {
       try {
@@ -108,7 +125,10 @@ export async function ensureProcureGuardReferenceUniqueness(): Promise<void> {
           // 23505 = duplicate data blocks the index; 42P07/42710 = index already exists.
           if (code !== '23505' && code !== '42P07' && code !== '42710') throw err;
         }
-        const present = await sql<QueryResultRow[]>(`SELECT 1 FROM pg_indexes WHERE indexname = ? LIMIT 1`, [index]);
+        const present = await sql<QueryResultRow[]>(
+          `SELECT 1 FROM pg_indexes WHERE indexname = ? LIMIT 1`,
+          [index],
+        );
         if (present.length > 0) {
           log.debug('reference.uniquenessEnforced', { table, index });
         } else {
@@ -120,11 +140,14 @@ export async function ensureProcureGuardReferenceUniqueness(): Promise<void> {
             table,
             index,
             hint: 'De-duplicate the reference numbers below, then restart to enforce.',
-            duplicates: dups.map(r => `${r.reference_number} x${r.n}`),
+            duplicates: dups.map((r) => `${r.reference_number} x${r.n}`),
           });
         }
       } catch (err) {
-        log.warn('reference.uniquenessCheckFailed', { table, reason: err instanceof Error ? err.message : String(err) });
+        log.warn('reference.uniquenessCheckFailed', {
+          table,
+          reason: err instanceof Error ? err.message : String(err),
+        });
       }
     }
   })();
@@ -136,7 +159,8 @@ export async function ensureProcureGuardReferenceUniqueness(): Promise<void> {
 // The UNIQUE index on reference_number remains the hard backstop.
 async function makeReference(prefix: 'ADH' | 'ADV'): Promise<string> {
   await ensureProcureGuardReferenceUniqueness();
-  const seq = prefix === 'ADH' ? 'procure_guard_adhoc_reference_seq' : 'procure_guard_advance_reference_seq';
+  const seq =
+    prefix === 'ADH' ? 'procure_guard_adhoc_reference_seq' : 'procure_guard_advance_reference_seq';
   const rows = await sql<QueryResultRow[]>(`SELECT nextval('${seq}') AS n`);
   const n = Number(rows[0]?.n ?? 0);
   return `${prefix}-${String(n).padStart(6, '0')}`;
@@ -158,7 +182,8 @@ export async function insertProcureGuardPaymentRequest(
       return { ...result, reference };
     } catch (err) {
       const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
-      const constraint = typeof err === 'object' && err && 'constraint' in err ? String(err.constraint) : '';
+      const constraint =
+        typeof err === 'object' && err && 'constraint' in err ? String(err.constraint) : '';
       if (code === '23505' && constraint.includes('reference') && attempt < 4) continue;
       throw err;
     }

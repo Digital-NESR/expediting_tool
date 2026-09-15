@@ -76,9 +76,13 @@ export interface UpdateLaptopPermissionInput {
 // old single role+country scope from laptop_permissions. One identity can hold several
 // stages across different (or overlapping) countries, e.g. Country Manager for one
 // country and Supply Chain Director broadly.
-export type LaptopApproverCapabilities = Record<'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director', string[]>;
+export type LaptopApproverCapabilities = Record<
+  'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director',
+  string[]
+>;
 
-export type LaptopApprovalStageName = 'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
+export type LaptopApprovalStageName =
+  'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
 
 // One specific role a person can delegate — a single (stage, country) slot they hold
 // in the approver matrix, not "everything this person happens to have." Delegating a
@@ -282,7 +286,8 @@ export interface AssignExistingLaptopInput {
   age: string;
 }
 
-export interface AdminCreateLaptopRequestInput extends CreateLaptopRequestInput, UpdateLaptopExistingDeviceInput {
+export interface AdminCreateLaptopRequestInput
+  extends CreateLaptopRequestInput, UpdateLaptopExistingDeviceInput {
   status?: LaptopRequestStatus;
   requested_by_name?: string;
   requested_by_email?: string;
@@ -470,7 +475,13 @@ export interface LaptopRequestDetailData {
 }
 
 export interface LaptopStageAssignee {
-  label: 'IT Manager' | 'IT Manager 2' | 'IT Manager 3' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
+  label:
+    | 'IT Manager'
+    | 'IT Manager 2'
+    | 'IT Manager 3'
+    | 'Country Manager'
+    | 'IT Director'
+    | 'Supply Chain Director';
   name: string | null;
   // 'pending' = this is the stage the request is currently stuck at (highlighted);
   // 'done' = already acted on, shows who actually did it; 'upcoming'/'none' = not

@@ -23,7 +23,7 @@ export const SquareCheckbox = forwardRef<HTMLInputElement, Props>(
         {...rest}
       />
     );
-  }
+  },
 );
 
 SquareCheckbox.displayName = 'SquareCheckbox';

@@ -72,7 +72,10 @@ export function execOn(
 
 /* ── Learner identity (never taken from the caller) ──────────────────────── */
 
-interface LearnerIdentity { email: string; isAdmin: boolean }
+interface LearnerIdentity {
+  email: string;
+  isAdmin: boolean;
+}
 
 async function learnerIdentity(): Promise<LearnerIdentity | null> {
   const actor = await currentActor();
@@ -118,7 +121,9 @@ async function ensureLearningHubSchema(): Promise<void> {
   await execSchema(`ALTER TABLE learning_tracks ADD COLUMN IF NOT EXISTS tab_label_prefix TEXT`);
   // One-time, idempotent backfill of the single track that already had this behaviour hard-coded, so
   // the column starts out matching what production renders today. New tracks opt in by setting it.
-  await execSchema(`UPDATE learning_tracks SET tab_label_prefix = 'SC' WHERE key = 'supply_chain' AND tab_label_prefix IS NULL`);
+  await execSchema(
+    `UPDATE learning_tracks SET tab_label_prefix = 'SC' WHERE key = 'supply_chain' AND tab_label_prefix IS NULL`,
+  );
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_courses (
     id SERIAL PRIMARY KEY,
@@ -130,7 +135,9 @@ async function ensureLearningHubSchema(): Promise<void> {
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_courses_track ON learning_courses(track_id)`);
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_learning_courses_track ON learning_courses(track_id)`,
+  );
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_modules (
     id SERIAL PRIMARY KEY,
@@ -144,7 +151,9 @@ async function ensureLearningHubSchema(): Promise<void> {
   )`);
   await execSchema(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS resource_label TEXT`);
   await execSchema(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS resource_url TEXT`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_modules_course ON learning_modules(course_id)`);
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_learning_modules_course ON learning_modules(course_id)`,
+  );
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_lessons (
     id SERIAL PRIMARY KEY,
@@ -161,7 +170,9 @@ async function ensureLearningHubSchema(): Promise<void> {
   // No fabricated default: a lesson only shows a duration if someone actually set one.
   await execSchema(`ALTER TABLE learning_lessons ALTER COLUMN duration_minutes DROP NOT NULL`);
   await execSchema(`ALTER TABLE learning_lessons ALTER COLUMN duration_minutes DROP DEFAULT`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_lessons_module ON learning_lessons(module_id)`);
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_learning_lessons_module ON learning_lessons(module_id)`,
+  );
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_lesson_progress (
     id SERIAL PRIMARY KEY,
@@ -170,7 +181,9 @@ async function ensureLearningHubSchema(): Promise<void> {
     completed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_email, lesson_id)
   )`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_progress_user ON learning_lesson_progress(user_email)`);
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_learning_progress_user ON learning_lesson_progress(user_email)`,
+  );
 
   // Knowledge checks: one optional quiz per module, feedback-only (not a completion gate).
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_quizzes (
@@ -189,7 +202,9 @@ async function ensureLearningHubSchema(): Promise<void> {
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_quiz_questions_quiz ON learning_quiz_questions(quiz_id)`);
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_learning_quiz_questions_quiz ON learning_quiz_questions(quiz_id)`,
+  );
 
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_quiz_options (
     id SERIAL PRIMARY KEY,
@@ -200,13 +215,21 @@ async function ensureLearningHubSchema(): Promise<void> {
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
-  await execSchema(`CREATE INDEX IF NOT EXISTS idx_learning_quiz_options_question ON learning_quiz_options(question_id)`);
+  await execSchema(
+    `CREATE INDEX IF NOT EXISTS idx_learning_quiz_options_question ON learning_quiz_options(question_id)`,
+  );
 
   // Lesson-level quizzes (attach a quiz to a lesson/video) + per-user pass tracking for gating.
   await execSchema(`ALTER TABLE learning_quizzes ALTER COLUMN module_id DROP NOT NULL`);
-  await execSchema(`ALTER TABLE learning_quizzes ADD COLUMN IF NOT EXISTS lesson_id INT REFERENCES learning_lessons(id) ON DELETE CASCADE`);
-  await execSchema(`ALTER TABLE learning_quizzes ADD COLUMN IF NOT EXISTS pass_pct INT NOT NULL DEFAULT 70`);
-  await execSchema(`CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_quizzes_lesson ON learning_quizzes(lesson_id) WHERE lesson_id IS NOT NULL`);
+  await execSchema(
+    `ALTER TABLE learning_quizzes ADD COLUMN IF NOT EXISTS lesson_id INT REFERENCES learning_lessons(id) ON DELETE CASCADE`,
+  );
+  await execSchema(
+    `ALTER TABLE learning_quizzes ADD COLUMN IF NOT EXISTS pass_pct INT NOT NULL DEFAULT 70`,
+  );
+  await execSchema(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_quizzes_lesson ON learning_quizzes(lesson_id) WHERE lesson_id IS NOT NULL`,
+  );
   await execSchema(`CREATE TABLE IF NOT EXISTS learning_quiz_results (
     id SERIAL PRIMARY KEY,
     user_email TEXT NOT NULL,
@@ -241,7 +264,11 @@ async function ensureLearningHubSchema(): Promise<void> {
 // transaction short). Each level is matched back to its parent through order_index — which is unique
 // within a parent here — rather than through the row order of RETURNING, which is not guaranteed.
 // Shared by the one-time empty-DB seed and the admin "reset track to defaults" action.
-async function insertTrackCourses(client: PoolClient, trackId: number, track: SeedTrack): Promise<void> {
+async function insertTrackCourses(
+  client: PoolClient,
+  trackId: number,
+  track: SeedTrack,
+): Promise<void> {
   if (track.courses.length === 0) return;
 
   const courseParams: QueryParams = [];
@@ -255,14 +282,22 @@ async function insertTrackCourses(client: PoolClient, trackId: number, track: Se
      VALUES ${courseRowsSql.join(', ')} RETURNING id, order_index`,
     courseParams,
   );
-  const courseIdByOrder = new Map(insertedCourses.map((r) => [Number(r.order_index), Number(r.id)]));
+  const courseIdByOrder = new Map(
+    insertedCourses.map((r) => [Number(r.order_index), Number(r.id)]),
+  );
 
   const moduleParams: QueryParams = [];
   const moduleRowsSql: string[] = [];
   track.courses.forEach((course, courseIdx) => {
     const courseId = courseIdByOrder.get(courseIdx)!;
     course.modules.forEach((mod, moduleIdx) => {
-      moduleParams.push(courseId, mod.title, moduleIdx, mod.resourceLabel ?? null, mod.resourceUrl ?? null);
+      moduleParams.push(
+        courseId,
+        mod.title,
+        moduleIdx,
+        mod.resourceLabel ?? null,
+        mod.resourceUrl ?? null,
+      );
       moduleRowsSql.push(`(?, ?, ?, ?, ?)`);
     });
   });
@@ -331,76 +366,104 @@ export function hashSeedTrack(track: SeedTrack): string {
  * `force` is the admin "reset to defaults" path: rebuild even when the stamp already matches.
  * Returns false when an up-to-date track was left alone.
  */
-export async function applySeedTrack(track: SeedTrack, orderIndex: number, force = false): Promise<boolean> {
+export async function applySeedTrack(
+  track: SeedTrack,
+  orderIndex: number,
+  force = false,
+): Promise<boolean> {
   const version = hashSeedTrack(track);
 
   /* The transaction reports what it destroyed rather than logging it: a rollback must
      not leave a log claiming that content which still exists was wiped, so the line is
      emitted below, once the commit has actually happened. */
-  const { replaced, destroyed } = await withTransaction(learningHubPool, async (client): Promise<{
-    replaced: boolean;
-    destroyed: { trackId: number; coursesDeleted: number; learnerProgressRowsWiped: number } | null;
-  }> => {
-    await lockForTransaction(client, `learning-hub:seed-track:${track.key}`);
-
-    // Re-read under the lock: a concurrent cold start may have finished the rebuild while we
-    // were queued on it, in which case there is nothing left to do.
-    const existingRows = await sqlOn<QueryResultRow[]>(
+  const { replaced, destroyed } = await withTransaction(
+    learningHubPool,
+    async (
       client,
-      `SELECT id, seed_version FROM learning_tracks WHERE key = ?`,
-      [track.key],
-    );
-    const existing = existingRows[0];
-    if (existing && !force && String(existing.seed_version ?? '') === version) return { replaced: false, destroyed: null };
+    ): Promise<{
+      replaced: boolean;
+      destroyed: {
+        trackId: number;
+        coursesDeleted: number;
+        learnerProgressRowsWiped: number;
+      } | null;
+    }> => {
+      await lockForTransaction(client, `learning-hub:seed-track:${track.key}`);
 
-    let trackId: number;
-    let wiped: { trackId: number; coursesDeleted: number; learnerProgressRowsWiped: number } | null = null;
-    if (existing) {
-      trackId = Number(existing.id);
-      // seed_version deliberately NOT set here — see the final UPDATE below.
-      await execOn(
+      // Re-read under the lock: a concurrent cold start may have finished the rebuild while we
+      // were queued on it, in which case there is nothing left to do.
+      const existingRows = await sqlOn<QueryResultRow[]>(
         client,
-        `UPDATE learning_tracks SET name = ?, description = ?, icon = ?, color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [track.name, track.description, track.icon, track.color, trackId],
+        `SELECT id, seed_version FROM learning_tracks WHERE key = ?`,
+        [track.key],
       );
-      /* Count what the cascade is about to take with it BEFORE deleting: this log is
+      const existing = existingRows[0];
+      if (existing && !force && String(existing.seed_version ?? '') === version)
+        return { replaced: false, destroyed: null };
+
+      let trackId: number;
+      let wiped: {
+        trackId: number;
+        coursesDeleted: number;
+        learnerProgressRowsWiped: number;
+      } | null = null;
+      if (existing) {
+        trackId = Number(existing.id);
+        // seed_version deliberately NOT set here — see the final UPDATE below.
+        await execOn(
+          client,
+          `UPDATE learning_tracks SET name = ?, description = ?, icon = ?, color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          [track.name, track.description, track.icon, track.color, trackId],
+        );
+        /* Count what the cascade is about to take with it BEFORE deleting: this log is
          the only record that a learner's progress was wiped, and after the DELETE the
          rows are gone and uncountable. Both queries run on the transaction client, so
          they are inside the same locked transaction as the rebuild. */
-      const doomed = await sqlOn<QueryResultRow[]>(
-        client,
-        `SELECT (SELECT COUNT(*) FROM learning_courses WHERE track_id = ?)                       AS courses,
+        const doomed = await sqlOn<QueryResultRow[]>(
+          client,
+          `SELECT (SELECT COUNT(*) FROM learning_courses WHERE track_id = ?)                       AS courses,
                 (SELECT COUNT(*) FROM learning_lesson_progress p
                    JOIN learning_lessons l  ON l.id = p.lesson_id
                    JOIN learning_modules m  ON m.id = l.module_id
                    JOIN learning_courses c  ON c.id = m.course_id
                   WHERE c.track_id = ?)                                                          AS progress_rows`,
-        [trackId, trackId],
-      );
-      const deleted = await execOn(client, `DELETE FROM learning_courses WHERE track_id = ?`, [trackId]);
-      wiped = {
+          [trackId, trackId],
+        );
+        const deleted = await execOn(client, `DELETE FROM learning_courses WHERE track_id = ?`, [
+          trackId,
+        ]);
+        wiped = {
+          trackId,
+          coursesDeleted: deleted.rowCount,
+          learnerProgressRowsWiped: Number(doomed[0]?.progress_rows ?? 0),
+        };
+      } else {
+        const inserted = await execOn(
+          client,
+          `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+          [track.key, track.name, track.description, track.icon, track.color, orderIndex],
+        );
+        trackId = inserted.insertId;
+      }
+
+      await insertTrackCourses(client, trackId, track);
+
+      // Last statement: the stamp only exists if everything above it does.
+      await execOn(client, `UPDATE learning_tracks SET seed_version = ? WHERE id = ?`, [
+        version,
         trackId,
-        coursesDeleted: deleted.rowCount,
-        learnerProgressRowsWiped: Number(doomed[0]?.progress_rows ?? 0),
-      };
-    } else {
-      const inserted = await execOn(
-        client,
-        `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-        [track.key, track.name, track.description, track.icon, track.color, orderIndex],
-      );
-      trackId = inserted.insertId;
-    }
-
-    await insertTrackCourses(client, trackId, track);
-
-    // Last statement: the stamp only exists if everything above it does.
-    await execOn(client, `UPDATE learning_tracks SET seed_version = ? WHERE id = ?`, [version, trackId]);
-    return { replaced: true, destroyed: wiped };
-  });
+      ]);
+      return { replaced: true, destroyed: wiped };
+    },
+  );
 
   if (destroyed) {
-    log.info('seed.track.replaced', { track: track.key, force, seedVersion: version.slice(0, 12), ...destroyed });
+    log.info('seed.track.replaced', {
+      track: track.key,
+      force,
+      seedVersion: version.slice(0, 12),
+      ...destroyed,
+    });
   }
   return replaced;
 }
@@ -413,8 +476,12 @@ export async function applySeedTrack(track: SeedTrack, orderIndex: number, force
 // The batch SELECT here is only a fast path that keeps the steady state to a single query; the
 // authoritative comparison happens again inside applySeedTrack(), under the lock.
 async function syncSeedTracks(): Promise<void> {
-  const existingTracks = await sql<QueryResultRow[]>(`SELECT key, seed_version FROM learning_tracks`);
-  const versionByKey = new Map(existingTracks.map((t) => [String(t.key), String(t.seed_version ?? '')]));
+  const existingTracks = await sql<QueryResultRow[]>(
+    `SELECT key, seed_version FROM learning_tracks`,
+  );
+  const versionByKey = new Map(
+    existingTracks.map((t) => [String(t.key), String(t.seed_version ?? '')]),
+  );
 
   for (let trackIdx = 0; trackIdx < SEED_TRACKS.length; trackIdx++) {
     const track = SEED_TRACKS[trackIdx];
@@ -450,16 +517,24 @@ export async function ensureLearningHubReady(): Promise<void> {
 export async function getTrackName(key: string): Promise<string | null> {
   try {
     await ensureLearningHubReady();
-    const rows = await sql<QueryResultRow[]>(`SELECT name FROM learning_tracks WHERE key = ?`, [key]);
+    const rows = await sql<QueryResultRow[]>(`SELECT name FROM learning_tracks WHERE key = ?`, [
+      key,
+    ]);
     return (rows[0]?.name as string) ?? null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 export async function getCourseTitle(id: number): Promise<string | null> {
   try {
     await ensureLearningHubReady();
-    const rows = await sql<QueryResultRow[]>(`SELECT title FROM learning_courses WHERE id = ?`, [id]);
+    const rows = await sql<QueryResultRow[]>(`SELECT title FROM learning_courses WHERE id = ?`, [
+      id,
+    ]);
     return (rows[0]?.title as string) ?? null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 // Browser-tab label. A track that sets `tab_label_prefix` uses the short level form
 // ("SC lvl 1") in the tight tab space, even though the card/page shows the full course
@@ -479,14 +554,20 @@ export async function getCourseTabTitle(trackKey: string, id: number): Promise<s
     const prefix = rows[0].tab_label_prefix ? String(rows[0].tab_label_prefix) : '';
     if (prefix) return `${prefix} lvl ${Number(rows[0].order_index ?? 0) + 1}`;
     return (rows[0].title as string) ?? null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 export async function getLessonTitle(id: number): Promise<string | null> {
   try {
     await ensureLearningHubReady();
-    const rows = await sql<QueryResultRow[]>(`SELECT title FROM learning_lessons WHERE id = ?`, [id]);
+    const rows = await sql<QueryResultRow[]>(`SELECT title FROM learning_lessons WHERE id = ?`, [
+      id,
+    ]);
     return (rows[0]?.title as string) ?? null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /* ── Sidebar navigation (one source of truth for every Learning Hub page) ── */
@@ -626,7 +707,9 @@ export async function getTrackDetail(trackKey: string): Promise<TrackDetailData 
   const userEmail = me.email;
   await ensureLearningHubReady();
 
-  const tracks = await sql<LearningTrack[]>(`SELECT * FROM learning_tracks WHERE key = ?`, [trackKey]);
+  const tracks = await sql<LearningTrack[]>(`SELECT * FROM learning_tracks WHERE key = ?`, [
+    trackKey,
+  ]);
   const track = tracks[0];
   if (!track) return null;
 
@@ -670,12 +753,21 @@ export async function getTrackDetail(trackKey: string): Promise<TrackDetailData 
 
 /* ── Quiz gating (lesson-level quizzes; must pass one to unlock the next lesson) ── */
 
-interface LessonGate { hasQuiz: boolean; quizId: number | null; passPct: number; quizPassed: boolean; locked: boolean }
+interface LessonGate {
+  hasQuiz: boolean;
+  quizId: number | null;
+  passPct: number;
+  quizPassed: boolean;
+  locked: boolean;
+}
 
 // For a course's lessons in order: a lesson is `locked` when any EARLIER lesson that has a quiz
 // has not been passed. The lesson holding the first unpassed quiz is itself unlocked (you take it);
 // everything after it is locked until it passes.
-async function getCourseGating(courseId: number, userEmail: string): Promise<Map<number, LessonGate>> {
+async function getCourseGating(
+  courseId: number,
+  userEmail: string,
+): Promise<Map<number, LessonGate>> {
   const rows = await sql<QueryResultRow[]>(
     `SELECT l.id AS lesson_id, z.id AS quiz_id, z.pass_pct, (r.passed IS TRUE) AS passed
      FROM learning_lessons l
@@ -692,7 +784,13 @@ async function getCourseGating(courseId: number, userEmail: string): Promise<Map
     const quizId = r.quiz_id != null ? Number(r.quiz_id) : null;
     const hasQuiz = quizId != null;
     const quizPassed = r.passed === true;
-    map.set(Number(r.lesson_id), { hasQuiz, quizId, passPct: Number(r.pass_pct ?? DEFAULT_QUIZ_PASS_PCT), quizPassed, locked: blocked });
+    map.set(Number(r.lesson_id), {
+      hasQuiz,
+      quizId,
+      passPct: Number(r.pass_pct ?? DEFAULT_QUIZ_PASS_PCT),
+      quizPassed,
+      locked: blocked,
+    });
     if (hasQuiz && !quizPassed) blocked = true;
   }
   return map;
@@ -700,15 +798,20 @@ async function getCourseGating(courseId: number, userEmail: string): Promise<Map
 
 // The learner-facing quiz (no answer key).
 async function loadLessonQuiz(quizId: number): Promise<LessonQuiz | null> {
-  const quizRows = await sql<QueryResultRow[]>(`SELECT id, title, pass_pct FROM learning_quizzes WHERE id = ?`, [quizId]);
+  const quizRows = await sql<QueryResultRow[]>(
+    `SELECT id, title, pass_pct FROM learning_quizzes WHERE id = ?`,
+    [quizId],
+  );
   if (!quizRows[0]) return null;
   const questions = await sql<QueryResultRow[]>(
-    `SELECT id, question_text FROM learning_quiz_questions WHERE quiz_id = ? ORDER BY order_index ASC, id ASC`, [quizId],
+    `SELECT id, question_text FROM learning_quiz_questions WHERE quiz_id = ? ORDER BY order_index ASC, id ASC`,
+    [quizId],
   );
   const qIds = questions.map((q) => Number(q.id));
   const options = qIds.length
     ? await sql<QueryResultRow[]>(
-        `SELECT id, question_id, option_text FROM learning_quiz_options WHERE question_id = ANY(?) ORDER BY order_index ASC, id ASC`, [qIds],
+        `SELECT id, question_id, option_text FROM learning_quiz_options WHERE question_id = ANY(?) ORDER BY order_index ASC, id ASC`,
+        [qIds],
       )
     : [];
   const optsByQ = new Map<number, { id: number; text: string }[]>();
@@ -721,19 +824,28 @@ async function loadLessonQuiz(quizId: number): Promise<LessonQuiz | null> {
     id: Number(quizRows[0].id),
     title: String(quizRows[0].title),
     pass_pct: Number(quizRows[0].pass_pct ?? DEFAULT_QUIZ_PASS_PCT),
-    questions: questions.map((q) => ({ id: Number(q.id), text: String(q.question_text), options: optsByQ.get(Number(q.id)) ?? [] })),
+    questions: questions.map((q) => ({
+      id: Number(q.id),
+      text: String(q.question_text),
+      options: optsByQ.get(Number(q.id)) ?? [],
+    })),
   };
 }
 
 /* ── Course detail (modules + lessons outline) ───────────────────────── */
 
-export async function getCourseDetail(trackKey: string, courseId: number): Promise<CourseDetailData | null> {
+export async function getCourseDetail(
+  trackKey: string,
+  courseId: number,
+): Promise<CourseDetailData | null> {
   const me = await learnerIdentity();
   if (!me) return null;
   const userEmail = me.email;
   await ensureLearningHubReady();
 
-  const tracks = await sql<LearningTrack[]>(`SELECT * FROM learning_tracks WHERE key = ?`, [trackKey]);
+  const tracks = await sql<LearningTrack[]>(`SELECT * FROM learning_tracks WHERE key = ?`, [
+    trackKey,
+  ]);
   const track = tracks[0];
   if (!track) return null;
 
@@ -766,7 +878,9 @@ export async function getCourseDetail(trackKey: string, courseId: number): Promi
     ),
     getCourseGating(course.id, userEmail),
     moduleIds.length
-      ? sql<QueryResultRow[]>(`SELECT module_id FROM learning_quizzes WHERE module_id = ANY(?)`, [moduleIds])
+      ? sql<QueryResultRow[]>(`SELECT module_id FROM learning_quizzes WHERE module_id = ANY(?)`, [
+          moduleIds,
+        ])
       : Promise.resolve([] as QueryResultRow[]),
     moduleIds.length
       ? sql<LearningLesson[]>(
@@ -796,11 +910,21 @@ export async function getCourseDetail(trackKey: string, courseId: number): Promi
     const lessonsWithCompletion = lessons.map((l) => {
       const g = gating.get(l.id);
       const completed = g?.hasQuiz ? !!g.quizPassed : completedIds.has(l.id);
-      return { ...l, completed, has_quiz: !!g?.hasQuiz, quiz_passed: !!g?.quizPassed, locked: !!g?.locked };
+      return {
+        ...l,
+        completed,
+        has_quiz: !!g?.hasQuiz,
+        quiz_passed: !!g?.quizPassed,
+        locked: !!g?.locked,
+      };
     });
     lessonCount += lessons.length;
     completedCount += lessonsWithCompletion.filter((l) => l.completed).length;
-    moduleOutlines.push({ ...mod, lessons: lessonsWithCompletion, has_quiz: quizModuleIds.has(mod.id) });
+    moduleOutlines.push({
+      ...mod,
+      lessons: lessonsWithCompletion,
+      has_quiz: quizModuleIds.has(mod.id),
+    });
   }
 
   return {
@@ -825,7 +949,9 @@ export async function getLessonDetail(
   const userEmail = me.email;
   await ensureLearningHubReady();
 
-  const tracks = await sql<LearningTrack[]>(`SELECT * FROM learning_tracks WHERE key = ?`, [trackKey]);
+  const tracks = await sql<LearningTrack[]>(`SELECT * FROM learning_tracks WHERE key = ?`, [
+    trackKey,
+  ]);
   const track = tracks[0];
   if (!track) return null;
 
@@ -875,8 +1001,12 @@ export async function getLessonDetail(
     course,
     lesson: visibleLesson,
     completed: g?.hasQuiz ? quizPassed : completedRows.length > 0,
-    prev: prevRow ? { lesson_id: Number(prevRow.id), course_id: course.id, title: String(prevRow.title) } : null,
-    next: nextRow ? { lesson_id: Number(nextRow.id), course_id: course.id, title: String(nextRow.title) } : null,
+    prev: prevRow
+      ? { lesson_id: Number(prevRow.id), course_id: course.id, title: String(prevRow.title) }
+      : null,
+    next: nextRow
+      ? { lesson_id: Number(nextRow.id), course_id: course.id, title: String(nextRow.title) }
+      : null,
     locked,
     quiz,
     quiz_passed: quizPassed,
@@ -943,8 +1073,15 @@ export async function getMyWorkData(): Promise<MyWorkData> {
 
 export async function loadModuleQuizRaw(
   moduleId: number,
-): Promise<{ quiz: QueryResultRow; questions: QueryResultRow[]; optionsByQuestion: Map<number, QueryResultRow[]> } | null> {
-  const quizzes = await sql<QueryResultRow[]>(`SELECT * FROM learning_quizzes WHERE module_id = ?`, [moduleId]);
+): Promise<{
+  quiz: QueryResultRow;
+  questions: QueryResultRow[];
+  optionsByQuestion: Map<number, QueryResultRow[]>;
+} | null> {
+  const quizzes = await sql<QueryResultRow[]>(
+    `SELECT * FROM learning_quizzes WHERE module_id = ?`,
+    [moduleId],
+  );
   const quiz = quizzes[0];
   if (!quiz) return null;
 
@@ -998,7 +1135,9 @@ export async function getModuleQuizPageData(
   if (!me) return null;
   await ensureLearningHubReady();
 
-  const tracks = await sql<LearningTrack[]>(`SELECT * FROM learning_tracks WHERE key = ?`, [trackKey]);
+  const tracks = await sql<LearningTrack[]>(`SELECT * FROM learning_tracks WHERE key = ?`, [
+    trackKey,
+  ]);
   const track = tracks[0];
   if (!track) return null;
   // A draft course's knowledge check is not readable by guessing the module id.
@@ -1008,7 +1147,10 @@ export async function getModuleQuizPageData(
   );
   const course = courses[0];
   if (!course) return null;
-  const modules = await sql<LearningModule[]>(`SELECT * FROM learning_modules WHERE id = ? AND course_id = ?`, [moduleId, course.id]);
+  const modules = await sql<LearningModule[]>(
+    `SELECT * FROM learning_modules WHERE id = ? AND course_id = ?`,
+    [moduleId, course.id],
+  );
   const mod = modules[0];
   if (!mod) return null;
   const quiz = await getModuleQuizForLearner(moduleId);

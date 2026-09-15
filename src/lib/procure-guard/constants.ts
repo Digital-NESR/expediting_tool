@@ -4,7 +4,11 @@
  * A plain module, deliberately NOT `'use server'`: none of this is an endpoint, and keeping it out
  * of the action files is what stops a constant from accidentally becoming a public POST target.
  */
-import { ADHOC_STATUS_OPTIONS, ADVANCE_STATUS_OPTIONS, APPROVAL_ACTIVE_STATUSES } from '@/lib/procureGuard-utils';
+import {
+  ADHOC_STATUS_OPTIONS,
+  ADVANCE_STATUS_OPTIONS,
+  APPROVAL_ACTIVE_STATUSES,
+} from '@/lib/procureGuard-utils';
 import type { ProcureGuardStatus } from '@/types/procureGuard';
 
 /**
@@ -32,8 +36,12 @@ export class ProcureGuardAccessError extends Error {
 }
 
 /** The still-in-flight statuses of each request type, derived rather than retyped in SQL. */
-export const adhocActiveStatuses = APPROVAL_ACTIVE_STATUSES.filter(status => ADHOC_STATUS_OPTIONS.includes(status));
-export const advanceActiveStatuses = APPROVAL_ACTIVE_STATUSES.filter(status => ADVANCE_STATUS_OPTIONS.includes(status));
+export const adhocActiveStatuses = APPROVAL_ACTIVE_STATUSES.filter((status) =>
+  ADHOC_STATUS_OPTIONS.includes(status),
+);
+export const advanceActiveStatuses = APPROVAL_ACTIVE_STATUSES.filter((status) =>
+  ADVANCE_STATUS_OPTIONS.includes(status),
+);
 
 export const STATUS_SORT_ORDER: ProcureGuardStatus[] = [
   'Submitted',

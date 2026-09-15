@@ -73,7 +73,9 @@ export default function SoaConsolidationPage() {
       patch({ uploadStep: 1 });
       setTimeout(() => {
         // Guard against a modal that's since been closed or moved on from this step.
-        patch((prev) => (prev.modal?.type === 'upload' && prev.uploadStep === 1 ? { uploadStep: 2 } : {}));
+        patch((prev) =>
+          prev.modal?.type === 'upload' && prev.uploadStep === 1 ? { uploadStep: 2 } : {},
+        );
       }, 1800);
     },
     sendReminders() {
@@ -88,15 +90,23 @@ export default function SoaConsolidationPage() {
         detail: `${pending.length} reminder emails dispatched to vendors with no response after initial request.`,
       };
       patch({
-        vendors: state.vendors.map((v) => (v.status === 'requested' ? { ...v, status: 'reminded' as const, remDate: '21 Jul' } : v)),
+        vendors: state.vendors.map((v) =>
+          v.status === 'requested' ? { ...v, status: 'reminded' as const, remDate: '21 Jul' } : v,
+        ),
         evidence: [entry, ...state.evidence],
       });
-      addToast('success', `${pending.length} reminders sent`, 'Reminder emails dispatched. Evidence logged.');
+      addToast(
+        'success',
+        `${pending.length} reminders sent`,
+        'Reminder emails dispatched. Evidence logged.',
+      );
     },
     sendOneReminder(id) {
       const name = state.vendors.find((v) => v.id === id)?.name ?? '';
       patch({
-        vendors: state.vendors.map((v) => (v.id === id ? { ...v, status: 'reminded' as const, remDate: '21 Jul' } : v)),
+        vendors: state.vendors.map((v) =>
+          v.id === id ? { ...v, status: 'reminded' as const, remDate: '21 Jul' } : v,
+        ),
         expandedVendor: null,
       });
       addToast('success', 'Reminder sent', `${name} — second request dispatched.`);
@@ -104,14 +114,20 @@ export default function SoaConsolidationPage() {
     markNR(id) {
       const name = state.vendors.find((v) => v.id === id)?.name ?? '';
       patch({
-        vendors: state.vendors.map((v) => (v.id === id ? { ...v, status: 'non_responder' as const } : v)),
+        vendors: state.vendors.map((v) =>
+          v.id === id ? { ...v, status: 'non_responder' as const } : v,
+        ),
         expandedVendor: null,
       });
       addToast('warning', 'Non-responder flagged', `${name} — evidence retained.`);
     },
     generateExport() {
       addToast('success', 'Export generated', 'NESR-KSA-SOA-Q3-2026.xlsx ready for Finance.');
-      patch({ countries: state.countries.map((c) => (c.id === ACTIVE_COUNTRY_ID ? { ...c, status: 'consolidating' as const } : c)) });
+      patch({
+        countries: state.countries.map((c) =>
+          c.id === ACTIVE_COUNTRY_ID ? { ...c, status: 'consolidating' as const } : c,
+        ),
+      });
     },
     openHandoffModal() {
       patch({ modal: { type: 'handoff' } });
@@ -122,14 +138,25 @@ export default function SoaConsolidationPage() {
       const vendorName = state.vendors.find((v) => v.id === vendorId)?.name ?? '';
       const newVendors = state.vendors.map((v) =>
         v.id === vendorId
-          ? { ...v, status: 'received' as const, respDate: '21 Jul', invCount: Math.floor(Math.random() * 4) + 2 }
+          ? {
+              ...v,
+              status: 'received' as const,
+              respDate: '21 Jul',
+              invCount: Math.floor(Math.random() * 4) + 2,
+            }
           : v,
       );
-      const receivedBalance = newVendors.filter((v) => v.status === 'received').reduce((s, v) => s + v.openPO, 0);
+      const receivedBalance = newVendors
+        .filter((v) => v.status === 'received')
+        .reduce((s, v) => s + v.openPO, 0);
       const newPct = Math.round((receivedBalance / TOTAL_BALANCE) * 100);
       const newCountries = state.countries.map((c) =>
         c.id === ACTIVE_COUNTRY_ID
-          ? { ...c, pct: newPct, responded: newVendors.filter((v) => v.status === 'received').length }
+          ? {
+              ...c,
+              pct: newPct,
+              responded: newVendors.filter((v) => v.status === 'received').length,
+            }
           : c,
       );
       const entry: Evidence = {
@@ -161,12 +188,18 @@ export default function SoaConsolidationPage() {
         detail: `Consolidated SOA file delivered to AP/Finance Country Group inbox. Coverage: ${country?.pct}%. Control criteria: ✓`,
       };
       patch({
-        countries: state.countries.map((c) => (c.id === ACTIVE_COUNTRY_ID ? { ...c, status: 'handed_off' as const } : c)),
+        countries: state.countries.map((c) =>
+          c.id === ACTIVE_COUNTRY_ID ? { ...c, status: 'handed_off' as const } : c,
+        ),
         handedOff: true,
         modal: null,
         evidence: [entry, ...state.evidence],
       });
-      addToast('success', 'Handed off to Finance', 'KSA Q3 2026 SOA delivered to AP Country Group inbox.');
+      addToast(
+        'success',
+        'Handed off to Finance',
+        'KSA Q3 2026 SOA delivered to AP Country Group inbox.',
+      );
     },
   };
 

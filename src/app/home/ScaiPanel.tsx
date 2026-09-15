@@ -13,7 +13,6 @@ export default function ScaiPanel() {
   return (
     <aside className="w-80 shrink-0">
       <div className="h-[540px] flex flex-col gap-4 bg-[#f0f9f4] border border-[#b6ddc8] rounded-2xl p-6 overflow-hidden">
-
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-[#307c4c]" />
           <p className="text-[10px] font-semibold tracking-widest uppercase text-[#307c4c]">
@@ -24,12 +23,10 @@ export default function ScaiPanel() {
         <div className="flex items-center justify-between">
           {/* Opens in this tab; the "Launch SCAI" button opens a new one.
               tabIndex={-1} keeps the pair to a single tab stop, as before. */}
-          <a
-            href="https://scai.nesr.com"
-            tabIndex={-1}
-            className="group cursor-pointer"
-          >
-            <h2 className="text-2xl font-bold text-slate-900 leading-tight group-hover:underline">SCAI</h2>
+          <a href="https://scai.nesr.com" tabIndex={-1} className="group cursor-pointer">
+            <h2 className="text-2xl font-bold text-slate-900 leading-tight group-hover:underline">
+              SCAI
+            </h2>
             <p className="text-sm text-slate-500 mt-0.5">Supply Chain AI</p>
           </a>
           <a
@@ -45,7 +42,6 @@ export default function ScaiPanel() {
 
         {/* Agent cards */}
         <div className="flex flex-col gap-3">
-
           <div className="flex gap-3 items-start bg-white/70 rounded-xl p-3 border border-[#b6ddc8]/60">
             <div className="w-8 h-8 rounded-lg bg-[#307c4c]/10 flex items-center justify-center shrink-0">
               <ScanSearch className="w-4 h-4 text-[#307c4c]" />
@@ -65,7 +61,8 @@ export default function ScaiPanel() {
             <div>
               <p className="text-xs font-semibold text-slate-800">SC Policy AI</p>
               <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
-                Instant answers from NESR&apos;s internal freight, warehouse, compliance, and field operations policies
+                Instant answers from NESR&apos;s internal freight, warehouse, compliance, and field
+                operations policies
               </p>
             </div>
           </div>
@@ -77,11 +74,11 @@ export default function ScaiPanel() {
             <div>
               <p className="text-xs font-semibold text-slate-800">SourceGuide AI</p>
               <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
-                Find approved suppliers, check compliance status, and access purchase history across countries
+                Find approved suppliers, check compliance status, and access purchase history across
+                countries
               </p>
             </div>
           </div>
-
         </div>
 
         {/* Divider */}
@@ -93,7 +90,7 @@ export default function ScaiPanel() {
             Why SCAI?
           </p>
           <ul className="flex flex-col gap-1.5">
-            {WHY_SCAI.map(point => (
+            {WHY_SCAI.map((point) => (
               <li key={point} className="flex items-start gap-2 text-[11px] text-slate-500">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#307c4c] shrink-0 mt-1" />
                 {point}
@@ -116,7 +113,6 @@ export default function ScaiPanel() {
         <p className="text-[11px] text-slate-400 leading-relaxed">
           Powered by NESR&apos;s internal data and policy documents.
         </p>
-
       </div>
     </aside>
   );

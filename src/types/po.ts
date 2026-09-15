@@ -10,11 +10,11 @@ export interface PurchaseOrder {
   'Open PO Value USD': number | string;
   'Delivery Date': string;
   'Delivery Code': string;
-  'Country': string;
+  Country: string;
   'PO Release Date'?: string;
   'Delivery Comments'?: string;
   'Buyer Email'?: string | null;
   'P Group'?: string;
-  'Segment'?: string;
+  Segment?: string;
   'Account Classification Description'?: string | null;
 }

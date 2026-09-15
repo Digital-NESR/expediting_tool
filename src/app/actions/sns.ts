@@ -136,7 +136,12 @@ function actorFor(viewer: SnsViewer, kind: 'req' | 'l1' | 'l2', country: string)
 
 /** Taxonomy tree, countries, segments and reason codes for the wizard. */
 export async function getSnsReferenceData(): Promise<ReferenceData> {
-  const empty: ReferenceData = { tax: [], countries: [], segments: [], reasons: { SGL: [], SOL: [] } };
+  const empty: ReferenceData = {
+    tax: [],
+    countries: [],
+    segments: [],
+    reasons: { SGL: [], SOL: [] },
+  };
 
   /* A `'use server'` export is a public POST endpoint — any signed-in employee
      can call it directly, so the layout redirect is not a control. Gate on the
@@ -147,13 +152,23 @@ export async function getSnsReferenceData(): Promise<ReferenceData> {
 
   try {
     const [cats, subs, fams, coms, countries, segments, reasons] = await Promise.all([
-      snsPool.query(`SELECT id, name, spend_type FROM sns_category WHERE active ORDER BY sort_order, name`),
-      snsPool.query(`SELECT id, category_id, name FROM sns_sub_category WHERE active ORDER BY sort_order, name`),
-      snsPool.query(`SELECT id, sub_category_id, name FROM sns_family WHERE active ORDER BY sort_order, name`),
-      snsPool.query(`SELECT id, family_id, name FROM sns_commodity WHERE active ORDER BY sort_order, name`),
+      snsPool.query(
+        `SELECT id, name, spend_type FROM sns_category WHERE active ORDER BY sort_order, name`,
+      ),
+      snsPool.query(
+        `SELECT id, category_id, name FROM sns_sub_category WHERE active ORDER BY sort_order, name`,
+      ),
+      snsPool.query(
+        `SELECT id, sub_category_id, name FROM sns_family WHERE active ORDER BY sort_order, name`,
+      ),
+      snsPool.query(
+        `SELECT id, family_id, name FROM sns_commodity WHERE active ORDER BY sort_order, name`,
+      ),
       snsPool.query(`SELECT code, name FROM sns_country WHERE active ORDER BY sort_order, name`),
       snsPool.query(`SELECT name FROM sns_segment WHERE active ORDER BY sort_order, name`),
-      snsPool.query(`SELECT classification, name FROM sns_reason WHERE active ORDER BY classification, sort_order, name`),
+      snsPool.query(
+        `SELECT classification, name FROM sns_reason WHERE active ORDER BY classification, sort_order, name`,
+      ),
     ]);
 
     // Assemble the four flat tables into the nested tree the wizard walks.
@@ -169,7 +184,10 @@ export async function getSnsReferenceData(): Promise<ReferenceData> {
       list.push({ name: String(f.name), commodities: comsByFamily.get(f.id) ?? [] });
       famsBySub.set(f.sub_category_id, list);
     }
-    const subsByCat = new Map<number, { name: string; families: { name: string; commodities: string[] }[] }[]>();
+    const subsByCat = new Map<
+      number,
+      { name: string; families: { name: string; commodities: string[] }[] }[]
+    >();
     for (const s of subs.rows) {
       const list = subsByCat.get(s.category_id) ?? [];
       list.push({ name: String(s.name), families: famsBySub.get(s.id) ?? [] });
@@ -269,7 +287,12 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
     const nodesBy = new Map<number, ScopeNode[]>();
     for (const n of nodes.rows) {
       const list = nodesBy.get(n.record_rid) ?? [];
-      list.push({ cat: String(n.category), sub: String(n.sub_category), fam: String(n.family), com: String(n.commodity ?? '') });
+      list.push({
+        cat: String(n.category),
+        sub: String(n.sub_category),
+        fam: String(n.family),
+        com: String(n.commodity ?? ''),
+      });
       nodesBy.set(n.record_rid, list);
     }
     const segsBy = new Map<number, string[]>();
@@ -281,7 +304,12 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
     const histBy = new Map<number, RegistryRecord['history']>();
     for (const h of hist.rows) {
       const list = histBy.get(h.record_rid) ?? [];
-      list.push({ step: String(h.step), actor: String(h.actor ?? ''), date: isoOrNull(h.entry_date) ?? '', note: String(h.note ?? '') });
+      list.push({
+        step: String(h.step),
+        actor: String(h.actor ?? ''),
+        date: isoOrNull(h.entry_date) ?? '',
+        note: String(h.note ?? ''),
+      });
       histBy.set(h.record_rid, list);
     }
 
@@ -346,7 +374,10 @@ async function draftFromRecord(client: PoolClient, rec: Record<string, unknown>)
     country: String(rec.country ?? ''),
     level: rec.scope_level as ScopeLevel,
     nodes: nodes.rows.map((n) => ({
-      cat: String(n.category), sub: String(n.sub_category), fam: String(n.family), com: String(n.commodity ?? ''),
+      cat: String(n.category),
+      sub: String(n.sub_category),
+      fam: String(n.family),
+      com: String(n.commodity ?? ''),
     })),
     segments: segs.rows.map((s) => String(s.segment)),
     supplierId: String(rec.supplier_id ?? ''),
@@ -420,10 +451,14 @@ async function nextRegistryId(
 }
 
 /** Creates a record as either a private Draft or a submission awaiting Level 1. */
-export async function createSnsRecord(draft: Draft, base: 'Draft' | 'Pending Level 1'): Promise<ActionResult & { rid?: number }> {
+export async function createSnsRecord(
+  draft: Draft,
+  base: 'Draft' | 'Pending Level 1',
+): Promise<ActionResult & { rid?: number }> {
   const viewer = await getSnsViewer();
   if (!viewer) return { success: false, error: 'You do not have access to the S&S Registry.' };
-  if (!isAdminOr(viewer, 'req')) return { success: false, error: 'Only Requestors can create records.' };
+  if (!isAdminOr(viewer, 'req'))
+    return { success: false, error: 'Only Requestors can create records.' };
   if (!draft.country) return { success: false, error: 'Select a country.' };
 
   /* A Draft may be incomplete by definition; a submission may not. The wizard
@@ -433,8 +468,10 @@ export async function createSnsRecord(draft: Draft, base: 'Draft' | 'Pending Lev
     const missing = validateForSubmission(draft);
     if (missing.length) return { success: false, error: submissionError(missing) };
   } else {
-    if (draft.nodes.length === 0) return { success: false, error: 'Select at least one scope item.' };
-    if (!draft.supplierId || !draft.supplierName) return { success: false, error: 'Supplier SAP ID and name are required.' };
+    if (draft.nodes.length === 0)
+      return { success: false, error: 'Select at least one scope item.' };
+    if (!draft.supplierId || !draft.supplierName)
+      return { success: false, error: 'Supplier SAP ID and name are required.' };
     if (!draft.reason) return { success: false, error: 'Select a reason code.' };
   }
 
@@ -448,7 +485,10 @@ export async function createSnsRecord(draft: Draft, base: 'Draft' | 'Pending Lev
   } catch (err) {
     const msg = unknownCountryMessage(err);
     if (msg) return { success: false, error: msg };
-    log.error('record.create.countryLookup.failed', err, { country: draft.country, actor: viewer.email });
+    log.error('record.create.countryLookup.failed', err, {
+      country: draft.country,
+      actor: viewer.email,
+    });
     return { success: false, error: 'Could not save the record.' };
   }
   if (!canActInCountry(viewer, code)) {
@@ -469,8 +509,18 @@ export async function createSnsRecord(draft: Draft, base: 'Draft' | 'Pending Lev
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING rid`,
       [
-        draft.cls, draft.country, code, draft.level, draft.supplierId, draft.supplierName,
-        draft.reason, draft.justification, base, spend, requestor, viewer.email,
+        draft.cls,
+        draft.country,
+        code,
+        draft.level,
+        draft.supplierId,
+        draft.supplierName,
+        draft.reason,
+        draft.justification,
+        base,
+        spend,
+        requestor,
+        viewer.email,
       ],
     );
     const rid = Number(rows[0].rid);
@@ -491,16 +541,23 @@ export async function createSnsRecord(draft: Draft, base: 'Draft' | 'Pending Lev
     }
 
     await addHistory(
-      client, rid,
+      client,
+      rid,
       base === 'Draft' ? 'Draft saved' : 'Draft submitted for Level 1 validation',
-      requestor, viewer.email,
+      requestor,
+      viewer.email,
     );
 
     await client.query('COMMIT');
     return { success: true, rid };
   } catch (err) {
     await client.query('ROLLBACK');
-    log.error('record.create.failed', err, { country: code, base, actor: viewer.email, supplierId: draft.supplierId });
+    log.error('record.create.failed', err, {
+      country: code,
+      base,
+      actor: viewer.email,
+      supplierId: draft.supplierId,
+    });
     return { success: false, error: 'Could not save the record.' };
   } finally {
     client.release();
@@ -565,7 +622,13 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
         `UPDATE sns_record SET base_status = 'Pending Level 1', updated_at = CURRENT_TIMESTAMP WHERE rid = $1`,
         [rid],
       );
-      await addHistory(client, rid, 'Submitted for Level 1 validation', actorFor(viewer, 'req', country), viewer.email);
+      await addHistory(
+        client,
+        rid,
+        'Submitted for Level 1 validation',
+        actorFor(viewer, 'req', country),
+        viewer.email,
+      );
     } else if (base === 'Pending Level 1') {
       if (!isAdminOr(viewer, 'l1')) {
         await client.query('ROLLBACK');
@@ -575,7 +638,13 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
         `UPDATE sns_record SET base_status = 'Pending Level 2', updated_at = CURRENT_TIMESTAMP WHERE rid = $1`,
         [rid],
       );
-      await addHistory(client, rid, 'Level 1 validated — routed to Level 2', actorFor(viewer, 'l1', country), viewer.email);
+      await addHistory(
+        client,
+        rid,
+        'Level 1 validated — routed to Level 2',
+        actorFor(viewer, 'l1', country),
+        viewer.email,
+      );
     } else if (base === 'Pending Level 2') {
       if (!isAdminOr(viewer, 'l2')) {
         await client.query('ROLLBACK');
@@ -589,8 +658,11 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
           [rid, toISODate(addDays(from, 365))],
         );
         await addHistory(
-          client, rid, 'Periodic review complete — expiry extended 12 months',
-          actorFor(viewer, 'l2', country), viewer.email,
+          client,
+          rid,
+          'Periodic review complete — expiry extended 12 months',
+          actorFor(viewer, 'l2', country),
+          viewer.email,
           'Original Registry ID retained. Review history kept for audit.',
         );
       } else {
@@ -609,8 +681,11 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
           [rid, toISODate(now), toISODate(addDays(now, 365)), newId, mintCode],
         );
         await addHistory(
-          client, rid, `Level 2 sign-off — published to Active as ${newId}`,
-          actorFor(viewer, 'l2', country), viewer.email,
+          client,
+          rid,
+          `Level 2 sign-off — published to Active as ${newId}`,
+          actorFor(viewer, 'l2', country),
+          viewer.email,
         );
       }
     } else {
@@ -672,10 +747,12 @@ export async function rejectSnsRecord(rid: number, note: string): Promise<Action
       [rid],
     );
     await addHistory(
-      client, rid,
+      client,
+      rid,
       // The status written is 'Rejected', not 'Draft' — the trail says so.
       `Rejected at ${base === 'Pending Level 1' ? 'Level 1' : 'Level 2'} — returned to the requestor as Rejected`,
-      actorFor(viewer, needed, country), viewer.email,
+      actorFor(viewer, needed, country),
+      viewer.email,
       note || 'No reason recorded.',
     );
 
@@ -694,7 +771,8 @@ export async function rejectSnsRecord(rid: number, note: string): Promise<Action
 export async function startSnsReview(rid: number): Promise<ActionResult> {
   const viewer = await getSnsViewer();
   if (!viewer) return { success: false, error: 'You do not have access to the S&S Registry.' };
-  if (!isAdminOr(viewer, 'req')) return { success: false, error: 'Only a Requestor can start a periodic review.' };
+  if (!isAdminOr(viewer, 'req'))
+    return { success: false, error: 'Only a Requestor can start a periodic review.' };
 
   const client = await snsPool.connect();
   try {
@@ -738,8 +816,11 @@ export async function startSnsReview(rid: number): Promise<ActionResult> {
       [rid],
     );
     await addHistory(
-      client, rid, 'Periodic review started — routed to Level 1',
-      actorFor(viewer, 'req', country), viewer.email,
+      client,
+      rid,
+      'Periodic review started — routed to Level 1',
+      actorFor(viewer, 'req', country),
+      viewer.email,
       'Re-validation ahead of the 12-month expiry.',
     );
 
@@ -922,7 +1003,8 @@ export async function approveSnsAccess(
 ): Promise<ActionResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: 'Admins only.' };
-  if (!ROLES.includes(approvedRole as SnsRole)) return { success: false, error: 'Select a valid role.' };
+  if (!ROLES.includes(approvedRole as SnsRole))
+    return { success: false, error: 'Select a valid role.' };
 
   // Empty stays empty — that is the "all countries" grant.
   const checked = await checkCountries(approvedCountries);
@@ -991,7 +1073,9 @@ export async function deleteSnsAccessRequest(userEmail: string): Promise<ActionR
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: 'Admins only.' };
   try {
-    await snsPool.query(`DELETE FROM sns_access_requests WHERE LOWER(user_email) = LOWER($1)`, [userEmail]);
+    await snsPool.query(`DELETE FROM sns_access_requests WHERE LOWER(user_email) = LOWER($1)`, [
+      userEmail,
+    ]);
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {

@@ -17,15 +17,24 @@ import {
 /* ─── Template defaults ──────────────────────────────────── */
 const DEFAULT_SUBJECT = 'Purchase Order Follow-Up – Action Required';
 
-const DEFAULT_BODY =
-  `Dear {Supplier Name},\n\nWe are following up on the below open purchase orders assigned to your account. Please review the listed items and provide an update on the current delivery status.\n\nPlease respond by end of week.\n\nFor any queries, contact your assigned NESR buyer directly.\n\nBest regards,\nNESR Procurement Team`;
+const DEFAULT_BODY = `Dear {Supplier Name},\n\nWe are following up on the below open purchase orders assigned to your account. Please review the listed items and provide an update on the current delivery status.\n\nPlease respond by end of week.\n\nFor any queries, contact your assigned NESR buyer directly.\n\nBest regards,\nNESR Procurement Team`;
 
 /* ─── Placeholder pill ───────────────────────────────────── */
 function PlaceholderPill({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-50 border border-teal-200 text-[#307c4c] text-xs font-semibold rounded-md">
-      <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      <svg
+        className="w-2.5 h-2.5 shrink-0"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        />
       </svg>
       {label}
     </span>
@@ -48,8 +57,7 @@ interface SupplierGroup {
 /* ─── Page ───────────────────────────────────────────────── */
 export default function ConfirmDispatchPage() {
   const router = useRouter();
-  const { selectedItems, supplierEmails, setSupplierEmails, clearSelection } =
-    useExpediteStore();
+  const { selectedItems, supplierEmails, setSupplierEmails, clearSelection } = useExpediteStore();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
@@ -90,7 +98,10 @@ export default function ConfirmDispatchPage() {
   function commitEdit() {
     if (!editingCell) return;
     const { supplierId, field, value } = editingCell;
-    const parsed = value.split(',').map((e) => e.trim()).filter(Boolean);
+    const parsed = value
+      .split(',')
+      .map((e) => e.trim())
+      .filter(Boolean);
     const current = supplierEmails[supplierId] ?? { to: [], cc: [] };
     setSupplierEmails(supplierId, { ...current, [field]: parsed });
     // Clear validation error when a TO email is added
@@ -142,9 +153,16 @@ export default function ConfirmDispatchPage() {
         results: groups.map((g) => ({
           supplierName: g.supplierName,
           success: false,
-          error: 'The dispatch failed before any email was sent. Nothing was saved — please try again.',
+          error:
+            'The dispatch failed before any email was sent. Nothing was saved — please try again.',
         })),
-        webhook: { triggered: false, ok: false, payloadSizeKB: 0, suppliers: 0, message: 'Dispatch failed before the webhook was reached — no emails were sent.' },
+        webhook: {
+          triggered: false,
+          ok: false,
+          payloadSizeKB: 0,
+          suppliers: 0,
+          message: 'Dispatch failed before the webhook was reached — no emails were sent.',
+        },
       });
     }
   }
@@ -176,10 +194,17 @@ export default function ConfirmDispatchPage() {
           ...failedGroups.map((g) => ({
             supplierName: g.supplierName,
             success: false,
-            error: 'The retry failed before any email was sent. Nothing was saved — please try again.',
+            error:
+              'The retry failed before any email was sent. Nothing was saved — please try again.',
           })),
         ],
-        webhook: { triggered: false, ok: false, payloadSizeKB: 0, suppliers: 0, message: 'Dispatch failed before the webhook was reached — no emails were sent.' },
+        webhook: {
+          triggered: false,
+          ok: false,
+          payloadSizeKB: 0,
+          suppliers: 0,
+          message: 'Dispatch failed before the webhook was reached — no emails were sent.',
+        },
       });
     }
   }
@@ -189,7 +214,10 @@ export default function ConfirmDispatchPage() {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-slate-50 p-6">
         <p className="text-slate-500 mb-4 text-sm">No items in the expedite queue.</p>
-        <Link href="/po-expediting" className="text-sm font-semibold text-[#307c4c] hover:underline">
+        <Link
+          href="/po-expediting"
+          className="text-sm font-semibold text-[#307c4c] hover:underline"
+        >
           Return to Dashboard
         </Link>
       </div>
@@ -212,18 +240,35 @@ export default function ConfirmDispatchPage() {
         <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-6">
           <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
             <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mb-6">
-              <svg className="w-10 h-10 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <svg
+                className="w-10 h-10 text-amber-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold tracking-tight mb-2">Saved, but emails not confirmed</h2>
+            <h2 className="text-2xl font-bold tracking-tight mb-2">
+              Saved, but emails not confirmed
+            </h2>
             <p className="text-slate-500 mb-2">
               {count} supplier{count !== 1 ? 's' : ''} recorded. {wh.message}
             </p>
-            <p className="text-xs text-slate-400 mb-6">You can safely re-send from the queue if suppliers don&apos;t receive their email.</p>
+            <p className="text-xs text-slate-400 mb-6">
+              You can safely re-send from the queue if suppliers don&apos;t receive their email.
+            </p>
             {payloadLine}
             <button
-              onClick={() => { clearSelection(); router.push('/po-expediting'); }}
+              onClick={() => {
+                clearSelection();
+                router.push('/po-expediting');
+              }}
               className="mt-6 w-full inline-flex items-center justify-center h-12 bg-[#1e293b] hover:bg-black text-white font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-95"
             >
               Return to Dashboard
@@ -237,17 +282,28 @@ export default function ConfirmDispatchPage() {
       <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-6">
         <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
           <div className="w-20 h-20 rounded-full bg-[#307c4c]/10 flex items-center justify-center mb-6">
-            <svg className="w-10 h-10 text-[#307c4c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg
+              className="w-10 h-10 text-[#307c4c]"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight mb-2">Emails dispatched successfully.</h2>
+          <h2 className="text-2xl font-bold tracking-tight mb-2">
+            Emails dispatched successfully.
+          </h2>
           <p className="text-slate-500 mb-2">
             {count} supplier{count !== 1 ? 's' : ''} notified.
           </p>
           {payloadLine}
           <button
-            onClick={() => { clearSelection(); router.push('/po-expediting'); }}
+            onClick={() => {
+              clearSelection();
+              router.push('/po-expediting');
+            }}
             className="mt-8 w-full inline-flex items-center justify-center h-12 bg-[#307c4c] hover:bg-[#26663e] text-white font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-[#307c4c]/20"
           >
             Return to Dashboard
@@ -266,8 +322,18 @@ export default function ConfirmDispatchPage() {
         <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-10 max-w-lg w-full animate-in fade-in zoom-in-95 duration-500">
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <svg
+                className="w-5 h-5 text-amber-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                />
               </svg>
             </div>
             <div>
@@ -279,8 +345,17 @@ export default function ConfirmDispatchPage() {
           </div>
           <div className="space-y-2 mb-6">
             {failed.map((r) => (
-              <div key={r.supplierName} className="flex items-start gap-2.5 p-3 bg-red-50 border border-red-100 rounded-xl">
-                <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <div
+                key={r.supplierName}
+                className="flex items-start gap-2.5 p-3 bg-red-50 border border-red-100 rounded-xl"
+              >
+                <svg
+                  className="w-4 h-4 text-red-500 shrink-0 mt-0.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
                 <div>
@@ -300,7 +375,10 @@ export default function ConfirmDispatchPage() {
               Retry Failed
             </button>
             <button
-              onClick={() => { clearSelection(); router.push('/po-expediting'); }}
+              onClick={() => {
+                clearSelection();
+                router.push('/po-expediting');
+              }}
               className="flex-1 h-10 bg-[#1e293b] hover:bg-black text-white text-sm font-semibold rounded-xl transition-colors"
             >
               Return to Dashboard
@@ -325,50 +403,82 @@ export default function ConfirmDispatchPage() {
             onClick={() => setIsSidebarOpen(true)}
             className="mr-2 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors focus:ring-2 focus:ring-[#307c4c]/50 focus:outline-none"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#307c4c]">
-            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              className="w-4 h-4 text-white"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <path d="M15 3h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
               <line x1="12" y1="3" x2="12" y2="21" />
             </svg>
           </span>
-          <span className="text-sm font-bold text-slate-900 tracking-tight hidden sm:block">NESR</span>
+          <span className="text-sm font-bold text-slate-900 tracking-tight hidden sm:block">
+            NESR
+          </span>
         </div>
       </header>
 
       {/* Content */}
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
         {/* Page header */}
         <header className="mb-8">
           <Link
             href="/po-expediting/queue"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-[#307c4c] mb-4 transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
             Back to Expedite Queue
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Confirm &amp; Dispatch</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            Confirm &amp; Dispatch
+          </h1>
           <p className="text-slate-500 mt-1">
-            Review the email template and recipients before sending to{' '}
-            {groups.length} supplier{groups.length !== 1 ? 's' : ''}.
+            Review the email template and recipients before sending to {groups.length} supplier
+            {groups.length !== 1 ? 's' : ''}.
           </p>
         </header>
 
         {/* Single-column stacked layout */}
         <div className="flex flex-col gap-6">
-
           {/* ── LEFT: Email Template ── */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-              <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              <svg
+                className="w-4 h-4 text-slate-400 shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
               </svg>
               <h2 className="text-sm font-bold text-slate-700">Email Template</h2>
             </div>
@@ -410,7 +520,8 @@ export default function ConfirmDispatchPage() {
                   <PlaceholderPill label="{Supplier Link}" />
                 </div>
                 <p className="text-[10px] text-slate-400 leading-relaxed">
-                  These placeholders are replaced automatically for each supplier before sending. The supplier link is a unique, token-protected URL generated per batch.
+                  These placeholders are replaced automatically for each supplier before sending.
+                  The supplier link is a unique, token-protected URL generated per batch.
                 </p>
               </div>
             </div>
@@ -419,8 +530,18 @@ export default function ConfirmDispatchPage() {
           {/* ── RIGHT: Dispatch Summary ── */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-              <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              <svg
+                className="w-4 h-4 text-slate-400 shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                />
               </svg>
               <h2 className="text-sm font-bold text-slate-700">Dispatch Summary</h2>
             </div>
@@ -429,10 +550,18 @@ export default function ConfirmDispatchPage() {
               <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
                 <thead>
                   <tr className="border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    <th className="py-3 px-4" style={{ width: '35%' }}>Supplier</th>
-                    <th className="py-3 px-4" style={{ width: '28%' }}>To</th>
-                    <th className="py-3 px-4" style={{ width: '28%' }}>CC</th>
-                    <th className="py-3 px-4 text-center" style={{ width: '9%' }}>Lines</th>
+                    <th className="py-3 px-4" style={{ width: '35%' }}>
+                      Supplier
+                    </th>
+                    <th className="py-3 px-4" style={{ width: '28%' }}>
+                      To
+                    </th>
+                    <th className="py-3 px-4" style={{ width: '28%' }}>
+                      CC
+                    </th>
+                    <th className="py-3 px-4 text-center" style={{ width: '9%' }}>
+                      Lines
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100/50">
@@ -449,23 +578,24 @@ export default function ConfirmDispatchPage() {
                       >
                         {/* Supplier */}
                         <td className="py-3 px-4 align-top">
-                          <p className="text-xs font-semibold text-slate-700">
-                            {g.supplierName}
-                          </p>
+                          <p className="text-xs font-semibold text-slate-700">{g.supplierName}</p>
                           {g.supplierId && (
-                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">{g.supplierId}</p>
+                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                              {g.supplierId}
+                            </p>
                           )}
                         </td>
 
                         {/* TO — click to edit */}
                         <td className="py-2 px-4 align-middle">
-                          {editingCell?.supplierId === g.supplierId && editingCell.field === 'to' ? (
+                          {editingCell?.supplierId === g.supplierId &&
+                          editingCell.field === 'to' ? (
                             <input
                               autoFocus
                               value={editingCell.value}
                               onChange={(e) =>
                                 setEditingCell((prev) =>
-                                  prev ? { ...prev, value: e.target.value } : null
+                                  prev ? { ...prev, value: e.target.value } : null,
                                 )
                               }
                               onBlur={commitEdit}
@@ -491,15 +621,29 @@ export default function ConfirmDispatchPage() {
                               {toList.length > 0 ? (
                                 <div className="space-y-0.5">
                                   {toList.map((email) => (
-                                    <div key={email} className="break-all leading-snug">{email}</div>
+                                    <div key={email} className="break-all leading-snug">
+                                      {email}
+                                    </div>
                                   ))}
                                 </div>
                               ) : (
-                                <span className={`italic flex items-center gap-1 ${hasError ? 'text-amber-600' : 'text-slate-400'}`}>
+                                <span
+                                  className={`italic flex items-center gap-1 ${hasError ? 'text-amber-600' : 'text-slate-400'}`}
+                                >
                                   {hasError ? (
                                     <>
-                                      <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01" />
+                                      <svg
+                                        className="w-3 h-3 shrink-0"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth={2.5}
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          d="M12 9v2m0 4h.01"
+                                        />
                                       </svg>
                                       Required
                                     </>
@@ -514,13 +658,14 @@ export default function ConfirmDispatchPage() {
 
                         {/* CC — click to edit */}
                         <td className="py-2 px-4 align-middle">
-                          {editingCell?.supplierId === g.supplierId && editingCell.field === 'cc' ? (
+                          {editingCell?.supplierId === g.supplierId &&
+                          editingCell.field === 'cc' ? (
                             <input
                               autoFocus
                               value={editingCell.value}
                               onChange={(e) =>
                                 setEditingCell((prev) =>
-                                  prev ? { ...prev, value: e.target.value } : null
+                                  prev ? { ...prev, value: e.target.value } : null,
                                 )
                               }
                               onBlur={commitEdit}
@@ -546,7 +691,9 @@ export default function ConfirmDispatchPage() {
                               {ccList.length > 0 ? (
                                 <div className="space-y-0.5">
                                   {ccList.map((email) => (
-                                    <div key={email} className="break-all leading-snug">{email}</div>
+                                    <div key={email} className="break-all leading-snug">
+                                      {email}
+                                    </div>
                                   ))}
                                 </div>
                               ) : (
@@ -558,7 +705,9 @@ export default function ConfirmDispatchPage() {
 
                         {/* Lines */}
                         <td className="py-3 px-4 text-center align-middle">
-                          <span className="text-xs font-semibold text-slate-600">{g.items.length}</span>
+                          <span className="text-xs font-semibold text-slate-600">
+                            {g.items.length}
+                          </span>
                         </td>
                       </tr>
                     );
@@ -570,15 +719,16 @@ export default function ConfirmDispatchPage() {
             {/* Table footer */}
             <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/50">
               <p className="text-xs text-slate-500">
-                <span className="font-semibold text-slate-700">{groups.length}</span>{' '}
-                supplier{groups.length !== 1 ? 's' : ''}
+                <span className="font-semibold text-slate-700">{groups.length}</span> supplier
+                {groups.length !== 1 ? 's' : ''}
                 {' · '}
-                <span className="font-semibold text-slate-700">{totalLines}</span>{' '}
-                PO line{totalLines !== 1 ? 's' : ''} total
+                <span className="font-semibold text-slate-700">{totalLines}</span> PO line
+                {totalLines !== 1 ? 's' : ''} total
               </p>
               {validationErrors.size > 0 && (
                 <p className="mt-1 text-[10px] text-amber-600 font-medium">
-                  {validationErrors.size} supplier{validationErrors.size !== 1 ? 's are' : ' is'} missing a To email — click the cell to add one.
+                  {validationErrors.size} supplier{validationErrors.size !== 1 ? 's are' : ' is'}{' '}
+                  missing a To email — click the cell to add one.
                 </p>
               )}
             </div>
@@ -589,13 +739,18 @@ export default function ConfirmDispatchPage() {
       {/* ── Bottom action bar ── */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_32px_rgba(0,0,0,0.05)] px-4 sm:px-6 py-4 animate-in slide-in-from-bottom-2 duration-300">
         <div className="max-w-screen-xl mx-auto flex items-center justify-between gap-4">
-
           {/* Back */}
           <Link
             href="/po-expediting/queue"
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
             Back
@@ -610,16 +765,37 @@ export default function ConfirmDispatchPage() {
             {isSending ? (
               <>
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
                 </svg>
                 Sending…
               </>
             ) : (
               <>
                 Send Emails
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
                 </svg>
               </>
             )}

@@ -26,13 +26,29 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
       <LearningHubSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200/70 bg-white/80 px-4 backdrop-blur-md md:h-16 md:px-8">
-        <button onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100">
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
+        >
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
         </button>
         <LearningHubBackButton href={`/learning-hub/${track.key}`} />
         <LearningHubHomeButton />
         <LearningHubLogo size="sm" />
-        <Link href={`/learning-hub/${track.key}`} className="text-sm font-medium text-slate-400 hover:text-slate-600">{track.name}</Link>
+        <Link
+          href={`/learning-hub/${track.key}`}
+          className="text-sm font-medium text-slate-400 hover:text-slate-600"
+        >
+          {track.name}
+        </Link>
         <span className="text-slate-300">/</span>
         <span className="truncate text-sm font-semibold text-slate-900">{course.title}</span>
       </header>
@@ -55,11 +71,18 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-slate-500">{completed_count} / {lesson_count} lessons complete</span>
-            <span className="font-semibold" style={{ color }}>{progress_pct}%</span>
+            <span className="font-medium text-slate-500">
+              {completed_count} / {lesson_count} lessons complete
+            </span>
+            <span className="font-semibold" style={{ color }}>
+              {progress_pct}%
+            </span>
           </div>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full transition-all" style={{ width: `${progress_pct}%`, background: color }} />
+            <div
+              className="h-full rounded-full transition-all"
+              style={{ width: `${progress_pct}%`, background: color }}
+            />
           </div>
         </div>
 
@@ -70,10 +93,15 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
             is level 3. The admin CMS still calls level 3 "Module" (matches the table). */}
         <div className="space-y-5">
           {modules.map((mod, modIdx) => (
-            <div key={mod.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div
+              key={mod.id}
+              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+            >
               {!flat && (
                 <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Track {modIdx + 1}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Track {modIdx + 1}
+                  </p>
                   <h2 className="text-sm font-bold text-slate-900">{mod.title}</h2>
                 </div>
               )}
@@ -85,14 +113,26 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
                   className="flex items-center gap-3 border-b border-slate-100 px-5 py-3.5 transition-colors hover:bg-slate-50"
                   style={{ background: `${color}0d` }}
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: `${color}18` }}>
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                    style={{ background: `${color}18` }}
+                  >
                     <ExternalLink className="h-4 w-4" style={{ color }} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>Track resource</p>
-                    <p className="truncate text-sm font-semibold text-slate-800">{mod.resource_label}</p>
+                    <p
+                      className="text-[11px] font-semibold uppercase tracking-wider"
+                      style={{ color }}
+                    >
+                      Track resource
+                    </p>
+                    <p className="truncate text-sm font-semibold text-slate-800">
+                      {mod.resource_label}
+                    </p>
                   </div>
-                  <span className="shrink-0 text-xs font-semibold" style={{ color }}>Open →</span>
+                  <span className="shrink-0 text-xs font-semibold" style={{ color }}>
+                    Open →
+                  </span>
                 </a>
               )}
               <div className="divide-y divide-slate-100">
@@ -106,7 +146,9 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
                       ) : (
                         <Circle className="h-5 w-5 shrink-0 text-slate-300" />
                       )}
-                      <span className={`flex-1 text-sm ${lesson.locked ? 'text-slate-400' : lesson.completed ? 'text-slate-500 line-through decoration-slate-300' : 'font-medium text-slate-800'}`}>
+                      <span
+                        className={`flex-1 text-sm ${lesson.locked ? 'text-slate-400' : lesson.completed ? 'text-slate-500 line-through decoration-slate-300' : 'font-medium text-slate-800'}`}
+                      >
                         {lesson.title}
                       </span>
                       {lesson.has_quiz && (
@@ -123,7 +165,11 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
                     </>
                   );
                   return lesson.locked ? (
-                    <div key={lesson.id} className="flex cursor-not-allowed items-center gap-3 px-5 py-3.5 opacity-70" title="Pass the previous quiz to unlock">
+                    <div
+                      key={lesson.id}
+                      className="flex cursor-not-allowed items-center gap-3 px-5 py-3.5 opacity-70"
+                      title="Pass the previous quiz to unlock"
+                    >
                       {inner}
                     </div>
                   ) : (
@@ -143,8 +189,12 @@ export default function CourseDetailClient({ data }: { data: CourseDetailData })
                   className="flex items-center gap-3 border-t border-slate-100 px-5 py-3.5 transition-colors hover:bg-slate-50"
                 >
                   <ClipboardCheck className="h-5 w-5 shrink-0" style={{ color }} />
-                  <span className="flex-1 text-sm font-semibold" style={{ color }}>Knowledge check</span>
-                  <span className="shrink-0 text-xs font-semibold" style={{ color }}>Take it →</span>
+                  <span className="flex-1 text-sm font-semibold" style={{ color }}>
+                    Knowledge check
+                  </span>
+                  <span className="shrink-0 text-xs font-semibold" style={{ color }}>
+                    Take it →
+                  </span>
                 </Link>
               )}
             </div>

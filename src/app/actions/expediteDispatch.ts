@@ -13,7 +13,11 @@ import type { PurchaseOrder } from '@/types/po';
 
 const log = logger('po-expediting');
 
-interface WebhookResult { ok: boolean; status?: number; error?: string }
+interface WebhookResult {
+  ok: boolean;
+  status?: number;
+  error?: string;
+}
 
 /**
  * POST the payload to n8n and RESOLVE only when the request actually finishes
@@ -74,13 +78,20 @@ function httpsPostOnce(url: string, payload: unknown): Promise<WebhookResult> {
     });
 
     let settled = false;
-    const done = (r: WebhookResult) => { if (!settled) { settled = true; resolve(r); } };
+    const done = (r: WebhookResult) => {
+      if (!settled) {
+        settled = true;
+        resolve(r);
+      }
+    };
 
     const req = https.request(options, (res) => {
       /* The response body is deliberately NOT logged — it is remote content of
          unbounded size. Status plus a short reason is what diagnosis needs. */
       let responseData = '';
-      res.on('data', (chunk) => { responseData += chunk; });
+      res.on('data', (chunk) => {
+        responseData += chunk;
+      });
       res.on('end', () => {
         const ok = !!res.statusCode && res.statusCode >= 200 && res.statusCode < 300;
         if (ok) {
@@ -99,12 +110,17 @@ function httpsPostOnce(url: string, payload: unknown): Promise<WebhookResult> {
 
     req.on('error', (err: NodeJS.ErrnoException) => {
       const diagnosis =
-        err.code === 'ECONNREFUSED' ? 'n8n refused the connection — is it running?'
-        : err.code === 'ENOTFOUND' ? 'DNS lookup failed for the webhook host'
-        : err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ? 'TLS certificate could not be verified'
-        : err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT' ? 'connection timed out after 15s'
-        : err.code === 'ECONNRESET' ? 'connection reset — the payload may be too large'
-        : undefined;
+        err.code === 'ECONNREFUSED'
+          ? 'n8n refused the connection — is it running?'
+          : err.code === 'ENOTFOUND'
+            ? 'DNS lookup failed for the webhook host'
+            : err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+              ? 'TLS certificate could not be verified'
+              : err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT'
+                ? 'connection timed out after 15s'
+                : err.code === 'ECONNRESET'
+                  ? 'connection reset — the payload may be too large'
+                  : undefined;
       log.error('webhook.request_failed', err, {
         host: options.hostname,
         syscall: err.syscall,
@@ -115,7 +131,11 @@ function httpsPostOnce(url: string, payload: unknown): Promise<WebhookResult> {
     });
 
     req.on('timeout', () => {
-      log.error('webhook.timeout', null, { host: options.hostname, timeoutMs: 15000, payloadSizeKB });
+      log.error('webhook.timeout', null, {
+        host: options.hostname,
+        timeoutMs: 15000,
+        payloadSizeKB,
+      });
       req.destroy(new Error('Request timeout after 15s'));
       done({ ok: false, error: 'timeout' });
     });
@@ -131,7 +151,11 @@ function httpsPostOnce(url: string, payload: unknown): Promise<WebhookResult> {
 }
 
 /** Awaited retry: one immediate attempt, then a second after 3s if the first failed. */
-async function httpsPostWithRetry(url: string, payload: unknown, maxAttempts = 2): Promise<WebhookResult> {
+async function httpsPostWithRetry(
+  url: string,
+  payload: unknown,
+  maxAttempts = 2,
+): Promise<WebhookResult> {
   let last: WebhookResult = { ok: false, error: 'not-attempted' };
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     last = await httpsPostOnce(url, payload);
@@ -140,7 +164,10 @@ async function httpsPostWithRetry(url: string, payload: unknown, maxAttempts = 2
     if (attempt < maxAttempts) {
       await new Promise((r) => setTimeout(r, 3000));
     } else {
-      log.error('webhook.retries_exhausted', null, { attempts: maxAttempts, reason: last.error ?? last.status });
+      log.error('webhook.retries_exhausted', null, {
+        attempts: maxAttempts,
+        reason: last.error ?? last.status,
+      });
     }
   }
   return last;
@@ -255,10 +282,7 @@ function isoDate(value: Date | string | null | undefined): string {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
-function deniedResponse(
-  paramsList: SupplierDispatchParams[],
-  message: string
-): DispatchResponse {
+function deniedResponse(paramsList: SupplierDispatchParams[], message: string): DispatchResponse {
   const groups = Array.isArray(paramsList) ? paramsList : [];
   return {
     results: groups.map((p) => ({
@@ -267,7 +291,11 @@ function deniedResponse(
       error: message,
     })),
     webhook: {
-      triggered: false, ok: false, payloadSizeKB: 0, suppliers: 0, message,
+      triggered: false,
+      ok: false,
+      payloadSizeKB: 0,
+      suppliers: 0,
+      message,
     },
   };
 }
@@ -283,7 +311,7 @@ function deniedResponse(
  * validated and capped server-side.
  * ──────────────────────────────────────────────────────────────── */
 export async function prepareAllExpediteDispatches(
-  paramsList: SupplierDispatchParams[]
+  paramsList: SupplierDispatchParams[],
 ): Promise<DispatchResponse> {
   /* ── Access gate: identity and country scope come from the session only ── */
   const session = await getServerSession(authOptions);
@@ -326,7 +354,7 @@ export async function prepareAllExpediteDispatches(
        department     = EXCLUDED.department,
        country        = EXCLUDED.country,
        last_active_at = NOW()`,
-    [userEmail, userName, userJobTitle, userDepartment, userCountry]
+    [userEmail, userName, userJobTitle, userDepartment, userCountry],
   );
 
   /* ── Single UUID that ties every row in this batch together ── */
@@ -359,7 +387,7 @@ export async function prepareAllExpediteDispatches(
         ${isAdmin ? '' : 'WHERE s.country = ANY($3)'}`,
       isAdmin
         ? [requestedPoNumbers, requestedPoLines]
-        : [requestedPoNumbers, requestedPoLines, approvedCountries]
+        : [requestedPoNumbers, requestedPoLines, approvedCountries],
     );
     for (const row of masterRows.rows) {
       masterByKey.set(lineKey(row.po_number, row.po_line ?? ''), row);
@@ -392,17 +420,20 @@ export async function prepareAllExpediteDispatches(
     /* Sessions that currently own any of these lines. Once the lines move to
        sessionRef these sessions' stored counters no longer describe the lines
        they still own, so they are recomputed after the inserts. */
-    const priorRefs = verifiedPoNumbers.length === 0
-      ? []
-      : (await client.query<{ session_ref: string }>(
-          `SELECT DISTINCT ae.session_ref
+    const priorRefs =
+      verifiedPoNumbers.length === 0
+        ? []
+        : (
+            await client.query<{ session_ref: string }>(
+              `SELECT DISTINCT ae.session_ref
              FROM active_expediting ae
              JOIN unnest($1::text[], $2::text[]) AS req(po_number, po_line)
                ON ae.po_number = req.po_number
               AND COALESCE(ae.po_line, '') = req.po_line
             WHERE ae.session_ref IS NOT NULL`,
-          [verifiedPoNumbers, verifiedPoLines]
-        )).rows.map((r) => r.session_ref);
+              [verifiedPoNumbers, verifiedPoLines],
+            )
+          ).rows.map((r) => r.session_ref);
 
     for (const params of groupsIn) {
       const { supplierId, supplierName } = params;
@@ -481,11 +512,21 @@ export async function prepareAllExpediteDispatches(
                   previous supplier response time must not carry over. */
                responded_at      = NULL,
                updated_at        = NOW()`,
-            [item.po_number, item.po_line ?? '', token, userEmail, sessionRef,
-             item.supplier_name ?? (supplierName || null),
-             item.supplier_id ?? (supplierId || null),
-             item.country, item.p_group, item.item_description,
-             item.open_qty, item.open_po_value_usd, item.delivery_date]
+            [
+              item.po_number,
+              item.po_line ?? '',
+              token,
+              userEmail,
+              sessionRef,
+              item.supplier_name ?? (supplierName || null),
+              item.supplier_id ?? (supplierId || null),
+              item.country,
+              item.p_group,
+              item.item_description,
+              item.open_qty,
+              item.open_po_value_usd,
+              item.delivery_date,
+            ],
           );
         }
         await client.query('RELEASE SAVEPOINT dispatch_group');
@@ -539,7 +580,7 @@ export async function prepareAllExpediteDispatches(
            (session_ref, dispatched_by, dispatched_at,
             total_suppliers, total_po_lines, total_emails_sent)
          VALUES ($1, $2, NOW(), $3, $4, $5)`,
-        [sessionRef, userEmail, preparedGroups.length, totalPoLines, totalEmailsSent]
+        [sessionRef, userEmail, preparedGroups.length, totalPoLines, totalEmailsSent],
       );
     }
 
@@ -596,7 +637,7 @@ export async function prepareAllExpediteDispatches(
              ELSE es.closed_at END
          FROM recalc r
          WHERE es.session_ref = r.session_ref`,
-        [staleRefs]
+        [staleRefs],
       );
     }
   });
@@ -605,7 +646,10 @@ export async function prepareAllExpediteDispatches(
      Deliberately outside the transaction: a sent email cannot be rolled back,
      so the rows must be durable before n8n is asked to mail anyone. ── */
   let webhook: WebhookStatus = {
-    triggered: false, ok: false, payloadSizeKB: 0, suppliers: preparedGroups.length,
+    triggered: false,
+    ok: false,
+    payloadSizeKB: 0,
+    suppliers: preparedGroups.length,
     message: 'No suppliers to notify.',
   };
 
@@ -620,15 +664,12 @@ export async function prepareAllExpediteDispatches(
       toEmails: group.toEmails,
       ccEmails: group.ccEmails,
       subject: group.subject,
-      emailBody: group.emailBody
-        .replace('{Supplier Name}', group.supplierName),
+      emailBody: group.emailBody.replace('{Supplier Name}', group.supplierName),
       supplierLink: `${appUrl}/supplier-update?token=${group.expediteToken}`,
       poLines: group.poLines.map((line) => ({
         poNumber: line.po_number,
         poLine: line.po_line,
-        description: line.item_description
-          ? line.item_description.slice(0, 50)
-          : '',
+        description: line.item_description ? line.item_description.slice(0, 50) : '',
         openQty: line.open_qty,
         valueUsd: line.open_po_value_usd,
         deliveryDate: line.delivery_date,
@@ -648,15 +689,24 @@ export async function prepareAllExpediteDispatches(
     }
 
     if (!webhookUrl) {
-      log.error('dispatch.webhook_not_configured', null, { envVar: 'N8N_EXPEDITE_WEBHOOK_URL', suppliers: webhookPayload.length });
+      log.error('dispatch.webhook_not_configured', null, {
+        envVar: 'N8N_EXPEDITE_WEBHOOK_URL',
+        suppliers: webhookPayload.length,
+      });
       webhook = {
-        triggered: false, ok: false, payloadSizeKB, suppliers: webhookPayload.length,
+        triggered: false,
+        ok: false,
+        payloadSizeKB,
+        suppliers: webhookPayload.length,
         message: 'DB records created but webhook URL not configured — emails not sent.',
       };
     } else {
       const res = await httpsPostWithRetry(webhookUrl, webhookPayload);
       webhook = {
-        triggered: true, ok: res.ok, payloadSizeKB, suppliers: webhookPayload.length,
+        triggered: true,
+        ok: res.ok,
+        payloadSizeKB,
+        suppliers: webhookPayload.length,
         message: res.ok
           ? 'Emails dispatched successfully.'
           : `Webhook call failed (${res.error ?? `status ${res.status ?? 'unknown'}`}). Emails may not have been sent.`,

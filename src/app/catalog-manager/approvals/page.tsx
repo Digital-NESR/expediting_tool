@@ -1,5 +1,10 @@
 import type { Metadata } from 'next';
-import { listCatalogEntries, getCatalogActor, getCountries, getApprovableEntryIds } from '@/app/actions/catalog-manager';
+import {
+  listCatalogEntries,
+  getCatalogActor,
+  getCountries,
+  getApprovableEntryIds,
+} from '@/app/actions/catalog-manager';
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import ApprovalsClient from './ApprovalsClient';
 

@@ -6,10 +6,7 @@ import { resolveProcureGuardActorScope } from '@/lib/procure-guard/actor-scope';
 import { fileDownloadResponse } from '@/lib/documents';
 import type { ProcureGuardActor } from '@/types/procureGuard';
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getProcureGuardUser();
   if (!user?.email) {
     return new NextResponse('Unauthorized', { status: 401 });
@@ -58,12 +55,14 @@ export async function GET(
       reviewGrants: scope.reviewGrants,
     };
 
-    if (!canActorViewRequest(actor, {
-      requested_by_email: doc.requested_by_email,
-      requester_notification_emails: doc.requester_notification_emails,
-      country: doc.country,
-      segment: doc.segment,
-    })) {
+    if (
+      !canActorViewRequest(actor, {
+        requested_by_email: doc.requested_by_email,
+        requester_notification_emails: doc.requester_notification_emails,
+        country: doc.country,
+        segment: doc.segment,
+      })
+    ) {
       return new NextResponse('Forbidden', { status: 403 });
     }
 

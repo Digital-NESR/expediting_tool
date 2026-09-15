@@ -25,7 +25,7 @@ export default function AccessApprovalsClient({
       subtitle="Review and manage user access requests for country-level data."
       emptyPendingLabel="No pending access requests."
       emptyAllLabel="No access requests found."
-      revokeConfirm={email => `Revoke access for ${email}?`}
+      revokeConfirm={(email) => `Revoke access for ${email}?`}
       loadRequests={getAccessRequests}
       /* PO Expediting's country list is master data, so it is read from the server
          on mount rather than hard-coded. */

@@ -26,10 +26,13 @@ export function Kpi({
   tone?: 'good' | 'warn' | 'bad';
   brand?: string;
 }) {
-  const col = tone === 'warn' ? '#b45309' : tone === 'bad' ? '#b91c1c' : tone === 'good' ? brand : '#0f172a';
+  const col =
+    tone === 'warn' ? '#b45309' : tone === 'bad' ? '#b91c1c' : tone === 'good' ? brand : '#0f172a';
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="text-[22px] font-bold tracking-tight" style={{ color: col }}>{value}</div>
+      <div className="text-[22px] font-bold tracking-tight" style={{ color: col }}>
+        {value}
+      </div>
       <div className="mt-0.5 text-[12px] text-slate-500">{label}</div>
       {sub && <div className="mt-0.5 text-[11px] text-slate-400">{sub}</div>}
     </div>

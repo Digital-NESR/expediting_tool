@@ -3,31 +3,71 @@
 import { createContext, useContext, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Plus, Pencil, Trash2, ChevronUp, ChevronDown, Check, X, Eye, EyeOff, RotateCcw, ExternalLink, Video,
+  Plus,
+  Pencil,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+  Check,
+  X,
+  Eye,
+  EyeOff,
+  RotateCcw,
+  ExternalLink,
+  Video,
   ClipboardCheck,
 } from 'lucide-react';
 import {
-  createCourse, updateCourse, deleteCourse, moveCourse,
-  createModule, updateModule, deleteModule, moveModule,
-  createLesson, updateLesson, deleteLesson, moveLesson,
+  createCourse,
+  updateCourse,
+  deleteCourse,
+  moveCourse,
+  createModule,
+  updateModule,
+  deleteModule,
+  moveModule,
+  createLesson,
+  updateLesson,
+  deleteLesson,
+  moveLesson,
   resyncTrackFromSeed,
-  getModuleQuizForAdmin, saveModuleQuiz, deleteModuleQuiz,
+  getModuleQuizForAdmin,
+  saveModuleQuiz,
+  deleteModuleQuiz,
 } from '@/app/actions/learning-hub';
 import type {
-  LearningHubAdminData, AdminCourseWithModules, AdminModuleWithLessons, LearningLesson, CourseStatus,
+  LearningHubAdminData,
+  AdminCourseWithModules,
+  AdminModuleWithLessons,
+  LearningLesson,
+  CourseStatus,
   ModuleQuizWithAnswers,
 } from '@/types/learning-hub';
 
 /* ── Editable quiz draft shape used only within the admin quiz editor ───── */
-interface EditableOption { option_text: string; is_correct: boolean }
-interface EditableQuestion { question_text: string; options: EditableOption[] }
-
-function blankQuestion(): EditableQuestion {
-  return { question_text: '', options: [{ option_text: '', is_correct: true }, { option_text: '', is_correct: false }] };
+interface EditableOption {
+  option_text: string;
+  is_correct: boolean;
+}
+interface EditableQuestion {
+  question_text: string;
+  options: EditableOption[];
 }
 
-const BTN = 'inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700';
-const BTN_DANGER = 'inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600';
+function blankQuestion(): EditableQuestion {
+  return {
+    question_text: '',
+    options: [
+      { option_text: '', is_correct: true },
+      { option_text: '', is_correct: false },
+    ],
+  };
+}
+
+const BTN =
+  'inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700';
+const BTN_DANGER =
+  'inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600';
 
 /* ── CMS failure channel ──────────────────────────────────────────────────
    Every mutation below is a server action that THROWS on failure: a pg error,
@@ -67,18 +107,33 @@ function useCmsAction(): [boolean, (fn: () => Promise<void>) => void] {
 
 /* ── Lesson row ───────────────────────────────────────────────────────── */
 
-function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; moduleId: number; onChanged: () => void }) {
+function LessonAdmin({
+  lesson,
+  moduleId,
+  onChanged,
+}: {
+  lesson: LearningLesson;
+  moduleId: number;
+  onChanged: () => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(lesson.title);
   const [body, setBody] = useState(lesson.body);
   const [videoUrl, setVideoUrl] = useState(lesson.video_url ?? '');
-  const [duration, setDuration] = useState(lesson.duration_minutes != null ? String(lesson.duration_minutes) : '');
+  const [duration, setDuration] = useState(
+    lesson.duration_minutes != null ? String(lesson.duration_minutes) : '',
+  );
   const [isPending, run] = useCmsAction();
 
   function save() {
     run(async () => {
       const durationValue = duration.trim() ? Number(duration) : null;
-      await updateLesson(lesson.id, { title, body, video_url: videoUrl.trim() || null, duration_minutes: durationValue });
+      await updateLesson(lesson.id, {
+        title,
+        body,
+        video_url: videoUrl.trim() || null,
+        duration_minutes: durationValue,
+      });
       setEditing(false);
       onChanged();
     });
@@ -100,23 +155,60 @@ function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; 
   if (editing) {
     return (
       <div className="space-y-2 border-t border-slate-100 bg-slate-50/60 p-4">
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Lesson title"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Lesson title"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+        />
         <div>
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Video URL (optional)</label>
-          <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="SharePoint/Stream embed URL, or /learning-hub/… local file"
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
-          <p className="mt-1 text-xs text-slate-400">Use the SharePoint/Stream &ldquo;Embed&rdquo; link (not the regular share link) so it plays inline.</p>
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            Video URL (optional)
+          </label>
+          <input
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+            placeholder="SharePoint/Stream embed URL, or /learning-hub/… local file"
+            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            Use the SharePoint/Stream &ldquo;Embed&rdquo; link (not the regular share link) so it
+            plays inline.
+          </p>
         </div>
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} placeholder="Lesson body (paragraphs separated by a blank line)"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={8}
+          placeholder="Lesson body (paragraphs separated by a blank line)"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+        />
         <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-slate-500">Duration (min, optional, leave blank if unknown)</label>
-          <input type="number" min={1} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="Unknown"
-            className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+          <label className="text-xs font-medium text-slate-500">
+            Duration (min, optional, leave blank if unknown)
+          </label>
+          <input
+            type="number"
+            min={1}
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            placeholder="Unknown"
+            className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+          />
           <div className="ml-auto flex gap-2">
-            <button onClick={() => setEditing(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-            <button onClick={save} disabled={isPending} className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60">Save</button>
+            <button
+              onClick={() => setEditing(false)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              disabled={isPending}
+              className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60"
+            >
+              Save
+            </button>
           </div>
         </div>
       </div>
@@ -127,11 +219,21 @@ function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; 
     <div className="flex items-center gap-2 border-t border-slate-100 px-4 py-2.5">
       {lesson.video_url && <Video className="h-3.5 w-3.5 shrink-0 text-[#307c4c]" />}
       <span className="flex-1 truncate text-sm text-slate-700">{lesson.title}</span>
-      {lesson.duration_minutes != null && <span className="shrink-0 text-xs text-slate-400">{lesson.duration_minutes} min</span>}
-      <button onClick={() => move('up')} className={BTN} title="Move up"><ChevronUp className="h-4 w-4" /></button>
-      <button onClick={() => move('down')} className={BTN} title="Move down"><ChevronDown className="h-4 w-4" /></button>
-      <button onClick={() => setEditing(true)} className={BTN} title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
-      <button onClick={remove} disabled={isPending} className={BTN_DANGER} title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+      {lesson.duration_minutes != null && (
+        <span className="shrink-0 text-xs text-slate-400">{lesson.duration_minutes} min</span>
+      )}
+      <button onClick={() => move('up')} className={BTN} title="Move up">
+        <ChevronUp className="h-4 w-4" />
+      </button>
+      <button onClick={() => move('down')} className={BTN} title="Move down">
+        <ChevronDown className="h-4 w-4" />
+      </button>
+      <button onClick={() => setEditing(true)} className={BTN} title="Edit">
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <button onClick={remove} disabled={isPending} className={BTN_DANGER} title="Delete">
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
@@ -150,34 +252,80 @@ function NewLessonForm({ moduleId, onChanged }: { moduleId: number; onChanged: (
     if (!title.trim()) return;
     run(async () => {
       const durationValue = duration.trim() ? Number(duration) : null;
-      await createLesson(moduleId, title.trim(), body.trim() || 'TODO: add lesson content.', durationValue, videoUrl.trim() || null);
-      setTitle(''); setBody(''); setVideoUrl(''); setDuration(''); setOpen(false);
+      await createLesson(
+        moduleId,
+        title.trim(),
+        body.trim() || 'TODO: add lesson content.',
+        durationValue,
+        videoUrl.trim() || null,
+      );
+      setTitle('');
+      setBody('');
+      setVideoUrl('');
+      setDuration('');
+      setOpen(false);
       onChanged();
     });
   }
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="flex w-full items-center gap-1.5 border-t border-slate-100 px-4 py-2.5 text-xs font-semibold text-[#307c4c] hover:bg-[#307c4c]/5">
+      <button
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-1.5 border-t border-slate-100 px-4 py-2.5 text-xs font-semibold text-[#307c4c] hover:bg-[#307c4c]/5"
+      >
         <Plus className="h-3.5 w-3.5" /> Add lesson
       </button>
     );
   }
   return (
     <div className="space-y-2 border-t border-slate-100 bg-slate-50/60 p-4">
-      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Lesson title" autoFocus
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
-      <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="Video URL (optional, SharePoint/Stream embed link)"
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
-      <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="Lesson body (optional, can fill in later)"
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Lesson title"
+        autoFocus
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+      />
+      <input
+        value={videoUrl}
+        onChange={(e) => setVideoUrl(e.target.value)}
+        placeholder="Video URL (optional, SharePoint/Stream embed link)"
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+      />
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        rows={5}
+        placeholder="Lesson body (optional, can fill in later)"
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+      />
       <div className="flex items-center gap-2">
-        <label className="text-xs font-medium text-slate-500">Duration (min, optional, leave blank if unknown)</label>
-        <input type="number" min={1} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="Unknown"
-          className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+        <label className="text-xs font-medium text-slate-500">
+          Duration (min, optional, leave blank if unknown)
+        </label>
+        <input
+          type="number"
+          min={1}
+          value={duration}
+          onChange={(e) => setDuration(e.target.value)}
+          placeholder="Unknown"
+          className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+        />
         <div className="ml-auto flex gap-2">
-          <button onClick={() => setOpen(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-          <button onClick={submit} disabled={isPending} className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60">Add</button>
+          <button
+            onClick={() => setOpen(false)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={isPending}
+            className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60"
+          >
+            Add
+          </button>
         </div>
       </div>
     </div>
@@ -208,30 +356,57 @@ function QuizEditor({
   );
   const [isPending, run] = useCmsAction();
 
-  const valid = questions.length > 0 && questions.every(
-    (q) => q.question_text.trim() && q.options.filter((o) => o.option_text.trim()).length >= 2 && q.options.some((o) => o.is_correct && o.option_text.trim()),
-  );
+  const valid =
+    questions.length > 0 &&
+    questions.every(
+      (q) =>
+        q.question_text.trim() &&
+        q.options.filter((o) => o.option_text.trim()).length >= 2 &&
+        q.options.some((o) => o.is_correct && o.option_text.trim()),
+    );
 
   function updateQuestionText(qIdx: number, text: string) {
     setQuestions((qs) => qs.map((q, i) => (i === qIdx ? { ...q, question_text: text } : q)));
   }
   function updateOptionText(qIdx: number, oIdx: number, text: string) {
-    setQuestions((qs) => qs.map((q, i) => (i !== qIdx ? q : { ...q, options: q.options.map((o, j) => (j === oIdx ? { ...o, option_text: text } : o)) })));
+    setQuestions((qs) =>
+      qs.map((q, i) =>
+        i !== qIdx
+          ? q
+          : {
+              ...q,
+              options: q.options.map((o, j) => (j === oIdx ? { ...o, option_text: text } : o)),
+            },
+      ),
+    );
   }
   function setCorrectOption(qIdx: number, oIdx: number) {
-    setQuestions((qs) => qs.map((q, i) => (i !== qIdx ? q : { ...q, options: q.options.map((o, j) => ({ ...o, is_correct: j === oIdx })) })));
+    setQuestions((qs) =>
+      qs.map((q, i) =>
+        i !== qIdx
+          ? q
+          : { ...q, options: q.options.map((o, j) => ({ ...o, is_correct: j === oIdx })) },
+      ),
+    );
   }
   function addOption(qIdx: number) {
-    setQuestions((qs) => qs.map((q, i) => (i === qIdx ? { ...q, options: [...q.options, { option_text: '', is_correct: false }] } : q)));
+    setQuestions((qs) =>
+      qs.map((q, i) =>
+        i === qIdx ? { ...q, options: [...q.options, { option_text: '', is_correct: false }] } : q,
+      ),
+    );
   }
   function removeOption(qIdx: number, oIdx: number) {
-    setQuestions((qs) => qs.map((q, i) => {
-      if (i !== qIdx || q.options.length <= 2) return q;
-      const removedWasCorrect = q.options[oIdx].is_correct;
-      let nextOptions = q.options.filter((_, j) => j !== oIdx);
-      if (removedWasCorrect) nextOptions = nextOptions.map((o, j) => ({ ...o, is_correct: j === 0 }));
-      return { ...q, options: nextOptions };
-    }));
+    setQuestions((qs) =>
+      qs.map((q, i) => {
+        if (i !== qIdx || q.options.length <= 2) return q;
+        const removedWasCorrect = q.options[oIdx].is_correct;
+        let nextOptions = q.options.filter((_, j) => j !== oIdx);
+        if (removedWasCorrect)
+          nextOptions = nextOptions.map((o, j) => ({ ...o, is_correct: j === 0 }));
+        return { ...q, options: nextOptions };
+      }),
+    );
   }
   function addQuestion() {
     setQuestions((qs) => [...qs, blankQuestion()]);
@@ -247,7 +422,9 @@ function QuizEditor({
         title.trim() || 'Knowledge check',
         questions.map((q) => ({
           question_text: q.question_text.trim(),
-          options: q.options.filter((o) => o.option_text.trim()).map((o) => ({ option_text: o.option_text.trim(), is_correct: o.is_correct })),
+          options: q.options
+            .filter((o) => o.option_text.trim())
+            .map((o) => ({ option_text: o.option_text.trim(), is_correct: o.is_correct })),
         })),
       );
       onChanged();
@@ -258,18 +435,33 @@ function QuizEditor({
   return (
     <div className="space-y-4 border-t border-slate-100 bg-slate-50/60 p-4">
       <div>
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Quiz title</label>
-        <input value={title} onChange={(e) => setTitle(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          Quiz title
+        </label>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+        />
       </div>
 
       {questions.map((q, qIdx) => (
         <div key={qIdx} className="rounded-xl border border-slate-200 bg-white p-3">
           <div className="flex items-start gap-2">
-            <input value={q.question_text} onChange={(e) => updateQuestionText(qIdx, e.target.value)} placeholder={`Question ${qIdx + 1}`}
-              className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+            <input
+              value={q.question_text}
+              onChange={(e) => updateQuestionText(qIdx, e.target.value)}
+              placeholder={`Question ${qIdx + 1}`}
+              className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+            />
             {questions.length > 1 && (
-              <button onClick={() => removeQuestion(qIdx)} className={BTN_DANGER} title="Remove question"><Trash2 className="h-3.5 w-3.5" /></button>
+              <button
+                onClick={() => removeQuestion(qIdx)}
+                className={BTN_DANGER}
+                title="Remove question"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
             )}
           </div>
           <div className="mt-2 space-y-1.5 pl-1">
@@ -283,29 +475,59 @@ function QuizEditor({
                 >
                   {o.is_correct && <span className="h-2.5 w-2.5 rounded-full bg-[#307c4c]" />}
                 </button>
-                <input value={o.option_text} onChange={(e) => updateOptionText(qIdx, oIdx, e.target.value)} placeholder={`Option ${oIdx + 1}`}
-                  className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+                <input
+                  value={o.option_text}
+                  onChange={(e) => updateOptionText(qIdx, oIdx, e.target.value)}
+                  placeholder={`Option ${oIdx + 1}`}
+                  className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+                />
                 {q.options.length > 2 && (
-                  <button onClick={() => removeOption(qIdx, oIdx)} className={BTN} title="Remove option"><X className="h-3.5 w-3.5" /></button>
+                  <button
+                    onClick={() => removeOption(qIdx, oIdx)}
+                    className={BTN}
+                    title="Remove option"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 )}
               </div>
             ))}
-            <button onClick={() => addOption(qIdx)} className="flex items-center gap-1 pl-1 text-xs font-semibold text-[#307c4c] hover:underline">
+            <button
+              onClick={() => addOption(qIdx)}
+              className="flex items-center gap-1 pl-1 text-xs font-semibold text-[#307c4c] hover:underline"
+            >
               <Plus className="h-3 w-3" /> Add option
             </button>
           </div>
         </div>
       ))}
 
-      <button onClick={addQuestion} className="flex items-center gap-1.5 text-xs font-semibold text-[#307c4c] hover:underline">
+      <button
+        onClick={addQuestion}
+        className="flex items-center gap-1.5 text-xs font-semibold text-[#307c4c] hover:underline"
+      >
         <Plus className="h-3.5 w-3.5" /> Add question
       </button>
 
-      {!valid && <p className="text-xs text-amber-600">Every question needs text, at least two options with text, and one marked correct (the filled circle).</p>}
+      {!valid && (
+        <p className="text-xs text-amber-600">
+          Every question needs text, at least two options with text, and one marked correct (the
+          filled circle).
+        </p>
+      )}
 
       <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
-        <button onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-        <button onClick={save} disabled={!valid || isPending} className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60">
+        <button
+          onClick={onClose}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={save}
+          disabled={!valid || isPending}
+          className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60"
+        >
           {isPending ? 'Saving…' : 'Save knowledge check'}
         </button>
       </div>
@@ -315,7 +537,15 @@ function QuizEditor({
 
 /* ── Module block ─────────────────────────────────────────────────────── */
 
-function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons; courseId: number; onChanged: () => void }) {
+function ModuleAdmin({
+  mod,
+  courseId,
+  onChanged,
+}: {
+  mod: AdminModuleWithLessons;
+  courseId: number;
+  onChanged: () => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(mod.title);
   const [resourceLabel, setResourceLabel] = useState(mod.resource_label ?? '');
@@ -327,7 +557,11 @@ function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons
 
   function save() {
     run(async () => {
-      await updateModule(mod.id, { title, resource_label: resourceLabel.trim() || null, resource_url: resourceUrl.trim() || null });
+      await updateModule(mod.id, {
+        title,
+        resource_label: resourceLabel.trim() || null,
+        resource_url: resourceUrl.trim() || null,
+      });
       setEditing(false);
       onChanged();
     });
@@ -375,34 +609,70 @@ function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons
       <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5">
         {editing ? (
           <>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus
-              className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
-            <button onClick={save} disabled={isPending} className={BTN} title="Save"><Check className="h-4 w-4 text-[#307c4c]" /></button>
-            <button onClick={cancel} className={BTN} title="Cancel"><X className="h-4 w-4" /></button>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              autoFocus
+              className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+            />
+            <button onClick={save} disabled={isPending} className={BTN} title="Save">
+              <Check className="h-4 w-4 text-[#307c4c]" />
+            </button>
+            <button onClick={cancel} className={BTN} title="Cancel">
+              <X className="h-4 w-4" />
+            </button>
           </>
         ) : (
           <>
             <span className="flex-1 truncate text-sm font-bold text-slate-800">{mod.title}</span>
-            <button onClick={() => move('up')} className={BTN} title="Move up"><ChevronUp className="h-4 w-4" /></button>
-            <button onClick={() => move('down')} className={BTN} title="Move down"><ChevronDown className="h-4 w-4" /></button>
-            <button onClick={() => setEditing(true)} className={BTN} title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
-            <button onClick={remove} disabled={isPending} className={BTN_DANGER} title="Delete module"><Trash2 className="h-3.5 w-3.5" /></button>
+            <button onClick={() => move('up')} className={BTN} title="Move up">
+              <ChevronUp className="h-4 w-4" />
+            </button>
+            <button onClick={() => move('down')} className={BTN} title="Move down">
+              <ChevronDown className="h-4 w-4" />
+            </button>
+            <button onClick={() => setEditing(true)} className={BTN} title="Edit">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={remove}
+              disabled={isPending}
+              className={BTN_DANGER}
+              title="Delete module"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </>
         )}
       </div>
       {editing && (
         <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-2">
           <div>
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Resource label (optional)</label>
-            <input value={resourceLabel} onChange={(e) => setResourceLabel(e.target.value)} placeholder="e.g. NESR SAP Training Hub"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Resource label (optional)
+            </label>
+            <input
+              value={resourceLabel}
+              onChange={(e) => setResourceLabel(e.target.value)}
+              placeholder="e.g. NESR SAP Training Hub"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+            />
           </div>
           <div>
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Resource URL (optional)</label>
-            <input value={resourceUrl} onChange={(e) => setResourceUrl(e.target.value)} placeholder="https://…"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Resource URL (optional)
+            </label>
+            <input
+              value={resourceUrl}
+              onChange={(e) => setResourceUrl(e.target.value)}
+              placeholder="https://…"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+            />
           </div>
-          <p className="text-xs text-slate-400 sm:col-span-2">When both are set, this renders as a linked resource box at the top of the module on the course page.</p>
+          <p className="text-xs text-slate-400 sm:col-span-2">
+            When both are set, this renders as a linked resource box at the top of the module on the
+            course page.
+          </p>
         </div>
       )}
       {!editing && mod.resource_label && mod.resource_url && (
@@ -417,7 +687,9 @@ function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons
         </a>
       )}
       <div>
-        {mod.lessons.map((l) => <LessonAdmin key={l.id} lesson={l} moduleId={mod.id} onChanged={onChanged} />)}
+        {mod.lessons.map((l) => (
+          <LessonAdmin key={l.id} lesson={l} moduleId={mod.id} onChanged={onChanged} />
+        ))}
         <NewLessonForm moduleId={mod.id} onChanged={onChanged} />
       </div>
 
@@ -427,15 +699,29 @@ function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons
           {mod.has_quiz ? (
             <>
               <span className="flex-1 text-xs font-semibold text-slate-600">Knowledge check</span>
-              <button onClick={openEditQuiz} disabled={quizLoading} className={BTN} title="Edit knowledge check">
+              <button
+                onClick={openEditQuiz}
+                disabled={quizLoading}
+                className={BTN}
+                title="Edit knowledge check"
+              >
                 <Pencil className="h-3.5 w-3.5" />
               </button>
-              <button onClick={removeQuiz} disabled={isPending} className={BTN_DANGER} title="Delete knowledge check">
+              <button
+                onClick={removeQuiz}
+                disabled={isPending}
+                className={BTN_DANGER}
+                title="Delete knowledge check"
+              >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </>
           ) : (
-            <button onClick={openAddQuiz} disabled={quizLoading} className="flex items-center gap-1.5 text-xs font-semibold text-[#307c4c] hover:underline">
+            <button
+              onClick={openAddQuiz}
+              disabled={quizLoading}
+              className="flex items-center gap-1.5 text-xs font-semibold text-[#307c4c] hover:underline"
+            >
               <Plus className="h-3.5 w-3.5" /> {quizLoading ? 'Loading…' : 'Add knowledge check'}
             </button>
           )}
@@ -464,32 +750,60 @@ function NewModuleForm({ courseId, onChanged }: { courseId: number; onChanged: (
     if (!title.trim()) return;
     run(async () => {
       await createModule(courseId, title.trim());
-      setTitle(''); setOpen(false);
+      setTitle('');
+      setOpen(false);
       onChanged();
     });
   }
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-xs font-semibold text-[#307c4c] hover:underline">
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 text-xs font-semibold text-[#307c4c] hover:underline"
+      >
         <Plus className="h-3.5 w-3.5" /> Add module
       </button>
     );
   }
   return (
     <div className="flex items-center gap-2">
-      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Module title" autoFocus
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Module title"
+        autoFocus
         onKeyDown={(e) => e.key === 'Enter' && submit()}
-        className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
-      <button onClick={() => setOpen(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-      <button onClick={submit} disabled={isPending} className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60">Add</button>
+        className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+      />
+      <button
+        onClick={() => setOpen(false)}
+        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+      >
+        Cancel
+      </button>
+      <button
+        onClick={submit}
+        disabled={isPending}
+        className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60"
+      >
+        Add
+      </button>
     </div>
   );
 }
 
 /* ── Course card ───────────────────────────────────────────────────────── */
 
-function CourseAdmin({ course, trackId, onChanged }: { course: AdminCourseWithModules; trackId: number; onChanged: () => void }) {
+function CourseAdmin({
+  course,
+  trackId,
+  onChanged,
+}: {
+  course: AdminCourseWithModules;
+  trackId: number;
+  onChanged: () => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(course.title);
   const [description, setDescription] = useState(course.description ?? '');
@@ -506,12 +820,17 @@ function CourseAdmin({ course, trackId, onChanged }: { course: AdminCourseWithMo
   function togglePublish() {
     const nextStatus: CourseStatus = course.status === 'published' ? 'draft' : 'published';
     run(async () => {
-      await updateCourse(course.id, { title: course.title, description: course.description ?? '', status: nextStatus });
+      await updateCourse(course.id, {
+        title: course.title,
+        description: course.description ?? '',
+        status: nextStatus,
+      });
       onChanged();
     });
   }
   function remove() {
-    if (!confirm(`Delete course "${course.title}" and everything in it? This cannot be undone.`)) return;
+    if (!confirm(`Delete course "${course.title}" and everything in it? This cannot be undone.`))
+      return;
     run(async () => {
       await deleteCourse(course.id);
       onChanged();
@@ -528,19 +847,42 @@ function CourseAdmin({ course, trackId, onChanged }: { course: AdminCourseWithMo
     <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       {editing ? (
         <div className="space-y-2">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Course title"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Course description"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Course title"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder="Course description"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+          />
           <div className="flex items-center gap-2">
-            <select value={status} onChange={(e) => setStatus(e.target.value as CourseStatus)}
-              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as CourseStatus)}
+              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+            >
               <option value="draft">Draft</option>
               <option value="published">Published</option>
             </select>
             <div className="ml-auto flex gap-2">
-              <button onClick={() => setEditing(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button onClick={save} disabled={isPending} className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60">Save</button>
+              <button
+                onClick={() => setEditing(false)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={save}
+                disabled={isPending}
+                className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60"
+              >
+                Save
+              </button>
             </div>
           </div>
         </div>
@@ -549,26 +891,54 @@ function CourseAdmin({ course, trackId, onChanged }: { course: AdminCourseWithMo
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-[15px] font-bold text-slate-900">{course.title}</h3>
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${course.status === 'published' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${course.status === 'published' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}
+              >
                 {course.status === 'published' ? 'Published' : 'Draft'}
               </span>
             </div>
-            {course.description && <p className="mt-1 text-sm text-slate-500">{course.description}</p>}
+            {course.description && (
+              <p className="mt-1 text-sm text-slate-500">{course.description}</p>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button onClick={() => move('up')} className={BTN} title="Move up"><ChevronUp className="h-4 w-4" /></button>
-            <button onClick={() => move('down')} className={BTN} title="Move down"><ChevronDown className="h-4 w-4" /></button>
-            <button onClick={togglePublish} disabled={isPending} className={BTN} title={course.status === 'published' ? 'Unpublish' : 'Publish'}>
-              {course.status === 'published' ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            <button onClick={() => move('up')} className={BTN} title="Move up">
+              <ChevronUp className="h-4 w-4" />
             </button>
-            <button onClick={() => setEditing(true)} className={BTN} title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
-            <button onClick={remove} disabled={isPending} className={BTN_DANGER} title="Delete course"><Trash2 className="h-3.5 w-3.5" /></button>
+            <button onClick={() => move('down')} className={BTN} title="Move down">
+              <ChevronDown className="h-4 w-4" />
+            </button>
+            <button
+              onClick={togglePublish}
+              disabled={isPending}
+              className={BTN}
+              title={course.status === 'published' ? 'Unpublish' : 'Publish'}
+            >
+              {course.status === 'published' ? (
+                <EyeOff className="h-3.5 w-3.5" />
+              ) : (
+                <Eye className="h-3.5 w-3.5" />
+              )}
+            </button>
+            <button onClick={() => setEditing(true)} className={BTN} title="Edit">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={remove}
+              disabled={isPending}
+              className={BTN_DANGER}
+              title="Delete course"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       )}
 
       <div className="space-y-2 pl-1">
-        {course.modules.map((m) => <ModuleAdmin key={m.id} mod={m} courseId={course.id} onChanged={onChanged} />)}
+        {course.modules.map((m) => (
+          <ModuleAdmin key={m.id} mod={m} courseId={course.id} onChanged={onChanged} />
+        ))}
         <NewModuleForm courseId={course.id} onChanged={onChanged} />
       </div>
     </div>
@@ -587,28 +957,56 @@ function NewCourseForm({ trackId, onChanged }: { trackId: number; onChanged: () 
     if (!title.trim()) return;
     run(async () => {
       await createCourse(trackId, title.trim(), description.trim(), 'draft');
-      setTitle(''); setDescription(''); setOpen(false);
+      setTitle('');
+      setDescription('');
+      setOpen(false);
       onChanged();
     });
   }
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="flex w-full items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-slate-200 py-4 text-sm font-semibold text-slate-400 transition-colors hover:border-[#307c4c]/40 hover:text-[#307c4c]">
+      <button
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-slate-200 py-4 text-sm font-semibold text-slate-400 transition-colors hover:border-[#307c4c]/40 hover:text-[#307c4c]"
+      >
         <Plus className="h-4 w-4" /> New course
       </button>
     );
   }
   return (
     <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Course title" autoFocus
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
-      <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Course description"
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20" />
-      <p className="text-xs text-slate-400">New courses start as a draft, publish once content is ready.</p>
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Course title"
+        autoFocus
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+      />
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        rows={2}
+        placeholder="Course description"
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+      />
+      <p className="text-xs text-slate-400">
+        New courses start as a draft, publish once content is ready.
+      </p>
       <div className="flex justify-end gap-2">
-        <button onClick={() => setOpen(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-        <button onClick={submit} disabled={isPending} className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60">Create</button>
+        <button
+          onClick={() => setOpen(false)}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={submit}
+          disabled={isPending}
+          className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#276041] disabled:opacity-60"
+        >
+          Create
+        </button>
       </div>
     </div>
   );
@@ -616,16 +1014,27 @@ function NewCourseForm({ trackId, onChanged }: { trackId: number; onChanged: () 
 
 /* ── Reset track to defaults ──────────────────────────────────────────── */
 
-function ResetTrackButton({ trackKey, trackName, onChanged }: { trackKey: string; trackName: string; onChanged: () => void }) {
+function ResetTrackButton({
+  trackKey,
+  trackName,
+  onChanged,
+}: {
+  trackKey: string;
+  trackName: string;
+  onChanged: () => void;
+}) {
   const [isPending, run] = useCmsAction();
   const [message, setMessage] = useState<string | null>(null);
 
   function reset() {
-    if (!confirm(
-      `Reset "${trackName}" to its built-in default content?\n\n` +
-      `This deletes every course, module, and lesson currently under this track (and everyone's ` +
-      `progress on them) and replaces it with what's defined in code. This cannot be undone.`,
-    )) return;
+    if (
+      !confirm(
+        `Reset "${trackName}" to its built-in default content?\n\n` +
+          `This deletes every course, module, and lesson currently under this track (and everyone's ` +
+          `progress on them) and replaces it with what's defined in code. This cannot be undone.`,
+      )
+    )
+      return;
     setMessage(null);
     run(async () => {
       const result = await resyncTrackFromSeed(trackKey);
@@ -673,7 +1082,11 @@ export default function AdminClient({ data }: { data: LearningHubAdminData }) {
         {cmsError && (
           <div className="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <span>{cmsError}</span>
-            <button onClick={() => setCmsError(null)} className="shrink-0 rounded-lg p-0.5 text-red-400 hover:text-red-600" title="Dismiss">
+            <button
+              onClick={() => setCmsError(null)}
+              className="shrink-0 rounded-lg p-0.5 text-red-400 hover:text-red-600"
+              title="Dismiss"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -686,7 +1099,9 @@ export default function AdminClient({ data }: { data: LearningHubAdminData }) {
                 key={t.key}
                 onClick={() => setSelectedKey(t.key)}
                 className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-                  selectedTrack?.key === t.key ? 'bg-[#307c4c] text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  selectedTrack?.key === t.key
+                    ? 'bg-[#307c4c] text-white shadow-sm'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 {t.name} <span className="ml-1 opacity-70">({t.courses.length})</span>
@@ -694,7 +1109,11 @@ export default function AdminClient({ data }: { data: LearningHubAdminData }) {
             ))}
           </div>
           {selectedTrack && (
-            <ResetTrackButton trackKey={selectedTrack.key} trackName={selectedTrack.name} onChanged={onChanged} />
+            <ResetTrackButton
+              trackKey={selectedTrack.key}
+              trackName={selectedTrack.name}
+              onChanged={onChanged}
+            />
           )}
         </div>
 

@@ -62,7 +62,13 @@ export function resolveDelegationAttribution(
   requestType: ProcureGuardRequestType,
   currentStatus: ProcureGuardStatus,
   targetStatus: ProcureGuardStatus,
-  request: { country?: string | null; segment?: string | null; amount?: number | string | null; currency?: string | null; spend_value_usd?: number | string | null },
+  request: {
+    country?: string | null;
+    segment?: string | null;
+    amount?: number | string | null;
+    currency?: string | null;
+    spend_value_usd?: number | string | null;
+  },
 ): { name: string; email: string } | null {
   const { amount: thresholdAmount, currency: thresholdCurrency } = procureGuardThreshold(request);
   const requiredPermission = getRequiredPermissionForTransition(
@@ -79,12 +85,15 @@ export function resolveDelegationAttribution(
   // multi-country scope ('Bahrain, Saudi Arabia (KSA)', or the live 'EOS, Chad, Congo') to 'Other'
   // and so matched nothing — silently dropping "on behalf of" from the log for those delegations.
   const grantHasPermission = (grant: ProcureGuardReviewGrant): boolean =>
-    Boolean(getPermissionProfile(grant.role)[requiredPermission]) && grantCoversRequest(grant, request);
+    Boolean(getPermissionProfile(grant.role)[requiredPermission]) &&
+    grantCoversRequest(grant, request);
 
   const grants = actorReviewGrants(actor);
   // Own authority takes precedence — if the actor could do this themselves, it's not "on behalf of".
-  if (grants.some(grant => grant.source === 'self' && grantHasPermission(grant))) return null;
-  const delegated = grants.find(grant => grant.source === 'delegation' && grantHasPermission(grant));
+  if (grants.some((grant) => grant.source === 'self' && grantHasPermission(grant))) return null;
+  const delegated = grants.find(
+    (grant) => grant.source === 'delegation' && grantHasPermission(grant),
+  );
   return delegated ? { name: delegated.fromName, email: delegated.fromEmail } : null;
 }
 
@@ -108,8 +117,14 @@ export function revalidateProcureGuardPaths() {
 export const getCachedDashboardRows = unstable_cache(
   async (where: string, params: string[], canViewAll: boolean, email: string) => {
     const [adhocRows, advanceRows, activityRows] = await Promise.all([
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ${where} ORDER BY created_at DESC`, params),
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ${where} ORDER BY created_at DESC`, params),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM procure_guard_adhoc_payments ${where} ORDER BY created_at DESC`,
+        params,
+      ),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM procure_guard_advance_payments ${where} ORDER BY created_at DESC`,
+        params,
+      ),
       sql<QueryResultRow[]>(
         canViewAll
           ? `SELECT * FROM procure_guard_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 12`

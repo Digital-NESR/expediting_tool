@@ -25,16 +25,18 @@ import type {
 const log = logger('procure-guard');
 
 export function procureGuardAdminEmails(): string[] {
-  return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.PROCURE_GUARD_ADMIN_EMAILS ?? ''}`)
+  return `${process.env.ADMIN_EMAILS ?? ''},${process.env.PROCURE_GUARD_ADMIN_EMAILS ?? ''}`
     .split(',')
-    .map(email => email.trim().toLowerCase())
+    .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
 }
 
 // Matched case-insensitively: Azure AD can hand back a mixed-case `mail` claim while every writer
 // lowercases the stored email. A case-sensitive lookup silently downgraded such an approver to
 // Requester in every action.
-export async function getPermissionRowForEmail(email: string): Promise<ProcureGuardPermissionRow | null> {
+export async function getPermissionRowForEmail(
+  email: string,
+): Promise<ProcureGuardPermissionRow | null> {
   try {
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_permissions WHERE LOWER(email) = ? LIMIT 1`,
@@ -49,14 +51,25 @@ export async function getPermissionRowForEmail(email: string): Promise<ProcureGu
   }
 }
 
-const ACCESS_VIEW_RANK: Record<string, number> = { requester: 0, analyst: 1, reviewer: 2, admin: 3 };
+const ACCESS_VIEW_RANK: Record<string, number> = {
+  requester: 0,
+  analyst: 1,
+  reviewer: 2,
+  admin: 3,
+};
 
 // Delegation grants the delegate the delegator's APPROVAL authority only — not data/permission/delete
 // admin powers — and never elevates the UI past 'reviewer'. So an admin can hand off their approvals
 // without handing over the admin panel.
-function mergeApprovalAuthority(base: ProcureGuardPermissionProfile, granted: ProcureGuardPermissionProfile): ProcureGuardPermissionProfile {
+function mergeApprovalAuthority(
+  base: ProcureGuardPermissionProfile,
+  granted: ProcureGuardPermissionProfile,
+): ProcureGuardPermissionProfile {
   const grantedView = granted.accessView === 'admin' ? 'reviewer' : granted.accessView;
-  const accessView = ACCESS_VIEW_RANK[grantedView] > ACCESS_VIEW_RANK[base.accessView] ? grantedView : base.accessView;
+  const accessView =
+    ACCESS_VIEW_RANK[grantedView] > ACCESS_VIEW_RANK[base.accessView]
+      ? grantedView
+      : base.accessView;
   return {
     ...base,
     accessView,
@@ -64,10 +77,14 @@ function mergeApprovalAuthority(base: ProcureGuardPermissionProfile, granted: Pr
     canReject: base.canReject || granted.canReject,
     canReviewAdhocScm: base.canReviewAdhocScm || granted.canReviewAdhocScm,
     canReviewAdhocDirector: base.canReviewAdhocDirector || granted.canReviewAdhocDirector,
-    canReviewAdvanceCountryController: base.canReviewAdvanceCountryController || granted.canReviewAdvanceCountryController,
-    canReviewAdvanceSupplyChainDirector: base.canReviewAdvanceSupplyChainDirector || granted.canReviewAdvanceSupplyChainDirector,
-    canReviewAdvanceTreasuryDirector: base.canReviewAdvanceTreasuryDirector || granted.canReviewAdvanceTreasuryDirector,
-    canReviewAdvanceCorporateController: base.canReviewAdvanceCorporateController || granted.canReviewAdvanceCorporateController,
+    canReviewAdvanceCountryController:
+      base.canReviewAdvanceCountryController || granted.canReviewAdvanceCountryController,
+    canReviewAdvanceSupplyChainDirector:
+      base.canReviewAdvanceSupplyChainDirector || granted.canReviewAdvanceSupplyChainDirector,
+    canReviewAdvanceTreasuryDirector:
+      base.canReviewAdvanceTreasuryDirector || granted.canReviewAdvanceTreasuryDirector,
+    canReviewAdvanceCorporateController:
+      base.canReviewAdvanceCorporateController || granted.canReviewAdvanceCorporateController,
     canReviewAdvanceCfo: base.canReviewAdvanceCfo || granted.canReviewAdvanceCfo,
   };
 }
@@ -92,7 +109,10 @@ export interface ProcureGuardActorScope {
  *
  * `fallbackName` is used for the actor's own grant label when no permission row carries a name.
  */
-export async function resolveProcureGuardActorScope(rawEmail: string, fallbackName?: string | null): Promise<ProcureGuardActorScope> {
+export async function resolveProcureGuardActorScope(
+  rawEmail: string,
+  fallbackName?: string | null,
+): Promise<ProcureGuardActorScope> {
   const email = normalizeEmail(rawEmail);
   const adminEmails = procureGuardAdminEmails();
 
@@ -105,13 +125,15 @@ export async function resolveProcureGuardActorScope(rawEmail: string, fallbackNa
        WHERE LOWER(delegate_email) = LOWER(?) AND is_active = TRUE
          AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
       [email],
-    ).catch(err => {
+    ).catch((err) => {
       log.error('actorScope.delegationsFailed', err, { email });
       return [] as QueryResultRow[];
     }),
   ]);
 
-  const fallbackRole: ProcureGuardPermissionRole = adminEmails.includes(email) ? 'Admin' : 'Requester';
+  const fallbackRole: ProcureGuardPermissionRole = adminEmails.includes(email)
+    ? 'Admin'
+    : 'Requester';
   const role = (permissionRow?.role ?? fallbackRole) as ProcureGuardPermissionRole;
   const basePermissions = getPermissionProfile(role);
   const baseName = permissionRow?.name ?? fallbackName ?? email;
@@ -120,14 +142,25 @@ export async function resolveProcureGuardActorScope(rawEmail: string, fallbackNa
 
   const reviewGrants: ProcureGuardReviewGrant[] = [];
   if (basePermissions.canViewAll) {
-    reviewGrants.push({ source: 'self', fromEmail: email, fromName: baseName, role: basePermissions.role, country: baseCountry, segment: baseSegment, isAdmin: basePermissions.role === 'Admin' });
+    reviewGrants.push({
+      source: 'self',
+      fromEmail: email,
+      fromName: baseName,
+      role: basePermissions.role,
+      country: baseCountry,
+      segment: baseSegment,
+      isAdmin: basePermissions.role === 'Admin',
+    });
   }
 
   let permissions = basePermissions;
   for (const row of delegationRows) {
     const delegatorEmail = String(row.delegator_email);
     const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
-    const delegatorRole = (delegatorRow?.role ?? (adminEmails.includes(delegatorEmail.toLowerCase()) ? 'Admin' : 'Requester')) as ProcureGuardPermissionRole;
+    const delegatorRole = (delegatorRow?.role ??
+      (adminEmails.includes(delegatorEmail.toLowerCase())
+        ? 'Admin'
+        : 'Requester')) as ProcureGuardPermissionRole;
     const delegatorProfile = getPermissionProfile(delegatorRole);
     if (!delegatorProfile.canViewAll) continue; // delegator had no approval authority to hand off
     permissions = mergeApprovalAuthority(permissions, delegatorProfile);

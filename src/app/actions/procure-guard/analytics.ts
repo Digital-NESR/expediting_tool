@@ -14,7 +14,13 @@ import {
   requireAdminActor,
   requireProcureGuardAnalyticsAccess,
 } from '@/lib/procure-guard/actor';
-import { addMetric, buildReviewDurationMetrics, buildStats, requestMonth, topMetrics } from '@/lib/procure-guard/analytics';
+import {
+  addMetric,
+  buildReviewDurationMetrics,
+  buildStats,
+  requestMonth,
+  topMetrics,
+} from '@/lib/procure-guard/analytics';
 import {
   adhocActiveStatuses,
   advanceActiveStatuses,
@@ -53,10 +59,17 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
     // highValueOpenRequests / analyticsRequests / buildStats / buildReviewDurationMetrics /
     // normalisePaymentCountries / procureGuardThreshold). `contract_reference` is selected for the
     // advance table only: its presence is the adhoc-vs-advance discriminator further down.
-    const ANALYTICS_COLUMNS = 'id, reference_number, vendor_name, status, priority, requested_by_email, requested_by_name, amount, currency, spend_value_usd, country, created_at, reviewed_at';
+    const ANALYTICS_COLUMNS =
+      'id, reference_number, vendor_name, status, priority, requested_by_email, requested_by_name, amount, currency, spend_value_usd, country, created_at, reviewed_at';
     const [adhocRows, advanceRows] = await Promise.all([
-      sql<QueryResultRow[]>(`SELECT ${ANALYTICS_COLUMNS} FROM procure_guard_adhoc_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
-      sql<QueryResultRow[]>(`SELECT ${ANALYTICS_COLUMNS}, contract_reference FROM procure_guard_advance_payments ${scope.where} ORDER BY created_at DESC`, scope.params),
+      sql<QueryResultRow[]>(
+        `SELECT ${ANALYTICS_COLUMNS} FROM procure_guard_adhoc_payments ${scope.where} ORDER BY created_at DESC`,
+        scope.params,
+      ),
+      sql<QueryResultRow[]>(
+        `SELECT ${ANALYTICS_COLUMNS}, contract_reference FROM procure_guard_advance_payments ${scope.where} ORDER BY created_at DESC`,
+        scope.params,
+      ),
     ]);
 
     const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
@@ -152,9 +165,10 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
     }
 
     const highValueOpenRequests: ProcureGuardHighValueRequest[] = all
-      .filter(row => isActiveApprovalStatus(row.status))
-      .map(row => {
-        const requestType: ProcureGuardRequestType = 'contract_reference' in row ? 'advance' : 'adhoc';
+      .filter((row) => isActiveApprovalStatus(row.status))
+      .map((row) => {
+        const requestType: ProcureGuardRequestType =
+          'contract_reference' in row ? 'advance' : 'adhoc';
         return {
           id: row.id,
           request_type: requestType,
@@ -170,8 +184,9 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
       .sort((a, b) => b.amount_usd - a.amount_usd)
       .slice(0, 8);
 
-    const analyticsRequests: ProcureGuardAnalyticsRequest[] = all.map(row => {
-      const requestType: ProcureGuardRequestType = 'contract_reference' in row ? 'advance' : 'adhoc';
+    const analyticsRequests: ProcureGuardAnalyticsRequest[] = all.map((row) => {
+      const requestType: ProcureGuardRequestType =
+        'contract_reference' in row ? 'advance' : 'adhoc';
       return {
         id: row.id,
         request_type: requestType,
@@ -199,7 +214,9 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
       status_breakdown: topMetrics(statusBreakdown, STATUS_SORT_ORDER.length),
       priority_breakdown: topMetrics(priorityBreakdown, PRIORITY_SORT_ORDER.length),
       requester_breakdown: topMetrics(requesters, 10),
-      monthly_trend: [...monthly.values()].sort((a, b) => a.month.localeCompare(b.month)).slice(-12),
+      monthly_trend: [...monthly.values()]
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .slice(-12),
       review_duration_metrics: buildReviewDurationMetrics(adhoc, advance),
       high_value_open_requests: highValueOpenRequests,
       generated_at: new Date().toISOString(),
@@ -216,8 +233,9 @@ export async function getProcureGuardAdminAnalyticsData(): Promise<ProcureGuardA
     await ensureProcureGuardUsageTables();
 
     const windowWhere = `occurred_at >= NOW() - INTERVAL '30 days'`;
-    const [summaryRows, pageRows, clickRows, userRows, recentRows, pendingRows] = await Promise.all([
-      sql<QueryResultRow[]>(`
+    const [summaryRows, pageRows, clickRows, userRows, recentRows, pendingRows] = await Promise.all(
+      [
+        sql<QueryResultRow[]>(`
         SELECT
           COUNT(*) FILTER (WHERE event_type = 'page_view')::int AS page_views,
           COUNT(*) FILTER (WHERE event_type = 'click')::int AS clicks,
@@ -229,7 +247,7 @@ export async function getProcureGuardAdminAnalyticsData(): Promise<ProcureGuardA
         FROM procure_guard_usage_events
         WHERE ${windowWhere}
       `),
-      sql<QueryResultRow[]>(`
+        sql<QueryResultRow[]>(`
         SELECT
           path,
           COALESCE(NULLIF(MAX(page_title), ''), path) AS page_title,
@@ -245,7 +263,7 @@ export async function getProcureGuardAdminAnalyticsData(): Promise<ProcureGuardA
         ORDER BY total_duration_ms DESC, views DESC, path ASC
         LIMIT 20
       `),
-      sql<QueryResultRow[]>(`
+        sql<QueryResultRow[]>(`
         WITH click_labels AS (
           SELECT
             path,
@@ -272,7 +290,7 @@ export async function getProcureGuardAdminAnalyticsData(): Promise<ProcureGuardA
         ORDER BY clicks DESC, average_click_delay_ms DESC, target_label ASC
         LIMIT 30
       `),
-      sql<QueryResultRow[]>(`
+        sql<QueryResultRow[]>(`
         SELECT
           COALESCE(user_email, 'Unknown') AS user_email,
           COALESCE(MAX(user_name), COALESCE(user_email, 'Unknown')) AS user_name,
@@ -288,36 +306,42 @@ export async function getProcureGuardAdminAnalyticsData(): Promise<ProcureGuardA
         ORDER BY last_seen_at DESC
         LIMIT 25
       `),
-      sql<QueryResultRow[]>(`
+        sql<QueryResultRow[]>(`
         SELECT id::int AS id, event_type, user_email, user_name, path, page_title, target_text, target_href, duration_ms, occurred_at
         FROM procure_guard_usage_events
         WHERE ${windowWhere}
         ORDER BY occurred_at DESC
         LIMIT 50
       `),
-      // The two status lists were spelled out inside this SQL string, so adding a workflow stage
-      // left this counter quietly behind. Derived from the same constants the workflow uses, and
-      // bound as parameters the way the reminder job already does it.
-      sql<QueryResultRow[]>(`
+        // The two status lists were spelled out inside this SQL string, so adding a workflow stage
+        // left this counter quietly behind. Derived from the same constants the workflow uses, and
+        // bound as parameters the way the reminder job already does it.
+        sql<QueryResultRow[]>(
+          `
         SELECT (
           (SELECT COUNT(*) FROM procure_guard_adhoc_payments WHERE status IN (${adhocActiveStatuses.map(() => '?').join(', ')})) +
           (SELECT COUNT(*) FROM procure_guard_advance_payments WHERE status IN (${advanceActiveStatuses.map(() => '?').join(', ')}))
         )::int AS pending_review
-      `, [...adhocActiveStatuses, ...advanceActiveStatuses]),
-    ]);
+      `,
+          [...adhocActiveStatuses, ...advanceActiveStatuses],
+        ),
+      ],
+    );
 
     return {
       actor,
       pending_review: Number(pendingRows[0]?.pending_review ?? 0),
-      summary: serialise<ProcureGuardAdminAnalyticsData['summary']>(summaryRows[0] ?? {
-        page_views: 0,
-        clicks: 0,
-        sessions: 0,
-        users: 0,
-        average_page_duration_ms: 0,
-        total_page_duration_ms: 0,
-        average_click_delay_ms: 0,
-      }),
+      summary: serialise<ProcureGuardAdminAnalyticsData['summary']>(
+        summaryRows[0] ?? {
+          page_views: 0,
+          clicks: 0,
+          sessions: 0,
+          users: 0,
+          average_page_duration_ms: 0,
+          total_page_duration_ms: 0,
+          average_click_delay_ms: 0,
+        },
+      ),
       page_metrics: serialise<ProcureGuardAdminAnalyticsData['page_metrics']>(pageRows),
       click_metrics: serialise<ProcureGuardAdminAnalyticsData['click_metrics']>(clickRows),
       user_metrics: serialise<ProcureGuardAdminAnalyticsData['user_metrics']>(userRows),

@@ -6,13 +6,16 @@ export const metadata: Metadata = { title: 'NESR | SourceGuide' };
 
 export default async function SourceGuideDashboardPage() {
   const [stats, categories, countries, facets] = await Promise.all([
-    getStats(), getCategories(), getCountries(), getSearchFacets(),
+    getStats(),
+    getCategories(),
+    getCountries(),
+    getSearchFacets(),
   ]);
-  const countryTiles = countries.map(c => ({
+  const countryTiles = countries.map((c) => ({
     code: c.code,
     name: c.name,
     tone: c.tone,
-    commodities: facets.countries.find(f => f.code === c.code)?.count ?? 0,
+    commodities: facets.countries.find((f) => f.code === c.code)?.count ?? 0,
   }));
   return <DashboardClient stats={stats} categories={categories} countries={countryTiles} />;
 }

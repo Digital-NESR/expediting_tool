@@ -3,21 +3,45 @@ import type { ScreenProps } from '../../types';
 export default function CorporateRollupScreen({ vm }: ScreenProps) {
   return (
     <div style={{ animation: 'fadeIn 0.2s ease' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          marginBottom: 16,
+        }}
+      >
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 3 }}>Corporate Rollup</h1>
-          <p style={{ fontSize: 12, color: '#58595B' }}>All 12 legal entities · Q3 2026 SOA Cycle · Supply Chain Director view</p>
+          <p style={{ fontSize: 12, color: '#58595B' }}>
+            All 12 legal entities · Q3 2026 SOA Cycle · Supply Chain Director view
+          </p>
         </div>
         <div style={vm.atRiskAlertStyle}>
-          {vm.hasAtRisk && <>⚠ {vm.atRiskCount} countries at risk — below 70% coverage with &lt;10 days remaining</>}
+          {vm.hasAtRisk && (
+            <>
+              ⚠ {vm.atRiskCount} countries at risk — below 70% coverage with &lt;10 days remaining
+            </>
+          )}
           {vm.noAtRisk && <>✓ All active countries on track</>}
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 14 }}>
+      <div
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 14 }}
+      >
         {vm.corpKpiCards.map((kpi) => (
           <div key={kpi.label} style={kpi.cardStyle}>
-            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, color: '#58595B', fontWeight: 'bold', marginBottom: 4 }}>
+            <div
+              style={{
+                fontSize: 10,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                color: '#58595B',
+                fontWeight: 'bold',
+                marginBottom: 4,
+              }}
+            >
               {kpi.label}
             </div>
             <div style={kpi.valueStyle}>{kpi.value}</div>
@@ -26,7 +50,14 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
         ))}
       </div>
 
-      <div style={{ background: 'white', borderRadius: 10, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
+      <div
+        style={{
+          background: 'white',
+          borderRadius: 10,
+          overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
+        }}
+      >
         <div
           style={{
             display: 'grid',
@@ -57,10 +88,28 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
             <div style={{ fontWeight: 'bold', fontSize: 12 }}>{c.fmtBalance}</div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <div style={{ flex: 1, background: '#E8EDE9', borderRadius: 2, height: 6, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    flex: 1,
+                    background: '#E8EDE9',
+                    borderRadius: 2,
+                    height: 6,
+                    overflow: 'hidden',
+                  }}
+                >
                   <div style={c.pctBarStyle} />
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 'bold', color: '#1F1F1D', width: 32, textAlign: 'right' }}>{c.pct}%</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 'bold',
+                    color: '#1F1F1D',
+                    width: 32,
+                    textAlign: 'right',
+                  }}
+                >
+                  {c.pct}%
+                </span>
               </div>
             </div>
             <div style={c.badgeStyle}>{c.statusLabel}</div>

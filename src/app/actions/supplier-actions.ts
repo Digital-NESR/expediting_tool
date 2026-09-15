@@ -12,9 +12,17 @@ import { requireUser } from '@/lib/require-access';
  * recipients into a supplier's default list.
  */
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
-const BLOCKED_DOMAINS = new Set(['localhost', 'localhost.localdomain', 'example.com', 'test.com', 'invalid']);
+const BLOCKED_DOMAINS = new Set([
+  'localhost',
+  'localhost.localdomain',
+  'example.com',
+  'test.com',
+  'invalid',
+]);
 
-function validateSupplierEmail(raw: string): { ok: true; email: string } | { ok: false; error: string } {
+function validateSupplierEmail(
+  raw: string,
+): { ok: true; email: string } | { ok: false; error: string } {
   const email = (raw ?? '').trim();
   if (!email) return { ok: false, error: 'Email is required.' };
   if (email.length > 254) return { ok: false, error: 'Email is too long.' };
@@ -38,7 +46,7 @@ export async function getSupplierContacts(supplierId: string): Promise<{
     }>(
       `SELECT supplier_emails, additional_supplier_email, supplier_name
        FROM supplier_contacts WHERE supplier_id = $1`,
-      [supplierId]
+      [supplierId],
     );
 
     if (result.rows.length === 0) {
@@ -48,10 +56,16 @@ export async function getSupplierContacts(supplierId: string): Promise<{
     const { supplier_emails, additional_supplier_email, supplier_name } = result.rows[0];
 
     const defaultEmails = supplier_emails
-      ? supplier_emails.split(',').map((e) => e.trim()).filter(Boolean)
+      ? supplier_emails
+          .split(',')
+          .map((e) => e.trim())
+          .filter(Boolean)
       : [];
     const additionalEmails = additional_supplier_email
-      ? additional_supplier_email.split(',').map((e) => e.trim()).filter(Boolean)
+      ? additional_supplier_email
+          .split(',')
+          .map((e) => e.trim())
+          .filter(Boolean)
       : [];
 
     return { defaultEmails, additionalEmails, supplierName: supplier_name };
@@ -63,7 +77,7 @@ export async function getSupplierContacts(supplierId: string): Promise<{
 
 export async function addAdditionalSupplierEmail(
   supplierId: string,
-  newEmail: string
+  newEmail: string,
 ): Promise<{ success: boolean; error?: string }> {
   await requireUser();
 
@@ -74,16 +88,19 @@ export async function addAdditionalSupplierEmail(
   try {
     const result = await pool.query<{ additional_supplier_email: string | null }>(
       `SELECT additional_supplier_email FROM supplier_contacts WHERE supplier_id = $1`,
-      [supplierId]
+      [supplierId],
     );
 
     const existing = result.rows[0]?.additional_supplier_email ?? '';
     const currentList = existing
-      ? existing.split(',').map((e) => e.trim()).filter(Boolean)
+      ? existing
+          .split(',')
+          .map((e) => e.trim())
+          .filter(Boolean)
       : [];
 
     // Deduplicate — no-op if already present
-    if (currentList.some(e => e.toLowerCase() === cleanEmail.toLowerCase())) {
+    if (currentList.some((e) => e.toLowerCase() === cleanEmail.toLowerCase())) {
       return { success: true };
     }
 
@@ -94,7 +111,7 @@ export async function addAdditionalSupplierEmail(
        VALUES ($1, $2)
        ON CONFLICT (supplier_id)
        DO UPDATE SET additional_supplier_email = EXCLUDED.additional_supplier_email`,
-      [supplierId, updated]
+      [supplierId, updated],
     );
 
     return { success: true };

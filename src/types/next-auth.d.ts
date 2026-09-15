@@ -1,4 +1,4 @@
-import "next-auth";
+import 'next-auth';
 
 type ToolAccessEntry = {
   status: 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
@@ -9,7 +9,7 @@ type ToolAccessEntry = {
   snsRole?: string;
 };
 
-declare module "next-auth" {
+declare module 'next-auth' {
   interface Session {
     user: {
       name?: string | null;
@@ -32,7 +32,7 @@ declare module "next-auth" {
   }
 }
 
-declare module "next-auth/jwt" {
+declare module 'next-auth/jwt' {
   interface JWT {
     /* Whether this user has an avatar in `user_photos`. The image itself is
        deliberately NOT in the token — it used to be a base64 data: URI and

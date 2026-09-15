@@ -12,9 +12,5 @@ export default async function MyAnalyticsPage() {
     redirect('/login');
   }
 
-  return (
-    <AnalyticsClient
-      userName={session.user.name ?? session.user.email}
-    />
-  );
+  return <AnalyticsClient userName={session.user.name ?? session.user.email} />;
 }

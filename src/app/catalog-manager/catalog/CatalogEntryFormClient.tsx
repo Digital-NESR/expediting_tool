@@ -7,7 +7,15 @@ import { Icon } from '../components/CatalogManagerUI';
 import { createCatalogEntry, updateCatalogEntry } from '@/app/actions/catalog-manager';
 import type { TaxCategory } from '@/lib/catalog-taxonomy-types';
 import type { ApprovalThresholdRule, CatalogEntry, SpendType } from '@/types/catalog-manager';
-import { effectiveThresholdUsd, fmtUsd, usdRateFor, usdRatesFrom, sirionUrlFor, SPEND_TYPE_OPTIONS, INCOTERMS } from '@/lib/catalog-manager-utils';
+import {
+  effectiveThresholdUsd,
+  fmtUsd,
+  usdRateFor,
+  usdRatesFrom,
+  sirionUrlFor,
+  SPEND_TYPE_OPTIONS,
+  INCOTERMS,
+} from '@/lib/catalog-manager-utils';
 
 interface FormState {
   supplier_name: string;
@@ -38,14 +46,29 @@ interface FormState {
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
-  return <span className="text-[12.5px] font-semibold text-slate-600">{children}{required && <span className="ml-0.5 text-red-500">*</span>}</span>;
+  return (
+    <span className="text-[12.5px] font-semibold text-slate-600">
+      {children}
+      {required && <span className="ml-0.5 text-red-500">*</span>}
+    </span>
+  );
 }
 
 const inputCls = (err?: boolean) =>
   `w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none transition-colors focus:ring-2 focus:ring-[#307c4c]/20 ${err ? 'border-red-300 focus:border-red-400' : 'border-slate-300 focus:border-[#307c4c]'}`;
 
 export default function CatalogEntryFormClient({
-  initial, countries, currencies, uoms, managers, scope, pendingCount, roleLabel, canApprove, canAdmin, thresholds,
+  initial,
+  countries,
+  currencies,
+  uoms,
+  managers,
+  scope,
+  pendingCount,
+  roleLabel,
+  canApprove,
+  canAdmin,
+  thresholds,
   taxonomy: SPEND_TAXONOMY,
 }: {
   initial: CatalogEntry | null;
@@ -71,9 +94,18 @@ export default function CatalogEntryFormClient({
   const router = useRouter();
   const isEdit = !!initial;
 
-  const defaultCountry = scope !== 'ALL' ? scope : countries[0]?.code ?? 'SA';
+  const defaultCountry = scope !== 'ALL' ? scope : (countries[0]?.code ?? 'SA');
   const defaultCcyOf = (code: string) => {
-    const map: Record<string, string> = { SA: 'SAR', AE: 'AED', KW: 'KWD', OM: 'OMR', QA: 'QAR', IQ: 'USD', DZ: 'DZD', EG: 'EGP' };
+    const map: Record<string, string> = {
+      SA: 'SAR',
+      AE: 'AED',
+      KW: 'KWD',
+      OM: 'OMR',
+      QA: 'QAR',
+      IQ: 'USD',
+      DZ: 'DZD',
+      EG: 'EGP',
+    };
     return map[code] ?? currencies[0]?.code ?? 'USD';
   };
 
@@ -105,19 +137,43 @@ export default function CatalogEntryFormClient({
           lead_time: initial.lead_time_days != null ? String(initial.lead_time_days) : '',
         }
       : {
-          supplier_name: '', supplier_code: '', manager: '', country_code: defaultCountry,
-          category_name: '', subcategory_name: '', spend_type: '', family: '', commodity: '', unspsc_code: '',
-          item_name: '', description: '', uom_name: '', unit_price: '', currency_code: defaultCcyOf(defaultCountry),
-          effective_date: todayStr(), expiry_date: '', notes: '', sirion_contract_id: '', sirion_url: '',
-          incoterms: '', incoterms_location: '', lead_time: '',
+          supplier_name: '',
+          supplier_code: '',
+          manager: '',
+          country_code: defaultCountry,
+          category_name: '',
+          subcategory_name: '',
+          spend_type: '',
+          family: '',
+          commodity: '',
+          unspsc_code: '',
+          item_name: '',
+          description: '',
+          uom_name: '',
+          unit_price: '',
+          currency_code: defaultCcyOf(defaultCountry),
+          effective_date: todayStr(),
+          expiry_date: '',
+          notes: '',
+          sirion_contract_id: '',
+          sirion_url: '',
+          incoterms: '',
+          incoterms_location: '',
+          lead_time: '',
         },
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const catObj = useMemo(() => SPEND_TAXONOMY.find((c) => c.name === f.category_name), [SPEND_TAXONOMY, f.category_name]);
-  const subObj = useMemo(() => catObj?.subs.find((s) => s.name === f.subcategory_name), [catObj, f.subcategory_name]);
+  const catObj = useMemo(
+    () => SPEND_TAXONOMY.find((c) => c.name === f.category_name),
+    [SPEND_TAXONOMY, f.category_name],
+  );
+  const subObj = useMemo(
+    () => catObj?.subs.find((s) => s.name === f.subcategory_name),
+    [catObj, f.subcategory_name],
+  );
   const commodityOptions = subObj?.commodities ?? [];
 
   function set<K extends keyof FormState>(k: K, v: FormState[K]) {
@@ -127,12 +183,21 @@ export default function CatalogEntryFormClient({
       if (k === 'category_name') {
         const c = SPEND_TAXONOMY.find((x) => x.name === v);
         n.spend_type = c?.type ?? '';
-        n.subcategory_name = ''; n.commodity = ''; n.family = ''; n.unspsc_code = '';
+        n.subcategory_name = '';
+        n.commodity = '';
+        n.family = '';
+        n.unspsc_code = '';
       }
-      if (k === 'subcategory_name') { n.commodity = ''; }
+      if (k === 'subcategory_name') {
+        n.commodity = '';
+      }
       if (k === 'commodity') {
         const com = subObj?.commodities.find((c) => c.n === v);
-        if (com) { n.family = com.f; n.unspsc_code = com.code; if (!n.description) n.description = com.desc; }
+        if (com) {
+          n.family = com.f;
+          n.unspsc_code = com.code;
+          if (!n.description) n.description = com.desc;
+        }
       }
       if (k === 'sirion_contract_id') {
         const auto = sirionUrlFor(p.sirion_contract_id);
@@ -146,23 +211,47 @@ export default function CatalogEntryFormClient({
   // the entry. `rate` is null for a currency with no configured rate, which the server refuses.
   const rates = useMemo(() => usdRatesFrom(currencies), [currencies]);
   const categoryIdByName = useMemo(
-    () => new Map(thresholds.filter((t) => t.spend_category_id != null && t.spend_category_name)
-      .map((t) => [t.spend_category_name as string, t.spend_category_id as number] as const)),
+    () =>
+      new Map(
+        thresholds
+          .filter((t) => t.spend_category_id != null && t.spend_category_name)
+          .map((t) => [t.spend_category_name as string, t.spend_category_id as number] as const),
+      ),
     [thresholds],
   );
   const rate = usdRateFor(f.currency_code, rates);
   const usd = f.unit_price && rate !== null ? Number(f.unit_price) * rate : 0;
-  const thresholdUsd = effectiveThresholdUsd(thresholds, f.country_code, categoryIdByName.get(f.category_name) ?? null);
+  const thresholdUsd = effectiveThresholdUsd(
+    thresholds,
+    f.country_code,
+    categoryIdByName.get(f.category_name) ?? null,
+  );
   const needsApproval = usd >= thresholdUsd;
 
   function validate(): boolean {
     const e: Record<string, string> = {};
-    (['supplier_name', 'supplier_code', 'country_code', 'category_name', 'item_name', 'uom_name', 'unit_price', 'currency_code', 'effective_date'] as (keyof FormState)[])
-      .forEach((k) => { if (!String(f[k]).trim()) e[k] = 'Required'; });
+    (
+      [
+        'supplier_name',
+        'supplier_code',
+        'country_code',
+        'category_name',
+        'item_name',
+        'uom_name',
+        'unit_price',
+        'currency_code',
+        'effective_date',
+      ] as (keyof FormState)[]
+    ).forEach((k) => {
+      if (!String(f[k]).trim()) e[k] = 'Required';
+    });
     if (f.unit_price && Number(f.unit_price) <= 0) e.unit_price = 'Must be greater than 0';
-    if (f.expiry_date && f.expiry_date < f.effective_date) e.expiry_date = 'Expiry must be after effective date';
-    if (f.sirion_url && !/^https?:\/\//i.test(f.sirion_url.trim())) e.sirion_url = 'Enter a full URL (https://…)';
-    if (f.lead_time.trim() && (!/^\d+$/.test(f.lead_time.trim()) || Number(f.lead_time) < 0)) e.lead_time = 'Whole number of days';
+    if (f.expiry_date && f.expiry_date < f.effective_date)
+      e.expiry_date = 'Expiry must be after effective date';
+    if (f.sirion_url && !/^https?:\/\//i.test(f.sirion_url.trim()))
+      e.sirion_url = 'Enter a full URL (https://…)';
+    if (f.lead_time.trim() && (!/^\d+$/.test(f.lead_time.trim()) || Number(f.lead_time) < 0))
+      e.lead_time = 'Whole number of days';
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -212,7 +301,10 @@ export default function CatalogEntryFormClient({
     }
   }
 
-  const catGroups = SPEND_TYPE_OPTIONS.map((t) => ({ type: t, cats: SPEND_TAXONOMY.filter((c) => c.type === t) })).filter((g) => g.cats.length);
+  const catGroups = SPEND_TYPE_OPTIONS.map((t) => ({
+    type: t,
+    cats: SPEND_TAXONOMY.filter((c) => c.type === t),
+  })).filter((g) => g.cats.length);
 
   return (
     <CatalogManagerShell
@@ -225,83 +317,196 @@ export default function CatalogEntryFormClient({
     >
       <div className="mx-auto max-w-3xl">
         <div className="mb-5">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">{isEdit ? `Edit entry ${initial!.code}` : 'New catalog entry'}</h1>
-          <p className="mt-1 text-sm text-slate-500">{isEdit ? 'Saving creates a new version; history is retained.' : 'Add a supplier service or indirect-item rate.'}</p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">
+            {isEdit ? `Edit entry ${initial!.code}` : 'New catalog entry'}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {isEdit
+              ? 'Saving creates a new version; history is retained.'
+              : 'Add a supplier service or indirect-item rate.'}
+          </p>
         </div>
 
-        {serverError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{serverError}</div>}
+        {serverError && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {serverError}
+          </div>
+        )}
 
         <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
               <Label required>Supplier name</Label>
-              <input list="supplierList" className={inputCls(!!errors.supplier_name)} value={f.supplier_name} onChange={(e) => set('supplier_name', e.target.value)} placeholder="e.g. Gulf Cementing Co." />
+              <input
+                list="supplierList"
+                className={inputCls(!!errors.supplier_name)}
+                value={f.supplier_name}
+                onChange={(e) => set('supplier_name', e.target.value)}
+                placeholder="e.g. Gulf Cementing Co."
+              />
             </label>
             <label className="flex flex-col gap-1.5">
               <Label required>Supplier code (SAP vendor)</Label>
-              <input className={`${inputCls(!!errors.supplier_code)} font-mono`} value={f.supplier_code} onChange={(e) => set('supplier_code', e.target.value)} placeholder="V-100000" />
+              <input
+                className={`${inputCls(!!errors.supplier_code)} font-mono`}
+                value={f.supplier_code}
+                onChange={(e) => set('supplier_code', e.target.value)}
+                placeholder="V-100000"
+              />
             </label>
 
             <label className="flex flex-col gap-1.5 sm:col-span-2">
               <Label>Supplier manager</Label>
-              <input list="managerList" className={inputCls()} value={f.manager} onChange={(e) => set('manager', e.target.value)} placeholder="Accountable owner for this supplier" />
+              <input
+                list="managerList"
+                className={inputCls()}
+                value={f.manager}
+                onChange={(e) => set('manager', e.target.value)}
+                placeholder="Accountable owner for this supplier"
+              />
             </label>
 
             <label className="flex flex-col gap-1.5">
               <Label required>Country</Label>
-              <select className={inputCls(!!errors.country_code)} value={f.country_code} onChange={(e) => set('country_code', e.target.value)}>
-                {countries.map((c) => <option key={c.code} value={c.code}>{c.flag ? `${c.flag} ` : ''}{c.name}</option>)}
+              <select
+                className={inputCls(!!errors.country_code)}
+                value={f.country_code}
+                onChange={(e) => set('country_code', e.target.value)}
+              >
+                {countries.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.flag ? `${c.flag} ` : ''}
+                    {c.name}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="flex flex-col gap-1.5">
               <Label required>Spend category</Label>
-              <select className={inputCls(!!errors.category_name)} value={f.category_name} onChange={(e) => set('category_name', e.target.value)}>
+              <select
+                className={inputCls(!!errors.category_name)}
+                value={f.category_name}
+                onChange={(e) => set('category_name', e.target.value)}
+              >
                 <option value="">Select category…</option>
-                {catGroups.map((g) => <optgroup key={g.type} label={g.type}>{g.cats.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}</optgroup>)}
+                {catGroups.map((g) => (
+                  <optgroup key={g.type} label={g.type}>
+                    {g.cats.map((c) => (
+                      <option key={c.name} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </label>
 
             <label className="flex flex-col gap-1.5">
               <Label>Sub-category</Label>
-              <select className={inputCls()} value={f.subcategory_name} onChange={(e) => set('subcategory_name', e.target.value)} disabled={!catObj}>
+              <select
+                className={inputCls()}
+                value={f.subcategory_name}
+                onChange={(e) => set('subcategory_name', e.target.value)}
+                disabled={!catObj}
+              >
                 <option value="">{catObj ? 'Select…' : 'Pick a category first'}</option>
-                {catObj?.subs.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+                {catObj?.subs.map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="flex flex-col gap-1.5">
-              <Label>Unit of measure <span className="text-red-500">*</span></Label>
-              <select className={inputCls(!!errors.uom_name)} value={f.uom_name} onChange={(e) => set('uom_name', e.target.value)}>
+              <Label>
+                Unit of measure <span className="text-red-500">*</span>
+              </Label>
+              <select
+                className={inputCls(!!errors.uom_name)}
+                value={f.uom_name}
+                onChange={(e) => set('uom_name', e.target.value)}
+              >
                 <option value="">Select UOM…</option>
-                {uoms.map((u) => <option key={u.name} value={u.name}>{u.name}</option>)}
+                {uoms.map((u) => (
+                  <option key={u.name} value={u.name}>
+                    {u.name}
+                  </option>
+                ))}
               </select>
             </label>
 
             <label className="flex flex-col gap-1.5 sm:col-span-2">
-              <Label>Commodity {f.spend_type ? <span className="font-normal text-slate-400">· Spend type: {f.spend_type}</span> : null}</Label>
-              <select className={inputCls()} value={f.commodity} onChange={(e) => set('commodity', e.target.value)} disabled={!f.subcategory_name}>
-                <option value="">{f.subcategory_name ? (commodityOptions.length ? 'Select commodity…' : 'No commodities listed — enter a description below') : 'Pick a sub-category first'}</option>
-                {commodityOptions.map((c) => <option key={c.n} value={c.n}>{c.n}{c.code ? ` · ${c.code}` : ''}</option>)}
+              <Label>
+                Commodity{' '}
+                {f.spend_type ? (
+                  <span className="font-normal text-slate-400">· Spend type: {f.spend_type}</span>
+                ) : null}
+              </Label>
+              <select
+                className={inputCls()}
+                value={f.commodity}
+                onChange={(e) => set('commodity', e.target.value)}
+                disabled={!f.subcategory_name}
+              >
+                <option value="">
+                  {f.subcategory_name
+                    ? commodityOptions.length
+                      ? 'Select commodity…'
+                      : 'No commodities listed — enter a description below'
+                    : 'Pick a sub-category first'}
+                </option>
+                {commodityOptions.map((c) => (
+                  <option key={c.n} value={c.n}>
+                    {c.n}
+                    {c.code ? ` · ${c.code}` : ''}
+                  </option>
+                ))}
               </select>
             </label>
 
             <label className="flex flex-col gap-1.5 sm:col-span-2">
               <Label required>Service / item description</Label>
-              <input className={inputCls(!!errors.item_name)} value={f.item_name} onChange={(e) => set('item_name', e.target.value)} placeholder="Short title for this priced item" />
+              <input
+                className={inputCls(!!errors.item_name)}
+                value={f.item_name}
+                onChange={(e) => set('item_name', e.target.value)}
+                placeholder="Short title for this priced item"
+              />
             </label>
             <label className="flex flex-col gap-1.5 sm:col-span-2">
               <Label>Detailed description</Label>
-              <textarea className={`${inputCls()} min-h-[64px]`} value={f.description} onChange={(e) => set('description', e.target.value)} placeholder="Describe the service or indirect item being priced…" />
+              <textarea
+                className={`${inputCls()} min-h-[64px]`}
+                value={f.description}
+                onChange={(e) => set('description', e.target.value)}
+                placeholder="Describe the service or indirect item being priced…"
+              />
             </label>
 
             <label className="flex flex-col gap-1.5">
               <Label required>Unit price</Label>
               <div className="flex gap-2">
                 <div className="min-w-0 flex-1">
-                  <input type="number" inputMode="decimal" className={`${inputCls(!!errors.unit_price)} font-mono`} value={f.unit_price} onChange={(e) => set('unit_price', e.target.value)} placeholder="0.00" />
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    className={`${inputCls(!!errors.unit_price)} font-mono`}
+                    value={f.unit_price}
+                    onChange={(e) => set('unit_price', e.target.value)}
+                    placeholder="0.00"
+                  />
                 </div>
                 <div className="w-[96px] shrink-0">
-                  <select className={inputCls()} value={f.currency_code} onChange={(e) => set('currency_code', e.target.value)}>
-                    {currencies.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                  <select
+                    className={inputCls()}
+                    value={f.currency_code}
+                    onChange={(e) => set('currency_code', e.target.value)}
+                  >
+                    {currencies.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.code}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -310,70 +515,153 @@ export default function CatalogEntryFormClient({
 
             <label className="flex flex-col gap-1.5">
               <Label required>Effective date</Label>
-              <input type="date" className={inputCls(!!errors.effective_date)} value={f.effective_date} onChange={(e) => set('effective_date', e.target.value)} />
+              <input
+                type="date"
+                className={inputCls(!!errors.effective_date)}
+                value={f.effective_date}
+                onChange={(e) => set('effective_date', e.target.value)}
+              />
             </label>
             <label className="flex flex-col gap-1.5">
-              <Label>Expiry date <span className="font-normal text-slate-400">· triggers renewal alerts</span></Label>
-              <input type="date" className={inputCls(!!errors.expiry_date)} value={f.expiry_date} onChange={(e) => set('expiry_date', e.target.value)} />
+              <Label>
+                Expiry date{' '}
+                <span className="font-normal text-slate-400">· triggers renewal alerts</span>
+              </Label>
+              <input
+                type="date"
+                className={inputCls(!!errors.expiry_date)}
+                value={f.expiry_date}
+                onChange={(e) => set('expiry_date', e.target.value)}
+              />
             </label>
 
             <label className="flex flex-col gap-1.5">
               <Label>Sirion Contract ID</Label>
-              <input className={`${inputCls()} font-mono`} value={f.sirion_contract_id} onChange={(e) => set('sirion_contract_id', e.target.value)} placeholder="SIR-CN-000000" />
+              <input
+                className={`${inputCls()} font-mono`}
+                value={f.sirion_contract_id}
+                onChange={(e) => set('sirion_contract_id', e.target.value)}
+                placeholder="SIR-CN-000000"
+              />
             </label>
             <label className="flex flex-col gap-1.5">
               <Label>Contract link</Label>
-              <input className={inputCls(!!errors.sirion_url)} value={f.sirion_url} onChange={(e) => set('sirion_url', e.target.value)} placeholder="https://nesr.sirion.ai/contracts/…" />
+              <input
+                className={inputCls(!!errors.sirion_url)}
+                value={f.sirion_url}
+                onChange={(e) => set('sirion_url', e.target.value)}
+                placeholder="https://nesr.sirion.ai/contracts/…"
+              />
             </label>
 
             <label className="flex flex-col gap-1.5">
               <Label>Incoterms</Label>
-              <select className={inputCls()} value={f.incoterms} onChange={(e) => set('incoterms', e.target.value)}>
+              <select
+                className={inputCls()}
+                value={f.incoterms}
+                onChange={(e) => set('incoterms', e.target.value)}
+              >
                 <option value="">Not specified</option>
-                {INCOTERMS.map((i) => <option key={i.code} value={i.code}>{i.label}</option>)}
+                {INCOTERMS.map((i) => (
+                  <option key={i.code} value={i.code}>
+                    {i.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="flex flex-col gap-1.5">
               <Label>Incoterms location</Label>
-              <input className={inputCls()} value={f.incoterms_location} onChange={(e) => set('incoterms_location', e.target.value)} placeholder="e.g. Jebel Ali Port, Dubai" />
+              <input
+                className={inputCls()}
+                value={f.incoterms_location}
+                onChange={(e) => set('incoterms_location', e.target.value)}
+                placeholder="e.g. Jebel Ali Port, Dubai"
+              />
             </label>
             <label className="flex flex-col gap-1.5">
-              <Label>Lead time <span className="font-normal text-slate-400">· days</span></Label>
-              <input type="number" inputMode="numeric" min={0} className={`${inputCls(!!errors.lead_time)} font-mono`} value={f.lead_time} onChange={(e) => set('lead_time', e.target.value)} placeholder="e.g. 45" />
+              <Label>
+                Lead time <span className="font-normal text-slate-400">· days</span>
+              </Label>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                className={`${inputCls(!!errors.lead_time)} font-mono`}
+                value={f.lead_time}
+                onChange={(e) => set('lead_time', e.target.value)}
+                placeholder="e.g. 45"
+              />
             </label>
 
             <label className="flex flex-col gap-1.5 sm:col-span-2">
               <Label>Notes</Label>
-              <textarea className={`${inputCls()} min-h-[52px]`} value={f.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Internal notes — MSA reference, mobilization terms, etc." />
+              <textarea
+                className={`${inputCls()} min-h-[52px]`}
+                value={f.notes}
+                onChange={(e) => set('notes', e.target.value)}
+                placeholder="Internal notes — MSA reference, mobilization terms, etc."
+              />
             </label>
           </div>
 
           {f.unit_price && rate === null && (
             <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-[13px] text-red-700">
               <Icon name="approve" className="h-4 w-4" />
-              <span className="font-semibold">No USD rate is configured for {f.currency_code} — an admin must add one before this entry can be saved.</span>
+              <span className="font-semibold">
+                No USD rate is configured for {f.currency_code} — an admin must add one before this
+                entry can be saved.
+              </span>
             </div>
           )}
           {f.unit_price && rate !== null && (
-            <div className={`mt-4 flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-[13px] ${needsApproval ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-[#307c4c]/20 bg-[#307c4c]/10 text-[#1d4f31]'}`}>
+            <div
+              className={`mt-4 flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-[13px] ${needsApproval ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-[#307c4c]/20 bg-[#307c4c]/10 text-[#1d4f31]'}`}
+            >
               <Icon name={needsApproval ? 'approve' : 'check'} className="h-4 w-4" />
-              <span className="font-semibold">{needsApproval ? 'Tier 2 — requires Approver sign-off' : 'Tier 1 — auto-approved on submit'}</span>
-              <span className="ml-auto font-mono text-[12px] text-slate-500">≈ USD {fmtUsd(usd)} · threshold USD {fmtUsd(thresholdUsd)}</span>
+              <span className="font-semibold">
+                {needsApproval
+                  ? 'Tier 2 — requires Approver sign-off'
+                  : 'Tier 1 — auto-approved on submit'}
+              </span>
+              <span className="ml-auto font-mono text-[12px] text-slate-500">
+                ≈ USD {fmtUsd(usd)} · threshold USD {fmtUsd(thresholdUsd)}
+              </span>
             </div>
           )}
 
           <div className="mt-5 flex justify-end gap-2.5 border-t border-slate-100 pt-4">
-            <button onClick={() => router.back()} disabled={submitting} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50">Cancel</button>
-            <button onClick={() => submit('draft')} disabled={submitting} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98] disabled:opacity-50">Save as draft</button>
-            <button onClick={() => submit('submit')} disabled={submitting} className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[#307c4c]/25 transition-all hover:bg-[#2b6f44] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100">
-              <Icon name="arrowRight" className="h-4 w-4" /> {submitting ? 'Saving…' : needsApproval ? 'Submit for approval' : 'Save & activate'}
+            <button
+              onClick={() => router.back()}
+              disabled={submitting}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => submit('draft')}
+              disabled={submitting}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98] disabled:opacity-50"
+            >
+              Save as draft
+            </button>
+            <button
+              onClick={() => submit('submit')}
+              disabled={submitting}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[#307c4c]/25 transition-all hover:bg-[#2b6f44] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
+            >
+              <Icon name="arrowRight" className="h-4 w-4" />{' '}
+              {submitting ? 'Saving…' : needsApproval ? 'Submit for approval' : 'Save & activate'}
             </button>
           </div>
         </div>
       </div>
 
       <datalist id="supplierList" />
-      <datalist id="managerList">{managers.map((m) => <option key={m} value={m} />)}</datalist>
+      <datalist id="managerList">
+        {managers.map((m) => (
+          <option key={m} value={m} />
+        ))}
+      </datalist>
     </CatalogManagerShell>
   );
 }

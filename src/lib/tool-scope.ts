@@ -37,8 +37,7 @@ import { TITE_VIEW_ALL_COUNTRIES } from '@/lib/tite-constants';
 
 export type ToolName = 'sourceguide' | 'tite';
 
-export type ToolAccessStatus =
-  | 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
+export type ToolAccessStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 
 export interface ToolScope {
   /** Always lowercase. The canonical identity for reads and writes. */
@@ -81,13 +80,12 @@ function eq(a: string, b: string): boolean {
  */
 export function getToolScope(session: Session | null | undefined, tool: ToolName): ToolScope {
   const email = normalizeEmail(session?.user?.email);
-  const name  = session?.user?.name ?? email;
+  const name = session?.user?.name ?? email;
 
   const isAdmin =
-    !!email &&
-    (isToolAdminEmail(email, toolAdminEnv(tool)) || session?.user?.isAdmin === true);
+    !!email && (isToolAdminEmail(email, toolAdminEnv(tool)) || session?.user?.isAdmin === true);
 
-  const entry  = session?.user?.toolAccess?.[tool];
+  const entry = session?.user?.toolAccess?.[tool];
   const status = (entry?.status ?? 'new') as ToolAccessStatus;
   const approvedCountries = entry?.approvedCountries ?? [];
 
@@ -96,11 +94,11 @@ export function getToolScope(session: Session | null | undefined, tool: ToolName
   const viewOnly =
     !isAdmin &&
     (tool === 'tite'
-      // Also honour the dedicated JWT field, so a cookie predating it is still
-      // enforced without forcing a re-login.
-      ? (session?.user?.titeViewOnly === true || hasSentinel)
-      // SourceGuide: an approved non-champion has no countries and edits nothing.
-      : (hasSentinel || approvedCountries.length === 0));
+      ? // Also honour the dedicated JWT field, so a cookie predating it is still
+        // enforced without forcing a re-login.
+        session?.user?.titeViewOnly === true || hasSentinel
+      : // SourceGuide: an approved non-champion has no countries and edits nothing.
+        hasSentinel || approvedCountries.length === 0);
 
   const approved = isAdmin || status === 'approved';
 
@@ -118,7 +116,7 @@ export function getToolScope(session: Session | null | undefined, tool: ToolName
       if (viewOnly) return false;
       const c = (country ?? '').trim();
       if (!c) return false;
-      return approvedCountries.some(a => eq(a, c));
+      return approvedCountries.some((a) => eq(a, c));
     },
   };
 }

@@ -25,7 +25,10 @@ function loadEnvFile(filePath) {
     if (equalsAt < 0) continue;
     const key = trimmed.slice(0, equalsAt).trim();
     let value = trimmed.slice(equalsAt + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1);
     }
     process.env[key] ??= value;
@@ -37,7 +40,8 @@ loadEnvFile(envPath);
 // Accepts the platform-standard DB_* names and the POSTGRES_* / SnS_DB / PGSSL
 // names used in .env.local. DB_* wins where both are set.
 const sslFlag = process.env.DB_SSL ?? process.env.PGSSL ?? '';
-const sslConfig = sslFlag === 'true' || sslFlag === 'require' ? { rejectUnauthorized: false } : false;
+const sslConfig =
+  sslFlag === 'true' || sslFlag === 'require' ? { rejectUnauthorized: false } : false;
 const host = process.env.DB_HOST ?? process.env.POSTGRES_HOST ?? 'localhost';
 const port = Number(process.env.DB_PORT ?? process.env.POSTGRES_PORT) || 5432;
 const user = process.env.DB_USER ?? process.env.POSTGRES_USER ?? 'postgres';
@@ -65,7 +69,15 @@ console.log('Schema applied.');
 // 3. Seed reference data. Every insert is ON CONFLICT DO NOTHING, so rows
 //    renamed or deleted in the admin console are not resurrected by name —
 //    only genuinely missing rows are added back.
-let counts = { categories: 0, subs: 0, families: 0, commodities: 0, countries: 0, segments: 0, reasons: 0 };
+let counts = {
+  categories: 0,
+  subs: 0,
+  families: 0,
+  commodities: 0,
+  countries: 0,
+  segments: 0,
+  reasons: 0,
+};
 
 for (const [catIndex, [spendType, catName, subs]] of TAXONOMY.entries()) {
   const cat = await client.query(
@@ -76,7 +88,9 @@ for (const [catIndex, [spendType, catName, subs]] of TAXONOMY.entries()) {
   );
   let categoryId = cat.rows[0]?.id;
   if (categoryId) counts.categories++;
-  else categoryId = (await client.query(`SELECT id FROM sns_category WHERE name = $1`, [catName])).rows[0].id;
+  else
+    categoryId = (await client.query(`SELECT id FROM sns_category WHERE name = $1`, [catName]))
+      .rows[0].id;
 
   for (const [subIndex, [subName, families]] of subs.entries()) {
     const sub = await client.query(
@@ -87,9 +101,13 @@ for (const [catIndex, [spendType, catName, subs]] of TAXONOMY.entries()) {
     );
     let subId = sub.rows[0]?.id;
     if (subId) counts.subs++;
-    else subId = (await client.query(
-      `SELECT id FROM sns_sub_category WHERE category_id = $1 AND name = $2`, [categoryId, subName],
-    )).rows[0].id;
+    else
+      subId = (
+        await client.query(`SELECT id FROM sns_sub_category WHERE category_id = $1 AND name = $2`, [
+          categoryId,
+          subName,
+        ])
+      ).rows[0].id;
 
     for (const [famIndex, [famName, commodities]] of families.entries()) {
       const fam = await client.query(
@@ -100,9 +118,13 @@ for (const [catIndex, [spendType, catName, subs]] of TAXONOMY.entries()) {
       );
       let famId = fam.rows[0]?.id;
       if (famId) counts.families++;
-      else famId = (await client.query(
-        `SELECT id FROM sns_family WHERE sub_category_id = $1 AND name = $2`, [subId, famName],
-      )).rows[0].id;
+      else
+        famId = (
+          await client.query(`SELECT id FROM sns_family WHERE sub_category_id = $1 AND name = $2`, [
+            subId,
+            famName,
+          ])
+        ).rows[0].id;
 
       for (const [comIndex, comName] of commodities.entries()) {
         const com = await client.query(

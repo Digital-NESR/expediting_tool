@@ -121,7 +121,7 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
       cls: 'SGL',
       country:
         viewer.countryCodes.length === 1
-          ? countries.find((c) => c[1] === viewer.countryCodes[0])?.[0] ?? ''
+          ? (countries.find((c) => c[1] === viewer.countryCodes[0])?.[0] ?? '')
           : '',
       level: 'Family',
       nodes: [],
@@ -150,7 +150,10 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
       if (!prev) return prev;
       const k = nodeKey(node);
       const has = prev.nodes.some((n) => nodeKey(n) === k);
-      return { ...prev, nodes: has ? prev.nodes.filter((n) => nodeKey(n) !== k) : prev.nodes.concat([node]) };
+      return {
+        ...prev,
+        nodes: has ? prev.nodes.filter((n) => nodeKey(n) !== k) : prev.nodes.concat([node]),
+      };
     });
   }, []);
 
@@ -190,10 +193,13 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
 
   const reject = useCallback(
     (rid: number, text: string) => {
-      run(() => rejectSnsRecord(rid, text), () => {
-        setRejectFor(null);
-        setRejectText('');
-      });
+      run(
+        () => rejectSnsRecord(rid, text),
+        () => {
+          setRejectFor(null);
+          setRejectText('');
+        },
+      );
     },
     [run],
   );
@@ -217,14 +223,44 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
   }, [records, filters]);
 
   const exportCsv = useCallback(() => {
-    const header = ['Registry ID', 'Classification', 'Country', 'Country code', 'Scope level', 'Scope', 'Segments', 'Supplier SAP ID', 'Supplier SAP Name', 'Reason code', 'Status', 'Issue date', 'Expiry date', 'Annual spend USD'];
-    const rows = [header, ...filteredRecords.map((r) => [
-      r.id || '(not issued)', clsLabel(r.cls), r.country, r.countryCode, r.level,
-      r.nodes.map((n) => n.com || n.fam).join('; '), r.segments.join('; '),
-      r.supplierId, r.supplierName, r.reason, displayStatus(r),
-      r.issue || '', r.expiry || '', String(r.spend),
-    ])];
-    const csv = rows.map((row) => row.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+    const header = [
+      'Registry ID',
+      'Classification',
+      'Country',
+      'Country code',
+      'Scope level',
+      'Scope',
+      'Segments',
+      'Supplier SAP ID',
+      'Supplier SAP Name',
+      'Reason code',
+      'Status',
+      'Issue date',
+      'Expiry date',
+      'Annual spend USD',
+    ];
+    const rows = [
+      header,
+      ...filteredRecords.map((r) => [
+        r.id || '(not issued)',
+        clsLabel(r.cls),
+        r.country,
+        r.countryCode,
+        r.level,
+        r.nodes.map((n) => n.com || n.fam).join('; '),
+        r.segments.join('; '),
+        r.supplierId,
+        r.supplierName,
+        r.reason,
+        displayStatus(r),
+        r.issue || '',
+        r.expiry || '',
+        String(r.spend),
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(','))
+      .join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     const a = document.createElement('a');
     a.href = url;
@@ -261,7 +297,8 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
    * the server uses, so renaming a country cannot make the two disagree.
    */
   const canActOn = useCallback(
-    (code: string) => viewer.countryCodes.length === 0 || (!!code && viewer.countryCodes.includes(code)),
+    (code: string) =>
+      viewer.countryCodes.length === 0 || (!!code && viewer.countryCodes.includes(code)),
     [viewer.countryCodes],
   );
 

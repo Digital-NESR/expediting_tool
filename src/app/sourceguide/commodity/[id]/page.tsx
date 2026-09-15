@@ -6,7 +6,8 @@ import CommodityDetailClient from './CommodityDetailClient';
 export const metadata: Metadata = { title: 'NESR | Commodity - SourceGuide' };
 
 export default async function CommodityDetailPage({
-  params, searchParams,
+  params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ country?: string }>;
@@ -19,5 +20,11 @@ export default async function CommodityDetailPage({
   const [detail, countries] = await Promise.all([getCommodityDetail(numId), getCountries()]);
   if (!detail) notFound();
 
-  return <CommodityDetailClient detail={detail} countries={countries} initialCountry={sp.country ?? null} />;
+  return (
+    <CommodityDetailClient
+      detail={detail}
+      countries={countries}
+      initialCountry={sp.country ?? null}
+    />
+  );
 }

@@ -14,18 +14,18 @@ interface Props {
 export default function RequestAccessClient({ userEmail, displayName, countries }: Props) {
   const router = useRouter();
   const { update } = useSession();
-  const [search, setSearch]       = useState('');
-  const [selected, setSelected]   = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
-  const [error, setError]         = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const filtered = useMemo(
-    () => countries.filter(c => c.toLowerCase().includes(search.toLowerCase())),
+    () => countries.filter((c) => c.toLowerCase().includes(search.toLowerCase())),
     [countries, search],
   );
 
   function toggle(country: string) {
-    setSelected(prev => {
+    setSelected((prev) => {
       const next = new Set(prev);
       next.has(country) ? next.delete(country) : next.add(country);
       return next;
@@ -53,27 +53,45 @@ export default function RequestAccessClient({ userEmail, displayName, countries 
         <div className="px-7 pt-7 pb-5 border-b border-slate-100">
           <div className="flex items-center gap-3 mb-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/nesr-logo-circle.png" alt="NESR" className="w-8 h-8 rounded-full object-cover" />
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">SC Agents</span>
+            <img
+              src="/nesr-logo-circle.png"
+              alt="NESR"
+              className="w-8 h-8 rounded-full object-cover"
+            />
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              SC Agents
+            </span>
           </div>
           <h1 className="text-xl font-bold text-slate-900 leading-tight">Request Access</h1>
           <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
             Select the countries you need access to. An admin will review your request.
           </p>
-          <p className="text-xs text-slate-400 mt-2">Signed in as <span className="font-medium text-slate-600">{displayName}</span></p>
+          <p className="text-xs text-slate-400 mt-2">
+            Signed in as <span className="font-medium text-slate-600">{displayName}</span>
+          </p>
         </div>
 
         {/* Search */}
         <div className="px-7 pt-5 pb-3">
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"
+              />
             </svg>
             <input
               type="text"
               placeholder="Search countries…"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors placeholder-slate-400"
             />
           </div>
@@ -90,7 +108,7 @@ export default function RequestAccessClient({ userEmail, displayName, countries 
             <p className="text-sm text-slate-400 py-4 text-center">No countries found.</p>
           ) : (
             <div className="space-y-0.5">
-              {filtered.map(country => {
+              {filtered.map((country) => {
                 const checked = selected.has(country);
                 return (
                   <label
@@ -103,7 +121,9 @@ export default function RequestAccessClient({ userEmail, displayName, countries 
                       onChange={() => toggle(country)}
                       className="w-4 h-4 rounded border-slate-300 text-[#307c4c] focus:ring-[#307c4c]/20 cursor-pointer"
                     />
-                    <span className={`text-sm font-medium transition-colors ${checked ? 'text-slate-900' : 'text-slate-600 group-hover:text-slate-800'}`}>
+                    <span
+                      className={`text-sm font-medium transition-colors ${checked ? 'text-slate-900' : 'text-slate-600 group-hover:text-slate-800'}`}
+                    >
                       {country}
                     </span>
                   </label>

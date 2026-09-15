@@ -13,8 +13,16 @@ import { actorReviewGrants } from '@/lib/procure-guard/access';
 import { getActor, requireAdminActor } from '@/lib/procure-guard/actor';
 import { getPermissionRowForEmail } from '@/lib/procure-guard/actor-scope';
 import { ADMIN_DELEGATION_REFUSAL, isValidEmail } from '@/lib/procure-guard/constants';
-import { getDelegatorOpenItems, sendProcureGuardDelegationEmail } from '@/lib/procure-guard/delegation-email';
-import { ensureProcureGuardDelegationTable, exec, serialise, sql } from '@/lib/procure-guard/internals';
+import {
+  getDelegatorOpenItems,
+  sendProcureGuardDelegationEmail,
+} from '@/lib/procure-guard/delegation-email';
+import {
+  ensureProcureGuardDelegationTable,
+  exec,
+  serialise,
+  sql,
+} from '@/lib/procure-guard/internals';
 import {
   blankToNull,
   isProcureGuardAdminEmail,
@@ -53,11 +61,15 @@ export async function getProcureGuardDelegationData(): Promise<ProcureGuardDeleg
   }
 }
 
-export async function grantProcureGuardDelegation(input: { delegateEmail: string; delegateName?: string; expiresAt?: string | null }): Promise<ActionResult<{ id: number }>> {
+export async function grantProcureGuardDelegation(input: {
+  delegateEmail: string;
+  delegateName?: string;
+  expiresAt?: string | null;
+}): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await getActor();
     await ensureProcureGuardDelegationTable();
-    const selfGrant = actorReviewGrants(actor).find(grant => grant.source === 'self');
+    const selfGrant = actorReviewGrants(actor).find((grant) => grant.source === 'self');
     if (!selfGrant) {
       return { success: false, error: 'Only approvers can delegate their approval authority.' };
     }
@@ -82,7 +94,13 @@ export async function grantProcureGuardDelegation(input: { delegateEmail: string
     const result = await exec(
       `INSERT INTO procure_guard_delegations (delegator_email, delegator_name, delegate_email, delegate_name, expires_at)
        VALUES (?, ?, ?, ?, ?) RETURNING id`,
-      [actor.email.toLowerCase(), actor.name, delegateEmail, blankToNull(input.delegateName), expiresAt],
+      [
+        actor.email.toLowerCase(),
+        actor.name,
+        delegateEmail,
+        blankToNull(input.delegateName),
+        expiresAt,
+      ],
     );
 
     const openItems = await getDelegatorOpenItems(selfGrant);
@@ -98,7 +116,10 @@ export async function grantProcureGuardDelegation(input: { delegateEmail: string
     return { success: true, data: { id: result.insertId } };
   } catch (err) {
     log.error('grantProcureGuardDelegation.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to create delegation.',
+    };
   }
 }
 
@@ -106,7 +127,10 @@ export async function revokeProcureGuardDelegation(id: number): Promise<ActionRe
   try {
     const actor = await getActor();
     await ensureProcureGuardDelegationTable();
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM procure_guard_delegations WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT * FROM procure_guard_delegations WHERE id = ? LIMIT 1`,
+      [id],
+    );
     const row = rows[0];
     if (!row) return { success: false, error: 'Delegation not found.' };
     const isOwner = String(row.delegator_email).toLowerCase() === actor.email.toLowerCase();
@@ -131,7 +155,10 @@ export async function revokeProcureGuardDelegation(id: number): Promise<ActionRe
     return { success: true };
   } catch (err) {
     log.error('revokeProcureGuardDelegation.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to revoke delegation.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to revoke delegation.',
+    };
   }
 }
 
@@ -149,16 +176,25 @@ export async function adminGrantProcureGuardDelegation(input: {
 
     const delegatorEmail = requireText(input.delegatorEmail, 'Approver email').toLowerCase();
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
-    if (!isValidEmail(delegatorEmail)) return { success: false, error: 'Enter a valid approver email address.' };
-    if (!isValidEmail(delegateEmail)) return { success: false, error: 'Enter a valid delegate email address.' };
-    if (delegatorEmail === delegateEmail) return { success: false, error: 'Approver and delegate must be different people.' };
+    if (!isValidEmail(delegatorEmail))
+      return { success: false, error: 'Enter a valid approver email address.' };
+    if (!isValidEmail(delegateEmail))
+      return { success: false, error: 'Enter a valid delegate email address.' };
+    if (delegatorEmail === delegateEmail)
+      return { success: false, error: 'Approver and delegate must be different people.' };
 
     // The delegator must have approval authority to hand off.
     const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
-    const delegatorRole = (delegatorRow?.role ?? (isProcureGuardAdminEmail(delegatorEmail) ? 'Admin' : 'Requester')) as ProcureGuardPermissionRole;
+    const delegatorRole = (delegatorRow?.role ??
+      (isProcureGuardAdminEmail(delegatorEmail)
+        ? 'Admin'
+        : 'Requester')) as ProcureGuardPermissionRole;
     const delegatorProfile = getPermissionProfile(delegatorRole);
     if (!delegatorProfile.canViewAll) {
-      return { success: false, error: 'The selected approver has no approval authority to delegate.' };
+      return {
+        success: false,
+        error: 'The selected approver has no approval authority to delegate.',
+      };
     }
     if (delegatorRole === 'Admin') {
       return { success: false, error: ADMIN_DELEGATION_REFUSAL };
@@ -201,6 +237,9 @@ export async function adminGrantProcureGuardDelegation(input: {
     return { success: true, data: { id: result.insertId } };
   } catch (err) {
     log.error('adminGrantProcureGuardDelegation.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to create delegation.',
+    };
   }
 }

@@ -81,7 +81,19 @@ const ROLE_LABEL: Record<Role, string> = {
 const rowBg = (index: number, alt: string) => (index % 2 === 0 ? 'white' : alt);
 
 export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel {
-  const { role, screen, vendors, countries, evidence, filterStatus, modal, toasts, expandedVendor, uploadStep, handedOff } = state;
+  const {
+    role,
+    screen,
+    vendors,
+    countries,
+    evidence,
+    filterStatus,
+    modal,
+    toasts,
+    expandedVendor,
+    uploadStep,
+    handedOff,
+  } = state;
 
   const totalCount = vendors.length;
   const receivedCount = vendors.filter((v) => v.status === 'received').length;
@@ -89,10 +101,15 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
   const remindedCount = vendors.filter((v) => v.status === 'reminded').length;
   const nonResponderCount = vendors.filter((v) => v.status === 'non_responder').length;
   const pendingResponseCount = requestedCount + remindedCount;
-  const receivedBalance = vendors.filter((v) => v.status === 'received').reduce((s, v) => s + v.openPO, 0);
+  const receivedBalance = vendors
+    .filter((v) => v.status === 'received')
+    .reduce((s, v) => s + v.openPO, 0);
   const coveragePct = totalCount > 0 ? Math.round((receivedBalance / TOTAL_BALANCE) * 100) : 0;
   const coverageMet = coveragePct >= 70;
-  const ksa = countries.find((c) => c.id === ACTIVE_COUNTRY_ID) ?? { status: 'in_progress' as CountryStatus, pct: 74 };
+  const ksa = countries.find((c) => c.id === ACTIVE_COUNTRY_ID) ?? {
+    status: 'in_progress' as CountryStatus,
+    pct: 74,
+  };
 
   // Workflow pipeline (6 steps, derived from the active country's status)
   const pStep = COUNTRY_PIPELINE_STAGE[ksa.status] ?? 4;
@@ -124,20 +141,68 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
 
   // KPI cards
   const kpiCards: KpiCardVM[] = [
-    { label: 'In-Scope Vendors', value: String(totalCount), sub: 'POs last 18 months > $250,000', accent: GREEN },
-    { label: 'SOAs Received', value: String(receivedCount), sub: `${totalCount ? Math.round((receivedCount / totalCount) * 100) : 0}% of vendors`, accent: GREEN },
-    { label: 'Awaiting Response', value: String(pendingResponseCount), sub: `${requestedCount} requested · ${remindedCount} reminded`, accent: ORANGE },
-    { label: '18-Month PO Coverage', value: `${coveragePct}%`, sub: coverageMet ? '✓ Meets 70% threshold' : '⚠ Below 70% target', accent: coverageMet ? GREEN : ORANGE },
+    {
+      label: 'In-Scope Vendors',
+      value: String(totalCount),
+      sub: 'POs last 18 months > $250,000',
+      accent: GREEN,
+    },
+    {
+      label: 'SOAs Received',
+      value: String(receivedCount),
+      sub: `${totalCount ? Math.round((receivedCount / totalCount) * 100) : 0}% of vendors`,
+      accent: GREEN,
+    },
+    {
+      label: 'Awaiting Response',
+      value: String(pendingResponseCount),
+      sub: `${requestedCount} requested · ${remindedCount} reminded`,
+      accent: ORANGE,
+    },
+    {
+      label: '18-Month PO Coverage',
+      value: `${coveragePct}%`,
+      sub: coverageMet ? '✓ Meets 70% threshold' : '⚠ Below 70% target',
+      accent: coverageMet ? GREEN : ORANGE,
+    },
     { label: 'Days Remaining', value: '11', sub: 'Until 31 Jul 2026', accent: BLUE },
   ].map((c) => ({
     ...c,
-    cardStyle: { background: 'white', borderRadius: 10, padding: '14px 16px', borderTop: `4px solid ${c.accent}`, boxShadow: '0 1px 3px rgba(0,0,0,0.07)' },
-    valueStyle: { fontSize: 30, fontWeight: 'bold', color: c.accent, lineHeight: 1, margin: '4px 0' },
+    cardStyle: {
+      background: 'white',
+      borderRadius: 10,
+      padding: '14px 16px',
+      borderTop: `4px solid ${c.accent}`,
+      boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
+    },
+    valueStyle: {
+      fontSize: 30,
+      fontWeight: 'bold',
+      color: c.accent,
+      lineHeight: 1,
+      margin: '4px 0',
+    },
   }));
 
-  const coverageBarStyle: CSSProperties = { background: coverageMet ? GREEN : '#FF8F00', borderRadius: 3, height: '100%', width: `${Math.min(coveragePct, 100)}%`, transition: 'width 0.4s ease' };
-  const coverageValueStyle: CSSProperties = { fontSize: 36, fontWeight: 'bold', color: coverageMet ? GREEN : ORANGE, lineHeight: 1, marginBottom: 4 };
-  const coverageCheckLabelStyle: CSSProperties = { fontSize: 11, fontWeight: 'bold', color: coverageMet ? GREEN : ORANGE };
+  const coverageBarStyle: CSSProperties = {
+    background: coverageMet ? GREEN : '#FF8F00',
+    borderRadius: 3,
+    height: '100%',
+    width: `${Math.min(coveragePct, 100)}%`,
+    transition: 'width 0.4s ease',
+  };
+  const coverageValueStyle: CSSProperties = {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: coverageMet ? GREEN : ORANGE,
+    lineHeight: 1,
+    marginBottom: 4,
+  };
+  const coverageCheckLabelStyle: CSSProperties = {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: coverageMet ? GREEN : ORANGE,
+  };
   const coverageCheckLabel = `${coverageMet ? '✓ ' : '⚠ '}${coveragePct}% — ${coverageMet ? 'Meets 70% Q3 threshold' : 'Below 70% target'}`;
 
   // Vendor response status bar + legend
@@ -153,15 +218,31 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
     .map((s) => ({
       ...s,
       segStyle: { background: s.color, flex: s.count, height: '100%' },
-      dotStyle: { width: 10, height: 10, borderRadius: '50%', background: s.color, display: 'inline-block', marginRight: 4, verticalAlign: 'middle' },
+      dotStyle: {
+        width: 10,
+        height: 10,
+        borderRadius: '50%',
+        background: s.color,
+        display: 'inline-block',
+        marginRight: 4,
+        verticalAlign: 'middle',
+      },
     }));
 
   // Sidebar nav
   const NAV: { id: ScreenId; label: string; badge: string | null }[] = [
     { id: 'dashboard', label: 'Dashboard', badge: null },
     { id: 'scoping', label: 'Vendor Scoping', badge: null },
-    { id: 'outreach', label: 'Outreach', badge: requestedCount > 0 ? String(requestedCount) : null },
-    { id: 'tracking', label: 'Response Tracking', badge: pendingResponseCount > 0 ? String(pendingResponseCount) : null },
+    {
+      id: 'outreach',
+      label: 'Outreach',
+      badge: requestedCount > 0 ? String(requestedCount) : null,
+    },
+    {
+      id: 'tracking',
+      label: 'Response Tracking',
+      badge: pendingResponseCount > 0 ? String(pendingResponseCount) : null,
+    },
     { id: 'intake', label: 'SOA Intake', badge: null },
     { id: 'consolidation', label: 'Consolidation', badge: null },
     { id: 'evidence', label: 'Evidence Repository', badge: null },
@@ -203,9 +284,9 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
       cursor: 'pointer',
       fontSize: 11,
       fontWeight: 'bold',
-      border: `2px solid ${t.status === filterStatus ? t.color ?? GREEN : 'transparent'}`,
+      border: `2px solid ${t.status === filterStatus ? (t.color ?? GREEN) : 'transparent'}`,
       background: t.status === filterStatus ? `${t.color ?? GREEN}18` : '#F0F0F0',
-      color: t.status === filterStatus ? t.color ?? GREEN : GRAY,
+      color: t.status === filterStatus ? (t.color ?? GREEN) : GRAY,
       whiteSpace: 'nowrap',
     },
     onClick: () => handlers.setFilterStatus(t.status),
@@ -227,7 +308,9 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
   });
 
   // Response Tracking — enriched vendor rows
-  const vendorsEnriched: VendorEnrichedVM[] = (filterStatus === 'all' ? vendors : vendors.filter((v) => v.status === filterStatus)).map((v) => ({
+  const vendorsEnriched: VendorEnrichedVM[] = (
+    filterStatus === 'all' ? vendors : vendors.filter((v) => v.status === filterStatus)
+  ).map((v) => ({
     ...enrichVendorRow(v),
     rowBg: v.id === expandedVendor ? '#F0F9F4' : 'white',
     isExpanded: v.id === expandedVendor,
@@ -252,7 +335,10 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
         ...enrichVendorRow(v),
         rank: i + 1,
         cumPct,
-        cumStyle: { fontWeight: 'bold', color: cumPct >= 70 ? GREEN : cumPct >= 50 ? ORANGE : RED } as CSSProperties,
+        cumStyle: {
+          fontWeight: 'bold',
+          color: cumPct >= 70 ? GREEN : cumPct >= 50 ? ORANGE : RED,
+        } as CSSProperties,
         rowBg: rowBg(i, '#F8FBF9'),
       };
     });
@@ -279,7 +365,8 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
       {
         label: '10–14 Day Gap Compliance',
         icon: '✓',
-        detail: 'All follow-up reminders sent within the 10–14 day SOP window from the initial request date.',
+        detail:
+          'All follow-up reminders sent within the 10–14 day SOP window from the initial request date.',
         pass: true,
         borderColor: GREEN,
         iconBg: GREEN,
@@ -295,12 +382,42 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
     ] as Omit<ComplianceItemVM, 'rowStyle' | 'iconStyle'>[]
   ).map((c) => ({
     ...c,
-    rowStyle: { display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 15px', background: 'white', borderRadius: 8, marginBottom: 8, borderLeft: `4px solid ${c.borderColor}` },
-    iconStyle: { width: 26, height: 26, borderRadius: '50%', background: c.iconBg, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0, fontSize: 13, marginTop: 1 },
+    rowStyle: {
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 12,
+      padding: '12px 15px',
+      background: 'white',
+      borderRadius: 8,
+      marginBottom: 8,
+      borderLeft: `4px solid ${c.borderColor}`,
+    },
+    iconStyle: {
+      width: 26,
+      height: 26,
+      borderRadius: '50%',
+      background: c.iconBg,
+      color: 'white',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontWeight: 'bold',
+      flexShrink: 0,
+      fontSize: 13,
+      marginTop: 1,
+    },
   }));
   const allPass = complianceItems.every((c) => c.pass);
   const allPassLabel = allPass ? '✓ All criteria met' : '⚠ Some criteria not met';
-  const allPassStyle: CSSProperties = { fontSize: 12, fontWeight: 'bold', color: allPass ? GREEN : ORANGE, background: allPass ? '#E8F5EE' : '#FFF3E0', border: `1px solid ${allPass ? GREEN : ORANGE}`, borderRadius: 6, padding: '4px 12px' };
+  const allPassStyle: CSSProperties = {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: allPass ? GREEN : ORANGE,
+    background: allPass ? '#E8F5EE' : '#FFF3E0',
+    border: `1px solid ${allPass ? GREEN : ORANGE}`,
+    borderRadius: 6,
+    padding: '4px 12px',
+  };
 
   const consolidatedRows = vendors
     .filter((v) => v.status === 'received')
@@ -311,20 +428,48 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
     ...e,
     typeColor: EVIDENCE_TYPE_STYLE[e.type]?.color ?? GRAY,
     typeLabel: EVIDENCE_TYPE_STYLE[e.type]?.label ?? e.type,
-    badgeStyle: { background: EVIDENCE_TYPE_STYLE[e.type]?.color ?? GRAY, color: 'white', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 'bold', display: 'inline-block' },
-    dotStyle: { width: 10, height: 10, borderRadius: '50%', background: EVIDENCE_TYPE_STYLE[e.type]?.color ?? GRAY, flexShrink: 0, marginTop: 6 },
+    badgeStyle: {
+      background: EVIDENCE_TYPE_STYLE[e.type]?.color ?? GRAY,
+      color: 'white',
+      borderRadius: 4,
+      padding: '1px 7px',
+      fontSize: 10,
+      fontWeight: 'bold',
+      display: 'inline-block',
+    },
+    dotStyle: {
+      width: 10,
+      height: 10,
+      borderRadius: '50%',
+      background: EVIDENCE_TYPE_STYLE[e.type]?.color ?? GRAY,
+      flexShrink: 0,
+      marginTop: 6,
+    },
   }));
 
   // Corporate Rollup
   const countriesEnriched: CountryRowVM[] = countries.map((c, i) => {
-    const isAtRisk = c.pct < 70 && c.status !== 'handed_off' && c.daysLeft <= 10 && c.status !== 'not_started';
+    const isAtRisk =
+      c.pct < 70 && c.status !== 'handed_off' && c.daysLeft <= 10 && c.status !== 'not_started';
     return {
       ...c,
       statusLabel: COUNTRY_STATUS_STYLE[c.status]?.label ?? c.status,
       fmtBalance: fmtM(c.balance),
       isAtRisk,
-      badgeStyle: { background: COUNTRY_STATUS_STYLE[c.status]?.bg ?? '#F5F5F5', color: COUNTRY_STATUS_STYLE[c.status]?.color ?? GRAY, borderRadius: 12, padding: '2px 9px', fontSize: 10, fontWeight: 'bold' },
-      pctBarStyle: { background: c.pct >= 70 ? GREEN : c.pct >= 50 ? ORANGE : RED, height: '100%', width: `${Math.min(c.pct, 100)}%`, borderRadius: 2 },
+      badgeStyle: {
+        background: COUNTRY_STATUS_STYLE[c.status]?.bg ?? '#F5F5F5',
+        color: COUNTRY_STATUS_STYLE[c.status]?.color ?? GRAY,
+        borderRadius: 12,
+        padding: '2px 9px',
+        fontSize: 10,
+        fontWeight: 'bold',
+      },
+      pctBarStyle: {
+        background: c.pct >= 70 ? GREEN : c.pct >= 50 ? ORANGE : RED,
+        height: '100%',
+        width: `${Math.min(c.pct, 100)}%`,
+        borderRadius: 2,
+      },
       rowStyle: {
         display: 'grid',
         gridTemplateColumns: '140px 130px 85px 110px 115px 70px 65px',
@@ -335,26 +480,68 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
         borderBottom: '1px solid #F0F0F0',
         borderLeft: isAtRisk ? '3px solid #E65100' : '3px solid transparent',
       },
-      daysStyle: { fontSize: 11, fontWeight: 'bold', color: c.daysLeft <= 5 && c.status !== 'handed_off' ? RED : GRAY },
+      daysStyle: {
+        fontSize: 11,
+        fontWeight: 'bold',
+        color: c.daysLeft <= 5 && c.status !== 'handed_off' ? RED : GRAY,
+      },
     };
   });
 
   const handedOffCount = countries.filter((c) => c.status === 'handed_off').length;
   const atRiskCount = countriesEnriched.filter((c) => c.isAtRisk).length;
-  const avgCoverage = countries.length > 0 ? Math.round(countries.reduce((s, c) => s + c.pct, 0) / countries.length) : 0;
-  const inProgressCount = countries.filter((c) => !['not_started', 'handed_off'].includes(c.status)).length;
+  const avgCoverage =
+    countries.length > 0
+      ? Math.round(countries.reduce((s, c) => s + c.pct, 0) / countries.length)
+      : 0;
+  const inProgressCount = countries.filter(
+    (c) => !['not_started', 'handed_off'].includes(c.status),
+  ).length;
   const corpKpiCards: KpiCardVM[] = [
-    { label: 'Active Countries', value: String(inProgressCount), sub: `of ${countries.length} total entities`, accent: BLUE },
-    { label: 'Handed Off', value: String(handedOffCount), sub: 'Delivered to Finance', accent: GREEN },
-    { label: 'At Risk', value: String(atRiskCount), sub: 'Coverage < 70%, < 10 days', accent: atRiskCount > 0 ? RED : GRAY },
-    { label: 'Avg Coverage', value: `${avgCoverage}%`, sub: 'Across all 12 entities', accent: avgCoverage >= 70 ? GREEN : ORANGE },
+    {
+      label: 'Active Countries',
+      value: String(inProgressCount),
+      sub: `of ${countries.length} total entities`,
+      accent: BLUE,
+    },
+    {
+      label: 'Handed Off',
+      value: String(handedOffCount),
+      sub: 'Delivered to Finance',
+      accent: GREEN,
+    },
+    {
+      label: 'At Risk',
+      value: String(atRiskCount),
+      sub: 'Coverage < 70%, < 10 days',
+      accent: atRiskCount > 0 ? RED : GRAY,
+    },
+    {
+      label: 'Avg Coverage',
+      value: `${avgCoverage}%`,
+      sub: 'Across all 12 entities',
+      accent: avgCoverage >= 70 ? GREEN : ORANGE,
+    },
   ].map((c) => ({
     ...c,
-    cardStyle: { background: 'white', borderRadius: 10, padding: '14px 16px', borderTop: `4px solid ${c.accent}`, boxShadow: '0 1px 3px rgba(0,0,0,0.07)' },
-    valueStyle: { fontSize: 28, fontWeight: 'bold', color: c.accent, lineHeight: 1, margin: '4px 0' },
+    cardStyle: {
+      background: 'white',
+      borderRadius: 10,
+      padding: '14px 16px',
+      borderTop: `4px solid ${c.accent}`,
+      boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
+    },
+    valueStyle: {
+      fontSize: 28,
+      fontWeight: 'bold',
+      color: c.accent,
+      lineHeight: 1,
+      margin: '4px 0',
+    },
   }));
 
-  const modalVendor = modal && modal.type === 'upload' ? vendors.find((v) => v.id === modal.vendorId) : undefined;
+  const modalVendor =
+    modal && modal.type === 'upload' ? vendors.find((v) => v.id === modal.vendorId) : undefined;
 
   const toastsEnriched: ToastVM[] = toasts.map((t) => ({
     ...t,

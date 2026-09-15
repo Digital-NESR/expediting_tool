@@ -86,7 +86,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'bad_json' }, { status: 400 });
   }
 
-  const code = String(body?.code ?? '').trim().toUpperCase();
+  const code = String(body?.code ?? '')
+    .trim()
+    .toUpperCase();
   const state = body?.state;
   if (!CODE_RE.test(code)) return NextResponse.json({ error: 'bad_code' }, { status: 400 });
   if (!state || typeof state !== 'object' || Array.isArray(state)) {

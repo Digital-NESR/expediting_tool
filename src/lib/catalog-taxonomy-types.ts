@@ -11,6 +11,18 @@ export type SpendTypeName = 'Direct' | 'Indirect';
  * ARE read by AddEntriesClient / CatalogEntryFormClient (to prefill UNSPSC and item name), so
  * they stay in the shape rather than being stripped like the old always-empty `kw` field.
  */
-export interface TaxCommodity { n: string; f: string; code: string; desc: string }
-export interface TaxSubcategory { name: string; commodities: TaxCommodity[] }
-export interface TaxCategory { type: SpendTypeName; name: string; subs: TaxSubcategory[] }
+export interface TaxCommodity {
+  n: string;
+  f: string;
+  code: string;
+  desc: string;
+}
+export interface TaxSubcategory {
+  name: string;
+  commodities: TaxCommodity[];
+}
+export interface TaxCategory {
+  type: SpendTypeName;
+  name: string;
+  subs: TaxSubcategory[];
+}

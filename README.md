@@ -12,23 +12,23 @@ The tool never writes back to SAP directly. Instead, it maintains its own workfl
 
 ## Tech Stack
 
-| Technology | Version | Role |
-|---|---|---|
-| **Next.js** | 16.2.2 | Full-stack framework — App Router, Server Actions, API routes, SSR |
-| **React** | 19.2.4 | UI rendering |
-| **TypeScript** | 5.x | Type safety across all frontend and backend logic |
-| **Tailwind CSS** | 4.x | Utility-first styling via `@tailwindcss/postcss` |
-| **PostgreSQL** | — | Primary database; hosted locally on Windows 10 machine (E: drive partition) |
-| **pg** | 8.20.0 | Node.js PostgreSQL client — singleton pool used in all DB queries |
-| **NextAuth.js** | 4.24.13 | Authentication — JWT sessions, Azure AD + credentials providers |
-| **Zustand** | 5.0.12 | Global client-side state for expedite cart and supplier email configuration |
-| **sharp** | 0.34.5 | Next.js image optimisation dependency |
-| **Ngrok TCP tunnel** | — | Bridges the local PostgreSQL instance to Vercel (cloud host) and n8n (cloud automation) |
-| **n8n** | Self-hosted on Azure VM | Workflow automation: daily data sync and email dispatch |
-| **Vercel** | — | Frontend hosting with CI/CD via GitHub push-to-deploy |
-| **Microsoft Entra ID (Azure AD)** | — | SSO identity provider — configured, pending IT DNS provisioning |
-| **Microsoft Graph API (OAuth2)** | — | Used by n8n to send emails via `digital.supplychain@nesr.com` |
-| **Geist / Geist Mono** | — | Google Fonts — primary sans and monospace typefaces |
+| Technology                        | Version                 | Role                                                                                    |
+| --------------------------------- | ----------------------- | --------------------------------------------------------------------------------------- |
+| **Next.js**                       | 16.2.2                  | Full-stack framework — App Router, Server Actions, API routes, SSR                      |
+| **React**                         | 19.2.4                  | UI rendering                                                                            |
+| **TypeScript**                    | 5.x                     | Type safety across all frontend and backend logic                                       |
+| **Tailwind CSS**                  | 4.x                     | Utility-first styling via `@tailwindcss/postcss`                                        |
+| **PostgreSQL**                    | —                       | Primary database; hosted locally on Windows 10 machine (E: drive partition)             |
+| **pg**                            | 8.20.0                  | Node.js PostgreSQL client — singleton pool used in all DB queries                       |
+| **NextAuth.js**                   | 4.24.13                 | Authentication — JWT sessions, Azure AD + credentials providers                         |
+| **Zustand**                       | 5.0.12                  | Global client-side state for expedite cart and supplier email configuration             |
+| **sharp**                         | 0.34.5                  | Next.js image optimisation dependency                                                   |
+| **Ngrok TCP tunnel**              | —                       | Bridges the local PostgreSQL instance to Vercel (cloud host) and n8n (cloud automation) |
+| **n8n**                           | Self-hosted on Azure VM | Workflow automation: daily data sync and email dispatch                                 |
+| **Vercel**                        | —                       | Frontend hosting with CI/CD via GitHub push-to-deploy                                   |
+| **Microsoft Entra ID (Azure AD)** | —                       | SSO identity provider — configured, pending IT DNS provisioning                         |
+| **Microsoft Graph API (OAuth2)**  | —                       | Used by n8n to send emails via `digital.supplychain@nesr.com`                           |
+| **Geist / Geist Mono**            | —                       | Google Fonts — primary sans and monospace typefaces                                     |
 
 ---
 
@@ -143,27 +143,28 @@ The app uses four PostgreSQL tables. The database is hosted locally on the Windo
 
 The read-only source of truth for all open POs. Wiped and reloaded every morning by n8n. The frontend **never writes to this table** — it is treated as a live SAP mirror.
 
-| Column | Type | Description |
-|---|---|---|
-| `po_number` | `text` | SAP Purchase Order number |
-| `po_line` | `text` | PO line item number |
-| `sap_mat_id` | `text` | SAP Material ID; `NULL` or empty for service lines |
-| `item_description` | `text` | Material or service description |
-| `supplier_id` | `text` | SAP Supplier (vendor) number |
-| `supplier_name` | `text` | Supplier display name |
-| `open_qty` | `numeric` | Outstanding quantity |
-| `open_po_value_usd` | `numeric` | Outstanding value in USD |
-| `delivery_date` | `date` | Expected delivery date |
-| `buyer_name` | `text` | NESR buyer assigned to this line |
-| `buyer_email` | `text` | Buyer's email (resolved via LOOKUPVALUE in Power BI DAX) |
-| `plant` | `text` | SAP plant code |
-| `purchasing_org` | `text` | SAP purchasing organisation |
-| `delivery_code` | `text` | Current DS delivery status code (DS01–DS18) |
-| `delivery_comments` | `text` | Free-text comments from SAP |
-| `country` | `text` | Supplier country (resolved via LOOKUPVALUE from All Plants table) |
-| `po_release_date` | `date` | Date the PO was released in SAP |
+| Column              | Type      | Description                                                       |
+| ------------------- | --------- | ----------------------------------------------------------------- |
+| `po_number`         | `text`    | SAP Purchase Order number                                         |
+| `po_line`           | `text`    | PO line item number                                               |
+| `sap_mat_id`        | `text`    | SAP Material ID; `NULL` or empty for service lines                |
+| `item_description`  | `text`    | Material or service description                                   |
+| `supplier_id`       | `text`    | SAP Supplier (vendor) number                                      |
+| `supplier_name`     | `text`    | Supplier display name                                             |
+| `open_qty`          | `numeric` | Outstanding quantity                                              |
+| `open_po_value_usd` | `numeric` | Outstanding value in USD                                          |
+| `delivery_date`     | `date`    | Expected delivery date                                            |
+| `buyer_name`        | `text`    | NESR buyer assigned to this line                                  |
+| `buyer_email`       | `text`    | Buyer's email (resolved via LOOKUPVALUE in Power BI DAX)          |
+| `plant`             | `text`    | SAP plant code                                                    |
+| `purchasing_org`    | `text`    | SAP purchasing organisation                                       |
+| `delivery_code`     | `text`    | Current DS delivery status code (DS01–DS18)                       |
+| `delivery_comments` | `text`    | Free-text comments from SAP                                       |
+| `country`           | `text`    | Supplier country (resolved via LOOKUPVALUE from All Plants table) |
+| `po_release_date`   | `date`    | Date the PO was released in SAP                                   |
 
 **DAX filter criteria applied in n8n before loading:**
+
 - `STILL_DELV_VAL_USD > 0` (only lines with open value)
 - `FRGKE_KEY = "G"` (released POs only)
 - Excludes plant `PM30`
@@ -177,21 +178,21 @@ The read-only source of truth for all open POs. Wiped and reloaded every morning
 
 Populated when a buyer dispatches an expediting batch. Tracks the full lifecycle of each expedited PO line from email dispatch through supplier response. Has a **UNIQUE constraint on `(po_number, po_line)`** — re-expediting the same line UPSERTs and resets the row with a fresh token, preserving history in the audit log.
 
-| Column | Type | Description |
-|---|---|---|
-| `id` | `serial` | Auto-incrementing primary key |
-| `po_number` | `text` | PO number (references `sap_open_po_master`) |
-| `po_line` | `text` | PO line (references `sap_open_po_master`) |
-| `expedite_token` | `uuid` | Unique token per supplier dispatch batch; shared by all lines expedited to the same supplier in one batch. Builds the supplier portal URL. |
-| `workflow_state` | `text` | `'Email Sent'` on dispatch; `'Submitted'` after supplier response (expires the link) |
-| `current_status` | `text` | Supplier-provided DS delivery status code (populated on submission) |
-| `new_delivery_date` | `date` | Revised delivery date provided by supplier |
-| `supplier_comments` | `text` | Free-text comments from supplier |
-| `buyer_comments` | `text` | Internal buyer comments (reserved for future use) |
-| `dispatched_by` | `text` | Buyer who sent the email (not yet populated — pending SSO) |
-| `dispatched_at` | `timestamptz` | When the email was dispatched (not yet populated) |
-| `created_at` | `timestamptz` | Row creation timestamp |
-| `updated_at` | `timestamptz` | Last update timestamp |
+| Column              | Type          | Description                                                                                                                                |
+| ------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`                | `serial`      | Auto-incrementing primary key                                                                                                              |
+| `po_number`         | `text`        | PO number (references `sap_open_po_master`)                                                                                                |
+| `po_line`           | `text`        | PO line (references `sap_open_po_master`)                                                                                                  |
+| `expedite_token`    | `uuid`        | Unique token per supplier dispatch batch; shared by all lines expedited to the same supplier in one batch. Builds the supplier portal URL. |
+| `workflow_state`    | `text`        | `'Email Sent'` on dispatch; `'Submitted'` after supplier response (expires the link)                                                       |
+| `current_status`    | `text`        | Supplier-provided DS delivery status code (populated on submission)                                                                        |
+| `new_delivery_date` | `date`        | Revised delivery date provided by supplier                                                                                                 |
+| `supplier_comments` | `text`        | Free-text comments from supplier                                                                                                           |
+| `buyer_comments`    | `text`        | Internal buyer comments (reserved for future use)                                                                                          |
+| `dispatched_by`     | `text`        | Buyer who sent the email (not yet populated — pending SSO)                                                                                 |
+| `dispatched_at`     | `timestamptz` | When the email was dispatched (not yet populated)                                                                                          |
+| `created_at`        | `timestamptz` | Row creation timestamp                                                                                                                     |
+| `updated_at`        | `timestamptz` | Last update timestamp                                                                                                                      |
 
 **UPSERT behaviour on re-expedite:** `ON CONFLICT (po_number, po_line)` resets `expedite_token`, `workflow_state`, `current_status`, `new_delivery_date`, `supplier_comments`, and `buyer_comments` with fresh values. Previous responses are preserved in `expediting_audit_log`.
 
@@ -201,15 +202,15 @@ Populated when a buyer dispatches an expediting batch. Tracks the full lifecycle
 
 Every supplier submission appends a new row. Never updated or deleted. Preserves the full history of all previous responses even when `active_expediting` is reset by a re-expedite.
 
-| Column | Type | Description |
-|---|---|---|
-| `log_id` | `serial` | Auto-incrementing primary key |
-| `active_expediting_id` | `integer` | FK to `active_expediting.id` |
-| `status_submitted` | `text` | DS status code submitted by supplier |
-| `new_delivery_date` | `date` | Delivery date submitted by supplier |
-| `comments` | `text` | Comments submitted by supplier |
-| `submitted_by` | `text` | Hardcoded `'Supplier'` (will use real identity post-SSO) |
-| `submitted_at` | `timestamptz` | Submission timestamp |
+| Column                 | Type          | Description                                              |
+| ---------------------- | ------------- | -------------------------------------------------------- |
+| `log_id`               | `serial`      | Auto-incrementing primary key                            |
+| `active_expediting_id` | `integer`     | FK to `active_expediting.id`                             |
+| `status_submitted`     | `text`        | DS status code submitted by supplier                     |
+| `new_delivery_date`    | `date`        | Delivery date submitted by supplier                      |
+| `comments`             | `text`        | Comments submitted by supplier                           |
+| `submitted_by`         | `text`        | Hardcoded `'Supplier'` (will use real identity post-SSO) |
+| `submitted_at`         | `timestamptz` | Submission timestamp                                     |
 
 ---
 
@@ -217,11 +218,11 @@ Every supplier submission appends a new row. Never updated or deleted. Preserves
 
 Populated and maintained by n8n's daily Supplier Contacts Sync workflow via upsert (never truncated). Stores default supplier email addresses from Power BI alongside buyer-added additional emails. The upsert strategy protects the `additional_supplier_email` column from being overwritten by the daily sync.
 
-| Column | Type | Description |
-|---|---|---|
-| `supplier_id` | `text` | SAP Supplier ID — unique constraint / conflict target |
-| `supplier_name` | `text` | Supplier display name |
-| `supplier_emails` | `text` | Comma-separated default contact emails sourced from Power BI |
+| Column                      | Type   | Description                                                                                                                     |
+| --------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `supplier_id`               | `text` | SAP Supplier ID — unique constraint / conflict target                                                                           |
+| `supplier_name`             | `text` | Supplier display name                                                                                                           |
+| `supplier_emails`           | `text` | Comma-separated default contact emails sourced from Power BI                                                                    |
 | `additional_supplier_email` | `text` | Comma-separated emails added manually by buyers via the Expedite Queue; persisted to DB and never overwritten by the daily sync |
 
 ---
@@ -276,20 +277,20 @@ N8N_EXPEDITE_WEBHOOK_URL=https://n8n.nesr.com/webhook/expedite-email-dispatch
 
 ### Variable reference by file
 
-| Variable | Used in |
-|---|---|
-| `DATABASE_URL` | `src/lib/db.ts` |
-| `NEXTAUTH_URL` | NextAuth internals (redirect URIs) |
-| `NEXTAUTH_SECRET` | NextAuth internals (JWT signing) |
-| `FALLBACK_PASSWORD` | `src/app/api/auth/[...nextauth]/route.ts` (local development only) |
-| `AZURE_AD_CLIENT_ID` | `src/app/api/auth/[...nextauth]/route.ts` |
-| `AZURE_AD_CLIENT_SECRET` | `src/app/api/auth/[...nextauth]/route.ts` |
-| `AZURE_AD_TENANT_ID` | `src/app/api/auth/[...nextauth]/route.ts` |
-| `NEXT_PUBLIC_APP_URL` | `src/app/actions/expediteDispatch.ts` |
-| `N8N_EXPEDITE_WEBHOOK_URL` | `src/app/actions/expediteDispatch.ts` |
-| `CRON_SECRET` | `src/app/api/procure-guard/reminders/route.ts` |
-| `ALLOW_UNAUTHENTICATED_CRON` | `src/app/api/procure-guard/reminders/route.ts` (non-production escape hatch) |
-| `N8N_LAPTOP_PROCUREMENT_WEBHOOK_SECRET` | `src/app/api/laptop-procurement/requests/[id]/status/route.ts` |
+| Variable                                | Used in                                                                      |
+| --------------------------------------- | ---------------------------------------------------------------------------- |
+| `DATABASE_URL`                          | `src/lib/db.ts`                                                              |
+| `NEXTAUTH_URL`                          | NextAuth internals (redirect URIs)                                           |
+| `NEXTAUTH_SECRET`                       | NextAuth internals (JWT signing)                                             |
+| `FALLBACK_PASSWORD`                     | `src/app/api/auth/[...nextauth]/route.ts` (local development only)           |
+| `AZURE_AD_CLIENT_ID`                    | `src/app/api/auth/[...nextauth]/route.ts`                                    |
+| `AZURE_AD_CLIENT_SECRET`                | `src/app/api/auth/[...nextauth]/route.ts`                                    |
+| `AZURE_AD_TENANT_ID`                    | `src/app/api/auth/[...nextauth]/route.ts`                                    |
+| `NEXT_PUBLIC_APP_URL`                   | `src/app/actions/expediteDispatch.ts`                                        |
+| `N8N_EXPEDITE_WEBHOOK_URL`              | `src/app/actions/expediteDispatch.ts`                                        |
+| `CRON_SECRET`                           | `src/app/api/procure-guard/reminders/route.ts`                               |
+| `ALLOW_UNAUTHENTICATED_CRON`            | `src/app/api/procure-guard/reminders/route.ts` (non-production escape hatch) |
+| `N8N_LAPTOP_PROCUREMENT_WEBHOOK_SECRET` | `src/app/api/laptop-procurement/requests/[id]/status/route.ts`               |
 
 ### Machine endpoints
 
@@ -297,10 +298,10 @@ Two routes are called by machines rather than browsers, so `src/middleware.ts` e
 from the session-cookie check via `MACHINE_PATHS`. Each authenticates itself with a shared
 secret instead, and **fails closed**: if its secret is not set the route returns 503.
 
-| Route | Caller | Credential |
-|---|---|---|
-| `/api/procure-guard/reminders` | Vercel Cron (daily 07:00 UTC, see `vercel.json`) | `Authorization: Bearer $CRON_SECRET` |
-| `/api/laptop-procurement/requests/<id>/status` | n8n | `x-laptop-procurement-secret` header |
+| Route                                          | Caller                                           | Credential                           |
+| ---------------------------------------------- | ------------------------------------------------ | ------------------------------------ |
+| `/api/procure-guard/reminders`                 | Vercel Cron (daily 07:00 UTC, see `vercel.json`) | `Authorization: Bearer $CRON_SECRET` |
+| `/api/laptop-procurement/requests/<id>/status` | n8n                                              | `x-laptop-procurement-secret` header |
 
 `CRON_SECRET` must be set in the Vercel project or the reminder cron will return 503.
 Vercel Cron sends the `Authorization: Bearer` header automatically. The secret is no longer
@@ -315,13 +316,13 @@ exactly `true`. Unset, empty or misspelled means real approvers are notified.
 When test mode is on, the test recipient for the stage being exercised must also be set, or
 the notification is skipped and an error is logged rather than being sent to the wrong person:
 
-| Stage | Variable |
-|---|---|
-| IT Manager | `LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL`, `LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL` |
-| Country Manager | `LAPTOP_APPROVAL_TEST_CM_EMAIL` |
-| IT Director | `LAPTOP_APPROVAL_TEST_ITD_EMAIL` |
-| Supply Chain Director | `LAPTOP_APPROVAL_TEST_SCD_EMAIL` |
-| Requester updates | `LAPTOP_APPROVAL_TEST_REQUESTER_EMAIL` |
+| Stage                 | Variable                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| IT Manager            | `LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL`, `LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL` |
+| Country Manager       | `LAPTOP_APPROVAL_TEST_CM_EMAIL`                                                    |
+| IT Director           | `LAPTOP_APPROVAL_TEST_ITD_EMAIL`                                                   |
+| Supply Chain Director | `LAPTOP_APPROVAL_TEST_SCD_EMAIL`                                                   |
+| Requester updates     | `LAPTOP_APPROVAL_TEST_REQUESTER_EMAIL`                                             |
 
 Previously the default was inverted, so unless an environment explicitly set the value to the
 string `false` every approval email went to a hardcoded personal inbox and the real approvers
@@ -339,6 +340,7 @@ were never notified.
 The primary day-to-day view for buyers. Fetches all rows from `sap_open_po_master` via `GET /api/pos` on mount and groups them by PO Number. Each parent row shows the PO number, total open value, earliest delivery date, supplier name, country, delivery status code, and line count. Parent rows expand to reveal individual line items in a nested sub-table.
 
 **Features:**
+
 - **KPI cards** — total open value, count of past-due POs, count of due-soon POs, total distinct POs
 - **Status tile slicer** — toggle-filter pills for Past Due / Due Soon / On Track (based on days until delivery date)
 - **Cascading filter bar** — Supplier, Buyer Name, Delivery Status, and Country multi-select dropdowns; each dropdown's options recalculate based on all other active filters to prevent dead-end filter combinations
@@ -352,6 +354,7 @@ The primary day-to-day view for buyers. Fetches all rows from `sap_open_po_maste
 - **Skeleton loading state** — shimmer placeholder rows while data loads
 
 **Delivery status badges** (sub-row "Status" column, based on days until `delivery_date`):
+
 - `< 0 days` → **Past Due** (red pill)
 - `0–7 days` → **Due Soon** (amber pill)
 - `> 7 days` → **On Track** (green pill)
@@ -369,6 +372,7 @@ The primary day-to-day view for buyers. Fetches all rows from `sap_open_po_maste
 Landing page shown after login. Displays all available NESR Digital Supply Chain tools as cards in a three-column responsive grid.
 
 **Tools listed:**
+
 - **PO Expediting** (active — links to `/`)
 - **GRN & Invoice Reconciliation** (coming soon placeholder)
 - **Supply Chain Analytics** (coming soon placeholder)
@@ -400,6 +404,7 @@ Branding (colours, logo, text) is driven by `src/config/site.ts`.
 Second step of the expediting workflow. Reads `selectedItems` and `supplierEmails` from the Zustand store — does not fetch from the database. Displays selected PO lines grouped by supplier in expandable cards.
 
 **Per-supplier card features:**
+
 - Collapsible line items table (fixed-layout columns: SAP MAT ID, Item Description, Open QTY, Open PO Value, Delivery Date, Status badge)
 - Buyer name shown inline in card header (derived from selected line items)
 - **TO email management** — default emails loaded from `supplier_contacts` via `getSupplierContacts()` Server Action. Shown as solid green pills. Buyer-added additional emails shown as outlined green pills. New emails typed into the input and confirmed are saved to the database via `addAdditionalSupplierEmail()` and reflected in Zustand.
@@ -421,16 +426,19 @@ Second step of the expediting workflow. Reads `selectedItems` and `supplierEmail
 Final step before emails are sent. Shows the full dispatch summary and allows the buyer to edit the email template.
 
 **Email template panel:**
+
 - Editable subject line (default: `Purchase Order Follow-Up – Action Required`)
 - Editable body textarea with a default professional template
 - Placeholder pill indicators: `{Supplier Name}` is substituted per supplier at send time inside the Server Action
 - The supplier portal link is passed as a separate `supplierLink` field in the webhook payload — it is not embedded in the editable body text
 
 **Dispatch summary table:**
+
 - One row per supplier: supplier name, TO recipients (one per line), CC recipients (one per line), line count
 - Inline cell editing — click a TO or CC cell to edit the comma-separated email list
 
 **Send flow:**
+
 1. Validation: every supplier must have ≥1 TO email
 2. Calls `prepareAllExpediteDispatches()` Server Action with the full params array
 3. Server Action UPSERTs all lines into `active_expediting` (one UUID token per supplier group)
@@ -452,12 +460,14 @@ Final step before emails are sent. Shows the full dispatch summary and allows th
 External-facing portal where suppliers submit delivery updates. Accessed via the unique link in the expediting email: `/supplier-update?token=<UUID>`.
 
 **Token validation (`page.tsx` — Server Component):**
+
 - Missing `?token=` param → "Link Not Found" static error page (red lock icon)
 - Token not in `active_expediting` → "Link Not Found" static error page
 - Any row with this token has `workflow_state = 'Submitted'` → "Updates Already Submitted" static page (amber icon)
 - Valid token → renders `SupplierPortalForm` with full portal data
 
 **Portal form (`SupplierPortalForm.tsx` — Client Component):**
+
 - Supplier info bar: supplier name, buyer name, total line/PO counts
 - Green instructions banner
 - PO lines grouped by PO Number in expandable sections (all start expanded)
@@ -480,6 +490,7 @@ External-facing portal where suppliers submit delivery updates. Accessed via the
 Fetches all rows from `sap_open_po_master` ordered by `delivery_date ASC`. Used by the dashboard on mount. Marked `force-dynamic` — always reads fresh from the database, bypassing any Next.js response cache.
 
 **Response:**
+
 ```json
 {
   "data": [
@@ -492,7 +503,7 @@ Fetches all rows from `sap_open_po_master` ordered by `delivery_date ASC`. Used 
       "Item Description": "Valve, Gate, 4 inch",
       "SAP MAT ID": "000000000010012345",
       "Open QTY": 5,
-      "Open PO Value USD": 12500.00,
+      "Open PO Value USD": 12500.0,
       "Delivery Date": "2025-03-15T00:00:00.000Z",
       "Delivery Code": "DS05",
       "Country": "UAE",
@@ -516,6 +527,7 @@ Fetches all rows from `sap_open_po_master` ordered by `delivery_date ASC`. Used 
 The core dispatch orchestrator. Called from `/expedite/confirm` when the buyer clicks "Send Emails".
 
 **Input type:**
+
 ```typescript
 interface SupplierDispatchParams {
   supplierId: string;
@@ -523,7 +535,7 @@ interface SupplierDispatchParams {
   toEmails: string[];
   ccEmails: string[];
   subject: string;
-  emailBodyTemplate: string;  // May contain {Supplier Name} placeholder
+  emailBodyTemplate: string; // May contain {Supplier Name} placeholder
   items: PurchaseOrder[];
 }
 ```
@@ -531,6 +543,7 @@ interface SupplierDispatchParams {
 **Phase 1 — DB inserts (sequential, one token per supplier group):**
 
 For each supplier, a single UUID token is generated. Every PO line is written via:
+
 ```sql
 INSERT INTO active_expediting
   (po_number, po_line, expedite_token, workflow_state, current_status, created_at, updated_at)
@@ -551,6 +564,7 @@ DO UPDATE SET
 After all inserts complete, a single HTTPS POST fires to `N8N_EXPEDITE_WEBHOOK_URL` using Node.js built-in `https.request` with `rejectUnauthorized: false`. The call is not awaited — the Server Action returns immediately and n8n processes the payload asynchronously.
 
 **Webhook payload** (array of supplier objects):
+
 ```typescript
 [{
   supplierName: string;
@@ -578,6 +592,7 @@ After all inserts complete, a single HTTPS POST fires to `N8N_EXPEDITE_WEBHOOK_U
 ### `getSupplierContacts(supplierId)` — `src/app/actions/supplier-actions.ts`
 
 Reads `supplier_contacts` for a given `supplier_id`. Parses comma-separated strings into arrays:
+
 - `defaultEmails` — from `supplier_emails` column (Power BI sourced, daily sync)
 - `additionalEmails` — from `additional_supplier_email` column (buyer-added, never overwritten by sync)
 - `supplierName` — display name
@@ -596,17 +611,18 @@ Appends an email to `additional_supplier_email` in `supplier_contacts`. Reads th
 
 Token validation with three possible return shapes:
 
-| Return | Condition |
-|---|---|
-| `{ notFound: true }` | Token not in `active_expediting`, or JOIN returns no rows |
-| `{ expired: true }` | Any row with this token has `workflow_state = 'Submitted'` |
-| `PortalData` | Valid active token; includes supplier name, buyer name, and full line array from `active_expediting` LEFT JOIN `sap_open_po_master` |
+| Return               | Condition                                                                                                                           |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `{ notFound: true }` | Token not in `active_expediting`, or JOIN returns no rows                                                                           |
+| `{ expired: true }`  | Any row with this token has `workflow_state = 'Submitted'`                                                                          |
+| `PortalData`         | Valid active token; includes supplier name, buyer name, and full line array from `active_expediting` LEFT JOIN `sap_open_po_master` |
 
 ---
 
 ### `submitSupplierUpdates(token, updates)` — `src/app/actions/supplierPortal.ts`
 
 Transactional batch update using a dedicated `pg` client for explicit `BEGIN`/`COMMIT`/`ROLLBACK` control. For each line:
+
 1. Fetches `active_expediting.id` for the token + po_number + po_line triplet
 2. `UPDATE active_expediting SET current_status, new_delivery_date, supplier_comments, workflow_state = 'Submitted', updated_at = NOW()`
 3. `INSERT INTO expediting_audit_log (active_expediting_id, status_submitted, new_delivery_date, comments, submitted_by, submitted_at) VALUES (..., 'Supplier', NOW())`
@@ -625,7 +641,7 @@ The store holds two pieces of state that must survive navigation between the das
 
 ```typescript
 interface ExpediteState {
-  selectedItems:  PurchaseOrder[];
+  selectedItems: PurchaseOrder[];
   supplierEmails: Record<string, { to: string[]; cc: string[] }>;
   // supplierEmails keyed by supplierId
 }
@@ -634,20 +650,21 @@ interface ExpediteState {
 ### Item identity
 
 Items are compared by composite key to handle edge cases where fields may be undefined:
+
 ```
 "PO Number::PO Line::SAP MAT ID"
 ```
 
 ### Actions
 
-| Action | Description |
-|---|---|
-| `toggleSelection(item)` | Adds or removes one item by composite key |
-| `selectMultipleLines(items)` | Adds items not already in the cart (no duplicates) |
-| `deselectMultipleLines(items)` | Removes specified items |
-| `clearSelection()` | Resets both `selectedItems` and `supplierEmails` to `{}` |
-| `isSelected(item)` | Returns boolean — drives checkbox checked state |
-| `setSupplierEmails(supplierId, { to, cc })` | Replaces the TO/CC arrays for one supplier |
+| Action                                      | Description                                              |
+| ------------------------------------------- | -------------------------------------------------------- |
+| `toggleSelection(item)`                     | Adds or removes one item by composite key                |
+| `selectMultipleLines(items)`                | Adds items not already in the cart (no duplicates)       |
+| `deselectMultipleLines(items)`              | Removes specified items                                  |
+| `clearSelection()`                          | Resets both `selectedItems` and `supplierEmails` to `{}` |
+| `isSelected(item)`                          | Returns boolean — drives checkbox checked state          |
+| `setSupplierEmails(supplierId, { to, cc })` | Replaces the TO/CC arrays for one supplier               |
 
 ---
 
@@ -663,6 +680,7 @@ Registered only when `NODE_ENV !== 'production'`. On the correct `FALLBACK_PASSW
 ### Provider 2: Azure AD / Microsoft Entra ID
 
 Uses `next-auth/providers/azure-ad` with NESR App Registration credentials. Fully configured in code. Inactive because:
+
 1. IT has not yet provisioned the `expediting.nesr.com` CNAME
 2. The redirect URI `https://expediting.nesr.com/api/auth/callback/azure-ad` has not been added to the existing Entra ID App Registration
 
@@ -700,17 +718,17 @@ All three workflows run in the self-hosted n8n instance on the Azure VM at `n8n.
 
 **Node sequence:**
 
-| # | Node | Description |
-|---|---|---|
-| 1 | Schedule Trigger | Fires at configured weekday time |
-| 2 | Get Power BI Token | HTTP POST to Microsoft OAuth token endpoint; returns bearer token using Entra ID App Registration credentials |
-| 3 | Code (JavaScript) | Builds DAX query payload with all filter criteria (see Table A section) |
-| 4 | Get Table Data | HTTP POST to `https://api.powerbi.com/v1.0/myorg/datasets/{DATASET_ID}/executeQueries` with DAX query |
-| 5 | Execute SQL | `TRUNCATE sap_open_po_master` |
-| 6 | Code (JavaScript) | Maps Power BI JSON response key names to PostgreSQL column names |
-| 7 | Split Out | Splits the rows array into individual items |
-| 8 | Loop Over Items | Batches rows for insert |
-| 9 | Insert rows | Bulk inserts into `sap_open_po_master` |
+| #   | Node               | Description                                                                                                   |
+| --- | ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| 1   | Schedule Trigger   | Fires at configured weekday time                                                                              |
+| 2   | Get Power BI Token | HTTP POST to Microsoft OAuth token endpoint; returns bearer token using Entra ID App Registration credentials |
+| 3   | Code (JavaScript)  | Builds DAX query payload with all filter criteria (see Table A section)                                       |
+| 4   | Get Table Data     | HTTP POST to `https://api.powerbi.com/v1.0/myorg/datasets/{DATASET_ID}/executeQueries` with DAX query         |
+| 5   | Execute SQL        | `TRUNCATE sap_open_po_master`                                                                                 |
+| 6   | Code (JavaScript)  | Maps Power BI JSON response key names to PostgreSQL column names                                              |
+| 7   | Split Out          | Splits the rows array into individual items                                                                   |
+| 8   | Loop Over Items    | Batches rows for insert                                                                                       |
+| 9   | Insert rows        | Bulk inserts into `sap_open_po_master`                                                                        |
 
 ---
 
@@ -731,12 +749,12 @@ Uses **UPSERT** (never truncate) so that buyer-added `additional_supplier_email`
 
 **Node sequence:**
 
-| # | Node | Description |
-|---|---|---|
-| 1 | Webhook | Receives POST from `prepareAllExpediteDispatches()`. Responds 200 immediately so the Vercel function is not held open. Payload: array of supplier objects (see Server Actions section). |
-| 2 | Split Out | Splits the suppliers array so each supplier flows through the remaining nodes as a separate item |
-| 3 | Code (JavaScript) | Builds the full HTML email body: NESR-branded header, body text with `{Supplier Name}` already substituted, PO lines table (PO Number, Line, Description, Open QTY, Value USD, Delivery Date), green CTA button linking to `supplierLink`, footer disclaimer |
-| 4 | Send a message (Outlook) | Sends via Microsoft Graph API OAuth2 for `digital.supplychain@nesr.com`. Body type: HTML. TO: `toEmails` array. CC: `ccEmails` array. |
+| #   | Node                     | Description                                                                                                                                                                                                                                                  |
+| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Webhook                  | Receives POST from `prepareAllExpediteDispatches()`. Responds 200 immediately so the Vercel function is not held open. Payload: array of supplier objects (see Server Actions section).                                                                      |
+| 2   | Split Out                | Splits the suppliers array so each supplier flows through the remaining nodes as a separate item                                                                                                                                                             |
+| 3   | Code (JavaScript)        | Builds the full HTML email body: NESR-branded header, body text with `{Supplier Name}` already substituted, PO lines table (PO Number, Line, Description, Open QTY, Value USD, Delivery Date), green CTA button linking to `supplierLink`, footer disclaimer |
+| 4   | Send a message (Outlook) | Sends via Microsoft Graph API OAuth2 for `digital.supplychain@nesr.com`. Body type: HTML. TO: `toEmails` array. CC: `ccEmails` array.                                                                                                                        |
 
 ---
 
@@ -745,6 +763,7 @@ Uses **UPSERT** (never truncate) so that buyer-added `additional_supplier_email`
 ### `LineItemDrawer`
 
 Slide-out panel from the right edge. Triggered by clicking a dashboard sub-row. Shows three sections:
+
 - **Material Information** — SAP MAT ID, Item Description, Open QTY, Open PO Value
 - **Supplier Details** — Supplier Name, Supplier ID, Country
 - **Expediting Details** — Delivery Date, Delivery Code (with full DS label from map), Delivery Comments
@@ -778,21 +797,21 @@ Wraps all children in NextAuth `SessionProvider`, enabling `useSession()` throug
 
 ## Design System
 
-| Token | Value | Usage |
-|---|---|---|
-| Brand green (buyer app) | `#307c4c` | Buttons, active states, badges, links — all buyer-facing UI |
-| Supplier portal green | `#059669` | Supplier portal submit button and accents — visually distinct from buyer app |
-| Danger | `#ef4444` (red-500) | Error states, past-due indicators |
-| Warning | `#f59e0b` (amber-500) | Due-soon indicators, partial failure states |
-| Font | Geist Sans / Geist Mono | Body text / PO numbers, IDs, numeric columns |
+| Token                   | Value                   | Usage                                                                        |
+| ----------------------- | ----------------------- | ---------------------------------------------------------------------------- |
+| Brand green (buyer app) | `#307c4c`               | Buttons, active states, badges, links — all buyer-facing UI                  |
+| Supplier portal green   | `#059669`               | Supplier portal submit button and accents — visually distinct from buyer app |
+| Danger                  | `#ef4444` (red-500)     | Error states, past-due indicators                                            |
+| Warning                 | `#f59e0b` (amber-500)   | Due-soon indicators, partial failure states                                  |
+| Font                    | Geist Sans / Geist Mono | Body text / PO numbers, IDs, numeric columns                                 |
 
 ### Custom CSS (`src/app/globals.css`)
 
-| Rule | Description |
-|---|---|
-| `.skeleton-shimmer` | Left-to-right gradient shimmer (1.5s) on loading placeholder rows |
+| Rule                                 | Description                                                                                                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.skeleton-shimmer`                  | Left-to-right gradient shimmer (1.5s) on loading placeholder rows                                                                                                       |
 | `.expand-grid` / `.expand-grid.open` | `grid-template-rows: 0fr → 1fr` CSS trick for smooth height-agnostic expand/collapse of PO sub-tables (280ms ease-in-out). Does not require knowing the content height. |
-| `@theme inline` | Pipes `--font-geist-sans`, `--font-geist-mono`, and `--color-nesr-green` into Tailwind's design token system |
+| `@theme inline`                      | Pipes `--font-geist-sans`, `--font-geist-mono`, and `--color-nesr-green` into Tailwind's design token system                                                            |
 
 ---
 
@@ -807,6 +826,7 @@ Wraps all children in NextAuth `SessionProvider`, enabling `useSession()` throug
 ### Steps
 
 **1. Clone and install**
+
 ```bash
 git clone <repo-url>
 cd expediting_tool
@@ -824,6 +844,7 @@ DATABASE_URL=postgresql://postgres:password@0.tcp.ngrok.io:PORT/expediting_db
 ```
 
 **3. Run the development server**
+
 ```bash
 npm run dev
 ```
@@ -831,6 +852,7 @@ npm run dev
 App available at `http://localhost:3000`. Sign in with Azure AD, or locally with the password set in `FALLBACK_PASSWORD` (development builds only).
 
 **4. Production build**
+
 ```bash
 npm run build
 npm run start
@@ -838,12 +860,12 @@ npm run start
 
 ### npm scripts
 
-| Command | Description |
-|---|---|
-| `npm run dev` | Start Next.js development server with hot reload |
-| `npm run build` | Compile production build |
-| `npm run start` | Serve the production build |
-| `npm run lint` | Run ESLint |
+| Command         | Description                                      |
+| --------------- | ------------------------------------------------ |
+| `npm run dev`   | Start Next.js development server with hot reload |
+| `npm run build` | Compile production build                         |
+| `npm run start` | Serve the production build                       |
+| `npm run lint`  | Run ESLint                                       |
 
 ### Ngrok tunnel (Windows 10 DB machine)
 
@@ -891,6 +913,7 @@ If the Windows 10 machine reboots or the Ngrok agent stops, the TCP address and 
 ### 5. `po_release_date` not returned by `/api/pos`
 
 The column exists in the database and the TypeScript type includes `'PO Release Date'?: string`, but the SELECT in `src/app/api/pos/route.ts` does not yet include it. To fix, add to the query:
+
 ```sql
 po_release_date AS "PO Release Date"
 ```
@@ -898,9 +921,11 @@ po_release_date AS "PO Release Date"
 ### 6. UNIQUE constraint on `active_expediting` required
 
 The UPSERT in `expediteDispatch.ts` depends on `ON CONFLICT (po_number, po_line)`. Confirm the constraint exists before deploying:
+
 ```sql
 ALTER TABLE active_expediting
   ADD CONSTRAINT active_expediting_po_number_po_line_key
   UNIQUE (po_number, po_line);
 ```
+
 Without it the `ON CONFLICT` clause will throw an error and all dispatches will fail.

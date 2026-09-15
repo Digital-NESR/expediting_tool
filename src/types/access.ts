@@ -32,4 +32,4 @@ export type StoredAccessStatus = AccessStatus | 'Denied';
  * Only `'approved'` ever grants access — every other member is a deny.
  */
 export type SessionAccessStatus =
-  | 'new' | 'pending' | 'approved' | 'rejected' | 'revoked' | 'denied';
+  'new' | 'pending' | 'approved' | 'rejected' | 'revoked' | 'denied';

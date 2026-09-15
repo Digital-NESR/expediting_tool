@@ -69,8 +69,8 @@ export async function dbGetDocumentFile(id: number): Promise<{
   if (!rows[0]) return null;
   return {
     document_name: rows[0].document_name,
-    file_type:     rows[0].file_type,
-    file_content:  rows[0].file_content as Buffer,
+    file_type: rows[0].file_type,
+    file_content: rows[0].file_content as Buffer,
   };
 }
 
@@ -120,13 +120,16 @@ export function ensureTiteActivityLogSchema(): Promise<void> {
  * payload, and never resolved here, where it would hold a pooled connection
  * while deciding identity.
  */
-export async function dbInsertActivityLog(params: {
-  shipment_id: number;
-  action: string;
-  details: string | null;
-  performed_by: string | null;
-  performed_by_email: string | null;
-}, client?: PoolClient): Promise<void> {
+export async function dbInsertActivityLog(
+  params: {
+    shipment_id: number;
+    action: string;
+    details: string | null;
+    performed_by: string | null;
+    performed_by_email: string | null;
+  },
+  client?: PoolClient,
+): Promise<void> {
   if (!client) await ensureTiteActivityLogSchema();
   await (client ?? titePool).query(
     `INSERT INTO shipment_activity_log
@@ -164,7 +167,7 @@ export async function dbUpdateShipmentWithLog(params: {
   performed_by: string | null;
   performed_by_email: string | null;
 }): Promise<void> {
-  const keys   = Object.keys(params.fields);
+  const keys = Object.keys(params.fields);
   const values = Object.values(params.fields);
   const setClauses = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
 
@@ -173,17 +176,20 @@ export async function dbUpdateShipmentWithLog(params: {
 
   // The row and the log entry describing it land together or not at all.
   await withTransaction(titePool, async (client) => {
-    await client.query(
-      `UPDATE shipments SET ${setClauses}, updated_at = NOW() WHERE id = $1`,
-      [params.shipment_id, ...values],
-    );
+    await client.query(`UPDATE shipments SET ${setClauses}, updated_at = NOW() WHERE id = $1`, [
+      params.shipment_id,
+      ...values,
+    ]);
 
-    await dbInsertActivityLog({
-      shipment_id:        params.shipment_id,
-      action:             params.action,
-      details:            params.details,
-      performed_by:       params.performed_by,
-      performed_by_email: params.performed_by_email,
-    }, client);
+    await dbInsertActivityLog(
+      {
+        shipment_id: params.shipment_id,
+        action: params.action,
+        details: params.details,
+        performed_by: params.performed_by,
+        performed_by_email: params.performed_by_email,
+      },
+      client,
+    );
   });
 }

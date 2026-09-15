@@ -2,7 +2,13 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
 // Back-one-level button for Learning Hub pages. `href` is the parent page.
-export default function LearningHubBackButton({ href, label = 'Back' }: { href: string; label?: string }) {
+export default function LearningHubBackButton({
+  href,
+  label = 'Back',
+}: {
+  href: string;
+  label?: string;
+}) {
   return (
     <Link
       href={href}

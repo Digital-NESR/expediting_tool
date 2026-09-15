@@ -20,7 +20,10 @@ import type { Pool, PoolClient } from 'pg';
  * The client is always released, and a rollback failure never masks the original
  * error — the error that caused the rollback is what propagates.
  */
-export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function withTransaction<T>(
+  pool: Pool,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

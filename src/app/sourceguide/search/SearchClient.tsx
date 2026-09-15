@@ -8,13 +8,28 @@ import { CountryFlag, SupAvatar } from '../ui';
 import { searchCommodities, searchSuppliers, recordSearch } from '@/app/actions/sourceguide';
 import { downloadXlsx } from '../exportXlsx';
 import type {
-  SgCountry, SgCategory, SgFacets, SgCommodityResult, SgSupplier, SgSearchFilters, Tier,
+  SgCountry,
+  SgCategory,
+  SgFacets,
+  SgCommodityResult,
+  SgSupplier,
+  SgSearchFilters,
+  Tier,
 } from '@/types/sourceguide';
 
-interface Filters { countries: string[]; categories: string[]; tiers: Tier[]; spendTypes: string[]; }
+interface Filters {
+  countries: string[];
+  categories: string[];
+  tiers: Tier[];
+  spendTypes: string[];
+}
 
 export default function SearchClient({
-  countries, categories, facets, initialQuery, initialFilters,
+  countries,
+  categories,
+  facets,
+  initialQuery,
+  initialFilters,
 }: {
   countries: SgCountry[];
   categories: SgCategory[];
@@ -32,9 +47,11 @@ export default function SearchClient({
   const [loading, setLoading] = useState(true);
   const seq = useRef(0);
 
-  const spendTypes = useMemo(() => facets.spendTypes.map(s => s.type), [facets]);
+  const spendTypes = useMemo(() => facets.spendTypes.map((s) => s.type), [facets]);
 
-  useEffect(() => { setLimit(40); }, [query, filters]);
+  useEffect(() => {
+    setLimit(40);
+  }, [query, filters]);
 
   // keep the URL in sync so filtered views are bookmarkable/shareable and survive the back button
   const syncedRef = useRef('');
@@ -59,7 +76,11 @@ export default function SearchClient({
         searchCommodities(query, filters as SgSearchFilters, 1000),
         searchSuppliers(query, 5),
       ]);
-      if (id === seq.current) { setResults(com); setSupHits(sup); setLoading(false); }
+      if (id === seq.current) {
+        setResults(com);
+        setSupHits(sup);
+        setLoading(false);
+      }
     }, 150);
     return () => clearTimeout(t);
   }, [query, filters]);
@@ -70,45 +91,64 @@ export default function SearchClient({
   useEffect(() => {
     const term = query.trim();
     if (term.length < 2 || term === loggedSearch.current) return;
-    const t = setTimeout(() => { loggedSearch.current = term; void recordSearch(term); }, 800);
+    const t = setTimeout(() => {
+      loggedSearch.current = term;
+      void recordSearch(term);
+    }, 800);
     return () => clearTimeout(t);
   }, [query]);
 
   function exportResults() {
-    const rows = results.map(com => ({
+    const rows = results.map((com) => ({
       Commodity: com.name,
       Category: com.category,
       'Sub-Category': com.subCategory ?? '',
       Family: com.family ?? '',
       UNSPSC: com.code ?? '',
       'Spend Type': com.spendType,
-      Countries: com.countries.map(c => countryByCode.get(c)?.name ?? c).join(', '),
-      'Preferred (shown)': com.preferred ? `${com.preferred.supplierName} (${com.preferred.country})` : '',
+      Countries: com.countries.map((c) => countryByCode.get(c)?.name ?? c).join(', '),
+      'Preferred (shown)': com.preferred
+        ? `${com.preferred.supplierName} (${com.preferred.country})`
+        : '',
       'Backups (shown)': com.backupCount,
     }));
     downloadXlsx('sourceguide-search.xlsx', rows, 'Commodities');
   }
 
   function toggle<K extends keyof Filters>(key: K, val: string) {
-    setFilters(f => {
+    setFilters((f) => {
       const cur = f[key] as string[];
-      const next = cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val];
+      const next = cur.includes(val) ? cur.filter((x) => x !== val) : [...cur, val];
       return { ...f, [key]: next };
     });
   }
 
-  const activeCount = filters.countries.length + filters.categories.length + filters.tiers.length + filters.spendTypes.length;
-  const countryByCode = useMemo(() => new Map(countries.map(c => [c.code, c])), [countries]);
+  const activeCount =
+    filters.countries.length +
+    filters.categories.length +
+    filters.tiers.length +
+    filters.spendTypes.length;
+  const countryByCode = useMemo(() => new Map(countries.map((c) => [c.code, c])), [countries]);
 
   function countFor(key: keyof Filters, val: string): number {
-    if (key === 'categories') return categories.find(c => c.id === val)?.count ?? 0;
-    if (key === 'spendTypes') return facets.spendTypes.find(s => s.type === val)?.count ?? 0;
-    if (key === 'countries') return facets.countries.find(c => c.code === val)?.count ?? 0;
-    if (key === 'tiers') return facets.tiers.find(t => t.tier === val)?.count ?? 0;
+    if (key === 'categories') return categories.find((c) => c.id === val)?.count ?? 0;
+    if (key === 'spendTypes') return facets.spendTypes.find((s) => s.type === val)?.count ?? 0;
+    if (key === 'countries') return facets.countries.find((c) => c.code === val)?.count ?? 0;
+    if (key === 'tiers') return facets.tiers.find((t) => t.tier === val)?.count ?? 0;
     return 0;
   }
 
-  const Row = ({ k, val, label, swatch }: { k: keyof Filters; val: string; label: string; swatch?: string | null }) => {
+  const Row = ({
+    k,
+    val,
+    label,
+    swatch,
+  }: {
+    k: keyof Filters;
+    val: string;
+    label: string;
+    swatch?: string | null;
+  }) => {
     const on = (filters[k] as string[]).includes(val);
     return (
       <div
@@ -117,7 +157,11 @@ export default function SearchClient({
       >
         <span
           className="grid h-[17px] w-[17px] place-items-center rounded-[5px] border"
-          style={on ? { background: SG_BRAND, borderColor: SG_BRAND } : { borderColor: '#D1D3D4', background: '#fff' }}
+          style={
+            on
+              ? { background: SG_BRAND, borderColor: SG_BRAND }
+              : { borderColor: '#D1D3D4', background: '#fff' }
+          }
         >
           {on && <Check className="h-3 w-3 text-white" />}
         </span>
@@ -140,7 +184,9 @@ export default function SearchClient({
               <span className="text-[14px] font-bold">Filters</span>
               {activeCount > 0 && (
                 <button
-                  onClick={() => setFilters({ countries: [], categories: [], tiers: [], spendTypes: [] })}
+                  onClick={() =>
+                    setFilters({ countries: [], categories: [], tiers: [], spendTypes: [] })
+                  }
                   className="rounded-md px-2 py-1 text-[12px] font-medium"
                   style={{ color: SG_BRAND }}
                 >
@@ -150,17 +196,23 @@ export default function SearchClient({
             </div>
 
             <FilterGroup title="Country">
-              {countries.map(c => <Row key={c.code} k="countries" val={c.code} label={c.name} swatch={c.tone} />)}
+              {countries.map((c) => (
+                <Row key={c.code} k="countries" val={c.code} label={c.name} swatch={c.tone} />
+              ))}
             </FilterGroup>
             <FilterGroup title="Supplier Tier">
               <Row k="tiers" val="Preferred" label="Preferred" />
               <Row k="tiers" val="Backup" label="Backup" />
             </FilterGroup>
             <FilterGroup title="Spend Type">
-              {spendTypes.map(s => <Row key={s} k="spendTypes" val={s} label={s} />)}
+              {spendTypes.map((s) => (
+                <Row key={s} k="spendTypes" val={s} label={s} />
+              ))}
             </FilterGroup>
             <FilterGroup title="Category">
-              {categories.map(c => <Row key={c.id} k="categories" val={c.id} label={c.name} />)}
+              {categories.map((c) => (
+                <Row key={c.id} k="categories" val={c.id} label={c.name} />
+              ))}
             </FilterGroup>
           </div>
         </aside>
@@ -168,17 +220,29 @@ export default function SearchClient({
         {/* Results */}
         <div className="min-w-0">
           <form
-            onSubmit={e => { e.preventDefault(); setQuery(local); }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              setQuery(local);
+            }}
             className="mb-5 flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-4 py-3 focus-within:border-[#6AAF8E]"
           >
             <Search className="h-4 w-4 text-slate-400" />
             <input
-              autoFocus value={local} onChange={e => setLocal(e.target.value)}
+              autoFocus
+              value={local}
+              onChange={(e) => setLocal(e.target.value)}
               placeholder="Search commodities, categories or suppliers…"
               className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-slate-400"
             />
             {local && (
-              <button type="button" onClick={() => { setLocal(''); setQuery(''); }} className="text-slate-400 hover:text-slate-600">
+              <button
+                type="button"
+                onClick={() => {
+                  setLocal('');
+                  setQuery('');
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -186,8 +250,14 @@ export default function SearchClient({
 
           <div className="mb-4 flex items-center justify-between">
             <div className="text-[13.5px] text-slate-500">
-              <b className="text-slate-900">{results.length.toLocaleString()}</b> commodit{results.length === 1 ? 'y' : 'ies'}
-              {query && <> for “<b className="text-slate-900">{query}</b>”</>}
+              <b className="text-slate-900">{results.length.toLocaleString()}</b> commodit
+              {results.length === 1 ? 'y' : 'ies'}
+              {query && (
+                <>
+                  {' '}
+                  for “<b className="text-slate-900">{query}</b>”
+                </>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -208,22 +278,34 @@ export default function SearchClient({
 
           {supHits.length > 0 && (
             <div className="mb-6">
-              <div className="mb-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: SG_BRAND }}>
+              <div
+                className="mb-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]"
+                style={{ color: SG_BRAND }}
+              >
                 Matching suppliers
               </div>
               <div className="flex flex-wrap gap-3">
-                {supHits.map(s => (
+                {supHits.map((s) => (
                   <button
                     key={s.code}
-                    onClick={() => router.push(`/sourceguide/suppliers/${encodeURIComponent(s.code)}`)}
+                    onClick={() =>
+                      router.push(`/sourceguide/suppliers/${encodeURIComponent(s.code)}`)
+                    }
                     className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left hover:border-[#6AAF8E]"
                   >
                     <SupAvatar name={s.name} size={36} />
                     <div className="min-w-0">
-                      <div className="max-w-[240px] truncate text-[13.5px] font-semibold">{s.name}</div>
+                      <div className="max-w-[240px] truncate text-[13.5px] font-semibold">
+                        {s.name}
+                      </div>
                       <div className="text-[12px] text-slate-500">
-                        {s.countries.length > 0 && <span className="text-slate-400">Used in: </span>}
-                        {s.countries.map(c => countryByCode.get(c)?.name).filter(Boolean).join(', ')}
+                        {s.countries.length > 0 && (
+                          <span className="text-slate-400">Used in: </span>
+                        )}
+                        {s.countries
+                          .map((c) => countryByCode.get(c)?.name)
+                          .filter(Boolean)
+                          .join(', ')}
                       </div>
                     </div>
                   </button>
@@ -233,14 +315,19 @@ export default function SearchClient({
           )}
 
           <div className="flex flex-col gap-2.5">
-            {shown.map(com => {
+            {shown.map((com) => {
               const pref = com.preferred;
               // carry the active country filter (or the displayed preferred country) into the detail page
-              const linkCountry = filters.countries.find(c => com.countries.includes(c)) || pref?.country || '';
+              const linkCountry =
+                filters.countries.find((c) => com.countries.includes(c)) || pref?.country || '';
               return (
                 <button
                   key={com.id}
-                  onClick={() => router.push(`/sourceguide/commodity/${com.id}${linkCountry ? `?country=${encodeURIComponent(linkCountry)}` : ''}`)}
+                  onClick={() =>
+                    router.push(
+                      `/sourceguide/commodity/${com.id}${linkCountry ? `?country=${encodeURIComponent(linkCountry)}` : ''}`,
+                    )
+                  }
                   className="grid grid-cols-1 items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-px hover:border-[#6AAF8E] hover:shadow-sm sm:grid-cols-[1fr_auto]"
                 >
                   <div className="min-w-0">
@@ -248,27 +335,51 @@ export default function SearchClient({
                       {com.path.slice(0, 3).map((p, i) => (
                         <span key={i} className="flex items-center gap-1.5">
                           {i > 0 && <ChevronRight className="h-3 w-3 text-slate-300" />}
-                          <span className={i === Math.min(2, com.path.length - 1) ? 'font-semibold text-slate-600' : ''}>{p}</span>
+                          <span
+                            className={
+                              i === Math.min(2, com.path.length - 1)
+                                ? 'font-semibold text-slate-600'
+                                : ''
+                            }
+                          >
+                            {p}
+                          </span>
                         </span>
                       ))}
                     </div>
                     <div className="text-[16px] font-semibold tracking-tight">
                       {com.name}
-                      {com.code && <span className="ml-2 font-mono text-[11.5px] font-semibold" style={{ color: SG_BRAND }}>{com.code}</span>}
+                      {com.code && (
+                        <span
+                          className="ml-2 font-mono text-[11.5px] font-semibold"
+                          style={{ color: SG_BRAND }}
+                        >
+                          {com.code}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {com.countries.map(c => { const cc = countryByCode.get(c); return cc ? <CountryFlag key={c} country={cc} /> : null; })}
+                      {com.countries.map((c) => {
+                        const cc = countryByCode.get(c);
+                        return cc ? <CountryFlag key={c} country={cc} /> : null;
+                      })}
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     {pref && (
                       <div className="text-right">
-                        <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-400">Preferred · {pref.country}</div>
-                        <div className="mt-0.5 text-[13.5px] font-semibold">{pref.supplierName}</div>
+                        <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                          Preferred · {pref.country}
+                        </div>
+                        <div className="mt-0.5 text-[13.5px] font-semibold">
+                          {pref.supplierName}
+                        </div>
                       </div>
                     )}
                     {com.backupCount > 0 && (
-                      <span className="rounded-full bg-[#ececed] px-2.5 py-1 text-[11px] font-semibold text-slate-500">+{com.backupCount} backup</span>
+                      <span className="rounded-full bg-[#ececed] px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+                        +{com.backupCount} backup
+                      </span>
                     )}
                     <ChevronRight className="h-4 w-4 text-slate-300" />
                   </div>
@@ -279,8 +390,12 @@ export default function SearchClient({
             {!loading && results.length === 0 && (
               <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center">
                 <Search className="mx-auto h-8 w-8 text-slate-300" />
-                <div className="mt-3 text-[16px] font-semibold text-slate-900">No commodities match</div>
-                <div className="mt-1.5 text-[13.5px] text-slate-500">Try a broader term or clear your filters.</div>
+                <div className="mt-3 text-[16px] font-semibold text-slate-900">
+                  No commodities match
+                </div>
+                <div className="mt-1.5 text-[13.5px] text-slate-500">
+                  Try a broader term or clear your filters.
+                </div>
               </div>
             )}
             {loading && results.length === 0 && (
@@ -291,7 +406,7 @@ export default function SearchClient({
           {results.length > limit && (
             <div className="mt-6 text-center">
               <button
-                onClick={() => setLimit(l => l + 40)}
+                onClick={() => setLimit((l) => l + 40)}
                 className="rounded-full border border-slate-200 bg-white px-4 py-2 text-[13px] font-semibold text-slate-700 hover:border-[#6AAF8E]"
               >
                 Show more · {(results.length - limit).toLocaleString()} remaining
@@ -307,7 +422,9 @@ export default function SearchClient({
 function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="border-b border-slate-100 py-4 last:border-b-0">
-      <h4 className="mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-900">{title}</h4>
+      <h4 className="mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-900">
+        {title}
+      </h4>
       {children}
     </div>
   );

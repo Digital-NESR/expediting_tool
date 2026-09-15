@@ -47,11 +47,14 @@ function elementLabel(element: HTMLElement): string {
   const aria = element.getAttribute('aria-label');
   const title = element.getAttribute('title');
   const text = 'innerText' in element ? element.innerText : '';
-  const placeholder = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
-    ? element.placeholder
-    : '';
+  const placeholder =
+    element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
+      ? element.placeholder
+      : '';
 
-  return normaliseText(explicit || aria || title || text || placeholder || element.tagName.toLowerCase());
+  return normaliseText(
+    explicit || aria || title || text || placeholder || element.tagName.toLowerCase(),
+  );
 }
 
 function sendTrackingEvent(sessionId: string, payload: TrackingPayload): void {
@@ -129,9 +132,12 @@ export default function ProcureGuardUsageTracker() {
     sessionIdRef.current = sessionId;
 
     function handleClick(event: MouseEvent) {
-      const target = event.target instanceof Element
-        ? event.target.closest<HTMLElement>('a, button, input, select, textarea, [role="button"], [data-track-label]')
-        : null;
+      const target =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>(
+              'a, button, input, select, textarea, [role="button"], [data-track-label]',
+            )
+          : null;
       const page = pageRef.current;
       if (!target || !page) return;
 

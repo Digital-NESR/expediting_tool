@@ -19,17 +19,18 @@ National Energy Services Reunited Corp. (NESR) brand application guide for all d
 
 ### Colors
 
-| Role | Name | HEX | RGB |
-|---|---|---|---|
-| Primary | NESR Green | `#2A7E4F` | 42, 126, 79 |
-| Primary | NESR Black | `#1F1F1D` | 31, 31, 29 |
-| Secondary | Light Green (60%) | `#6AAF8E` | 106, 175, 142 |
-| Secondary | Pale Green (20%) | `#C5E0D2` | 197, 224, 210 |
-| Secondary | Mid Gray | `#58595B` | 88, 89, 91 |
-| Secondary | Light Gray | `#D1D3D4` | 209, 211, 212 |
-| Background | White | `#FFFFFF` | 255, 255, 255 |
+| Role       | Name              | HEX       | RGB           |
+| ---------- | ----------------- | --------- | ------------- |
+| Primary    | NESR Green        | `#2A7E4F` | 42, 126, 79   |
+| Primary    | NESR Black        | `#1F1F1D` | 31, 31, 29    |
+| Secondary  | Light Green (60%) | `#6AAF8E` | 106, 175, 142 |
+| Secondary  | Pale Green (20%)  | `#C5E0D2` | 197, 224, 210 |
+| Secondary  | Mid Gray          | `#58595B` | 88, 89, 91    |
+| Secondary  | Light Gray        | `#D1D3D4` | 209, 211, 212 |
+| Background | White             | `#FFFFFF` | 255, 255, 255 |
 
 **Usage rules:**
+
 - NESR Green is the dominant brand color — use for headers, section dividers, chart series, table headers, slide title bars, footer bars.
 - NESR Black is for primary body text and dark-background logos.
 - Light Green and Pale Green for chart fills, alternating table rows, subtle backgrounds.
@@ -48,6 +49,7 @@ The logo asset lives at: `assets/nesr_logo.png` (black on transparent — for wh
 Green background version: `assets/nesr_logo_green_bg.png` (for dark slide headers)
 
 **Logo placement rules:**
+
 - **Documents & Reports:** Top-left of page header, or centered on cover page.
 - **Presentations:** Top-left corner of title slides; small top-right badge on content slides.
 - **Dashboards:** Top-left navbar or header area.
@@ -56,6 +58,7 @@ Green background version: `assets/nesr_logo_green_bg.png` (for dark slide header
 - **Never** stretch, recolor (except approved variants), or place on busy backgrounds.
 
 **Approved logo variants:**
+
 1. Black on white — standard corporate templates (Word docs, reports, Excel)
 2. White on dark/black — dark advert backgrounds
 3. White on NESR Green — digital use, section dividers, presentation headers
@@ -70,6 +73,7 @@ Green background version: `assets/nesr_logo_green_bg.png` (for dark slide header
 Read `/mnt/skills/public/docx/SKILL.md` before generating. Apply NESR brand as follows:
 
 **Cover Page:**
+
 - Full-width NESR Green (`#2A7E4F`) block across top ~25% of page.
 - NESR logo (white on green variant or black on white, top-left).
 - Document title: Arial Bold, 28pt, White if on green block, else NESR Black.
@@ -77,6 +81,7 @@ Read `/mnt/skills/public/docx/SKILL.md` before generating. Apply NESR brand as f
 - Bottom footer bar: thin NESR Green rule, Arial 9pt gray text with "National Energy Services Reunited Corp. | www.nesr.com".
 
 **Body Pages:**
+
 - Header: NESR logo (black, small ~1cm height) top-left; page number top-right; thin green rule below.
 - Footer: thin green rule above; "National Energy Services Reunited Corp." left, page number right, Arial 8pt gray.
 - Section headings: Arial Bold, 14pt, NESR Green `#2A7E4F`.
@@ -86,6 +91,7 @@ Read `/mnt/skills/public/docx/SKILL.md` before generating. Apply NESR brand as f
 - Accent lines/callout boxes: NESR Green left border, Pale Green background.
 
 **Python-pptx color reference for python-docx:**
+
 ```python
 from docx.shared import RGBColor, Pt, Inches
 NESR_GREEN = RGBColor(42, 126, 79)
@@ -102,6 +108,7 @@ NESR_GRAY = RGBColor(88, 89, 91)
 Read `/mnt/skills/public/pptx/SKILL.md` before generating. Apply NESR brand as follows:
 
 **Title Slide layout:**
+
 - Background: White.
 - Top band: Full-width rectangle, NESR Green, ~30% slide height.
 - NESR logo (white on green) centered or top-left in the green band.
@@ -110,6 +117,7 @@ Read `/mnt/skills/public/pptx/SKILL.md` before generating. Apply NESR brand as f
 - Bottom accent: thin NESR Green line.
 
 **Content Slides layout:**
+
 - Background: White.
 - Top bar: NESR Green rectangle, full-width, ~10% slide height.
   - Slide title: Arial Bold, 20pt, White, inside green bar.
@@ -121,6 +129,7 @@ Read `/mnt/skills/public/pptx/SKILL.md` before generating. Apply NESR brand as f
 - Footer: Slide number right, "NESR Confidential" left (or appropriate label), Arial 8pt gray.
 
 **python-pptx color reference:**
+
 ```python
 from pptx.util import Pt, Inches, Emu
 from pptx.dml.color import RGBColor
@@ -138,27 +147,33 @@ NESR_GRAY = RGBColor(0x58, 0x59, 0x5B)
 Read `/mnt/skills/public/xlsx/SKILL.md` before generating. Apply NESR brand as follows:
 
 **Sheet Header (rows 1–3):**
+
 - Row 1: Merged across all columns — NESR Green fill. Insert NESR logo image top-left (from assets/). Sheet title in White Arial Bold 14pt centered.
 - Row 2: Document metadata (date, author, version) — Pale Green fill, Arial 9pt gray.
 - Row 3: Blank separator row.
 
 **Column Headers (first data header row):**
+
 - Fill: NESR Green. Font: Arial Bold 10pt White. Borders: thin white internal, no external.
 
 **Data Rows:**
+
 - Alternating: White and Pale Green (`#C5E0D2`) fills. Font: Arial 10pt NESR Black.
 - Number formats: use commas for thousands, 2dp for currency/percentages.
 
 **Totals/Summary Rows:**
+
 - Fill: Light Green (`#6AAF8E`). Font: Arial Bold 10pt White.
 
 **Charts:**
+
 - Series 1: NESR Green. Series 2: Light Green. Series 3: Mid Gray. Series 4: Pale Green.
 - Chart title: Arial Bold 12pt NESR Black.
 - Plot area background: White. Gridlines: Light Gray.
 - Legend: Arial 10pt, below chart.
 
 **openpyxl color reference:**
+
 ```python
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 NESR_GREEN_FILL = PatternFill("solid", fgColor="2A7E4F")
@@ -177,18 +192,19 @@ Apply NESR brand via CSS custom properties:
 
 ```css
 :root {
-  --nesr-green: #2A7E4F;
-  --nesr-green-light: #6AAF8E;
-  --nesr-green-pale: #C5E0D2;
-  --nesr-black: #1F1F1D;
-  --nesr-gray: #58595B;
-  --nesr-gray-light: #D1D3D4;
-  --nesr-white: #FFFFFF;
+  --nesr-green: #2a7e4f;
+  --nesr-green-light: #6aaf8e;
+  --nesr-green-pale: #c5e0d2;
+  --nesr-black: #1f1f1d;
+  --nesr-gray: #58595b;
+  --nesr-gray-light: #d1d3d4;
+  --nesr-white: #ffffff;
   --font-primary: Arial, Calibri, Helvetica, sans-serif;
 }
 ```
 
 **Layout:**
+
 - Top navbar: `background: var(--nesr-green)`. Logo left (white variant). Nav links Arial Bold 13px white.
 - Page title bar: `background: var(--nesr-green)`, white heading text.
 - KPI cards: white background, `border-top: 4px solid var(--nesr-green)`, metric value in NESR Green.
@@ -202,6 +218,7 @@ Apply NESR brand via CSS custom properties:
 ## Brand Voice Reminders
 
 When writing content within branded documents:
+
 - **Visionary**: Forward-thinking, innovative language.
 - **Reliable**: Dependable, transparent, ethical tone.
 - **Accountable**: Resourceful, respectful, socially responsible.
@@ -214,18 +231,21 @@ When writing content within branded documents:
 ## Logo Asset Usage in Code
 
 **python-docx (Word):**
+
 ```python
 from docx.shared import Inches
 doc.add_picture("public\nesr-logo.jpg", width=Inches(1.2))
 ```
 
 **python-pptx (PowerPoint):**
+
 ```python
 from pptx.util import Inches
 slide.shapes.add_picture("apublic\nesr-logo.jpg", Inches(0.2), Inches(0.1), width=Inches(1.0))
 ```
 
 **openpyxl (Excel):**
+
 ```python
 from openpyxl.drawing.image import Image as XLImage
 img = XLImage("public\nesr-logo.jpg")
@@ -234,6 +254,7 @@ ws.add_image(img, "A1")
 ```
 
 **HTML:**
+
 ```html
 <img src="public\nesr-logo.jpg" alt="NESR" style="height:48px;" />
 ```

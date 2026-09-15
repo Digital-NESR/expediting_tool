@@ -18,8 +18,15 @@ import {
 } from '@/lib/procureGuard-utils';
 import { revalidateProcureGuardPaths, writeActivity } from '@/lib/procure-guard/activity';
 import { getActor, requireAdminActor, requirePermissionManager } from '@/lib/procure-guard/actor';
-import { APPROVER_MATRIX_COLUMNS, upsertProcureGuardRecipientRow } from '@/lib/procure-guard/approver-matrix';
-import type { ApproverCell, ProcureGuardApproverMatrix, ProcureGuardViewerGrant } from '@/lib/procure-guard/approver-matrix';
+import {
+  APPROVER_MATRIX_COLUMNS,
+  upsertProcureGuardRecipientRow,
+} from '@/lib/procure-guard/approver-matrix';
+import type {
+  ApproverCell,
+  ProcureGuardApproverMatrix,
+  ProcureGuardViewerGrant,
+} from '@/lib/procure-guard/approver-matrix';
 import { isValidEmail, MEANINGFUL_ACTIVITY_WHERE } from '@/lib/procure-guard/constants';
 import {
   ensureProcureGuardDelegationTable,
@@ -34,7 +41,10 @@ import {
 import { buildStats } from '@/lib/procure-guard/analytics';
 import { notifyProcureGuardNextApprover } from '@/lib/procure-guard/notifications';
 import { syncProcureGuardRecipientAccessApprovals } from '@/lib/procure-guard/recipient-sync';
-import { ensureProcureGuardAccessRequestTable, ensureProcureGuardPermissionRoleValues } from '@/lib/procure-guard/schema';
+import {
+  ensureProcureGuardAccessRequestTable,
+  ensureProcureGuardPermissionRoleValues,
+} from '@/lib/procure-guard/schema';
 import {
   blankToNull,
   isProcureGuardAdminEmail,
@@ -73,10 +83,21 @@ export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData 
     // No recipient sync here: this is a READ path. Rendering the admin panel used to rewrite every
     // approver permission row (and prune the ones the manual editor had granted). The sync now runs
     // from the recipient mutators and from resyncProcureGuardRecipientAccess() only.
-    const [adhocRows, advanceRows, activityRows, permissionRows, notificationRecipientRows, delegationRows] = await Promise.all([
+    const [
+      adhocRows,
+      advanceRows,
+      activityRows,
+      permissionRows,
+      notificationRecipientRows,
+      delegationRows,
+    ] = await Promise.all([
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_adhoc_payments ORDER BY created_at DESC`),
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_advance_payments ORDER BY created_at DESC`),
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 100`),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM procure_guard_advance_payments ORDER BY created_at DESC`,
+      ),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM procure_guard_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 100`,
+      ),
       sql<QueryResultRow[]>(`SELECT * FROM procure_guard_permissions ORDER BY role, email`),
       sql<QueryResultRow[]>(
         `SELECT id, country, request_type, notification_role, approval_status, source_column, display_name,
@@ -84,19 +105,24 @@ export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData 
          FROM procure_guard_notification_recipients
          ORDER BY country, request_type, approval_status NULLS LAST, notification_role, display_name`,
       ),
-      sql<QueryResultRow[]>(`SELECT * FROM procure_guard_delegations ORDER BY is_active DESC, created_at DESC`),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM procure_guard_delegations ORDER BY is_active DESC, created_at DESC`,
+      ),
     ]);
 
     const adhoc = normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(adhocRows));
     const advance = normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(advanceRows));
-    const permissions = normalisePaymentCountries(serialise<ProcureGuardPermissionRow[]>(permissionRows));
+    const permissions = normalisePaymentCountries(
+      serialise<ProcureGuardPermissionRow[]>(permissionRows),
+    );
     return {
       actor,
       adhoc,
       advance,
       activity: serialise<ProcureGuardActivityRow[]>(activityRows),
       permissions,
-      notification_recipients: serialise<ProcureGuardNotificationContact[]>(notificationRecipientRows),
+      notification_recipients:
+        serialise<ProcureGuardNotificationContact[]>(notificationRecipientRows),
       delegations: serialise<ProcureGuardDelegation[]>(delegationRows),
       stats: buildStats(adhoc, advance),
     };
@@ -106,14 +132,19 @@ export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData 
   }
 }
 
-export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInput): Promise<ActionResult<{ id: number }>> {
+export async function createAdminAdhocPayment(
+  input: AdminCreateAdhocPaymentInput,
+): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await requireAdminActor();
     await ensureProcureGuardPaymentRequestColumns();
     const requestedByEmail = input.requested_by_email?.trim() || actor.email;
     const requestedByName = input.requested_by_name?.trim() || actor.name;
     // Admin-create never had the acknowledgement check the requester forms carry.
-    const normalised = normaliseAdhocInput(input, { requesterEmail: requestedByEmail, requireAcknowledgement: false });
+    const normalised = normaliseAdhocInput(input, {
+      requesterEmail: requestedByEmail,
+      requireAcknowledgement: false,
+    });
     const status = input.status || 'Submitted';
 
     const result = await insertAdhocRequest({
@@ -147,11 +178,16 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
     log.error('createAdminAdhocPayment.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create adhoc PO.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to create adhoc PO.',
+    };
   }
 }
 
-export async function createAdminAdvancePayment(input: AdminCreateAdvancePaymentInput): Promise<ActionResult<{ id: number }>> {
+export async function createAdminAdvancePayment(
+  input: AdminCreateAdvancePaymentInput,
+): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await requireAdminActor();
     await ensureProcureGuardPaymentRequestColumns();
@@ -191,7 +227,10 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
     log.error('createAdminAdvancePayment.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create advance payment.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to create advance payment.',
+    };
   }
 }
 
@@ -212,13 +251,20 @@ export async function deleteProcureGuardRecord(
       return { success: true };
     }
 
-    const table = recordType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
-    const rows = await sql<QueryResultRow[]>(`SELECT reference_number FROM ${table} WHERE id = ? LIMIT 1`, [id]);
+    const table =
+      recordType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT reference_number FROM ${table} WHERE id = ? LIMIT 1`,
+      [id],
+    );
     const row = rows[0];
     if (!row) return { success: false, error: 'Record not found.' };
 
     await exec(`DELETE FROM ${table} WHERE id = ?`, [id]);
-    await exec(`DELETE FROM procure_guard_activity_log WHERE request_type = ? AND request_id = ?`, [recordType, id]);
+    await exec(`DELETE FROM procure_guard_activity_log WHERE request_type = ? AND request_id = ?`, [
+      recordType,
+      id,
+    ]);
     await writeActivity({
       requestType: recordType,
       requestId: id,
@@ -231,7 +277,10 @@ export async function deleteProcureGuardRecord(
     return { success: true };
   } catch (err) {
     log.error('deleteProcureGuardRecord.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to delete record.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to delete record.',
+    };
   }
 }
 
@@ -260,14 +309,18 @@ export async function updateProcureGuardNotificationRecipient(input: {
       [displayName, email, id],
     );
 
-    if (result.rowCount === 0) return { success: false, error: 'Notification recipient not found.' };
+    if (result.rowCount === 0)
+      return { success: false, error: 'Notification recipient not found.' };
 
     await syncProcureGuardRecipientAccessApprovals();
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
     log.error('updateProcureGuardNotificationRecipient.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update notification recipient.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update notification recipient.',
+    };
   }
 }
 
@@ -283,7 +336,8 @@ export async function updateProcureGuardNotificationRecipientGroup(input: {
     }
 
     const ids = [...new Set(input.ids.map(Number).filter(Number.isFinite))];
-    if (ids.length === 0) return { success: false, error: 'Choose at least one notification recipient row.' };
+    if (ids.length === 0)
+      return { success: false, error: 'Choose at least one notification recipient row.' };
 
     const displayName = requireText(input.display_name, 'Display name');
     const email = requireText(input.email, 'Email').toLowerCase();
@@ -298,14 +352,18 @@ export async function updateProcureGuardNotificationRecipientGroup(input: {
       [displayName, email, ids],
     );
 
-    if (result.rowCount === 0) return { success: false, error: 'Notification recipients not found.' };
+    if (result.rowCount === 0)
+      return { success: false, error: 'Notification recipients not found.' };
 
     await syncProcureGuardRecipientAccessApprovals();
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
     log.error('updateProcureGuardNotificationRecipientGroup.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update notification recipient group.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update notification recipient group.',
+    };
   }
 }
 
@@ -343,7 +401,8 @@ export async function getProcureGuardApproverMatrix(): Promise<ProcureGuardAppro
     const countries = [...countrySet].sort((a, b) => a.localeCompare(b));
     for (const country of countries) {
       cells[country] = cells[country] ?? {};
-      for (const col of APPROVER_MATRIX_COLUMNS) if (!(col.key in cells[country])) cells[country][col.key] = null;
+      for (const col of APPROVER_MATRIX_COLUMNS)
+        if (!(col.key in cells[country])) cells[country][col.key] = null;
     }
     return { countries, columns: APPROVER_MATRIX_COLUMNS, cells };
   } catch (err) {
@@ -380,7 +439,10 @@ export async function setProcureGuardApprover(input: {
     return { success: true };
   } catch (err) {
     log.error('setProcureGuardApprover.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to set approver.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to set approver.',
+    };
   }
 }
 
@@ -421,7 +483,10 @@ export async function setProcureGuardApproverForColumn(input: {
     return { success: true };
   } catch (err) {
     log.error('setProcureGuardApproverForColumn.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to set column approver.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to set column approver.',
+    };
   }
 }
 
@@ -444,12 +509,14 @@ export async function getProcureGuardViewerGrants(): Promise<ProcureGuardViewerG
   }
 }
 
-export async function testProcureGuardN8nWebhook(): Promise<ActionResult<{
-  status: number;
-  statusText: string;
-  webhookHost: string;
-  webhookPath: string;
-}>> {
+export async function testProcureGuardN8nWebhook(): Promise<
+  ActionResult<{
+    status: number;
+    statusText: string;
+    webhookHost: string;
+    webhookPath: string;
+  }>
+> {
   try {
     await requirePermissionManager();
     const rawWebhookUrl = process.env.N8N_PROCUREGUARD_WEBHOOK_URL?.trim();
@@ -481,7 +548,9 @@ export async function testProcureGuardN8nWebhook(): Promise<ActionResult<{
         webhookHost: parsedUrl.hostname,
         webhookPath: parsedUrl.pathname,
       },
-      error: response.ok ? undefined : `n8n responded with ${response.status} ${response.statusText || ''}`.trim(),
+      error: response.ok
+        ? undefined
+        : `n8n responded with ${response.status} ${response.statusText || ''}`.trim(),
     };
   } catch (err) {
     log.error('testProcureGuardN8nWebhook.failed', err);
@@ -507,7 +576,10 @@ export async function resyncProcureGuardRecipientAccess(): Promise<ActionResult>
     return { success: true };
   } catch (err) {
     log.error('resyncProcureGuardRecipientAccess.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to re-sync approver access.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to re-sync approver access.',
+    };
   }
 }
 
@@ -528,7 +600,9 @@ export async function deleteProcureGuardAccessRequest(userEmail: string): Promis
   }
 }
 
-export async function updateProcureGuardPermission(input: UpdateProcureGuardPermissionInput): Promise<ActionResult> {
+export async function updateProcureGuardPermission(
+  input: UpdateProcureGuardPermissionInput,
+): Promise<ActionResult> {
   try {
     const actor = await getActor();
     await ensureProcureGuardPermissionRoleValues();
@@ -536,7 +610,8 @@ export async function updateProcureGuardPermission(input: UpdateProcureGuardPerm
     const role = input.role;
     const country = normalisePermissionCountryForRole(role, input.country);
     const canManageAll = canUseProcureGuardAdmin(getProcureGuardAccessView(actor.role));
-    const canManageOwnConfiguredAdmin = actor.email.toLowerCase() === email && isProcureGuardAdminEmail(email);
+    const canManageOwnConfiguredAdmin =
+      actor.email.toLowerCase() === email && isProcureGuardAdminEmail(email);
 
     if (!canManageAll && !canManageOwnConfiguredAdmin) {
       return { success: false, error: 'Permission management access is required.' };
@@ -555,19 +630,16 @@ export async function updateProcureGuardPermission(input: UpdateProcureGuardPerm
          country = EXCLUDED.country,
          segment = EXCLUDED.segment,
          updated_at = CURRENT_TIMESTAMP`,
-      [
-        email,
-        blankToNull(input.name),
-        role,
-        blankToNull(country),
-        blankToNull(input.segment),
-      ],
+      [email, blankToNull(input.name), role, blankToNull(country), blankToNull(input.segment)],
     );
 
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
     log.error('updateProcureGuardPermission.failed', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update permission.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update permission.',
+    };
   }
 }

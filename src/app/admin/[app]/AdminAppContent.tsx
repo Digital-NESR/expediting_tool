@@ -19,7 +19,11 @@
 
 import dynamic from 'next/dynamic';
 import type { TiteAnalyticsShipment } from '@/types/tite';
-import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
+import type {
+  ProcureGuardAdminAnalyticsData,
+  ProcureGuardAdminData,
+  ProcureGuardAnalyticsData,
+} from '@/types/procureGuard';
 import type { LaptopAdminData, LaptopAnalyticsData } from '@/types/laptopProcurement';
 import type { LearningHubAdminData } from '@/types/learning-hub';
 import type { LearningHubAnalytics } from '@/types/learning-hub';
@@ -51,40 +55,91 @@ const AccessApprovalsClient = dynamic(() => import('../AccessApprovalsClient'), 
 
 /* ── TI-TE ── */
 const TiteMigrationClient = dynamic(() => import('../TiteMigrationClient'), { loading });
-const TiteAccessApprovalsClient = dynamic(() => import('../TiteAccessApprovalsClient'), { loading });
-const TiteDefaultNotifiersClient = dynamic(() => import('../TiteDefaultNotifiersClient'), { loading });
+const TiteAccessApprovalsClient = dynamic(() => import('../TiteAccessApprovalsClient'), {
+  loading,
+});
+const TiteDefaultNotifiersClient = dynamic(() => import('../TiteDefaultNotifiersClient'), {
+  loading,
+});
 const TiteAnalyticsClient = dynamic(() => import('../TiteAnalyticsClient'), { loading });
 
 /* ── ProcureGuard ── */
-const ProcureGuardAccessApprovalsClient = dynamic(() => import('../ProcureGuardAccessApprovalsClient'), { loading });
-const ProcureGuardAdminPanelClient = dynamic(() => import('../../procure-guard/admin/AdminPanelClient'), { loading });
-const ProcureGuardAnalyticsClient = dynamic(() => import('../../procure-guard/analytics/AnalyticsClient'), { loading });
-const ProcureGuardAdminAnalyticsClient = dynamic(() => import('../../procure-guard/admin-analytics/AdminAnalyticsClient'), { loading });
+const ProcureGuardAccessApprovalsClient = dynamic(
+  () => import('../ProcureGuardAccessApprovalsClient'),
+  { loading },
+);
+const ProcureGuardAdminPanelClient = dynamic(
+  () => import('../../procure-guard/admin/AdminPanelClient'),
+  { loading },
+);
+const ProcureGuardAnalyticsClient = dynamic(
+  () => import('../../procure-guard/analytics/AnalyticsClient'),
+  { loading },
+);
+const ProcureGuardAdminAnalyticsClient = dynamic(
+  () => import('../../procure-guard/admin-analytics/AdminAnalyticsClient'),
+  { loading },
+);
 
 /* ── SourceGuide (named exports of one module) ── */
-const SourceGuideAccessApprovalsClient = dynamic(() => import('../SourceGuideAdmin').then(m => m.SourceGuideAccessApprovalsClient), { loading });
-const SourceGuideGuidesClient = dynamic(() => import('../SourceGuideAdmin').then(m => m.SourceGuideGuidesClient), { loading });
-const SourceGuideAnalyticsClient = dynamic(() => import('../SourceGuideAdmin').then(m => m.SourceGuideAnalyticsClient), { loading });
-const SourceGuideChampionsClient = dynamic(() => import('../SourceGuideAdmin').then(m => m.SourceGuideChampionsClient), { loading });
+const SourceGuideAccessApprovalsClient = dynamic(
+  () => import('../SourceGuideAdmin').then((m) => m.SourceGuideAccessApprovalsClient),
+  { loading },
+);
+const SourceGuideGuidesClient = dynamic(
+  () => import('../SourceGuideAdmin').then((m) => m.SourceGuideGuidesClient),
+  { loading },
+);
+const SourceGuideAnalyticsClient = dynamic(
+  () => import('../SourceGuideAdmin').then((m) => m.SourceGuideAnalyticsClient),
+  { loading },
+);
+const SourceGuideChampionsClient = dynamic(
+  () => import('../SourceGuideAdmin').then((m) => m.SourceGuideChampionsClient),
+  { loading },
+);
 
 /* ── Catalog Repo (named exports of one module) ── */
-const CatalogAccessApprovalsClient = dynamic(() => import('../CatalogRepoAdmin').then(m => m.CatalogAccessApprovalsClient), { loading });
-const CatalogAdminPanelClient = dynamic(() => import('../CatalogRepoAdmin').then(m => m.CatalogAdminPanelClient), { loading });
-const CatalogSyncHealthClient = dynamic(() => import('../CatalogRepoAdmin').then(m => m.CatalogSyncHealthClient), { loading });
+const CatalogAccessApprovalsClient = dynamic(
+  () => import('../CatalogRepoAdmin').then((m) => m.CatalogAccessApprovalsClient),
+  { loading },
+);
+const CatalogAdminPanelClient = dynamic(
+  () => import('../CatalogRepoAdmin').then((m) => m.CatalogAdminPanelClient),
+  { loading },
+);
+const CatalogSyncHealthClient = dynamic(
+  () => import('../CatalogRepoAdmin').then((m) => m.CatalogSyncHealthClient),
+  { loading },
+);
 
 /* ── S&S Registry ── */
 const SnsAccessApprovalsClient = dynamic(() => import('../SnsAccessApprovalsClient'), { loading });
 const SnsReferenceDataClient = dynamic(() => import('../SnsReferenceDataClient'), { loading });
 
 /* ── Laptop Procurement ── */
-const LaptopAdminClient = dynamic(() => import('../../laptop-procurement/admin/LaptopAdminClient'), { loading });
-const LaptopAnalyticsClient = dynamic(() => import('../../laptop-procurement/analytics/LaptopAnalyticsClient'), { loading });
-const LaptopApproverMatrixClient = dynamic(() => import('../LaptopApproverMatrixClient'), { loading });
-const LaptopAccessApprovalsClient = dynamic(() => import('../LaptopAccessApprovalsClient'), { loading });
+const LaptopAdminClient = dynamic(
+  () => import('../../laptop-procurement/admin/LaptopAdminClient'),
+  { loading },
+);
+const LaptopAnalyticsClient = dynamic(
+  () => import('../../laptop-procurement/analytics/LaptopAnalyticsClient'),
+  { loading },
+);
+const LaptopApproverMatrixClient = dynamic(() => import('../LaptopApproverMatrixClient'), {
+  loading,
+});
+const LaptopAccessApprovalsClient = dynamic(() => import('../LaptopAccessApprovalsClient'), {
+  loading,
+});
 
 /* ── Learning Hub ── */
-const LearningHubAdminClient = dynamic(() => import('../../learning-hub/admin/AdminClient'), { loading });
-const LearningHubAnalyticsClient = dynamic(() => import('../LearningHubAnalyticsClient'), { loading });
+const LearningHubAdminClient = dynamic(() => import('../../learning-hub/admin/AdminClient'), {
+  loading,
+});
+const LearningHubAnalyticsClient = dynamic(() => import('../LearningHubAnalyticsClient'), {
+  loading,
+});
 
 export interface AdminAppContentProps {
   app: string;
@@ -181,10 +236,6 @@ export default function AdminAppContent(props: AdminAppContentProps) {
       return <LearningHubAnalyticsClient data={props.learningHubAnalytics!} />;
 
     default:
-      return (
-        <div className="text-sm text-slate-500">
-          Unknown section.
-        </div>
-      );
+      return <div className="text-sm text-slate-500">Unknown section.</div>;
   }
 }

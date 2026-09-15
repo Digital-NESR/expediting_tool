@@ -6,7 +6,8 @@ import { currentActor } from '@/lib/require-access';
 /* The Power BI report/tenant/workspace ids are configuration, not source.
    Read server-side (no NEXT_PUBLIC_ prefix) with the previous hard-coded
    values as defaults, so an unset env changes nothing. */
-const POWERBI_REPORT_ID = process.env.POWERBI_SCA_REPORT_ID ?? 'c1485412-17dc-476d-8c80-dc56714d9e53';
+const POWERBI_REPORT_ID =
+  process.env.POWERBI_SCA_REPORT_ID ?? 'c1485412-17dc-476d-8c80-dc56714d9e53';
 const POWERBI_TENANT_ID = process.env.POWERBI_TENANT_ID ?? '5f13d1c2-10ac-49b8-a85e-4bb3d91135b9';
 const POWERBI_WORKSPACE_ID = process.env.POWERBI_SCA_WORKSPACE_ID ?? '';
 
@@ -32,7 +33,6 @@ export default async function SupplyChainAnalyticsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans text-slate-900">
-
       {/* Header */}
       <header className="h-14 bg-white border-b border-gray-200 px-6 flex items-center gap-4 shrink-0">
         <Link

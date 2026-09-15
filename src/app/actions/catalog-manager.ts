@@ -79,7 +79,8 @@ const catalogLog = logger('catalog-manager');
  * goes to the server log; it must not go to the browser, because the only detail available here
  * is the raw Postgres message, which names tables, columns and constraints.
  */
-const GENERIC_ACTION_ERROR = 'Something went wrong. Please try again, or contact the Catalog Repo admin if it keeps happening.';
+const GENERIC_ACTION_ERROR =
+  'Something went wrong. Please try again, or contact the Catalog Repo admin if it keeps happening.';
 
 /**
  * `pg` puts the five-character SQLSTATE on `err.code`, and that is the one reliable way to tell a
@@ -98,7 +99,11 @@ function isDatabaseError(err: unknown): boolean {
  * investigate — and what the user saw instead was the Postgres message, naming tables, columns and
  * constraints. Deliberate messages pass through; database errors become GENERIC_ACTION_ERROR.
  */
-async function catalogWrite<T>(event: string, fields: Record<string, unknown>, run: () => Promise<T>): Promise<T> {
+async function catalogWrite<T>(
+  event: string,
+  fields: Record<string, unknown>,
+  run: () => Promise<T>,
+): Promise<T> {
   try {
     return await run();
   } catch (err) {
@@ -116,7 +121,10 @@ async function catalogWrite<T>(event: string, fields: Record<string, unknown>, r
  */
 interface CatalogDb {
   sql: <T extends QueryResultRow[]>(statement: string, params?: QueryParams) => Promise<T>;
-  exec: (statement: string, params?: QueryParams) => Promise<{ rowCount: number; insertId: number }>;
+  exec: (
+    statement: string,
+    params?: QueryParams,
+  ) => Promise<{ rowCount: number; insertId: number }>;
 }
 
 const poolDb: CatalogDb = { sql, exec };
@@ -362,7 +370,9 @@ async function initCatalogManagerSchema(): Promise<void> {
   // Real uploaded proof-of-agreement files are stored inline as a data URL (local-first).
   execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS data_url TEXT`);
   execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS uploaded_by TEXT`);
-  execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP`);
+  execSchema(
+    `ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP`,
+  );
 
   // Approval thresholds — a global default plus optional per-country / per-category overrides.
   execSchema(`CREATE TABLE IF NOT EXISTS approval_threshold (
@@ -391,7 +401,9 @@ async function initCatalogManagerSchema(): Promise<void> {
     emails TEXT,
     additional_email TEXT
   )`);
-  execSchema(`CREATE INDEX IF NOT EXISTS supplier_directory_name_idx ON supplier_directory (LOWER(name))`);
+  execSchema(
+    `CREATE INDEX IF NOT EXISTS supplier_directory_name_idx ON supplier_directory (LOWER(name))`,
+  );
 
   // PIR / Inventory catalog — a READ-ONLY mirror of SAP Purchasing Info Records, loaded by an
   // external n8n job (Power BI → truncate + insert). The app never writes to this table.
@@ -456,9 +468,15 @@ async function initCatalogManagerSchema(): Promise<void> {
 
   try {
     await exec(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
-    await exec(`CREATE INDEX IF NOT EXISTS pir_desc_trgm ON pir_catalog USING gin (material_description gin_trgm_ops)`);
-    await exec(`CREATE INDEX IF NOT EXISTS pir_supplier_trgm ON pir_catalog USING gin (supplier_name gin_trgm_ops)`);
-    await exec(`CREATE INDEX IF NOT EXISTS pir_product_trgm ON pir_catalog USING gin (product_number gin_trgm_ops)`);
+    await exec(
+      `CREATE INDEX IF NOT EXISTS pir_desc_trgm ON pir_catalog USING gin (material_description gin_trgm_ops)`,
+    );
+    await exec(
+      `CREATE INDEX IF NOT EXISTS pir_supplier_trgm ON pir_catalog USING gin (supplier_name gin_trgm_ops)`,
+    );
+    await exec(
+      `CREATE INDEX IF NOT EXISTS pir_product_trgm ON pir_catalog USING gin (product_number gin_trgm_ops)`,
+    );
   } catch (err) {
     // pg_trgm not available to this role — search degrades to a scan, everything else is fine.
     catalogLog.warn('schema.trigramIndexesSkipped', {
@@ -485,8 +503,20 @@ async function seedSupplierDirectory(): Promise<void> {
       `SELECT supplier_id, supplier_name, supplier_emails, additional_supplier_email
        FROM supplier_contacts WHERE supplier_id IS NOT NULL AND supplier_name IS NOT NULL`,
     );
-    const rows = (res.rows as { supplier_id: string; supplier_name: string; supplier_emails: string | null; additional_supplier_email: string | null }[])
-      .map((r) => ({ code: String(r.supplier_id).trim(), name: String(r.supplier_name).trim(), emails: r.supplier_emails ?? null, add: r.additional_supplier_email ?? null }))
+    const rows = (
+      res.rows as {
+        supplier_id: string;
+        supplier_name: string;
+        supplier_emails: string | null;
+        additional_supplier_email: string | null;
+      }[]
+    )
+      .map((r) => ({
+        code: String(r.supplier_id).trim(),
+        name: String(r.supplier_name).trim(),
+        emails: r.supplier_emails ?? null,
+        add: r.additional_supplier_email ?? null,
+      }))
       .filter((r) => r.code && r.name);
     const BATCH = 500;
     for (let i = 0; i < rows.length; i += BATCH) {
@@ -517,7 +547,9 @@ async function seedSupplierDirectory(): Promise<void> {
  * Typeahead over the SAP supplier directory, now stored in the catalog DB
  * (supplier_directory, seeded once from the expediting DB). Returns up to 20 distinct-by-name matches.
  */
-export async function searchSupplierDirectory(query: string): Promise<{ name: string; code: string }[]> {
+export async function searchSupplierDirectory(
+  query: string,
+): Promise<{ name: string; code: string }[]> {
   if (!(await optionalCatalogActor())) return [];
   const q = (query ?? '').trim();
   if (q.length < 2) return [];
@@ -535,7 +567,10 @@ export async function searchSupplierDirectory(query: string): Promise<{ name: st
  * Build a `(?, ?, ...), (?, ?, ...)` multi-row VALUES clause + flat params array from row tuples.
  * `suffix` appends a fixed (non-bound) literal to every row, e.g. `, 'Active'` for a constant status column.
  */
-function multiRowValues(rows: (string | number)[][], suffix = ''): { placeholders: string; params: QueryParams } {
+function multiRowValues(
+  rows: (string | number)[][],
+  suffix = '',
+): { placeholders: string; params: QueryParams } {
   const placeholders = rows.map((row) => `(${row.map(() => '?').join(', ')}${suffix})`).join(', ');
   return { placeholders, params: rows.flat() };
 }
@@ -546,7 +581,9 @@ async function seedMasterData(): Promise<void> {
   // Each of these used to be one round trip PER ROW (a loop of ~20-70 sequential awaits); now
   // every list is a single multi-row upsert — one round trip regardless of list size.
   if (SEED_CURRENCIES.length) {
-    const { placeholders, params } = multiRowValues(SEED_CURRENCIES.map((c) => [c.code, c.decimals, c.usd_rate]));
+    const { placeholders, params } = multiRowValues(
+      SEED_CURRENCIES.map((c) => [c.code, c.decimals, c.usd_rate]),
+    );
     // DO NOTHING, not DO UPDATE: `currency.usd_rate` is the live rate the approval tier is
     // computed from and an admin can correct it. Re-upserting the constants on every boot
     // silently reverted any such correction on the next cold start.
@@ -557,7 +594,10 @@ async function seedMasterData(): Promise<void> {
     );
   }
   if (SEED_COUNTRIES.length) {
-    const { placeholders, params } = multiRowValues(SEED_COUNTRIES.map((c) => [c.code, c.name, c.ccy, c.flag]), `, 'Active'`);
+    const { placeholders, params } = multiRowValues(
+      SEED_COUNTRIES.map((c) => [c.code, c.name, c.ccy, c.flag]),
+      `, 'Active'`,
+    );
     await exec(
       `INSERT INTO country (code, name, default_currency, flag, status) VALUES ${placeholders}
        ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, default_currency = EXCLUDED.default_currency, flag = EXCLUDED.flag`,
@@ -565,7 +605,10 @@ async function seedMasterData(): Promise<void> {
     );
   }
   if (SEED_UOMS.length) {
-    const { placeholders, params } = multiRowValues(SEED_UOMS.map((u) => [u]), `, 'Active'`);
+    const { placeholders, params } = multiRowValues(
+      SEED_UOMS.map((u) => [u]),
+      `, 'Active'`,
+    );
     await exec(
       `INSERT INTO unit_of_measure (name, status) VALUES ${placeholders} ON CONFLICT (name) DO NOTHING`,
       params,
@@ -576,7 +619,10 @@ async function seedMasterData(): Promise<void> {
   // multi-row insert for ALL subcategories across ALL categories — was N + M sequential round
   // trips (one per category, one per subcategory); now 2 total regardless of taxonomy size.
   if (SPEND_TAXONOMY.length) {
-    const { placeholders, params } = multiRowValues(SPEND_TAXONOMY.map((cat) => [cat.name, cat.type]), `, 'Active'`);
+    const { placeholders, params } = multiRowValues(
+      SPEND_TAXONOMY.map((cat) => [cat.name, cat.type]),
+      `, 'Active'`,
+    );
     const catRows = await sql<{ id: number; name: string }[]>(
       `INSERT INTO spend_category (name, type, status) VALUES ${placeholders}
        ON CONFLICT (name) DO UPDATE SET type = EXCLUDED.type RETURNING id, name`,
@@ -609,7 +655,9 @@ async function seedMasterData(): Promise<void> {
   // service-activity reference list (only seed when empty, to avoid re-upserting 127 rows each boot)
   const svcCount = await sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM service_activity`);
   if (Number(svcCount[0]?.n ?? 0) === 0 && SERVICE_ACTIVITIES.length) {
-    const { placeholders, params } = multiRowValues(SERVICE_ACTIVITIES.map((s) => [s.no, s.text, s.uom]));
+    const { placeholders, params } = multiRowValues(
+      SERVICE_ACTIVITIES.map((s) => [s.no, s.text, s.uom]),
+    );
     await exec(
       `INSERT INTO service_activity (activity_number, short_text, base_uom) VALUES ${placeholders}
        ON CONFLICT (activity_number) DO NOTHING`,
@@ -627,7 +675,12 @@ async function seedMasterData(): Promise<void> {
  * admin-preview branch in getCatalogActor() below, which needs no database row at all.
  */
 
-async function upsertSupplier(name: string, vendor: string, manager: string | null, db: CatalogDb = poolDb): Promise<number> {
+async function upsertSupplier(
+  name: string,
+  vendor: string,
+  manager: string | null,
+  db: CatalogDb = poolDb,
+): Promise<number> {
   const ins = await db.exec(
     `INSERT INTO supplier (vendor_code, name, accountable_manager) VALUES (?, ?, ?)
      ON CONFLICT (vendor_code) DO UPDATE SET name = EXCLUDED.name,
@@ -663,7 +716,9 @@ const loadCatalogActor = cache(async (): Promise<CatalogActor> => {
   // The app_user row and the delegations granted TO this user are independent lookups (and live in
   // different databases), so they go out together rather than one after the other.
   const [rows, delegatedFrom] = await Promise.all([
-    email ? sql<AppUserRow[]>(`SELECT * FROM app_user WHERE LOWER(email) = ?`, [email]) : Promise.resolve([] as AppUserRow[]),
+    email
+      ? sql<AppUserRow[]>(`SELECT * FROM app_user WHERE LOWER(email) = ?`, [email])
+      : Promise.resolve([] as AppUserRow[]),
     resolveCatalogDelegations(email),
   ]);
   const userRow = rows[0];
@@ -732,7 +787,12 @@ export async function getCatalogActor(): Promise<CatalogActor> {
    exported action must start with one of the two guards below.
 ---------------------------------------------------------------------------- */
 
-const CATALOG_ROLE_RANK: Record<CatalogRole, number> = { Viewer: 0, Contributor: 1, Approver: 2, Admin: 3 };
+const CATALOG_ROLE_RANK: Record<CatalogRole, number> = {
+  Viewer: 0,
+  Contributor: 1,
+  Approver: 2,
+  Admin: 3,
+};
 
 function meetsCatalogRole(actor: CatalogActor, min: CatalogRole): boolean {
   // 'Approver' also admits a delegated approver, whose own role may be lower.
@@ -802,7 +862,8 @@ async function resolveCatalogDelegations(email: string): Promise<CatalogDelegati
     if (!u) continue;
     const canApprove = u.role === 'Approver' || u.role === 'Admin';
     if (!canApprove) continue;
-    const countries = u.role === 'Admin' ? allCountries.map((c) => c.code) : byUser.get(Number(u.id)) ?? [];
+    const countries =
+      u.role === 'Admin' ? allCountries.map((c) => c.code) : (byUser.get(Number(u.id)) ?? []);
     grants.push({ email: d.email, name: u.full_name ?? d.name ?? d.email, countries });
   }
   return grants;
@@ -826,12 +887,16 @@ interface ApproverScope {
  * Load every authority row for the given emails in one query — or, when `emails` is null,
  * for every user who can approve at all (used to name the approver an entry is routed to).
  */
-async function loadApproverScopes(emails: (string | null | undefined)[] | null, db: CatalogDb = poolDb): Promise<ApproverScope[]> {
+async function loadApproverScopes(
+  emails: (string | null | undefined)[] | null,
+  db: CatalogDb = poolDb,
+): Promise<ApproverScope[]> {
   const list = emails === null ? null : [...new Set(emails.map(normalizeEmail).filter(Boolean))];
   if (list !== null && !list.length) return [];
-  const where = list === null
-    ? `au.role IN ('Approver', 'Admin')`
-    : `LOWER(au.email) IN (${list.map(() => '?').join(', ')})`;
+  const where =
+    list === null
+      ? `au.role IN ('Approver', 'Admin')`
+      : `LOWER(au.email) IN (${list.map(() => '?').join(', ')})`;
   const rows = await db.sql<QueryResultRow[]>(
     `SELECT LOWER(au.email) AS email, au.full_name, au.role, ca.country_code, ca.spend_category_id
      FROM app_user au
@@ -871,7 +936,9 @@ async function resolveApproverLabel(
 ): Promise<string | null> {
   const scopes = preloaded ?? (await loadApproverScopes(null, db));
   const covering = scopes.filter(
-    (s) => s.country_code === countryCode && (s.spend_category_id === null || s.spend_category_id === categoryId),
+    (s) =>
+      s.country_code === countryCode &&
+      (s.spend_category_id === null || s.spend_category_id === categoryId),
   );
   if (!covering.length) return null;
   // Most specific first (a category-scoped assignment beats an all-category one), then by name
@@ -895,7 +962,8 @@ function scopeCovers(
     (s) =>
       s.email === e &&
       (s.isGlobal ||
-        (s.country_code === countryCode && (s.spend_category_id === null || s.spend_category_id === categoryId))),
+        (s.country_code === countryCode &&
+          (s.spend_category_id === null || s.spend_category_id === categoryId))),
   );
 }
 
@@ -915,7 +983,8 @@ async function catalogActingIdentity(
   if (actor.role === 'Admin') return { allowed: true, label: actor.name };
 
   const delegators = actor.delegatedFrom ?? [];
-  const scopes = preloaded ?? (await loadApproverScopes([actor.email, ...delegators.map((d) => d.email)], db));
+  const scopes =
+    preloaded ?? (await loadApproverScopes([actor.email, ...delegators.map((d) => d.email)], db));
 
   if (actor.canApproveOwn === true && scopeCovers(scopes, actor.email, countryCode, categoryId)) {
     return { allowed: true, label: actor.name };
@@ -943,13 +1012,21 @@ export async function getApprovableEntryIds(entryIds: number[]): Promise<number[
     ids,
   );
   const delegators = actor.delegatedFrom ?? [];
-  const emails = [...(actor.canApproveOwn === true ? [actor.email] : []), ...delegators.map((d) => d.email)];
+  const emails = [
+    ...(actor.canApproveOwn === true ? [actor.email] : []),
+    ...delegators.map((d) => d.email),
+  ];
   const scopes = await loadApproverScopes([actor.email, ...delegators.map((d) => d.email)]);
 
   return rows
     .filter((r) =>
       emails.some((e) =>
-        scopeCovers(scopes, e, String(r.country_code), r.category_id != null ? Number(r.category_id) : null),
+        scopeCovers(
+          scopes,
+          e,
+          String(r.country_code),
+          r.category_id != null ? Number(r.category_id) : null,
+        ),
       ),
     )
     .map((r) => Number(r.id));
@@ -990,7 +1067,9 @@ const ENTRY_SELECT = `
  * nothing about how entries are routed.
  */
 async function loadCurrencyRates(db: CatalogDb = poolDb): Promise<UsdRates> {
-  const rows = await db.sql<{ code: string; usd_rate: string | number }[]>(`SELECT code, usd_rate FROM currency`);
+  const rows = await db.sql<{ code: string; usd_rate: string | number }[]>(
+    `SELECT code, usd_rate FROM currency`,
+  );
   return usdRatesFrom(rows);
 }
 
@@ -1049,7 +1128,9 @@ export interface CatalogListFilters {
   status?: CatalogStatus; // narrows in SQL — the approvals queue only ever wants 'Pending Approval'
 }
 
-export async function listCatalogEntries(filters: CatalogListFilters = {}): Promise<CatalogEntry[]> {
+export async function listCatalogEntries(
+  filters: CatalogListFilters = {},
+): Promise<CatalogEntry[]> {
   if (!(await optionalCatalogActor())) return [];
   const params: QueryParams = [];
   const clauses: string[] = [];
@@ -1088,7 +1169,9 @@ async function ensurePirNamesFresh(): Promise<void> {
   if (pirNamesRefreshing) return pirNamesRefreshing;
   if (pirNamesMergedSyncedAt && Date.now() - pirNamesCheckedAt < 30_000) return;
   pirNamesRefreshing = (async () => {
-    const rows = await sql<{ latest: string | null }[]>(`SELECT MAX(synced_at)::text AS latest FROM pir_catalog`);
+    const rows = await sql<{ latest: string | null }[]>(
+      `SELECT MAX(synced_at)::text AS latest FROM pir_catalog`,
+    );
     pirNamesCheckedAt = Date.now();
     const latest = rows[0]?.latest ?? null;
     if (!latest || latest === pirNamesMergedSyncedAt) return; // nothing new since last merge
@@ -1103,7 +1186,9 @@ async function ensurePirNamesFresh(): Promise<void> {
         SET material_description = EXCLUDED.material_description, updated_at = now()
     `);
     pirNamesMergedSyncedAt = latest;
-  })().finally(() => { pirNamesRefreshing = null; });
+  })().finally(() => {
+    pirNamesRefreshing = null;
+  });
   return pirNamesRefreshing;
 }
 
@@ -1188,10 +1273,22 @@ function pirWhere(query: PirQuery): { where: string; params: QueryParams } {
       OR p.plant ILIKE ? OR p.purchasing_organization ILIKE ?)`);
     for (let i = 0; i < 8; i++) params.push(like);
   }
-  if (query.country) { clauses.push('p.country = ?'); params.push(query.country); }
-  if (query.porg) { clauses.push('p.purchasing_organization = ?'); params.push(query.porg); }
-  if (query.plant) { clauses.push('p.plant = ?'); params.push(query.plant); }
-  if (query.mgroup) { clauses.push('p.material_group = ?'); params.push(query.mgroup); }
+  if (query.country) {
+    clauses.push('p.country = ?');
+    params.push(query.country);
+  }
+  if (query.porg) {
+    clauses.push('p.purchasing_organization = ?');
+    params.push(query.porg);
+  }
+  if (query.plant) {
+    clauses.push('p.plant = ?');
+    params.push(query.plant);
+  }
+  if (query.mgroup) {
+    clauses.push('p.material_group = ?');
+    params.push(query.mgroup);
+  }
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
 }
 
@@ -1253,7 +1350,12 @@ const loadPirMeta = unstable_cache(
     ]);
     const s = statRows[0] ?? { total: 0, suppliers: 0, plants: 0, countries: 0 };
     return {
-      stats: { total: Number(s.total), suppliers: Number(s.suppliers), plants: Number(s.plants), countries: Number(s.countries) },
+      stats: {
+        total: Number(s.total),
+        suppliers: Number(s.suppliers),
+        plants: Number(s.plants),
+        countries: Number(s.countries),
+      },
       facets: { countries, porgs, plants, mgroups },
     };
   },
@@ -1263,7 +1365,10 @@ const loadPirMeta = unstable_cache(
 
 export async function getPirMeta(): Promise<PirMeta> {
   if (!(await optionalCatalogActor())) {
-    return { stats: { total: 0, suppliers: 0, plants: 0, countries: 0 }, facets: { countries: [], porgs: [], plants: [], mgroups: [] } };
+    return {
+      stats: { total: 0, suppliers: 0, plants: 0, countries: 0 },
+      facets: { countries: [], porgs: [], plants: [], mgroups: [] },
+    };
   }
   return loadPirMeta();
 }
@@ -1285,7 +1390,10 @@ export async function getPendingApprovalCount(country = 'ALL'): Promise<number> 
     where += ` AND country_code = ?`;
     params.push(country);
   }
-  const rows = await sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM catalog_entry ${where}`, params);
+  const rows = await sql<{ n: number }[]>(
+    `SELECT COUNT(*)::int AS n FROM catalog_entry ${where}`,
+    params,
+  );
   return Number(rows[0]?.n ?? 0);
 }
 
@@ -1342,12 +1450,20 @@ export async function getCatalogEntry(id: number): Promise<CatalogEntry | null> 
    DASHBOARD
 ============================================================================ */
 
-export async function getCatalogManagerDashboardData(country = 'ALL'): Promise<CatalogManagerDashboardData> {
+export async function getCatalogManagerDashboardData(
+  country = 'ALL',
+): Promise<CatalogManagerDashboardData> {
   if (!(await optionalCatalogActor())) {
     return {
       scope: country === 'ALL' ? 'all operating countries' : country,
-      activeCount: 0, supplierCount: 0, categoryCount: 0, expiringCount: 0, pendingCount: 0,
-      byCategory: [], expiringSoon: [], recent: [],
+      activeCount: 0,
+      supplierCount: 0,
+      categoryCount: 0,
+      expiringCount: 0,
+      pendingCount: 0,
+      byCategory: [],
+      expiringSoon: [],
+      recent: [],
     };
   }
   const scoped = country !== 'ALL';
@@ -1356,13 +1472,16 @@ export async function getCatalogManagerDashboardData(country = 'ALL'): Promise<C
   const activeScope = scoped ? `AND e.country_code = ?` : '';
 
   const [totals, byCategoryRows, expiringRows, countryRows, recent] = await Promise.all([
-    sql<{
-      active_count: number;
-      supplier_count: number;
-      category_count: number;
-      pending_count: number;
-      expiring_count: number;
-    }[]>(`
+    sql<
+      {
+        active_count: number;
+        supplier_count: number;
+        category_count: number;
+        pending_count: number;
+        expiring_count: number;
+      }[]
+    >(
+      `
       SELECT
         COUNT(*) FILTER (WHERE e.status = 'Active')::int AS active_count,
         COUNT(DISTINCT e.supplier_id) FILTER (WHERE e.status = 'Active')::int AS supplier_count,
@@ -1377,8 +1496,11 @@ export async function getCatalogManagerDashboardData(country = 'ALL'): Promise<C
       FROM catalog_entry e
       LEFT JOIN rate_version rv ON rv.entry_id = e.id AND rv.version_no = e.current_version_no
       ${scopeWhere}
-    `, scopeParams),
-    sql<CategoryBar[]>(`
+    `,
+      scopeParams,
+    ),
+    sql<CategoryBar[]>(
+      `
       SELECT COALESCE(cat.name, 'Uncategorized') AS name, COUNT(*)::int AS count
       FROM catalog_entry e
       LEFT JOIN spend_category cat ON cat.id = e.category_id
@@ -1386,8 +1508,11 @@ export async function getCatalogManagerDashboardData(country = 'ALL'): Promise<C
       GROUP BY COALESCE(cat.name, 'Uncategorized')
       ORDER BY count DESC
       LIMIT 7
-    `, scopeParams),
-    sql<QueryResultRow[]>(`
+    `,
+      scopeParams,
+    ),
+    sql<QueryResultRow[]>(
+      `
       ${ENTRY_SELECT}
       WHERE e.status = 'Active'
         AND rv.expiry_date IS NOT NULL
@@ -1396,12 +1521,22 @@ export async function getCatalogManagerDashboardData(country = 'ALL'): Promise<C
         ${activeScope}
       ORDER BY rv.expiry_date ASC
       LIMIT 5
-    `, scopeParams),
-    scoped ? sql<{ name: string }[]>(`SELECT name FROM country WHERE code = ? LIMIT 1`, [country]) : Promise.resolve([]),
+    `,
+      scopeParams,
+    ),
+    scoped
+      ? sql<{ name: string }[]>(`SELECT name FROM country WHERE code = ? LIMIT 1`, [country])
+      : Promise.resolve([]),
     getAuditLog(8),
   ]);
 
-  const total = totals[0] ?? { active_count: 0, supplier_count: 0, category_count: 0, pending_count: 0, expiring_count: 0 };
+  const total = totals[0] ?? {
+    active_count: 0,
+    supplier_count: 0,
+    category_count: 0,
+    pending_count: 0,
+    expiring_count: 0,
+  };
   const rates = await loadCurrencyRates();
 
   return {
@@ -1456,9 +1591,13 @@ export interface CatalogEntryInput {
 const CODE_NEXTVAL = `('CAT-' || nextval('catalog_entry_code_seq'))`;
 
 async function loadThresholdRules(db: CatalogDb = poolDb): Promise<ThresholdRule[]> {
-  const rows = await db.sql<{ country_code: string | null; spend_category_id: number | null; threshold_usd: string | number }[]>(
-    `SELECT country_code, spend_category_id, threshold_usd FROM approval_threshold`,
-  );
+  const rows = await db.sql<
+    {
+      country_code: string | null;
+      spend_category_id: number | null;
+      threshold_usd: string | number;
+    }[]
+  >(`SELECT country_code, spend_category_id, threshold_usd FROM approval_threshold`);
   return rows.map((r) => ({
     country_code: r.country_code,
     spend_category_id: r.spend_category_id != null ? Number(r.spend_category_id) : null,
@@ -1480,38 +1619,58 @@ interface EntryRefLookups {
 
 async function loadEntryRefLookups(db: CatalogDb = poolDb): Promise<EntryRefLookups> {
   const [cats, subs, uoms] = [
-    await db.sql<{ id: number; name: string; type: string }[]>(`SELECT id, name, type FROM spend_category`),
-    await db.sql<{ id: number; category_id: number; name: string }[]>(`SELECT id, category_id, name FROM spend_subcategory`),
+    await db.sql<{ id: number; name: string; type: string }[]>(
+      `SELECT id, name, type FROM spend_category`,
+    ),
+    await db.sql<{ id: number; category_id: number; name: string }[]>(
+      `SELECT id, category_id, name FROM spend_subcategory`,
+    ),
     await db.sql<{ id: number; name: string }[]>(`SELECT id, name FROM unit_of_measure`),
   ];
   const categories = new Map<string, { id: number; type: string }>();
-  for (const c of cats) if (!categories.has(c.name)) categories.set(c.name, { id: Number(c.id), type: c.type });
+  for (const c of cats)
+    if (!categories.has(c.name)) categories.set(c.name, { id: Number(c.id), type: c.type });
   const uomMap = new Map<string, number>();
   for (const u of uoms) if (!uomMap.has(u.name)) uomMap.set(u.name, Number(u.id));
   return { categories, subs, uoms: uomMap };
 }
 
-async function resolveRefs(input: CatalogEntryInput, db: CatalogDb = poolDb, lookups?: EntryRefLookups) {
+async function resolveRefs(
+  input: CatalogEntryInput,
+  db: CatalogDb = poolDb,
+  lookups?: EntryRefLookups,
+) {
   if (lookups) {
     const hit = lookups.categories.get(input.category_name);
     const categoryId = hit?.id ?? null;
-    const spendType = (input.spend_type ?? (hit?.type as SpendType)) ?? 'Indirect';
+    const spendType = input.spend_type ?? (hit?.type as SpendType) ?? 'Indirect';
     let subId: number | null = null;
     if (categoryId && input.subcategory_name) {
-      subId = lookups.subs.find((s) => Number(s.category_id) === categoryId && s.name === input.subcategory_name)?.id ?? null;
+      subId =
+        lookups.subs.find(
+          (s) => Number(s.category_id) === categoryId && s.name === input.subcategory_name,
+        )?.id ?? null;
       subId = subId != null ? Number(subId) : null;
     }
     return { categoryId, spendType, subId, uomId: lookups.uoms.get(input.uom_name) ?? null };
   }
-  const cat = await db.sql<{ id: number; type: string }[]>(`SELECT id, type FROM spend_category WHERE name = ?`, [input.category_name]);
+  const cat = await db.sql<{ id: number; type: string }[]>(
+    `SELECT id, type FROM spend_category WHERE name = ?`,
+    [input.category_name],
+  );
   const categoryId = cat[0]?.id ?? null;
-  const spendType = (input.spend_type ?? (cat[0]?.type as SpendType)) ?? 'Indirect';
+  const spendType = input.spend_type ?? (cat[0]?.type as SpendType) ?? 'Indirect';
   let subId: number | null = null;
   if (categoryId && input.subcategory_name) {
-    const sub = await db.sql<{ id: number }[]>(`SELECT id FROM spend_subcategory WHERE category_id = ? AND name = ?`, [categoryId, input.subcategory_name]);
+    const sub = await db.sql<{ id: number }[]>(
+      `SELECT id FROM spend_subcategory WHERE category_id = ? AND name = ?`,
+      [categoryId, input.subcategory_name],
+    );
     subId = sub[0]?.id ?? null;
   }
-  const uom = await db.sql<{ id: number }[]>(`SELECT id FROM unit_of_measure WHERE name = ?`, [input.uom_name]);
+  const uom = await db.sql<{ id: number }[]>(`SELECT id FROM unit_of_measure WHERE name = ?`, [
+    input.uom_name,
+  ]);
   return { categoryId, spendType, subId, uomId: uom[0]?.id ?? null };
 }
 
@@ -1540,13 +1699,27 @@ async function insertCatalogEntry(
   mode: 'draft' | 'submit',
   ctx?: InsertContext,
 ): Promise<{ id: number; code: string; status: CatalogStatus }> {
-  const supplierId = ctx?.supplierId ?? (await upsertSupplier(input.supplier_name, input.supplier_code, input.manager, db));
+  const supplierId =
+    ctx?.supplierId ??
+    (await upsertSupplier(input.supplier_name, input.supplier_code, input.manager, db));
   const { categoryId, spendType, subId, uomId } = await resolveRefs(input, db, ctx?.lookups);
-  const usd = toUsd(input.unit_price, input.currency_code, ctx?.rates ?? (await loadCurrencyRates(db)));
-  const threshold = effectiveThresholdUsd(ctx?.rules ?? (await loadThresholdRules(db)), input.country_code, categoryId);
+  const usd = toUsd(
+    input.unit_price,
+    input.currency_code,
+    ctx?.rates ?? (await loadCurrencyRates(db)),
+  );
+  const threshold = effectiveThresholdUsd(
+    ctx?.rules ?? (await loadThresholdRules(db)),
+    input.country_code,
+    categoryId,
+  );
   const tier = approvalTier(usd, threshold);
-  const status: CatalogStatus = mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
-  const approver = status === 'Pending Approval' ? await resolveApproverLabel(db, input.country_code, categoryId, ctx?.scopes) : null;
+  const status: CatalogStatus =
+    mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
+  const approver =
+    status === 'Pending Approval'
+      ? await resolveApproverLabel(db, input.country_code, categoryId, ctx?.scopes)
+      : null;
 
   const ins = await db.sql<{ id: number; code: string }[]>(
     `INSERT INTO catalog_entry
@@ -1555,10 +1728,29 @@ async function insertCatalogEntry(
        status, tier_label, current_version_no, manager, approver_name, created_by, modified_by)
      VALUES (${CODE_NEXTVAL}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id, code`,
     [
-      input.country_code, supplierId, categoryId, subId, uomId, spendType, input.family, input.commodity,
-      input.unspsc_code, input.item_name, input.description, input.sirion_contract_id, input.sirion_url, input.notes,
-      input.incoterms, input.incoterms_location, input.lead_time_days,
-      status, tier.label, input.manager, approver, actor.name, actor.name,
+      input.country_code,
+      supplierId,
+      categoryId,
+      subId,
+      uomId,
+      spendType,
+      input.family,
+      input.commodity,
+      input.unspsc_code,
+      input.item_name,
+      input.description,
+      input.sirion_contract_id,
+      input.sirion_url,
+      input.notes,
+      input.incoterms,
+      input.incoterms_location,
+      input.lead_time_days,
+      status,
+      tier.label,
+      input.manager,
+      approver,
+      actor.name,
+      actor.name,
     ],
   );
   const id = Number(ins[0]?.id);
@@ -1566,25 +1758,56 @@ async function insertCatalogEntry(
   await db.exec(
     `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
      VALUES (?, 1, ?, ?, ?, ?, 'Initial agreed rate', ?)`,
-    [id, input.unit_price, input.currency_code, input.effective_date, input.expiry_date, actor.name],
+    [
+      id,
+      input.unit_price,
+      input.currency_code,
+      input.effective_date,
+      input.expiry_date,
+      actor.name,
+    ],
   );
-  await writeAudit('Create', code, actor.name, actor.email,
-    mode === 'draft' ? 'Saved new draft entry' : status === 'Active' ? 'New entry created & activated' : 'New entry submitted for approval', db);
+  await writeAudit(
+    'Create',
+    code,
+    actor.name,
+    actor.email,
+    mode === 'draft'
+      ? 'Saved new draft entry'
+      : status === 'Active'
+        ? 'New entry created & activated'
+        : 'New entry submitted for approval',
+    db,
+  );
   return { id, code, status };
 }
 
 /** Create a new entry. mode 'draft' keeps it Draft; 'submit' sends for approval (or auto-activates Tier 1). */
-export async function createCatalogEntry(input: CatalogEntryInput, mode: 'draft' | 'submit'): Promise<{ id: number; code: string; status: CatalogStatus }> {
+export async function createCatalogEntry(
+  input: CatalogEntryInput,
+  mode: 'draft' | 'submit',
+): Promise<{ id: number; code: string; status: CatalogStatus }> {
   const actor = await requireCatalogActor('Contributor');
   return catalogWrite('entry.createFailed', { actor: actor.email, mode }, () =>
-    withTransaction(catalogManagerPool, (client) => insertCatalogEntry(dbOn(client), actor, input, mode)));
+    withTransaction(catalogManagerPool, (client) =>
+      insertCatalogEntry(dbOn(client), actor, input, mode),
+    ),
+  );
 }
 
-export type CatalogEntryLine = Omit<CatalogEntryInput, 'id' | 'supplier_name' | 'supplier_code' | 'manager' | 'country_code'>;
+export type CatalogEntryLine = Omit<
+  CatalogEntryInput,
+  'id' | 'supplier_name' | 'supplier_code' | 'manager' | 'country_code'
+>;
 
 /** Create several entries that share one supplier + country (the manual "add more lines" flow). */
 export async function createCatalogEntriesBatch(
-  shared: { supplier_name: string; supplier_code: string; manager: string | null; country_code: string },
+  shared: {
+    supplier_name: string;
+    supplier_code: string;
+    manager: string | null;
+    country_code: string;
+  },
   lines: CatalogEntryLine[],
   mode: 'draft' | 'submit',
 ): Promise<{ created: number; firstId: number | null }> {
@@ -1598,7 +1821,12 @@ export async function createCatalogEntriesBatch(
     // Every line shares the supplier, the country and the same reference data, so all of it is
     // resolved once here instead of ~6 lookups per line inside insertCatalogEntry.
     const ctx: InsertContext = {
-      supplierId: await upsertSupplier(shared.supplier_name, shared.supplier_code, shared.manager, db),
+      supplierId: await upsertSupplier(
+        shared.supplier_name,
+        shared.supplier_code,
+        shared.manager,
+        db,
+      ),
       lookups: await loadEntryRefLookups(db),
       rates: await loadCurrencyRates(db),
       rules: await loadThresholdRules(db),
@@ -1617,7 +1845,10 @@ export async function createCatalogEntriesBatch(
 }
 
 /** Edit an entry — retains the prior version and bumps the version number. */
-export async function updateCatalogEntry(input: CatalogEntryInput, mode: 'draft' | 'submit'): Promise<{ id: number; status: CatalogStatus }> {
+export async function updateCatalogEntry(
+  input: CatalogEntryInput,
+  mode: 'draft' | 'submit',
+): Promise<{ id: number; status: CatalogStatus }> {
   const actor = await requireCatalogActor('Contributor');
   if (!input.id) throw new Error('Missing entry id.');
   const entryId = input.id;
@@ -1627,108 +1858,209 @@ export async function updateCatalogEntry(input: CatalogEntryInput, mode: 'draft'
   // collided with the next edit's, making the entry permanently un-editable.
   return catalogWrite('entry.updateFailed', { actor: actor.email, entryId, mode }, () =>
     withTransaction(catalogManagerPool, async (client) => {
-    const db = dbOn(client);
+      const db = dbOn(client);
 
-    const current = await db.sql<{ code: string; current_version_no: number }[]>(
-      `SELECT code, current_version_no FROM catalog_entry WHERE id = ?`,
-      [entryId],
-    );
-    if (!current[0]) throw new Error('Entry not found.');
-    const nextVersion = Number(current[0].current_version_no) + 1;
+      const current = await db.sql<{ code: string; current_version_no: number }[]>(
+        `SELECT code, current_version_no FROM catalog_entry WHERE id = ?`,
+        [entryId],
+      );
+      if (!current[0]) throw new Error('Entry not found.');
+      const nextVersion = Number(current[0].current_version_no) + 1;
 
-    const supplierId = await upsertSupplier(input.supplier_name, input.supplier_code, input.manager, db);
-    const { categoryId, spendType, subId, uomId } = await resolveRefs(input, db);
-    const usd = toUsd(input.unit_price, input.currency_code, await loadCurrencyRates(db));
-    const threshold = effectiveThresholdUsd(await loadThresholdRules(db), input.country_code, categoryId);
-    const tier = approvalTier(usd, threshold);
-    const status: CatalogStatus = mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
-    const approver = status === 'Pending Approval' ? await resolveApproverLabel(db, input.country_code, categoryId) : null;
+      const supplierId = await upsertSupplier(
+        input.supplier_name,
+        input.supplier_code,
+        input.manager,
+        db,
+      );
+      const { categoryId, spendType, subId, uomId } = await resolveRefs(input, db);
+      const usd = toUsd(input.unit_price, input.currency_code, await loadCurrencyRates(db));
+      const threshold = effectiveThresholdUsd(
+        await loadThresholdRules(db),
+        input.country_code,
+        categoryId,
+      );
+      const tier = approvalTier(usd, threshold);
+      const status: CatalogStatus =
+        mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
+      const approver =
+        status === 'Pending Approval'
+          ? await resolveApproverLabel(db, input.country_code, categoryId)
+          : null;
 
-    await db.exec(
-      `UPDATE catalog_entry SET
+      await db.exec(
+        `UPDATE catalog_entry SET
         country_code = ?, supplier_id = ?, category_id = ?, subcategory_id = ?, uom_id = ?, spend_type = ?,
         family = ?, commodity = ?, unspsc_code = ?, item_name = ?, description = ?,
         sirion_contract_id = ?, sirion_url = ?, notes = ?, incoterms = ?, incoterms_location = ?, lead_time_days = ?, manager = ?,
         status = ?, tier_label = ?, current_version_no = ?, approver_name = ?,
         modified_by = ?, modified_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [
-        input.country_code, supplierId, categoryId, subId, uomId, spendType,
-        input.family, input.commodity, input.unspsc_code, input.item_name, input.description,
-        input.sirion_contract_id, input.sirion_url, input.notes, input.incoterms, input.incoterms_location, input.lead_time_days, input.manager,
-        status, tier.label, nextVersion, approver, actor.name, entryId,
-      ],
-    );
-    await db.exec(
-      `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
+        [
+          input.country_code,
+          supplierId,
+          categoryId,
+          subId,
+          uomId,
+          spendType,
+          input.family,
+          input.commodity,
+          input.unspsc_code,
+          input.item_name,
+          input.description,
+          input.sirion_contract_id,
+          input.sirion_url,
+          input.notes,
+          input.incoterms,
+          input.incoterms_location,
+          input.lead_time_days,
+          input.manager,
+          status,
+          tier.label,
+          nextVersion,
+          approver,
+          actor.name,
+          entryId,
+        ],
+      );
+      await db.exec(
+        `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
        VALUES (?, ?, ?, ?, ?, ?, 'Edited — new version saved', ?)`,
-      [entryId, nextVersion, input.unit_price, input.currency_code, input.effective_date, input.expiry_date, actor.name],
-    );
-    await writeAudit('Edit', current[0].code, actor.name, actor.email, `Edited entry — version ${nextVersion} saved`, db);
-    return { id: entryId, status };
-    }));
+        [
+          entryId,
+          nextVersion,
+          input.unit_price,
+          input.currency_code,
+          input.effective_date,
+          input.expiry_date,
+          actor.name,
+        ],
+      );
+      await writeAudit(
+        'Edit',
+        current[0].code,
+        actor.name,
+        actor.email,
+        `Edited entry — version ${nextVersion} saved`,
+        db,
+      );
+      return { id: entryId, status };
+    }),
+  );
 }
 
 export async function submitForApproval(entryId: number): Promise<void> {
   const actor = await requireCatalogActor('Contributor');
   await catalogWrite('entry.submitFailed', { actor: actor.email, entryId }, () =>
     withTransaction(catalogManagerPool, async (client) => {
-    const db = dbOn(client);
-    const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
-    if (!rows[0]) throw new Error('Entry not found.');
-    const e = mapEntry(rows[0], await loadCurrencyRates(db));
-    const threshold = effectiveThresholdUsd(await loadThresholdRules(db), e.country_code, e.category_id);
-    const tier = approvalTier(e.usd_equivalent, threshold);
-    const next: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
-    const approver = next === 'Pending Approval' ? await resolveApproverLabel(db, e.country_code, e.category_id) : null;
-    await db.exec(`UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [next, approver, actor.name, entryId]);
-    await writeAudit('Status change', e.code, actor.name, actor.email, `${e.status} → ${next}`, db);
-    }));
+      const db = dbOn(client);
+      const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
+      if (!rows[0]) throw new Error('Entry not found.');
+      const e = mapEntry(rows[0], await loadCurrencyRates(db));
+      const threshold = effectiveThresholdUsd(
+        await loadThresholdRules(db),
+        e.country_code,
+        e.category_id,
+      );
+      const tier = approvalTier(e.usd_equivalent, threshold);
+      const next: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
+      const approver =
+        next === 'Pending Approval'
+          ? await resolveApproverLabel(db, e.country_code, e.category_id)
+          : null;
+      await db.exec(
+        `UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [next, approver, actor.name, entryId],
+      );
+      await writeAudit(
+        'Status change',
+        e.code,
+        actor.name,
+        actor.email,
+        `${e.status} → ${next}`,
+        db,
+      );
+    }),
+  );
 }
 
-export async function decideCatalogEntry(entryId: number, decision: 'approve' | 'reject' | 'revise', comment: string): Promise<void> {
+export async function decideCatalogEntry(
+  entryId: number,
+  decision: 'approve' | 'reject' | 'revise',
+  comment: string,
+): Promise<void> {
   const actor = await requireCatalogActor('Approver');
   if (!comment.trim()) throw new Error('A comment is required to record this decision.');
 
   await catalogWrite('entry.decideFailed', { actor: actor.email, entryId, decision }, () =>
     withTransaction(catalogManagerPool, async (client) => {
-    const db = dbOn(client);
-    const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
-    if (!rows[0]) throw new Error('Entry not found.');
-    const e = mapEntry(rows[0], await loadCurrencyRates(db));
+      const db = dbOn(client);
+      const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
+      if (!rows[0]) throw new Error('Entry not found.');
+      const e = mapEntry(rows[0], await loadCurrencyRates(db));
 
-    const acting = await catalogActingIdentity(actor, e.country_code, e.category_id, undefined, db);
-    if (!acting.allowed) {
-      throw new Error(`You are not an approver for ${e.country_name}${e.category_name ? ` / ${e.category_name}` : ''}.`);
-    }
+      const acting = await catalogActingIdentity(
+        actor,
+        e.country_code,
+        e.category_id,
+        undefined,
+        db,
+      );
+      if (!acting.allowed) {
+        throw new Error(
+          `You are not an approver for ${e.country_name}${e.category_name ? ` / ${e.category_name}` : ''}.`,
+        );
+      }
 
-    const next: CatalogStatus = decision === 'approve' ? 'Active' : decision === 'revise' ? 'Draft' : 'Rejected';
-    const decisionLabel = decision === 'approve' ? 'Approved' : decision === 'revise' ? 'Revision' : 'Rejected';
+      const next: CatalogStatus =
+        decision === 'approve' ? 'Active' : decision === 'revise' ? 'Draft' : 'Rejected';
+      const decisionLabel =
+        decision === 'approve' ? 'Approved' : decision === 'revise' ? 'Revision' : 'Rejected';
 
-    await db.exec(
-      `UPDATE catalog_entry SET status = ?, approver_name = ?, approval_comment = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [next, acting.label, comment.trim(), acting.label, entryId],
-    );
-    await db.exec(
-      `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES (?, ?, ?, ?, 2, ?)`,
-      [entryId, e.version_no, acting.label, decisionLabel, comment.trim()],
-    );
-    await writeAudit(decision === 'approve' ? 'Approve' : 'Reject', e.code, acting.label, actor.email,
-      `${decision === 'approve' ? 'Approved' : decision === 'revise' ? 'Revision requested' : 'Rejected'} — "${comment.trim().slice(0, 48)}"`, db);
-    }));
+      await db.exec(
+        `UPDATE catalog_entry SET status = ?, approver_name = ?, approval_comment = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [next, acting.label, comment.trim(), acting.label, entryId],
+      );
+      await db.exec(
+        `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES (?, ?, ?, ?, 2, ?)`,
+        [entryId, e.version_no, acting.label, decisionLabel, comment.trim()],
+      );
+      await writeAudit(
+        decision === 'approve' ? 'Approve' : 'Reject',
+        e.code,
+        acting.label,
+        actor.email,
+        `${decision === 'approve' ? 'Approved' : decision === 'revise' ? 'Revision requested' : 'Rejected'} — "${comment.trim().slice(0, 48)}"`,
+        db,
+      );
+    }),
+  );
 }
 
 export async function deactivateCatalogEntry(entryId: number): Promise<void> {
   const actor = await requireCatalogActor('Contributor');
   await catalogWrite('entry.deactivateFailed', { actor: actor.email, entryId }, () =>
     withTransaction(catalogManagerPool, async (client) => {
-    const db = dbOn(client);
-    const rows = await db.sql<{ code: string; status: string }[]>(`SELECT code, status FROM catalog_entry WHERE id = ?`, [entryId]);
-    if (!rows[0]) throw new Error('Entry not found.');
-    await db.exec(`UPDATE catalog_entry SET status = 'Expired', modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [actor.name, entryId]);
-    await writeAudit('Status change', rows[0].code, actor.name, actor.email, `${rows[0].status} → Deactivated`, db);
-    }));
+      const db = dbOn(client);
+      const rows = await db.sql<{ code: string; status: string }[]>(
+        `SELECT code, status FROM catalog_entry WHERE id = ?`,
+        [entryId],
+      );
+      if (!rows[0]) throw new Error('Entry not found.');
+      await db.exec(
+        `UPDATE catalog_entry SET status = 'Expired', modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [actor.name, entryId],
+      );
+      await writeAudit(
+        'Status change',
+        rows[0].code,
+        actor.name,
+        actor.email,
+        `${rows[0].status} → Deactivated`,
+        db,
+      );
+    }),
+  );
 }
 
 /* ============================================================================
@@ -1765,170 +2097,298 @@ export interface CatalogImportResult {
   log: string[];
 }
 
-export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]; filename: string }): Promise<CatalogImportResult> {
+export async function bulkImportCatalogEntries(input: {
+  rows: CatalogImportRow[];
+  filename: string;
+}): Promise<CatalogImportResult> {
   const actor = await requireCatalogActor('Contributor');
 
   // One transaction for the whole import, with a SAVEPOINT around each row's writes so a bad row
   // still only rolls back its own statements — the per-row log keeps reporting exactly as before,
   // but a row can no longer leave a half-written entry (entry with no rate version) behind.
-  return catalogWrite('import.failed', { actor: actor.email, filename: input.filename, rows: input.rows.length }, () =>
-    withTransaction(catalogManagerPool, async (client) => {
-  const db = dbOn(client);
-  const ROW_SAVEPOINT = 'catalog_import_row';
+  return catalogWrite(
+    'import.failed',
+    { actor: actor.email, filename: input.filename, rows: input.rows.length },
+    () =>
+      withTransaction(catalogManagerPool, async (client) => {
+        const db = dbOn(client);
+        const ROW_SAVEPOINT = 'catalog_import_row';
 
-  // reference lookups (resolved once per call)
-  const countries = await db.sql<{ code: string; name: string }[]>(`SELECT code, name FROM country`);
-  const countryByCode = new Map(countries.map((c) => [c.code.toUpperCase(), c.code]));
-  const countryByName = new Map(countries.map((c) => [c.name.toLowerCase(), c.code]));
-  const ccyRows = await db.sql<{ code: string; usd_rate: string | number }[]>(`SELECT code, usd_rate FROM currency`);
-  const ccySet = new Set(ccyRows.map((c) => c.code.toUpperCase()));
-  const rates = usdRatesFrom(ccyRows);
-  const uomRows = await db.sql<{ id: number; name: string }[]>(`SELECT id, name FROM unit_of_measure`);
-  const uomByName = new Map(uomRows.map((u) => [u.name.toLowerCase(), u]));
-  const catRows = await db.sql<{ id: number; name: string; type: string }[]>(`SELECT id, name, type FROM spend_category`);
-  const catByName = new Map(catRows.map((c) => [c.name.toLowerCase(), c]));
-  const subRows = await db.sql<{ id: number; category_id: number; name: string }[]>(`SELECT id, category_id, name FROM spend_subcategory`);
-  const incotermSet = new Set(INCOTERM_CODES);
+        // reference lookups (resolved once per call)
+        const countries = await db.sql<{ code: string; name: string }[]>(
+          `SELECT code, name FROM country`,
+        );
+        const countryByCode = new Map(countries.map((c) => [c.code.toUpperCase(), c.code]));
+        const countryByName = new Map(countries.map((c) => [c.name.toLowerCase(), c.code]));
+        const ccyRows = await db.sql<{ code: string; usd_rate: string | number }[]>(
+          `SELECT code, usd_rate FROM currency`,
+        );
+        const ccySet = new Set(ccyRows.map((c) => c.code.toUpperCase()));
+        const rates = usdRatesFrom(ccyRows);
+        const uomRows = await db.sql<{ id: number; name: string }[]>(
+          `SELECT id, name FROM unit_of_measure`,
+        );
+        const uomByName = new Map(uomRows.map((u) => [u.name.toLowerCase(), u]));
+        const catRows = await db.sql<{ id: number; name: string; type: string }[]>(
+          `SELECT id, name, type FROM spend_category`,
+        );
+        const catByName = new Map(catRows.map((c) => [c.name.toLowerCase(), c]));
+        const subRows = await db.sql<{ id: number; category_id: number; name: string }[]>(
+          `SELECT id, category_id, name FROM spend_subcategory`,
+        );
+        const incotermSet = new Set(INCOTERM_CODES);
 
-  const thresholdRules = await loadThresholdRules(db);
-  // Who a routed row lands on — loaded once for the whole file, not once per row.
-  const approverScopes = await loadApproverScopes(null, db);
+        const thresholdRules = await loadThresholdRules(db);
+        // Who a routed row lands on — loaded once for the whole file, not once per row.
+        const approverScopes = await loadApproverScopes(null, db);
 
-  // Duplicate detection, once for the whole file instead of a SELECT per row. Scoped to the
-  // supplier codes the file actually mentions, then matched on the same (vendor code, country,
-  // case-insensitive item name) triple over Active entries the per-row query used. Rows inserted by
-  // THIS file are folded into the map as they land, so a file that repeats a line still reports the
-  // second one as a duplicate of the first — exactly as the in-transaction SELECT did.
-  const fileSupplierCodes = [...new Set(input.rows.map((r) => sanitizeImportText(r.supplier_code)).filter((c): c is string => !!c))];
-  const dupKeyOf = (vendor: string, country: string, item: string) => `${vendor}\u0000${country}\u0000${item.toLowerCase()}`;
-  const activeKeys = new Map<string, string>();
-  if (fileSupplierCodes.length) {
-    const existing = await db.sql<{ vendor_code: string; country_code: string; item_name: string; code: string }[]>(
-      `SELECT s.vendor_code, e.country_code, e.item_name, e.code
+        // Duplicate detection, once for the whole file instead of a SELECT per row. Scoped to the
+        // supplier codes the file actually mentions, then matched on the same (vendor code, country,
+        // case-insensitive item name) triple over Active entries the per-row query used. Rows inserted by
+        // THIS file are folded into the map as they land, so a file that repeats a line still reports the
+        // second one as a duplicate of the first — exactly as the in-transaction SELECT did.
+        const fileSupplierCodes = [
+          ...new Set(
+            input.rows
+              .map((r) => sanitizeImportText(r.supplier_code))
+              .filter((c): c is string => !!c),
+          ),
+        ];
+        const dupKeyOf = (vendor: string, country: string, item: string) =>
+          `${vendor}\u0000${country}\u0000${item.toLowerCase()}`;
+        const activeKeys = new Map<string, string>();
+        if (fileSupplierCodes.length) {
+          const existing = await db.sql<
+            { vendor_code: string; country_code: string; item_name: string; code: string }[]
+          >(
+            `SELECT s.vendor_code, e.country_code, e.item_name, e.code
        FROM catalog_entry e JOIN supplier s ON s.id = e.supplier_id
        WHERE e.status = 'Active' AND s.vendor_code = ANY(?)`,
-      [fileSupplierCodes],
-    );
-    for (const d of existing) {
-      const k = dupKeyOf(String(d.vendor_code), String(d.country_code), String(d.item_name));
-      if (!activeKeys.has(k)) activeKeys.set(k, String(d.code));
-    }
-  }
-  let inserted = 0, skipped = 0, errors = 0;
-  const log: string[] = [];
+            [fileSupplierCodes],
+          );
+          for (const d of existing) {
+            const k = dupKeyOf(String(d.vendor_code), String(d.country_code), String(d.item_name));
+            if (!activeKeys.has(k)) activeKeys.set(k, String(d.code));
+          }
+        }
+        let inserted = 0,
+          skipped = 0,
+          errors = 0;
+        const log: string[] = [];
 
-  for (const r of input.rows) {
-    // Turns true only once this row starts touching the database — the validation below is pure JS.
-    let rowSavepoint = false;
-    try {
-      const missing: string[] = [];
-      if (!r.supplier?.trim()) missing.push('supplier');
-      if (!r.supplier_code?.trim()) missing.push('supplier code');
-      if (!r.country?.trim()) missing.push('country');
-      if (!r.commodity?.trim()) missing.push('commodity');
-      if (!r.uom?.trim()) missing.push('UOM');
-      if (!r.currency?.trim()) missing.push('currency');
-      if (!r.effective_date?.trim()) missing.push('effective date');
-      if (!r.expiry_date?.trim()) missing.push('expiry date');
-      if (missing.length) { errors++; log.push(`❌ Row ${r.rowIndex}: missing ${missing.join(', ')}`); continue; }
+        for (const r of input.rows) {
+          // Turns true only once this row starts touching the database — the validation below is pure JS.
+          let rowSavepoint = false;
+          try {
+            const missing: string[] = [];
+            if (!r.supplier?.trim()) missing.push('supplier');
+            if (!r.supplier_code?.trim()) missing.push('supplier code');
+            if (!r.country?.trim()) missing.push('country');
+            if (!r.commodity?.trim()) missing.push('commodity');
+            if (!r.uom?.trim()) missing.push('UOM');
+            if (!r.currency?.trim()) missing.push('currency');
+            if (!r.effective_date?.trim()) missing.push('effective date');
+            if (!r.expiry_date?.trim()) missing.push('expiry date');
+            if (missing.length) {
+              errors++;
+              log.push(`❌ Row ${r.rowIndex}: missing ${missing.join(', ')}`);
+              continue;
+            }
 
-      // Clean text (trim + strip control chars) and enforce length caps — mirrors the template.
-      const supplier = sanitizeImportText(r.supplier);
-      const supplierCode = sanitizeImportText(r.supplier_code);
-      const commodity = sanitizeImportText(r.commodity);
-      const description = sanitizeImportText(r.description);
-      const manager = sanitizeImportText(r.manager);
-      const sirion = sanitizeImportText(r.sirion_contract_id);
-      const notes = sanitizeImportText(r.notes);
-      if (!supplier || !supplierCode || !commodity) { errors++; log.push(`❌ Row ${r.rowIndex}: supplier, supplier code and commodity cannot be blank`); continue; }
-      const tooLong =
-        supplier.length > FIELD_MAX.supplier ? `supplier (max ${FIELD_MAX.supplier})`
-        : supplierCode.length > FIELD_MAX.supplier_code ? `supplier code (max ${FIELD_MAX.supplier_code})`
-        : commodity.length > FIELD_MAX.commodity ? `commodity (max ${FIELD_MAX.commodity})`
-        : description && description.length > FIELD_MAX.description ? `description (max ${FIELD_MAX.description})`
-        : manager && manager.length > FIELD_MAX.manager ? `supplier manager (max ${FIELD_MAX.manager})`
-        : sirion && sirion.length > FIELD_MAX.sirion_contract_id ? `Sirion contract ID (max ${FIELD_MAX.sirion_contract_id})`
-        : notes && notes.length > FIELD_MAX.notes ? `notes (max ${FIELD_MAX.notes})`
-        : null;
-      if (tooLong) { errors++; log.push(`❌ Row ${r.rowIndex}: ${tooLong} is too long`); continue; }
+            // Clean text (trim + strip control chars) and enforce length caps — mirrors the template.
+            const supplier = sanitizeImportText(r.supplier);
+            const supplierCode = sanitizeImportText(r.supplier_code);
+            const commodity = sanitizeImportText(r.commodity);
+            const description = sanitizeImportText(r.description);
+            const manager = sanitizeImportText(r.manager);
+            const sirion = sanitizeImportText(r.sirion_contract_id);
+            const notes = sanitizeImportText(r.notes);
+            if (!supplier || !supplierCode || !commodity) {
+              errors++;
+              log.push(
+                `❌ Row ${r.rowIndex}: supplier, supplier code and commodity cannot be blank`,
+              );
+              continue;
+            }
+            const tooLong =
+              supplier.length > FIELD_MAX.supplier
+                ? `supplier (max ${FIELD_MAX.supplier})`
+                : supplierCode.length > FIELD_MAX.supplier_code
+                  ? `supplier code (max ${FIELD_MAX.supplier_code})`
+                  : commodity.length > FIELD_MAX.commodity
+                    ? `commodity (max ${FIELD_MAX.commodity})`
+                    : description && description.length > FIELD_MAX.description
+                      ? `description (max ${FIELD_MAX.description})`
+                      : manager && manager.length > FIELD_MAX.manager
+                        ? `supplier manager (max ${FIELD_MAX.manager})`
+                        : sirion && sirion.length > FIELD_MAX.sirion_contract_id
+                          ? `Sirion contract ID (max ${FIELD_MAX.sirion_contract_id})`
+                          : notes && notes.length > FIELD_MAX.notes
+                            ? `notes (max ${FIELD_MAX.notes})`
+                            : null;
+            if (tooLong) {
+              errors++;
+              log.push(`❌ Row ${r.rowIndex}: ${tooLong} is too long`);
+              continue;
+            }
 
-      if (r.unit_price == null || r.unit_price <= 0) { errors++; log.push(`❌ Row ${r.rowIndex}: unit price must be greater than 0`); continue; }
-      if (r.unit_price > UNIT_PRICE_MAX) { errors++; log.push(`❌ Row ${r.rowIndex}: unit price looks wrong (over ${UNIT_PRICE_MAX.toLocaleString()})`); continue; }
+            if (r.unit_price == null || r.unit_price <= 0) {
+              errors++;
+              log.push(`❌ Row ${r.rowIndex}: unit price must be greater than 0`);
+              continue;
+            }
+            if (r.unit_price > UNIT_PRICE_MAX) {
+              errors++;
+              log.push(
+                `❌ Row ${r.rowIndex}: unit price looks wrong (over ${UNIT_PRICE_MAX.toLocaleString()})`,
+              );
+              continue;
+            }
 
-      const ccy = r.currency.trim().toUpperCase();
-      if (!ccySet.has(ccy)) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown currency "${r.currency}"`); continue; }
+            const ccy = r.currency.trim().toUpperCase();
+            if (!ccySet.has(ccy)) {
+              errors++;
+              log.push(`❌ Row ${r.rowIndex}: unknown currency "${r.currency}"`);
+              continue;
+            }
 
-      const countryCode = countryByCode.get(r.country.trim().toUpperCase()) ?? countryByName.get(r.country.trim().toLowerCase());
-      if (!countryCode) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown country "${r.country}"`); continue; }
+            const countryCode =
+              countryByCode.get(r.country.trim().toUpperCase()) ??
+              countryByName.get(r.country.trim().toLowerCase());
+            if (!countryCode) {
+              errors++;
+              log.push(`❌ Row ${r.rowIndex}: unknown country "${r.country}"`);
+              continue;
+            }
 
-      // Spend category is optional; validate only when provided.
-      let cat: { id: number; name: string; type: string } | undefined;
-      if (r.category?.trim()) {
-        cat = catByName.get(r.category.trim().toLowerCase());
-        if (!cat) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown spend category "${r.category}"`); continue; }
-      }
-      const categoryId = cat?.id ?? null;
-      const spendType = cat?.type ?? null;
+            // Spend category is optional; validate only when provided.
+            let cat: { id: number; name: string; type: string } | undefined;
+            if (r.category?.trim()) {
+              cat = catByName.get(r.category.trim().toLowerCase());
+              if (!cat) {
+                errors++;
+                log.push(`❌ Row ${r.rowIndex}: unknown spend category "${r.category}"`);
+                continue;
+              }
+            }
+            const categoryId = cat?.id ?? null;
+            const spendType = cat?.type ?? null;
 
-      const uom = uomByName.get(r.uom.trim().toLowerCase());
-      if (!uom) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown UOM "${r.uom}"`); continue; }
+            const uom = uomByName.get(r.uom.trim().toLowerCase());
+            if (!uom) {
+              errors++;
+              log.push(`❌ Row ${r.rowIndex}: unknown UOM "${r.uom}"`);
+              continue;
+            }
 
-      let subId: number | null = null;
-      if (cat && r.subcategory?.trim()) {
-        const s = subRows.find((x) => x.category_id === cat!.id && x.name.toLowerCase() === r.subcategory!.trim().toLowerCase());
-        subId = s?.id ?? null;
-      }
+            let subId: number | null = null;
+            if (cat && r.subcategory?.trim()) {
+              const s = subRows.find(
+                (x) =>
+                  x.category_id === cat!.id &&
+                  x.name.toLowerCase() === r.subcategory!.trim().toLowerCase(),
+              );
+              subId = s?.id ?? null;
+            }
 
-      // Incoterms optional; validate against the Incoterms 2020 list when provided.
-      let incoterms: string | null = null;
-      if (r.incoterms?.trim()) {
-        const ic = r.incoterms.trim().toUpperCase();
-        if (!incotermSet.has(ic)) { errors++; log.push(`❌ Row ${r.rowIndex}: unknown Incoterm "${r.incoterms}"`); continue; }
-        incoterms = ic;
-      }
-      const incotermsLocation = sanitizeImportText(r.incoterms_location);
-      if (incotermsLocation && incotermsLocation.length > FIELD_MAX.incoterms_location) { errors++; log.push(`❌ Row ${r.rowIndex}: incoterms location is too long (max ${FIELD_MAX.incoterms_location})`); continue; }
+            // Incoterms optional; validate against the Incoterms 2020 list when provided.
+            let incoterms: string | null = null;
+            if (r.incoterms?.trim()) {
+              const ic = r.incoterms.trim().toUpperCase();
+              if (!incotermSet.has(ic)) {
+                errors++;
+                log.push(`❌ Row ${r.rowIndex}: unknown Incoterm "${r.incoterms}"`);
+                continue;
+              }
+              incoterms = ic;
+            }
+            const incotermsLocation = sanitizeImportText(r.incoterms_location);
+            if (incotermsLocation && incotermsLocation.length > FIELD_MAX.incoterms_location) {
+              errors++;
+              log.push(
+                `❌ Row ${r.rowIndex}: incoterms location is too long (max ${FIELD_MAX.incoterms_location})`,
+              );
+              continue;
+            }
 
-      // Lead time optional; whole number of days between 0 and the sanity cap.
-      let leadTime: number | null = null;
-      if (r.lead_time_days != null) {
-        if (!Number.isFinite(r.lead_time_days) || r.lead_time_days < 0 || r.lead_time_days > LEAD_TIME_MAX_DAYS) { errors++; log.push(`❌ Row ${r.rowIndex}: lead time must be a whole number of days between 0 and ${LEAD_TIME_MAX_DAYS}`); continue; }
-        leadTime = Math.round(r.lead_time_days);
-      }
+            // Lead time optional; whole number of days between 0 and the sanity cap.
+            let leadTime: number | null = null;
+            if (r.lead_time_days != null) {
+              if (
+                !Number.isFinite(r.lead_time_days) ||
+                r.lead_time_days < 0 ||
+                r.lead_time_days > LEAD_TIME_MAX_DAYS
+              ) {
+                errors++;
+                log.push(
+                  `❌ Row ${r.rowIndex}: lead time must be a whole number of days between 0 and ${LEAD_TIME_MAX_DAYS}`,
+                );
+                continue;
+              }
+              leadTime = Math.round(r.lead_time_days);
+            }
 
-      // Description is optional — fall back to the (required) commodity as the item name.
-      const itemName = description ?? commodity;
+            // Description is optional — fall back to the (required) commodity as the item name.
+            const itemName = description ?? commodity;
 
-      const eff = normalizeImportDate(r.effective_date);
-      if (!eff) { errors++; log.push(`❌ Row ${r.rowIndex}: invalid effective date "${r.effective_date}" — ${IMPORT_DATE_FORMATS_HINT}`); continue; }
-      let exp: string | null = null;
-      if (r.expiry_date?.trim()) {
-        exp = normalizeImportDate(r.expiry_date);
-        if (!exp) { errors++; log.push(`❌ Row ${r.rowIndex}: invalid expiry date "${r.expiry_date}" — ${IMPORT_DATE_FORMATS_HINT}`); continue; }
-        // Both are 'YYYY-MM-DD', so a string comparison is a date comparison.
-        if (exp < eff) { errors++; log.push(`❌ Row ${r.rowIndex}: expiry date ${exp} is before the effective date ${eff}`); continue; }
-      }
+            const eff = normalizeImportDate(r.effective_date);
+            if (!eff) {
+              errors++;
+              log.push(
+                `❌ Row ${r.rowIndex}: invalid effective date "${r.effective_date}" — ${IMPORT_DATE_FORMATS_HINT}`,
+              );
+              continue;
+            }
+            let exp: string | null = null;
+            if (r.expiry_date?.trim()) {
+              exp = normalizeImportDate(r.expiry_date);
+              if (!exp) {
+                errors++;
+                log.push(
+                  `❌ Row ${r.rowIndex}: invalid expiry date "${r.expiry_date}" — ${IMPORT_DATE_FORMATS_HINT}`,
+                );
+                continue;
+              }
+              // Both are 'YYYY-MM-DD', so a string comparison is a date comparison.
+              if (exp < eff) {
+                errors++;
+                log.push(
+                  `❌ Row ${r.rowIndex}: expiry date ${exp} is before the effective date ${eff}`,
+                );
+                continue;
+              }
+            }
 
-      const dupKey = dupKeyOf(supplierCode, countryCode, itemName);
-      const dupCode = activeKeys.get(dupKey);
-      if (dupCode) {
-        skipped++; log.push(`⚠️ Row ${r.rowIndex}: looks like a duplicate of active ${dupCode} — skipped`); continue;
-      }
+            const dupKey = dupKeyOf(supplierCode, countryCode, itemName);
+            const dupCode = activeKeys.get(dupKey);
+            if (dupCode) {
+              skipped++;
+              log.push(
+                `⚠️ Row ${r.rowIndex}: looks like a duplicate of active ${dupCode} — skipped`,
+              );
+              continue;
+            }
 
-      await client.query(`SAVEPOINT ${ROW_SAVEPOINT}`);
-      rowSavepoint = true;
+            await client.query(`SAVEPOINT ${ROW_SAVEPOINT}`);
+            rowSavepoint = true;
 
-      const usd = toUsd(r.unit_price, ccy, rates);
-      const tier = approvalTier(usd, effectiveThresholdUsd(thresholdRules, countryCode, categoryId));
-      const status: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
-      const approver = status === 'Pending Approval' ? await resolveApproverLabel(db, countryCode, categoryId, approverScopes) : null;
-      const sirionUrl = sirionUrlFor(sirion);
+            const usd = toUsd(r.unit_price, ccy, rates);
+            const tier = approvalTier(
+              usd,
+              effectiveThresholdUsd(thresholdRules, countryCode, categoryId),
+            );
+            const status: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
+            const approver =
+              status === 'Pending Approval'
+                ? await resolveApproverLabel(db, countryCode, categoryId, approverScopes)
+                : null;
+            const sirionUrl = sirionUrlFor(sirion);
 
-      // The supplier upsert, the entry and its first rate version go in ONE statement (data-modifying
-      // CTEs) rather than three round trips per row. Params are cast explicitly because an
-      // INSERT ... SELECT cannot infer a bare parameter's type from the target column.
-      const ins = await db.sql<{ id: number; code: string }[]>(
-        `WITH sup AS (
+            // The supplier upsert, the entry and its first rate version go in ONE statement (data-modifying
+            // CTEs) rather than three round trips per row. Params are cast explicitly because an
+            // INSERT ... SELECT cannot infer a bare parameter's type from the target column.
+            const ins = await db.sql<{ id: number; code: string }[]>(
+              `WITH sup AS (
            INSERT INTO supplier (vendor_code, name, accountable_manager) VALUES (?, ?, ?)
            ON CONFLICT (vendor_code) DO UPDATE SET name = EXCLUDED.name,
              accountable_manager = COALESCE(EXCLUDED.accountable_manager, supplier.accountable_manager)
@@ -1948,47 +2408,80 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
            SELECT ent.id, 1, ?::numeric, ?::text, ?::date, ?::date, 'Imported via bulk upload', ?::text FROM ent
          )
          SELECT id, code FROM ent`,
-        [
-          supplierCode, supplier, manager,
-          countryCode, categoryId, subId, uom.id, spendType, commodity,
-          itemName, description, sirion, sirionUrl, notes,
-          incoterms, incotermsLocation, leadTime, status, tier.label, manager, approver, actor.name, actor.name,
-          r.unit_price, ccy, eff, exp, actor.name,
-        ],
-      );
-      const code = String(ins[0]?.code);
-      await client.query(`RELEASE SAVEPOINT ${ROW_SAVEPOINT}`);
-      rowSavepoint = false;
-      // Later rows in this same file must see this one as an existing Active entry.
-      if (status === 'Active') activeKeys.set(dupKey, code);
-      inserted++;
-      log.push(`✅ Row ${r.rowIndex}: ${code} — ${r.supplier.trim()} (${status})`);
-    } catch (err) {
-      // Undo just this row, leaving the transaction usable for the rows that follow.
-      if (rowSavepoint) {
-        await client.query(`ROLLBACK TO SAVEPOINT ${ROW_SAVEPOINT}`);
-        await client.query(`RELEASE SAVEPOINT ${ROW_SAVEPOINT}`);
-      }
-      errors++;
-      // Every rejection the importer is meant to read is reported above by an explicit `continue`
-      // with its own message. Anything landing here is unexpected — in practice a raw Postgres
-      // error naming tables, columns and constraints, which used to be echoed straight back into
-      // the import log the user reads. The detail now goes to the server log only.
-      catalogLog.error('import.rowFailed', err, {
-        filename: input.filename,
-        rowIndex: r.rowIndex,
-        supplierCode: r.supplier_code,
-        country: r.country,
-      });
-      log.push(`❌ Row ${r.rowIndex}: could not be imported (logged for the Catalog Repo admin)`);
-    }
-  }
+              [
+                supplierCode,
+                supplier,
+                manager,
+                countryCode,
+                categoryId,
+                subId,
+                uom.id,
+                spendType,
+                commodity,
+                itemName,
+                description,
+                sirion,
+                sirionUrl,
+                notes,
+                incoterms,
+                incotermsLocation,
+                leadTime,
+                status,
+                tier.label,
+                manager,
+                approver,
+                actor.name,
+                actor.name,
+                r.unit_price,
+                ccy,
+                eff,
+                exp,
+                actor.name,
+              ],
+            );
+            const code = String(ins[0]?.code);
+            await client.query(`RELEASE SAVEPOINT ${ROW_SAVEPOINT}`);
+            rowSavepoint = false;
+            // Later rows in this same file must see this one as an existing Active entry.
+            if (status === 'Active') activeKeys.set(dupKey, code);
+            inserted++;
+            log.push(`✅ Row ${r.rowIndex}: ${code} — ${r.supplier.trim()} (${status})`);
+          } catch (err) {
+            // Undo just this row, leaving the transaction usable for the rows that follow.
+            if (rowSavepoint) {
+              await client.query(`ROLLBACK TO SAVEPOINT ${ROW_SAVEPOINT}`);
+              await client.query(`RELEASE SAVEPOINT ${ROW_SAVEPOINT}`);
+            }
+            errors++;
+            // Every rejection the importer is meant to read is reported above by an explicit `continue`
+            // with its own message. Anything landing here is unexpected — in practice a raw Postgres
+            // error naming tables, columns and constraints, which used to be echoed straight back into
+            // the import log the user reads. The detail now goes to the server log only.
+            catalogLog.error('import.rowFailed', err, {
+              filename: input.filename,
+              rowIndex: r.rowIndex,
+              supplierCode: r.supplier_code,
+              country: r.country,
+            });
+            log.push(
+              `❌ Row ${r.rowIndex}: could not be imported (logged for the Catalog Repo admin)`,
+            );
+          }
+        }
 
-  if (inserted > 0) {
-    await writeAudit('Import', `Catalog — ${input.filename}`, actor.name, actor.email, `Bulk imported ${inserted} entries (${skipped} skipped, ${errors} errors)`, db);
-  }
-  return { inserted, skipped, errors, log };
-    }));
+        if (inserted > 0) {
+          await writeAudit(
+            'Import',
+            `Catalog — ${input.filename}`,
+            actor.name,
+            actor.email,
+            `Bulk imported ${inserted} entries (${skipped} skipped, ${errors} errors)`,
+            db,
+          );
+        }
+        return { inserted, skipped, errors, log };
+      }),
+  );
 }
 
 /* ============================================================================
@@ -2009,11 +2502,25 @@ export async function buildCommodityReference(): Promise<CommodityReferenceFile>
   await requireCatalogActor(); // signed-in catalog user only
 
   // The full catalog spend taxonomy (Category → Sub-category → Commodity), no UNSPSC codes.
-  const taxonomyRows: { spend_type: string; category: string; sub: string; family: string; commodity: string; description: string }[] = [];
+  const taxonomyRows: {
+    spend_type: string;
+    category: string;
+    sub: string;
+    family: string;
+    commodity: string;
+    description: string;
+  }[] = [];
   for (const c of SPEND_TAXONOMY) {
     for (const s of c.subs) {
       for (const com of s.commodities) {
-        taxonomyRows.push({ spend_type: c.type, category: c.name, sub: s.name, family: com.f, commodity: com.n, description: com.desc });
+        taxonomyRows.push({
+          spend_type: c.type,
+          category: c.name,
+          sub: s.name,
+          family: com.f,
+          commodity: com.n,
+          description: com.desc,
+        });
       }
     }
   }
@@ -2021,7 +2528,11 @@ export async function buildCommodityReference(): Promise<CommodityReferenceFile>
   /* ---- workbook (single Spend taxonomy sheet) ---- */
   const GREEN = 'FF307C4C';
   const PALE = 'FFEAF4EF';
-  const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } } as ExcelJS.Fill;
+  const headerFill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: GREEN },
+  } as ExcelJS.Fill;
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'NESR Catalog Repo';
@@ -2046,7 +2557,10 @@ export async function buildCommodityReference(): Promise<CommodityReferenceFile>
   });
   taxonomyRows.forEach((r, i) => {
     const row = ws.addRow(r);
-    if (i % 2 === 1) row.eachCell((cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALE } } as ExcelJS.Fill; });
+    if (i % 2 === 1)
+      row.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALE } } as ExcelJS.Fill;
+      });
     row.alignment = { vertical: 'top', wrapText: true };
   });
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
@@ -2061,63 +2575,85 @@ export async function buildCommodityReference(): Promise<CommodityReferenceFile>
 }
 
 /** Approve every pending entry in a supplier group in one action (Approvals "Approve all"). */
-export async function bulkDecideEntries(entryIds: number[], comment: string): Promise<{ approved: number }> {
+export async function bulkDecideEntries(
+  entryIds: number[],
+  comment: string,
+): Promise<{ approved: number }> {
   const actor = await requireCatalogActor('Approver');
   if (!comment.trim()) throw new Error('A comment is required to record this decision.');
 
-  return catalogWrite('entry.bulkDecideFailed', { actor: actor.email, entryCount: entryIds.length }, () =>
-    withTransaction(catalogManagerPool, async (client) => {
-    const db = dbOn(client);
-    // Load the actor's (and their delegators') authority rows once for the whole batch.
-    const scopes = await loadApproverScopes([actor.email, ...(actor.delegatedFrom ?? []).map((d) => d.email)], db);
-    const rates = await loadCurrencyRates(db);
+  return catalogWrite(
+    'entry.bulkDecideFailed',
+    { actor: actor.email, entryCount: entryIds.length },
+    () =>
+      withTransaction(catalogManagerPool, async (client) => {
+        const db = dbOn(client);
+        // Load the actor's (and their delegators') authority rows once for the whole batch.
+        const scopes = await loadApproverScopes(
+          [actor.email, ...(actor.delegatedFrom ?? []).map((d) => d.email)],
+          db,
+        );
+        const rates = await loadCurrencyRates(db);
 
-    const ids = [...new Set(entryIds.map(Number).filter((n) => Number.isFinite(n)))];
-    if (!ids.length) return { approved: 0 };
+        const ids = [...new Set(entryIds.map(Number).filter((n) => Number.isFinite(n)))];
+        if (!ids.length) return { approved: 0 };
 
-    // One SELECT for the whole batch — the authority check is pure JS over `scopes`, already loaded.
-    const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ANY(?)`, [ids]);
-    const byId = new Map(rows.map((r) => [Number(r.id), r]));
+        // One SELECT for the whole batch — the authority check is pure JS over `scopes`, already loaded.
+        const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ANY(?)`, [ids]);
+        const byId = new Map(rows.map((r) => [Number(r.id), r]));
 
-    const trimmed = comment.trim();
-    const audits: AuditEntry[] = [];
-    const decisions: { id: number; version_no: number; label: string }[] = [];
-    // Entries decided under the same identity (own authority vs "on behalf of") update together.
-    const byLabel = new Map<string, number[]>();
-    for (const id of ids) {
-      const row = byId.get(id);
-      if (!row) continue;
-      const e = mapEntry(row, rates);
-      if (e.status !== 'Pending Approval') continue;
-      const acting = await catalogActingIdentity(actor, e.country_code, e.category_id, scopes, db);
-      if (!acting.allowed) continue;
+        const trimmed = comment.trim();
+        const audits: AuditEntry[] = [];
+        const decisions: { id: number; version_no: number; label: string }[] = [];
+        // Entries decided under the same identity (own authority vs "on behalf of") update together.
+        const byLabel = new Map<string, number[]>();
+        for (const id of ids) {
+          const row = byId.get(id);
+          if (!row) continue;
+          const e = mapEntry(row, rates);
+          if (e.status !== 'Pending Approval') continue;
+          const acting = await catalogActingIdentity(
+            actor,
+            e.country_code,
+            e.category_id,
+            scopes,
+            db,
+          );
+          if (!acting.allowed) continue;
 
-      byLabel.set(acting.label, [...(byLabel.get(acting.label) ?? []), id]);
-      decisions.push({ id, version_no: e.version_no, label: acting.label });
-      audits.push({ action: 'Approve', target: e.code, userName: acting.label, userEmail: actor.email, detail: `Approved (bulk) — "${trimmed.slice(0, 48)}"` });
-    }
-    if (!decisions.length) return { approved: 0 };
+          byLabel.set(acting.label, [...(byLabel.get(acting.label) ?? []), id]);
+          decisions.push({ id, version_no: e.version_no, label: acting.label });
+          audits.push({
+            action: 'Approve',
+            target: e.code,
+            userName: acting.label,
+            userEmail: actor.email,
+            detail: `Approved (bulk) — "${trimmed.slice(0, 48)}"`,
+          });
+        }
+        if (!decisions.length) return { approved: 0 };
 
-    for (const [label, groupIds] of byLabel) {
-      await db.exec(
-        `UPDATE catalog_entry SET status = 'Active', approver_name = ?, approval_comment = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ANY(?)`,
-        [label, trimmed, label, groupIds],
-      );
-    }
-    const decisionParams: QueryParams = [];
-    const decisionRows = decisions
-      .map((d) => {
-        decisionParams.push(d.id, d.version_no, d.label, trimmed);
-        return `(?, ?, ?, 'Approved', 2, ?)`;
-      })
-      .join(', ');
-    await db.exec(
-      `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES ${decisionRows}`,
-      decisionParams,
-    );
-    await writeAuditBatch(audits, db);
-    return { approved: decisions.length };
-    }));
+        for (const [label, groupIds] of byLabel) {
+          await db.exec(
+            `UPDATE catalog_entry SET status = 'Active', approver_name = ?, approval_comment = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ANY(?)`,
+            [label, trimmed, label, groupIds],
+          );
+        }
+        const decisionParams: QueryParams = [];
+        const decisionRows = decisions
+          .map((d) => {
+            decisionParams.push(d.id, d.version_no, d.label, trimmed);
+            return `(?, ?, ?, 'Approved', 2, ?)`;
+          })
+          .join(', ');
+        await db.exec(
+          `INSERT INTO approval_decision (entry_id, version_no, decided_by, decision, tier, comment) VALUES ${decisionRows}`,
+          decisionParams,
+        );
+        await writeAuditBatch(audits, db);
+        return { approved: decisions.length };
+      }),
+  );
 }
 
 /* ============================================================================
@@ -2126,12 +2662,20 @@ export async function bulkDecideEntries(entryIds: number[], comment: string): Pr
 
 export async function getCountries(): Promise<CountryRow[]> {
   if (!(await optionalCatalogActor())) return [];
-  return sql<CountryRow[]>(`SELECT code, name, default_currency, flag, status FROM country ORDER BY name`);
+  return sql<CountryRow[]>(
+    `SELECT code, name, default_currency, flag, status FROM country ORDER BY name`,
+  );
 }
 export async function getCurrencies(): Promise<CurrencyRow[]> {
   if (!(await optionalCatalogActor())) return [];
-  const rows = await sql<QueryResultRow[]>(`SELECT code, decimals, usd_rate FROM currency ORDER BY code`);
-  return rows.map((r) => ({ code: String(r.code), decimals: Number(r.decimals), usd_rate: Number(r.usd_rate) }));
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT code, decimals, usd_rate FROM currency ORDER BY code`,
+  );
+  return rows.map((r) => ({
+    code: String(r.code),
+    decimals: Number(r.decimals),
+    usd_rate: Number(r.usd_rate),
+  }));
 }
 export async function getUoms(): Promise<UomRow[]> {
   if (!(await optionalCatalogActor())) return [];
@@ -2139,25 +2683,42 @@ export async function getUoms(): Promise<UomRow[]> {
 }
 export async function getSuppliers(): Promise<SupplierRow[]> {
   if (!(await optionalCatalogActor())) return [];
-  return sql<SupplierRow[]>(`SELECT id, vendor_code, name, accountable_manager FROM supplier ORDER BY name`);
+  return sql<SupplierRow[]>(
+    `SELECT id, vendor_code, name, accountable_manager FROM supplier ORDER BY name`,
+  );
 }
 export async function getServiceActivities(): Promise<{ no: string; text: string; uom: string }[]> {
   if (!(await optionalCatalogActor())) return [];
-  const rows = await sql<{ activity_number: string; short_text: string; base_uom: string | null }[]>(
-    `SELECT activity_number, short_text, base_uom FROM service_activity ORDER BY short_text`,
-  );
-  return rows.map((r) => ({ no: String(r.activity_number), text: String(r.short_text), uom: String(r.base_uom ?? '') }));
+  const rows = await sql<
+    { activity_number: string; short_text: string; base_uom: string | null }[]
+  >(`SELECT activity_number, short_text, base_uom FROM service_activity ORDER BY short_text`);
+  return rows.map((r) => ({
+    no: String(r.activity_number),
+    text: String(r.short_text),
+    uom: String(r.base_uom ?? ''),
+  }));
 }
-export async function getCategoriesWithSubs(): Promise<(SpendCategoryRow & { subs: SpendSubcategoryRow[] })[]> {
+export async function getCategoriesWithSubs(): Promise<
+  (SpendCategoryRow & { subs: SpendSubcategoryRow[] })[]
+> {
   if (!(await optionalCatalogActor())) return [];
-  const cats = await sql<SpendCategoryRow[]>(`SELECT id, name, type, status FROM spend_category ORDER BY type, name`);
-  const subs = await sql<SpendSubcategoryRow[]>(`SELECT id, category_id, name, status FROM spend_subcategory ORDER BY name`);
-  return cats.map((c) => ({ ...c, subs: subs.filter((s) => Number(s.category_id) === Number(c.id)) }));
+  const cats = await sql<SpendCategoryRow[]>(
+    `SELECT id, name, type, status FROM spend_category ORDER BY type, name`,
+  );
+  const subs = await sql<SpendSubcategoryRow[]>(
+    `SELECT id, category_id, name, status FROM spend_subcategory ORDER BY name`,
+  );
+  return cats.map((c) => ({
+    ...c,
+    subs: subs.filter((s) => Number(s.category_id) === Number(c.id)),
+  }));
 }
 export async function getUsers(): Promise<AppUserRow[]> {
   // Directory PII (names + emails) — Admin only, empty for everyone else.
   if (!(await optionalCatalogActor('Admin'))) return [];
-  return sql<AppUserRow[]>(`SELECT id, full_name, email, country_code, role FROM app_user ORDER BY full_name`);
+  return sql<AppUserRow[]>(
+    `SELECT id, full_name, email, country_code, role FROM app_user ORDER BY full_name`,
+  );
 }
 
 export async function getCountryApprovers(): Promise<CountryApproverRow[]> {
@@ -2186,7 +2747,12 @@ export async function getCountryApprovers(): Promise<CountryApproverRow[]> {
   }));
 }
 
-export async function addCountryApprover(userId: number, countryCode: string, spendCategoryId: number | null, tier = 2): Promise<void> {
+export async function addCountryApprover(
+  userId: number,
+  countryCode: string,
+  spendCategoryId: number | null,
+  tier = 2,
+): Promise<void> {
   const actor = await requireCatalogActor('Admin');
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
@@ -2196,8 +2762,17 @@ export async function addCountryApprover(userId: number, countryCode: string, sp
        ON CONFLICT (user_id, country_code, COALESCE(spend_category_id, 0)) DO UPDATE SET is_active = TRUE, tier = EXCLUDED.tier`,
       [userId, countryCode, spendCategoryId, tier],
     );
-    const u = await db.sql<{ full_name: string }[]>(`SELECT full_name FROM app_user WHERE id = ?`, [userId]);
-    await writeAudit('Master data', 'Country approvers', actor.name, actor.email, `Assigned ${u[0]?.full_name ?? 'user'} as approver for ${countryCode}`, db);
+    const u = await db.sql<{ full_name: string }[]>(`SELECT full_name FROM app_user WHERE id = ?`, [
+      userId,
+    ]);
+    await writeAudit(
+      'Master data',
+      'Country approvers',
+      actor.name,
+      actor.email,
+      `Assigned ${u[0]?.full_name ?? 'user'} as approver for ${countryCode}`,
+      db,
+    );
   });
 }
 
@@ -2206,7 +2781,14 @@ export async function removeCountryApprover(id: number): Promise<void> {
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
     await db.exec(`DELETE FROM country_approver WHERE id = ?`, [id]);
-    await writeAudit('Master data', 'Country approvers', actor.name, actor.email, `Removed a country-approver assignment`, db);
+    await writeAudit(
+      'Master data',
+      'Country approvers',
+      actor.name,
+      actor.email,
+      `Removed a country-approver assignment`,
+      db,
+    );
   });
 }
 
@@ -2214,9 +2796,18 @@ export async function setUserRole(userId: number, role: CatalogRole): Promise<vo
   const actor = await requireCatalogActor('Admin');
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
-    const u = await db.sql<{ full_name: string }[]>(`SELECT full_name FROM app_user WHERE id = ?`, [userId]);
+    const u = await db.sql<{ full_name: string }[]>(`SELECT full_name FROM app_user WHERE id = ?`, [
+      userId,
+    ]);
     await db.exec(`UPDATE app_user SET role = ? WHERE id = ?`, [role, userId]);
-    await writeAudit('Master data', 'Users & roles', actor.name, actor.email, `Changed ${u[0]?.full_name ?? 'user'} role → ${role}`, db);
+    await writeAudit(
+      'Master data',
+      'Users & roles',
+      actor.name,
+      actor.email,
+      `Changed ${u[0]?.full_name ?? 'user'} role → ${role}`,
+      db,
+    );
   });
 }
 
@@ -2249,7 +2840,10 @@ export async function getMyCatalogAccessRequest(): Promise<CatalogAccessRequestR
   const sessionUser = await getProcureGuardUser();
   const email = normalizeEmail(sessionUser?.email);
   if (!email) return null;
-  const rows = await sql<QueryResultRow[]>(`SELECT * FROM catalog_access_requests WHERE LOWER(user_email) = ?`, [email]);
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT * FROM catalog_access_requests WHERE LOWER(user_email) = ?`,
+    [email],
+  );
   return rows[0] ? mapAccessRequest(rows[0]) : null;
 }
 
@@ -2283,7 +2877,14 @@ export async function submitCatalogAccessRequest(input: {
        requested_at = CURRENT_TIMESTAMP,
        reviewed_at = NULL,
        reviewed_by = NULL`,
-    [email, sessionUser?.name ?? email, sessionUser?.jobTitle ?? null, input.countryCode || null, input.requestedRole, input.reason || null],
+    [
+      email,
+      sessionUser?.name ?? email,
+      sessionUser?.jobTitle ?? null,
+      input.countryCode || null,
+      input.requestedRole,
+      input.reason || null,
+    ],
   );
   return { success: true };
 }
@@ -2301,7 +2902,9 @@ export async function getCatalogAccessRequests(): Promise<CatalogAccessRequestRo
 
 export async function getCatalogAccessPendingCount(): Promise<number> {
   if (!(await optionalCatalogActor('Admin'))) return 0;
-  const rows = await sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM catalog_access_requests WHERE status = 'Pending'`);
+  const rows = await sql<{ n: number }[]>(
+    `SELECT COUNT(*)::int AS n FROM catalog_access_requests WHERE status = 'Pending'`,
+  );
   return Number(rows[0]?.n ?? 0);
 }
 
@@ -2320,7 +2923,10 @@ export async function approveCatalogAccessRequest(input: {
   // a failure between them used to leave a request that reads "Approved" with no role granted.
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
-    const existing = await db.sql<QueryResultRow[]>(`SELECT display_name, country_code FROM catalog_access_requests WHERE LOWER(user_email) = ?`, [email]);
+    const existing = await db.sql<QueryResultRow[]>(
+      `SELECT display_name, country_code FROM catalog_access_requests WHERE LOWER(user_email) = ?`,
+      [email],
+    );
     const displayName = existing[0]?.display_name ?? email;
     const countryCode = input.countryCode || existing[0]?.country_code || null;
 
@@ -2336,7 +2942,14 @@ export async function approveCatalogAccessRequest(input: {
        ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, country_code = COALESCE(app_user.country_code, EXCLUDED.country_code)`,
       [displayName, email, countryCode, input.approvedRole],
     );
-    await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Approved ${email} → ${input.approvedRole}`, db);
+    await writeAudit(
+      'Master data',
+      'Access requests',
+      actor.name,
+      actor.email,
+      `Approved ${email} → ${input.approvedRole}`,
+      db,
+    );
   });
   return { success: true };
 }
@@ -2351,7 +2964,14 @@ export async function rejectCatalogAccessRequest(userEmail: string): Promise<{ s
       `UPDATE catalog_access_requests SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE LOWER(user_email) = ?`,
       [actor.email, email],
     );
-    await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Rejected access request from ${email}`, db);
+    await writeAudit(
+      'Master data',
+      'Access requests',
+      actor.name,
+      actor.email,
+      `Rejected access request from ${email}`,
+      db,
+    );
   });
   return { success: true };
 }
@@ -2370,7 +2990,14 @@ export async function revokeCatalogAccessRequest(userEmail: string): Promise<{ s
       [actor.email, email],
     );
     await db.exec(`UPDATE app_user SET role = 'Viewer' WHERE LOWER(email) = ?`, [email]);
-    await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Revoked access for ${email} (reset to Viewer)`, db);
+    await writeAudit(
+      'Master data',
+      'Access requests',
+      actor.name,
+      actor.email,
+      `Revoked access for ${email} (reset to Viewer)`,
+      db,
+    );
   });
   return { success: true };
 }
@@ -2382,7 +3009,14 @@ export async function deleteCatalogAccessRequest(userEmail: string): Promise<{ s
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
     await db.exec(`DELETE FROM catalog_access_requests WHERE LOWER(user_email) = ?`, [email]);
-    await writeAudit('Master data', 'Access requests', actor.name, actor.email, `Deleted the access request from ${email}`, db);
+    await writeAudit(
+      'Master data',
+      'Access requests',
+      actor.name,
+      actor.email,
+      `Deleted the access request from ${email}`,
+      db,
+    );
   });
   return { success: true };
 }
@@ -2395,25 +3029,46 @@ export async function deleteCatalogAccessRequest(userEmail: string): Promise<{ s
 export async function getCatalogAdminSummary(): Promise<CatalogAdminSummary> {
   if (!(await optionalCatalogActor('Admin'))) {
     return {
-      countriesActive: 0, countriesTotal: 0, currencies: 0, suppliers: 0, categoriesActive: 0,
-      uoms: 0, thresholdRules: 0, usersTotal: 0,
+      countriesActive: 0,
+      countriesTotal: 0,
+      currencies: 0,
+      suppliers: 0,
+      categoriesActive: 0,
+      uoms: 0,
+      thresholdRules: 0,
+      usersTotal: 0,
       usersByRole: { Viewer: 0, Contributor: 0, Approver: 0, Admin: 0 },
       countryApprovers: 0,
     };
   }
-  const [countryRows, ccyRows, supplierRows, catRows, uomRows, thresholdRows, userRows, caRows] = await Promise.all([
-    sql<{ total: number; active: number }[]>(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'Active')::int AS active FROM country`),
-    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM currency`),
-    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM supplier`),
-    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM spend_category WHERE status = 'Active'`),
-    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM unit_of_measure`),
-    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM approval_threshold`),
-    sql<{ role: CatalogRole; n: number }[]>(`SELECT role, COUNT(*)::int AS n FROM app_user GROUP BY role`),
-    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM country_approver WHERE is_active = TRUE`),
-  ]);
-  const usersByRole: Record<CatalogRole, number> = { Viewer: 0, Contributor: 0, Approver: 0, Admin: 0 };
+  const [countryRows, ccyRows, supplierRows, catRows, uomRows, thresholdRows, userRows, caRows] =
+    await Promise.all([
+      sql<{ total: number; active: number }[]>(
+        `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'Active')::int AS active FROM country`,
+      ),
+      sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM currency`),
+      sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM supplier`),
+      sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM spend_category WHERE status = 'Active'`),
+      sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM unit_of_measure`),
+      sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM approval_threshold`),
+      sql<{ role: CatalogRole; n: number }[]>(
+        `SELECT role, COUNT(*)::int AS n FROM app_user GROUP BY role`,
+      ),
+      sql<{ n: number }[]>(
+        `SELECT COUNT(*)::int AS n FROM country_approver WHERE is_active = TRUE`,
+      ),
+    ]);
+  const usersByRole: Record<CatalogRole, number> = {
+    Viewer: 0,
+    Contributor: 0,
+    Approver: 0,
+    Admin: 0,
+  };
   let usersTotal = 0;
-  for (const r of userRows) { usersByRole[r.role] = Number(r.n); usersTotal += Number(r.n); }
+  for (const r of userRows) {
+    usersByRole[r.role] = Number(r.n);
+    usersTotal += Number(r.n);
+  }
   return {
     countriesActive: Number(countryRows[0]?.active ?? 0),
     countriesTotal: Number(countryRows[0]?.total ?? 0),
@@ -2435,7 +3090,14 @@ export async function getCatalogAdminSummary(): Promise<CatalogAdminSummary> {
  */
 export async function getPirSyncHealth(): Promise<PirSyncHealth> {
   if (!(await optionalCatalogActor('Admin'))) {
-    return { total: 0, lastSyncedAt: null, hoursSinceSync: null, withDescription: 0, descriptionCoveragePct: 0, isStale: true };
+    return {
+      total: 0,
+      lastSyncedAt: null,
+      hoursSinceSync: null,
+      withDescription: 0,
+      descriptionCoveragePct: 0,
+      isStale: true,
+    };
   }
   const rows = await sql<{ total: number; last_synced: string | null; with_desc: number }[]>(
     `SELECT COUNT(*)::int AS total, MAX(p.synced_at)::text AS last_synced,
@@ -2446,7 +3108,9 @@ export async function getPirSyncHealth(): Promise<PirSyncHealth> {
   const total = Number(r.total);
   const withDescription = Number(r.with_desc);
   const lastSyncedAt = r.last_synced ?? null;
-  const hoursSinceSync = lastSyncedAt ? (Date.now() - new Date(lastSyncedAt).getTime()) / 3_600_000 : null;
+  const hoursSinceSync = lastSyncedAt
+    ? (Date.now() - new Date(lastSyncedAt).getTime()) / 3_600_000
+    : null;
   return {
     total,
     lastSyncedAt,
@@ -2461,8 +3125,18 @@ export async function toggleCountryStatus(code: string): Promise<void> {
   const actor = await requireCatalogActor('Admin');
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
-    await db.exec(`UPDATE country SET status = CASE WHEN status = 'Active' THEN 'Inactive' ELSE 'Active' END WHERE code = ?`, [code]);
-    await writeAudit('Master data', 'Countries', actor.name, actor.email, `Toggled country ${code} status`, db);
+    await db.exec(
+      `UPDATE country SET status = CASE WHEN status = 'Active' THEN 'Inactive' ELSE 'Active' END WHERE code = ?`,
+      [code],
+    );
+    await writeAudit(
+      'Master data',
+      'Countries',
+      actor.name,
+      actor.email,
+      `Toggled country ${code} status`,
+      db,
+    );
   });
 }
 
@@ -2470,8 +3144,18 @@ export async function toggleCategoryStatus(id: number): Promise<void> {
   const actor = await requireCatalogActor('Admin');
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
-    await db.exec(`UPDATE spend_category SET status = CASE WHEN status = 'Active' THEN 'Inactive' ELSE 'Active' END WHERE id = ?`, [id]);
-    await writeAudit('Master data', 'Spend categories', actor.name, actor.email, `Toggled a spend category status`, db);
+    await db.exec(
+      `UPDATE spend_category SET status = CASE WHEN status = 'Active' THEN 'Inactive' ELSE 'Active' END WHERE id = ?`,
+      [id],
+    );
+    await writeAudit(
+      'Master data',
+      'Spend categories',
+      actor.name,
+      actor.email,
+      `Toggled a spend category status`,
+      db,
+    );
   });
 }
 
@@ -2479,11 +3163,25 @@ export async function toggleCategoryStatus(id: number): Promise<void> {
 // (see the now-removed DEMO_ENTRIES/seedDemoEntries). One-time cleanup for DBs that were
 // bootstrapped before real customer data existed — safe to re-run, becomes a no-op once clean.
 const DEMO_SUPPLIER_VENDOR_CODES = [
-  'V-100517', 'V-200118', 'V-100482', 'V-200517', 'V-100915', 'V-200245',
-  'V-100631', 'V-200922', 'V-100822', 'V-101508', 'V-102156', 'V-101733', 'V-102011',
+  'V-100517',
+  'V-200118',
+  'V-100482',
+  'V-200517',
+  'V-100915',
+  'V-200245',
+  'V-100631',
+  'V-200922',
+  'V-100822',
+  'V-101508',
+  'V-102156',
+  'V-101733',
+  'V-102011',
 ];
 
-export async function deleteDemoCatalogData(): Promise<{ deletedEntries: number; deletedSuppliers: number }> {
+export async function deleteDemoCatalogData(): Promise<{
+  deletedEntries: number;
+  deletedSuppliers: number;
+}> {
   const actor = await requireCatalogActor('Admin');
 
   return withTransaction(catalogManagerPool, async (client) => {
@@ -2499,7 +3197,14 @@ export async function deleteDemoCatalogData(): Promise<{ deletedEntries: number;
       [DEMO_SUPPLIER_VENDOR_CODES],
     );
 
-    await writeAudit('Master data', 'Catalog', actor.name, actor.email, `Removed ${entryResult.rowCount} sample/demo catalog entries and ${supplierResult.rowCount} demo suppliers`, db);
+    await writeAudit(
+      'Master data',
+      'Catalog',
+      actor.name,
+      actor.email,
+      `Removed ${entryResult.rowCount} sample/demo catalog entries and ${supplierResult.rowCount} demo suppliers`,
+      db,
+    );
     return { deletedEntries: entryResult.rowCount, deletedSuppliers: supplierResult.rowCount };
   });
 }
@@ -2508,8 +3213,18 @@ export async function addUom(name: string): Promise<void> {
   const actor = await requireCatalogActor('Admin');
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
-    await db.exec(`INSERT INTO unit_of_measure (name, status) VALUES (?, 'Active') ON CONFLICT (name) DO NOTHING`, [name]);
-    await writeAudit('Master data', 'Units of measure', actor.name, actor.email, `Added UOM ${name}`, db);
+    await db.exec(
+      `INSERT INTO unit_of_measure (name, status) VALUES (?, 'Active') ON CONFLICT (name) DO NOTHING`,
+      [name],
+    );
+    await writeAudit(
+      'Master data',
+      'Units of measure',
+      actor.name,
+      actor.email,
+      `Added UOM ${name}`,
+      db,
+    );
   });
 }
 
@@ -2521,7 +3236,14 @@ export async function addUom(name: string): Promise<void> {
  * `userName` is a display label (and may read "X on behalf of Y"), so it is not an identity.
  * `userEmail` is the AUTHENTICATED actor's address and is what the trail is keyed on.
  */
-async function writeAudit(action: string, target: string, userName: string, userEmail: string | null, detail: string, db: CatalogDb = poolDb): Promise<void> {
+async function writeAudit(
+  action: string,
+  target: string,
+  userName: string,
+  userEmail: string | null,
+  detail: string,
+  db: CatalogDb = poolDb,
+): Promise<void> {
   await db.exec(
     `INSERT INTO audit_log (action, target, user_name, user_email, detail) VALUES (?, ?, ?, ?, ?)`,
     [action, target, userName, normalizeEmail(userEmail) || null, detail],
@@ -2550,7 +3272,10 @@ async function writeAuditBatch(entries: AuditEntry[], db: CatalogDb = poolDb): P
       return '(?, ?, ?, ?, ?)';
     })
     .join(', ');
-  await db.exec(`INSERT INTO audit_log (action, target, user_name, user_email, detail) VALUES ${placeholders}`, params);
+  await db.exec(
+    `INSERT INTO audit_log (action, target, user_name, user_email, detail) VALUES ${placeholders}`,
+    params,
+  );
 }
 
 export async function getAuditLog(limit = 200): Promise<AuditEvent[]> {
@@ -2573,7 +3298,13 @@ export async function getAuditLog(limit = 200): Promise<AuditEvent[]> {
 
 export async function logExport(scopeLabel: string, rowCount: number): Promise<void> {
   const actor = await requireCatalogActor(); // never let an unauthenticated caller write the audit trail
-  await writeAudit('Export', `Catalog — ${scopeLabel}`, actor.name, actor.email, `Exported ${rowCount} rows to CSV`);
+  await writeAudit(
+    'Export',
+    `Catalog — ${scopeLabel}`,
+    actor.name,
+    actor.email,
+    `Exported ${rowCount} rows to CSV`,
+  );
 }
 
 /* ============================================================================
@@ -2597,15 +3328,27 @@ export async function addEntryDocument(
        VALUES (?, ?, ?, ?, ?, ?)`,
       [entryId, input.fileName, input.docType, input.sizeLabel, input.dataUrl, actor.name],
     );
-    const code = await db.sql<{ code: string }[]>(`SELECT code FROM catalog_entry WHERE id = ?`, [entryId]);
-    await writeAudit('Document', code[0]?.code ?? String(entryId), actor.name, actor.email, `Attached ${input.docType || 'document'}: ${input.fileName}`, db);
+    const code = await db.sql<{ code: string }[]>(`SELECT code FROM catalog_entry WHERE id = ?`, [
+      entryId,
+    ]);
+    await writeAudit(
+      'Document',
+      code[0]?.code ?? String(entryId),
+      actor.name,
+      actor.email,
+      `Attached ${input.docType || 'document'}: ${input.fileName}`,
+      db,
+    );
   });
 }
 
 export async function deleteEntryDocument(docId: number, entryId: number): Promise<void> {
   await requireCatalogActor('Contributor');
   await withTransaction(catalogManagerPool, async (client) => {
-    await dbOn(client).exec(`DELETE FROM entry_document WHERE id = ? AND entry_id = ?`, [docId, entryId]);
+    await dbOn(client).exec(`DELETE FROM entry_document WHERE id = ? AND entry_id = ?`, [
+      docId,
+      entryId,
+    ]);
   });
 }
 
@@ -2632,11 +3375,21 @@ export async function getDocumentDataUrl(docId: number): Promise<string | null> 
  * admin overview, which also needs the raw entries for its pending-approvals preview) skip a
  * second identical full-table query — pass the same array instead of re-fetching it here.
  */
-export async function getCatalogAnalyticsData(country = 'ALL', preloadedEntries?: CatalogEntry[]): Promise<CatalogAnalyticsData> {
+export async function getCatalogAnalyticsData(
+  country = 'ALL',
+  preloadedEntries?: CatalogEntry[],
+): Promise<CatalogAnalyticsData> {
   if (!(await optionalCatalogActor())) {
     return {
-      activeCount: 0, supplierCount: 0, pendingCount: 0, expiringCount: 0, avgRateChangePct: null,
-      byCategory: [], byCountry: [], topMovers: [], statusCounts: [],
+      activeCount: 0,
+      supplierCount: 0,
+      pendingCount: 0,
+      expiringCount: 0,
+      avgRateChangePct: null,
+      byCategory: [],
+      byCountry: [],
+      topMovers: [],
+      statusCounts: [],
     };
   }
   const today = new Date();
@@ -2662,14 +3415,25 @@ export async function getCatalogAnalyticsData(country = 'ALL', preloadedEntries?
   // active-rate count by country
   const ctyMap = new Map<string, SpendByCountry>();
   for (const e of active) {
-    const row = ctyMap.get(e.country_code) ?? { code: e.country_code, name: e.country_name, flag: e.country_flag, activeCount: 0 };
+    const row = ctyMap.get(e.country_code) ?? {
+      code: e.country_code,
+      name: e.country_name,
+      flag: e.country_flag,
+      activeCount: 0,
+    };
     row.activeCount += 1;
     ctyMap.set(e.country_code, row);
   }
   const byCountry = [...ctyMap.values()].sort((a, b) => b.activeCount - a.activeCount);
 
   // status mix
-  const statusOrder: CatalogStatus[] = ['Active', 'Pending Approval', 'Draft', 'Expired', 'Rejected'];
+  const statusOrder: CatalogStatus[] = [
+    'Active',
+    'Pending Approval',
+    'Draft',
+    'Expired',
+    'Rejected',
+  ];
   const statusCounts = statusOrder
     .map((status) => ({ status, count: entries.filter((e) => e.status === status).length }))
     .filter((s) => s.count > 0);
@@ -2690,10 +3454,15 @@ export async function getCatalogAnalyticsData(country = 'ALL', preloadedEntries?
 }
 
 /** rate-history movers — entries with >1 version: first vs current price. */
-async function loadRateMovers(country: string): Promise<{ avgRateChangePct: number | null; topMovers: RateMover[] }> {
+async function loadRateMovers(
+  country: string,
+): Promise<{ avgRateChangePct: number | null; topMovers: RateMover[] }> {
   const moverParams: QueryParams = [];
   let moverWhere = `WHERE e.current_version_no > 1`;
-  if (country && country !== 'ALL') { moverWhere += ` AND e.country_code = ?`; moverParams.push(country); }
+  if (country && country !== 'ALL') {
+    moverWhere += ` AND e.country_code = ?`;
+    moverParams.push(country);
+  }
   const moverRows = await sql<QueryResultRow[]>(
     `SELECT e.id, e.code, s.name AS supplier_name, e.commodity, e.item_name, e.country_code,
             rvc.currency_code, rvc.unit_price AS current_price, e.current_version_no AS versions,
@@ -2724,8 +3493,12 @@ async function loadRateMovers(country: string): Promise<{ avgRateChangePct: numb
       };
     })
     .filter((m) => m.firstPrice > 0);
-  const avgRateChangePct = movers.length ? movers.reduce((s, m) => s + m.changePct, 0) / movers.length : null;
-  const topMovers = [...movers].sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct)).slice(0, 8);
+  const avgRateChangePct = movers.length
+    ? movers.reduce((s, m) => s + m.changePct, 0) / movers.length
+    : null;
+  const topMovers = [...movers]
+    .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
+    .slice(0, 8);
   return { avgRateChangePct, topMovers };
 }
 
@@ -2740,7 +3513,10 @@ async function loadRateMovers(country: string): Promise<{ avgRateChangePct: numb
  * here. The expiring window is passed in as the app's own local `today` rather than the database's
  * CURRENT_DATE, so a timezone gap between Node and Postgres cannot shift the count.
  */
-async function catalogAnalyticsFromSql(country: string, today: Date): Promise<CatalogAnalyticsData> {
+async function catalogAnalyticsFromSql(
+  country: string,
+  today: Date,
+): Promise<CatalogAnalyticsData> {
   const scoped: QueryParams = [];
   let where = '';
   if (country && country !== 'ALL') {
@@ -2788,7 +3564,13 @@ async function catalogAnalyticsFromSql(country: string, today: Date): Promise<Ca
 
   const byStatus = new Map(statusRows.map((r) => [String(r.status), r]));
   const activeRow = byStatus.get('Active');
-  const statusOrder: CatalogStatus[] = ['Active', 'Pending Approval', 'Draft', 'Expired', 'Rejected'];
+  const statusOrder: CatalogStatus[] = [
+    'Active',
+    'Pending Approval',
+    'Draft',
+    'Expired',
+    'Rejected',
+  ];
 
   return {
     activeCount: Number(activeRow?.n ?? 0),
@@ -2837,9 +3619,14 @@ export async function getApprovalThresholds(): Promise<ApprovalThresholdRule[]> 
   }));
 }
 
-export async function setApprovalThreshold(input: { country_code: string | null; spend_category_id: number | null; threshold_usd: number }): Promise<void> {
+export async function setApprovalThreshold(input: {
+  country_code: string | null;
+  spend_category_id: number | null;
+  threshold_usd: number;
+}): Promise<void> {
   const actor = await requireCatalogActor('Admin');
-  if (!Number.isFinite(input.threshold_usd) || input.threshold_usd < 0) throw new Error('Enter a valid threshold amount.');
+  if (!Number.isFinite(input.threshold_usd) || input.threshold_usd < 0)
+    throw new Error('Enter a valid threshold amount.');
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
     await db.exec(
@@ -2849,7 +3636,14 @@ export async function setApprovalThreshold(input: { country_code: string | null;
          DO UPDATE SET threshold_usd = EXCLUDED.threshold_usd, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP`,
       [input.country_code, input.spend_category_id, input.threshold_usd, actor.name],
     );
-    await writeAudit('Master data', 'Thresholds', actor.name, actor.email, `Set ${input.country_code ?? 'Any country'}${input.spend_category_id != null ? ' (category)' : ''} threshold to $${input.threshold_usd.toLocaleString()}`, db);
+    await writeAudit(
+      'Master data',
+      'Thresholds',
+      actor.name,
+      actor.email,
+      `Set ${input.country_code ?? 'Any country'}${input.spend_category_id != null ? ' (category)' : ''} threshold to $${input.threshold_usd.toLocaleString()}`,
+      db,
+    );
   });
 }
 
@@ -2858,13 +3652,21 @@ export async function removeApprovalThreshold(id: number): Promise<void> {
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
     const rows = await db.sql<{ country_code: string | null; spend_category_id: number | null }[]>(
-      `SELECT country_code, spend_category_id FROM approval_threshold WHERE id = ?`, [id],
+      `SELECT country_code, spend_category_id FROM approval_threshold WHERE id = ?`,
+      [id],
     );
     if (rows[0] && rows[0].country_code == null && rows[0].spend_category_id == null) {
       throw new Error('The global default threshold cannot be removed — edit its value instead.');
     }
     await db.exec(`DELETE FROM approval_threshold WHERE id = ?`, [id]);
-    await writeAudit('Master data', 'Thresholds', actor.name, actor.email, 'Removed a threshold override', db);
+    await writeAudit(
+      'Master data',
+      'Thresholds',
+      actor.name,
+      actor.email,
+      'Removed a threshold override',
+      db,
+    );
   });
 }
 
@@ -2917,16 +3719,28 @@ export interface SupplierProfile {
 /** Same story as loadCatalogEntry: generateMetadata and the supplier page each used to run all four queries. */
 const loadSupplierProfile = cache(async (supplierId: number): Promise<SupplierProfile | null> => {
   if (!(await optionalCatalogActor())) return null;
-  const sup = await sql<SupplierRow[]>(`SELECT id, vendor_code, name, accountable_manager FROM supplier WHERE id = ?`, [supplierId]);
+  const sup = await sql<SupplierRow[]>(
+    `SELECT id, vendor_code, name, accountable_manager FROM supplier WHERE id = ?`,
+    [supplierId],
+  );
   if (!sup[0]) return null;
   const supplier = sup[0];
 
-  const rows = await sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.supplier_id = ? ORDER BY e.modified_at DESC`, [supplierId]);
+  const rows = await sql<QueryResultRow[]>(
+    `${ENTRY_SELECT} WHERE e.supplier_id = ? ORDER BY e.modified_at DESC`,
+    [supplierId],
+  );
   const rates = await loadCurrencyRates();
   const entries = rows.map((r) => mapEntry(r, rates));
   const active = entries.filter((e) => e.status === 'Active');
   const countryMap = new Map<string, { code: string; name: string; flag: string | null }>();
-  entries.forEach((e) => countryMap.set(e.country_code, { code: e.country_code, name: e.country_name, flag: e.country_flag }));
+  entries.forEach((e) =>
+    countryMap.set(e.country_code, {
+      code: e.country_code,
+      name: e.country_name,
+      flag: e.country_flag,
+    }),
+  );
 
   // contact emails from the local supplier directory (seeded from the SAP master)
   const dir = await sql<{ emails: string | null; additional_email: string | null }[]>(
@@ -2934,7 +3748,14 @@ const loadSupplierProfile = cache(async (supplierId: number): Promise<SupplierPr
     [supplier.vendor_code],
   );
   const rawEmails = `${dir[0]?.emails ?? ''},${dir[0]?.additional_email ?? ''}`;
-  const contactEmails = [...new Set(rawEmails.split(/[,;\s]+/).map((s) => s.trim()).filter((s) => s.includes('@')))];
+  const contactEmails = [
+    ...new Set(
+      rawEmails
+        .split(/[,;\s]+/)
+        .map((s) => s.trim())
+        .filter((s) => s.includes('@')),
+    ),
+  ];
 
   return {
     id: supplier.id,
@@ -2970,7 +3791,11 @@ export async function bulkDeactivateEntries(entryIds: number[]): Promise<{ count
       [ids],
     );
     const byId = new Map(rows.map((r) => [Number(r.id), r]));
-    const targets = ids.map((id) => byId.get(id)).filter((r): r is { id: number; code: string; status: string } => !!r && r.status !== 'Expired');
+    const targets = ids
+      .map((id) => byId.get(id))
+      .filter(
+        (r): r is { id: number; code: string; status: string } => !!r && r.status !== 'Expired',
+      );
     if (!targets.length) return { count: 0 };
 
     await db.exec(
@@ -3008,20 +3833,35 @@ export async function bulkSubmitEntries(entryIds: number[]): Promise<{ count: nu
     const audits: AuditEntry[] = [];
     // Entries that end up with the same (status, approver) are updated together, so a batch costs a
     // handful of UPDATEs rather than one per entry.
-    const groups = new Map<string, { next: CatalogStatus; approver: string | null; ids: number[] }>();
+    const groups = new Map<
+      string,
+      { next: CatalogStatus; approver: string | null; ids: number[] }
+    >();
     for (const id of ids) {
       const row = byId.get(id);
       if (!row) continue;
       const e = mapEntry(row, rates);
       if (e.status !== 'Draft' && e.status !== 'Rejected') continue;
-      const tier = approvalTier(e.usd_equivalent, effectiveThresholdUsd(rules, e.country_code, e.category_id));
+      const tier = approvalTier(
+        e.usd_equivalent,
+        effectiveThresholdUsd(rules, e.country_code, e.category_id),
+      );
       const next: CatalogStatus = tier.needsApproval ? 'Pending Approval' : 'Active';
-      const approver = next === 'Pending Approval' ? await resolveApproverLabel(db, e.country_code, e.category_id, approverScopes) : null;
+      const approver =
+        next === 'Pending Approval'
+          ? await resolveApproverLabel(db, e.country_code, e.category_id, approverScopes)
+          : null;
       const key = `${next}\u0000${approver ?? ''}`;
       const group = groups.get(key) ?? { next, approver, ids: [] };
       group.ids.push(id);
       groups.set(key, group);
-      audits.push({ action: 'Status change', target: e.code, userName: actor.name, userEmail: actor.email, detail: `${e.status} → ${next} (bulk)` });
+      audits.push({
+        action: 'Status change',
+        target: e.code,
+        userName: actor.name,
+        userEmail: actor.email,
+        detail: `${e.status} → ${next} (bulk)`,
+      });
     }
     if (!audits.length) return { count: 0 };
 
@@ -3041,9 +3881,22 @@ export async function bulkSubmitEntries(entryIds: number[]): Promise<{ count: nu
 ============================================================================ */
 
 export interface GlobalSearchResult {
-  entries: { id: number; code: string; supplier_name: string; label: string; country_code: string; status: CatalogStatus }[];
+  entries: {
+    id: number;
+    code: string;
+    supplier_name: string;
+    label: string;
+    country_code: string;
+    status: CatalogStatus;
+  }[];
   suppliers: { id: number; name: string; vendor_code: string }[];
-  pir: { info_record_number: string; product_number: string; material_description: string; supplier_name: string; country: string }[];
+  pir: {
+    info_record_number: string;
+    product_number: string;
+    material_description: string;
+    supplier_name: string;
+    country: string;
+  }[];
 }
 
 export async function globalCatalogSearch(query: string): Promise<GlobalSearchResult> {
@@ -3082,7 +3935,11 @@ export async function globalCatalogSearch(query: string): Promise<GlobalSearchRe
       country_code: String(r.country_code),
       status: r.status as CatalogStatus,
     })),
-    suppliers: supplierRows.map((r) => ({ id: Number(r.id), name: String(r.name), vendor_code: String(r.vendor_code) })),
+    suppliers: supplierRows.map((r) => ({
+      id: Number(r.id),
+      name: String(r.name),
+      vendor_code: String(r.vendor_code),
+    })),
     pir: pirRows.map((r) => ({
       info_record_number: String(r.info_record_number ?? ''),
       product_number: String(r.product_number ?? ''),

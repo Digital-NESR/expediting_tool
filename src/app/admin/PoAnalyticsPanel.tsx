@@ -3,8 +3,18 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import DetailModal from '@/components/DetailModal';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell, LabelList, Legend,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  LabelList,
+  Legend,
 } from 'recharts';
 import {
   getBuyerDetail,
@@ -13,16 +23,28 @@ import {
 } from '@/app/actions/adminAnalytics';
 import { formatDate, formatSessionDate, formatWeek, formatCurrency } from '@/lib/format';
 import {
-  DSTooltipBadge, ResponseBadge, RateBadge, StatPill,
-  ModalLoading, ModalEmpty, SortIcon, useSortable,
-  KpiCard, SectionTitle, ChartCard,
+  DSTooltipBadge,
+  ResponseBadge,
+  RateBadge,
+  StatPill,
+  ModalLoading,
+  ModalEmpty,
+  SortIcon,
+  useSortable,
+  KpiCard,
+  SectionTitle,
+  ChartCard,
 } from '@/app/po-expediting/analytics/_components';
 
 /* The badges, sort helpers and layout shells below used to be copy-pasted into all
    three analytics surfaces; they now live in the shared kit imported above, and the
    date/currency formatters live in @/lib/format. */
 import { getTeamAnalyticsData, getFilterOptions } from '@/app/actions/teamAnalytics';
-import type { TeamAnalyticsFilters, TeamAnalyticsData, FilterOptions } from '@/app/actions/teamAnalytics';
+import type {
+  TeamAnalyticsFilters,
+  TeamAnalyticsData,
+  FilterOptions,
+} from '@/app/actions/teamAnalytics';
 import type {
   ExpeditingAnalytics,
   BuyerRow,
@@ -41,7 +63,6 @@ interface PoAnalyticsPanelProps {
   analytics: ExpeditingAnalytics;
 }
 
-
 /* ─── Buyer Detail Modal ─────────────────────────────────────── */
 
 function BuyerDetailModal({
@@ -53,7 +74,7 @@ function BuyerDetailModal({
   onClose: () => void;
   onSessionClick: (session: RecentSession) => void;
 }) {
-  const [rows, setRows]     = useState<BuyerSessionRow[]>([]);
+  const [rows, setRows] = useState<BuyerSessionRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -62,23 +83,23 @@ function BuyerDetailModal({
       .finally(() => setLoading(false));
   }, [buyer.email]);
 
-  const totalLines    = rows.reduce((s, r) => s + r.total_po_lines, 0);
+  const totalLines = rows.reduce((s, r) => s + r.total_po_lines, 0);
   const totalSuppliers = rows.reduce((s, r) => s + r.total_suppliers, 0);
-  const rates = rows.map(r => r.response_rate_pct).filter((v): v is number => v != null);
+  const rates = rows.map((r) => r.response_rate_pct).filter((v): v is number => v != null);
   const avgRate = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : null;
 
   function handleSessionClick(bsr: BuyerSessionRow) {
     const session: RecentSession = {
-      session_ref:        bsr.session_ref,
-      dispatched_at:      bsr.dispatched_at,
-      dispatched_by:      buyer.email,
-      display_name:       buyer.display_name,
-      total_suppliers:    bsr.total_suppliers,
-      total_po_lines:     bsr.total_po_lines,
-      total_emails_sent:  bsr.total_emails_sent,
+      session_ref: bsr.session_ref,
+      dispatched_at: bsr.dispatched_at,
+      dispatched_by: buyer.email,
+      display_name: buyer.display_name,
+      total_suppliers: bsr.total_suppliers,
+      total_po_lines: bsr.total_po_lines,
+      total_emails_sent: bsr.total_emails_sent,
       suppliers_responded: bsr.suppliers_responded,
-      response_rate_pct:  bsr.response_rate_pct,
-      fully_closed:       bsr.fully_closed,
+      response_rate_pct: bsr.response_rate_pct,
+      fully_closed: bsr.fully_closed,
     };
     onClose();
     onSessionClick(session);
@@ -88,9 +109,7 @@ function BuyerDetailModal({
     <DetailModal isOpen title={buyer.display_name ?? buyer.email} onClose={onClose}>
       {/* Sub-title + stats */}
       <div className="px-6 pt-1 pb-3 border-b border-slate-100">
-        {buyer.job_title && (
-          <p className="text-sm text-slate-500 mb-2">{buyer.job_title}</p>
-        )}
+        {buyer.job_title && <p className="text-sm text-slate-500 mb-2">{buyer.job_title}</p>}
         <div className="flex flex-wrap gap-2">
           <StatPill label="Sessions" value={rows.length} />
           <StatPill label="Total Lines" value={totalLines.toLocaleString()} />
@@ -102,7 +121,9 @@ function BuyerDetailModal({
       {/* Sessions list */}
       <div className="px-6 py-4">
         {loading && <ModalLoading />}
-        {!loading && rows.length === 0 && <ModalEmpty message="No sessions found for this buyer." />}
+        {!loading && rows.length === 0 && (
+          <ModalEmpty message="No sessions found for this buyer." />
+        )}
         {!loading && rows.length > 0 && (
           <div className="rounded-xl border border-slate-200">
             <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
@@ -136,24 +157,42 @@ function BuyerDetailModal({
                     <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
                       <span className="group inline-flex items-center gap-1.5">
                         {formatSessionDate(r.dispatched_at)}
-                        <svg className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                        <svg
+                          className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity text-slate-500"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
                           <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
                           <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
                         </svg>
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">{r.total_suppliers}</td>
-                    <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">{r.total_po_lines}</td>
-                    <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">{r.total_emails_sent}</td>
-                    <td className="py-3 px-4 text-sm text-center font-medium text-slate-700 tabular-nums">
-                      {r.suppliers_responded != null ? `${r.suppliers_responded} / ${r.total_suppliers}` : '—'}
+                    <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                      {r.total_suppliers}
                     </td>
-                    <td className="py-3 px-4 text-center"><RateBadge rate={r.response_rate_pct} /></td>
+                    <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                      {r.total_po_lines}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-right font-medium text-slate-700 tabular-nums">
+                      {r.total_emails_sent}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-center font-medium text-slate-700 tabular-nums">
+                      {r.suppliers_responded != null
+                        ? `${r.suppliers_responded} / ${r.total_suppliers}`
+                        : '—'}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <RateBadge rate={r.response_rate_pct} />
+                    </td>
                     <td className="py-3 px-4 text-center">
                       {r.fully_closed === true ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap">Closed</span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#307c4c]/10 text-[#307c4c] border border-[#307c4c]/20 whitespace-nowrap">
+                          Closed
+                        </span>
                       ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">Open</span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">
+                          Open
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -176,15 +215,15 @@ function AdminSupplierDetailModal({
   supplierName: string;
   onClose: () => void;
 }) {
-  const [lines, setLines]       = useState<AdminSupplierDetailLine[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [lines, setLines] = useState<AdminSupplierDetailLine[]>([]);
+  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     getAdminSupplierDetail(supplierName)
-      .then(data => {
+      .then((data) => {
         setLines(data);
-        const pos = new Set(data.map(l => l.po_number));
+        const pos = new Set(data.map((l) => l.po_number));
         setExpanded(pos);
       })
       .finally(() => setLoading(false));
@@ -200,11 +239,11 @@ function AdminSupplierDetailModal({
     return Array.from(map.entries()).map(([po, poLines]) => ({ po, lines: poLines }));
   }, [lines]);
 
-  const totalLines     = lines.length;
-  const totalResponded = lines.filter(l => l.workflow_state === 'Submitted').length;
+  const totalLines = lines.length;
+  const totalResponded = lines.filter((l) => l.workflow_state === 'Submitted').length;
 
   function togglePO(po: string) {
-    setExpanded(prev => {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(po)) {
         next.delete(po);
@@ -215,7 +254,19 @@ function AdminSupplierDetailModal({
     });
   }
 
-  const colHeaders = ['Line', 'Buyer', 'SAP MAT ID', 'Description', 'Open QTY', 'Value (USD)', 'Original Del. Date', 'New Del. Date', 'DS Status', 'Supplier Comments', 'Response'];
+  const colHeaders = [
+    'Line',
+    'Buyer',
+    'SAP MAT ID',
+    'Description',
+    'Open QTY',
+    'Value (USD)',
+    'Original Del. Date',
+    'New Del. Date',
+    'DS Status',
+    'Supplier Comments',
+    'Response',
+  ];
 
   return (
     <DetailModal isOpen title={supplierName} onClose={onClose}>
@@ -227,74 +278,125 @@ function AdminSupplierDetailModal({
 
       <div className="px-6 py-4">
         {loading && <ModalLoading />}
-        {!loading && lines.length === 0 && <ModalEmpty message="No lines found for this supplier." />}
+        {!loading && lines.length === 0 && (
+          <ModalEmpty message="No lines found for this supplier." />
+        )}
 
-        {!loading && groups.map(({ po, lines: poLines }) => {
-          const isOpen = expanded.has(po);
-          const responded = poLines.filter(l => l.workflow_state === 'Submitted').length;
-          return (
-            <div key={po} className="mb-3 border border-slate-200 rounded-xl overflow-hidden">
-              <button
-                onClick={() => togglePO(po)}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
-              >
-                <svg
-                  className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`}
-                  viewBox="0 0 20 20" fill="currentColor"
+        {!loading &&
+          groups.map(({ po, lines: poLines }) => {
+            const isOpen = expanded.has(po);
+            const responded = poLines.filter((l) => l.workflow_state === 'Submitted').length;
+            return (
+              <div key={po} className="mb-3 border border-slate-200 rounded-xl overflow-hidden">
+                <button
+                  onClick={() => togglePO(po)}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
                 >
-                  <path fillRule="evenodd" d="M7.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-                <span className="font-bold text-sm text-slate-800">PO {po}</span>
-                <span className="text-xs text-slate-500 font-medium">{poLines.length} line{poLines.length !== 1 ? 's' : ''}</span>
-                <span className="ml-auto text-xs font-medium text-slate-500">{responded} / {poLines.length} responded</span>
-              </button>
+                  <svg
+                    className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`}
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M7.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="font-bold text-sm text-slate-800">PO {po}</span>
+                  <span className="text-xs text-slate-500 font-medium">
+                    {poLines.length} line{poLines.length !== 1 ? 's' : ''}
+                  </span>
+                  <span className="ml-auto text-xs font-medium text-slate-500">
+                    {responded} / {poLines.length} responded
+                  </span>
+                </button>
 
-              {isOpen && (
-                <div>
-                  <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
-                    <colgroup>
-                      <col style={{ width: 60 }} />
-                      <col style={{ width: 120 }} />
-                      <col style={{ width: 110 }} />
-                      <col />
-                      <col style={{ width: 80 }} />
-                      <col style={{ width: 100 }} />
-                      <col style={{ width: 110 }} />
-                      <col style={{ width: 110 }} />
-                      <col style={{ width: 90 }} />
-                      <col style={{ width: 150 }} />
-                      <col style={{ width: 100 }} />
-                    </colgroup>
-                    <thead>
-                      <tr className="bg-white border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                        {colHeaders.map(h => (
-                          <th key={h} className="py-2 px-3 whitespace-nowrap font-semibold">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {poLines.map((line, i) => (
-                        <tr key={line.po_line} className={`border-b border-slate-100 ${i % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}>
-                          <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">{line.po_line}</td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 overflow-hidden truncate" title={line.buyer_display_name ?? line.buyer_email}>{line.buyer_display_name ?? line.buyer_email}</td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{line.sap_mat_id || '—'}</td>
-                          <td className="py-2.5 px-3 text-xs text-slate-700 overflow-hidden truncate" title={line.item_description ?? undefined}>{line.item_description || '—'}</td>
-                          <td className="py-2.5 px-3 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{line.open_qty != null ? line.open_qty.toLocaleString() : '—'}</td>
-                          <td className="py-2.5 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{formatCurrency(line.open_po_value_usd)}</td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(line.original_delivery_date)}</td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(line.new_delivery_date)}</td>
-                          <td className="py-2.5 px-3 whitespace-nowrap"><DSTooltipBadge code={line.sap_delivery_code} /></td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 overflow-hidden truncate" title={line.supplier_comments ?? undefined}>{line.supplier_comments || '—'}</td>
-                          <td className="py-2.5 px-3 whitespace-nowrap"><ResponseBadge state={line.workflow_state} /></td>
+                {isOpen && (
+                  <div>
+                    <table
+                      className="w-full text-left border-collapse"
+                      style={{ tableLayout: 'fixed' }}
+                    >
+                      <colgroup>
+                        <col style={{ width: 60 }} />
+                        <col style={{ width: 120 }} />
+                        <col style={{ width: 110 }} />
+                        <col />
+                        <col style={{ width: 80 }} />
+                        <col style={{ width: 100 }} />
+                        <col style={{ width: 110 }} />
+                        <col style={{ width: 110 }} />
+                        <col style={{ width: 90 }} />
+                        <col style={{ width: 150 }} />
+                        <col style={{ width: 100 }} />
+                      </colgroup>
+                      <thead>
+                        <tr className="bg-white border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                          {colHeaders.map((h) => (
+                            <th key={h} className="py-2 px-3 whitespace-nowrap font-semibold">
+                              {h}
+                            </th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                      </thead>
+                      <tbody>
+                        {poLines.map((line, i) => (
+                          <tr
+                            key={line.po_line}
+                            className={`border-b border-slate-100 ${i % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                          >
+                            <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">
+                              {line.po_line}
+                            </td>
+                            <td
+                              className="py-2.5 px-3 text-xs text-slate-600 overflow-hidden truncate"
+                              title={line.buyer_display_name ?? line.buyer_email}
+                            >
+                              {line.buyer_display_name ?? line.buyer_email}
+                            </td>
+                            <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">
+                              {line.sap_mat_id || '—'}
+                            </td>
+                            <td
+                              className="py-2.5 px-3 text-xs text-slate-700 overflow-hidden truncate"
+                              title={line.item_description ?? undefined}
+                            >
+                              {line.item_description || '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+                              {line.open_qty != null ? line.open_qty.toLocaleString() : '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+                              {formatCurrency(line.open_po_value_usd)}
+                            </td>
+                            <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">
+                              {formatDate(line.original_delivery_date)}
+                            </td>
+                            <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">
+                              {formatDate(line.new_delivery_date)}
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <DSTooltipBadge code={line.sap_delivery_code} />
+                            </td>
+                            <td
+                              className="py-2.5 px-3 text-xs text-slate-600 overflow-hidden truncate"
+                              title={line.supplier_comments ?? undefined}
+                            >
+                              {line.supplier_comments || '—'}
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <ResponseBadge state={line.workflow_state} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
       </div>
     </DetailModal>
   );
@@ -309,15 +411,15 @@ function AdminSessionDetailModal({
   session: RecentSession;
   onClose: () => void;
 }) {
-  const [lines, setLines]       = useState<AdminSessionDetailLine[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [lines, setLines] = useState<AdminSessionDetailLine[]>([]);
+  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     getAdminSessionDetail(session.session_ref)
-      .then(data => {
+      .then((data) => {
         setLines(data);
-        const suppliers = new Set(data.map(l => l.supplier_name));
+        const suppliers = new Set(data.map((l) => l.supplier_name));
         setExpanded(suppliers);
       })
       .finally(() => setLoading(false));
@@ -330,14 +432,17 @@ function AdminSessionDetailModal({
       arr.push(l);
       map.set(l.supplier_name, arr);
     }
-    return Array.from(map.entries()).map(([supplier, supplierLines]) => ({ supplier, lines: supplierLines }));
+    return Array.from(map.entries()).map(([supplier, supplierLines]) => ({
+      supplier,
+      lines: supplierLines,
+    }));
   }, [lines]);
 
-  const totalLines     = lines.length;
-  const totalResponded = lines.filter(l => l.workflow_state === 'Submitted').length;
+  const totalLines = lines.length;
+  const totalResponded = lines.filter((l) => l.workflow_state === 'Submitted').length;
 
   function toggleSupplier(supplier: string) {
-    setExpanded(prev => {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(supplier)) {
         next.delete(supplier);
@@ -348,10 +453,26 @@ function AdminSessionDetailModal({
     });
   }
 
-  const colHeaders = ['PO Number', 'Line', 'SAP MAT ID', 'Description', 'Open QTY', 'Value (USD)', 'Original Del. Date', 'New Del. Date', 'DS Status', 'Supplier Comments', 'Response'];
+  const colHeaders = [
+    'PO Number',
+    'Line',
+    'SAP MAT ID',
+    'Description',
+    'Open QTY',
+    'Value (USD)',
+    'Original Del. Date',
+    'New Del. Date',
+    'DS Status',
+    'Supplier Comments',
+    'Response',
+  ];
 
   return (
-    <DetailModal isOpen title={`Session — ${formatSessionDate(session.dispatched_at)}`} onClose={onClose}>
+    <DetailModal
+      isOpen
+      title={`Session — ${formatSessionDate(session.dispatched_at)}`}
+      onClose={onClose}
+    >
       <div className="px-6 py-3 border-b border-slate-100 flex flex-wrap gap-2">
         <StatPill label="PO Lines" value={totalLines} />
         <StatPill label="Responded" value={totalResponded} />
@@ -364,79 +485,131 @@ function AdminSessionDetailModal({
 
       <div className="px-6 py-4">
         {loading && <ModalLoading />}
-        {!loading && lines.length === 0 && <ModalEmpty message="No lines found for this session." />}
+        {!loading && lines.length === 0 && (
+          <ModalEmpty message="No lines found for this session." />
+        )}
 
-        {!loading && groups.map(({ supplier, lines: supplierLines }) => {
-          const isOpen = expanded.has(supplier);
-          const responded = supplierLines.filter(l => l.workflow_state === 'Submitted').length;
-          return (
-            <div key={supplier} className="mb-3 border border-slate-200 rounded-xl overflow-hidden">
-              <button
-                onClick={() => toggleSupplier(supplier)}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+        {!loading &&
+          groups.map(({ supplier, lines: supplierLines }) => {
+            const isOpen = expanded.has(supplier);
+            const responded = supplierLines.filter((l) => l.workflow_state === 'Submitted').length;
+            return (
+              <div
+                key={supplier}
+                className="mb-3 border border-slate-200 rounded-xl overflow-hidden"
               >
-                <svg
-                  className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`}
-                  viewBox="0 0 20 20" fill="currentColor"
+                <button
+                  onClick={() => toggleSupplier(supplier)}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
                 >
-                  <path fillRule="evenodd" d="M7.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-                <span className="font-bold text-sm text-slate-800 truncate max-w-[300px]">{supplier}</span>
-                <span className="text-xs text-slate-500 font-medium shrink-0">{supplierLines.length} line{supplierLines.length !== 1 ? 's' : ''}</span>
-                <span className="ml-auto text-xs font-medium text-slate-500 shrink-0">{responded} / {supplierLines.length} responded</span>
-              </button>
+                  <svg
+                    className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`}
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M7.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="font-bold text-sm text-slate-800 truncate max-w-[300px]">
+                    {supplier}
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium shrink-0">
+                    {supplierLines.length} line{supplierLines.length !== 1 ? 's' : ''}
+                  </span>
+                  <span className="ml-auto text-xs font-medium text-slate-500 shrink-0">
+                    {responded} / {supplierLines.length} responded
+                  </span>
+                </button>
 
-              {isOpen && (
-                <div>
-                  <table className="w-full text-left border-collapse" style={{ tableLayout: 'fixed' }}>
-                    <colgroup>
-                      <col style={{ width: 110 }} />
-                      <col style={{ width: 60 }} />
-                      <col style={{ width: 110 }} />
-                      <col />
-                      <col style={{ width: 80 }} />
-                      <col style={{ width: 100 }} />
-                      <col style={{ width: 110 }} />
-                      <col style={{ width: 110 }} />
-                      <col style={{ width: 90 }} />
-                      <col style={{ width: 150 }} />
-                      <col style={{ width: 100 }} />
-                    </colgroup>
-                    <thead>
-                      <tr className="bg-white border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                        {colHeaders.map(h => (
-                          <th key={h} className="py-2 px-3 whitespace-nowrap font-semibold">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {supplierLines.map((line, i) => (
-                        <tr key={`${line.po_number}-${line.po_line}`} className={`border-b border-slate-100 ${i % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}>
-                          <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">{line.po_number}</td>
-                          <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">{line.po_line}</td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{line.sap_mat_id || '—'}</td>
-                          <td className="py-2.5 px-3 text-xs text-slate-700 overflow-hidden truncate" title={line.item_description ?? undefined}>{line.item_description || '—'}</td>
-                          <td className="py-2.5 px-3 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{line.open_qty != null ? line.open_qty.toLocaleString() : '—'}</td>
-                          <td className="py-2.5 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">{formatCurrency(line.open_po_value_usd)}</td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(line.original_delivery_date)}</td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(line.new_delivery_date)}</td>
-                          <td className="py-2.5 px-3 whitespace-nowrap"><DSTooltipBadge code={line.sap_delivery_code} /></td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 overflow-hidden truncate" title={line.supplier_comments ?? undefined}>{line.supplier_comments || '—'}</td>
-                          <td className="py-2.5 px-3 whitespace-nowrap"><ResponseBadge state={line.workflow_state} /></td>
+                {isOpen && (
+                  <div>
+                    <table
+                      className="w-full text-left border-collapse"
+                      style={{ tableLayout: 'fixed' }}
+                    >
+                      <colgroup>
+                        <col style={{ width: 110 }} />
+                        <col style={{ width: 60 }} />
+                        <col style={{ width: 110 }} />
+                        <col />
+                        <col style={{ width: 80 }} />
+                        <col style={{ width: 100 }} />
+                        <col style={{ width: 110 }} />
+                        <col style={{ width: 110 }} />
+                        <col style={{ width: 90 }} />
+                        <col style={{ width: 150 }} />
+                        <col style={{ width: 100 }} />
+                      </colgroup>
+                      <thead>
+                        <tr className="bg-white border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                          {colHeaders.map((h) => (
+                            <th key={h} className="py-2 px-3 whitespace-nowrap font-semibold">
+                              {h}
+                            </th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                      </thead>
+                      <tbody>
+                        {supplierLines.map((line, i) => (
+                          <tr
+                            key={`${line.po_number}-${line.po_line}`}
+                            className={`border-b border-slate-100 ${i % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                          >
+                            <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">
+                              {line.po_number}
+                            </td>
+                            <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">
+                              {line.po_line}
+                            </td>
+                            <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">
+                              {line.sap_mat_id || '—'}
+                            </td>
+                            <td
+                              className="py-2.5 px-3 text-xs text-slate-700 overflow-hidden truncate"
+                              title={line.item_description ?? undefined}
+                            >
+                              {line.item_description || '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-sm text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+                              {line.open_qty != null ? line.open_qty.toLocaleString() : '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-xs text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+                              {formatCurrency(line.open_po_value_usd)}
+                            </td>
+                            <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">
+                              {formatDate(line.original_delivery_date)}
+                            </td>
+                            <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">
+                              {formatDate(line.new_delivery_date)}
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <DSTooltipBadge code={line.sap_delivery_code} />
+                            </td>
+                            <td
+                              className="py-2.5 px-3 text-xs text-slate-600 overflow-hidden truncate"
+                              title={line.supplier_comments ?? undefined}
+                            >
+                              {line.supplier_comments || '—'}
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <ResponseBadge state={line.workflow_state} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
       </div>
     </DetailModal>
   );
 }
-
 
 /* ─── Buyer Activity Table ────────────────────────────────────── */
 
@@ -450,14 +623,14 @@ function BuyerTable({
   const { sorted, sortKey, sortDir, handleSort } = useSortable(rows, 'total_lines');
   type Col = { key: string; label: string; align?: 'right' | 'center' };
   const cols: Col[] = [
-    { key: 'display_name',      label: 'Buyer'             },
-    { key: 'job_title',         label: 'Job Title'         },
-    { key: 'total_sessions',    label: 'Sessions',      align: 'right' },
-    { key: 'total_lines',       label: 'PO Lines',      align: 'right' },
-    { key: 'total_suppliers',   label: 'Suppliers',     align: 'right' },
-    { key: 'total_emails',      label: 'Emails Sent',   align: 'right' },
-    { key: 'avg_response_rate', label: 'Avg Response',  align: 'center' },
-    { key: 'last_active_at',    label: 'Last Active'   },
+    { key: 'display_name', label: 'Buyer' },
+    { key: 'job_title', label: 'Job Title' },
+    { key: 'total_sessions', label: 'Sessions', align: 'right' },
+    { key: 'total_lines', label: 'PO Lines', align: 'right' },
+    { key: 'total_suppliers', label: 'Suppliers', align: 'right' },
+    { key: 'total_emails', label: 'Emails Sent', align: 'right' },
+    { key: 'avg_response_rate', label: 'Avg Response', align: 'center' },
+    { key: 'last_active_at', label: 'Last Active' },
   ];
 
   return (
@@ -466,13 +639,17 @@ function BuyerTable({
         <table className="w-full text-left border-collapse">
           <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
             <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-              {cols.map(col => (
+              {cols.map((col) => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
                   className={[
                     'py-3 px-4 font-semibold cursor-pointer select-none hover:text-[#307c4c] transition-colors whitespace-nowrap',
-                    col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : '',
+                    col.align === 'right'
+                      ? 'text-right'
+                      : col.align === 'center'
+                        ? 'text-center'
+                        : '',
                     sortKey === col.key ? 'text-[#307c4c]' : '',
                   ].join(' ')}
                 >
@@ -504,7 +681,11 @@ function BuyerTable({
                   <td className="py-3 px-4 text-sm font-semibold whitespace-nowrap">
                     <span className="group inline-flex items-center gap-1.5 text-[#307c4c] hover:underline">
                       {r.display_name ?? r.email ?? '—'}
-                      <svg className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 20 20" fill="currentColor">
+                      <svg
+                        className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
                         <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
                         <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
                       </svg>
@@ -553,12 +734,12 @@ function SupplierTable({
   const { sorted, sortKey, sortDir, handleSort } = useSortable(rows, 'response_rate');
   type Col = { key: string; label: string; align?: 'right' | 'center' };
   const cols: Col[] = [
-    { key: 'supplier_name',   label: 'Supplier Name'                        },
-    { key: 'times_expedited', label: 'Times Expedited', align: 'right'      },
-    { key: 'total_lines',     label: 'Lines Sent',      align: 'right'      },
-    { key: 'lines_responded', label: 'Lines Responded', align: 'right'      },
-    { key: 'response_rate',   label: 'Response Rate',   align: 'center'     },
-    { key: 'last_response',   label: 'Last Response'                        },
+    { key: 'supplier_name', label: 'Supplier Name' },
+    { key: 'times_expedited', label: 'Times Expedited', align: 'right' },
+    { key: 'total_lines', label: 'Lines Sent', align: 'right' },
+    { key: 'lines_responded', label: 'Lines Responded', align: 'right' },
+    { key: 'response_rate', label: 'Response Rate', align: 'center' },
+    { key: 'last_response', label: 'Last Response' },
   ];
 
   return (
@@ -567,13 +748,17 @@ function SupplierTable({
         <table className="w-full text-left border-collapse">
           <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
             <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-              {cols.map(col => (
+              {cols.map((col) => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
                   className={[
                     'py-3 px-4 font-semibold cursor-pointer select-none hover:text-[#307c4c] transition-colors whitespace-nowrap',
-                    col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : '',
+                    col.align === 'right'
+                      ? 'text-right'
+                      : col.align === 'center'
+                        ? 'text-center'
+                        : '',
                     sortKey === col.key ? 'text-[#307c4c]' : '',
                   ].join(' ')}
                 >
@@ -601,9 +786,16 @@ function SupplierTable({
                   className={`border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
                 >
                   <td className="py-3 px-4 text-sm font-semibold max-w-[240px]">
-                    <span className="group inline-flex items-center gap-1.5 text-[#307c4c] hover:underline truncate" title={r.supplier_name}>
+                    <span
+                      className="group inline-flex items-center gap-1.5 text-[#307c4c] hover:underline truncate"
+                      title={r.supplier_name}
+                    >
                       {r.supplier_name || '—'}
-                      <svg className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 20 20" fill="currentColor">
+                      <svg
+                        className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
                         <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
                         <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
                       </svg>
@@ -676,7 +868,11 @@ function SessionsTable({
                 <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
                   <span className="group inline-flex items-center gap-1.5">
                     {formatSessionDate(r.dispatched_at)}
-                    <svg className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                    <svg
+                      className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity text-slate-500"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
                       <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
                       <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
                     </svg>
@@ -722,11 +918,10 @@ function SessionsTable({
   );
 }
 
-
 /* ─── Chart 1 — Response Rate Over Time ──────────────────────── */
 
 function ResponseRateLineChart({ data }: { data: WeeklyRateRow[] }) {
-  const chartData = data.map(d => ({
+  const chartData = data.map((d) => ({
     week: formatWeek(d.week),
     linesExpedited: d.lines_expedited,
     linesResponded: d.lines_responded,
@@ -798,7 +993,7 @@ function ResponseRateLineChart({ data }: { data: WeeklyRateRow[] }) {
 /* ─── Chart 3 — PO Lines Expedited by Buyer ──────────────────── */
 
 function BuyerLinesBarChart({ data }: { data: BuyerRow[] }) {
-  const chartData = data.map(r => ({
+  const chartData = data.map((r) => ({
     name: r.display_name ?? 'Unknown',
     lines: r.total_lines,
   }));
@@ -816,12 +1011,17 @@ function BuyerLinesBarChart({ data }: { data: BuyerRow[] }) {
             interval={0}
           />
           <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
-          <Tooltip formatter={(v: unknown) => [typeof v === 'number' ? v.toLocaleString() : String(v), 'PO Lines']} />
+          <Tooltip
+            formatter={(v: unknown) => [
+              typeof v === 'number' ? v.toLocaleString() : String(v),
+              'PO Lines',
+            ]}
+          />
           <Bar dataKey="lines" fill="#307c4c" radius={[4, 4, 0, 0]}>
             <LabelList
               dataKey="lines"
               position="top"
-              formatter={(v: unknown) => typeof v === 'number' ? v.toLocaleString() : String(v)}
+              formatter={(v: unknown) => (typeof v === 'number' ? v.toLocaleString() : String(v))}
               style={{ fontSize: 10, fill: '#374151', fontWeight: 600 }}
             />
           </Bar>
@@ -835,9 +1035,9 @@ function BuyerLinesBarChart({ data }: { data: BuyerRow[] }) {
 
 function SupplierBarChart({ data }: { data: SupplierRow[] }) {
   const chartData = data
-    .filter(r => Number(r.times_expedited) >= 1)
+    .filter((r) => Number(r.times_expedited) >= 1)
     .sort((a, b) => (b.response_rate ?? 0) - (a.response_rate ?? 0))
-    .map(r => ({
+    .map((r) => ({
       supplierName: String(r.supplier_name || '').slice(0, 25),
       responseRate: Number(r.response_rate) || 0,
       linesResponded: Number(r.lines_responded) || 0,
@@ -848,7 +1048,16 @@ function SupplierBarChart({ data }: { data: SupplierRow[] }) {
 
   return (
     <ChartCard title="Top 10 Suppliers by Response Rate">
-      <div style={{ height: 400, overflowY: 'auto', overflowX: 'hidden', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 0' }}>
+      <div
+        style={{
+          height: 400,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          padding: '8px 0',
+        }}
+      >
         <div style={{ height: chartHeight, width: '100%' }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -875,9 +1084,11 @@ function SupplierBarChart({ data }: { data: SupplierRow[] }) {
                   <Cell
                     key={`cell-${i}`}
                     fill={
-                      entry.responseRate >= 70 ? '#059669' :
-                      entry.responseRate >= 30 ? '#f59e0b' :
-                      '#ef4444'
+                      entry.responseRate >= 70
+                        ? '#059669'
+                        : entry.responseRate >= 30
+                          ? '#f59e0b'
+                          : '#ef4444'
                     }
                   />
                 ))}
@@ -893,9 +1104,9 @@ function SupplierBarChart({ data }: { data: SupplierRow[] }) {
 /* ─── Chart — Avg Response Time by Supplier ──────────────────── */
 
 function AvgResponseTimeBarChart({ data }: { data: SupplierResponseTimeRow[] }) {
-  const chartData = data.map(r => ({
-    supplierName:  String(r.supplier_name || '').slice(0, 28),
-    avgDays:       r.avg_days_to_respond,
+  const chartData = data.map((r) => ({
+    supplierName: String(r.supplier_name || '').slice(0, 28),
+    avgDays: r.avg_days_to_respond,
     responsesCount: r.responses_count,
   }));
 
@@ -903,7 +1114,16 @@ function AvgResponseTimeBarChart({ data }: { data: SupplierResponseTimeRow[] }) 
 
   return (
     <ChartCard title="Avg. Response Time by Supplier (Days)">
-      <div style={{ height: 400, overflowY: 'auto', overflowX: 'hidden', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 0' }}>
+      <div
+        style={{
+          height: 400,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          padding: '8px 0',
+        }}
+      >
         <div style={{ height: chartHeight, width: '100%' }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -924,18 +1144,21 @@ function AvgResponseTimeBarChart({ data }: { data: SupplierResponseTimeRow[] }) 
                 width={180}
               />
               <Tooltip
-                formatter={(v: unknown, _: unknown, props: { payload?: { responsesCount?: number } }) =>
-                  [`${v} days avg (${props.payload?.responsesCount ?? 0} responses)`, 'Response Time']
-                }
+                formatter={(
+                  v: unknown,
+                  _: unknown,
+                  props: { payload?: { responsesCount?: number } },
+                ) => [
+                  `${v} days avg (${props.payload?.responsesCount ?? 0} responses)`,
+                  'Response Time',
+                ]}
               />
               <Bar dataKey="avgDays" radius={[0, 4, 4, 0]}>
                 {chartData.map((entry, i) => (
                   <Cell
                     key={`cell-${i}`}
                     fill={
-                      entry.avgDays <= 1 ? '#059669' :
-                      entry.avgDays <= 3 ? '#f59e0b' :
-                      '#ef4444'
+                      entry.avgDays <= 1 ? '#059669' : entry.avgDays <= 3 ? '#f59e0b' : '#ef4444'
                     }
                   />
                 ))}
@@ -972,7 +1195,6 @@ function AnalyticsSection({
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
-
       {/* Row 1 — KPI cards */}
       <div>
         <SectionTitle>Overview</SectionTitle>
@@ -987,18 +1209,13 @@ function AnalyticsSection({
             value={analytics.totalSuppliersContacted.toLocaleString()}
             accent
           />
-          <KpiCard
-            label="Total Emails Sent"
-            value={analytics.totalEmailsSent.toLocaleString()}
-          />
+          <KpiCard label="Total Emails Sent" value={analytics.totalEmailsSent.toLocaleString()} />
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col gap-1 transition-shadow duration-300 hover:shadow-md">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
               Overall Response Rate
             </p>
             <p className={`text-3xl font-bold tracking-tight ${rateColor}`}>
-              {analytics.overallResponseRate !== null
-                ? `${analytics.overallResponseRate}%`
-                : '—'}
+              {analytics.overallResponseRate !== null ? `${analytics.overallResponseRate}%` : '—'}
             </p>
           </div>
         </div>
@@ -1045,37 +1262,84 @@ function AnalyticsSection({
 
 /* ─── Admin MultiSelect ──────────────────────────────────────── */
 
-function AdminMultiSelect({ label, options, selected, onChange, searchable = false }: { label: string; options: { value: string; label: string }[]; selected: string[]; onChange: (vals: string[]) => void; searchable?: boolean }) {
+function AdminMultiSelect({
+  label,
+  options,
+  selected,
+  onChange,
+  searchable = false,
+}: {
+  label: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (vals: string[]) => void;
+  searchable?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    function handleOutside(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
     document.addEventListener('mousedown', handleOutside);
     return () => document.removeEventListener('mousedown', handleOutside);
   }, []);
-  const filtered = searchable && search ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase())) : options;
-  function toggle(val: string) { onChange(selected.includes(val) ? selected.filter(v => v !== val) : [...selected, val]); }
+  const filtered =
+    searchable && search
+      ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
+      : options;
+  function toggle(val: string) {
+    onChange(selected.includes(val) ? selected.filter((v) => v !== val) : [...selected, val]);
+  }
   return (
     <div ref={ref} className="relative min-w-[160px]">
-      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">{label}</label>
-      <button type="button" onClick={() => setOpen(!open)} className="w-full flex items-center justify-between gap-2 text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-left text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors">
+      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between gap-2 text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-left text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors"
+      >
         <span className="truncate">{selected.length ? `${selected.length} selected` : 'All'}</span>
-        <svg className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+        <svg
+          className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
       {open && (
         <div className="absolute z-50 mt-1 w-full min-w-[220px] bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
           {searchable && (
             <div className="p-2 border-b border-slate-100">
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" className="w-full text-xs bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#307c4c] placeholder-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="w-full text-xs bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#307c4c] placeholder-slate-400"
+              />
             </div>
           )}
           {filtered.length === 0 ? (
             <p className="px-3 py-2 text-xs text-slate-400">No options.</p>
           ) : (
-            filtered.map(o => (
-              <label key={o.value} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer transition-colors">
-                <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} className="w-3.5 h-3.5 rounded accent-[#307c4c] cursor-pointer" />
+            filtered.map((o) => (
+              <label
+                key={o.value}
+                className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(o.value)}
+                  onChange={() => toggle(o.value)}
+                  className="w-3.5 h-3.5 rounded accent-[#307c4c] cursor-pointer"
+                />
                 <span className="text-sm text-slate-700 truncate">{o.label}</span>
               </label>
             ))
@@ -1090,30 +1354,36 @@ function AdminMultiSelect({ label, options, selected, onChange, searchable = fal
 
 export default function PoAnalyticsPanel({ analytics: initialAnalytics }: PoAnalyticsPanelProps) {
   const [liveAnalytics, setLiveAnalytics] = useState<ExpeditingAnalytics>(initialAnalytics);
-  const [isRefreshing, setIsRefreshing]   = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(() => new Date());
 
   // Modal state
-  const [buyerModal, setBuyerModal]               = useState<BuyerRow | null>(null);
+  const [buyerModal, setBuyerModal] = useState<BuyerRow | null>(null);
   const [supplierModalName, setSupplierModalName] = useState<string | null>(null);
-  const [sessionModal, setSessionModal]           = useState<RecentSession | null>(null);
+  const [sessionModal, setSessionModal] = useState<RecentSession | null>(null);
 
   // Filter state
   const [poFilterOpts, setPoFilterOpts] = useState<FilterOptions | null>(null);
-  const [poDateFrom, setPoDateFrom]     = useState('');
-  const [poDateTo, setPoDateTo]         = useState('');
-  const [poBuyers, setPoBuyers]         = useState<string[]>([]);
-  const [poCountries, setPoCountries]   = useState<string[]>([]);
-  const [poSegments, setPoSegments]     = useState<string[]>([]);
-  const [poSuppliers, setPoSuppliers]   = useState<string[]>([]);
-  const [poTeamData, setPoTeamData]     = useState<TeamAnalyticsData | null>(null);
+  const [poDateFrom, setPoDateFrom] = useState('');
+  const [poDateTo, setPoDateTo] = useState('');
+  const [poBuyers, setPoBuyers] = useState<string[]>([]);
+  const [poCountries, setPoCountries] = useState<string[]>([]);
+  const [poSegments, setPoSegments] = useState<string[]>([]);
+  const [poSuppliers, setPoSuppliers] = useState<string[]>([]);
+  const [poTeamData, setPoTeamData] = useState<TeamAnalyticsData | null>(null);
 
   // Load filter options on mount
   useEffect(() => {
     getFilterOptions().then(setPoFilterOpts);
   }, []);
 
-  const poHasActiveFilters = !!poDateFrom || !!poDateTo || poBuyers.length > 0 || poCountries.length > 0 || poSegments.length > 0 || poSuppliers.length > 0;
+  const poHasActiveFilters =
+    !!poDateFrom ||
+    !!poDateTo ||
+    poBuyers.length > 0 ||
+    poCountries.length > 0 ||
+    poSegments.length > 0 ||
+    poSuppliers.length > 0;
 
   function clearPoFilters() {
     setPoDateFrom('');
@@ -1170,19 +1440,31 @@ export default function PoAnalyticsPanel({ analytics: initialAnalytics }: PoAnal
   const poFilterInitialDone = useRef(false);
   const poDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!poFilterInitialDone.current) { poFilterInitialDone.current = true; return; }
+    if (!poFilterInitialDone.current) {
+      poFilterInitialDone.current = true;
+      return;
+    }
     if (poDebounceRef.current) clearTimeout(poDebounceRef.current);
     poDebounceRef.current = setTimeout(() => fetchAnalytics(), 500);
-    return () => { if (poDebounceRef.current) clearTimeout(poDebounceRef.current); };
+    return () => {
+      if (poDebounceRef.current) clearTimeout(poDebounceRef.current);
+    };
   }, [poDateFrom, poDateTo, poBuyers, poCountries, poSegments, poSuppliers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 tracking-tight">PO Expediting Analytics</h2>
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+            PO Expediting Analytics
+          </h2>
           <p className="text-[12px] text-gray-400 mt-0.5">
-            Last updated: {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            Last updated:{' '}
+            {lastRefreshed.toLocaleTimeString('en-GB', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })}
           </p>
         </div>
         <button
@@ -1192,9 +1474,16 @@ export default function PoAnalyticsPanel({ analytics: initialAnalytics }: PoAnal
         >
           <svg
             className={`w-3.5 h-3.5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`}
-            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.5}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
           </svg>
           {isRefreshing ? 'Refreshing…' : 'Refresh'}
         </button>
@@ -1204,30 +1493,72 @@ export default function PoAnalyticsPanel({ analytics: initialAnalytics }: PoAnal
       <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 mb-6">
         <div className="flex flex-wrap gap-3 items-end">
           <div className="min-w-[160px]">
-            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date From</label>
-            <input type="date" value={poDateFrom} onChange={e => setPoDateFrom(e.target.value)} className="w-full text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors" />
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Date From
+            </label>
+            <input
+              type="date"
+              value={poDateFrom}
+              onChange={(e) => setPoDateFrom(e.target.value)}
+              className="w-full text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors"
+            />
           </div>
           <div className="min-w-[160px]">
-            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date To</label>
-            <input type="date" value={poDateTo} onChange={e => setPoDateTo(e.target.value)} className="w-full text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors" />
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Date To
+            </label>
+            <input
+              type="date"
+              value={poDateTo}
+              onChange={(e) => setPoDateTo(e.target.value)}
+              className="w-full text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors"
+            />
           </div>
           {poFilterOpts && (
             <>
-              <AdminMultiSelect label="Expeditor" options={poFilterOpts.buyers} selected={poBuyers} onChange={setPoBuyers} searchable />
-              <AdminMultiSelect label="Country" options={poFilterOpts.countries.map(c => ({ value: c, label: c }))} selected={poCountries} onChange={setPoCountries} />
-              <AdminMultiSelect label="P Group" options={poFilterOpts.segments.map(s => ({ value: s, label: s }))} selected={poSegments} onChange={setPoSegments} searchable />
-              <AdminMultiSelect label="Supplier" options={poFilterOpts.suppliers.map(s => ({ value: s, label: s }))} selected={poSuppliers} onChange={setPoSuppliers} searchable />
+              <AdminMultiSelect
+                label="Expeditor"
+                options={poFilterOpts.buyers}
+                selected={poBuyers}
+                onChange={setPoBuyers}
+                searchable
+              />
+              <AdminMultiSelect
+                label="Country"
+                options={poFilterOpts.countries.map((c) => ({ value: c, label: c }))}
+                selected={poCountries}
+                onChange={setPoCountries}
+              />
+              <AdminMultiSelect
+                label="P Group"
+                options={poFilterOpts.segments.map((s) => ({ value: s, label: s }))}
+                selected={poSegments}
+                onChange={setPoSegments}
+                searchable
+              />
+              <AdminMultiSelect
+                label="Supplier"
+                options={poFilterOpts.suppliers.map((s) => ({ value: s, label: s }))}
+                selected={poSuppliers}
+                onChange={setPoSuppliers}
+                searchable
+              />
             </>
           )}
           {poHasActiveFilters && (
-            <button onClick={clearPoFilters} className="text-xs font-medium text-slate-500 hover:text-red-600 transition-colors pb-2">
+            <button
+              onClick={clearPoFilters}
+              className="text-xs font-medium text-slate-500 hover:text-red-600 transition-colors pb-2"
+            >
               Clear All
             </button>
           )}
         </div>
       </div>
 
-      <div className={`transition-opacity ${isRefreshing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+      <div
+        className={`transition-opacity ${isRefreshing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}
+      >
         <AnalyticsSection
           analytics={liveAnalytics}
           onBuyerClick={setBuyerModal}
@@ -1251,10 +1582,7 @@ export default function PoAnalyticsPanel({ analytics: initialAnalytics }: PoAnal
         />
       )}
       {sessionModal && (
-        <AdminSessionDetailModal
-          session={sessionModal}
-          onClose={() => setSessionModal(null)}
-        />
+        <AdminSessionDetailModal session={sessionModal} onClose={() => setSessionModal(null)} />
       )}
     </>
   );

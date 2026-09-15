@@ -27,16 +27,22 @@ export interface AdminApp {
 
 export const ADMIN_APPS: AdminApp[] = [
   {
-    id: 'po-expediting', label: 'PO Expediting',
-    color: '#059669', activeBg: '#f0fdf4', activeColor: '#059669',
+    id: 'po-expediting',
+    label: 'PO Expediting',
+    color: '#059669',
+    activeBg: '#f0fdf4',
+    activeColor: '#059669',
     sections: [
       { id: 'analytics', label: 'Analytics' },
       { id: 'access-approvals', label: 'Access Approvals', countKey: 'po' },
     ],
   },
   {
-    id: 'tite', label: 'TI-TE',
-    color: '#059669', activeBg: '#f0fdf4', activeColor: '#059669',
+    id: 'tite',
+    label: 'TI-TE',
+    color: '#059669',
+    activeBg: '#f0fdf4',
+    activeColor: '#059669',
     sections: [
       { id: 'migration', label: 'Migration' },
       { id: 'default-notifiers', label: 'Default Notifiers' },
@@ -45,8 +51,11 @@ export const ADMIN_APPS: AdminApp[] = [
     ],
   },
   {
-    id: 'procureguard', label: 'ProcureGuard',
-    color: '#059669', activeBg: '#f0fdf4', activeColor: '#059669',
+    id: 'procureguard',
+    label: 'ProcureGuard',
+    color: '#059669',
+    activeBg: '#f0fdf4',
+    activeColor: '#059669',
     sections: [
       { id: 'admin', label: 'Admin Panel' },
       { id: 'analytics', label: 'Payment Analytics' },
@@ -55,8 +64,11 @@ export const ADMIN_APPS: AdminApp[] = [
     ],
   },
   {
-    id: 'sourceguide', label: 'SourceGuide',
-    color: '#2A7E4F', activeBg: '#eaf4ef', activeColor: '#1f5d3a',
+    id: 'sourceguide',
+    label: 'SourceGuide',
+    color: '#2A7E4F',
+    activeBg: '#eaf4ef',
+    activeColor: '#1f5d3a',
     sections: [
       { id: 'guides', label: 'Source Guides' },
       { id: 'champions', label: 'Champions' },
@@ -65,8 +77,11 @@ export const ADMIN_APPS: AdminApp[] = [
     ],
   },
   {
-    id: 'catalog', label: 'Catalog Repo',
-    color: '#307c4c', activeBg: '#eaf4ef', activeColor: '#1d4f31',
+    id: 'catalog',
+    label: 'Catalog Repo',
+    color: '#307c4c',
+    activeBg: '#eaf4ef',
+    activeColor: '#1d4f31',
     sections: [
       { id: 'admin', label: 'Admin Panel' },
       { id: 'sync', label: 'Sync Health' },
@@ -74,16 +89,22 @@ export const ADMIN_APPS: AdminApp[] = [
     ],
   },
   {
-    id: 'sns', label: 'S&S Registry',
-    color: '#2A7E4F', activeBg: '#eaf4ef', activeColor: '#1d4f31',
+    id: 'sns',
+    label: 'S&S Registry',
+    color: '#2A7E4F',
+    activeBg: '#eaf4ef',
+    activeColor: '#1d4f31',
     sections: [
       { id: 'access', label: 'Access Approvals', countKey: 'sns' },
       { id: 'reference', label: 'Reference Data' },
     ],
   },
   {
-    id: 'laptop', label: 'Laptop Procurement',
-    color: '#059669', activeBg: '#f0fdf4', activeColor: '#059669',
+    id: 'laptop',
+    label: 'Laptop Procurement',
+    color: '#059669',
+    activeBg: '#f0fdf4',
+    activeColor: '#059669',
     sections: [
       { id: 'admin', label: 'Admin Panel' },
       { id: 'analytics', label: 'Analytics' },
@@ -91,8 +112,11 @@ export const ADMIN_APPS: AdminApp[] = [
     ],
   },
   {
-    id: 'learning-hub', label: 'Learning Hub',
-    color: '#059669', activeBg: '#f0fdf4', activeColor: '#059669',
+    id: 'learning-hub',
+    label: 'Learning Hub',
+    color: '#059669',
+    activeBg: '#f0fdf4',
+    activeColor: '#059669',
     sections: [
       { id: 'admin', label: 'Content Admin' },
       { id: 'analytics', label: 'Analytics' },
@@ -106,12 +130,12 @@ export const COMING_SOON = ['GRN & Invoice Reconciliation', 'Supply Chain Analyt
 export const DEFAULT_APP = 'po-expediting';
 
 export function findAdminApp(id: string | undefined): AdminApp | undefined {
-  return ADMIN_APPS.find(a => a.id === id);
+  return ADMIN_APPS.find((a) => a.id === id);
 }
 
 /** Resolve a section id for an app, falling back to its first section. */
 export function resolveSection(app: AdminApp, sectionId: string | undefined): string {
-  if (sectionId && app.sections.some(s => s.id === sectionId)) return sectionId;
+  if (sectionId && app.sections.some((s) => s.id === sectionId)) return sectionId;
   return app.sections[0].id;
 }
 
@@ -121,28 +145,28 @@ export type AdminCounts = Record<string, number>;
 /* Legacy `/admin?tool=<id>` deep links → new `/admin/<app>?section=<section>`,
    so old bookmarks and notification-email links keep working. */
 export const LEGACY_TOOL_MAP: Record<string, { app: string; section: string }> = {
-  'po-expediting':                { app: 'po-expediting', section: 'analytics' },
-  'access-approvals':             { app: 'po-expediting', section: 'access-approvals' },
-  'tite-migration':               { app: 'tite', section: 'migration' },
-  'tite-default-notifiers':       { app: 'tite', section: 'default-notifiers' },
-  'tite-analytics':               { app: 'tite', section: 'analytics' },
-  'tite-access-approvals':        { app: 'tite', section: 'access-approvals' },
-  'procureguard-admin':           { app: 'procureguard', section: 'admin' },
-  'procureguard-analytics':       { app: 'procureguard', section: 'analytics' },
-  'procureguard-usage':           { app: 'procureguard', section: 'usage' },
-  'procureguard-access':          { app: 'procureguard', section: 'access' },
-  'sourceguide-guides':           { app: 'sourceguide', section: 'guides' },
-  'sourceguide-champions':        { app: 'sourceguide', section: 'champions' },
-  'sourceguide-analytics':        { app: 'sourceguide', section: 'analytics' },
-  'sourceguide-access':           { app: 'sourceguide', section: 'access' },
-  'catalog-admin':                { app: 'catalog', section: 'admin' },
-  'catalog-sync':                 { app: 'catalog', section: 'sync' },
-  'catalog-access':               { app: 'catalog', section: 'access' },
-  'sns-access':                   { app: 'sns', section: 'access' },
-  'sns-reference':                { app: 'sns', section: 'reference' },
-  'laptop-procurement-admin':     { app: 'laptop', section: 'admin' },
+  'po-expediting': { app: 'po-expediting', section: 'analytics' },
+  'access-approvals': { app: 'po-expediting', section: 'access-approvals' },
+  'tite-migration': { app: 'tite', section: 'migration' },
+  'tite-default-notifiers': { app: 'tite', section: 'default-notifiers' },
+  'tite-analytics': { app: 'tite', section: 'analytics' },
+  'tite-access-approvals': { app: 'tite', section: 'access-approvals' },
+  'procureguard-admin': { app: 'procureguard', section: 'admin' },
+  'procureguard-analytics': { app: 'procureguard', section: 'analytics' },
+  'procureguard-usage': { app: 'procureguard', section: 'usage' },
+  'procureguard-access': { app: 'procureguard', section: 'access' },
+  'sourceguide-guides': { app: 'sourceguide', section: 'guides' },
+  'sourceguide-champions': { app: 'sourceguide', section: 'champions' },
+  'sourceguide-analytics': { app: 'sourceguide', section: 'analytics' },
+  'sourceguide-access': { app: 'sourceguide', section: 'access' },
+  'catalog-admin': { app: 'catalog', section: 'admin' },
+  'catalog-sync': { app: 'catalog', section: 'sync' },
+  'catalog-access': { app: 'catalog', section: 'access' },
+  'sns-access': { app: 'sns', section: 'access' },
+  'sns-reference': { app: 'sns', section: 'reference' },
+  'laptop-procurement-admin': { app: 'laptop', section: 'admin' },
   'laptop-procurement-analytics': { app: 'laptop', section: 'analytics' },
-  'laptop-procurement-access':    { app: 'laptop', section: 'access' },
-  'learning-hub-admin':           { app: 'learning-hub', section: 'admin' },
-  'learning-hub-access':          { app: 'learning-hub', section: 'access' },
+  'laptop-procurement-access': { app: 'laptop', section: 'access' },
+  'learning-hub-admin': { app: 'learning-hub', section: 'admin' },
+  'learning-hub-access': { app: 'learning-hub', section: 'access' },
 };

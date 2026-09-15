@@ -16,37 +16,35 @@ export interface StageConfig {
 
 export const DOCUMENT_STAGES: Record<string, StageConfig> = {
   creation: {
-    label:     'At Creation',
+    label: 'At Creation',
     stageIcon: '📋',
     documents: [
-      { key: 'commercial_invoice',        label: 'Commercial Invoice',       required: true },
-      { key: 'packing_list',              label: 'Packing List',             required: true },
-      { key: 'customs_docs',              label: 'Customs Docs',             required: true },
+      { key: 'commercial_invoice', label: 'Commercial Invoice', required: true },
+      { key: 'packing_list', label: 'Packing List', required: true },
+      { key: 'customs_docs', label: 'Customs Docs', required: true },
       { key: 'customs_inspection_report', label: 'Customs Inspection Report', required: true },
-      { key: 'customs_approval_email',    label: 'Customs Approval \u2013 Email', required: true },
+      { key: 'customs_approval_email', label: 'Customs Approval \u2013 Email', required: true },
     ],
   },
   extension: {
-    label:     'At Extension',
+    label: 'At Extension',
     stageIcon: '📅',
     documents: [
-      { key: 'customs_approval_email', label: 'Customs Approval \u2013 Email',      required: true },
-      { key: 'customs_declaration',    label: 'Customs Declaration Document', required: true },
+      { key: 'customs_approval_email', label: 'Customs Approval \u2013 Email', required: true },
+      { key: 'customs_declaration', label: 'Customs Declaration Document', required: true },
     ],
   },
   closure: {
-    label:     'At Closure',
+    label: 'At Closure',
     stageIcon: '✅',
     documents: [
       { key: 'customs_approval_email', label: 'Customs Approval \u2013 Email', required: true },
     ],
   },
   refund: {
-    label:     'Refund Complete',
+    label: 'Refund Complete',
     stageIcon: '💰',
-    documents: [
-      { key: 'deposit_receipt', label: 'Deposit Receipt', required: true },
-    ],
+    documents: [{ key: 'deposit_receipt', label: 'Deposit Receipt', required: true }],
   },
 };
 
@@ -57,9 +55,9 @@ export const DOCUMENT_STAGES: Record<string, StageConfig> = {
    ────────────────────────────────────────────────────────────────────── */
 
 export const STATUS_TRANSITIONS: Record<string, string[]> = {
-  'Open':                     ['Open - Extended', 'Closed'],
-  'Open - Extended':          ['Open - Extended', 'Closed', 'Closed - Refund Recovered'],
-  'Closed':                   ['Closed - Refund Recovered'],
+  Open: ['Open - Extended', 'Closed'],
+  'Open - Extended': ['Open - Extended', 'Closed', 'Closed - Refund Recovered'],
+  Closed: ['Closed - Refund Recovered'],
 };
 
 /** The statuses reachable from `currentStatus`; empty when it is terminal. */

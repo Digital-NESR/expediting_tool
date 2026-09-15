@@ -17,7 +17,9 @@ export default function ProcureGuardLogo({
   };
 
   return (
-    <div className={`${sizes[size]} shrink-0 overflow-hidden border border-[#307c4c]/15 bg-white shadow-sm ${className}`}>
+    <div
+      className={`${sizes[size]} shrink-0 overflow-hidden border border-[#307c4c]/15 bg-white shadow-sm ${className}`}
+    >
       <Image
         src="/procureguard-logo.jpg"
         alt="ProcureGuard"

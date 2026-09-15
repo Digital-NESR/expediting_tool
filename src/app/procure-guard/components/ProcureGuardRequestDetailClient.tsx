@@ -31,12 +31,32 @@ type DetailValue = string | number | null | undefined;
 type PdfSectionKey = 'summary' | 'vendor' | 'details' | 'review' | 'attachments' | 'activity';
 
 const PDF_SECTION_OPTIONS: Array<{ key: PdfSectionKey; label: string; description: string }> = [
-  { key: 'summary', label: 'Request summary', description: 'Reference, status, amount, and dates.' },
-  { key: 'vendor', label: 'Vendor and requester', description: 'Vendor, requester, country, segment, and additional request notifications.' },
-  { key: 'details', label: 'Request details', description: 'Spend category, justification, and request comments.' },
+  {
+    key: 'summary',
+    label: 'Request summary',
+    description: 'Reference, status, amount, and dates.',
+  },
+  {
+    key: 'vendor',
+    label: 'Vendor and requester',
+    description: 'Vendor, requester, country, segment, and additional request notifications.',
+  },
+  {
+    key: 'details',
+    label: 'Request details',
+    description: 'Spend category, justification, and request comments.',
+  },
   { key: 'review', label: 'Review', description: 'Reviewer, rejection, and review comments.' },
-  { key: 'attachments', label: 'Attachments', description: 'Uploaded file names and upload details.' },
-  { key: 'activity', label: 'Activity log', description: 'Timeline of meaningful request activity.' },
+  {
+    key: 'attachments',
+    label: 'Attachments',
+    description: 'Uploaded file names and upload details.',
+  },
+  {
+    key: 'activity',
+    label: 'Activity log',
+    description: 'Timeline of meaningful request activity.',
+  },
 ];
 
 const DEFAULT_PDF_SECTIONS: Record<PdfSectionKey, boolean> = {
@@ -48,7 +68,9 @@ const DEFAULT_PDF_SECTIONS: Record<PdfSectionKey, boolean> = {
   activity: true,
 };
 
-function isAdvanceRequest(request: AdhocPaymentRequest | AdvancePaymentRequest): request is AdvancePaymentRequest {
+function isAdvanceRequest(
+  request: AdhocPaymentRequest | AdvancePaymentRequest,
+): request is AdvancePaymentRequest {
   return 'advance_purpose' in request;
 }
 
@@ -62,10 +84,12 @@ function pdfValue(value: DetailValue) {
 }
 
 function safeFileName(value: string) {
-  return value
-    .replace(/[^a-z0-9._-]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 120) || 'procureguard-request';
+  return (
+    value
+      .replace(/[^a-z0-9._-]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 120) || 'procureguard-request'
+  );
 }
 
 function Field({ label, value }: { label: string; value: DetailValue }) {
@@ -93,7 +117,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function StatusPill({ status }: { status: string }) {
   const badge = getStatusBadge(status);
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${badge.className}`}
+    >
       <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
       {badge.label}
     </span>
@@ -102,7 +128,9 @@ function StatusPill({ status }: { status: string }) {
 
 function PriorityPill({ priority }: { priority: string }) {
   return (
-    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getPriorityBadge(priority)}`}>
+    <span
+      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getPriorityBadge(priority)}`}
+    >
       {priority}
     </span>
   );
@@ -124,20 +152,23 @@ function WorkflowChain({
   delegations: ProcureGuardDelegation[];
 }) {
   // Active delegates for each approver email, so the chain can show who may act on their behalf.
-  const delegatesByDelegator = delegations.reduce<Record<string, ProcureGuardDelegation[]>>((acc, d) => {
-    const key = d.delegator_email.trim().toLowerCase();
-    (acc[key] ??= []).push(d);
-    return acc;
-  }, {});
-  const delegatesFor = (email: string | null | undefined) => delegatesByDelegator[(email ?? '').trim().toLowerCase()] ?? [];
+  const delegatesByDelegator = delegations.reduce<Record<string, ProcureGuardDelegation[]>>(
+    (acc, d) => {
+      const key = d.delegator_email.trim().toLowerCase();
+      (acc[key] ??= []).push(d);
+      return acc;
+    },
+    {},
+  );
+  const delegatesFor = (email: string | null | undefined) =>
+    delegatesByDelegator[(email ?? '').trim().toLowerCase()] ?? [];
   // 'Under Review' is no longer part of the active flow (the first approver acts in one step),
   // so it's hidden from the chain except for legacy records that are still sitting in it.
-  const steps = getWorkflowSteps(requestType, amount, currency)
-    .filter(step => step.status !== 'Under Review' || status === 'Under Review');
-  const currentIndex = steps.findIndex(step => step.status === status);
-  const completedIndex = status === 'Approved'
-    ? steps.length - 1
-    : Math.max(0, currentIndex - 1);
+  const steps = getWorkflowSteps(requestType, amount, currency).filter(
+    (step) => step.status !== 'Under Review' || status === 'Under Review',
+  );
+  const currentIndex = steps.findIndex((step) => step.status === status);
+  const completedIndex = status === 'Approved' ? steps.length - 1 : Math.max(0, currentIndex - 1);
 
   // Notification recipients grouped by the approval stage they are contacted at, so each chain
   // step can show exactly who gets notified there (merges the old separate "contacted" panel).
@@ -147,14 +178,22 @@ function WorkflowChain({
   // group — except for genuine legacy records still sitting in 'Under Review', where that step
   // is shown. Display only: this does not affect notification routing or delegation.
   const foldUnderReview = status !== 'Under Review';
-  const contactsByStatus = contacts.reduce<Record<string, ProcureGuardNotificationContact[]>>((acc, contact) => {
-    const resolvedStatus = foldUnderReview && contact.approval_status === 'Under Review' ? 'Submitted' : contact.approval_status;
-    const key = resolvedStatus || 'Other notifications';
-    (acc[key] ??= []).push(contact);
-    return acc;
-  }, {});
-  const stepStatuses = new Set(steps.map(step => step.status));
-  const extraContactGroups = Object.entries(contactsByStatus).filter(([key]) => !stepStatuses.has(key as AdhocPaymentRequest['status']));
+  const contactsByStatus = contacts.reduce<Record<string, ProcureGuardNotificationContact[]>>(
+    (acc, contact) => {
+      const resolvedStatus =
+        foldUnderReview && contact.approval_status === 'Under Review'
+          ? 'Submitted'
+          : contact.approval_status;
+      const key = resolvedStatus || 'Other notifications';
+      (acc[key] ??= []).push(contact);
+      return acc;
+    },
+    {},
+  );
+  const stepStatuses = new Set(steps.map((step) => step.status));
+  const extraContactGroups = Object.entries(contactsByStatus).filter(
+    ([key]) => !stepStatuses.has(key as AdhocPaymentRequest['status']),
+  );
 
   return (
     <Section title="Approval Chain & Notifications">
@@ -164,30 +203,48 @@ function WorkflowChain({
           const isComplete = index <= completedIndex || status === 'Approved';
           const stepContacts = contactsByStatus[step.status] ?? [];
           return (
-            <div key={step.status} className={`rounded-md border p-3 ${isCurrent ? 'border-[#307c4c]/30 bg-[#307c4c]/10' : isComplete ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
+            <div
+              key={step.status}
+              className={`rounded-md border p-3 ${isCurrent ? 'border-[#307c4c]/30 bg-[#307c4c]/10' : isComplete ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}
+            >
               <div className="flex items-start gap-3">
-                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isCurrent ? 'bg-[#307c4c] text-white' : isComplete ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                <div
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isCurrent ? 'bg-[#307c4c] text-white' : isComplete ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-500'}`}
+                >
                   {index + 1}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-bold text-slate-900">{step.label}</p>
-                    {isCurrent && <span className="shrink-0 rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-[#307c4c]">Current step</span>}
+                    {isCurrent && (
+                      <span className="shrink-0 rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-[#307c4c]">
+                        Current step
+                      </span>
+                    )}
                   </div>
                   <p className="mt-0.5 text-xs font-semibold text-slate-500">{step.owner}</p>
                   <p className="mt-1 text-xs text-slate-500">{step.description}</p>
                   {stepContacts.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {stepContacts.map(contact => (
+                      {stepContacts.map((contact) => (
                         <span key={`${contact.email}-${contact.id}`} className="contents">
-                          <span title={contact.email} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[0.6875rem] font-semibold text-slate-700">
+                          <span
+                            title={contact.email}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[0.6875rem] font-semibold text-slate-700"
+                          >
                             {contact.display_name || contact.email}
                             <span className="text-slate-400">· {contact.notification_role}</span>
                           </span>
-                          {delegatesFor(contact.email).map(d => (
-                            <span key={`del-${contact.id}-${d.id}`} title={`${d.delegate_email} on behalf of ${contact.display_name || contact.email}`} className="inline-flex items-center gap-1 rounded-md border border-[#307c4c]/30 bg-[#307c4c]/5 px-2 py-1 text-[0.6875rem] font-semibold text-[#307c4c]">
+                          {delegatesFor(contact.email).map((d) => (
+                            <span
+                              key={`del-${contact.id}-${d.id}`}
+                              title={`${d.delegate_email} on behalf of ${contact.display_name || contact.email}`}
+                              className="inline-flex items-center gap-1 rounded-md border border-[#307c4c]/30 bg-[#307c4c]/5 px-2 py-1 text-[0.6875rem] font-semibold text-[#307c4c]"
+                            >
                               {d.delegate_name || d.delegate_email}
-                              <span className="font-normal text-[#307c4c]/70">· on behalf of {contact.display_name || contact.email}</span>
+                              <span className="font-normal text-[#307c4c]/70">
+                                · on behalf of {contact.display_name || contact.email}
+                              </span>
                             </span>
                           ))}
                         </span>
@@ -201,10 +258,16 @@ function WorkflowChain({
         })}
         {extraContactGroups.map(([groupStatus, groupContacts]) => (
           <div key={groupStatus} className="rounded-md border border-slate-200 bg-white p-3">
-            <p className="text-[0.6875rem] font-bold uppercase tracking-wide text-slate-500">{formatProcureGuardStatusLabel(groupStatus)}</p>
+            <p className="text-[0.6875rem] font-bold uppercase tracking-wide text-slate-500">
+              {formatProcureGuardStatusLabel(groupStatus)}
+            </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {groupContacts.map(contact => (
-                <span key={`${contact.email}-${contact.id}`} title={contact.email} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[0.6875rem] font-semibold text-slate-700">
+              {groupContacts.map((contact) => (
+                <span
+                  key={`${contact.email}-${contact.id}`}
+                  title={contact.email}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[0.6875rem] font-semibold text-slate-700"
+                >
                   {contact.display_name || contact.email}
                   <span className="text-slate-400">· {contact.notification_role}</span>
                 </span>
@@ -216,7 +279,6 @@ function WorkflowChain({
     </Section>
   );
 }
-
 
 function fmtBytes(n: number | null): string {
   if (!n) return 'Unknown size';
@@ -241,14 +303,21 @@ function reviewActionLabel(action: string) {
 }
 
 function activityActionLabel(action: string) {
-  return action.replace(/^Status updated to\s+(.+)$/i, (_, status: string) => `Status updated to ${formatProcureGuardStatusLabel(status)}`);
+  return action.replace(
+    /^Status updated to\s+(.+)$/i,
+    (_, status: string) => `Status updated to ${formatProcureGuardStatusLabel(status)}`,
+  );
 }
 
 function emailListLabel(emails: string[] | null | undefined) {
   return emails?.length ? emails.join(', ') : null;
 }
 
-export default function ProcureGuardRequestDetailClient({ data }: { data: ProcureGuardRequestDetailData }) {
+export default function ProcureGuardRequestDetailClient({
+  data,
+}: {
+  data: ProcureGuardRequestDetailData;
+}) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [reviewComment, setReviewComment] = useState('');
   const [notice, setNotice] = useState('');
@@ -261,30 +330,68 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
   const [isPending, startTransition] = useTransition();
   const decisionRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
-  const { request, request_type: requestType, activity, documents, notification_contacts: notificationContacts, active_delegations: activeDelegations, actions, actor } = data;
+  const {
+    request,
+    request_type: requestType,
+    activity,
+    documents,
+    notification_contacts: notificationContacts,
+    active_delegations: activeDelegations,
+    actions,
+    actor,
+  } = data;
   const isAdvance = isAdvanceRequest(request);
   const listHref = isAdvance ? '/procure-guard/advance-payments' : '/procure-guard/adhoc-payments';
   const requestLabel = isAdvance ? 'Advance Payment' : 'Adhoc PO';
   const workflowAmount = request.spend_value_usd ?? request.amount;
-  const workflowCurrency = request.spend_value_usd === null || request.spend_value_usd === undefined ? request.currency : 'USD';
+  const workflowCurrency =
+    request.spend_value_usd === null || request.spend_value_usd === undefined
+      ? request.currency
+      : 'USD';
   const requester = request.requested_by_name || request.requested_by_email;
   const pendingCount = isActiveApprovalStatus(request.status) ? 1 : 0;
   const ownsRequest = request.requested_by_email.toLowerCase() === actor.email.toLowerCase();
-  const canEditRequest = (request.status === 'Submitted' || request.status === 'Rejected') && (ownsRequest || actor.permissions.canManageData);
-  const canCancel = ownsRequest && request.status === 'Submitted' && actor.permissions.canCreateRequests;
+  const canEditRequest =
+    (request.status === 'Submitted' || request.status === 'Rejected') &&
+    (ownsRequest || actor.permissions.canManageData);
+  const canCancel =
+    ownsRequest && request.status === 'Submitted' && actor.permissions.canCreateRequests;
   const hasDecisionActions = actions.canApprove || actions.canReject || canCancel;
   const editHref = `/procure-guard/${isAdvance ? 'advance-payments' : 'adhoc-payments'}/${request.id}/edit`;
-  const selectedPdfSectionCount = PDF_SECTION_OPTIONS.filter(option => pdfSections[option.key]).length;
+  const selectedPdfSectionCount = PDF_SECTION_OPTIONS.filter(
+    (option) => pdfSections[option.key],
+  ).length;
   const reviewDecisionSection = (
     <Section title="Review And Decision">
       <div className="space-y-4">
-        {notice && <div className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#307c4c]">{notice}</div>}
-        {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div>}
+        {notice && (
+          <div className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#307c4c]">
+            {notice}
+          </div>
+        )}
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+            {error}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Current Owner" value={actions.nextStatus ? actions.ownerLabel : 'Workflow complete'} />
-          <Field label="Next Action" value={actions.nextStatus ? formatProcureGuardStatusLabel(actions.nextStatus) : 'No active decision'} />
-          <Field label="Reviewed By" value={request.reviewed_by_name || request.reviewed_by_email} />
+          <Field
+            label="Current Owner"
+            value={actions.nextStatus ? actions.ownerLabel : 'Workflow complete'}
+          />
+          <Field
+            label="Next Action"
+            value={
+              actions.nextStatus
+                ? formatProcureGuardStatusLabel(actions.nextStatus)
+                : 'No active decision'
+            }
+          />
+          <Field
+            label="Reviewed By"
+            value={request.reviewed_by_name || request.reviewed_by_email}
+          />
           <Field label="Reviewed At" value={fmtDateTime(request.reviewed_at)} />
           <Field label="Rejection Reason" value={request.rejection_reason} />
           <Field label="Latest Review Comment" value={request.review_comments} />
@@ -295,23 +402,42 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
             ref={decisionRef}
             className={`rounded-lg border bg-slate-50 p-4 transition-all duration-300 ${highlightDecision ? 'border-[#307c4c] ring-4 ring-[#307c4c]/20' : 'border-slate-200'}`}
           >
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Action Comment <span className="font-normal text-slate-400">(required for rejection only)</span></label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Action Comment{' '}
+              <span className="font-normal text-slate-400">(required for rejection only)</span>
+            </label>
             <textarea
               className="mt-2 min-h-28 w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
               value={reviewComment}
-              onChange={e => setReviewComment(e.target.value)}
+              onChange={(e) => setReviewComment(e.target.value)}
             />
             <div className="mt-3 flex flex-wrap gap-2">
               {actions.canApprove && actions.nextStatus && (
-                <button disabled={isPending} onClick={() => submitStatus(actions.nextStatus!)} className="rounded-md bg-[#307c4c] px-3 py-2 text-xs font-bold text-white hover:bg-[#307c4c]/80 disabled:opacity-60">
+                <button
+                  disabled={isPending}
+                  onClick={() => submitStatus(actions.nextStatus!)}
+                  className="rounded-md bg-[#307c4c] px-3 py-2 text-xs font-bold text-white hover:bg-[#307c4c]/80 disabled:opacity-60"
+                >
                   Approve
                 </button>
               )}
               {actions.canReject && (
-                <button disabled={isPending} onClick={() => submitStatus('Rejected')} className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-60">Reject</button>
+                <button
+                  disabled={isPending}
+                  onClick={() => submitStatus('Rejected')}
+                  className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                >
+                  Reject
+                </button>
               )}
               {canCancel && (
-                <button disabled={isPending} onClick={() => setIsCancelDialogOpen(true)} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60">Cancel Request</button>
+                <button
+                  disabled={isPending}
+                  onClick={() => setIsCancelDialogOpen(true)}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                >
+                  Cancel Request
+                </button>
               )}
             </div>
           </div>
@@ -325,15 +451,23 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
         <p className="py-4 text-sm text-slate-500">No activity has been recorded yet.</p>
       ) : (
         <div className="divide-y divide-slate-100">
-          {activity.map(item => (
+          {activity.map((item) => (
             <div key={item.id} className="py-3">
               <p className="text-sm font-bold text-slate-900">{activityActionLabel(item.action)}</p>
               <p className="mt-1 text-xs text-slate-500">
                 {item.actor_name || item.actor_email || 'System'}
-                {item.on_behalf_of_name && <span className="text-slate-400"> · on behalf of {item.on_behalf_of_name}</span>}
+                {item.on_behalf_of_name && (
+                  <span className="text-slate-400"> · on behalf of {item.on_behalf_of_name}</span>
+                )}
               </p>
-              {item.notes && <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-600">{item.notes}</p>}
-              <p className="mt-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-slate-400">{fmtDateTime(item.created_at)}</p>
+              {item.notes && (
+                <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-600">
+                  {item.notes}
+                </p>
+              )}
+              <p className="mt-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-slate-400">
+                {fmtDateTime(item.created_at)}
+              </p>
             </div>
           ))}
         </div>
@@ -357,9 +491,10 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
     }
 
     startTransition(async () => {
-      const result = requestType === 'adhoc'
-        ? await updateAdhocPaymentStatus(request.id, nextStatus, comment)
-        : await updateAdvancePaymentStatus(request.id, nextStatus, comment);
+      const result =
+        requestType === 'adhoc'
+          ? await updateAdhocPaymentStatus(request.id, nextStatus, comment)
+          : await updateAdvancePaymentStatus(request.id, nextStatus, comment);
 
       if (result.success) {
         setReviewComment('');
@@ -420,7 +555,11 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           doc.setPage(page);
           doc.setFontSize(8);
           doc.setTextColor(100, 116, 139);
-          doc.text(`ProcureGuard export | ${request.reference_number} | Page ${page} of ${pageCount}`, margin, doc.internal.pageSize.getHeight() - 24);
+          doc.text(
+            `ProcureGuard export | ${request.reference_number} | Page ${page} of ${pageCount}`,
+            margin,
+            doc.internal.pageSize.getHeight() - 24,
+          );
         }
       };
 
@@ -452,21 +591,28 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
             overflow: 'linebreak',
           },
           columnStyles: {
-            0: { cellWidth: 145, fontStyle: 'bold', fillColor: [248, 250, 252], textColor: [71, 85, 105] },
+            0: {
+              cellWidth: 145,
+              fontStyle: 'bold',
+              fillColor: [248, 250, 252],
+              textColor: [71, 85, 105],
+            },
             1: { cellWidth: pageWidth - margin * 2 - 145 },
           },
           alternateRowStyles: { fillColor: [255, 255, 255] },
         });
 
-        cursorY = ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? cursorY) + 20;
+        cursorY =
+          ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ??
+            cursorY) + 20;
       };
 
       const addReviewHistoryTable = () => {
         const reviewRows = activity
-          .filter(item => item.action.startsWith('Status updated to '))
+          .filter((item) => item.action.startsWith('Status updated to '))
           .slice()
           .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-          .map(item => [
+          .map((item) => [
             fmtDateTime(item.created_at),
             reviewActionLabel(item.action),
             item.actor_name || item.actor_email || 'System',
@@ -475,9 +621,12 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
         if (reviewRows.length === 0) {
           addTable('Review History', [
-            ['Review History', request.reviewed_at
-              ? `${fmtDateTime(request.reviewed_at)} | ${request.reviewed_by_name || request.reviewed_by_email || 'Reviewer'} | ${formatProcureGuardStatusLabel(request.status)}${request.review_comments ? ` | ${request.review_comments}` : ''}`
-              : 'No review actions have been recorded yet.'],
+            [
+              'Review History',
+              request.reviewed_at
+                ? `${fmtDateTime(request.reviewed_at)} | ${request.reviewed_by_name || request.reviewed_by_email || 'Reviewer'} | ${formatProcureGuardStatusLabel(request.status)}${request.review_comments ? ` | ${request.review_comments}` : ''}`
+                : 'No review actions have been recorded yet.',
+            ],
           ]);
           return;
         }
@@ -521,7 +670,9 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           alternateRowStyles: { fillColor: [248, 250, 252] },
         });
 
-        cursorY = ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? cursorY) + 20;
+        cursorY =
+          ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ??
+            cursorY) + 20;
       };
 
       doc.setFillColor(48, 124, 76);
@@ -533,7 +684,9 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
       doc.setFontSize(12);
       doc.text(`${requestLabel} Log Export`, margin, 56);
       doc.setFontSize(9);
-      doc.text(`Generated ${fmtDateTime(new Date().toISOString())}`, pageWidth - margin, 34, { align: 'right' });
+      doc.text(`Generated ${fmtDateTime(new Date().toISOString())}`, pageWidth - margin, 34, {
+        align: 'right',
+      });
 
       cursorY = 104;
       if (pdfSections.summary) {
@@ -553,35 +706,66 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
         addTable('Vendor And Requester', [
           ['Requisition Number', request.requisition_number],
           ['Vendor', request.vendor_name],
-          [isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID', isAdvance ? request.sap_vendor_id || request.vendor_code : request.vendor_tax_id || request.vendor_code],
+          [
+            isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID',
+            isAdvance
+              ? request.sap_vendor_id || request.vendor_code
+              : request.vendor_tax_id || request.vendor_code,
+          ],
           ['Requester', requester],
           ['Requester Email', request.requested_by_email],
           ['Country', request.country],
           ['Segment', request.segment],
-          ['Additional Request Notifications', emailListLabel(request.requester_notification_emails)],
+          [
+            'Additional Request Notifications',
+            emailListLabel(request.requester_notification_emails),
+          ],
         ]);
       }
 
       if (pdfSections.details) {
         addTable('Request Details', [
-          ['Spend Category', request.spend_category || (isAdvance ? null : request.expense_category)],
-          ...(isAdvance ? [
-            ['Total Amount', request.contract_value === null || request.contract_value === undefined ? null : usdFmt(request.contract_value, request.currency)] satisfies [string, DetailValue],
-            ['Advance Amount', usdFmt(request.amount, request.currency)] satisfies [string, DetailValue],
-          ] : []),
-          [isAdvance ? 'Advance Amount USD' : 'Spend Value USD', request.spend_value_usd === null ? usdFmt(request.amount, 'USD') : usdFmt(request.spend_value_usd)],
+          [
+            'Spend Category',
+            request.spend_category || (isAdvance ? null : request.expense_category),
+          ],
           ...(isAdvance
             ? [
+                [
+                  'Total Amount',
+                  request.contract_value === null || request.contract_value === undefined
+                    ? null
+                    : usdFmt(request.contract_value, request.currency),
+                ] satisfies [string, DetailValue],
+                ['Advance Amount', usdFmt(request.amount, request.currency)] satisfies [
+                  string,
+                  DetailValue,
+                ],
+              ]
+            : []),
+          [
+            isAdvance ? 'Advance Amount USD' : 'Spend Value USD',
+            request.spend_value_usd === null
+              ? usdFmt(request.amount, 'USD')
+              : usdFmt(request.spend_value_usd),
+          ],
+          ...(isAdvance
+            ? ([
                 ['Payment Terms Days', request.current_payment_terms_days],
-                ['Credit Limit USD', request.current_credit_limit_usd === null ? null : usdFmt(request.current_credit_limit_usd)],
+                [
+                  'Credit Limit USD',
+                  request.current_credit_limit_usd === null
+                    ? null
+                    : usdFmt(request.current_credit_limit_usd),
+                ],
                 ['Reason / Justification', request.advance_purpose || request.justification],
                 ['Requester Comments', request.requester_comments || request.notes],
-              ] satisfies Array<[string, DetailValue]>
-            : [
+              ] satisfies Array<[string, DetailValue]>)
+            : ([
                 ['Reason / Justification', request.payment_reason || request.justification],
                 ['Requester Comments', request.requester_comments || request.notes],
                 ['Acknowledged At', fmtDateTime(request.acknowledged_at)],
-              ] satisfies Array<[string, DetailValue]>),
+              ] satisfies Array<[string, DetailValue]>)),
         ]);
       }
 
@@ -596,15 +780,27 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
       }
 
       if (pdfSections.attachments) {
-        addTable('Attachments', documents.length
-          ? documents.map(docRow => [docRow.original_name || docRow.document_name, `${fileBadgeLabel(docRow.file_type)} | ${fmtBytes(docRow.file_size)} | Uploaded by ${docRow.uploaded_by_name || docRow.uploaded_by_email || 'Unknown'}`])
-          : [['Attachments', 'No attachments uploaded.']]);
+        addTable(
+          'Attachments',
+          documents.length
+            ? documents.map((docRow) => [
+                docRow.original_name || docRow.document_name,
+                `${fileBadgeLabel(docRow.file_type)} | ${fmtBytes(docRow.file_size)} | Uploaded by ${docRow.uploaded_by_name || docRow.uploaded_by_email || 'Unknown'}`,
+              ])
+            : [['Attachments', 'No attachments uploaded.']],
+        );
       }
 
       if (pdfSections.activity) {
-        addTable('Activity Log', activity.length
-          ? activity.map(item => [fmtDateTime(item.created_at), `${activityActionLabel(item.action)}${item.actor_name || item.actor_email ? ` by ${item.actor_name || item.actor_email}` : ''}${item.on_behalf_of_name ? ` on behalf of ${item.on_behalf_of_name}` : ''}${item.notes ? ` | ${item.notes}` : ''}`])
-          : [['Activity', 'No activity has been recorded yet.']]);
+        addTable(
+          'Activity Log',
+          activity.length
+            ? activity.map((item) => [
+                fmtDateTime(item.created_at),
+                `${activityActionLabel(item.action)}${item.actor_name || item.actor_email ? ` by ${item.actor_name || item.actor_email}` : ''}${item.on_behalf_of_name ? ` on behalf of ${item.on_behalf_of_name}` : ''}${item.notes ? ` | ${item.notes}` : ''}`,
+              ])
+            : [['Activity', 'No activity has been recorded yet.']],
+        );
       }
 
       addFooter();
@@ -620,11 +816,25 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
-      <ProcureGuardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={pendingCount} accessView={data.actor.permissions.accessView} />
+      <ProcureGuardSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        pendingCount={pendingCount}
+        accessView={data.actor.permissions.accessView}
+      />
 
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-gray-100 bg-white/80 px-4 backdrop-blur-md md:px-8">
-        <button onClick={() => setSidebarOpen(true)} className="rounded-md p-2 text-slate-500 hover:bg-slate-100">
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="rounded-md p-2 text-slate-500 hover:bg-slate-100"
+        >
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
@@ -639,19 +849,31 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
         >
           Export PDF
         </button>
-        <Link href={listHref} className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5">
+        <Link
+          href={listHref}
+          className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#307c4c]/5"
+        >
           Back to list
         </Link>
       </header>
 
       {isPdfDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
-          <div role="dialog" aria-modal="true" aria-labelledby="pdf-export-title" className="w-full max-w-lg rounded-lg border border-slate-200 bg-white shadow-2xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pdf-export-title"
+            className="w-full max-w-lg rounded-lg border border-slate-200 bg-white shadow-2xl"
+          >
             <div className="border-b border-slate-100 px-5 py-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 id="pdf-export-title" className="text-base font-bold text-slate-950">Export PDF</h2>
-                  <p className="mt-1 text-sm text-slate-500">Choose which sections to include for this log export.</p>
+                  <h2 id="pdf-export-title" className="text-base font-bold text-slate-950">
+                    Export PDF
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Choose which sections to include for this log export.
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -666,32 +888,55 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
             <div className="space-y-3 px-5 py-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{selectedPdfSectionCount} of {PDF_SECTION_OPTIONS.length} selected</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {selectedPdfSectionCount} of {PDF_SECTION_OPTIONS.length} selected
+                </p>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setAllPdfSections(true)} className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Select all</button>
-                  <button type="button" onClick={() => setAllPdfSections(false)} className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Clear</button>
+                  <button
+                    type="button"
+                    onClick={() => setAllPdfSections(true)}
+                    className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAllPdfSections(false)}
+                    className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  >
+                    Clear
+                  </button>
                 </div>
               </div>
 
               <div className="space-y-2">
-                {PDF_SECTION_OPTIONS.map(option => (
-                  <label key={option.key} className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 transition hover:border-[#307c4c]/30 hover:bg-[#307c4c]/5">
+                {PDF_SECTION_OPTIONS.map((option) => (
+                  <label
+                    key={option.key}
+                    className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 transition hover:border-[#307c4c]/30 hover:bg-[#307c4c]/5"
+                  >
                     <input
                       type="checkbox"
                       checked={pdfSections[option.key]}
-                      onChange={e => setPdfSections(prev => ({ ...prev, [option.key]: e.target.checked }))}
+                      onChange={(e) =>
+                        setPdfSections((prev) => ({ ...prev, [option.key]: e.target.checked }))
+                      }
                       className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#307c4c] focus:ring-[#307c4c]/20"
                     />
                     <span>
                       <span className="block text-sm font-bold text-slate-900">{option.label}</span>
-                      <span className="mt-0.5 block text-xs text-slate-500">{option.description}</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">
+                        {option.description}
+                      </span>
                     </span>
                   </label>
                 ))}
               </div>
 
               {selectedPdfSectionCount === 0 && (
-                <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Choose at least one section before exporting.</p>
+                <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                  Choose at least one section before exporting.
+                </p>
               )}
             </div>
 
@@ -719,9 +964,16 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
       {isCancelDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
-          <div role="dialog" aria-modal="true" aria-labelledby="cancel-request-title" className="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-2xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-request-title"
+            className="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-2xl"
+          >
             <div className="border-b border-slate-100 px-5 py-4">
-              <h2 id="cancel-request-title" className="text-base font-bold text-slate-950">Are you sure?</h2>
+              <h2 id="cancel-request-title" className="text-base font-bold text-slate-950">
+                Are you sure?
+              </h2>
               <p className="mt-1 text-sm text-slate-500">
                 Cancel {request.reference_number}? This will stop the request before review starts.
               </p>
@@ -758,8 +1010,12 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
           <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
           <div className="relative flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
-              <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-white/70">{requestLabel}</p>
-              <h1 className="mt-1 break-words text-xl font-bold tracking-tight sm:text-2xl">{request.reference_number}</h1>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-white/70">
+                {requestLabel}
+              </p>
+              <h1 className="mt-1 break-words text-xl font-bold tracking-tight sm:text-2xl">
+                {request.reference_number}
+              </h1>
               <p className="mt-1 text-sm text-white/80">
                 {request.vendor_name} requested by {requester}
               </p>
@@ -789,21 +1045,31 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
           <div className="relative mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div className="rounded-lg border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
-              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/70">Original Amount</p>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/70">
+                Original Amount
+              </p>
               <p className="mt-1 text-lg font-bold">{usdFmt(request.amount, request.currency)}</p>
               <p className="mt-0.5 text-xs text-white/70">{request.currency}</p>
             </div>
             <div className="rounded-lg border border-white/25 bg-white/15 p-3 backdrop-blur-sm">
-              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/80">USD Equivalent</p>
-              <p className="mt-1 text-lg font-bold">{usdEquivalentFmt(request.amount, request.currency)}</p>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/80">
+                USD Equivalent
+              </p>
+              <p className="mt-1 text-lg font-bold">
+                {usdEquivalentFmt(request.amount, request.currency)}
+              </p>
               <p className="mt-0.5 text-xs text-white/70">Normalized using local FX table</p>
             </div>
             <div className="rounded-lg border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
-              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/70">Created</p>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/70">
+                Created
+              </p>
               <p className="mt-1 text-sm font-bold">{fmtDateTime(request.created_at)}</p>
             </div>
             <div className="rounded-lg border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
-              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/70">Updated</p>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-white/70">
+                Updated
+              </p>
               <p className="mt-1 text-sm font-bold">{fmtDateTime(request.updated_at)}</p>
             </div>
           </div>
@@ -815,25 +1081,63 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
               <FieldGrid>
                 <Field label="Requisition Number" value={request.requisition_number} />
                 <Field label="Vendor" value={request.vendor_name} />
-                <Field label={isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID'} value={isAdvance ? request.sap_vendor_id || request.vendor_code : request.vendor_tax_id || request.vendor_code} />
+                <Field
+                  label={isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID'}
+                  value={
+                    isAdvance
+                      ? request.sap_vendor_id || request.vendor_code
+                      : request.vendor_tax_id || request.vendor_code
+                  }
+                />
                 <Field label="Requester" value={requester} />
                 <Field label="Requester Email" value={request.requested_by_email} />
                 <Field label="Country" value={request.country} />
                 <Field label="Segment" value={request.segment} />
-                <Field label="Additional Request Notifications" value={emailListLabel(request.requester_notification_emails)} />
+                <Field
+                  label="Additional Request Notifications"
+                  value={emailListLabel(request.requester_notification_emails)}
+                />
               </FieldGrid>
             </Section>
 
             <Section title="Accounting">
               <FieldGrid>
-                <Field label="Spend Category" value={request.spend_category || (isAdvance ? null : request.expense_category)} />
-                {isAdvance && <Field label="Total Amount" value={request.contract_value === null || request.contract_value === undefined ? null : usdFmt(request.contract_value, request.currency)} />}
-                {isAdvance && <Field label="Advance Amount" value={usdFmt(request.amount, request.currency)} />}
-                <Field label={isAdvance ? 'Advance Amount USD' : 'Spend Value USD'} value={request.spend_value_usd === null ? usdFmt(request.amount, 'USD') : usdFmt(request.spend_value_usd)} />
+                <Field
+                  label="Spend Category"
+                  value={request.spend_category || (isAdvance ? null : request.expense_category)}
+                />
+                {isAdvance && (
+                  <Field
+                    label="Total Amount"
+                    value={
+                      request.contract_value === null || request.contract_value === undefined
+                        ? null
+                        : usdFmt(request.contract_value, request.currency)
+                    }
+                  />
+                )}
+                {isAdvance && (
+                  <Field label="Advance Amount" value={usdFmt(request.amount, request.currency)} />
+                )}
+                <Field
+                  label={isAdvance ? 'Advance Amount USD' : 'Spend Value USD'}
+                  value={
+                    request.spend_value_usd === null
+                      ? usdFmt(request.amount, 'USD')
+                      : usdFmt(request.spend_value_usd)
+                  }
+                />
                 {isAdvance ? (
                   <>
                     <Field label="Payment Terms Days" value={request.current_payment_terms_days} />
-                    <Field label="Credit Limit USD" value={request.current_credit_limit_usd === null ? null : usdFmt(request.current_credit_limit_usd)} />
+                    <Field
+                      label="Credit Limit USD"
+                      value={
+                        request.current_credit_limit_usd === null
+                          ? null
+                          : usdFmt(request.current_credit_limit_usd)
+                      }
+                    />
                   </>
                 ) : null}
               </FieldGrid>
@@ -842,40 +1146,66 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
             <Section title={isAdvance ? 'Advance Details' : 'Payment Details'}>
               {isAdvance ? (
                 <FieldGrid>
-                  <Field label="Reason / Justification" value={request.advance_purpose || request.justification} />
-                  <Field label="Requester Comments" value={request.requester_comments || request.notes} />
+                  <Field
+                    label="Reason / Justification"
+                    value={request.advance_purpose || request.justification}
+                  />
+                  <Field
+                    label="Requester Comments"
+                    value={request.requester_comments || request.notes}
+                  />
                 </FieldGrid>
               ) : (
                 <FieldGrid>
-                  <Field label="Reason / Justification" value={request.payment_reason || request.justification} />
-                  <Field label="Requester Comments" value={request.requester_comments || request.notes} />
+                  <Field
+                    label="Reason / Justification"
+                    value={request.payment_reason || request.justification}
+                  />
+                  <Field
+                    label="Requester Comments"
+                    value={request.requester_comments || request.notes}
+                  />
                   <Field label="Acknowledged At" value={fmtDateTime(request.acknowledged_at)} />
                 </FieldGrid>
               )}
               <div className="mt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Attachments</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Attachments
+                </p>
                 {documents.length === 0 && !request.attachment_link ? (
                   <p className="mt-2 text-sm text-slate-500">No attachments uploaded.</p>
                 ) : (
                   <div className="mt-3 space-y-2">
-                    {documents.map(doc => (
+                    {documents.map((doc) => (
                       <Link
                         key={doc.id}
                         href={`/api/procure-guard/documents/${doc.id}`}
                         className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm hover:bg-[#307c4c]/5"
                       >
                         <span className="flex min-w-0 items-center gap-3">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#307c4c] text-[0.5625rem] font-bold text-white">{fileBadgeLabel(doc.file_type)}</span>
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#307c4c] text-[0.5625rem] font-bold text-white">
+                            {fileBadgeLabel(doc.file_type)}
+                          </span>
                           <span className="min-w-0">
-                            <span className="block truncate font-semibold text-slate-900">{doc.original_name || doc.document_name}</span>
-                            <span className="text-xs text-slate-500">{fmtBytes(doc.file_size)} | Uploaded by {doc.uploaded_by_name || doc.uploaded_by_email || 'Unknown'}</span>
+                            <span className="block truncate font-semibold text-slate-900">
+                              {doc.original_name || doc.document_name}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {fmtBytes(doc.file_size)} | Uploaded by{' '}
+                              {doc.uploaded_by_name || doc.uploaded_by_email || 'Unknown'}
+                            </span>
                           </span>
                         </span>
                         <span className="text-xs font-bold text-[#307c4c]">Download</span>
                       </Link>
                     ))}
                     {request.attachment_link && (
-                      <Link href={request.attachment_link} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2 text-xs font-bold text-[#307c4c] hover:bg-green-100">
+                      <Link
+                        href={request.attachment_link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2 text-xs font-bold text-[#307c4c] hover:bg-green-100"
+                      >
                         Open linked attachment
                       </Link>
                     )}
@@ -894,7 +1224,14 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
 
           <div className="space-y-4">
             {reviewDecisionSection}
-            <WorkflowChain requestType={requestType} status={request.status} amount={workflowAmount} currency={workflowCurrency} contacts={notificationContacts} delegations={activeDelegations} />
+            <WorkflowChain
+              requestType={requestType}
+              status={request.status}
+              amount={workflowAmount}
+              currency={workflowCurrency}
+              contacts={notificationContacts}
+              delegations={activeDelegations}
+            />
             {activitySection}
           </div>
         </div>
@@ -902,6 +1239,3 @@ export default function ProcureGuardRequestDetailClient({ data }: { data: Procur
     </div>
   );
 }
-
-
-

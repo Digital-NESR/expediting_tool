@@ -27,14 +27,16 @@ export default function SourceGuideShell({
   // The shell owns the pin flag because its top bar reacts to it too; the
   // sidebar below is rendered controlled. Content shifting stays on the
   // wrapper div (see below) rather than the shared body-padding rule.
-  const { pinned, togglePin: togglePinned } = usePinnedSidebar(SG_PIN_KEY, null, { defaultPinned: false });
+  const { pinned, togglePin: togglePinned } = usePinnedSidebar(SG_PIN_KEY, null, {
+    defaultPinned: false,
+  });
 
   // Cmd/Ctrl-K opens the command palette
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
-        setPaletteOpen(o => !o);
+        setPaletteOpen((o) => !o);
       }
     }
     window.addEventListener('keydown', onKey);
@@ -46,16 +48,29 @@ export default function SourceGuideShell({
     setOpen(false);
   }
 
-  const role = isAdmin ? 'Administrator' : viewOnly ? 'Viewer' : approvedCountries.length ? 'Champion' : 'Viewer';
+  const role = isAdmin
+    ? 'Administrator'
+    : viewOnly
+      ? 'Viewer'
+      : approvedCountries.length
+        ? 'Champion'
+        : 'Viewer';
   const showHeaderSearch = pathname !== '/sourceguide';
 
   return (
     <div className="min-h-[100dvh] bg-[#f5f6f5] font-sans text-slate-900">
-      <SourceGuideSidebar isOpen={open} onClose={() => setOpen(false)} pinned={pinned} onTogglePin={togglePin} />
+      <SourceGuideSidebar
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        pinned={pinned}
+        onTogglePin={togglePin}
+      />
       <SourceGuideCommandPalette isOpen={paletteOpen} onClose={() => setPaletteOpen(false)} />
 
       {/* Content shifts right when the sidebar is pinned (lg+) */}
-      <div className={`flex min-h-[100dvh] flex-col transition-[padding] duration-300 ${pinned ? 'lg:pl-[280px]' : ''}`}>
+      <div
+        className={`flex min-h-[100dvh] flex-col transition-[padding] duration-300 ${pinned ? 'lg:pl-[280px]' : ''}`}
+      >
         {/* Slim top bar */}
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
           <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
@@ -68,10 +83,15 @@ export default function SourceGuideShell({
             </button>
 
             <Link href="/sourceguide" className="flex items-center gap-2.5">
-              <span className="grid h-8 w-8 place-items-center rounded-[9px]" style={{ background: SG_BRAND }}>
+              <span
+                className="grid h-8 w-8 place-items-center rounded-[9px]"
+                style={{ background: SG_BRAND }}
+              >
                 <span className="text-[10px] font-extrabold tracking-tight text-white">SG</span>
               </span>
-              <span className="text-[15px] font-semibold tracking-tight text-slate-900">SourceGuide</span>
+              <span className="text-[15px] font-semibold tracking-tight text-slate-900">
+                SourceGuide
+              </span>
             </Link>
 
             <div className="flex-1" />
@@ -83,7 +103,9 @@ export default function SourceGuideShell({
               >
                 <Search className="h-4 w-4" />
                 <span className="w-32 text-left text-[13.5px]">Search…</span>
-                <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">⌘K</kbd>
+                <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
+                  ⌘K
+                </kbd>
               </button>
             )}
 

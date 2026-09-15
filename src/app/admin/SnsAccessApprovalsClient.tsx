@@ -60,7 +60,10 @@ export default function SnsAccessApprovalsClient({
     setError(null);
     const res = await fn();
     setBusy(false);
-    if (!res.success) { setError(res.error ?? 'Action failed.'); return; }
+    if (!res.success) {
+      setError(res.error ?? 'Action failed.');
+      return;
+    }
     setEditing(null);
     await reload();
   }
@@ -76,20 +79,26 @@ export default function SnsAccessApprovalsClient({
     setError(null);
   }
 
-  if (loading) return <div className="py-16 text-center text-sm text-slate-400">Loading access requests…</div>;
+  if (loading)
+    return <div className="py-16 text-center text-sm text-slate-400">Loading access requests…</div>;
 
   return (
     <div>
-      <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">S&amp;S Registry · Access Approvals</h2>
+      <h2 className="mb-1 text-lg font-bold tracking-tight text-slate-900">
+        S&amp;S Registry · Access Approvals
+      </h2>
       <p className="mb-6 max-w-3xl text-[13px] leading-relaxed text-slate-500">
-        Grant users a role in the Single &amp; Sole Source Registry. You can override both the role and the countries they
-        asked for. Leaving the country list empty grants <span className="font-semibold text-slate-600">all countries</span>.
-        Emails listed in <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">ADMIN_EMAILS</code> already have full
-        access and never appear here.
+        Grant users a role in the Single &amp; Sole Source Registry. You can override both the role
+        and the countries they asked for. Leaving the country list empty grants{' '}
+        <span className="font-semibold text-slate-600">all countries</span>. Emails listed in{' '}
+        <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">ADMIN_EMAILS</code> already
+        have full access and never appear here.
       </p>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</div>
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+          {error}
+        </div>
       )}
 
       {requests.length === 0 ? (
@@ -106,7 +115,9 @@ export default function SnsAccessApprovalsClient({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[15px] font-semibold text-slate-900">{r.displayName || r.userEmail}</span>
+                      <span className="text-[15px] font-semibold text-slate-900">
+                        {r.displayName || r.userEmail}
+                      </span>
                       <span
                         className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
                         style={{ background: ss.bg, color: ss.col }}
@@ -115,35 +126,52 @@ export default function SnsAccessApprovalsClient({
                       </span>
                     </div>
                     <div className="mt-0.5 text-[12.5px] text-slate-500">
-                      {r.userEmail}{r.jobTitle ? ` · ${r.jobTitle}` : ''}
+                      {r.userEmail}
+                      {r.jobTitle ? ` · ${r.jobTitle}` : ''}
                     </div>
 
                     <dl className="mt-3 grid gap-x-8 gap-y-2 text-[12.5px] sm:grid-cols-2">
                       <div>
-                        <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">Requested role</dt>
+                        <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">
+                          Requested role
+                        </dt>
                         <dd className="text-slate-700">{r.requestedRole}</dd>
                       </div>
                       <div>
-                        <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">Requested countries</dt>
-                        <dd className="text-slate-700">{r.requestedCountries.map(countryName).join(', ') || '—'}</dd>
+                        <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">
+                          Requested countries
+                        </dt>
+                        <dd className="text-slate-700">
+                          {r.requestedCountries.map(countryName).join(', ') || '—'}
+                        </dd>
                       </div>
                       {r.status === 'Approved' && (
                         <>
                           <div>
-                            <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">Approved role</dt>
-                            <dd className="font-semibold text-slate-900">{r.approvedRole ?? '—'}</dd>
+                            <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">
+                              Approved role
+                            </dt>
+                            <dd className="font-semibold text-slate-900">
+                              {r.approvedRole ?? '—'}
+                            </dd>
                           </div>
                           <div>
-                            <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">Approved countries</dt>
+                            <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">
+                              Approved countries
+                            </dt>
                             <dd className="font-semibold text-slate-900">
-                              {r.approvedCountries.length ? r.approvedCountries.map(countryName).join(', ') : 'All countries'}
+                              {r.approvedCountries.length
+                                ? r.approvedCountries.map(countryName).join(', ')
+                                : 'All countries'}
                             </dd>
                           </div>
                         </>
                       )}
                       {r.reason && (
                         <div className="sm:col-span-2">
-                          <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">Reason</dt>
+                          <dt className="text-[10.5px] font-bold uppercase tracking-wide text-slate-400">
+                            Reason
+                          </dt>
                           <dd className="leading-relaxed text-slate-600">{r.reason}</dd>
                         </div>
                       )}
@@ -201,10 +229,15 @@ export default function SnsAccessApprovalsClient({
 
                 {isEditing && (
                   <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Grant role</div>
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                      Grant role
+                    </div>
                     <div className="mt-2 space-y-1.5">
                       {ROLES.map((role) => (
-                        <label key={role} className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700">
+                        <label
+                          key={role}
+                          className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700"
+                        >
                           <input
                             type="radio"
                             name={`role-${r.userEmail}`}
@@ -217,7 +250,10 @@ export default function SnsAccessApprovalsClient({
                     </div>
 
                     <div className="mt-4 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                      Countries <span className="font-medium normal-case tracking-normal text-slate-400">(none selected = all countries)</span>
+                      Countries{' '}
+                      <span className="font-medium normal-case tracking-normal text-slate-400">
+                        (none selected = all countries)
+                      </span>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {countries.map(([name, code]) => {
@@ -227,10 +263,14 @@ export default function SnsAccessApprovalsClient({
                             key={code}
                             type="button"
                             onClick={() =>
-                              setEditCountries((prev) => (on ? prev.filter((x) => x !== code) : prev.concat([code])))
+                              setEditCountries((prev) =>
+                                on ? prev.filter((x) => x !== code) : prev.concat([code]),
+                              )
                             }
                             className={`rounded-lg border px-2.5 py-1 text-[12px] font-semibold transition-colors ${
-                              on ? 'border-[#2A7E4F] bg-[#2A7E4F] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                              on
+                                ? 'border-[#2A7E4F] bg-[#2A7E4F] text-white'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                             }`}
                           >
                             {name}
@@ -242,7 +282,9 @@ export default function SnsAccessApprovalsClient({
                     <div className="mt-4 flex gap-2">
                       <button
                         disabled={busy}
-                        onClick={() => run(() => approveSnsAccess(r.userEmail, editRole, editCountries))}
+                        onClick={() =>
+                          run(() => approveSnsAccess(r.userEmail, editRole, editCountries))
+                        }
                         className="rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-50"
                         style={{ background: BRAND }}
                       >

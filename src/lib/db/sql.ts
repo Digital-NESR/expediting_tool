@@ -17,15 +17,7 @@ import type { Pool, PoolClient, QueryResultRow } from 'pg';
  */
 
 export type SqlParam =
-  | string
-  | number
-  | boolean
-  | null
-  | undefined
-  | Date
-  | Buffer
-  | string[]
-  | number[];
+  string | number | boolean | null | undefined | Date | Buffer | string[] | number[];
 
 export type SqlParams = readonly SqlParam[];
 
@@ -78,8 +70,16 @@ export function toPostgresQuery(statement: string): string {
       let depth = 1;
       let j = i + 2;
       while (j < n && depth > 0) {
-        if (statement[j] === '/' && statement[j + 1] === '*') { depth++; j += 2; continue; }
-        if (statement[j] === '*' && statement[j + 1] === '/') { depth--; j += 2; continue; }
+        if (statement[j] === '/' && statement[j + 1] === '*') {
+          depth++;
+          j += 2;
+          continue;
+        }
+        if (statement[j] === '*' && statement[j + 1] === '/') {
+          depth--;
+          j += 2;
+          continue;
+        }
         j++;
       }
       out += statement.slice(i, j);
@@ -92,7 +92,10 @@ export function toPostgresQuery(statement: string): string {
       let j = i + 1;
       while (j < n) {
         if (statement[j] === ch) {
-          if (statement[j + 1] === ch) { j += 2; continue; }
+          if (statement[j + 1] === ch) {
+            j += 2;
+            continue;
+          }
           j++;
           break;
         }
@@ -175,7 +178,10 @@ export interface SqlHelpers {
  * outside the transaction, and will not roll back with it.
  */
 export function createSqlHelpers(executor: SqlExecutor): SqlHelpers {
-  const sql = async <T extends QueryResultRow[]>(statement: string, params: SqlParams = []): Promise<T> => {
+  const sql = async <T extends QueryResultRow[]>(
+    statement: string,
+    params: SqlParams = [],
+  ): Promise<T> => {
     const result = await executor.query(toPostgresQuery(statement), normaliseParams(params));
     return serialise<T>(result.rows);
   };

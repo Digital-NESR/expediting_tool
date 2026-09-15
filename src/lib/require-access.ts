@@ -49,7 +49,7 @@ function parseEmailList(...values: (string | undefined)[]): string[] {
     .filter(Boolean)
     .join(',')
     .split(',')
-    .map(e => e.trim().toLowerCase())
+    .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 }
 

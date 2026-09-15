@@ -12,10 +12,7 @@ import { getDepartmentsForCompany } from '@/lib/laptopCostCenters.server';
  *
  * Static reference data, so it is cached hard — but `private`, since the route is auth-gated.
  */
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ company: string }> },
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ company: string }> }) {
   const user = await getProcureGuardUser();
   if (!user?.email) {
     return new NextResponse('Unauthorized', { status: 401 });

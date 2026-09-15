@@ -16,7 +16,8 @@ export function validateForSubmission(draft: Draft): string[] {
   if (!draft.country) missing.push('country');
   if (!draft.nodes.length) missing.push('taxonomy scope');
   if (!draft.segments.length) missing.push('at least one segment tag');
-  if (!draft.supplierId.trim() || !draft.supplierName.trim()) missing.push('supplier SAP ID and name');
+  if (!draft.supplierId.trim() || !draft.supplierName.trim())
+    missing.push('supplier SAP ID and name');
   if (!draft.reason) missing.push('reason code');
   if (!draft.justification.trim()) missing.push('justification narrative');
   return missing;

@@ -11,6 +11,7 @@ export default async function ProcureGuardDelegatePage() {
   const data = await getProcureGuardDelegationData();
   if (!data) redirect('/procure-guard');
   // Only approvers (or someone currently holding delegated authority) have anything to do here.
-  if (!canUseProcureGuardReviewerQueue(data.actor.permissions.accessView)) redirect('/procure-guard');
+  if (!canUseProcureGuardReviewerQueue(data.actor.permissions.accessView))
+    redirect('/procure-guard');
   return <ProcureGuardDelegateClient data={data} />;
 }

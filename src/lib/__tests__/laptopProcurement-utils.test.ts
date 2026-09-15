@@ -54,7 +54,9 @@ describe('approval state machine (getNextApprovalStatus)', () => {
   ])(
     'branches CM Approval with assigned=%s procureNew=%s to %s',
     (hasAssignedUnit, isProcureNewFlow, expected) => {
-      expect(getNextApprovalStatus('CM Approval', hasAssignedUnit, isProcureNewFlow)).toBe(expected);
+      expect(getNextApprovalStatus('CM Approval', hasAssignedUnit, isProcureNewFlow)).toBe(
+        expected,
+      );
     },
   );
 
@@ -65,14 +67,20 @@ describe('approval state machine (getNextApprovalStatus)', () => {
   it('always continues from CM Confirm Device to the IT Director', () => {
     for (const assigned of [false, true]) {
       for (const procureNew of [false, true]) {
-        expect(getNextApprovalStatus('CM Confirm Device', assigned, procureNew)).toBe('IT Director Approval');
+        expect(getNextApprovalStatus('CM Confirm Device', assigned, procureNew)).toBe(
+          'IT Director Approval',
+        );
       }
     }
   });
 
   it('always continues from the IT Director to the SC Director', () => {
-    expect(getNextApprovalStatus('IT Director Approval', false, false)).toBe('Supply Chain Director Approval');
-    expect(getNextApprovalStatus('IT Director Approval', true, true)).toBe('Supply Chain Director Approval');
+    expect(getNextApprovalStatus('IT Director Approval', false, false)).toBe(
+      'Supply Chain Director Approval',
+    );
+    expect(getNextApprovalStatus('IT Director Approval', true, true)).toBe(
+      'Supply Chain Director Approval',
+    );
   });
 
   it.each<[boolean, boolean, LaptopRequestStatus]>([
@@ -83,7 +91,9 @@ describe('approval state machine (getNextApprovalStatus)', () => {
   ])(
     'branches the final SC Director sign-off with assigned=%s procureNew=%s to %s',
     (hasAssignedUnit, isProcureNewFlow, expected) => {
-      expect(getNextApprovalStatus('Supply Chain Director Approval', hasAssignedUnit, isProcureNewFlow)).toBe(expected);
+      expect(
+        getNextApprovalStatus('Supply Chain Director Approval', hasAssignedUnit, isProcureNewFlow),
+      ).toBe(expected);
     },
   );
 
@@ -91,7 +101,7 @@ describe('approval state machine (getNextApprovalStatus)', () => {
     expect(getNextApprovalStatus('Procure New Details', false, true)).toBeNull();
   });
 
-  it.each(TERMINAL_STATUSES)('leaves the terminal status %s with nowhere to go', status => {
+  it.each(TERMINAL_STATUSES)('leaves the terminal status %s with nowhere to go', (status) => {
     expect(getNextApprovalStatus(status, false, false)).toBeNull();
     expect(getNextApprovalStatus(status, true, true)).toBeNull();
   });
@@ -129,7 +139,9 @@ describe('request flags', () => {
     expect(laptopHasAssignedUnit({ assigned_model: 'X1' })).toBe(true);
     expect(laptopHasAssignedUnit({ assigned_age: '1-3 years' })).toBe(true);
     expect(laptopHasAssignedUnit({})).toBe(false);
-    expect(laptopHasAssignedUnit({ assigned_serial_no: null, assigned_model: null, assigned_age: null })).toBe(false);
+    expect(
+      laptopHasAssignedUnit({ assigned_serial_no: null, assigned_model: null, assigned_age: null }),
+    ).toBe(false);
     // Empty strings are falsy, so a blank serial does not count as an assignment.
     expect(laptopHasAssignedUnit({ assigned_serial_no: '' })).toBe(false);
   });
@@ -148,18 +160,18 @@ describe('rejection routing (getRejectStatusForStage)', () => {
     'CM Confirm Device',
     'IT Director Approval',
     'Supply Chain Director Approval',
-  ])('bounces %s back to the IT Manager', status => {
+  ])('bounces %s back to the IT Manager', (status) => {
     expect(getRejectStatusForStage(status)).toBe('IT Approval');
   });
 
   it.each<LaptopRequestStatus>(['Submitted', 'IT Approval', 'Procure New Details'])(
     'gives the IT Manager nothing to bounce back to at %s',
-    status => {
+    (status) => {
       expect(getRejectStatusForStage(status)).toBeNull();
     },
   );
 
-  it.each(TERMINAL_STATUSES)('cannot reject the terminal status %s', status => {
+  it.each(TERMINAL_STATUSES)('cannot reject the terminal status %s', (status) => {
     expect(getRejectStatusForStage(status)).toBeNull();
   });
 });
@@ -177,7 +189,7 @@ describe('stage and permission resolvers', () => {
     expect(getLaptopApprovalStage(status)).toBe(stage);
   });
 
-  it.each(TERMINAL_STATUSES)('has no owning stage for the terminal status %s', status => {
+  it.each(TERMINAL_STATUSES)('has no owning stage for the terminal status %s', (status) => {
     expect(getLaptopApprovalStage(status)).toBeNull();
   });
 
@@ -193,7 +205,7 @@ describe('stage and permission resolvers', () => {
     expect(getRequiredPermissionForStage(status)).toBe(permission);
   });
 
-  it.each(TERMINAL_STATUSES)('requires no permission on the terminal status %s', status => {
+  it.each(TERMINAL_STATUSES)('requires no permission on the terminal status %s', (status) => {
     expect(getRequiredPermissionForStage(status)).toBeNull();
   });
 
@@ -227,12 +239,19 @@ describe('available actions (getLaptopAvailableActions)', () => {
   });
 
   it('hides "mark repaired" for a New Employee request (there is no device to repair)', () => {
-    expect(getLaptopAvailableActions(true, 'IT Approval', false, false, 'New Employee').canMarkRepaired).toBe(false);
-    expect(getLaptopAvailableActions(true, 'IT Approval', false, false, 'Upgrade/Replacement').canMarkRepaired).toBe(
+    expect(
+      getLaptopAvailableActions(true, 'IT Approval', false, false, 'New Employee').canMarkRepaired,
+    ).toBe(false);
+    expect(
+      getLaptopAvailableActions(true, 'IT Approval', false, false, 'Upgrade/Replacement')
+        .canMarkRepaired,
+    ).toBe(true);
+    expect(
+      getLaptopAvailableActions(true, 'IT Approval', false, false, 'Unit').canMarkRepaired,
+    ).toBe(true);
+    expect(getLaptopAvailableActions(true, 'IT Approval', false, false, null).canMarkRepaired).toBe(
       true,
     );
-    expect(getLaptopAvailableActions(true, 'IT Approval', false, false, 'Unit').canMarkRepaired).toBe(true);
-    expect(getLaptopAvailableActions(true, 'IT Approval', false, false, null).canMarkRepaired).toBe(true);
   });
 
   it('offers "procure new" only to the Country Manager, and only once', () => {
@@ -241,12 +260,22 @@ describe('available actions (getLaptopAvailableActions)', () => {
     expect(getLaptopAvailableActions(true, 'CM Approval', true, false).canProcureNew).toBe(true);
     // Already flagged — nothing left to flag.
     expect(getLaptopAvailableActions(true, 'CM Approval', false, true).canProcureNew).toBe(false);
-    expect(getLaptopAvailableActions(true, 'CM Confirm Device', false, false).canProcureNew).toBe(false);
-    expect(getLaptopAvailableActions(true, 'IT Director Approval', false, false).canProcureNew).toBe(false);
+    expect(getLaptopAvailableActions(true, 'CM Confirm Device', false, false).canProcureNew).toBe(
+      false,
+    );
+    expect(
+      getLaptopAvailableActions(true, 'IT Director Approval', false, false).canProcureNew,
+    ).toBe(false);
   });
 
   it('gives the IT Manager only the device-details action at Procure New Details', () => {
-    const actions = getLaptopAvailableActions(true, 'Procure New Details', false, true, 'Upgrade/Replacement');
+    const actions = getLaptopAvailableActions(
+      true,
+      'Procure New Details',
+      false,
+      true,
+      'Upgrade/Replacement',
+    );
     expect(actions.canSubmitProcureDetails).toBe(true);
     expect(actions.nextStatus).toBeNull();
     expect(actions.canApprove).toBe(false);
@@ -268,7 +297,9 @@ describe('available actions (getLaptopAvailableActions)', () => {
     expect(getLaptopAvailableActions(true, 'Submitted').ownerLabel).toBe('IT Manager');
     expect(getLaptopAvailableActions(true, 'CM Approval').ownerLabel).toBe('Country Manager');
     expect(getLaptopAvailableActions(true, 'IT Director Approval').ownerLabel).toBe('IT Director');
-    expect(getLaptopAvailableActions(true, 'Supply Chain Director Approval').ownerLabel).toBe('Supply Chain Director');
+    expect(getLaptopAvailableActions(true, 'Supply Chain Director Approval').ownerLabel).toBe(
+      'Supply Chain Director',
+    );
     expect(getLaptopAvailableActions(true, 'Approved').ownerLabel).toBe('No active owner');
   });
 
@@ -320,11 +351,11 @@ describe('permission profiles and access views', () => {
       'canReviewScmDirector',
     ] as const;
     for (const role of APPROVER_MATRIX_ROLES) {
-      expect(keys.filter(k => PERMISSION_PROFILES[role][k]).length).toBe(1);
+      expect(keys.filter((k) => PERMISSION_PROFILES[role][k]).length).toBe(1);
     }
-    expect(keys.filter(k => PERMISSION_PROFILES.Admin[k]).length).toBe(keys.length);
-    expect(keys.filter(k => PERMISSION_PROFILES.Requester[k]).length).toBe(0);
-    expect(keys.filter(k => PERMISSION_PROFILES.Viewer[k]).length).toBe(0);
+    expect(keys.filter((k) => PERMISSION_PROFILES.Admin[k]).length).toBe(keys.length);
+    expect(keys.filter((k) => PERMISSION_PROFILES.Requester[k]).length).toBe(0);
+    expect(keys.filter((k) => PERMISSION_PROFILES.Viewer[k]).length).toBe(0);
   });
 
   it('gives the read-only Viewer sight of everything but authority over nothing', () => {
@@ -349,19 +380,19 @@ describe('permission profiles and access views', () => {
 
   const views: LaptopAccessView[] = ['requester', 'viewer', 'reviewer', 'admin'];
 
-  it.each(views)('gates the admin pages for the %s view', view => {
+  it.each(views)('gates the admin pages for the %s view', (view) => {
     expect(canUseLaptopAdmin(view)).toBe(view === 'admin');
   });
 
-  it.each(views)('gates analytics for the %s view', view => {
+  it.each(views)('gates analytics for the %s view', (view) => {
     expect(canUseLaptopAnalytics(view)).toBe(view !== 'requester');
   });
 
-  it.each(views)('opens the operational pages to the %s view', view => {
+  it.each(views)('opens the operational pages to the %s view', (view) => {
     expect(canUseLaptopOperationalPages(view)).toBe(true);
   });
 
-  it.each(views)('gates the reviewer queue for the %s view', view => {
+  it.each(views)('gates the reviewer queue for the %s view', (view) => {
     // Viewer is deliberately excluded: it holds no approval authority.
     expect(canUseLaptopReviewerQueue(view)).toBe(view === 'reviewer' || view === 'admin');
   });
@@ -472,7 +503,7 @@ describe('status catalogue invariants', () => {
   });
 
   it('keeps the workflow steps in strictly increasing order', () => {
-    const indexes = WORKFLOW_STEPS.map(s => getWorkflowStepIndex(s.status));
+    const indexes = WORKFLOW_STEPS.map((s) => getWorkflowStepIndex(s.status));
     expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
     expect(new Set(indexes).size).toBe(indexes.length);
   });

@@ -68,9 +68,10 @@ function credentials(style: PoolEnvStyle): Credentials {
         port: Number(process.env.POSTGRES_PORT || process.env.DB_PORT) || 5432,
         user: process.env.POSTGRES_USER || process.env.DB_USER,
         password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD,
-        ssl: (process.env.PGSSL === 'true' || process.env.DB_SSL === 'true')
-          ? { rejectUnauthorized: false }
-          : false,
+        ssl:
+          process.env.PGSSL === 'true' || process.env.DB_SSL === 'true'
+            ? { rejectUnauthorized: false }
+            : false,
       };
     // Everything else: the platform-standard names only.
     default:

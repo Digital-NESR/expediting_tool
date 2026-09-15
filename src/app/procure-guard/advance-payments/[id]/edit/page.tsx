@@ -23,8 +23,11 @@ export default async function EditAdvancePaymentPage({ params }: PageProps) {
   const data = await getProcureGuardRequestDetail('advance', numericId);
   if (!data || !('advance_purpose' in data.request)) notFound();
 
-  const ownsRequest = data.request.requested_by_email.toLowerCase() === data.actor.email.toLowerCase();
-  const canEdit = (data.request.status === 'Submitted' || data.request.status === 'Rejected') && (ownsRequest || data.actor.permissions.canManageData);
+  const ownsRequest =
+    data.request.requested_by_email.toLowerCase() === data.actor.email.toLowerCase();
+  const canEdit =
+    (data.request.status === 'Submitted' || data.request.status === 'Rejected') &&
+    (ownsRequest || data.actor.permissions.canManageData);
 
   if (!canEdit) redirect(`/procure-guard/advance-payments/${numericId}`);
 

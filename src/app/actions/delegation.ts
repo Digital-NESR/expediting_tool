@@ -17,7 +17,13 @@ const { sql } = createSqlHelpers(delegationPool);
 
 function isExpectedMissingDb(err: unknown): boolean {
   const code = (err as { code?: string } | null)?.code;
-  return code === '3D000' || code === '42P01' || code === '57P03' || code === 'ECONNREFUSED' || code === 'ENOTFOUND';
+  return (
+    code === '3D000' ||
+    code === '42P01' ||
+    code === '57P03' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND'
+  );
 }
 
 let schemaPromise: Promise<void> | null = null;
@@ -39,7 +45,9 @@ async function ensureDelegationSchema(): Promise<void> {
       created_by TEXT,
       revoked_at TIMESTAMPTZ
     )`);
-    await delegationPool.query(`CREATE INDEX IF NOT EXISTS idx_delegations_delegate ON delegations (LOWER(delegate_email))`);
+    await delegationPool.query(
+      `CREATE INDEX IF NOT EXISTS idx_delegations_delegate ON delegations (LOWER(delegate_email))`,
+    );
   })().catch((err) => {
     schemaPromise = null;
     throw err;
@@ -68,7 +76,11 @@ export async function getDelegatorsForApp(
     const rows = asSerialised<DelegationRow[]>(result);
     return rows.map((r) => ({ email: r.delegator_email, name: r.delegator_name }));
   } catch (err) {
-    if (!isExpectedMissingDb(err)) console.warn('[delegation] resolver degraded to no-delegation:', (err as Error)?.message ?? err);
+    if (!isExpectedMissingDb(err))
+      console.warn(
+        '[delegation] resolver degraded to no-delegation:',
+        (err as Error)?.message ?? err,
+      );
     return [];
   }
 }

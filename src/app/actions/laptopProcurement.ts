@@ -95,11 +95,19 @@ const { sql, exec } = createSqlHelpers(laptopProcurementPool);
 // client. Everything inside a withTransaction callback has to go through these —
 // sql()/exec() reach for the pool, so they'd run on a different connection, outside
 // the transaction, and would not roll back with it.
-function sqlTx<T extends QueryResultRow[]>(client: PoolClient, statement: string, params: QueryParams = []): Promise<T> {
+function sqlTx<T extends QueryResultRow[]>(
+  client: PoolClient,
+  statement: string,
+  params: QueryParams = [],
+): Promise<T> {
   return createSqlHelpers(client).sql<T>(statement, params);
 }
 
-function execTx(client: PoolClient, statement: string, params: QueryParams = []): Promise<ExecResult> {
+function execTx(
+  client: PoolClient,
+  statement: string,
+  params: QueryParams = [],
+): Promise<ExecResult> {
   return createSqlHelpers(client).exec(statement, params);
 }
 
@@ -123,13 +131,16 @@ function isLaptopConsoleAdminEmail(email: string | null | undefined): boolean {
 function laptopProcurementAdminEmails(): string[] {
   return (process.env.LAPTOP_PROCUREMENT_ADMIN_EMAILS ?? '')
     .split(',')
-    .map(e => e.trim().toLowerCase())
+    .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 }
 
 async function getPermissionRowForEmail(email: string): Promise<LaptopPermissionRow | null> {
   try {
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions WHERE email = ? LIMIT 1`, [email]);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_permissions WHERE email = ? LIMIT 1`,
+      [email],
+    );
     return rows[0] ? asSerialised<LaptopPermissionRow>(rows[0]) : null;
   } catch (err) {
     console.error('[laptop getPermissionRowForEmail]', err);
@@ -143,10 +154,20 @@ async function getPermissionRowForEmail(email: string): Promise<LaptopPermission
 // those stages across different countries, which a single role+country permission row
 // could never express — e.g. Country Manager for one country and Supply Chain
 // Director broadly.
-const APPROVAL_STAGES: LaptopApprovalStage[] = ['IT Manager', 'Country Manager', 'IT Director', 'Supply Chain Director'];
+const APPROVAL_STAGES: LaptopApprovalStage[] = [
+  'IT Manager',
+  'Country Manager',
+  'IT Director',
+  'Supply Chain Director',
+];
 
 function emptyMatrixCapabilities(): Record<LaptopApprovalStage, string[]> {
-  return { 'IT Manager': [], 'Country Manager': [], 'IT Director': [], 'Supply Chain Director': [] };
+  return {
+    'IT Manager': [],
+    'Country Manager': [],
+    'IT Director': [],
+    'Supply Chain Director': [],
+  };
 }
 
 // laptop_approver_matrix predates this app's incremental-migration pattern (its
@@ -156,8 +177,12 @@ let laptopApproverMatrixColumnsEnsured: Promise<void> | null = null;
 async function ensureLaptopApproverMatrixColumns(): Promise<void> {
   if (laptopApproverMatrixColumnsEnsured) return laptopApproverMatrixColumnsEnsured;
   laptopApproverMatrixColumnsEnsured = (async () => {
-    await exec(`ALTER TABLE laptop_approver_matrix ADD COLUMN IF NOT EXISTS it_manager_3_name TEXT`);
-    await exec(`ALTER TABLE laptop_approver_matrix ADD COLUMN IF NOT EXISTS it_manager_3_email TEXT`);
+    await exec(
+      `ALTER TABLE laptop_approver_matrix ADD COLUMN IF NOT EXISTS it_manager_3_name TEXT`,
+    );
+    await exec(
+      `ALTER TABLE laptop_approver_matrix ADD COLUMN IF NOT EXISTS it_manager_3_email TEXT`,
+    );
   })().catch((err) => {
     laptopApproverMatrixColumnsEnsured = null;
     throw err;
@@ -174,7 +199,9 @@ let laptopPermissionsRoleConstraintEnsured: Promise<void> | null = null;
 async function ensureLaptopPermissionsRoleConstraint(): Promise<void> {
   if (laptopPermissionsRoleConstraintEnsured) return laptopPermissionsRoleConstraintEnsured;
   laptopPermissionsRoleConstraintEnsured = (async () => {
-    await exec(`ALTER TABLE laptop_permissions DROP CONSTRAINT IF EXISTS laptop_permissions_role_check`);
+    await exec(
+      `ALTER TABLE laptop_permissions DROP CONSTRAINT IF EXISTS laptop_permissions_role_check`,
+    );
     await exec(
       `ALTER TABLE laptop_permissions ADD CONSTRAINT laptop_permissions_role_check
        CHECK (role IN ('Requester', 'Analyst', 'Read Only', 'IT Manager', 'Country Manager', 'IT Director', 'Supply Chain Director', 'Admin', 'Viewer'))`,
@@ -186,15 +213,24 @@ async function ensureLaptopPermissionsRoleConstraint(): Promise<void> {
   return laptopPermissionsRoleConstraintEnsured;
 }
 
-async function getApproverMatrixCapabilities(email: string): Promise<Record<LaptopApprovalStage, string[]>> {
+async function getApproverMatrixCapabilities(
+  email: string,
+): Promise<Record<LaptopApprovalStage, string[]>> {
   const capabilities = emptyMatrixCapabilities();
   const target = email.trim().toLowerCase();
   if (!target) return capabilities;
   try {
     await ensureLaptopApproverMatrixColumns();
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix WHERE is_active = TRUE`);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_approver_matrix WHERE is_active = TRUE`,
+    );
     const add = (stage: LaptopApprovalStage, matrixEmail: unknown, country: string) => {
-      if (String(matrixEmail ?? '').trim().toLowerCase() !== target) return;
+      if (
+        String(matrixEmail ?? '')
+          .trim()
+          .toLowerCase() !== target
+      )
+        return;
       capabilities[stage].push(country);
     };
     for (const row of rows) {
@@ -221,7 +257,9 @@ async function getApproverMatrixCapabilities(email: string): Promise<Record<Lapt
 // country differed only by casing or padding let its reviewer act on a request while
 // nobody was notified and the "Assigned Approvers" panel showed nobody — the approval
 // silently went nowhere.
-async function getActiveApproverMatrixForCountry(country: string | null | undefined): Promise<QueryResultRow | undefined> {
+async function getActiveApproverMatrixForCountry(
+  country: string | null | undefined,
+): Promise<QueryResultRow | undefined> {
   const rows = await sql<QueryResultRow[]>(
     `SELECT * FROM laptop_approver_matrix WHERE LOWER(TRIM(country)) = LOWER(TRIM(?)) AND is_active = TRUE LIMIT 1`,
     [country ?? null],
@@ -233,19 +271,22 @@ async function getActiveApproverMatrixForCountry(country: string | null | undefi
 // legacy spellings (EOS / Jordan / Malaysia) stay editable and a case variant lands on
 // the row that already exists instead of creating a second one beside it.
 async function existingMatrixCountries(): Promise<string[]> {
-  const rows = await sql<QueryResultRow[]>(`SELECT DISTINCT country FROM laptop_approver_matrix WHERE country IS NOT NULL`);
-  return rows.map(r => String(r.country)).filter(c => c.trim());
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT DISTINCT country FROM laptop_approver_matrix WHERE country IS NOT NULL`,
+  );
+  return rows.map((r) => String(r.country)).filter((c) => c.trim());
 }
 
 function unknownMatrixCountryError(countries: string[]): string {
-  const subject = countries.length === 1
-    ? `"${countries[0]}" is not`
-    : `${countries.map(c => `"${c}"`).join(', ')} are not`;
+  const subject =
+    countries.length === 1
+      ? `"${countries[0]}" is not`
+      : `${countries.map((c) => `"${c}"`).join(', ')} are not`;
   return `${subject} a recognised country. Pick one of the standard countries — an approver saved under a spelling nothing else matches is never notified and never shows up on a request.`;
 }
 
 function hasAnyMatrixCapability(capabilities: Record<LaptopApprovalStage, string[]>): boolean {
-  return APPROVAL_STAGES.some(stage => capabilities[stage].length > 0);
+  return APPROVAL_STAGES.some((stage) => capabilities[stage].length > 0);
 }
 
 // Admin bypasses everything (unchanged); everyone else's view-all/reject/per-stage
@@ -278,25 +319,34 @@ function buildEffectivePermissions(
     canReviewCountryManager: isAdmin || capabilities['Country Manager'].length > 0,
     canReviewItDirector: isAdmin || capabilities['IT Director'].length > 0,
     canReviewScmDirector: isAdmin || capabilities['Supply Chain Director'].length > 0,
-    accessView: isAdmin ? 'admin' : (isViewer ? 'viewer' : (hasCapability ? 'reviewer' : 'requester')),
+    accessView: isAdmin ? 'admin' : isViewer ? 'viewer' : hasCapability ? 'reviewer' : 'requester',
   };
 }
 
-function stageHasCountry(capabilities: Record<LaptopApprovalStage, string[]> | undefined, stage: LaptopApprovalStage, country: string | null | undefined): boolean {
+function stageHasCountry(
+  capabilities: Record<LaptopApprovalStage, string[]> | undefined,
+  stage: LaptopApprovalStage,
+  country: string | null | undefined,
+): boolean {
   const countries = capabilities?.[stage] ?? [];
   if (!countries.length) return false;
   const target = normaliseScopeValue(country);
-  return countries.some(c => normaliseScopeValue(c) === target);
+  return countries.some((c) => normaliseScopeValue(c) === target);
 }
 
-function anyMatrixCapabilityForCountry(capabilities: Record<LaptopApprovalStage, string[]> | undefined, country: string | null | undefined): boolean {
+function anyMatrixCapabilityForCountry(
+  capabilities: Record<LaptopApprovalStage, string[]> | undefined,
+  country: string | null | undefined,
+): boolean {
   if (!capabilities) return false;
-  return APPROVAL_STAGES.some(stage => stageHasCountry(capabilities, stage, country));
+  return APPROVAL_STAGES.some((stage) => stageHasCountry(capabilities, stage, country));
 }
 
-function allMatrixCountries(capabilities: Record<LaptopApprovalStage, string[]> | undefined): string[] {
+function allMatrixCountries(
+  capabilities: Record<LaptopApprovalStage, string[]> | undefined,
+): string[] {
   if (!capabilities) return [];
-  return [...new Set(APPROVAL_STAGES.flatMap(stage => capabilities[stage]))];
+  return [...new Set(APPROVAL_STAGES.flatMap((stage) => capabilities[stage]))];
 }
 
 // Wrapped in React's cache() so the several calls a single request makes all collapse
@@ -323,17 +373,28 @@ const getActor = cache(async (): Promise<LaptopActor> => {
     getApproverMatrixCapabilities(email),
     resolveLaptopDelegations(email),
   ]);
-  const fallbackRole: LaptopPermissionRole = laptopProcurementAdminEmails().includes(email.toLowerCase()) ? 'Admin' : 'Requester';
+  const fallbackRole: LaptopPermissionRole = laptopProcurementAdminEmails().includes(
+    email.toLowerCase(),
+  )
+    ? 'Admin'
+    : 'Requester';
   const baseRole = (permissionRow?.role ?? fallbackRole) as LaptopPermissionRole;
   // Applied even when an explicit permissions row exists, so a platform admin who also
   // holds a Requester row keeps that row's abilities and still isn't 404'd out of the
   // request details the /admin console links them to.
-  const permissions = buildEffectivePermissions(baseRole, matrixCapabilities, isLaptopConsoleAdminEmail(email));
+  const permissions = buildEffectivePermissions(
+    baseRole,
+    matrixCapabilities,
+    isLaptopConsoleAdminEmail(email),
+  );
   // Whole-page gates (Admin Panel, Analytics, Reviewer Queue) use the best access
   // tier across the actor's own role and every role they hold via delegation, so a
   // delegate can actually reach those pages — not just act on individual requests,
   // which already account for delegation separately via `delegatedFrom`.
-  const effectiveAccessView = bestAccessView([permissions.accessView, ...delegatedFrom.map(d => d.permissions.accessView)]);
+  const effectiveAccessView = bestAccessView([
+    permissions.accessView,
+    ...delegatedFrom.map((d) => d.permissions.accessView),
+  ]);
 
   return {
     email,
@@ -372,8 +433,12 @@ async function ensureLaptopDelegationTable(): Promise<void> {
     // hold. Nullable only because pre-existing rows predate this column.
     await exec(`ALTER TABLE laptop_delegations ADD COLUMN IF NOT EXISTS stage TEXT`);
     await exec(`ALTER TABLE laptop_delegations ADD COLUMN IF NOT EXISTS country TEXT`);
-    await exec(`CREATE INDEX IF NOT EXISTS idx_laptop_delegations_delegate ON laptop_delegations (LOWER(delegate_email))`);
-    await exec(`CREATE INDEX IF NOT EXISTS idx_laptop_delegations_delegator ON laptop_delegations (LOWER(delegator_email))`);
+    await exec(
+      `CREATE INDEX IF NOT EXISTS idx_laptop_delegations_delegate ON laptop_delegations (LOWER(delegate_email))`,
+    );
+    await exec(
+      `CREATE INDEX IF NOT EXISTS idx_laptop_delegations_delegator ON laptop_delegations (LOWER(delegator_email))`,
+    );
   })().catch((err) => {
     laptopDelegationTableEnsured = null;
     throw err;
@@ -394,19 +459,24 @@ async function ensureLaptopDelegationTable(): Promise<void> {
 // flag is still flipped for real by revokeLaptopDelegation.
 function applyLaptopDelegationExpiry(rows: LaptopDelegationRow[]): LaptopDelegationRow[] {
   const now = Date.now();
-  return rows
-    .map(row => {
-      if (!row.is_active || !row.expires_at) return row;
-      const expiresAt = new Date(row.expires_at).getTime();
-      if (Number.isNaN(expiresAt) || expiresAt > now) return row;
-      return { ...row, is_active: false, revoked_at: row.revoked_at ?? row.expires_at };
-    })
-    // Mirrors `ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`, but over
-    // the derived flag rather than the stored one.
-    .sort((a, b) => {
-      if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
-      return new Date(b.revoked_at ?? b.created_at).getTime() - new Date(a.revoked_at ?? a.created_at).getTime();
-    });
+  return (
+    rows
+      .map((row) => {
+        if (!row.is_active || !row.expires_at) return row;
+        const expiresAt = new Date(row.expires_at).getTime();
+        if (Number.isNaN(expiresAt) || expiresAt > now) return row;
+        return { ...row, is_active: false, revoked_at: row.revoked_at ?? row.expires_at };
+      })
+      // Mirrors `ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`, but over
+      // the derived flag rather than the stored one.
+      .sort((a, b) => {
+        if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
+        return (
+          new Date(b.revoked_at ?? b.created_at).getTime() -
+          new Date(a.revoked_at ?? a.created_at).getTime()
+        );
+      })
+  );
 }
 
 /**
@@ -424,7 +494,10 @@ function applyLaptopDelegationExpiry(rows: LaptopDelegationRow[]): LaptopDelegat
  */
 type LaptopDelegationChain = {
   /** Who should be notified in place of `email` for this stage, or null to keep `email`. */
-  resolve(email: string | null | undefined, stage: LaptopApprovalStage): { name: string | null; email: string } | null;
+  resolve(
+    email: string | null | undefined,
+    stage: LaptopApprovalStage,
+  ): { name: string | null; email: string } | null;
 };
 
 const NO_LAPTOP_DELEGATIONS: LaptopDelegationChain = { resolve: () => null };
@@ -433,7 +506,9 @@ const NO_LAPTOP_DELEGATIONS: LaptopDelegationChain = { resolve: () => null };
 // six hops along a delegation chain before it gave up.
 const LAPTOP_DELEGATION_MAX_HOPS = 6;
 
-async function loadLaptopDelegationChain(country: string | null | undefined): Promise<LaptopDelegationChain> {
+async function loadLaptopDelegationChain(
+  country: string | null | undefined,
+): Promise<LaptopDelegationChain> {
   if (!country) return NO_LAPTOP_DELEGATIONS;
   try {
     const rows = await sql<QueryResultRow[]>(
@@ -448,12 +523,17 @@ async function loadLaptopDelegationChain(country: string | null | undefined): Pr
     const byStageAndDelegator = new Map<string, { name: string | null; email: string }>();
     for (const row of rows) {
       const stage = String(row.stage ?? '');
-      const delegator = String(row.delegator_email ?? '').trim().toLowerCase();
+      const delegator = String(row.delegator_email ?? '')
+        .trim()
+        .toLowerCase();
       const delegate = String(row.delegate_email ?? '').trim();
       if (!stage || !delegator || !delegate) continue;
       const key = `${stage}|${delegator}`;
       if (byStageAndDelegator.has(key)) continue;
-      byStageAndDelegator.set(key, { name: (row.delegate_name as string | null) ?? null, email: delegate });
+      byStageAndDelegator.set(key, {
+        name: (row.delegate_name as string | null) ?? null,
+        email: delegate,
+      });
     }
     if (byStageAndDelegator.size === 0) return NO_LAPTOP_DELEGATIONS;
 
@@ -561,9 +641,12 @@ const PERMISSION_KEY_TO_STAGE: Partial<Record<LaptopPermissionKey, LaptopApprova
 };
 
 function scopedWhere(actor: LaptopActor): { where: string; params: string[] } {
-  const delegated = (actor.delegatedFrom ?? []).filter(d => d.permissions.canViewAll);
+  const delegated = (actor.delegatedFrom ?? []).filter((d) => d.permissions.canViewAll);
 
-  if (actor.permissions.canViewEveryCountry || delegated.some(d => d.permissions.canViewEveryCountry)) {
+  if (
+    actor.permissions.canViewEveryCountry ||
+    delegated.some((d) => d.permissions.canViewEveryCountry)
+  ) {
     return { where: '', params: [] };
   }
 
@@ -599,7 +682,10 @@ export async function canViewLaptopRequest(requestId: number): Promise<boolean> 
     const actor = await getActor();
     const scope = scopedWhere(actor);
     const where = scope.where ? `${scope.where} AND id = ?` : 'WHERE id = ?';
-    const rows = await sql<QueryResultRow[]>(`SELECT id FROM laptop_requests ${where}`, [...scope.params, requestId]);
+    const rows = await sql<QueryResultRow[]>(`SELECT id FROM laptop_requests ${where}`, [
+      ...scope.params,
+      requestId,
+    ]);
     return rows.length > 0;
   } catch (err) {
     console.error('[canViewLaptopRequest]', err);
@@ -611,27 +697,50 @@ export async function canViewLaptopRequest(requestId: number): Promise<boolean> 
 // approver-matrix capabilities.
 function laptopActingIdentities(actor: LaptopActor): LaptopDelegationGrant[] {
   return [
-    { email: actor.email, name: actor.name, role: actor.role, permissions: actor.permissions, matrixCapabilities: actor.matrixCapabilities },
+    {
+      email: actor.email,
+      name: actor.name,
+      role: actor.role,
+      permissions: actor.permissions,
+      matrixCapabilities: actor.matrixCapabilities,
+    },
     ...(actor.delegatedFrom ?? []),
   ];
 }
 
-function getScopedActions(actor: LaptopActor, request: {
-  status: LaptopRequestStatus;
-  request_type?: string | null;
-  country?: string | null;
-  assigned_serial_no?: string | null;
-  assigned_model?: string | null;
-  assigned_age?: string | null;
-  procure_new_requested?: boolean | null;
-}) {
+function getScopedActions(
+  actor: LaptopActor,
+  request: {
+    status: LaptopRequestStatus;
+    request_type?: string | null;
+    country?: string | null;
+    assigned_serial_no?: string | null;
+    assigned_model?: string | null;
+    assigned_age?: string | null;
+    procure_new_requested?: boolean | null;
+  },
+) {
   const hasAssignedUnit = laptopHasAssignedUnit(request);
   const isProcureNewFlow = laptopIsProcureNewFlow(request);
   const requiredStage = getLaptopApprovalStage(request.status);
-  const ownsCurrentStep = Boolean(requiredStage) && laptopActingIdentities(actor).some(id =>
-    id.role === 'Admin' || stageHasCountry(id.matrixCapabilities, requiredStage as LaptopApprovalStage, request.country),
+  const ownsCurrentStep =
+    Boolean(requiredStage) &&
+    laptopActingIdentities(actor).some(
+      (id) =>
+        id.role === 'Admin' ||
+        stageHasCountry(
+          id.matrixCapabilities,
+          requiredStage as LaptopApprovalStage,
+          request.country,
+        ),
+    );
+  return getLaptopAvailableActions(
+    ownsCurrentStep,
+    request.status,
+    hasAssignedUnit,
+    isProcureNewFlow,
+    request.request_type,
   );
-  return getLaptopAvailableActions(ownsCurrentStep, request.status, hasAssignedUnit, isProcureNewFlow, request.request_type);
 }
 
 /**
@@ -646,7 +755,11 @@ function resolveLaptopActing(
   requiredPermission: LaptopPermissionKey,
   needsReject: boolean,
   request: { country?: string | null },
-): { allowed: boolean; reason: 'permission' | 'reject' | 'scope' | null; onBehalfOf: string | null } {
+): {
+  allowed: boolean;
+  reason: 'permission' | 'reject' | 'scope' | null;
+  onBehalfOf: string | null;
+} {
   let sawPermission = false;
   let sawReject = true;
   const stage = PERMISSION_KEY_TO_STAGE[requiredPermission];
@@ -659,7 +772,9 @@ function resolveLaptopActing(
       sawReject = false;
       continue;
     }
-    const inScope = id.role === 'Admin' || (stage ? stageHasCountry(id.matrixCapabilities, stage, request.country) : false);
+    const inScope =
+      id.role === 'Admin' ||
+      (stage ? stageHasCountry(id.matrixCapabilities, stage, request.country) : false);
     if (inScope) {
       return { allowed: true, reason: null, onBehalfOf: i === 0 ? null : id.name };
     }
@@ -734,15 +849,20 @@ async function requireAdminActor(): Promise<LaptopActor> {
  * behind naming who holds what, instead of applying invisibly to every admin action.
  */
 function canBootstrapOwnLaptopPermission(actor: LaptopActor, targetEmail: string): boolean {
-  return isLaptopConsoleAdminEmail(actor.email)
-    && normalizeEmail(targetEmail) === normalizeEmail(actor.email);
+  return (
+    isLaptopConsoleAdminEmail(actor.email) &&
+    normalizeEmail(targetEmail) === normalizeEmail(actor.email)
+  );
 }
 
 /* ── n8n webhooks (mirrors ProcureGuard's notifier) ───────────── */
 
 function stripEnvQuotes(value: string): string {
   const trimmed = value.trim();
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
     return trimmed.slice(1, -1);
   }
   return trimmed;
@@ -750,12 +870,15 @@ function stripEnvQuotes(value: string): string {
 
 function isTlsCertificateError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err ?? '');
-  const code = typeof err === 'object' && err && 'code' in err ? String((err as { code?: unknown }).code) : '';
-  return code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
-    || code === 'SELF_SIGNED_CERT_IN_CHAIN'
-    || code === 'DEPTH_ZERO_SELF_SIGNED_CERT'
-    || message.toLowerCase().includes('unable to verify')
-    || message.toLowerCase().includes('self-signed certificate');
+  const code =
+    typeof err === 'object' && err && 'code' in err ? String((err as { code?: unknown }).code) : '';
+  return (
+    code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+    code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
+    code === 'DEPTH_ZERO_SELF_SIGNED_CERT' ||
+    message.toLowerCase().includes('unable to verify') ||
+    message.toLowerCase().includes('self-signed certificate')
+  );
 }
 
 function laptopWebhookErrorMessage(err: unknown): string {
@@ -766,7 +889,8 @@ function laptopWebhookErrorMessage(err: unknown): string {
 }
 
 function getLaptopAppBaseUrl(): string {
-  const configured = process.env.CLIENT_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:4001';
+  const configured =
+    process.env.CLIENT_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:4001';
   return stripEnvQuotes(configured).replace(/\/$/, '');
 }
 
@@ -775,7 +899,7 @@ function getLaptopAppBaseUrl(): string {
 // delegate, in case they somehow resolve to the same address.
 function dedupeLaptopRecipients<T extends { email: string }>(recipients: T[]): T[] {
   const seen = new Set<string>();
-  return recipients.filter(r => {
+  return recipients.filter((r) => {
     const key = r.email.toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
@@ -787,7 +911,11 @@ function dedupeLaptopRecipients<T extends { email: string }>(recipients: T[]): T
 // literally 'true'. Anything else — unset, empty, typo'd — means real recipients, so a
 // misconfigured production deploy can never silently divert approver mail to a test inbox.
 function isLaptopEmailTestMode(): boolean {
-  return stripEnvQuotes(process.env.LAPTOP_APPROVAL_EMAIL_TEST_MODE ?? '').trim().toLowerCase() === 'true';
+  return (
+    stripEnvQuotes(process.env.LAPTOP_APPROVAL_EMAIL_TEST_MODE ?? '')
+      .trim()
+      .toLowerCase() === 'true'
+  );
 }
 
 // Test-mode addresses come from env only — there are deliberately no fallbacks, so a
@@ -797,26 +925,49 @@ function requireLaptopTestEmail(varName: string): string {
   if (!value) {
     throw new Error(
       `LAPTOP_APPROVAL_EMAIL_TEST_MODE is enabled but ${varName} is not set. ` +
-      `Set ${varName} to a test inbox, or set LAPTOP_APPROVAL_EMAIL_TEST_MODE=false to notify the real approvers.`,
+        `Set ${varName} to a test inbox, or set LAPTOP_APPROVAL_EMAIL_TEST_MODE=false to notify the real approvers.`,
     );
   }
   return value;
 }
 
 // The per-stage test roster, shared by the approval-chain and final-approval notifications.
-function laptopTestStageCandidates(stage: LaptopApprovalStage): Array<{ name: string; email: string }> {
+function laptopTestStageCandidates(
+  stage: LaptopApprovalStage,
+): Array<{ name: string; email: string }> {
   switch (stage) {
     case 'IT Manager':
       return [
-        { name: 'IT Manager (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL') },
-        { name: 'IT Manager 2 (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL') },
+        {
+          name: 'IT Manager (test)',
+          email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_IT_MANAGER_EMAIL'),
+        },
+        {
+          name: 'IT Manager 2 (test)',
+          email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_IT_MANAGER_2_EMAIL'),
+        },
       ];
     case 'Country Manager':
-      return [{ name: 'Country Manager (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_CM_EMAIL') }];
+      return [
+        {
+          name: 'Country Manager (test)',
+          email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_CM_EMAIL'),
+        },
+      ];
     case 'IT Director':
-      return [{ name: 'IT Director (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_ITD_EMAIL') }];
+      return [
+        {
+          name: 'IT Director (test)',
+          email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_ITD_EMAIL'),
+        },
+      ];
     case 'Supply Chain Director':
-      return [{ name: 'Supply Chain Director (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_SCD_EMAIL') }];
+      return [
+        {
+          name: 'Supply Chain Director (test)',
+          email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_SCD_EMAIL'),
+        },
+      ];
   }
 }
 
@@ -844,7 +995,11 @@ function deferLaptopNotifications(label: string, run: () => Promise<void>): void
     try {
       await run();
     } catch (err) {
-      console.error(`[Laptop Procurement n8n] Deferred notification failed (${label})`, laptopWebhookErrorMessage(err), err);
+      console.error(
+        `[Laptop Procurement n8n] Deferred notification failed (${label})`,
+        laptopWebhookErrorMessage(err),
+        err,
+      );
     }
   });
 }
@@ -859,24 +1014,31 @@ async function postLaptopWebhook(
   const isHttps = url.protocol === 'https:';
 
   return new Promise((resolve, reject) => {
-    const req = (isHttps ? httpsRequest : httpRequest)({
-      method: 'POST',
-      protocol: url.protocol,
-      hostname: url.hostname,
-      port: url.port ? Number(url.port) : undefined,
-      path: `${url.pathname}${url.search}`,
-      headers: {
-        ...headers,
-        'Content-Length': Buffer.byteLength(body),
+    const req = (isHttps ? httpsRequest : httpRequest)(
+      {
+        method: 'POST',
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port ? Number(url.port) : undefined,
+        path: `${url.pathname}${url.search}`,
+        headers: {
+          ...headers,
+          'Content-Length': Buffer.byteLength(body),
+        },
+        rejectUnauthorized: isHttps ? false : undefined,
       },
-      rejectUnauthorized: isHttps ? false : undefined,
-    }, response => {
-      response.resume();
-      response.on('end', () => {
-        const status = response.statusCode ?? 0;
-        resolve({ ok: status >= 200 && status < 300, status, statusText: response.statusMessage ?? '' });
-      });
-    });
+      (response) => {
+        response.resume();
+        response.on('end', () => {
+          const status = response.statusCode ?? 0;
+          resolve({
+            ok: status >= 200 && status < 300,
+            status,
+            statusText: response.statusMessage ?? '',
+          });
+        });
+      },
+    );
 
     req.setTimeout(15000, () => {
       req.destroy(new Error('Laptop Procurement n8n webhook timed out.'));
@@ -901,7 +1063,9 @@ async function sendLaptopDelegationNotification(
 ): Promise<void> {
   const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_DELEGATION_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn('[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_DELEGATION_WEBHOOK_URL not configured; skipping delegation notification.');
+    console.warn(
+      '[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_DELEGATION_WEBHOOK_URL not configured; skipping delegation notification.',
+    );
     return;
   }
   try {
@@ -910,7 +1074,10 @@ async function sendLaptopDelegationNotification(
     if (secret) headers['x-laptop-procurement-secret'] = secret;
 
     const payload = {
-      event: kind === 'granted' ? 'laptop_procurement.delegation_granted' : 'laptop_procurement.delegation_revoked',
+      event:
+        kind === 'granted'
+          ? 'laptop_procurement.delegation_granted'
+          : 'laptop_procurement.delegation_revoked',
       occurred_at: new Date().toISOString(),
       delegator: { email: params.delegatorEmail, name: params.delegatorName },
       delegate: { email: params.delegateEmail, name: params.delegateName },
@@ -920,12 +1087,23 @@ async function sendLaptopDelegationNotification(
     };
     const response = await postLaptopWebhook(webhookUrl, headers, payload);
     if (!response.ok) {
-      console.error('[Laptop Procurement n8n] Delegation webhook failed', response.status, response.statusText);
+      console.error(
+        '[Laptop Procurement n8n] Delegation webhook failed',
+        response.status,
+        response.statusText,
+      );
     } else {
-      console.log('[Laptop Procurement n8n] Delegation webhook sent', { kind, status: response.status });
+      console.log('[Laptop Procurement n8n] Delegation webhook sent', {
+        kind,
+        status: response.status,
+      });
     }
   } catch (err) {
-    console.error('[Laptop Procurement n8n] Delegation webhook failed', laptopWebhookErrorMessage(err), err);
+    console.error(
+      '[Laptop Procurement n8n] Delegation webhook failed',
+      laptopWebhookErrorMessage(err),
+      err,
+    );
   }
 }
 
@@ -939,7 +1117,9 @@ async function sendLaptopDelegationNotification(
 async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
   const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn('[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL not configured; skipping approval-chain notification.');
+    console.warn(
+      '[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL not configured; skipping approval-chain notification.',
+    );
     return;
   }
   const stage = getLaptopApprovalStage(request.status);
@@ -954,15 +1134,30 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
     const matrixRecipients: Array<{ name: string | null; email: string }> =
       stage === 'IT Manager'
         ? ([
-            { name: (matrix?.it_manager_name as string) ?? null, email: matrix?.it_manager_email as string },
-            { name: (matrix?.it_manager_2_name as string) ?? null, email: matrix?.it_manager_2_email as string },
-            { name: (matrix?.it_manager_3_name as string) ?? null, email: matrix?.it_manager_3_email as string },
-          ].filter(r => r.email) as Array<{ name: string | null; email: string }>)
+            {
+              name: (matrix?.it_manager_name as string) ?? null,
+              email: matrix?.it_manager_email as string,
+            },
+            {
+              name: (matrix?.it_manager_2_name as string) ?? null,
+              email: matrix?.it_manager_2_email as string,
+            },
+            {
+              name: (matrix?.it_manager_3_name as string) ?? null,
+              email: matrix?.it_manager_3_email as string,
+            },
+          ].filter((r) => r.email) as Array<{ name: string | null; email: string }>)
         : stage === 'Country Manager'
-          ? (matrix?.cm_email ? [{ name: (matrix.cm_name as string) ?? null, email: matrix.cm_email as string }] : [])
+          ? matrix?.cm_email
+            ? [{ name: (matrix.cm_name as string) ?? null, email: matrix.cm_email as string }]
+            : []
           : stage === 'IT Director'
-            ? (matrix?.itd_email ? [{ name: (matrix.itd_name as string) ?? null, email: matrix.itd_email as string }] : [])
-            : (matrix?.scd_email ? [{ name: (matrix.scd_name as string) ?? null, email: matrix.scd_email as string }] : []);
+            ? matrix?.itd_email
+              ? [{ name: (matrix.itd_name as string) ?? null, email: matrix.itd_email as string }]
+              : []
+            : matrix?.scd_email
+              ? [{ name: (matrix.scd_name as string) ?? null, email: matrix.scd_email as string }]
+              : [];
 
     // The approver matrix is static per country — if whoever it names has delegated
     // their authority (laptop_delegations), the notification needs to follow that to
@@ -971,7 +1166,7 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
     // replaced), so they're kept in the loop even while someone else is covering for
     // them.
     const realRecipients = dedupeLaptopRecipients(
-      matrixRecipients.flatMap(r => {
+      matrixRecipients.flatMap((r) => {
         const delegate = delegations.resolve(r.email, stage);
         return delegate ? [r, { name: delegate.name, email: delegate.email }] : [r];
       }),
@@ -990,7 +1185,10 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
     const routedRecipients = testCandidates ? [testCandidates[0]] : realRecipients;
 
     if (routedRecipients.length === 0) {
-      console.warn('[Laptop Procurement n8n] No approver configured for stage; skipping notification', { stage, country: request.country });
+      console.warn(
+        '[Laptop Procurement n8n] No approver configured for stage; skipping notification',
+        { stage, country: request.country },
+      );
       return;
     }
 
@@ -1024,12 +1222,24 @@ async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
 
     const response = await postLaptopWebhook(webhookUrl, headers, payload);
     if (!response.ok) {
-      console.error('[Laptop Procurement n8n] Approval webhook failed', response.status, response.statusText);
+      console.error(
+        '[Laptop Procurement n8n] Approval webhook failed',
+        response.status,
+        response.statusText,
+      );
     } else {
-      console.log('[Laptop Procurement n8n] Approval webhook sent', { stage, requestId: request.id, status: response.status });
+      console.log('[Laptop Procurement n8n] Approval webhook sent', {
+        stage,
+        requestId: request.id,
+        status: response.status,
+      });
     }
   } catch (err) {
-    console.error('[Laptop Procurement n8n] Approval webhook failed', laptopWebhookErrorMessage(err), err);
+    console.error(
+      '[Laptop Procurement n8n] Approval webhook failed',
+      laptopWebhookErrorMessage(err),
+      err,
+    );
   }
 }
 
@@ -1049,7 +1259,9 @@ async function notifyLaptopFinalApproval(request: LaptopRequest): Promise<void> 
   // meant to also serve this notification's different purpose/wording.
   const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_FINAL_APPROVAL_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn('[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_FINAL_APPROVAL_WEBHOOK_URL not configured; skipping final-approval notification.');
+    console.warn(
+      '[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_FINAL_APPROVAL_WEBHOOK_URL not configured; skipping final-approval notification.',
+    );
     return;
   }
 
@@ -1058,14 +1270,23 @@ async function notifyLaptopFinalApproval(request: LaptopRequest): Promise<void> 
       getActiveApproverMatrixForCountry(request.country),
       loadLaptopDelegationChain(request.country),
     ]);
-    const itManagerCandidates: Array<{ name: string | null; email: string }> = ([
-      { name: (matrix?.it_manager_name as string) ?? null, email: matrix?.it_manager_email as string },
-      { name: (matrix?.it_manager_2_name as string) ?? null, email: matrix?.it_manager_2_email as string },
-      { name: (matrix?.it_manager_3_name as string) ?? null, email: matrix?.it_manager_3_email as string },
-    ].filter(r => r.email) as Array<{ name: string | null; email: string }>);
+    const itManagerCandidates: Array<{ name: string | null; email: string }> = [
+      {
+        name: (matrix?.it_manager_name as string) ?? null,
+        email: matrix?.it_manager_email as string,
+      },
+      {
+        name: (matrix?.it_manager_2_name as string) ?? null,
+        email: matrix?.it_manager_2_email as string,
+      },
+      {
+        name: (matrix?.it_manager_3_name as string) ?? null,
+        email: matrix?.it_manager_3_email as string,
+      },
+    ].filter((r) => r.email) as Array<{ name: string | null; email: string }>;
 
     const realRecipients = dedupeLaptopRecipients(
-      itManagerCandidates.flatMap(r => {
+      itManagerCandidates.flatMap((r) => {
         const delegate = delegations.resolve(r.email, 'IT Manager');
         return delegate ? [r, { name: delegate.name, email: delegate.email }] : [r];
       }),
@@ -1080,7 +1301,10 @@ async function notifyLaptopFinalApproval(request: LaptopRequest): Promise<void> 
     );
 
     if (recipients.length === 0) {
-      console.warn('[Laptop Procurement n8n] No IT Manager configured; skipping final-approval notification', { country: request.country });
+      console.warn(
+        '[Laptop Procurement n8n] No IT Manager configured; skipping final-approval notification',
+        { country: request.country },
+      );
       return;
     }
 
@@ -1112,12 +1336,23 @@ async function notifyLaptopFinalApproval(request: LaptopRequest): Promise<void> 
 
     const response = await postLaptopWebhook(webhookUrl, headers, payload);
     if (!response.ok) {
-      console.error('[Laptop Procurement n8n] Final-approval webhook failed', response.status, response.statusText);
+      console.error(
+        '[Laptop Procurement n8n] Final-approval webhook failed',
+        response.status,
+        response.statusText,
+      );
     } else {
-      console.log('[Laptop Procurement n8n] Final-approval webhook sent', { requestId: request.id, status: response.status });
+      console.log('[Laptop Procurement n8n] Final-approval webhook sent', {
+        requestId: request.id,
+        status: response.status,
+      });
     }
   } catch (err) {
-    console.error('[Laptop Procurement n8n] Final-approval webhook failed', laptopWebhookErrorMessage(err), err);
+    console.error(
+      '[Laptop Procurement n8n] Final-approval webhook failed',
+      laptopWebhookErrorMessage(err),
+      err,
+    );
   }
 }
 
@@ -1143,7 +1378,9 @@ async function notifyLaptopRequesterUpdate(
 
   const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_REQUESTER_UPDATE_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn('[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_REQUESTER_UPDATE_WEBHOOK_URL not configured; skipping requester update.');
+    console.warn(
+      '[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_REQUESTER_UPDATE_WEBHOOK_URL not configured; skipping requester update.',
+    );
     return;
   }
 
@@ -1154,7 +1391,10 @@ async function notifyLaptopRequesterUpdate(
 
     const testMode = isLaptopEmailTestMode();
     const recipient = testMode
-      ? { name: 'Requester (test)', email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_REQUESTER_EMAIL') }
+      ? {
+          name: 'Requester (test)',
+          email: requireLaptopTestEmail('LAPTOP_APPROVAL_TEST_REQUESTER_EMAIL'),
+        }
       : { name: request.requested_by_name, email: request.requested_by_email };
 
     const payload = {
@@ -1181,12 +1421,24 @@ async function notifyLaptopRequesterUpdate(
 
     const response = await postLaptopWebhook(webhookUrl, headers, payload);
     if (!response.ok) {
-      console.error('[Laptop Procurement n8n] Requester-update webhook failed', response.status, response.statusText);
+      console.error(
+        '[Laptop Procurement n8n] Requester-update webhook failed',
+        response.status,
+        response.statusText,
+      );
     } else {
-      console.log('[Laptop Procurement n8n] Requester-update webhook sent', { kind: params.kind, requestId: request.id, status: response.status });
+      console.log('[Laptop Procurement n8n] Requester-update webhook sent', {
+        kind: params.kind,
+        requestId: request.id,
+        status: response.status,
+      });
     }
   } catch (err) {
-    console.error('[Laptop Procurement n8n] Requester-update webhook failed', laptopWebhookErrorMessage(err), err);
+    console.error(
+      '[Laptop Procurement n8n] Requester-update webhook failed',
+      laptopWebhookErrorMessage(err),
+      err,
+    );
   }
 }
 
@@ -1261,11 +1513,13 @@ async function ensureLaptopReferenceUniqueIndex(): Promise<void> {
     if (duplicates.length) {
       console.error(
         '[ensureLaptopReferenceUniqueIndex] reference_number is not unique — index skipped. Duplicates:',
-        duplicates.map(d => `${d.reference_number} x${d.copies}`).join(', '),
+        duplicates.map((d) => `${d.reference_number} x${d.copies}`).join(', '),
       );
       return;
     }
-    await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_laptop_requests_reference_number ON laptop_requests (reference_number)`);
+    await exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_laptop_requests_reference_number ON laptop_requests (reference_number)`,
+    );
   })().catch((err) => {
     // Not retried: the advisory lock is what actually prevents collisions, this is
     // only the belt-and-braces. Never fail a request creation over it.
@@ -1286,7 +1540,14 @@ async function writeActivity(input: {
 }): Promise<void> {
   const statement = `INSERT INTO laptop_activity_log (request_id, reference_number, action, actor_name, actor_email, notes)
      VALUES (?, ?, ?, ?, ?, ?)`;
-  const params: QueryParams = [input.requestId, input.referenceNumber, input.action, input.actor.name, input.actor.email, input.notes ?? null];
+  const params: QueryParams = [
+    input.requestId,
+    input.referenceNumber,
+    input.action,
+    input.actor.name,
+    input.actor.email,
+    input.notes ?? null,
+  ];
   if (input.client) await execTx(input.client, statement, params);
   else await exec(statement, params);
 }
@@ -1296,7 +1557,13 @@ async function writeActivity(input: {
 // requests that are active but currently sitting at a different stage entirely.
 function isActionableForActor(actor: LaptopActor, request: LaptopRequest): boolean {
   const actions = getScopedActions(actor, request);
-  return actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canProcureNew || actions.canSubmitProcureDetails;
+  return (
+    actions.canApprove ||
+    actions.canReject ||
+    actions.canAssignInventory ||
+    actions.canProcureNew ||
+    actions.canSubmitProcureDetails
+  );
 }
 
 // Outcome-category counts computed with SQL aggregates against an optional scope
@@ -1329,13 +1596,16 @@ async function computeLaptopStats(
        ${whereClause}`,
       whereParams,
     ),
-    activeRowsProvided ?? sql<QueryResultRow[]>(
-      `SELECT * FROM laptop_requests ${whereClause ? `${whereClause} AND status IN (${activePlaceholders})` : `WHERE status IN (${activePlaceholders})`}`,
-      [...whereParams, ...APPROVAL_ACTIVE_STATUSES],
-    ),
+    activeRowsProvided ??
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_requests ${whereClause ? `${whereClause} AND status IN (${activePlaceholders})` : `WHERE status IN (${activePlaceholders})`}`,
+        [...whereParams, ...APPROVAL_ACTIVE_STATUSES],
+      ),
   ]);
   const row = rows[0] ?? {};
-  const pendingReview = asSerialised<LaptopRequest[]>(activeRows).filter(r => isActionableForActor(actor, r)).length;
+  const pendingReview = asSerialised<LaptopRequest[]>(activeRows).filter((r) =>
+    isActionableForActor(actor, r),
+  ).length;
   return {
     total: Number(row.total ?? 0),
     pending_review: pendingReview,
@@ -1350,7 +1620,9 @@ async function computeLaptopStats(
 
 // Takes only the two date columns it reads, so analytics can fetch just those rather
 // than every column of every request.
-function buildMonthlyTrend(requests: Array<Pick<LaptopRequest, 'requested_date' | 'created_at'>>): LaptopMonthlyMetric[] {
+function buildMonthlyTrend(
+  requests: Array<Pick<LaptopRequest, 'requested_date' | 'created_at'>>,
+): LaptopMonthlyMetric[] {
   const map = new Map<string, number>();
   for (const r of requests) {
     const basis = r.requested_date || r.created_at;
@@ -1447,7 +1719,8 @@ export async function getLaptopDeviceOptions(): Promise<LaptopDeviceOption[]> {
 export async function addLaptopDevice(input: CreateLaptopDeviceInput): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManageData) return { success: false, error: 'Catalog management access is required.' };
+    if (!actor.permissions.canManageData)
+      return { success: false, error: 'Catalog management access is required.' };
     const typeOfDevice = requireText(input.type_of_device, 'Type of device');
     const model = requireText(input.model, 'Model');
 
@@ -1463,16 +1736,29 @@ export async function addLaptopDevice(input: CreateLaptopDeviceInput): Promise<A
   }
 }
 
-export async function updateLaptopDevice(id: number, input: UpdateLaptopDeviceInput): Promise<ActionResult> {
+export async function updateLaptopDevice(
+  id: number,
+  input: UpdateLaptopDeviceInput,
+): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManageData) return { success: false, error: 'Catalog management access is required.' };
+    if (!actor.permissions.canManageData)
+      return { success: false, error: 'Catalog management access is required.' };
 
     const sets: string[] = [];
     const params: QueryParams = [];
-    if (input.type_of_device !== undefined) { sets.push('type_of_device = ?'); params.push(requireText(input.type_of_device, 'Type of device')); }
-    if (input.model !== undefined) { sets.push('model = ?'); params.push(requireText(input.model, 'Model')); }
-    if (input.active !== undefined) { sets.push('active = ?'); params.push(input.active); }
+    if (input.type_of_device !== undefined) {
+      sets.push('type_of_device = ?');
+      params.push(requireText(input.type_of_device, 'Type of device'));
+    }
+    if (input.model !== undefined) {
+      sets.push('model = ?');
+      params.push(requireText(input.model, 'Model'));
+    }
+    if (input.active !== undefined) {
+      sets.push('active = ?');
+      params.push(input.active);
+    }
     if (sets.length === 0) return { success: true };
 
     await exec(`UPDATE laptop_device_catalog SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
@@ -1480,14 +1766,18 @@ export async function updateLaptopDevice(id: number, input: UpdateLaptopDeviceIn
     return { success: true };
   } catch (err) {
     console.error('[updateLaptopDevice]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update device.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update device.',
+    };
   }
 }
 
 export async function deleteLaptopDevice(id: number): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManageData) return { success: false, error: 'Catalog management access is required.' };
+    if (!actor.permissions.canManageData)
+      return { success: false, error: 'Catalog management access is required.' };
     await exec(`DELETE FROM laptop_device_catalog WHERE id = ?`, [id]);
     revalidateLaptopPaths();
     return { success: true };
@@ -1526,7 +1816,9 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
     // My Work) — being in scope isn't enough, since scope includes requests already
     // past this actor's stage and sitting with someone else.
     const activePlaceholders = APPROVAL_ACTIVE_STATUSES.map(() => '?').join(', ');
-    const pendingWhere = scope.where ? `${scope.where} AND status IN (${activePlaceholders})` : `WHERE status IN (${activePlaceholders})`;
+    const pendingWhere = scope.where
+      ? `${scope.where} AND status IN (${activePlaceholders})`
+      : `WHERE status IN (${activePlaceholders})`;
 
     // One fetch of the in-scope active-approval rows, shared with computeLaptopStats
     // below — it needs exactly this set for pending_review and used to issue the very
@@ -1536,7 +1828,7 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
     const activeRequestsPromise = sql<QueryResultRow[]>(
       `SELECT * FROM laptop_requests ${pendingWhere} ORDER BY created_at DESC`,
       [...scope.params, ...APPROVAL_ACTIVE_STATUSES],
-    ).then(rows => asSerialised<LaptopRequest[]>(rows));
+    ).then((rows) => asSerialised<LaptopRequest[]>(rows));
 
     const [activeRequests, activityRows, stats] = await Promise.all([
       activeRequestsPromise,
@@ -1551,9 +1843,15 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
       computeLaptopStats(actor, scope.where, scope.params, activeRequestsPromise),
     ]);
 
-    const pendingQueue = activeRequests.slice(0, 50).filter(r => {
+    const pendingQueue = activeRequests.slice(0, 50).filter((r) => {
       const actions = getScopedActions(actor, r);
-      return actions.canApprove || actions.canReject || actions.canAssignInventory || actions.canProcureNew || actions.canSubmitProcureDetails;
+      return (
+        actions.canApprove ||
+        actions.canReject ||
+        actions.canAssignInventory ||
+        actions.canProcureNew ||
+        actions.canSubmitProcureDetails
+      );
     });
 
     return {
@@ -1584,10 +1882,17 @@ async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStag
   // Assign-from-inventory / plain-approved requests now end at Country Manager — IT
   // Director and Supply Chain Director never see them, so don't show those two as
   // having "Approved" once the request is done.
-  const endedAtCountryManager = !request.procure_new_requested &&
-    (request.status === 'Assign from Inventory' || request.status === 'Assign from Inventory & Closed' || request.status === 'Approved');
+  const endedAtCountryManager =
+    !request.procure_new_requested &&
+    (request.status === 'Assign from Inventory' ||
+      request.status === 'Assign from Inventory & Closed' ||
+      request.status === 'Approved');
 
-  function liveNameFor(matrixEmail: unknown, matrixName: unknown, stage: LaptopApprovalStage): string | null {
+  function liveNameFor(
+    matrixEmail: unknown,
+    matrixName: unknown,
+    stage: LaptopApprovalStage,
+  ): string | null {
     const email = String(matrixEmail ?? '').trim();
     if (!email) return null;
     const delegate = delegations.resolve(email, stage);
@@ -1595,9 +1900,13 @@ async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStag
     return String(matrixName ?? '').trim() || email;
   }
 
-  function stateFor(stage: LaptopApprovalStage, hasAssignee: boolean): LaptopStageAssignee['state'] {
+  function stateFor(
+    stage: LaptopApprovalStage,
+    hasAssignee: boolean,
+  ): LaptopStageAssignee['state'] {
     if (!hasAssignee) return 'none';
-    if (endedAtCountryManager && (stage === 'IT Director' || stage === 'Supply Chain Director')) return 'none';
+    if (endedAtCountryManager && (stage === 'IT Director' || stage === 'Supply Chain Director'))
+      return 'none';
     // Terminal status (approved/rejected/cancelled/...) — nothing is "pending" anymore.
     if (currentIndex === -1) return 'done';
     const stageIndex = APPROVAL_STAGES.indexOf(stage);
@@ -1606,21 +1915,64 @@ async function resolveStageAssignees(request: LaptopRequest): Promise<LaptopStag
     return 'upcoming';
   }
 
-  const slots: Array<{ label: LaptopStageAssignee['label']; stage: LaptopApprovalStage; matrixEmail: unknown; matrixName: unknown; actedName: string | null }> = [
-    { label: 'IT Manager', stage: 'IT Manager', matrixEmail: matrix?.it_manager_email, matrixName: matrix?.it_manager_name, actedName: request.it_manager },
-    { label: 'IT Manager 2', stage: 'IT Manager', matrixEmail: matrix?.it_manager_2_email, matrixName: matrix?.it_manager_2_name, actedName: null },
-    { label: 'IT Manager 3', stage: 'IT Manager', matrixEmail: matrix?.it_manager_3_email, matrixName: matrix?.it_manager_3_name, actedName: null },
-    { label: 'Country Manager', stage: 'Country Manager', matrixEmail: matrix?.cm_email, matrixName: matrix?.cm_name, actedName: request.country_manager },
-    { label: 'IT Director', stage: 'IT Director', matrixEmail: matrix?.itd_email, matrixName: matrix?.itd_name, actedName: request.it_director },
-    { label: 'Supply Chain Director', stage: 'Supply Chain Director', matrixEmail: matrix?.scd_email, matrixName: matrix?.scd_name, actedName: request.sc_director },
+  const slots: Array<{
+    label: LaptopStageAssignee['label'];
+    stage: LaptopApprovalStage;
+    matrixEmail: unknown;
+    matrixName: unknown;
+    actedName: string | null;
+  }> = [
+    {
+      label: 'IT Manager',
+      stage: 'IT Manager',
+      matrixEmail: matrix?.it_manager_email,
+      matrixName: matrix?.it_manager_name,
+      actedName: request.it_manager,
+    },
+    {
+      label: 'IT Manager 2',
+      stage: 'IT Manager',
+      matrixEmail: matrix?.it_manager_2_email,
+      matrixName: matrix?.it_manager_2_name,
+      actedName: null,
+    },
+    {
+      label: 'IT Manager 3',
+      stage: 'IT Manager',
+      matrixEmail: matrix?.it_manager_3_email,
+      matrixName: matrix?.it_manager_3_name,
+      actedName: null,
+    },
+    {
+      label: 'Country Manager',
+      stage: 'Country Manager',
+      matrixEmail: matrix?.cm_email,
+      matrixName: matrix?.cm_name,
+      actedName: request.country_manager,
+    },
+    {
+      label: 'IT Director',
+      stage: 'IT Director',
+      matrixEmail: matrix?.itd_email,
+      matrixName: matrix?.itd_name,
+      actedName: request.it_director,
+    },
+    {
+      label: 'Supply Chain Director',
+      stage: 'Supply Chain Director',
+      matrixEmail: matrix?.scd_email,
+      matrixName: matrix?.scd_name,
+      actedName: request.sc_director,
+    },
   ];
 
-  return slots.map(slot => {
+  return slots.map((slot) => {
     const hasAssignee = Boolean(String(slot.matrixEmail ?? '').trim()) || Boolean(slot.actedName);
     const state = stateFor(slot.stage, hasAssignee);
-    const name = state === 'done'
-      ? (slot.actedName || liveNameFor(slot.matrixEmail, slot.matrixName, slot.stage))
-      : liveNameFor(slot.matrixEmail, slot.matrixName, slot.stage);
+    const name =
+      state === 'done'
+        ? slot.actedName || liveNameFor(slot.matrixEmail, slot.matrixName, slot.stage)
+        : liveNameFor(slot.matrixEmail, slot.matrixName, slot.stage);
     return { label: slot.label, name: name || null, state };
   });
 }
@@ -1629,7 +1981,9 @@ export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestD
   try {
     const actor = await getActor();
     requireOperationalAccess(actor);
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
+      id,
+    ]);
     if (!rows[0]) return null;
 
     const request = asSerialised<LaptopRequest>(rows[0]);
@@ -1638,15 +1992,19 @@ export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestD
     // accounts for delegation. Every delegation grant already has canViewAll=true
     // (enforced in resolveLaptopDelegations), so only the actor's own identity ever
     // needs the "it's my own request" fallback.
-    const canView = laptopActingIdentities(actor).some(id =>
+    const canView = laptopActingIdentities(actor).some((id) =>
       id.permissions.canViewAll
-        ? (id.permissions.canViewEveryCountry || anyMatrixCapabilityForCountry(id.matrixCapabilities, request.country))
+        ? id.permissions.canViewEveryCountry ||
+          anyMatrixCapabilityForCountry(id.matrixCapabilities, request.country)
         : id.email.toLowerCase() === request.requested_by_email?.toLowerCase(),
     );
     if (!canView) return null;
 
     const [activityRows, documentRows] = await Promise.all([
-      sql<QueryResultRow[]>(`SELECT * FROM laptop_activity_log WHERE request_id = ? ORDER BY created_at DESC`, [id]),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_activity_log WHERE request_id = ? ORDER BY created_at DESC`,
+        [id],
+      ),
       sql<QueryResultRow[]>(
         `SELECT id, request_id, document_name, original_name, document_type, file_type, file_size,
                 uploaded_by_name, uploaded_by_email, uploaded_at
@@ -1680,17 +2038,27 @@ export async function getLaptopWorkQueueData(): Promise<LaptopWorkQueueData | nu
     );
     const requests = asSerialised<LaptopRequest[]>(rows);
     const items = requests
-      .map(request => ({ request, actions: getScopedActions(actor, request) }))
-      .filter(item => item.actions.canApprove || item.actions.canReject || item.actions.canAssignInventory || item.actions.canProcureNew || item.actions.canSubmitProcureDetails)
-      .sort((a, b) => new Date(a.request.created_at).getTime() - new Date(b.request.created_at).getTime());
+      .map((request) => ({ request, actions: getScopedActions(actor, request) }))
+      .filter(
+        (item) =>
+          item.actions.canApprove ||
+          item.actions.canReject ||
+          item.actions.canAssignInventory ||
+          item.actions.canProcureNew ||
+          item.actions.canSubmitProcureDetails,
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.request.created_at).getTime() - new Date(b.request.created_at).getTime(),
+      );
 
     return {
       actor,
       items,
       stats: {
         total: items.length,
-        approval: items.filter(item => item.actions.canApprove).length,
-        it_review: items.filter(item => IT_MANAGER_STATUSES.includes(item.request.status)).length,
+        approval: items.filter((item) => item.actions.canApprove).length,
+        it_review: items.filter((item) => IT_MANAGER_STATUSES.includes(item.request.status)).length,
       },
     };
   } catch (err) {
@@ -1708,7 +2076,11 @@ const APPROVER_MATRIX_ROLE_SET: Set<string> = new Set(APPROVER_MATRIX_ROLES);
 // stages maps a functional stage to slot-number -> countries, since IT Manager alone
 // can have up to 3 named slots (co-managers) for the same country — every other stage
 // only ever populates slot 1.
-type MatrixApproverAcc = { email: string; name: string | null; stages: Map<LaptopApprovalStage, Map<number, Set<string>>> };
+type MatrixApproverAcc = {
+  email: string;
+  name: string | null;
+  stages: Map<LaptopApprovalStage, Map<number, Set<string>>>;
+};
 
 // Every person named anywhere in the active approver matrix, keyed by email, with the
 // stage(s)/slot(s) and country(ies) they're the approver for — shared by the
@@ -1716,7 +2088,13 @@ type MatrixApproverAcc = { email: string; name: string | null; stages: Map<Lapto
 // tab's merged list (buildMergedPermissionsList).
 function accumulateMatrixApprovers(matrixRows: QueryResultRow[]): Map<string, MatrixApproverAcc> {
   const byEmail = new Map<string, MatrixApproverAcc>();
-  const addApprover = (rawEmail: unknown, rawName: unknown, stage: LaptopApprovalStage, slot: number, country: string) => {
+  const addApprover = (
+    rawEmail: unknown,
+    rawName: unknown,
+    stage: LaptopApprovalStage,
+    slot: number,
+    country: string,
+  ) => {
     const email = String(rawEmail ?? '').trim();
     if (!email) return;
     const key = email.toLowerCase();
@@ -1764,7 +2142,12 @@ function buildDelegatableRoles(matrixRows: QueryResultRow[]): LaptopDelegatableR
       }
     }
   }
-  return roles.sort((a, b) => a.email.localeCompare(b.email) || a.stage.localeCompare(b.stage) || a.country.localeCompare(b.country));
+  return roles.sort(
+    (a, b) =>
+      a.email.localeCompare(b.email) ||
+      a.stage.localeCompare(b.stage) ||
+      a.country.localeCompare(b.country),
+  );
 }
 
 // The Permissions tab's actual displayed list: Admin/Requester rows
@@ -1802,32 +2185,66 @@ function buildMergedPermissionsList(
     for (const [stage, slots] of entry.stages) {
       for (const [slot, countrySet] of slots) {
         const countries = [...countrySet].sort();
-        items.push({ source: 'matrix', email: entry.email, name: entry.name, role: stage, matrixSlot: slot, country: countries.join(', '), segment: null, countries });
+        items.push({
+          source: 'matrix',
+          email: entry.email,
+          name: entry.name,
+          role: stage,
+          matrixSlot: slot,
+          country: countries.join(', '),
+          segment: null,
+          countries,
+        });
       }
     }
   }
-  return items.sort((a, b) => a.role.localeCompare(b.role) || (a.matrixSlot ?? 1) - (b.matrixSlot ?? 1) || a.email.localeCompare(b.email));
+  return items.sort(
+    (a, b) =>
+      a.role.localeCompare(b.role) ||
+      (a.matrixSlot ?? 1) - (b.matrixSlot ?? 1) ||
+      a.email.localeCompare(b.email),
+  );
 }
 
-export async function getLaptopAdminData(requestsPage: number = 0): Promise<LaptopAdminData | null> {
+export async function getLaptopAdminData(
+  requestsPage: number = 0,
+): Promise<LaptopAdminData | null> {
   try {
     const actor = await requireAdminActor();
     await ensureLaptopDelegationTable();
     const offset = Math.max(0, Math.floor(requestsPage)) * ADMIN_REQUESTS_PAGE_SIZE;
-    const [requestRows, requestsCountRows, activityRows, permissionRows, delegationRows, deviceRows, matrixRows, stats] = await Promise.all([
+    const [
+      requestRows,
+      requestsCountRows,
+      activityRows,
+      permissionRows,
+      delegationRows,
+      deviceRows,
+      matrixRows,
+      stats,
+    ] = await Promise.all([
       // Only the current page — the table only ever shows ADMIN_REQUESTS_PAGE_SIZE
       // rows at a time, so there's no reason to pull the entire (and ever-growing)
       // requests table on every admin panel load or action.
-      sql<QueryResultRow[]>(`SELECT * FROM laptop_requests ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, [ADMIN_REQUESTS_PAGE_SIZE, offset]),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_requests ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
+        [ADMIN_REQUESTS_PAGE_SIZE, offset],
+      ),
       sql<QueryResultRow[]>(`SELECT COUNT(*)::int AS count FROM laptop_requests`),
-      sql<QueryResultRow[]>(`SELECT * FROM laptop_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 100`),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 100`,
+      ),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions ORDER BY role, email`),
-      sql<QueryResultRow[]>(`SELECT * FROM laptop_delegations ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_delegations ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`,
+      ),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_device_catalog ORDER BY type_of_device, model`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix WHERE is_active = TRUE`),
       computeLaptopStats(actor, '', []),
     ]);
-    const delegations = applyLaptopDelegationExpiry(asSerialised<LaptopDelegationRow[]>(delegationRows));
+    const delegations = applyLaptopDelegationExpiry(
+      asSerialised<LaptopDelegationRow[]>(delegationRows),
+    );
     return {
       actor,
       requests: asSerialised<LaptopRequest[]>(requestRows),
@@ -1856,20 +2273,25 @@ export async function getLaptopAdminData(requestsPage: number = 0): Promise<Lapt
 // either side of a month boundary and change a figure on the chart — so it keeps
 // buildMonthlyTrend and its exact semantics, and only the two date columns it actually
 // reads are fetched for it instead of every column of every row.
-async function computeLaptopAnalytics(actor: LaptopActor, where: string, params: string[]): Promise<LaptopAnalyticsData> {
+async function computeLaptopAnalytics(
+  actor: LaptopActor,
+  where: string,
+  params: string[],
+): Promise<LaptopAnalyticsData> {
   // COALESCE(NULLIF(TRIM(col), ''), 'Unspecified') is exactly the old
   // `(value ?? '').trim() || 'Unspecified'`. The label tiebreak is new only in that it is
   // now deterministic — equal counts previously came back in whatever order the rows
   // happened to arrive in.
-  const breakdown = (column: string, limit?: number) => sql<QueryResultRow[]>(
-    `SELECT COALESCE(NULLIF(TRIM(${column}), ''), 'Unspecified') AS label, COUNT(*)::int AS count
+  const breakdown = (column: string, limit?: number) =>
+    sql<QueryResultRow[]>(
+      `SELECT COALESCE(NULLIF(TRIM(${column}), ''), 'Unspecified') AS label, COUNT(*)::int AS count
      FROM laptop_requests ${where}
      GROUP BY 1
      ORDER BY count DESC, label ASC${limit ? ` LIMIT ${limit}` : ''}`,
-    params,
-  );
+      params,
+    );
   const toMetrics = (rows: QueryResultRow[]): LaptopAnalyticsMetric[] =>
-    rows.map(r => ({ label: String(r.label), count: Number(r.count ?? 0) }));
+    rows.map((r) => ({ label: String(r.label), count: Number(r.count ?? 0) }));
 
   const [
     stats,
@@ -1900,7 +2322,10 @@ async function computeLaptopAnalytics(actor: LaptopActor, where: string, params:
     breakdown('country', 12),
     breakdown('segment', 12),
     breakdown('requested_model', 10),
-    sql<QueryResultRow[]>(`SELECT requested_date, created_at FROM laptop_requests ${where}`, params),
+    sql<QueryResultRow[]>(
+      `SELECT requested_date, created_at FROM laptop_requests ${where}`,
+      params,
+    ),
   ]);
 
   const counts = countRows[0] ?? {};
@@ -1918,7 +2343,9 @@ async function computeLaptopAnalytics(actor: LaptopActor, where: string, params:
     country_breakdown: toMetrics(countryRows),
     segment_breakdown: toMetrics(segmentRows),
     top_models: toMetrics(modelRows),
-    monthly_trend: buildMonthlyTrend(asSerialised<Array<Pick<LaptopRequest, 'requested_date' | 'created_at'>>>(trendRows)),
+    monthly_trend: buildMonthlyTrend(
+      asSerialised<Array<Pick<LaptopRequest, 'requested_date' | 'created_at'>>>(trendRows),
+    ),
     generated_at: new Date().toISOString(),
   };
 }
@@ -1960,16 +2387,19 @@ function validateCreateInput(input: CreateLaptopRequestInput) {
   };
 }
 
-async function insertRequest(input: CreateLaptopRequestInput & Partial<UpdateLaptopExistingDeviceInput>, opts: {
-  // The reference was allocated under the advisory lock on this same client — the
-  // insert has to stay on it so the two are one atomic step.
-  client: PoolClient;
-  reference: string;
-  status: LaptopRequestStatus;
-  requestedByName: string;
-  requestedByEmail: string;
-  validated: ReturnType<typeof validateCreateInput>;
-}): Promise<number> {
+async function insertRequest(
+  input: CreateLaptopRequestInput & Partial<UpdateLaptopExistingDeviceInput>,
+  opts: {
+    // The reference was allocated under the advisory lock on this same client — the
+    // insert has to stay on it so the two are one atomic step.
+    client: PoolClient;
+    reference: string;
+    status: LaptopRequestStatus;
+    requestedByName: string;
+    requestedByEmail: string;
+    validated: ReturnType<typeof validateCreateInput>;
+  },
+): Promise<number> {
   const v = opts.validated;
   // Existing Device fields are only ever set by an admin backfilling a request
   // (AdminCreateLaptopRequestInput) — the normal requester flow never collects
@@ -2012,11 +2442,14 @@ async function insertRequest(input: CreateLaptopRequestInput & Partial<UpdateLap
   return result.insertId;
 }
 
-export async function createLaptopRequest(input: CreateLaptopRequestInput): Promise<ActionResult<{ id: number }>> {
+export async function createLaptopRequest(
+  input: CreateLaptopRequestInput,
+): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await getActor();
     requireOperationalAccess(actor);
-    if (!actor.permissions.canCreateRequests) throw new Error('Request creation access is required.');
+    if (!actor.permissions.canCreateRequests)
+      throw new Error('Request creation access is required.');
     const validated = validateCreateInput(input);
     await ensureLaptopReferenceUniqueIndex();
     // Reference allocation, the request row and its first log line are one unit: the
@@ -2034,7 +2467,13 @@ export async function createLaptopRequest(input: CreateLaptopRequestInput): Prom
         requestedByEmail: actor.email,
         validated,
       });
-      await writeActivity({ requestId: id, referenceNumber: reference, action: 'Request submitted', actor, client });
+      await writeActivity({
+        requestId: id,
+        referenceNumber: reference,
+        action: 'Request submitted',
+        actor,
+        client,
+      });
       return { id, reference };
     });
     revalidateLaptopPaths();
@@ -2044,24 +2483,34 @@ export async function createLaptopRequest(input: CreateLaptopRequestInput): Prom
     return { success: true, data: { id }, reference_number: reference };
   } catch (err) {
     console.error('[createLaptopRequest]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create laptop request.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to create laptop request.',
+    };
   }
 }
 
 async function notifyNewLaptopRequest(id: number): Promise<void> {
   try {
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
+      id,
+    ]);
     if (rows[0]) await notifyLaptopNextApprover(asSerialised<LaptopRequest>(rows[0]));
   } catch (err) {
     console.error('[notifyNewLaptopRequest]', err);
   }
 }
 
-export async function updateLaptopRequest(id: number, input: CreateLaptopRequestInput): Promise<ActionResult<{ id: number }>> {
+export async function updateLaptopRequest(
+  id: number,
+  input: CreateLaptopRequestInput,
+): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await getActor();
     requireOperationalAccess(actor);
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
+      id,
+    ]);
     const row = rows[0];
     if (!row) return { success: false, error: 'Request not found.' };
 
@@ -2069,8 +2518,14 @@ export async function updateLaptopRequest(id: number, input: CreateLaptopRequest
     if (!(ownsRequest || actor.permissions.canManageData)) {
       return { success: false, error: 'You can only edit your own requests.' };
     }
-    if (!IT_MANAGER_STATUSES.includes(row.status as LaptopRequestStatus) && !actor.permissions.canManageData) {
-      return { success: false, error: 'This request can no longer be edited because it has entered the approval chain.' };
+    if (
+      !IT_MANAGER_STATUSES.includes(row.status as LaptopRequestStatus) &&
+      !actor.permissions.canManageData
+    ) {
+      return {
+        success: false,
+        error: 'This request can no longer be edited because it has entered the approval chain.',
+      };
     }
 
     const v = validateCreateInput(input);
@@ -2084,22 +2539,41 @@ export async function updateLaptopRequest(id: number, input: CreateLaptopRequest
            updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
-          blankToNull(input.employee_id), input.priority || 'Normal', v.requestType, v.country,
-          blankToNull(input.computer_for), blankToNull(input.computer_for_employee_id), blankToNull(input.department),
-          v.companyCode, v.companyName, v.costCenter,
+          blankToNull(input.employee_id),
+          input.priority || 'Normal',
+          v.requestType,
+          v.country,
+          blankToNull(input.computer_for),
+          blankToNull(input.computer_for_employee_id),
+          blankToNull(input.department),
+          v.companyCode,
+          v.companyName,
+          v.costCenter,
           // Requested model isn't collected on this form — preserve whatever the IT Team may
           // have already filled in via submitProcureNewDetails rather than blanking it out.
-          v.typeOfDevice, v.requestedModel ?? row.requested_model, v.reason, id,
+          v.typeOfDevice,
+          v.requestedModel ?? row.requested_model,
+          v.reason,
+          id,
         ],
       );
-      await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Request updated', actor, client });
+      await writeActivity({
+        requestId: id,
+        referenceNumber: row.reference_number,
+        action: 'Request updated',
+        actor,
+        client,
+      });
     });
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
     return { success: true, data: { id }, reference_number: row.reference_number };
   } catch (err) {
     console.error('[updateLaptopRequest]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update laptop request.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update laptop request.',
+    };
   }
 }
 
@@ -2109,23 +2583,40 @@ export async function updateLaptopRequest(id: number, input: CreateLaptopRequest
  * requester. Restricted to whichever identity (own or delegated) owns the IT
  * Manager stage, and only while the request is actually at that stage.
  */
-export async function updateLaptopExistingDevice(id: number, input: UpdateLaptopExistingDeviceInput): Promise<ActionResult> {
+export async function updateLaptopExistingDevice(
+  id: number,
+  input: UpdateLaptopExistingDeviceInput,
+): Promise<ActionResult> {
   try {
     const actor = await getActor();
     requireOperationalAccess(actor);
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
+      id,
+    ]);
     const row = rows[0];
     if (!row) return { success: false, error: 'Request not found.' };
 
     const currentStatus = row.status as LaptopRequestStatus;
     if (!IT_MANAGER_STATUSES.includes(currentStatus) && !actor.permissions.canManageData) {
-      return { success: false, error: 'Existing Device details can only be edited while the request is with the IT Manager.' };
+      return {
+        success: false,
+        error:
+          'Existing Device details can only be edited while the request is with the IT Manager.',
+      };
     }
-    const canEdit = actor.permissions.canManageData || laptopActingIdentities(actor).some(identity =>
-      identity.permissions.canReviewItManager && (identity.role === 'Admin' || stageHasCountry(identity.matrixCapabilities, 'IT Manager', row.country)),
-    );
+    const canEdit =
+      actor.permissions.canManageData ||
+      laptopActingIdentities(actor).some(
+        (identity) =>
+          identity.permissions.canReviewItManager &&
+          (identity.role === 'Admin' ||
+            stageHasCountry(identity.matrixCapabilities, 'IT Manager', row.country)),
+      );
     if (!canEdit) {
-      return { success: false, error: 'IT Manager access is required to edit Existing Device details.' };
+      return {
+        success: false,
+        error: 'IT Manager access is required to edit Existing Device details.',
+      };
     }
 
     await withTransaction(laptopProcurementPool, async (client) => {
@@ -2136,24 +2627,41 @@ export async function updateLaptopExistingDevice(id: number, input: UpdateLaptop
            updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
-          blankToNull(input.unit_id), blankToNull(input.current_brand), blankToNull(input.current_model),
-          blankToNull(input.serial_no), blankToNull(input.age_years), blankToNull(input.sap_number), id,
+          blankToNull(input.unit_id),
+          blankToNull(input.current_brand),
+          blankToNull(input.current_model),
+          blankToNull(input.serial_no),
+          blankToNull(input.age_years),
+          blankToNull(input.sap_number),
+          id,
         ],
       );
-      await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Existing Device details updated', actor, client });
+      await writeActivity({
+        requestId: id,
+        referenceNumber: row.reference_number,
+        action: 'Existing Device details updated',
+        actor,
+        client,
+      });
     });
     revalidatePath(`/laptop-procurement/requests/${id}`);
     return { success: true };
   } catch (err) {
     console.error('[updateLaptopExistingDevice]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update existing device details.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update existing device details.',
+    };
   }
 }
 
-export async function createAdminLaptopRequest(input: AdminCreateLaptopRequestInput): Promise<ActionResult<{ id: number }>> {
+export async function createAdminLaptopRequest(
+  input: AdminCreateLaptopRequestInput,
+): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManageData) return { success: false, error: 'Data management access is required.' };
+    if (!actor.permissions.canManageData)
+      return { success: false, error: 'Data management access is required.' };
     const validated = validateCreateInput(input);
     await ensureLaptopReferenceUniqueIndex();
     const { id, reference } = await withTransaction(laptopProcurementPool, async (client) => {
@@ -2167,7 +2675,13 @@ export async function createAdminLaptopRequest(input: AdminCreateLaptopRequestIn
         requestedByEmail: input.requested_by_email?.trim() || actor.email,
         validated,
       });
-      await writeActivity({ requestId: id, referenceNumber: reference, action: 'Request created by admin', actor, client });
+      await writeActivity({
+        requestId: id,
+        referenceNumber: reference,
+        action: 'Request created by admin',
+        actor,
+        client,
+      });
       return { id, reference };
     });
     revalidateLaptopPaths();
@@ -2177,7 +2691,10 @@ export async function createAdminLaptopRequest(input: AdminCreateLaptopRequestIn
     return { success: true, data: { id }, reference_number: reference };
   } catch (err) {
     console.error('[createAdminLaptopRequest]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create laptop request.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to create laptop request.',
+    };
   }
 }
 
@@ -2237,7 +2754,9 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
   try {
     const actor = await getActor();
     await ensureLaptopDecisionColumns();
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
+      id,
+    ]);
     const row = rows[0];
     if (!row) return { success: false, error: 'Request not found.' };
 
@@ -2250,8 +2769,13 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
 
     const acting = resolveLaptopActing(actor, requiredPermission, true, row);
     if (!acting.allowed) {
-      if (acting.reason === 'reject') return { success: false, error: `${actor.role} cannot reject requests.` };
-      if (acting.reason === 'scope') return { success: false, error: `${actor.role} access is limited to your assigned country / segment.` };
+      if (acting.reason === 'reject')
+        return { success: false, error: `${actor.role} cannot reject requests.` };
+      if (acting.reason === 'scope')
+        return {
+          success: false,
+          error: `${actor.role} access is limited to your assigned country / segment.`,
+        };
       return { success: false, error: `${actor.role} cannot reject this request.` };
     }
 
@@ -2261,16 +2785,39 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     const stageDecisionColumn = STAGE_DECISION_COLUMN[currentStatus];
 
     const sets = [
-      'status = ?', 'pending_with = ?', 'reviewed_by_name = ?', 'reviewed_by_email = ?',
-      'reviewed_at = CURRENT_TIMESTAMP', 'rejection_reason = ?', 'review_comments = ?', 'updated_at = CURRENT_TIMESTAMP',
+      'status = ?',
+      'pending_with = ?',
+      'reviewed_by_name = ?',
+      'reviewed_by_email = ?',
+      'reviewed_at = CURRENT_TIMESTAMP',
+      'rejection_reason = ?',
+      'review_comments = ?',
+      'updated_at = CURRENT_TIMESTAMP',
     ];
-    const params: QueryParams = [nextStatus, getPendingWithLabel(nextStatus), actor.name, actor.email, trimmedReason, trimmedReason];
-    if (stageColumn) { sets.push(`${stageColumn} = ?`); params.push(trimmedReason); }
-    if (stageDecisionColumn) { sets.push(`${stageDecisionColumn} = ?`); params.push('Rejected'); }
+    const params: QueryParams = [
+      nextStatus,
+      getPendingWithLabel(nextStatus),
+      actor.name,
+      actor.email,
+      trimmedReason,
+      trimmedReason,
+    ];
+    if (stageColumn) {
+      sets.push(`${stageColumn} = ?`);
+      params.push(trimmedReason);
+    }
+    if (stageDecisionColumn) {
+      sets.push(`${stageDecisionColumn} = ?`);
+      params.push('Rejected');
+    }
     params.push(id);
 
     const updatedRow = await withTransaction(laptopProcurementPool, async (client) => {
-      const updated = await sqlTx<QueryResultRow[]>(client, `UPDATE laptop_requests SET ${sets.join(', ')} WHERE id = ? RETURNING *`, params);
+      const updated = await sqlTx<QueryResultRow[]>(
+        client,
+        `UPDATE laptop_requests SET ${sets.join(', ')} WHERE id = ? RETURNING *`,
+        params,
+      );
       await writeActivity({
         requestId: id,
         referenceNumber: row.reference_number,
@@ -2288,7 +2835,9 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     // the transaction, notified only after it commits: a webhook cannot be rolled back.
     // ...and deferred past the response with after(), so the reviewer's click returns as
     // soon as the decision is durable instead of waiting on two 15s-timeout webhooks.
-    const rejectedRequest = asSerialised<LaptopRequest>(updatedRow ?? { ...row, status: nextStatus });
+    const rejectedRequest = asSerialised<LaptopRequest>(
+      updatedRow ?? { ...row, status: nextStatus },
+    );
     deferLaptopNotifications('reject', async () => {
       await notifyLaptopNextApprover(rejectedRequest);
       await notifyLaptopRequesterUpdate(rejectedRequest, {
@@ -2302,7 +2851,10 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     return { success: true };
   } catch (err) {
     console.error('[rejectLaptopRequest]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to reject request.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to reject request.',
+    };
   }
 }
 
@@ -2316,7 +2868,9 @@ export async function updateLaptopRequestStatus(
   try {
     const actor = await getActor();
     await ensureLaptopDecisionColumns();
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
+      id,
+    ]);
     const row = rows[0];
     if (!row) return { success: false, error: 'Request not found.' };
 
@@ -2336,14 +2890,18 @@ export async function updateLaptopRequestStatus(
 
     if (userCancellingOwnRequest && actor.permissions.canCreateRequests) {
       if (!IT_MANAGER_STATUSES.includes(currentStatus)) {
-        return { success: false, error: 'This request can only be cancelled before approvals begin.' };
+        return {
+          success: false,
+          error: 'This request can only be cancelled before approvals begin.',
+        };
       }
     } else {
       // "Assign existing laptop" isn't a distinct transition anymore — it's the IT
       // Manager's normal approve-forward move, just with a specific unit attached (see
       // assignedLaptopAssignment below). Rejections are handled by rejectLaptopRequest,
       // never here.
-      const isApproveMove = getNextApprovalStatus(currentStatus, hasAssignedUnit, isProcureNewFlow) === status;
+      const isApproveMove =
+        getNextApprovalStatus(currentStatus, hasAssignedUnit, isProcureNewFlow) === status;
       // Country Manager can flag a request as needing a brand new device procured instead
       // of approving it outright — routes to the IT Team for device details. Also how a CM
       // overrides an IT Manager's "Assign existing laptop" pick (see clearsAssignedUnit below).
@@ -2352,7 +2910,10 @@ export async function updateLaptopRequestStatus(
       isRepairMove = IT_MANAGER_STATUSES.includes(currentStatus) && status === 'Repaired & Closed';
 
       if (!isApproveMove && !isCmProcureNewMove && !isRepairMove) {
-        return { success: false, error: `Cannot move ${row.reference_number} from ${currentStatus} to ${status}.` };
+        return {
+          success: false,
+          error: `Cannot move ${row.reference_number} from ${currentStatus} to ${status}.`,
+        };
       }
 
       requiredPermission = getRequiredPermissionForStage(currentStatus);
@@ -2366,7 +2927,10 @@ export async function updateLaptopRequestStatus(
       const acting = resolveLaptopActing(actor, requiredPermission, false, row);
       if (!acting.allowed) {
         if (acting.reason === 'scope') {
-          return { success: false, error: `${actor.role} access is limited to your assigned country / segment.` };
+          return {
+            success: false,
+            error: `${actor.role} access is limited to your assigned country / segment.`,
+          };
         }
         return {
           success: false,
@@ -2389,13 +2953,17 @@ export async function updateLaptopRequestStatus(
     const setsReviewer = !userCancellingOwnRequest;
 
     // Stamp the stage approval timestamp when the current stage is signed off (not on cancellation).
-    const stageDateColumn = !userCancellingOwnRequest ? STAGE_APPROVED_DATE_COLUMN[currentStatus] : undefined;
+    const stageDateColumn = !userCancellingOwnRequest
+      ? STAGE_APPROVED_DATE_COLUMN[currentStatus]
+      : undefined;
     const stageDateAssignment = stageDateColumn ? `, ${stageDateColumn} = CURRENT_TIMESTAMP` : '';
     // Build dynamic SET for the stage comment column when applicable.
     const stageCommentAssignment = stageColumn && comment ? `, ${stageColumn} = ?` : '';
     // Record who actually acted on this stage (approve, reject, or an alternate outcome) —
     // not just the timestamp, so "Assigned Approvers" shows a name instead of staying blank.
-    const stageApproverColumn = setsReviewer ? STAGE_APPROVER_NAME_COLUMN[currentStatus] : undefined;
+    const stageApproverColumn = setsReviewer
+      ? STAGE_APPROVER_NAME_COLUMN[currentStatus]
+      : undefined;
     const stageApproverAssignment = stageApproverColumn ? `, ${stageApproverColumn} = ?` : '';
     // What this stage actually decided (as opposed to just that it commented) — shown
     // alongside the comment in the "Decisions" section. Never recorded for the
@@ -2433,7 +3001,9 @@ export async function updateLaptopRequestStatus(
     // flagged through the rest of the chain (see laptopIsProcureNewFlow) — even after
     // resends — so Supply Chain Director's final sign-off still lands on 'Procure New',
     // not 'Approved'.
-    const flagsProcureNew = (currentStatus === 'CM Approval' && status === 'Procure New Details') || Boolean(procureNewTypeOfDevice);
+    const flagsProcureNew =
+      (currentStatus === 'CM Approval' && status === 'Procure New Details') ||
+      Boolean(procureNewTypeOfDevice);
     // IT Manager assigning an existing unit is a fresh, definitive "no new device
     // needed" decision — it has to clear any procure_new_requested left over from an
     // earlier pass through this same stage (e.g. they originally specified a new
@@ -2441,7 +3011,8 @@ export async function updateLaptopRequestStatus(
     // existing stock instead). Without this, the stale flag keeps Country Manager's
     // own "Procure New" option hidden even though nothing is actually locked in for
     // procurement anymore.
-    const clearsProcureNewFlag = Boolean(assignedLaptop) && IT_MANAGER_STATUSES.includes(currentStatus);
+    const clearsProcureNewFlag =
+      Boolean(assignedLaptop) && IT_MANAGER_STATUSES.includes(currentStatus);
     const procureNewFlagAssignment = flagsProcureNew
       ? `, procure_new_requested = TRUE`
       : clearsProcureNewFlag
@@ -2449,7 +3020,9 @@ export async function updateLaptopRequestStatus(
         : '';
     // The IT Manager's up-front device specification — same columns the CM-triggered
     // "Procure New Details" step fills in later, just set immediately here instead.
-    const procureNewDetailsAssignment = procureNewTypeOfDevice ? `, type_of_device = ?, requested_model = ?` : '';
+    const procureNewDetailsAssignment = procureNewTypeOfDevice
+      ? `, type_of_device = ?, requested_model = ?`
+      : '';
 
     const params: QueryParam[] = [
       status,
@@ -2474,9 +3047,10 @@ export async function updateLaptopRequestStatus(
     if (procureNewDetailsAssignment) params.push(procureNewTypeOfDevice, procureNewModel);
     params.push(id);
 
-    const activityNotes = [comment || null, onBehalfOf ? `On behalf of ${onBehalfOf}` : null]
-      .filter(Boolean)
-      .join(' — ') || null;
+    const activityNotes =
+      [comment || null, onBehalfOf ? `On behalf of ${onBehalfOf}` : null]
+        .filter(Boolean)
+        .join(' — ') || null;
 
     const updatedRow = await withTransaction(laptopProcurementPool, async (client) => {
       const updated = await sqlTx<QueryResultRow[]>(
@@ -2536,7 +3110,10 @@ export async function updateLaptopRequestStatus(
     return { success: true };
   } catch (err) {
     console.error('[updateLaptopRequestStatus]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update request status.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update request status.',
+    };
   }
 }
 
@@ -2546,20 +3123,33 @@ export async function updateLaptopRequestStatus(
  * (the requester never picks a model upfront). Submitting sends it back to the Country
  * Manager to confirm the specific device before it continues to IT Director.
  */
-export async function submitProcureNewDetails(id: number, input: SubmitProcureNewDetailsInput): Promise<ActionResult> {
+export async function submitProcureNewDetails(
+  id: number,
+  input: SubmitProcureNewDetailsInput,
+): Promise<ActionResult> {
   try {
     const actor = await getActor();
     requireOperationalAccess(actor);
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
+      id,
+    ]);
     const row = rows[0];
     if (!row) return { success: false, error: 'Request not found.' };
 
     if (row.status !== 'Procure New Details' && !actor.permissions.canManageData) {
-      return { success: false, error: 'Device details can only be submitted while the request is with the IT Team.' };
+      return {
+        success: false,
+        error: 'Device details can only be submitted while the request is with the IT Team.',
+      };
     }
-    const canSubmit = actor.permissions.canManageData || laptopActingIdentities(actor).some(identity =>
-      identity.permissions.canReviewItManager && (identity.role === 'Admin' || stageHasCountry(identity.matrixCapabilities, 'IT Manager', row.country)),
-    );
+    const canSubmit =
+      actor.permissions.canManageData ||
+      laptopActingIdentities(actor).some(
+        (identity) =>
+          identity.permissions.canReviewItManager &&
+          (identity.role === 'Admin' ||
+            stageHasCountry(identity.matrixCapabilities, 'IT Manager', row.country)),
+      );
     if (!canSubmit) {
       return { success: false, error: 'IT Manager access is required to submit device details.' };
     }
@@ -2577,7 +3167,13 @@ export async function submitProcureNewDetails(id: number, input: SubmitProcureNe
          RETURNING *`,
         [typeOfDevice, model, nextStatus, getPendingWithLabel(nextStatus), id],
       );
-      await writeActivity({ requestId: id, referenceNumber: row.reference_number, action: 'Device details submitted, sent to Country Manager for confirmation', actor, client });
+      await writeActivity({
+        requestId: id,
+        referenceNumber: row.reference_number,
+        action: 'Device details submitted, sent to Country Manager for confirmation',
+        actor,
+        client,
+      });
       return updated[0];
     });
     revalidateLaptopPaths();
@@ -2586,7 +3182,14 @@ export async function submitProcureNewDetails(id: number, input: SubmitProcureNe
     // hand. Read inside the transaction, notified only after it commits: a webhook cannot
     // be rolled back.
     // ...and deferred past the response with after().
-    const confirmedRequest = asSerialised<LaptopRequest>(updatedRow ?? { ...row, status: nextStatus, type_of_device: typeOfDevice, requested_model: model });
+    const confirmedRequest = asSerialised<LaptopRequest>(
+      updatedRow ?? {
+        ...row,
+        status: nextStatus,
+        type_of_device: typeOfDevice,
+        requested_model: model,
+      },
+    );
     deferLaptopNotifications('procure-new-details', async () => {
       await notifyLaptopNextApprover(confirmedRequest);
       await notifyLaptopRequesterUpdate(confirmedRequest, {
@@ -2600,14 +3203,21 @@ export async function submitProcureNewDetails(id: number, input: SubmitProcureNe
     return { success: true };
   } catch (err) {
     console.error('[submitProcureNewDetails]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to submit device details.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to submit device details.',
+    };
   }
 }
 
-export async function deleteLaptopRecord(recordType: 'request' | 'activity', id: number): Promise<ActionResult> {
+export async function deleteLaptopRecord(
+  recordType: 'request' | 'activity',
+  id: number,
+): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canDeleteRecords) return { success: false, error: 'Delete access is required.' };
+    if (!actor.permissions.canDeleteRecords)
+      return { success: false, error: 'Delete access is required.' };
 
     if (recordType === 'activity') {
       await exec(`DELETE FROM laptop_activity_log WHERE id = ?`, [id]);
@@ -2615,7 +3225,10 @@ export async function deleteLaptopRecord(recordType: 'request' | 'activity', id:
       return { success: true };
     }
 
-    const rows = await sql<QueryResultRow[]>(`SELECT reference_number FROM laptop_requests WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT reference_number FROM laptop_requests WHERE id = ? LIMIT 1`,
+      [id],
+    );
     if (!rows[0]) return { success: false, error: 'Record not found.' };
     // There are no FKs between these tables, so the three deletes have to succeed or
     // fail together — otherwise a failure after the first one leaves attachments and
@@ -2629,7 +3242,10 @@ export async function deleteLaptopRecord(recordType: 'request' | 'activity', id:
     return { success: true };
   } catch (err) {
     console.error('[deleteLaptopRecord]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to delete record.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to delete record.',
+    };
   }
 }
 
@@ -2641,19 +3257,26 @@ export async function deleteLaptopRecord(recordType: 'request' | 'activity', id:
 // rather than store an arbitrary client string next to a 10 MB blob.
 const LAPTOP_DOCUMENT_TYPES = new Set(['request_attachment']);
 
-export async function uploadLaptopDocument(formData: FormData): Promise<{ success: boolean; document?: LaptopDocument; error?: string }> {
+export async function uploadLaptopDocument(
+  formData: FormData,
+): Promise<{ success: boolean; document?: LaptopDocument; error?: string }> {
   try {
     const actor = await getActor();
     requireOperationalAccess(actor);
     // Viewer is read-only oversight: it can see every request but must never attach
     // anything to one. Uploading needs either create rights or reviewer authority
     // (the latter can arrive via delegation, hence effectiveAccessView).
-    if (!actor.permissions.canCreateRequests && !canUseLaptopReviewerQueue(actor.effectiveAccessView)) {
+    if (
+      !actor.permissions.canCreateRequests &&
+      !canUseLaptopReviewerQueue(actor.effectiveAccessView)
+    ) {
       return { success: false, error: 'Read-only access cannot upload attachments.' };
     }
     const requestId = Number(formData.get('request_id'));
     const file = formData.get('file') as File | null;
-    const customName = ((formData.get('custom_name') as string) || '').trim() || (file ? fileBaseName(file.name) : 'Attachment');
+    const customName =
+      ((formData.get('custom_name') as string) || '').trim() ||
+      (file ? fileBaseName(file.name) : 'Attachment');
     const documentType = ((formData.get('document_type') as string) || 'request_attachment').trim();
 
     if (!Number.isFinite(requestId) || requestId <= 0 || !file) {
@@ -2666,11 +3289,15 @@ export async function uploadLaptopDocument(formData: FormData): Promise<{ succes
       return { success: false, error: 'File is too large. Maximum size is 10 MB.' };
     }
 
-    const requestRows = await sql<QueryResultRow[]>(`SELECT id, reference_number, requested_by_email, country, segment FROM laptop_requests WHERE id = ? LIMIT 1`, [requestId]);
+    const requestRows = await sql<QueryResultRow[]>(
+      `SELECT id, reference_number, requested_by_email, country, segment FROM laptop_requests WHERE id = ? LIMIT 1`,
+      [requestId],
+    );
     if (!requestRows[0]) return { success: false, error: 'Request not found.' };
-    const canView = laptopActingIdentities(actor).some(id =>
+    const canView = laptopActingIdentities(actor).some((id) =>
       id.permissions.canViewAll
-        ? (id.permissions.canViewEveryCountry || anyMatrixCapabilityForCountry(id.matrixCapabilities, requestRows[0].country))
+        ? id.permissions.canViewEveryCountry ||
+          anyMatrixCapabilityForCountry(id.matrixCapabilities, requestRows[0].country)
         : id.email.toLowerCase() === requestRows[0].requested_by_email?.toLowerCase(),
     );
     if (!canView) {
@@ -2685,8 +3312,15 @@ export async function uploadLaptopDocument(formData: FormData): Promise<{ succes
            (request_id, document_name, original_name, document_type, file_type, file_size, file_content, uploaded_by_name, uploaded_by_email)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         [
-          requestId, customName, file.name !== customName ? file.name : null, documentType,
-          detectMime(file), file.size, buffer, actor.name, actor.email,
+          requestId,
+          customName,
+          file.name !== customName ? file.name : null,
+          documentType,
+          detectMime(file),
+          file.size,
+          buffer,
+          actor.name,
+          actor.email,
         ],
       );
 
@@ -2698,7 +3332,14 @@ export async function uploadLaptopDocument(formData: FormData): Promise<{ succes
         [insert.insertId],
       );
 
-      await writeActivity({ requestId, referenceNumber: requestRows[0].reference_number, action: 'Attachment uploaded', actor, notes: file.name, client });
+      await writeActivity({
+        requestId,
+        referenceNumber: requestRows[0].reference_number,
+        action: 'Attachment uploaded',
+        actor,
+        notes: file.name,
+        client,
+      });
       return rows;
     });
     revalidatePath(`/laptop-procurement/requests/${requestId}`);
@@ -2724,14 +3365,21 @@ export async function deleteLaptopDocument(documentId: number): Promise<ActionRe
     // reviewer who attached a quote to someone else's request would otherwise be
     // unable to undo their own upload.
     const actorEmail = actor.email.toLowerCase();
-    const ownsAttachment = doc.requested_by_email?.toLowerCase() === actorEmail
-      || doc.uploaded_by_email?.toLowerCase() === actorEmail;
+    const ownsAttachment =
+      doc.requested_by_email?.toLowerCase() === actorEmail ||
+      doc.uploaded_by_email?.toLowerCase() === actorEmail;
     if (!actor.permissions.canManageData && !ownsAttachment) {
       return { success: false, error: 'You cannot remove this attachment.' };
     }
     await withTransaction(laptopProcurementPool, async (client) => {
       await execTx(client, `DELETE FROM laptop_documents WHERE id = ?`, [documentId]);
-      await writeActivity({ requestId: doc.request_id, referenceNumber: doc.reference_number, action: 'Attachment removed', actor, client });
+      await writeActivity({
+        requestId: doc.request_id,
+        referenceNumber: doc.reference_number,
+        action: 'Attachment removed',
+        actor,
+        client,
+      });
     });
     revalidatePath(`/laptop-procurement/requests/${doc.request_id}`);
     return { success: true };
@@ -2743,7 +3391,9 @@ export async function deleteLaptopDocument(documentId: number): Promise<ActionRe
 
 /* ── Permissions admin ────────────────────────────────────────── */
 
-export async function updateLaptopPermission(input: UpdateLaptopPermissionInput): Promise<ActionResult> {
+export async function updateLaptopPermission(
+  input: UpdateLaptopPermissionInput,
+): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
     const email = requireText(input.email, 'Email').toLowerCase();
@@ -2760,20 +3410,30 @@ export async function updateLaptopPermission(input: UpdateLaptopPermissionInput)
        ON CONFLICT (email) DO UPDATE SET
          name = EXCLUDED.name, role = EXCLUDED.role, country = EXCLUDED.country,
          segment = EXCLUDED.segment, updated_at = CURRENT_TIMESTAMP`,
-      [email, blankToNull(input.name), role, blankToNull(input.country), blankToNull(input.segment)],
+      [
+        email,
+        blankToNull(input.name),
+        role,
+        blankToNull(input.country),
+        blankToNull(input.segment),
+      ],
     );
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
     console.error('[updateLaptopPermission]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update permission.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update permission.',
+    };
   }
 }
 
 export async function deleteLaptopPermission(email: string): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    if (!actor.permissions.canManagePermissions)
+      return { success: false, error: 'Permission management access is required.' };
     await exec(`DELETE FROM laptop_permissions WHERE email = ?`, [email.toLowerCase()]);
     revalidatePath('/admin');
     return { success: true };
@@ -2797,16 +3457,18 @@ export async function deleteLaptopPermission(email: string): Promise<ActionResul
  * outage can't lock admins out of editing the matrix. A directory that answers but has
  * no row for the address is a genuine typo, and that does get rejected.
  */
-async function findUnknownDirectoryEmails(emails: (string | null | undefined)[]): Promise<string[]> {
-  const wanted = [...new Set(emails.map(e => (e ?? '').trim().toLowerCase()).filter(Boolean))];
+async function findUnknownDirectoryEmails(
+  emails: (string | null | undefined)[],
+): Promise<string[]> {
+  const wanted = [...new Set(emails.map((e) => (e ?? '').trim().toLowerCase()).filter(Boolean))];
   if (!wanted.length) return [];
   try {
     const { rows } = await empDirectoryPool.query(
       `SELECT LOWER(mail) AS mail FROM azure_ad_users_staging WHERE LOWER(mail) = ANY($1)`,
       [wanted],
     );
-    const known = new Set(rows.map(r => r.mail as string));
-    return wanted.filter(e => !known.has(e));
+    const known = new Set(rows.map((r) => r.mail as string));
+    return wanted.filter((e) => !known.has(e));
   } catch (err) {
     console.error('[findUnknownDirectoryEmails]', err);
     return [];
@@ -2821,7 +3483,9 @@ function unknownDirectoryEmailError(unknown: string[]): string {
 export async function getLaptopApproverMatrix(): Promise<LaptopApproverMatrixRow[] | null> {
   try {
     await requireAdminActor();
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix ORDER BY country`);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_approver_matrix ORDER BY country`,
+    );
     return asSerialised<LaptopApproverMatrixRow[]>(rows);
   } catch (err) {
     console.error('[getLaptopApproverMatrix]', err);
@@ -2846,7 +3510,8 @@ export async function setLaptopApproverCell(input: {
 }): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    if (!actor.permissions.canManagePermissions)
+      return { success: false, error: 'Permission management access is required.' };
     const rawCountry = requireText(input.country, 'Country');
     // Canonicalised before it can reach the table — see resolveLaptopMatrixCountry.
     const country = resolveLaptopMatrixCountry(rawCountry, await existingMatrixCountries());
@@ -2866,7 +3531,11 @@ export async function setLaptopApproverCell(input: {
     // Look-then-insert: without the transaction two admins adding the first approver
     // for the same country can both miss the row and both insert one.
     await withTransaction(laptopProcurementPool, async (client) => {
-      const existing = await sqlTx<QueryResultRow[]>(client, `SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`, [country]);
+      const existing = await sqlTx<QueryResultRow[]>(
+        client,
+        `SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`,
+        [country],
+      );
       if (existing[0]) {
         await execTx(
           client,
@@ -2885,15 +3554,22 @@ export async function setLaptopApproverCell(input: {
     return { success: true };
   } catch (err) {
     console.error('[setLaptopApproverCell]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update approver.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update approver.',
+    };
   }
 }
 
 /** Switches one country's approver row on or off, leaving every approver cell on it untouched. */
-export async function setLaptopApproverCountryActive(input: { country: string; isActive: boolean }): Promise<ActionResult> {
+export async function setLaptopApproverCountryActive(input: {
+  country: string;
+  isActive: boolean;
+}): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    if (!actor.permissions.canManagePermissions)
+      return { success: false, error: 'Permission management access is required.' };
     const country = requireText(input.country, 'Country');
     await exec(
       `UPDATE laptop_approver_matrix SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE country = ?`,
@@ -2903,14 +3579,20 @@ export async function setLaptopApproverCountryActive(input: { country: string; i
     return { success: true };
   } catch (err) {
     console.error('[setLaptopApproverCountryActive]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update country status.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update country status.',
+    };
   }
 }
 
 // IT Manager can have up to 3 named slots (co-managers) for the same country; every
 // other stage only ever has slot 1. Returns null for an out-of-range slot (e.g. slot 2
 // or 3 requested for a single-slot stage).
-function getMatrixColumns(role: LaptopApprovalStage, slot: number): { emailCol: string; nameCol: string } | null {
+function getMatrixColumns(
+  role: LaptopApprovalStage,
+  slot: number,
+): { emailCol: string; nameCol: string } | null {
   if (role === 'IT Manager') {
     if (slot === 1) return { emailCol: 'it_manager_email', nameCol: 'it_manager_name' };
     if (slot === 2) return { emailCol: 'it_manager_2_email', nameCol: 'it_manager_2_name' };
@@ -2919,16 +3601,25 @@ function getMatrixColumns(role: LaptopApprovalStage, slot: number): { emailCol: 
   }
   if (slot !== 1) return null;
   switch (role) {
-    case 'Country Manager': return { emailCol: 'cm_email', nameCol: 'cm_name' };
-    case 'IT Director': return { emailCol: 'itd_email', nameCol: 'itd_name' };
-    case 'Supply Chain Director': return { emailCol: 'scd_email', nameCol: 'scd_name' };
-    default: return null;
+    case 'Country Manager':
+      return { emailCol: 'cm_email', nameCol: 'cm_name' };
+    case 'IT Director':
+      return { emailCol: 'itd_email', nameCol: 'itd_name' };
+    case 'Supply Chain Director':
+      return { emailCol: 'scd_email', nameCol: 'scd_name' };
+    default:
+      return null;
   }
 }
 
 // Clears `email` out of exactly the given role+slot's column pair across every matrix
 // row — shared by removeApproverMatrixRole and saveApproverMatrixRole's edit path.
-async function clearApproverMatrixRoleForEmail(email: string, role: LaptopApprovalStage, slot: number, client?: PoolClient): Promise<void> {
+async function clearApproverMatrixRoleForEmail(
+  email: string,
+  role: LaptopApprovalStage,
+  slot: number,
+  client?: PoolClient,
+): Promise<void> {
   const cols = getMatrixColumns(role, slot);
   if (!cols) return;
   const statement = `UPDATE laptop_approver_matrix SET ${cols.emailCol} = NULL, ${cols.nameCol} = NULL, updated_at = CURRENT_TIMESTAMP WHERE LOWER(${cols.emailCol}) = ?`;
@@ -2960,17 +3651,22 @@ export async function saveApproverMatrixRole(input: {
 }): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    if (!actor.permissions.canManagePermissions)
+      return { success: false, error: 'Permission management access is required.' };
     const email = requireText(input.email, 'Email').toLowerCase();
     const slot = input.slot ?? 1;
-    const rawCountries = [...new Set(input.countries.map(c => c.trim()).filter(Boolean))];
+    const rawCountries = [...new Set(input.countries.map((c) => c.trim()).filter(Boolean))];
     if (!rawCountries.length) return { success: false, error: 'At least one country is required.' };
     // Canonicalised before they can reach the table — see resolveLaptopMatrixCountry.
     const known = await existingMatrixCountries();
-    const resolvedCountries = rawCountries.map(c => ({ raw: c, canonical: resolveLaptopMatrixCountry(c, known) }));
-    const unknownCountries = resolvedCountries.filter(c => !c.canonical).map(c => c.raw);
-    if (unknownCountries.length) return { success: false, error: unknownMatrixCountryError(unknownCountries) };
-    const countries = [...new Set(resolvedCountries.map(c => c.canonical as string))];
+    const resolvedCountries = rawCountries.map((c) => ({
+      raw: c,
+      canonical: resolveLaptopMatrixCountry(c, known),
+    }));
+    const unknownCountries = resolvedCountries.filter((c) => !c.canonical).map((c) => c.raw);
+    if (unknownCountries.length)
+      return { success: false, error: unknownMatrixCountryError(unknownCountries) };
+    const countries = [...new Set(resolvedCountries.map((c) => c.canonical as string))];
     const cols = getMatrixColumns(input.role, slot);
     if (!cols) return { success: false, error: 'Unknown approver role.' };
 
@@ -2982,11 +3678,20 @@ export async function saveApproverMatrixRole(input: {
     // installed on the new ones — i.e. a stage with no approver at all.
     await withTransaction(laptopProcurementPool, async (client) => {
       if (input.originalEmail?.trim()) {
-        await clearApproverMatrixRoleForEmail(input.originalEmail.trim().toLowerCase(), input.role, slot, client);
+        await clearApproverMatrixRoleForEmail(
+          input.originalEmail.trim().toLowerCase(),
+          input.role,
+          slot,
+          client,
+        );
       }
 
       for (const country of countries) {
-        const rows = await sqlTx<QueryResultRow[]>(client, `SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`, [country]);
+        const rows = await sqlTx<QueryResultRow[]>(
+          client,
+          `SELECT id FROM laptop_approver_matrix WHERE country = ? LIMIT 1`,
+          [country],
+        );
         if (rows[0]) {
           await execTx(
             client,
@@ -3006,7 +3711,10 @@ export async function saveApproverMatrixRole(input: {
     return { success: true };
   } catch (err) {
     console.error('[saveApproverMatrixRole]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to save approver.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to save approver.',
+    };
   }
 }
 
@@ -3027,7 +3735,8 @@ export async function setLaptopApproverColumn(input: {
 }): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    if (!actor.permissions.canManagePermissions)
+      return { success: false, error: 'Permission management access is required.' };
     const cols = getMatrixColumns(input.role, input.slot ?? 1);
     if (!cols) return { success: false, error: 'Unknown approver role.' };
     const email = requireText(input.email, 'Email').toLowerCase();
@@ -3044,7 +3753,10 @@ export async function setLaptopApproverColumn(input: {
     return { success: true };
   } catch (err) {
     console.error('[setLaptopApproverColumn]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to update this role for every country.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to update this role for every country.',
+    };
   }
 }
 
@@ -3054,10 +3766,15 @@ export async function setLaptopApproverColumn(input: {
  * list. Per-country adjustments (removing just one of several countries) can be done
  * via Edit instead, or through the Approver Matrix tab directly.
  */
-export async function removeApproverMatrixRole(input: { email: string; role: LaptopApprovalStage; slot?: number }): Promise<ActionResult> {
+export async function removeApproverMatrixRole(input: {
+  email: string;
+  role: LaptopApprovalStage;
+  slot?: number;
+}): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    if (!actor.permissions.canManagePermissions)
+      return { success: false, error: 'Permission management access is required.' };
     const email = input.email.trim().toLowerCase();
     if (!email) return { success: false, error: 'Email is required.' };
 
@@ -3066,7 +3783,10 @@ export async function removeApproverMatrixRole(input: { email: string; role: Lap
     return { success: true };
   } catch (err) {
     console.error('[removeApproverMatrixRole]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to remove approver.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to remove approver.',
+    };
   }
 }
 
@@ -3080,7 +3800,10 @@ async function ensureLaptopAccessRequestTable(): Promise<void> {
       try {
         await exec(statement);
       } catch (err) {
-        const code = typeof err === 'object' && err && 'code' in err ? String((err as { code?: unknown }).code) : '';
+        const code =
+          typeof err === 'object' && err && 'code' in err
+            ? String((err as { code?: unknown }).code)
+            : '';
         if (code !== '23505' && code !== '42P07' && code !== '42710') throw err;
       }
     }
@@ -3101,7 +3824,9 @@ async function ensureLaptopAccessRequestTable(): Promise<void> {
         notes TEXT
       )
     `);
-    await execSchema(`CREATE INDEX IF NOT EXISTS idx_laptop_access_requests_status ON laptop_access_requests (status)`);
+    await execSchema(
+      `CREATE INDEX IF NOT EXISTS idx_laptop_access_requests_status ON laptop_access_requests (status)`,
+    );
   })().catch((err) => {
     laptopAccessRequestTableEnsured = null;
     throw err;
@@ -3120,8 +3845,14 @@ function serialiseLaptopAccessRequest(row: QueryResultRow): LaptopAccessRequestR
     approved_role: row.approved_role ? (row.approved_role as LaptopPermissionRole) : null,
     country: row.country ? String(row.country) : null,
     segment: row.segment ? String(row.segment) : null,
-    requested_at: row.requested_at instanceof Date ? row.requested_at.toISOString() : String(row.requested_at),
-    reviewed_at: row.reviewed_at instanceof Date ? row.reviewed_at.toISOString() : (row.reviewed_at ? String(row.reviewed_at) : null),
+    requested_at:
+      row.requested_at instanceof Date ? row.requested_at.toISOString() : String(row.requested_at),
+    reviewed_at:
+      row.reviewed_at instanceof Date
+        ? row.reviewed_at.toISOString()
+        : row.reviewed_at
+          ? String(row.reviewed_at)
+          : null,
     reviewed_by: row.reviewed_by ? String(row.reviewed_by) : null,
     notes: row.notes ? String(row.notes) : null,
   };
@@ -3157,16 +3888,21 @@ export async function getLaptopAccessRequests(): Promise<LaptopAccessRequestRow[
         approved_role: role,
         country: row.country ? String(row.country) : null,
         segment: row.segment ? String(row.segment) : null,
-        requested_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-        reviewed_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+        requested_at:
+          row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+        reviewed_at:
+          row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
         reviewed_by: 'Laptop Procurement permissions',
         notes: null,
       });
     }
 
     return [...byEmail.values()].sort((a, b) => {
-      const rank = (status: LaptopAccessRequestStatus) => (status === 'Pending' ? 0 : status === 'Approved' ? 1 : 2);
-      return rank(a.status) - rank(b.status) || Date.parse(b.requested_at) - Date.parse(a.requested_at);
+      const rank = (status: LaptopAccessRequestStatus) =>
+        status === 'Pending' ? 0 : status === 'Approved' ? 1 : 2;
+      return (
+        rank(a.status) - rank(b.status) || Date.parse(b.requested_at) - Date.parse(a.requested_at)
+      );
     });
   } catch (err) {
     console.error('[getLaptopAccessRequests]', err);
@@ -3178,7 +3914,9 @@ export async function getLaptopPendingAccessCount(): Promise<number> {
   try {
     await requireAdminActor();
     await ensureLaptopAccessRequestTable();
-    const rows = await sql<QueryResultRow[]>(`SELECT COUNT(*) AS cnt FROM laptop_access_requests WHERE status = 'Pending'`);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT COUNT(*) AS cnt FROM laptop_access_requests WHERE status = 'Pending'`,
+    );
     return Number(rows[0]?.cnt ?? 0);
   } catch (err) {
     console.error('[getLaptopPendingAccessCount]', err);
@@ -3197,7 +3935,8 @@ export async function approveLaptopAccess(input: {
 }): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    if (!actor.permissions.canManagePermissions)
+      return { success: false, error: 'Permission management access is required.' };
     await ensureLaptopAccessRequestTable();
     const email = requireText(input.userEmail, 'Email').toLowerCase();
     const role = requireText(input.approvedRole, 'Role') as LaptopPermissionRole;
@@ -3222,7 +3961,16 @@ export async function approveLaptopAccess(input: {
            reviewed_at = CURRENT_TIMESTAMP,
            reviewed_by = EXCLUDED.reviewed_by,
            notes = EXCLUDED.notes`,
-        [email, email, role, role, blankToNull(input.country), blankToNull(input.segment), actor.email, blankToNull(input.notes)],
+        [
+          email,
+          email,
+          role,
+          role,
+          blankToNull(input.country),
+          blankToNull(input.segment),
+          actor.email,
+          blankToNull(input.notes),
+        ],
       );
 
       await execTx(
@@ -3239,7 +3987,10 @@ export async function approveLaptopAccess(input: {
     return { success: true };
   } catch (err) {
     console.error('[approveLaptopAccess]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to approve Laptop Procurement access.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to approve Laptop Procurement access.',
+    };
   }
 }
 
@@ -3255,7 +4006,8 @@ export async function editLaptopAccess(input: {
 export async function rejectLaptopAccess(userEmail: string): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    if (!actor.permissions.canManagePermissions)
+      return { success: false, error: 'Permission management access is required.' };
     await ensureLaptopAccessRequestTable();
     const email = requireText(userEmail, 'Email').toLowerCase();
     await withTransaction(laptopProcurementPool, async (client) => {
@@ -3281,7 +4033,8 @@ export async function rejectLaptopAccess(userEmail: string): Promise<ActionResul
 export async function revokeLaptopAccess(userEmail: string): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    if (!actor.permissions.canManagePermissions)
+      return { success: false, error: 'Permission management access is required.' };
     await ensureLaptopAccessRequestTable();
     const email = requireText(userEmail, 'Email').toLowerCase();
     await withTransaction(laptopProcurementPool, async (client) => {
@@ -3309,7 +4062,8 @@ export async function revokeLaptopAccess(userEmail: string): Promise<ActionResul
 export async function deleteLaptopAccessRequest(userEmail: string): Promise<ActionResult> {
   try {
     const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    if (!actor.permissions.canManagePermissions)
+      return { success: false, error: 'Permission management access is required.' };
     await ensureLaptopAccessRequestTable();
     const email = requireText(userEmail, 'Email').toLowerCase();
     await withTransaction(laptopProcurementPool, async (client) => {
@@ -3378,11 +4132,18 @@ export async function grantLaptopDelegation(input: {
     }
     await ensureLaptopDelegationTable();
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
-    if (!DELEGATION_EMAIL_RE.test(delegateEmail)) return { success: false, error: 'Enter a valid delegate email address.' };
-    if (delegateEmail === actor.email.toLowerCase()) return { success: false, error: 'You cannot delegate to yourself.' };
-    if (!input.roles?.length) return { success: false, error: 'Select at least one role to delegate.' };
+    if (!DELEGATION_EMAIL_RE.test(delegateEmail))
+      return { success: false, error: 'Enter a valid delegate email address.' };
+    if (delegateEmail === actor.email.toLowerCase())
+      return { success: false, error: 'You cannot delegate to yourself.' };
+    if (!input.roles?.length)
+      return { success: false, error: 'Select at least one role to delegate.' };
     for (const r of input.roles) {
-      if (!actor.matrixCapabilities[r.stage]?.some(c => normaliseScopeValue(c) === normaliseScopeValue(r.country))) {
+      if (
+        !actor.matrixCapabilities[r.stage]?.some(
+          (c) => normaliseScopeValue(c) === normaliseScopeValue(r.country),
+        )
+      ) {
         return { success: false, error: `You don't hold ${r.stage} for ${r.country}.` };
       }
     }
@@ -3408,23 +4169,37 @@ export async function grantLaptopDelegation(input: {
           client,
           `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, stage, country, starts_at, expires_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [actor.email.toLowerCase(), actor.name, delegateEmail, blankToNull(input.delegateName), r.stage, r.country, startsAt, expiresAt],
+          [
+            actor.email.toLowerCase(),
+            actor.name,
+            delegateEmail,
+            blankToNull(input.delegateName),
+            r.stage,
+            r.country,
+            startsAt,
+            expiresAt,
+          ],
         );
       }
     });
     revalidatePath('/laptop-procurement/delegate');
-    deferLaptopNotifications('delegation-granted', () => sendLaptopDelegationNotification('granted', {
-      delegatorEmail: actor.email,
-      delegatorName: actor.name,
-      delegateEmail,
-      delegateName: input.delegateName?.trim() || null,
-      roles: input.roles,
-      expiresAt,
-    }));
+    deferLaptopNotifications('delegation-granted', () =>
+      sendLaptopDelegationNotification('granted', {
+        delegatorEmail: actor.email,
+        delegatorName: actor.name,
+        delegateEmail,
+        delegateName: input.delegateName?.trim() || null,
+        roles: input.roles,
+        expiresAt,
+      }),
+    );
     return { success: true, data: { count: input.roles.length } };
   } catch (err) {
     console.error('[grantLaptopDelegation]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to create delegation.',
+    };
   }
 }
 
@@ -3432,7 +4207,10 @@ export async function revokeLaptopDelegation(id: number): Promise<ActionResult> 
   try {
     const actor = await getActor();
     await ensureLaptopDelegationTable();
-    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_delegations WHERE id = ? LIMIT 1`, [id]);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_delegations WHERE id = ? LIMIT 1`,
+      [id],
+    );
     const row = rows[0];
     if (!row) return { success: false, error: 'Delegation not found.' };
     const isOwner = String(row.delegator_email).toLowerCase() === actor.email.toLowerCase();
@@ -3449,21 +4227,29 @@ export async function revokeLaptopDelegation(id: number): Promise<ActionResult> 
         `UPDATE laptop_delegations SET is_active = FALSE, revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         [id],
       );
-      deferLaptopNotifications('delegation-revoked', () => sendLaptopDelegationNotification('revoked', {
-        delegatorEmail: String(row.delegator_email),
-        delegatorName: (row.delegator_name as string) || actor.name,
-        delegateEmail: String(row.delegate_email),
-        delegateName: (row.delegate_name as string | null) ?? null,
-        roles: row.stage && row.country ? [{ stage: String(row.stage), country: String(row.country) }] : [],
-        expiresAt: null,
-      }));
+      deferLaptopNotifications('delegation-revoked', () =>
+        sendLaptopDelegationNotification('revoked', {
+          delegatorEmail: String(row.delegator_email),
+          delegatorName: (row.delegator_name as string) || actor.name,
+          delegateEmail: String(row.delegate_email),
+          delegateName: (row.delegate_name as string | null) ?? null,
+          roles:
+            row.stage && row.country
+              ? [{ stage: String(row.stage), country: String(row.country) }]
+              : [],
+          expiresAt: null,
+        }),
+      );
     }
     revalidatePath('/laptop-procurement/delegate');
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
     console.error('[revokeLaptopDelegation]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to revoke delegation.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to revoke delegation.',
+    };
   }
 }
 
@@ -3484,21 +4270,33 @@ export async function adminGrantLaptopDelegation(input: {
     const actor = await requireAdminActor();
     // This one never carried a capability check of its own — it leaned entirely on
     // requireAdminActor's old blanket elevation, which no longer grants writes.
-    if (!actor.permissions.canManagePermissions) return { success: false, error: 'Permission management access is required.' };
+    if (!actor.permissions.canManagePermissions)
+      return { success: false, error: 'Permission management access is required.' };
     await ensureLaptopDelegationTable();
     const delegatorEmail = requireText(input.delegatorEmail, 'Approver email').toLowerCase();
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
-    if (!DELEGATION_EMAIL_RE.test(delegatorEmail)) return { success: false, error: 'Enter a valid approver email address.' };
-    if (!DELEGATION_EMAIL_RE.test(delegateEmail)) return { success: false, error: 'Enter a valid delegate email address.' };
-    if (delegatorEmail === delegateEmail) return { success: false, error: 'Approver and delegate must be different people.' };
-    if (!input.roles?.length) return { success: false, error: 'Select at least one role to delegate.' };
+    if (!DELEGATION_EMAIL_RE.test(delegatorEmail))
+      return { success: false, error: 'Enter a valid approver email address.' };
+    if (!DELEGATION_EMAIL_RE.test(delegateEmail))
+      return { success: false, error: 'Enter a valid delegate email address.' };
+    if (delegatorEmail === delegateEmail)
+      return { success: false, error: 'Approver and delegate must be different people.' };
+    if (!input.roles?.length)
+      return { success: false, error: 'Select at least one role to delegate.' };
 
     const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
     const delegatorName = delegatorRow?.name || delegatorEmail;
     const delegatorMatrixCapabilities = await getApproverMatrixCapabilities(delegatorEmail);
     for (const r of input.roles) {
-      if (!delegatorMatrixCapabilities[r.stage]?.some(c => normaliseScopeValue(c) === normaliseScopeValue(r.country))) {
-        return { success: false, error: `${delegatorName} doesn't hold ${r.stage} for ${r.country}.` };
+      if (
+        !delegatorMatrixCapabilities[r.stage]?.some(
+          (c) => normaliseScopeValue(c) === normaliseScopeValue(r.country),
+        )
+      ) {
+        return {
+          success: false,
+          error: `${delegatorName} doesn't hold ${r.stage} for ${r.country}.`,
+        };
       }
     }
     const startsAt = input.startsAt && input.startsAt.trim() ? input.startsAt.trim() : null;
@@ -3520,23 +4318,37 @@ export async function adminGrantLaptopDelegation(input: {
           client,
           `INSERT INTO laptop_delegations (delegator_email, delegator_name, delegate_email, delegate_name, stage, country, starts_at, expires_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [delegatorEmail, delegatorName, delegateEmail, blankToNull(input.delegateName), r.stage, r.country, startsAt, expiresAt],
+          [
+            delegatorEmail,
+            delegatorName,
+            delegateEmail,
+            blankToNull(input.delegateName),
+            r.stage,
+            r.country,
+            startsAt,
+            expiresAt,
+          ],
         );
       }
     });
     revalidatePath('/admin');
     revalidatePath('/laptop-procurement/delegate');
-    deferLaptopNotifications('delegation-granted', () => sendLaptopDelegationNotification('granted', {
-      delegatorEmail,
-      delegatorName,
-      delegateEmail,
-      delegateName: input.delegateName?.trim() || null,
-      roles: input.roles,
-      expiresAt,
-    }));
+    deferLaptopNotifications('delegation-granted', () =>
+      sendLaptopDelegationNotification('granted', {
+        delegatorEmail,
+        delegatorName,
+        delegateEmail,
+        delegateName: input.delegateName?.trim() || null,
+        roles: input.roles,
+        expiresAt,
+      }),
+    );
     return { success: true, data: { count: input.roles.length } };
   } catch (err) {
     console.error('[adminGrantLaptopDelegation]', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to create delegation.',
+    };
   }
 }

@@ -42,9 +42,7 @@ export const useExpediteStore = create<ExpediteStore>((set, get) => ({
     const current = get().selectedItems;
     const exists = current.some((i) => itemKey(i) === key);
     set({
-      selectedItems: exists
-        ? current.filter((i) => itemKey(i) !== key)
-        : [...current, item],
+      selectedItems: exists ? current.filter((i) => itemKey(i) !== key) : [...current, item],
     });
   },
 

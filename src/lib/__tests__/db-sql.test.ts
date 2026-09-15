@@ -44,13 +44,17 @@ describe('toPostgresQuery', () => {
             AND status = 'active'
             AND NOW() BETWEEN starts_at AND ends_at
             AND (app = 'all' OR app = ?)`;
-      expect(toPostgresQuery(statement)).toBe(statement.replace('= ?', '= $1').replace('app = ?', 'app = $2'));
+      expect(toPostgresQuery(statement)).toBe(
+        statement.replace('= ?', '= $1').replace('app = ?', 'app = $2'),
+      );
     });
   });
 
   describe('literal awareness', () => {
     it('ignores a ? inside a single-quoted string literal', () => {
-      expect(toPostgresQuery("SELECT 'why?' AS q WHERE a = ?")).toBe("SELECT 'why?' AS q WHERE a = $1");
+      expect(toPostgresQuery("SELECT 'why?' AS q WHERE a = ?")).toBe(
+        "SELECT 'why?' AS q WHERE a = $1",
+      );
     });
 
     it('does not let a quoted ? shift the placeholders after it', () => {
@@ -60,7 +64,9 @@ describe('toPostgresQuery', () => {
     });
 
     it('handles the doubled-quote escape inside a literal', () => {
-      expect(toPostgresQuery("SELECT 'it''s a ? really' , ?")).toBe("SELECT 'it''s a ? really' , $1");
+      expect(toPostgresQuery("SELECT 'it''s a ? really' , ?")).toBe(
+        "SELECT 'it''s a ? really' , $1",
+      );
     });
 
     it('ignores a ? inside a double-quoted identifier', () => {

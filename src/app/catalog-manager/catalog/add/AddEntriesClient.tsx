@@ -6,10 +6,21 @@ import CatalogManagerShell, { type ScopeCountry } from '../../components/Catalog
 import { Icon } from '../../components/CatalogManagerUI';
 import BulkImportPanel from '../import/BulkImportPanel';
 import GridEntryPanel from './GridEntryPanel';
-import { createCatalogEntriesBatch, searchSupplierDirectory, type CatalogEntryLine } from '@/app/actions/catalog-manager';
+import {
+  createCatalogEntriesBatch,
+  searchSupplierDirectory,
+  type CatalogEntryLine,
+} from '@/app/actions/catalog-manager';
 import type { TaxCategory } from '@/lib/catalog-taxonomy-types';
 import type { ApprovalThresholdRule, SpendType } from '@/types/catalog-manager';
-import { effectiveThresholdUsd, fmtUsd, usdRateFor, usdRatesFrom, SPEND_TYPE_OPTIONS, INCOTERMS } from '@/lib/catalog-manager-utils';
+import {
+  effectiveThresholdUsd,
+  fmtUsd,
+  usdRateFor,
+  usdRatesFrom,
+  SPEND_TYPE_OPTIONS,
+  INCOTERMS,
+} from '@/lib/catalog-manager-utils';
 
 interface LineState {
   key: number;
@@ -29,17 +40,54 @@ interface LineState {
   lead_time: string;
 }
 
-const CCY_BY_COUNTRY: Record<string, string> = { SA: 'SAR', AE: 'AED', KW: 'KWD', OM: 'OMR', QA: 'QAR', IQ: 'USD', DZ: 'DZD', EG: 'EGP' };
+const CCY_BY_COUNTRY: Record<string, string> = {
+  SA: 'SAR',
+  AE: 'AED',
+  KW: 'KWD',
+  OM: 'OMR',
+  QA: 'QAR',
+  IQ: 'USD',
+  DZ: 'DZD',
+  EG: 'EGP',
+};
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const inputCls = 'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-[13px] outline-none focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20';
+const inputCls =
+  'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-[13px] outline-none focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20';
 
 let keySeq = 1;
 function blankLine(currency: string): LineState {
-  return { key: keySeq++, category: '', subcategory: '', commodity: '', family: '', unspsc: '', item: '', uom: '', price: '', currency, effective: todayStr(), expiry: '', incoterms: '', incoterms_location: '', lead_time: '' };
+  return {
+    key: keySeq++,
+    category: '',
+    subcategory: '',
+    commodity: '',
+    family: '',
+    unspsc: '',
+    item: '',
+    uom: '',
+    price: '',
+    currency,
+    effective: todayStr(),
+    expiry: '',
+    incoterms: '',
+    incoterms_location: '',
+    lead_time: '',
+  };
 }
 
 export default function AddEntriesClient({
-  countries, currencies, uoms, services, managers, scope, initialTab, roleLabel, canApprove, canAdmin, pendingCount, thresholds,
+  countries,
+  currencies,
+  uoms,
+  services,
+  managers,
+  scope,
+  initialTab,
+  roleLabel,
+  canApprove,
+  canAdmin,
+  pendingCount,
+  thresholds,
   taxonomy: SPEND_TAXONOMY,
 }: {
   countries: ScopeCountry[];
@@ -66,7 +114,7 @@ export default function AddEntriesClient({
   const router = useRouter();
   const [tab, setTab] = useState<'manual' | 'grid' | 'bulk'>(initialTab);
 
-  const defaultCountry = scope !== 'ALL' ? scope : countries[0]?.code ?? 'SA';
+  const defaultCountry = scope !== 'ALL' ? scope : (countries[0]?.code ?? 'SA');
   const defaultCcy = CCY_BY_COUNTRY[defaultCountry] ?? currencies[0]?.code ?? 'USD';
 
   const [supplierName, setSupplierName] = useState('');
@@ -84,14 +132,22 @@ export default function AddEntriesClient({
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const catGroups = useMemo(
-    () => SPEND_TYPE_OPTIONS.map((t) => ({ type: t, cats: SPEND_TAXONOMY.filter((c) => c.type === t) })).filter((g) => g.cats.length),
+    () =>
+      SPEND_TYPE_OPTIONS.map((t) => ({
+        type: t,
+        cats: SPEND_TAXONOMY.filter((c) => c.type === t),
+      })).filter((g) => g.cats.length),
     [SPEND_TAXONOMY],
   );
 
   function onSupplierName(name: string) {
     setSupplierName(name);
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (name.trim().length < 2) { setSupResults([]); setSupOpen(false); return; }
+    if (name.trim().length < 2) {
+      setSupResults([]);
+      setSupOpen(false);
+      return;
+    }
     setSupSearching(true);
     setSupOpen(true);
     searchTimer.current = setTimeout(async () => {
@@ -114,23 +170,37 @@ export default function AddEntriesClient({
   }
 
   function setLine(key: number, patch: Partial<LineState>) {
-    setLines((ls) => ls.map((l) => {
-      if (l.key !== key) return l;
-      const n = { ...l, ...patch };
-      if (patch.category !== undefined) { n.subcategory = ''; n.commodity = ''; n.family = ''; n.unspsc = ''; }
-      if (patch.subcategory !== undefined) { n.commodity = ''; }
-      if (patch.commodity !== undefined) {
-        const cat = SPEND_TAXONOMY.find((c) => c.name === n.category);
-        const sub = cat?.subs.find((s) => s.name === n.subcategory);
-        const com = sub?.commodities.find((c) => c.n === patch.commodity);
-        if (com) { n.family = com.f; n.unspsc = com.code; if (!n.item) n.item = com.desc; }
-      }
-      return n;
-    }));
+    setLines((ls) =>
+      ls.map((l) => {
+        if (l.key !== key) return l;
+        const n = { ...l, ...patch };
+        if (patch.category !== undefined) {
+          n.subcategory = '';
+          n.commodity = '';
+          n.family = '';
+          n.unspsc = '';
+        }
+        if (patch.subcategory !== undefined) {
+          n.commodity = '';
+        }
+        if (patch.commodity !== undefined) {
+          const cat = SPEND_TAXONOMY.find((c) => c.name === n.category);
+          const sub = cat?.subs.find((s) => s.name === n.subcategory);
+          const com = sub?.commodities.find((c) => c.n === patch.commodity);
+          if (com) {
+            n.family = com.f;
+            n.unspsc = com.code;
+            if (!n.item) n.item = com.desc;
+          }
+        }
+        return n;
+      }),
+    );
   }
 
   const addLine = () => setLines((ls) => [...ls, blankLine(CCY_BY_COUNTRY[country] ?? defaultCcy)]);
-  const removeLine = (key: number) => setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : ls));
+  const removeLine = (key: number) =>
+    setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : ls));
 
   function validate(): string | null {
     if (!supplierName.trim()) return 'Enter the supplier name.';
@@ -144,15 +214,20 @@ export default function AddEntriesClient({
       if (!l.uom) return `Line ${n}: choose a unit of measure.`;
       if (!l.price || Number(l.price) <= 0) return `Line ${n}: unit price must be greater than 0.`;
       if (!l.effective) return `Line ${n}: choose an effective date.`;
-      if (l.expiry && l.expiry < l.effective) return `Line ${n}: expiry must be after the effective date.`;
-      if (l.lead_time.trim() && !/^\d+$/.test(l.lead_time.trim())) return `Line ${n}: lead time must be a whole number of days.`;
+      if (l.expiry && l.expiry < l.effective)
+        return `Line ${n}: expiry must be after the effective date.`;
+      if (l.lead_time.trim() && !/^\d+$/.test(l.lead_time.trim()))
+        return `Line ${n}: lead time must be a whole number of days.`;
     }
     return null;
   }
 
   async function submit(mode: 'draft' | 'submit') {
     const err = validate();
-    if (err) { setError(err); return; }
+    if (err) {
+      setError(err);
+      return;
+    }
     setError(null);
     setSubmitting(true);
     const payload: CatalogEntryLine[] = lines.map((l) => {
@@ -181,7 +256,12 @@ export default function AddEntriesClient({
     });
     try {
       await createCatalogEntriesBatch(
-        { supplier_name: supplierName.trim(), supplier_code: supplierCode.trim(), manager: manager || null, country_code: country },
+        {
+          supplier_name: supplierName.trim(),
+          supplier_code: supplierCode.trim(),
+          manager: manager || null,
+          country_code: country,
+        },
         payload,
         mode,
       );
@@ -197,31 +277,61 @@ export default function AddEntriesClient({
   // tables. A line in a currency with no configured rate contributes nothing and is flagged.
   const rates = usdRatesFrom(currencies);
   const categoryIdByName = new Map(
-    thresholds.filter((t) => t.spend_category_id != null && t.spend_category_name)
+    thresholds
+      .filter((t) => t.spend_category_id != null && t.spend_category_name)
       .map((t) => [t.spend_category_name as string, t.spend_category_id as number] as const),
   );
   const totalUsd = lines.reduce((s, l) => {
     const rate = l.price ? usdRateFor(l.currency, rates) : null;
     return rate === null ? s : s + Number(l.price) * rate;
   }, 0);
-  const missingRateCcys = [...new Set(lines.filter((l) => l.price && usdRateFor(l.currency, rates) === null).map((l) => l.currency))];
+  const missingRateCcys = [
+    ...new Set(
+      lines.filter((l) => l.price && usdRateFor(l.currency, rates) === null).map((l) => l.currency),
+    ),
+  ];
   // The tier a line crosses depends on its own category, so show the lowest threshold in play.
-  const lineThresholds = lines.map((l) => effectiveThresholdUsd(thresholds, country, categoryIdByName.get(l.category) ?? null));
-  const minThresholdUsd = lineThresholds.length ? Math.min(...lineThresholds) : effectiveThresholdUsd(thresholds, country, null);
+  const lineThresholds = lines.map((l) =>
+    effectiveThresholdUsd(thresholds, country, categoryIdByName.get(l.category) ?? null),
+  );
+  const minThresholdUsd = lineThresholds.length
+    ? Math.min(...lineThresholds)
+    : effectiveThresholdUsd(thresholds, country, null);
 
   return (
-    <CatalogManagerShell title="Add entries" roleLabel={roleLabel} canApprove={canApprove} canAdmin={canAdmin} pendingCount={pendingCount} showScope={false}>
+    <CatalogManagerShell
+      title="Add entries"
+      roleLabel={roleLabel}
+      canApprove={canApprove}
+      canAdmin={canAdmin}
+      pendingCount={pendingCount}
+      showScope={false}
+    >
       <div className={`${tab === 'grid' ? '' : 'mx-auto max-w-5xl '}space-y-5`}>
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Add catalog entries</h1>
-          <p className="mt-1 text-sm text-slate-500">Add rates by hand (one supplier, many lines), fill a spreadsheet-style grid, or import a whole rate card from Excel.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Add rates by hand (one supplier, many lines), fill a spreadsheet-style grid, or import a
+            whole rate card from Excel.
+          </p>
         </div>
 
         {/* mode toggle */}
         <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1 shadow-inner">
-          {([['manual', 'Manual entry', 'edit'], ['grid', 'Grid entry', 'catalog'], ['bulk', 'Bulk import (Excel)', 'sheet']] as const).map(([v, label, icon]) => (
-            <button key={v} onClick={() => setTab(v)} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition-all duration-150 ${tab === v ? 'bg-white text-[#1d4f31] shadow-sm ring-1 ring-black/[0.04]' : 'text-slate-500 hover:text-slate-700'}`}>
-              <Icon name={icon} className={`h-4 w-4 ${tab === v ? 'text-[#307c4c]' : ''}`} /> {label}
+          {(
+            [
+              ['manual', 'Manual entry', 'edit'],
+              ['grid', 'Grid entry', 'catalog'],
+              ['bulk', 'Bulk import (Excel)', 'sheet'],
+            ] as const
+          ).map(([v, label, icon]) => (
+            <button
+              key={v}
+              onClick={() => setTab(v)}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition-all duration-150 ${tab === v ? 'bg-white text-[#1d4f31] shadow-sm ring-1 ring-black/[0.04]' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <Icon name={icon} className={`h-4 w-4 ${tab === v ? 'text-[#307c4c]' : ''}`} />{' '}
+              {label}
             </button>
           ))}
         </div>
@@ -229,22 +339,39 @@ export default function AddEntriesClient({
         {tab === 'bulk' ? (
           <BulkImportPanel />
         ) : tab === 'grid' ? (
-          <GridEntryPanel countries={countries} currencies={currencies} uoms={uoms} services={services} defaultCountry={scope} taxonomy={SPEND_TAXONOMY} />
+          <GridEntryPanel
+            countries={countries}
+            currencies={currencies}
+            uoms={uoms}
+            services={services}
+            defaultCountry={scope}
+            taxonomy={SPEND_TAXONOMY}
+          />
         ) : (
           <div className="space-y-4">
-            {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
 
             {/* shared supplier header — entered once */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Supplier (applies to all lines)</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                Supplier (applies to all lines)
+              </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="relative flex flex-col gap-1.5">
-                  <span className="text-[12.5px] font-semibold text-slate-600">Supplier name <span className="text-red-500">*</span></span>
+                  <span className="text-[12.5px] font-semibold text-slate-600">
+                    Supplier name <span className="text-red-500">*</span>
+                  </span>
                   <input
                     className={inputCls}
                     value={supplierName}
                     onChange={(e) => onSupplierName(e.target.value)}
-                    onFocus={() => { if (supResults.length) setSupOpen(true); }}
+                    onFocus={() => {
+                      if (supResults.length) setSupOpen(true);
+                    }}
                     onBlur={() => setTimeout(() => setSupOpen(false), 150)}
                     placeholder="Search NESR suppliers (SAP master)…"
                     autoComplete="off"
@@ -254,17 +381,24 @@ export default function AddEntriesClient({
                       {supSearching ? (
                         <div className="px-3 py-2.5 text-[12.5px] text-slate-400">Searching…</div>
                       ) : supResults.length === 0 ? (
-                        <div className="px-3 py-2.5 text-[12.5px] text-slate-400">No matches — you can still type a new supplier.</div>
+                        <div className="px-3 py-2.5 text-[12.5px] text-slate-400">
+                          No matches — you can still type a new supplier.
+                        </div>
                       ) : (
                         supResults.map((s) => (
                           <button
                             key={s.code}
                             type="button"
-                            onMouseDown={(e) => { e.preventDefault(); pickSupplier(s); }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              pickSupplier(s);
+                            }}
                             className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-[#307c4c]/5"
                           >
                             <span className="truncate text-[13px] text-slate-800">{s.name}</span>
-                            <span className="shrink-0 font-mono text-[11px] text-slate-400">{s.code}</span>
+                            <span className="shrink-0 font-mono text-[11px] text-slate-400">
+                              {s.code}
+                            </span>
                           </button>
                         ))
                       )}
@@ -272,17 +406,43 @@ export default function AddEntriesClient({
                   )}
                 </label>
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-[12.5px] font-semibold text-slate-600">Vendor code <span className="text-red-500">*</span></span>
-                  <input className={`${inputCls} font-mono`} value={supplierCode} onChange={(e) => setSupplierCode(e.target.value)} placeholder="auto-fills for known suppliers" />
+                  <span className="text-[12.5px] font-semibold text-slate-600">
+                    Vendor code <span className="text-red-500">*</span>
+                  </span>
+                  <input
+                    className={`${inputCls} font-mono`}
+                    value={supplierCode}
+                    onChange={(e) => setSupplierCode(e.target.value)}
+                    placeholder="auto-fills for known suppliers"
+                  />
                 </label>
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-[12.5px] font-semibold text-slate-600">Supplier manager</span>
-                  <input list="managerOpts" className={inputCls} value={manager} onChange={(e) => setManager(e.target.value)} placeholder="Accountable owner" />
+                  <span className="text-[12.5px] font-semibold text-slate-600">
+                    Supplier manager
+                  </span>
+                  <input
+                    list="managerOpts"
+                    className={inputCls}
+                    value={manager}
+                    onChange={(e) => setManager(e.target.value)}
+                    placeholder="Accountable owner"
+                  />
                 </label>
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-[12.5px] font-semibold text-slate-600">Country <span className="text-red-500">*</span></span>
-                  <select className={inputCls} value={country} onChange={(e) => onCountry(e.target.value)}>
-                    {countries.map((c) => <option key={c.code} value={c.code}>{c.flag ? `${c.flag} ` : ''}{c.name}</option>)}
+                  <span className="text-[12.5px] font-semibold text-slate-600">
+                    Country <span className="text-red-500">*</span>
+                  </span>
+                  <select
+                    className={inputCls}
+                    value={country}
+                    onChange={(e) => onCountry(e.target.value)}
+                  >
+                    {countries.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag ? `${c.flag} ` : ''}
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
@@ -294,99 +454,251 @@ export default function AddEntriesClient({
               const sub = cat?.subs.find((s) => s.name === l.subcategory);
               const commodityOpts = sub?.commodities ?? [];
               return (
-                <div key={l.key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div
+                  key={l.key}
+                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                >
                   <div className="mb-3 flex items-center justify-between">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Line {idx + 1}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      Line {idx + 1}
+                    </p>
                     {lines.length > 1 && (
-                      <button onClick={() => removeLine(l.key)} className="inline-flex items-center gap-1 text-[12px] font-semibold text-slate-400 hover:text-red-500"><Icon name="trash" className="h-3.5 w-3.5" /> Remove</button>
+                      <button
+                        onClick={() => removeLine(l.key)}
+                        className="inline-flex items-center gap-1 text-[12px] font-semibold text-slate-400 hover:text-red-500"
+                      >
+                        <Icon name="trash" className="h-3.5 w-3.5" /> Remove
+                      </button>
                     )}
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[12.5px] font-semibold text-slate-600">Spend category <span className="text-red-500">*</span></span>
-                      <select className={inputCls} value={l.category} onChange={(e) => setLine(l.key, { category: e.target.value })}>
+                      <span className="text-[12.5px] font-semibold text-slate-600">
+                        Spend category <span className="text-red-500">*</span>
+                      </span>
+                      <select
+                        className={inputCls}
+                        value={l.category}
+                        onChange={(e) => setLine(l.key, { category: e.target.value })}
+                      >
                         <option value="">Select category…</option>
-                        {catGroups.map((g) => <optgroup key={g.type} label={g.type}>{g.cats.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}</optgroup>)}
+                        {catGroups.map((g) => (
+                          <optgroup key={g.type} label={g.type}>
+                            {g.cats.map((c) => (
+                              <option key={c.name} value={c.name}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
                       </select>
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[12.5px] font-semibold text-slate-600">Sub-category</span>
-                      <select className={inputCls} value={l.subcategory} onChange={(e) => setLine(l.key, { subcategory: e.target.value })} disabled={!cat}>
+                      <span className="text-[12.5px] font-semibold text-slate-600">
+                        Sub-category
+                      </span>
+                      <select
+                        className={inputCls}
+                        value={l.subcategory}
+                        onChange={(e) => setLine(l.key, { subcategory: e.target.value })}
+                        disabled={!cat}
+                      >
                         <option value="">{cat ? 'Select…' : 'Pick a category first'}</option>
-                        {cat?.subs.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+                        {cat?.subs.map((s) => (
+                          <option key={s.name} value={s.name}>
+                            {s.name}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="flex flex-col gap-1.5 sm:col-span-2">
                       <span className="text-[12.5px] font-semibold text-slate-600">Commodity</span>
-                      <select className={inputCls} value={l.commodity} onChange={(e) => setLine(l.key, { commodity: e.target.value })} disabled={!l.subcategory}>
-                        <option value="">{l.subcategory ? (commodityOpts.length ? 'Select commodity…' : 'No commodities — describe below') : 'Pick a sub-category first'}</option>
-                        {commodityOpts.map((c) => <option key={c.n} value={c.n}>{c.n}</option>)}
+                      <select
+                        className={inputCls}
+                        value={l.commodity}
+                        onChange={(e) => setLine(l.key, { commodity: e.target.value })}
+                        disabled={!l.subcategory}
+                      >
+                        <option value="">
+                          {l.subcategory
+                            ? commodityOpts.length
+                              ? 'Select commodity…'
+                              : 'No commodities — describe below'
+                            : 'Pick a sub-category first'}
+                        </option>
+                        {commodityOpts.map((c) => (
+                          <option key={c.n} value={c.n}>
+                            {c.n}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="flex flex-col gap-1.5 sm:col-span-2">
-                      <span className="text-[12.5px] font-semibold text-slate-600">Description <span className="text-red-500">*</span></span>
-                      <input list="serviceActivityOpts" className={inputCls} value={l.item} onChange={(e) => setLine(l.key, { item: e.target.value })} placeholder="Pick a service activity or type a description" />
+                      <span className="text-[12.5px] font-semibold text-slate-600">
+                        Description <span className="text-red-500">*</span>
+                      </span>
+                      <input
+                        list="serviceActivityOpts"
+                        className={inputCls}
+                        value={l.item}
+                        onChange={(e) => setLine(l.key, { item: e.target.value })}
+                        placeholder="Pick a service activity or type a description"
+                      />
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[12.5px] font-semibold text-slate-600">Unit of measure <span className="text-red-500">*</span></span>
-                      <select className={inputCls} value={l.uom} onChange={(e) => setLine(l.key, { uom: e.target.value })}>
+                      <span className="text-[12.5px] font-semibold text-slate-600">
+                        Unit of measure <span className="text-red-500">*</span>
+                      </span>
+                      <select
+                        className={inputCls}
+                        value={l.uom}
+                        onChange={(e) => setLine(l.key, { uom: e.target.value })}
+                      >
                         <option value="">Select UOM…</option>
-                        {uoms.map((u) => <option key={u.name} value={u.name}>{u.name}</option>)}
+                        {uoms.map((u) => (
+                          <option key={u.name} value={u.name}>
+                            {u.name}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[12.5px] font-semibold text-slate-600">Unit price <span className="text-red-500">*</span></span>
+                      <span className="text-[12.5px] font-semibold text-slate-600">
+                        Unit price <span className="text-red-500">*</span>
+                      </span>
                       <div className="flex gap-2">
                         <div className="min-w-0 flex-1">
-                          <input type="number" inputMode="decimal" className={`${inputCls} font-mono`} value={l.price} onChange={(e) => setLine(l.key, { price: e.target.value })} placeholder="0.00" />
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            className={`${inputCls} font-mono`}
+                            value={l.price}
+                            onChange={(e) => setLine(l.key, { price: e.target.value })}
+                            placeholder="0.00"
+                          />
                         </div>
                         <div className="w-[88px] shrink-0">
-                          <select className={inputCls} value={l.currency} onChange={(e) => setLine(l.key, { currency: e.target.value })}>
-                            {currencies.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                          <select
+                            className={inputCls}
+                            value={l.currency}
+                            onChange={(e) => setLine(l.key, { currency: e.target.value })}
+                          >
+                            {currencies.map((c) => (
+                              <option key={c.code} value={c.code}>
+                                {c.code}
+                              </option>
+                            ))}
                           </select>
                         </div>
                       </div>
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[12.5px] font-semibold text-slate-600">Effective date <span className="text-red-500">*</span></span>
-                      <input type="date" className={inputCls} value={l.effective} onChange={(e) => setLine(l.key, { effective: e.target.value })} />
+                      <span className="text-[12.5px] font-semibold text-slate-600">
+                        Effective date <span className="text-red-500">*</span>
+                      </span>
+                      <input
+                        type="date"
+                        className={inputCls}
+                        value={l.effective}
+                        onChange={(e) => setLine(l.key, { effective: e.target.value })}
+                      />
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[12.5px] font-semibold text-slate-600">Expiry date</span>
-                      <input type="date" className={inputCls} value={l.expiry} onChange={(e) => setLine(l.key, { expiry: e.target.value })} />
+                      <span className="text-[12.5px] font-semibold text-slate-600">
+                        Expiry date
+                      </span>
+                      <input
+                        type="date"
+                        className={inputCls}
+                        value={l.expiry}
+                        onChange={(e) => setLine(l.key, { expiry: e.target.value })}
+                      />
                     </label>
                     <label className="flex flex-col gap-1.5">
                       <span className="text-[12.5px] font-semibold text-slate-600">Incoterms</span>
-                      <select className={inputCls} value={l.incoterms} onChange={(e) => setLine(l.key, { incoterms: e.target.value })}>
+                      <select
+                        className={inputCls}
+                        value={l.incoterms}
+                        onChange={(e) => setLine(l.key, { incoterms: e.target.value })}
+                      >
                         <option value="">Not specified</option>
-                        {INCOTERMS.map((ic) => <option key={ic.code} value={ic.code}>{ic.label}</option>)}
+                        {INCOTERMS.map((ic) => (
+                          <option key={ic.code} value={ic.code}>
+                            {ic.label}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[12.5px] font-semibold text-slate-600">Incoterms location</span>
-                      <input className={inputCls} value={l.incoterms_location} onChange={(e) => setLine(l.key, { incoterms_location: e.target.value })} placeholder="e.g. Jebel Ali Port" />
+                      <span className="text-[12.5px] font-semibold text-slate-600">
+                        Incoterms location
+                      </span>
+                      <input
+                        className={inputCls}
+                        value={l.incoterms_location}
+                        onChange={(e) => setLine(l.key, { incoterms_location: e.target.value })}
+                        placeholder="e.g. Jebel Ali Port"
+                      />
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[12.5px] font-semibold text-slate-600">Lead time <span className="font-normal text-slate-400">· days</span></span>
-                      <input type="number" inputMode="numeric" min={0} className={`${inputCls} font-mono`} value={l.lead_time} onChange={(e) => setLine(l.key, { lead_time: e.target.value })} placeholder="e.g. 45" />
+                      <span className="text-[12.5px] font-semibold text-slate-600">
+                        Lead time <span className="font-normal text-slate-400">· days</span>
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        className={`${inputCls} font-mono`}
+                        value={l.lead_time}
+                        onChange={(e) => setLine(l.key, { lead_time: e.target.value })}
+                        placeholder="e.g. 45"
+                      />
                     </label>
                   </div>
                 </div>
               );
             })}
 
-            <button onClick={addLine} className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-white py-3 text-[13px] font-semibold text-[#1d4f31] transition-all hover:border-[#307c4c]/40 hover:bg-[#307c4c]/5 active:scale-[0.995]">
+            <button
+              onClick={addLine}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-white py-3 text-[13px] font-semibold text-[#1d4f31] transition-all hover:border-[#307c4c]/40 hover:bg-[#307c4c]/5 active:scale-[0.995]"
+            >
               <Icon name="plus" className="h-4 w-4" /> Add another line
             </button>
 
             <div className="sticky bottom-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-sm">
-              <div className="text-[12.5px] text-slate-500">{lines.length} {lines.length === 1 ? 'line' : 'lines'} · <span className="font-mono font-semibold text-slate-900">≈ USD {fmtUsd(totalUsd)}</span> total <span className="text-slate-400">(lines ≥ USD {fmtUsd(minThresholdUsd)} go to approval)</span>
-                {missingRateCcys.length > 0 && <span className="ml-1 font-semibold text-red-600">· no USD rate configured for {missingRateCcys.join(', ')}</span>}
+              <div className="text-[12.5px] text-slate-500">
+                {lines.length} {lines.length === 1 ? 'line' : 'lines'} ·{' '}
+                <span className="font-mono font-semibold text-slate-900">
+                  ≈ USD {fmtUsd(totalUsd)}
+                </span>{' '}
+                total{' '}
+                <span className="text-slate-400">
+                  (lines ≥ USD {fmtUsd(minThresholdUsd)} go to approval)
+                </span>
+                {missingRateCcys.length > 0 && (
+                  <span className="ml-1 font-semibold text-red-600">
+                    · no USD rate configured for {missingRateCcys.join(', ')}
+                  </span>
+                )}
               </div>
               <div className="flex gap-2.5">
-                <button onClick={() => submit('draft')} disabled={submitting} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98] disabled:opacity-50">Save as drafts</button>
-                <button onClick={() => submit('submit')} disabled={submitting} className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[#307c4c]/25 transition-all hover:bg-[#2b6f44] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100">
-                  <Icon name="check" className="h-4 w-4" /> {submitting ? 'Saving…' : `Create ${lines.length} ${lines.length === 1 ? 'entry' : 'entries'}`}
+                <button
+                  onClick={() => submit('draft')}
+                  disabled={submitting}
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98] disabled:opacity-50"
+                >
+                  Save as drafts
+                </button>
+                <button
+                  onClick={() => submit('submit')}
+                  disabled={submitting}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[#307c4c]/25 transition-all hover:bg-[#2b6f44] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
+                >
+                  <Icon name="check" className="h-4 w-4" />{' '}
+                  {submitting
+                    ? 'Saving…'
+                    : `Create ${lines.length} ${lines.length === 1 ? 'entry' : 'entries'}`}
                 </button>
               </div>
             </div>
@@ -394,8 +706,16 @@ export default function AddEntriesClient({
         )}
       </div>
 
-      <datalist id="managerOpts">{managers.map((m) => <option key={m} value={m} />)}</datalist>
-      <datalist id="serviceActivityOpts">{services.map((s) => <option key={s} value={s} />)}</datalist>
+      <datalist id="managerOpts">
+        {managers.map((m) => (
+          <option key={m} value={m} />
+        ))}
+      </datalist>
+      <datalist id="serviceActivityOpts">
+        {services.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
     </CatalogManagerShell>
   );
 }

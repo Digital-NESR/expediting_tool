@@ -32,7 +32,9 @@ export default function Navbar({ vm }: ScreenProps) {
         <Image src="/nesr-logo-circle.png" alt="NESR" width={26} height={26} />
       </div>
       <div style={{ borderLeft: '1px solid rgba(255,255,255,0.3)', paddingLeft: 12 }}>
-        <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10, letterSpacing: 0.3 }}>SOA Consolidation Portal</div>
+        <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10, letterSpacing: 0.3 }}>
+          SOA Consolidation Portal
+        </div>
       </div>
       <div
         style={{
@@ -64,9 +66,15 @@ export default function Navbar({ vm }: ScreenProps) {
             outline: 'none',
           }}
         >
-          <option value="champion" style={{ color: '#1F1F1D', background: 'white' }}>SC SOA Champion</option>
-          <option value="manager" style={{ color: '#1F1F1D', background: 'white' }}>Supply Chain Manager</option>
-          <option value="director" style={{ color: '#1F1F1D', background: 'white' }}>Supply Chain Director</option>
+          <option value="champion" style={{ color: '#1F1F1D', background: 'white' }}>
+            SC SOA Champion
+          </option>
+          <option value="manager" style={{ color: '#1F1F1D', background: 'white' }}>
+            Supply Chain Manager
+          </option>
+          <option value="director" style={{ color: '#1F1F1D', background: 'white' }}>
+            Supply Chain Director
+          </option>
         </select>
       </div>
       <div

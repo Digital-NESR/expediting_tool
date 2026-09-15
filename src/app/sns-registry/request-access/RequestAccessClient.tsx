@@ -8,11 +8,16 @@ import { ROLES } from '../lib/constants';
 import type { Country, SnsAccessRequestRow, SnsRole } from '../lib/types';
 
 const ROLE_HELP: Record<SnsRole, string> = {
-  'Requestor — Sourcing / Procurement': 'Raise new single/sole-source records and start periodic reviews.',
-  'Validator L1 — Country Supply Chain Manager': 'First-level validation for your countries — approve to Level 2, or reject to draft.',
-  'Validator L2 — Category Manager / SC Director': 'Final sign-off that publishes the Registry ID, and confirms periodic reviews.',
-  'Read-only — Procurement Officer / Auditor': 'Search and export the registry. No submissions, no validations.',
-  'Supply Chain Leadership': 'Registry plus the leadership dashboard. No submissions, no validations.',
+  'Requestor — Sourcing / Procurement':
+    'Raise new single/sole-source records and start periodic reviews.',
+  'Validator L1 — Country Supply Chain Manager':
+    'First-level validation for your countries — approve to Level 2, or reject to draft.',
+  'Validator L2 — Category Manager / SC Director':
+    'Final sign-off that publishes the Registry ID, and confirms periodic reviews.',
+  'Read-only — Procurement Officer / Auditor':
+    'Search and export the registry. No submissions, no validations.',
+  'Supply Chain Leadership':
+    'Registry plus the leadership dashboard. No submissions, no validations.',
 };
 
 export default function RequestAccessClient({
@@ -57,7 +62,10 @@ export default function RequestAccessClient({
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans">
       <header className="flex h-14 shrink-0 items-center gap-4 border-b border-gray-200 bg-white px-6">
-        <Link href="/home" className="text-sm font-medium text-slate-500 transition-colors hover:text-slate-800">
+        <Link
+          href="/home"
+          className="text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
+        >
           ← Back to Home
         </Link>
         <div className="h-5 w-px bg-gray-200" />
@@ -67,24 +75,43 @@ export default function RequestAccessClient({
       <div className="mx-auto max-w-2xl px-6 py-10">
         <h1 className="text-xl font-bold tracking-tight text-slate-900">Request access</h1>
         <p className="mt-1 text-sm leading-relaxed text-slate-500">
-          The Single &amp; Sole Source Registry is the system of record for single-quotation compliance. Tell us which
-          role you need and which countries you cover — a platform admin reviews the request before it takes effect.
+          The Single &amp; Sole Source Registry is the system of record for single-quotation
+          compliance. Tell us which role you need and which countries you cover — a platform admin
+          reviews the request before it takes effect.
         </p>
 
         {done || isPending ? (
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-8 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.75}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
             </div>
-            <p className="text-[15px] font-semibold text-slate-900">Your request is pending review</p>
+            <p className="text-[15px] font-semibold text-slate-900">
+              Your request is pending review
+            </p>
             <p className="mx-auto mt-1 max-w-sm text-[13px] leading-relaxed text-slate-500">
-              You asked for <span className="font-semibold text-slate-700">{done ? role : myRequest?.requestedRole}</span>
-              {' '}access covering{' '}
+              You asked for{' '}
               <span className="font-semibold text-slate-700">
-                {(done ? selected : myRequest?.requestedCountries ?? []).map(countryName).join(', ') || '—'}
-              </span>. You&rsquo;ll be able to open the tool as soon as an admin approves it.
+                {done ? role : myRequest?.requestedRole}
+              </span>{' '}
+              access covering{' '}
+              <span className="font-semibold text-slate-700">
+                {(done ? selected : (myRequest?.requestedCountries ?? []))
+                  .map(countryName)
+                  .join(', ') || '—'}
+              </span>
+              . You&rsquo;ll be able to open the tool as soon as an admin approves it.
             </p>
             <Link
               href="/home"
@@ -97,13 +124,15 @@ export default function RequestAccessClient({
           <div className="mt-6 space-y-6 rounded-2xl border border-slate-200 bg-white p-6">
             {(wasRejected || wasRevoked) && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-relaxed text-amber-800">
-                Your previous request was {wasRejected ? 'rejected' : 'revoked'}. Submitting again replaces it and puts
-                you back in the review queue.
+                Your previous request was {wasRejected ? 'rejected' : 'revoked'}. Submitting again
+                replaces it and puts you back in the review queue.
               </div>
             )}
 
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Role</label>
+              <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                Role
+              </label>
               <div className="mt-2 space-y-2">
                 {ROLES.map((r) => (
                   <button
@@ -111,7 +140,9 @@ export default function RequestAccessClient({
                     type="button"
                     onClick={() => setRole(r)}
                     className={`flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
-                      role === r ? 'border-[#307c4c] bg-[#f0f9f4]' : 'border-slate-200 bg-white hover:border-slate-300'
+                      role === r
+                        ? 'border-[#307c4c] bg-[#f0f9f4]'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
                     <span
@@ -121,7 +152,9 @@ export default function RequestAccessClient({
                     />
                     <span>
                       <span className="block text-[13px] font-semibold text-slate-900">{r}</span>
-                      <span className="mt-0.5 block text-[12px] leading-relaxed text-slate-500">{ROLE_HELP[r]}</span>
+                      <span className="mt-0.5 block text-[12px] leading-relaxed text-slate-500">
+                        {ROLE_HELP[r]}
+                      </span>
                     </span>
                   </button>
                 ))}
@@ -133,7 +166,8 @@ export default function RequestAccessClient({
                 Countries / entities
               </label>
               <p className="mt-1 text-[12px] text-slate-500">
-                Pick every country you need to work in. Validators can only act on records in their approved countries.
+                Pick every country you need to work in. Validators can only act on records in their
+                approved countries.
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {countries.map(([name, code]) => {
@@ -158,7 +192,10 @@ export default function RequestAccessClient({
 
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                Reason <span className="font-medium normal-case tracking-normal text-slate-400">(optional)</span>
+                Reason{' '}
+                <span className="font-medium normal-case tracking-normal text-slate-400">
+                  (optional)
+                </span>
               </label>
               <textarea
                 value={reason}
@@ -170,7 +207,9 @@ export default function RequestAccessClient({
             </div>
 
             {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</div>
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+                {error}
+              </div>
             )}
 
             <button

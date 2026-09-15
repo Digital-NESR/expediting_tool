@@ -2,58 +2,64 @@ import type { Shipment } from '@/types/tite';
 
 export const ALERT_LABEL: Record<string, string> = {
   overdue: 'Overdue',
-  urgent:  'Urgent',
-  action:  "Action req'd",
-  plan:    'Plan ext.',
-  info:    'Monitor',
-  ok:      'On track',
-  closed:  'Closed',
+  urgent: 'Urgent',
+  action: "Action req'd",
+  plan: 'Plan ext.',
+  info: 'Monitor',
+  ok: 'On track',
+  closed: 'Closed',
 };
 
 export const ALERT_PILL: Record<string, string> = {
   overdue: 'bg-red-100 text-red-700 border border-red-200',
-  urgent:  'bg-orange-100 text-orange-700 border border-orange-200',
-  action:  'bg-amber-100 text-amber-700 border border-amber-200',
-  plan:    'bg-blue-100 text-blue-700 border border-blue-200',
-  info:    'bg-cyan-100 text-cyan-700 border border-cyan-200',
-  ok:      'bg-green-100 text-green-700 border border-green-200',
-  closed:  'bg-slate-100 text-slate-500 border border-slate-200',
+  urgent: 'bg-orange-100 text-orange-700 border border-orange-200',
+  action: 'bg-amber-100 text-amber-700 border border-amber-200',
+  plan: 'bg-blue-100 text-blue-700 border border-blue-200',
+  info: 'bg-cyan-100 text-cyan-700 border border-cyan-200',
+  ok: 'bg-green-100 text-green-700 border border-green-200',
+  closed: 'bg-slate-100 text-slate-500 border border-slate-200',
 };
 
 export const ALERT_DOT: Record<string, string> = {
   overdue: 'bg-red-500',
-  urgent:  'bg-orange-500',
-  action:  'bg-amber-500',
-  plan:    'bg-blue-500',
-  info:    'bg-cyan-500',
-  ok:      'bg-green-600',
-  closed:  'bg-slate-400',
+  urgent: 'bg-orange-500',
+  action: 'bg-amber-500',
+  plan: 'bg-blue-500',
+  info: 'bg-cyan-500',
+  ok: 'bg-green-600',
+  closed: 'bg-slate-400',
 };
 
 export const BUCKET_HEX: Record<string, string> = {
   overdue: '#ef4444',
-  urgent:  '#f97316',
-  action:  '#f59e0b',
-  plan:    '#3b82f6',
-  info:    '#06b6d4',
-  ok:      '#059669',
-  closed:  '#94a3b8',
+  urgent: '#f97316',
+  action: '#f59e0b',
+  plan: '#3b82f6',
+  info: '#06b6d4',
+  ok: '#059669',
+  closed: '#94a3b8',
 };
 
 export function fmtDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
   try {
     return new Date(dateStr).toLocaleDateString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
     });
-  } catch { return '—'; }
+  } catch {
+    return '—';
+  }
 }
 
 export function sarFmt(n: number | string | null | undefined): string {
   if (n == null || n === '') return '—';
   const num = Number(n);
   if (isNaN(num)) return '—';
-  return 'SAR ' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    'SAR ' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  );
 }
 
 export function usdFmt(n: number | string | null | undefined): string {
@@ -85,13 +91,22 @@ export function getStatusBadge(status: string): { label: string; className: stri
     case 'Open':
       return { label: 'Open', className: 'bg-blue-50 text-blue-700 border border-blue-200' };
     case 'Open - Extended':
-      return { label: 'Open · Extended', className: 'bg-amber-50 text-amber-700 border border-amber-200' };
+      return {
+        label: 'Open · Extended',
+        className: 'bg-amber-50 text-amber-700 border border-amber-200',
+      };
     case 'Closed':
       return { label: 'Closed', className: 'bg-gray-100 text-gray-600 border border-gray-200' };
     case 'Closed - Refund Recovered':
-      return { label: 'Closed · Refund Recovered', className: 'bg-green-50 text-green-700 border border-green-200' };
+      return {
+        label: 'Closed · Refund Recovered',
+        className: 'bg-green-50 text-green-700 border border-green-200',
+      };
     default:
-      return { label: status || 'Unknown', className: 'bg-gray-100 text-gray-500 border border-gray-200' };
+      return {
+        label: status || 'Unknown',
+        className: 'bg-gray-100 text-gray-500 border border-gray-200',
+      };
   }
 }
 
@@ -107,25 +122,41 @@ export function calcDays(s: Shipment, today: Date = new Date()): number | null {
   if (!effective) return null;
   const [ey, em, ed] = effective.split('-').map(Number);
   const expiryUtc = Date.UTC(ey, em - 1, ed);
-  const todayUtc  = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   return (expiryUtc - todayUtc) / 86400000;
 }
 
 /** The seven buckets every presentation map above defines a value for. */
-export type TiteAlertLevel =
-  | 'overdue' | 'urgent' | 'action' | 'plan' | 'info' | 'ok' | 'closed';
+export type TiteAlertLevel = 'overdue' | 'urgent' | 'action' | 'plan' | 'info' | 'ok' | 'closed';
 
 /** Every bucket, in escalation order. The order is what filter UIs list. */
-export const TITE_ALERT_LEVELS: readonly TiteAlertLevel[] =
-  ['overdue', 'urgent', 'action', 'plan', 'info', 'ok', 'closed'];
+export const TITE_ALERT_LEVELS: readonly TiteAlertLevel[] = [
+  'overdue',
+  'urgent',
+  'action',
+  'plan',
+  'info',
+  'ok',
+  'closed',
+];
 
 /** The buckets an open shipment can be in — {@link TITE_ALERT_LEVELS} less `closed`. */
-export const TITE_OPEN_ALERT_LEVELS: readonly TiteAlertLevel[] =
-  ['overdue', 'urgent', 'action', 'plan', 'info', 'ok'];
+export const TITE_OPEN_ALERT_LEVELS: readonly TiteAlertLevel[] = [
+  'overdue',
+  'urgent',
+  'action',
+  'plan',
+  'info',
+  'ok',
+];
 
 /** The buckets that count as "needs attention" — the sidebar badge and action queue. */
-export const TITE_URGENT_ALERT_LEVELS: readonly TiteAlertLevel[] =
-  ['overdue', 'urgent', 'action', 'plan'];
+export const TITE_URGENT_ALERT_LEVELS: readonly TiteAlertLevel[] = [
+  'overdue',
+  'urgent',
+  'action',
+  'plan',
+];
 
 /** True when an alert level is one of {@link TITE_URGENT_ALERT_LEVELS}. */
 export function isUrgentAlertLevel(level: string): boolean {
@@ -160,10 +191,10 @@ export function isUrgentAlertLevel(level: string): boolean {
  * `today` argument, but it has to be made on all four at once.
  */
 export function alertLevelFor(
-  expiry:   string | null | undefined,
+  expiry: string | null | undefined,
   extended: string | null | undefined,
-  status:   string | null | undefined,
-  today:    Date = new Date(),
+  status: string | null | undefined,
+  today: Date = new Date(),
 ): TiteAlertLevel {
   if (isClosedStatus(status)) return 'closed';
   const days = calcDays(
@@ -171,8 +202,8 @@ export function alertLevelFor(
     today,
   );
   if (days === null) return 'info';
-  if (days <   0) return 'overdue';
-  if (days <=  7) return 'urgent';
+  if (days < 0) return 'overdue';
+  if (days <= 7) return 'urgent';
   if (days <= 14) return 'action';
   if (days <= 30) return 'plan';
   if (days <= 60) return 'info';

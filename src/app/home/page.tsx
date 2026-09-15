@@ -11,7 +11,6 @@ import ToolLauncher from './ToolLauncher';
 export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans text-slate-900 relative overflow-hidden">
-
       {/* ── Decorative background graphics ── */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
         {/* Top-right large semicircle */}
@@ -64,7 +63,6 @@ export default function HomePage() {
           <ToolLauncher scaiPanel={<ScaiPanel />} />
         </div>
       </main>
-
     </div>
   );
 }

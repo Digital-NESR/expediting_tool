@@ -28,7 +28,9 @@ const mockSession = vi.mocked(getCachedSession);
 /** Signed-in session shaped like next-auth's, or null for signed out. */
 function signedInAs(email: string | null | undefined, name?: string | null) {
   mockSession.mockResolvedValue(
-    (email === undefined ? null : { user: { email, name } }) as unknown as Awaited<ReturnType<typeof getCachedSession>>,
+    (email === undefined ? null : { user: { email, name } }) as unknown as Awaited<
+      ReturnType<typeof getCachedSession>
+    >,
   );
 }
 
@@ -142,9 +144,11 @@ describe('isToolAdminEmail', () => {
     expect(isToolAdminEmail('platform@nesr.com', undefined)).toBe(true);
   });
 
-  it('admits an address listed only in the tool\'s own variable', () => {
+  it("admits an address listed only in the tool's own variable", () => {
     process.env.ADMIN_EMAILS = 'platform@nesr.com';
-    expect(isToolAdminEmail('tool.admin@nesr.com', ' Tool.Admin@NESR.com , other@nesr.com')).toBe(true);
+    expect(isToolAdminEmail('tool.admin@nesr.com', ' Tool.Admin@NESR.com , other@nesr.com')).toBe(
+      true,
+    );
     expect(isToolAdminEmail('other@nesr.com', 'tool.admin@nesr.com,other@nesr.com')).toBe(true);
   });
 
@@ -226,7 +230,10 @@ describe('require* guards', () => {
   it('requireUser throws a 401 AccessError when signed out', async () => {
     mockSession.mockResolvedValue(null as never);
     await expect(requireUser()).rejects.toBeInstanceOf(AccessError);
-    await expect(requireUser()).rejects.toMatchObject({ status: 401, message: 'Sign in required.' });
+    await expect(requireUser()).rejects.toMatchObject({
+      status: 401,
+      message: 'Sign in required.',
+    });
   });
 
   it('requireAdmin throws a 403 for a signed-in non-admin', async () => {

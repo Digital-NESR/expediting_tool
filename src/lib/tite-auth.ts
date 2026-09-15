@@ -20,8 +20,7 @@ import { getToolScope } from '@/lib/tool-scope';
  *  here so every existing importer keeps working. */
 export { TITE_VIEW_ALL_COUNTRIES } from '@/lib/tite-constants';
 
-export type TiteAccessStatus =
-  | 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
+export type TiteAccessStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 
 export interface TiteUser {
   /** Always lowercase. */
@@ -91,7 +90,7 @@ export function canViewTiteCountry(user: TiteUser, country: string | null | unde
   if (scope === null) return true;
   const c = (country ?? '').trim().toLowerCase();
   if (!c) return false;
-  return scope.some(s => s.trim().toLowerCase() === c);
+  return scope.some((s) => s.trim().toLowerCase() === c);
 }
 
 /**
@@ -103,5 +102,5 @@ export function canEditTiteCountry(user: TiteUser, country: string | null | unde
   if (user.isAdmin) return true;
   const c = (country ?? '').trim().toLowerCase();
   if (!c) return false;
-  return user.approvedCountries.some(s => s.trim().toLowerCase() === c);
+  return user.approvedCountries.some((s) => s.trim().toLowerCase() === c);
 }

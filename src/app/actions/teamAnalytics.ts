@@ -4,7 +4,13 @@ import pool from '@/lib/db';
 import { getCachedSession } from '@/lib/session';
 import { isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
 import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
-import type { BuyerRow, SupplierRow, RecentSession, WeeklyRateRow, SupplierResponseTimeRow } from './adminAnalytics';
+import type {
+  BuyerRow,
+  SupplierRow,
+  RecentSession,
+  WeeklyRateRow,
+  SupplierResponseTimeRow,
+} from './adminAnalytics';
 
 /* ─── Access ─────────────────────────────────────────────────── */
 
@@ -26,7 +32,13 @@ async function hasPoTeamAccess(): Promise<boolean> {
 
 /* ─── Re-export shared types ────────────────────────────────── */
 
-export type { BuyerRow, SupplierRow, RecentSession, WeeklyRateRow, SupplierResponseTimeRow } from './adminAnalytics';
+export type {
+  BuyerRow,
+  SupplierRow,
+  RecentSession,
+  WeeklyRateRow,
+  SupplierResponseTimeRow,
+} from './adminAnalytics';
 
 /* ─── Team-specific types ───────────────────────────────────── */
 
@@ -210,7 +222,6 @@ export async function getTeamAnalyticsData(
 
     const [kpiRes, buyerRes, supplierRes, sessionsRes, weeklyRes, responseTimeRes, emailsRes] =
       await Promise.all([
-
         /* ── KPI block ──
            No join to sap_open_po_master at all: the supplier name is snapshotted
            on active_expediting at dispatch, so lines whose PO has since closed
@@ -336,61 +347,60 @@ export async function getTeamAnalyticsData(
     const kpi = kpiRes.rows[0] ?? {};
 
     return {
-      totalBatches:           Number(kpi.total_batches ?? 0),
-      totalLinesExpedited:    Number(kpi.total_lines_expedited ?? 0),
+      totalBatches: Number(kpi.total_batches ?? 0),
+      totalLinesExpedited: Number(kpi.total_lines_expedited ?? 0),
       totalSuppliersContacted: Number(kpi.total_suppliers_contacted ?? 0),
-      totalActiveBuyers:      Number(kpi.total_active_buyers ?? 0),
-      totalEmailsSent:        Number(emailsRes.rows[0]?.total_emails ?? 0),
-      overallResponseRate:    kpi.overall_response_rate != null
-        ? Number(kpi.overall_response_rate)
-        : null,
+      totalActiveBuyers: Number(kpi.total_active_buyers ?? 0),
+      totalEmailsSent: Number(emailsRes.rows[0]?.total_emails ?? 0),
+      overallResponseRate:
+        kpi.overall_response_rate != null ? Number(kpi.overall_response_rate) : null,
 
       buyerBreakdown: buyerRes.rows.map((r: Record<string, unknown>) => ({
-        email:             String(r.email ?? ''),
-        display_name:      toStr(r.display_name),
-        job_title:         toStr(r.job_title),
-        last_active_at:    toStr(r.last_active_at),
-        total_sessions:    Number(r.total_sessions ?? 0),
-        total_lines:       Number(r.total_lines ?? 0),
-        total_suppliers:   Number(r.total_suppliers ?? 0),
-        total_emails:      Number(r.total_emails ?? 0),
+        email: String(r.email ?? ''),
+        display_name: toStr(r.display_name),
+        job_title: toStr(r.job_title),
+        last_active_at: toStr(r.last_active_at),
+        total_sessions: Number(r.total_sessions ?? 0),
+        total_lines: Number(r.total_lines ?? 0),
+        total_suppliers: Number(r.total_suppliers ?? 0),
+        total_emails: Number(r.total_emails ?? 0),
         avg_response_rate: r.avg_response_rate != null ? Number(r.avg_response_rate) : null,
       })),
 
       supplierBreakdown: supplierRes.rows.map((r: Record<string, unknown>) => ({
-        supplier_name:   String(r.supplier_name ?? ''),
+        supplier_name: String(r.supplier_name ?? ''),
         times_expedited: Number(r.times_expedited ?? 0),
-        total_lines:     Number(r.total_lines ?? 0),
+        total_lines: Number(r.total_lines ?? 0),
         lines_responded: Number(r.lines_responded ?? 0),
-        response_rate:   r.response_rate != null ? Number(r.response_rate) : null,
-        last_response:   toStr(r.last_response),
+        response_rate: r.response_rate != null ? Number(r.response_rate) : null,
+        last_response: toStr(r.last_response),
       })),
 
       recentSessions: sessionsRes.rows.map((r: Record<string, unknown>) => ({
-        session_ref:        String(r.session_ref ?? ''),
-        dispatched_at:      toStr(r.dispatched_at) ?? '',
-        dispatched_by:      String(r.dispatched_by ?? ''),
-        display_name:       toStr(r.display_name),
-        total_suppliers:    Number(r.total_suppliers ?? 0),
-        total_po_lines:     Number(r.total_po_lines ?? 0),
-        total_emails_sent:  Number(r.total_emails_sent ?? 0),
+        session_ref: String(r.session_ref ?? ''),
+        dispatched_at: toStr(r.dispatched_at) ?? '',
+        dispatched_by: String(r.dispatched_by ?? ''),
+        display_name: toStr(r.display_name),
+        total_suppliers: Number(r.total_suppliers ?? 0),
+        total_po_lines: Number(r.total_po_lines ?? 0),
+        total_emails_sent: Number(r.total_emails_sent ?? 0),
         suppliers_responded: r.suppliers_responded != null ? Number(r.suppliers_responded) : null,
-        response_rate_pct:  r.response_rate_pct != null ? Number(r.response_rate_pct) : null,
-        fully_closed:       r.fully_closed != null ? Boolean(r.fully_closed) : null,
+        response_rate_pct: r.response_rate_pct != null ? Number(r.response_rate_pct) : null,
+        fully_closed: r.fully_closed != null ? Boolean(r.fully_closed) : null,
       })),
 
       weeklyRateData: weeklyRes.rows.map((r: Record<string, unknown>) => ({
-        week:              toStr(r.week) ?? '',
-        lines_expedited:   Number(r.lines_expedited ?? 0),
-        lines_responded:   Number(r.lines_responded ?? 0),
+        week: toStr(r.week) ?? '',
+        lines_expedited: Number(r.lines_expedited ?? 0),
+        lines_responded: Number(r.lines_responded ?? 0),
         avg_response_rate: r.avg_response_rate != null ? Number(r.avg_response_rate) : null,
-        sessions_count:    Number(r.sessions_count ?? 0),
+        sessions_count: Number(r.sessions_count ?? 0),
       })),
 
       supplierResponseTime: responseTimeRes.rows.map((r: Record<string, unknown>) => ({
-        supplier_name:       String(r.supplier_name ?? ''),
+        supplier_name: String(r.supplier_name ?? ''),
         avg_days_to_respond: Number(r.avg_days_to_respond ?? 0),
-        responses_count:     Number(r.responses_count ?? 0),
+        responses_count: Number(r.responses_count ?? 0),
       })),
     };
   } catch (err) {
@@ -454,7 +464,9 @@ export async function getFilterOptions(): Promise<FilterOptions> {
       })),
       countries: countriesRes.rows.map((r: Record<string, unknown>) => String(r.country ?? '')),
       segments: segmentsRes.rows.map((r: Record<string, unknown>) => String(r.p_group ?? '')),
-      suppliers: suppliersRes.rows.map((r: Record<string, unknown>) => String(r.supplier_name ?? '')),
+      suppliers: suppliersRes.rows.map((r: Record<string, unknown>) =>
+        String(r.supplier_name ?? ''),
+      ),
     };
   } catch (err) {
     console.error('[getFilterOptions]', err);

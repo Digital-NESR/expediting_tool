@@ -57,13 +57,19 @@ const OUT_DEPARTMENTS = path.join(ROOT, 'src', 'data', 'laptop-cost-center-depar
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : fallback;
+  return i >= 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--')
+    ? process.argv[i + 1]
+    : fallback;
 }
 const has = (name) => process.argv.includes(`--${name}`);
-const norm = (s) => String(s ?? '').toLowerCase().replace(/[\s_-]/g, '');
+const norm = (s) =>
+  String(s ?? '')
+    .toLowerCase()
+    .replace(/[\s_-]/g, '');
 const text = (v) => {
   if (v == null) return '';
-  if (typeof v === 'object') return String(v.text ?? v.result ?? v.richText?.map((r) => r.text).join('') ?? '').trim();
+  if (typeof v === 'object')
+    return String(v.text ?? v.result ?? v.richText?.map((r) => r.text).join('') ?? '').trim();
   return String(v).trim();
 };
 
@@ -119,12 +125,18 @@ function build(sheet) {
     if (!deptMap.has(department)) deptMap.set(department, costCenter);
   }
 
-  if (skipped) console.warn(`[cost centers] skipped ${skipped} row(s) missing a Country / Company Code / Company Name / Department / Cost Center value`);
+  if (skipped)
+    console.warn(
+      `[cost centers] skipped ${skipped} row(s) missing a Country / Company Code / Company Name / Department / Cost Center value`,
+    );
 
   const companyList = [...companies.values()].sort((a, b) => a.name.localeCompare(b.name));
   const departmentMap = {};
   for (const code of [...departments.keys()].sort()) {
-    departmentMap[code] = [...departments.get(code).entries()].map(([department, costCenter]) => ({ department, costCenter }));
+    departmentMap[code] = [...departments.get(code).entries()].map(([department, costCenter]) => ({
+      department,
+      costCenter,
+    }));
   }
   return { countries: [...countries].sort(), companies: companyList, departments: departmentMap };
 }
@@ -132,7 +144,9 @@ function build(sheet) {
 async function main() {
   const input = arg('in', process.env.LAPTOP_COST_CENTER_XLSX);
   if (!input) {
-    console.error('Missing --in "<path to cost center.xlsx>". The workbook is NOT in this repository — see the header of this file.');
+    console.error(
+      'Missing --in "<path to cost center.xlsx>". The workbook is NOT in this repository — see the header of this file.',
+    );
     process.exit(2);
   }
   const wb = new ExcelJS.Workbook();
@@ -140,7 +154,9 @@ async function main() {
   const sheetName = arg('sheet');
   const sheet = sheetName ? wb.getWorksheet(sheetName) : wb.worksheets[0];
   if (!sheet) {
-    console.error(`Worksheet "${sheetName}" not found. Available: ${wb.worksheets.map((w) => w.name).join(', ')}`);
+    console.error(
+      `Worksheet "${sheetName}" not found. Available: ${wb.worksheets.map((w) => w.name).join(', ')}`,
+    );
     process.exit(2);
   }
 
@@ -148,10 +164,16 @@ async function main() {
 
   // countryMap is hand-maintained, not derivable from the workbook — carry the committed one through.
   const committedCompanies = JSON.parse(fs.readFileSync(OUT_COMPANIES, 'utf8'));
-  const companiesJson = JSON.stringify({ countries, companies, countryMap: committedCompanies.countryMap });
+  const companiesJson = JSON.stringify({
+    countries,
+    companies,
+    countryMap: committedCompanies.countryMap,
+  });
   const departmentsJson = JSON.stringify(departments);
 
-  const unmapped = countries.filter((c) => !Object.values(committedCompanies.countryMap).some((labels) => labels.includes(c)));
+  const unmapped = countries.filter(
+    (c) => !Object.values(committedCompanies.countryMap).some((labels) => labels.includes(c)),
+  );
   if (unmapped.length) {
     console.warn(
       `[cost centers] ${unmapped.length} workbook country label(s) are not reachable from any COUNTRY_OPTIONS value ` +
@@ -166,13 +188,19 @@ async function main() {
   if (has('verify')) {
     const diffs = [
       ['laptop-cost-center-companies.json', fs.readFileSync(OUT_COMPANIES, 'utf8'), companiesJson],
-      ['laptop-cost-center-departments.json', fs.readFileSync(OUT_DEPARTMENTS, 'utf8'), departmentsJson],
+      [
+        'laptop-cost-center-departments.json',
+        fs.readFileSync(OUT_DEPARTMENTS, 'utf8'),
+        departmentsJson,
+      ],
     ].filter(([, current, generated]) => current !== generated);
     if (!diffs.length) {
       console.log(`OK — ${input} reproduces both committed JSON files exactly (${summary}).`);
       return;
     }
-    console.error(`MISMATCH — ${input} does not reproduce: ${diffs.map(([f]) => f).join(', ')} (generated ${summary}).`);
+    console.error(
+      `MISMATCH — ${input} does not reproduce: ${diffs.map(([f]) => f).join(', ')} (generated ${summary}).`,
+    );
     process.exit(1);
   }
 
