@@ -280,18 +280,71 @@ export async function updateSnsCommodity(id: number, name: string): Promise<Acti
   });
 }
 
+/* The four taxonomy levels and the table each one names. The level arrives as a
+   server-action argument, so its union type is a compile-time promise only — a
+   hand-crafted POST can send anything. Everything below looks the table up here
+   and bails when the lookup misses, rather than interpolating `undefined` into
+   the statement and answering a bad argument with a 500. */
+const TAXONOMY_TABLES = {
+  category: 'sns_category',
+  sub: 'sns_sub_category',
+  family: 'sns_family',
+  commodity: 'sns_commodity',
+} as const;
+
+type TaxonomyLevel = keyof typeof TAXONOMY_TABLES;
+
+/* What the admin sees in the "records exist" refusal, so the message names the
+   thing they clicked rather than the wire value. */
+const TAXONOMY_LABELS: Record<TaxonomyLevel, string> = {
+  category: 'category',
+  sub: 'sub-category',
+  family: 'family',
+  commodity: 'commodity',
+};
+
+/* Counts the records whose scope still names a node, per level.
+ *
+ * `sns_record_node` stores the whole path as denormalised text on one row
+ * (category/sub_category/family/commodity), so counting at the level being
+ * deleted also covers everything that would cascade away beneath it: a record
+ * scoped to a commodity still carries its category's name in the same row.
+ *
+ * Each query joins back up the taxonomy to match the full path, not just the
+ * leaf name — names are unique only within their parent, so `family = 'Valves'`
+ * alone would block a delete on some other sub-category's identically named
+ * family. Matching on names (as deleteSnsCountry does) is the only link there
+ * is: the scope snapshot is deliberately not a foreign key.
+ */
+const TAXONOMY_USAGE_SQL: Record<TaxonomyLevel, string> = {
+  category: `SELECT COUNT(*)::int AS n FROM sns_record_node n
+               JOIN sns_category c ON c.name = n.category
+              WHERE c.id = $1`,
+  sub: `SELECT COUNT(*)::int AS n FROM sns_record_node n
+          JOIN sns_sub_category s ON s.name = n.sub_category
+          JOIN sns_category c ON c.id = s.category_id AND c.name = n.category
+         WHERE s.id = $1`,
+  family: `SELECT COUNT(*)::int AS n FROM sns_record_node n
+             JOIN sns_family f ON f.name = n.family
+             JOIN sns_sub_category s ON s.id = f.sub_category_id AND s.name = n.sub_category
+             JOIN sns_category c ON c.id = s.category_id AND c.name = n.category
+            WHERE f.id = $1`,
+  commodity: `SELECT COUNT(*)::int AS n FROM sns_record_node n
+                JOIN sns_commodity m ON m.name = n.commodity
+                JOIN sns_family f ON f.id = m.family_id AND f.name = n.family
+                JOIN sns_sub_category s ON s.id = f.sub_category_id AND s.name = n.sub_category
+                JOIN sns_category c ON c.id = s.category_id AND c.name = n.category
+               WHERE m.id = $1`,
+};
+
 /** Taxonomy tables all carry an `active` flag — deactivating hides a branch from the wizard without deleting it. */
 export async function setSnsTaxonomyActive(
-  level: 'category' | 'sub' | 'family' | 'commodity',
+  level: TaxonomyLevel,
   id: number,
   active: boolean,
 ): Promise<ActionResult> {
-  const table = {
-    category: 'sns_category',
-    sub: 'sns_sub_category',
-    family: 'sns_family',
-    commodity: 'sns_commodity',
-  }[level];
+  const table = TAXONOMY_TABLES[level];
+  if (!table) return { success: false, error: 'Unknown taxonomy level.' };
   return mutate('setSnsTaxonomyActive', { level, id, active }, async () => {
     await snsPool.query(`UPDATE ${table} SET active = $2 WHERE id = $1`, [id, active]);
   });
@@ -301,20 +354,43 @@ export async function setSnsTaxonomyActive(
  * Deletes a taxonomy node. Children cascade (see the schema), but existing
  * records keep their scope — nodes are stored on the record as text, so a
  * deleted branch never rewrites history.
+ *
+ * That snapshot is exactly why the node still has to be in use to block the
+ * delete: the records survive, but the branch they name vanishes from the
+ * admin tree, and nothing can re-create it at the same ids. So this refuses
+ * like deleteSnsCountry does and points the admin at deactivation, which hides
+ * the branch from the wizard while leaving the scope it describes intact.
+ *
+ * Written out rather than run through `mutate` because the pre-check has to
+ * return its own refusal, and has to sit behind the admin gate — the same
+ * shape deleteSnsCountry uses for the same reason.
  */
 export async function deleteSnsTaxonomyNode(
-  level: 'category' | 'sub' | 'family' | 'commodity',
+  level: TaxonomyLevel,
   id: number,
 ): Promise<ActionResult> {
-  const table = {
-    category: 'sns_category',
-    sub: 'sns_sub_category',
-    family: 'sns_family',
-    commodity: 'sns_commodity',
-  }[level];
-  return mutate('deleteSnsTaxonomyNode', { level, id }, async () => {
+  const table = TAXONOMY_TABLES[level];
+  const usageSql = TAXONOMY_USAGE_SQL[level];
+  if (!table || !usageSql) return { success: false, error: 'Unknown taxonomy level.' };
+
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: 'Admins only.' };
+  try {
+    const { rows } = await snsPool.query(usageSql, [id]);
+    if (Number(rows[0]?.n ?? 0) > 0) {
+      return {
+        success: false,
+        error: `Records exist for this ${TAXONOMY_LABELS[level]} — deactivate it instead of deleting.`,
+      };
+    }
     await snsPool.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
-  });
+    revalidatePath('/admin');
+    revalidatePath('/sns-registry');
+    return { success: true };
+  } catch (err) {
+    log.error('deleteSnsTaxonomyNode.failed', err, { level, id, actor: admin });
+    return { success: false, error: 'Could not delete the taxonomy node.' };
+  }
 }
 
 /* ═══ Countries ══════════════════════════════════════════════════ */

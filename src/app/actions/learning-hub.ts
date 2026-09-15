@@ -262,8 +262,13 @@ export async function markLessonIncomplete(lessonId: number): Promise<{ success:
   return { success: true };
 }
 
-// Grade a lesson quiz server-side (answer key never ships to the client), persist the best
-// result, and on a pass (>= pass_pct) mark the lesson complete so the next one unlocks.
+/* Grade a lesson quiz server-side, persist the best result, and on a pass (>= pass_pct) mark the
+   lesson complete so the next one unlocks.
+
+   The answer key ships to the client ONLY once the attempt has passed. It used to ship on every
+   attempt, under a comment claiming it never did, which made the gate decorative: submit blank,
+   read correctOptionId out of the response, resubmit, pass. Per-question `correct` is always
+   returned, so failing still tells a learner which questions they missed. */
 export async function submitLessonQuiz(
   quizId: number,
   answers: QuizAnswerInput[],
@@ -290,7 +295,7 @@ export async function submitLessonQuiz(
       answerMap.set(Number(a.questionId), a.optionId != null ? Number(a.optionId) : null);
 
     let correctCount = 0;
-    const results = [...correctByQ.entries()].map(([questionId, correctOptionId]) => {
+    const graded = [...correctByQ.entries()].map(([questionId, correctOptionId]) => {
       const selectedOptionId = answerMap.get(questionId) ?? null;
       const correct = selectedOptionId === correctOptionId;
       if (correct) correctCount++;
@@ -322,6 +327,12 @@ export async function submitLessonQuiz(
         [actor.email, lessonId],
       );
     }
+    /* Withhold the key until they pass. Graded above either way, so the score and the
+       per-question outcome are unaffected by what is redacted here. */
+    const results = graded.map((r) => ({
+      ...r,
+      correctOptionId: passed ? r.correctOptionId : null,
+    }));
     return { total, correctCount, scorePct, passed, pass_pct: passPct, results };
   } catch (err) {
     log.error('lessonQuiz.submit.failed', err, { quizId });

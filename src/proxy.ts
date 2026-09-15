@@ -1,3 +1,18 @@
+/**
+ * Request gate for the whole app: signed out goes to /login, and /po-expediting checks its own
+ * tool-level grant.
+ *
+ * This was `src/middleware.ts` until Next 16 deprecated that file convention and renamed it to
+ * `proxy`. Same matcher, same logic, same order of checks; only the filename and the exported
+ * function name changed. The deprecation warned on every dev server boot, and AGENTS.md says to
+ * heed the deprecation notices in the bundled Next docs.
+ *
+ * Note for anyone extending this: a proxy runs in front of the app and may be deployed to the
+ * CDN, so it must not reach for shared modules, globals or a database. Everything it needs has
+ * to come from the request itself. That is why the tool-access check below reads the JWT cookie
+ * rather than asking the database, and why a stale cookie is a known limitation of this gate
+ * rather than something to fix here.
+ */
 import { getToken } from 'next-auth/jwt';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -20,7 +35,7 @@ const MACHINE_PATHS = [
   /^\/api\/laptop-procurement\/requests\/[^/]+\/status\/?$/,
 ];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow public paths through without any auth check
@@ -33,7 +48,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Read JWT token (edge-compatible)
+  // Reads the session straight from the JWT cookie, so this stays one cheap verification
+  // with no database round trip. Next 16 runs a proxy on the Node.js runtime rather than
+  // the edge, so the old 'edge-compatible' note no longer applies; getToken works on both.
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
   if (!token) {

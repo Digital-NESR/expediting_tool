@@ -8,18 +8,13 @@ import { IT_MANAGER_STATUSES } from '@/lib/laptopProcurement-utils';
 import { logger } from '@/lib/logger';
 import type {
   ActionResult,
-  AdminCreateLaptopRequestInput,
   CreateLaptopRequestInput,
   LaptopRequestStatus,
   UpdateLaptopExistingDeviceInput,
 } from '@/types/laptopProcurement';
 import { revalidatePath } from 'next/cache';
 import type { QueryResultRow } from 'pg';
-import {
-  laptopActingIdentities,
-  requireAdminActor,
-  requireOperationalAccess,
-} from '@/lib/laptop-procurement/access';
+import { laptopActingIdentities } from '@/lib/laptop-procurement/access';
 import { getActor, stageHasCountry } from '@/lib/laptop-procurement/actor';
 import { execTx, sql } from '@/lib/laptop-procurement/db';
 import {
@@ -43,7 +38,6 @@ export async function createLaptopRequest(
 ): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await getActor();
-    requireOperationalAccess(actor);
     if (!actor.permissions.canCreateRequests)
       throw new Error('Request creation access is required.');
     const validated = validateCreateInput(input);
@@ -92,7 +86,6 @@ export async function updateLaptopRequest(
 ): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await getActor();
-    requireOperationalAccess(actor);
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
       id,
     ]);
@@ -174,7 +167,6 @@ export async function updateLaptopExistingDevice(
 ): Promise<ActionResult> {
   try {
     const actor = await getActor();
-    requireOperationalAccess(actor);
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
       id,
     ]);
@@ -236,49 +228,6 @@ export async function updateLaptopExistingDevice(
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to update existing device details.',
-    };
-  }
-}
-
-export async function createAdminLaptopRequest(
-  input: AdminCreateLaptopRequestInput,
-): Promise<ActionResult<{ id: number }>> {
-  try {
-    const actor = await requireAdminActor();
-    if (!actor.permissions.canManageData)
-      return { success: false, error: 'Data management access is required.' };
-    const validated = validateCreateInput(input);
-    await ensureLaptopReferenceUniqueIndex();
-    const { id, reference } = await withTransaction(laptopProcurementPool, async (client) => {
-      await lockForTransaction(client, LAPTOP_REFERENCE_LOCK_KEY);
-      const reference = await makeReference(client);
-      const id = await insertRequest(input, {
-        client,
-        reference,
-        status: input.status ?? 'Submitted',
-        requestedByName: input.requested_by_name?.trim() || actor.name,
-        requestedByEmail: input.requested_by_email?.trim() || actor.email,
-        validated,
-      });
-      await writeActivity({
-        requestId: id,
-        referenceNumber: reference,
-        action: 'Request created by admin',
-        actor,
-        client,
-      });
-      return { id, reference };
-    });
-    revalidateLaptopPaths();
-    // The request is committed; nobody should watch a webhook timeout before they are
-    // told their reference number.
-    deferLaptopNotifications('new-request', () => notifyNewLaptopRequest(id));
-    return { success: true, data: { id }, reference_number: reference };
-  } catch (err) {
-    log.error('createAdminLaptopRequest.failed', err);
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : 'Failed to create laptop request.',
     };
   }
 }

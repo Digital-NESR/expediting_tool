@@ -19,14 +19,21 @@ import {
 
 export type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 
-/** Tools whose card reflects a per-user access request. */
-export type StatusTool = 'po_expediting' | 'tite' | 'sourceguide';
+/** Tools whose request step is the launcher's own access-request modal. */
+export type ModalTool = 'po_expediting' | 'tite' | 'sourceguide';
+
+/** Tools whose card reflects a per-user access request published on the session. */
+export type StatusTool = ModalTool | 'sns_registry';
 
 export type ToolAccess =
   /** Open to every signed-in user (the tool's own layout enforces anything stricter). */
   | { kind: 'always' }
-  /** Access-request driven: open / pending / denied / request. */
-  | { kind: 'status'; tool: StatusTool }
+  /** Access-request driven: open / pending / denied / request via the shared modal. */
+  | { kind: 'status'; tool: ModalTool; requestPage?: undefined }
+  /* Same gate, but the request step is a page of the tool's own. S&S Registry
+     asks for a role, a country list and a justification — more than the shared
+     modal collects — so the launcher links to that page instead of rebuilding it. */
+  | { kind: 'status'; tool: StatusTool; requestPage: string }
   /** Greyed "Coming Soon" card that admins can click into as a preview. */
   | { kind: 'adminPreview' };
 
@@ -190,6 +197,24 @@ export const TOOLS: ToolDef[] = [
   },
 
   {
+    id: 'sns-registry',
+    group: 'online',
+    keywords: 's&s sns registry single sole source compliance single-quotation exception waiver',
+    name: 'S&S Registry',
+    subtitle: 'Single & Sole Source Compliance',
+    description:
+      'System of record for single-quotation compliance: register single and sole source cases, route them through two-level validation, and keep an audit trail against the 12-month expiry.',
+    icon: <ShieldCheck className="w-6 h-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
+    route: '/sns-registry',
+    access: { kind: 'status', tool: 'sns_registry', requestPage: '/sns-registry/request-access' },
+    badge: { kind: 'status', tool: 'sns_registry' },
+  },
+
+  {
     id: 'sourceguide',
     group: 'online',
     keywords: 'sourceguide sourcing intelligence suppliers commodity',
@@ -296,25 +321,6 @@ export const TOOLS: ToolDef[] = [
     route: '/learning-hub',
     access: { kind: 'always' },
     badge: { kind: 'success', label: 'Open Access' },
-  },
-
-  {
-    id: 'sns-registry',
-    group: 'development',
-    keywords: 's&s sns registry single sole source compliance single-quotation exception waiver',
-    name: 'S&S Registry',
-    subtitle: 'Single & Sole Source Compliance',
-    description:
-      'System of record for single-quotation compliance: register single and sole source cases, route them through two-level validation, and keep an audit trail against the 12-month expiry.',
-    icon: <ShieldCheck className="w-6 h-6 text-gray-400" />,
-    logoClass: 'bg-gray-100',
-    hoverClass: HOVER_GREEN,
-    accent: PREVIEW_GREY,
-    tone: 'preview',
-    route: '/sns-registry',
-    access: { kind: 'adminPreview' },
-    badge: { kind: 'preview' },
-    openLabel: 'Open preview →',
   },
 
   {

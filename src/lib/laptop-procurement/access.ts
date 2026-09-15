@@ -6,7 +6,6 @@
 import {
   canUseLaptopAdmin,
   canUseLaptopAnalytics,
-  canUseLaptopOperationalPages,
   canUseLaptopReviewerQueue,
   getLaptopApprovalStage,
   getLaptopAvailableActions,
@@ -166,12 +165,6 @@ export function resolveLaptopActing(
   if (!sawPermission) return { allowed: false, reason: 'permission', onBehalfOf: null };
   if (!sawReject) return { allowed: false, reason: 'reject', onBehalfOf: null };
   return { allowed: false, reason: 'scope', onBehalfOf: null };
-}
-
-export function requireOperationalAccess(actor: LaptopActor): void {
-  if (!canUseLaptopOperationalPages(actor.effectiveAccessView)) {
-    throw new Error('Operational Laptop Procurement access is required.');
-  }
 }
 
 export function requireAnalyticsAccess(actor: LaptopActor): void {

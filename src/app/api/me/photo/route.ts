@@ -8,7 +8,7 @@ import { getUserPhoto } from '@/lib/user-photo';
    This is the other half of keeping the avatar out of the session JWT:
    session.user.image now points here instead of carrying a base64 data
    URI, so the encrypted session cookie — sent on every request and
-   decrypted by middleware — no longer hauls several kilobytes of JPEG.
+   decrypted by the proxy — no longer hauls several kilobytes of JPEG.
 
    Authenticated and strictly self-scoped: the email comes from the
    session, never from the request, so there is no way to ask for

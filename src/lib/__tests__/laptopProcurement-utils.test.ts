@@ -13,7 +13,6 @@ import {
   bestAccessView,
   canUseLaptopAdmin,
   canUseLaptopAnalytics,
-  canUseLaptopOperationalPages,
   canUseLaptopReviewerQueue,
   getLaptopAccessView,
   getLaptopApprovalStage,
@@ -386,10 +385,6 @@ describe('permission profiles and access views', () => {
 
   it.each(views)('gates analytics for the %s view', (view) => {
     expect(canUseLaptopAnalytics(view)).toBe(view !== 'requester');
-  });
-
-  it.each(views)('opens the operational pages to the %s view', (view) => {
-    expect(canUseLaptopOperationalPages(view)).toBe(true);
   });
 
   it.each(views)('gates the reviewer queue for the %s view', (view) => {

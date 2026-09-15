@@ -10,7 +10,7 @@ import { useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
 import { Search } from 'lucide-react';
-import { TOOLS, type StatusTool, type ToolDef, type ToolStatus } from './tools';
+import { TOOLS, type ModalTool, type ToolDef, type ToolStatus } from './tools';
 import { ToolCard, type ProcureGuardAccessType } from './ToolCard';
 
 /* The modals are only ever needed after a click, so they are code-split
@@ -23,7 +23,9 @@ const PendingModal = dynamic(() => import('./access-modals').then((m) => m.Pendi
   ssr: false,
 });
 
-type ModalState = { tool: StatusTool; kind: 'request' | 'pending' } | null;
+/* The pending panel carries no per-tool copy, so only the request modal needs
+   to know which tool it is for. */
+type ModalState = { kind: 'request'; tool: ModalTool } | { kind: 'pending' } | null;
 
 export default function ToolLauncher({ scaiPanel }: { scaiPanel: ReactNode }) {
   const { data: session, status: sessionStatus, update } = useSession();
@@ -69,10 +71,16 @@ export default function ToolLauncher({ scaiPanel }: { scaiPanel: ReactNode }) {
           return;
         }
         if (status === 'pending') {
-          setModal({ tool: tool.access.tool, kind: 'pending' });
+          setModal({ kind: 'pending' });
           return;
         }
-        setModal({ tool: tool.access.tool, kind: 'request' });
+        // Nobody with a usable status is left: send them to request access,
+        // on the tool's own page where it has one.
+        if (tool.access.requestPage !== undefined) {
+          openTool(tool.access.requestPage, newTab);
+          return;
+        }
+        setModal({ kind: 'request', tool: tool.access.tool });
       }
     }
   }

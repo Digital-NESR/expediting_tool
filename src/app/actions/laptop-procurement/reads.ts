@@ -29,7 +29,6 @@ import {
   laptopActingIdentities,
   requireAdminActor,
   requireAnalyticsAccess,
-  requireOperationalAccess,
   requireReviewerQueueAccess,
   scopedWhere,
 } from '@/lib/laptop-procurement/access';
@@ -50,7 +49,6 @@ const log = logger('laptop-procurement');
 export async function getLaptopRequestsData(): Promise<LaptopRequestListData | null> {
   try {
     const actor = await getActor();
-    requireOperationalAccess(actor);
     const scope = scopedWhere(actor);
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM laptop_requests ${scope.where} ORDER BY created_at DESC, id DESC`,
@@ -66,7 +64,6 @@ export async function getLaptopRequestsData(): Promise<LaptopRequestListData | n
 export async function getLaptopDashboardData(): Promise<LaptopDashboardData | null> {
   try {
     const actor = await getActor();
-    requireOperationalAccess(actor);
     const scope = scopedWhere(actor);
 
     // Pull a generous batch of active-approval requests in scope, then keep only the
@@ -127,7 +124,6 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
 export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestDetailData | null> {
   try {
     const actor = await getActor();
-    requireOperationalAccess(actor);
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
       id,
     ]);

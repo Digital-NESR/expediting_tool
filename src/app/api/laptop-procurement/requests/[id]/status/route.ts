@@ -15,7 +15,7 @@ export const runtime = 'nodejs';
  * Authenticated with the same shared secret used for the outbound approval webhook,
  * sent back as the `x-laptop-procurement-secret` header. The secret is mandatory:
  * when N8N_LAPTOP_PROCUREMENT_WEBHOOK_SECRET is unset the endpoint refuses to serve
- * (503) rather than falling open, because this route is exempt from the middleware
+ * (503) rather than falling open, because this route is exempt from the proxy
  * session check and its own secret is the only gate.
  */
 function secretsMatch(provided: string, expected: string): boolean {

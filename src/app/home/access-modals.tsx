@@ -15,7 +15,7 @@ import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
 import { submitSourceGuideAccessRequest } from '@/app/actions/sourceguide';
 import { TITE_COUNTRY_VALUES, TITE_VIEW_ALL_COUNTRIES } from '@/lib/tite-constants';
-import type { StatusTool } from './tools';
+import type { ModalTool } from './tools';
 
 /* ─── TI-TE country list ────────────────────────────────────────
    Same list the in-app request overlay offers, from the one canonical source.
@@ -76,7 +76,7 @@ interface RequestConfig {
   submitEnabledStyle?: CSSProperties;
 }
 
-const REQUEST_CONFIG: Record<StatusTool, RequestConfig> = {
+const REQUEST_CONFIG: Record<ModalTool, RequestConfig> = {
   po_expediting: {
     title: 'Request Access - PO Expediting',
     blurb: 'Select the countries you need access to. An admin will review your request.',
@@ -112,7 +112,7 @@ export function AccessRequestModal({
   onClose,
   onSubmitted,
 }: {
-  tool: StatusTool;
+  tool: ModalTool;
   identity: RequesterIdentity;
   onClose: () => void;
   onSubmitted: () => Promise<void>;

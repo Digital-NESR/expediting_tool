@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { getLaptopActor, getLaptopRequestDetail } from '@/app/actions/laptopProcurement';
 import { getProcureGuardUser } from '@/lib/auth';
-import { canUseLaptopOperationalPages } from '@/lib/laptopProcurement-utils';
 import { departmentsSeedFor, getCostCenterFormData } from '@/lib/laptopCostCenters.server';
 import LaptopRequestFormClient from '../../new/LaptopRequestFormClient';
 
@@ -18,7 +17,7 @@ export default async function EditLaptopRequestPage({ params }: PageProps) {
 
   const user = await getProcureGuardUser();
   const actor = await getLaptopActor();
-  if (!actor || !canUseLaptopOperationalPages(actor.effectiveAccessView)) {
+  if (!actor) {
     redirect('/laptop-procurement/analytics');
   }
 

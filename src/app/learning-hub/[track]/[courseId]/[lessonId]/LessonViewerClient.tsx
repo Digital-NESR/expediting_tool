@@ -147,12 +147,17 @@ function QuizBlock({
   const allAnswered = quiz.questions.every((q) => answers[q.id] != null);
   const passed = result ? result.passed : initiallyPassed;
 
-  const correctByQ = new Map<number, number>();
+  /* The answer key only comes back once the attempt has passed, so that a failed attempt cannot
+     be used to read the answers and retake. `outcomeByQ` is what colours a failed attempt: the
+     learner still sees which questions they got wrong, without being shown the right option. */
+  const correctByQ = new Map<number, number | null>();
   const selectedByQ = new Map<number, number | null>();
+  const outcomeByQ = new Map<number, boolean>();
   if (result)
     for (const r of result.results) {
       correctByQ.set(r.questionId, r.correctOptionId);
       selectedByQ.set(r.questionId, r.selectedOptionId);
+      outcomeByQ.set(r.questionId, r.correct);
     }
 
   function submit() {
@@ -215,11 +220,16 @@ function QuizBlock({
               <div className="mt-2.5 space-y-2">
                 {q.options.map((o) => {
                   const chosen = result ? selectedByQ.get(q.id) === o.id : answers[q.id] === o.id;
-                  const isCorrect = result != null && correctByQ.get(q.id) === o.id;
-                  const isWrongChosen = result != null && chosen && !isCorrect;
+                  const revealed = correctByQ.get(q.id) ?? null;
+                  // With the key revealed, mark the right option. Without it, the only thing that
+                  // can be said is whether the option the learner picked was the right one.
+                  const isCorrect = result != null && revealed != null && revealed === o.id;
+                  const chosenWasRight = chosen && outcomeByQ.get(q.id) === true;
+                  const showRight = isCorrect || (revealed == null && chosenWasRight);
+                  const isWrongChosen = result != null && chosen && !showRight;
                   let cls = 'border-slate-200 bg-white hover:bg-slate-50';
                   if (result) {
-                    if (isCorrect) cls = 'border-emerald-300 bg-emerald-50';
+                    if (showRight) cls = 'border-emerald-300 bg-emerald-50';
                     else if (isWrongChosen) cls = 'border-red-300 bg-red-50';
                     else cls = 'border-slate-200 bg-white';
                   } else if (chosen) {
@@ -249,7 +259,7 @@ function QuizBlock({
                         )}
                       </span>
                       <span className="flex-1 text-slate-700">{o.text}</span>
-                      {isCorrect && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />}
+                      {showRight && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />}
                       {isWrongChosen && <XCircle className="h-4 w-4 shrink-0 text-red-500" />}
                     </button>
                   );

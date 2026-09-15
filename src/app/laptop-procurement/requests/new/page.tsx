@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import { getLaptopActor } from '@/app/actions/laptopProcurement';
 import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import { getProcureGuardUser } from '@/lib/auth';
-import { canUseLaptopOperationalPages } from '@/lib/laptopProcurement-utils';
 import { departmentsSeedFor, getCostCenterFormData } from '@/lib/laptopCostCenters.server';
 import LaptopRequestFormClient from './LaptopRequestFormClient';
 
@@ -13,7 +12,11 @@ export default async function NewLaptopRequestPage() {
   const user = await getProcureGuardUser();
   const actor = await getLaptopActor();
 
-  if (!actor || !canUseLaptopOperationalPages(actor.effectiveAccessView)) {
+  // Being signed in is the whole gate: every access view, Viewer included, reaches the
+  // operational pages today. That is the current product behaviour rather than a gap here —
+  // a Viewer is held back from acting by its own permissions (it has no canCreateRequests,
+  // which is what the form and createLaptopRequest both check), not by routing.
+  if (!actor) {
     redirect('/laptop-procurement/analytics');
   }
 

@@ -3,12 +3,9 @@ import type {
   LaptopPermissionProfile,
   LaptopPermissionRole,
   LaptopRequestActions,
-  LaptopRequestPriority,
   LaptopRequestStatus,
 } from '@/types/laptopProcurement';
 import { shortDate, shortDateTime } from '@/lib/format';
-
-export const LAPTOP_GREEN = '#307c4c';
 
 // IT Manager / Country Manager / IT Director / Supply Chain Director are shown here for
 // convenience, but picking one doesn't write to laptop_permissions — it writes into
@@ -161,14 +158,12 @@ export function canUseLaptopAnalytics(accessView: LaptopAccessView): boolean {
   return accessView === 'reviewer' || accessView === 'admin' || accessView === 'viewer';
 }
 
-export function canUseLaptopOperationalPages(accessView: LaptopAccessView): boolean {
-  return (
-    accessView === 'requester' ||
-    accessView === 'reviewer' ||
-    accessView === 'admin' ||
-    accessView === 'viewer'
-  );
-}
+/* There is deliberately no canUseLaptopOperationalPages here any more. It listed all four
+   access views, so it was always true, and the guard built on it could never throw — eight
+   action call sites and four page redirects looked like access control and enforced nothing.
+   Every view can reach the operational pages; what a Viewer may actually DO is decided by
+   canCreateRequests and the approver matrix, which are real checks. If Viewer should be kept
+   out of these pages, that is a product decision and needs a predicate that can return false. */
 
 // My Work and Delegate are both about acting on (or handing off authority over)
 // requests — Viewer holds no approval authority, so it's deliberately excluded here
@@ -247,8 +242,6 @@ export const STATUS_OPTIONS: LaptopRequestStatus[] = [
   'Rejected by SCD',
   'Cancelled',
 ];
-
-export const PRIORITY_OPTIONS: LaptopRequestPriority[] = ['Low', 'Normal', 'High', 'Critical'];
 
 export const REQUEST_TYPE_OPTIONS = ['New Employee', 'Upgrade/Replacement', 'Unit'];
 
@@ -562,10 +555,6 @@ export function getWorkflowStepIndex(status: LaptopRequestStatus): number {
   return WORKFLOW_STEPS.findIndex((step) => step.status === status);
 }
 
-export function getStatusOptions(): LaptopRequestStatus[] {
-  return STATUS_OPTIONS;
-}
-
 /* ── Formatting / badges ──────────────────────────────────────── */
 
 export function fmtDate(value: string | null | undefined): string {
@@ -690,16 +679,6 @@ export function getStatusBadge(status: string): { label: string; className: stri
       dot: 'bg-slate-400',
     }
   );
-}
-
-export function getPriorityBadge(priority: string): string {
-  const map: Record<string, string> = {
-    Low: 'bg-slate-50 text-slate-600 border-slate-200',
-    Normal: 'bg-blue-50 text-blue-700 border-blue-200',
-    High: 'bg-orange-50 text-orange-700 border-orange-200',
-    Critical: 'bg-red-50 text-red-700 border-red-200',
-  };
-  return map[priority] ?? map.Normal;
 }
 
 export function safeNum(value: unknown): number {

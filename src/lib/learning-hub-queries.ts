@@ -241,20 +241,9 @@ async function ensureLearningHubSchema(): Promise<void> {
     UNIQUE(user_email, quiz_id)
   )`);
 
-  // Access requests: request -> admin approves (mirrors the other tools). One row per user.
-  await execSchema(`CREATE TABLE IF NOT EXISTS access_requests (
-    user_email TEXT PRIMARY KEY,
-    display_name TEXT,
-    job_title TEXT,
-    department TEXT,
-    status TEXT NOT NULL DEFAULT 'Pending',
-    requested_countries TEXT[] DEFAULT '{}',
-    approved_countries TEXT[] DEFAULT '{}',
-    requested_at TIMESTAMPTZ DEFAULT NOW(),
-    reviewed_at TIMESTAMPTZ,
-    reviewed_by TEXT,
-    notes TEXT
-  )`);
+  /* There is deliberately no access_requests table here. One was created to mirror the other
+     tools, but the Learning Hub is open to every signed-in employee, so nothing ever wrote to
+     it or read it. The table itself still exists in learning_hub_db and wants a DROP. */
 }
 
 // Inserts a track's courses/modules/lessons one multi-row INSERT per level: three round trips for the

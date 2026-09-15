@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
 import type { ActionResult, LaptopDocument } from '@/types/laptopProcurement';
 import { revalidatePath } from 'next/cache';
 import type { QueryResultRow } from 'pg';
-import { laptopActingIdentities, requireOperationalAccess } from '@/lib/laptop-procurement/access';
+import { laptopActingIdentities } from '@/lib/laptop-procurement/access';
 import { anyMatrixCapabilityForCountry, getActor } from '@/lib/laptop-procurement/actor';
 import {
   MAX_LAPTOP_FILE_BYTES,
@@ -29,7 +29,6 @@ export async function uploadLaptopDocument(
 ): Promise<{ success: boolean; document?: LaptopDocument; error?: string }> {
   try {
     const actor = await getActor();
-    requireOperationalAccess(actor);
     // Viewer is read-only oversight: it can see every request but must never attach
     // anything to one. Uploading needs either create rights or reviewer authority
     // (the latter can arrive via delegation, hence effectiveAccessView).

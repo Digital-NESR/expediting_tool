@@ -4,7 +4,7 @@
  * The game (a static app in an iframe) fetches these endpoints to read/write the one JSON blob
  * that is a live game. State lives in learning_game_sessions (learning_hub_db). Writes use
  * optimistic locking (a version column) so two players acting at once merge via client retry
- * instead of clobbering each other. Signed-in NESR users only — enforced here and by middleware.
+ * instead of clobbering each other. Signed-in NESR users only — enforced here and by the proxy.
  */
 
 import { NextRequest, NextResponse } from 'next/server';

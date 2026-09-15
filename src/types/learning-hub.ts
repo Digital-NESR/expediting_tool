@@ -159,7 +159,13 @@ export interface LessonQuizAttemptResult {
   results: {
     questionId: number;
     selectedOptionId: number | null;
-    correctOptionId: number;
+    /**
+     * Null until the learner passes. This quiz gates the next lesson, so returning the key on a
+     * failed attempt let anyone submit blank, read the answers out of the response, and resubmit.
+     * `correct` still comes back either way, so a learner always sees WHICH questions they got
+     * wrong — just not what the right answer was until they have earned it.
+     */
+    correctOptionId: number | null;
     correct: boolean;
   }[];
 }

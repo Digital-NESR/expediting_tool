@@ -27,7 +27,6 @@ import type { QueryResultRow } from 'pg';
 import {
   laptopActingIdentities,
   requireAdminActor,
-  requireOperationalAccess,
   resolveLaptopActing,
 } from '@/lib/laptop-procurement/access';
 import { getActor, stageHasCountry } from '@/lib/laptop-procurement/actor';
@@ -442,7 +441,6 @@ export async function submitProcureNewDetails(
 ): Promise<ActionResult> {
   try {
     const actor = await getActor();
-    requireOperationalAccess(actor);
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
       id,
     ]);

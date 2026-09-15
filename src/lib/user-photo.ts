@@ -4,7 +4,7 @@ import pool from '@/lib/db';
    The Microsoft Graph avatar used to be inlined into the session JWT
    as a base64 data: URI. NextAuth encrypts the JWT into a cookie, so
    that one field added several kilobytes to EVERY request (and to
-   every middleware decrypt). The bytes now live here and are served
+   every proxy decrypt). The bytes now live here and are served
    by /api/me/photo, which the session points at instead; the token
    carries a single boolean.
 
