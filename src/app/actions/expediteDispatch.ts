@@ -8,7 +8,10 @@ import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import { authOptions } from '@/lib/auth';
 import { normalizeEmail } from '@/lib/require-access';
 import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
+import { logger } from '@/lib/logger';
 import type { PurchaseOrder } from '@/types/po';
+
+const log = logger('po-expediting');
 
 interface WebhookResult { ok: boolean; status?: number; error?: string }
 
@@ -25,7 +28,7 @@ function httpsPostOnce(url: string, payload: unknown): Promise<WebhookResult> {
     try {
       data = JSON.stringify(payload);
     } catch (err) {
-      console.error('[Webhook] JSON.stringify failed:', err);
+      log.error('webhook.stringify_failed', err);
       resolve({ ok: false, error: 'stringify-failed' });
       return;
     }
@@ -33,15 +36,8 @@ function httpsPostOnce(url: string, payload: unknown): Promise<WebhookResult> {
     const payloadSizeKB = Math.round(Buffer.byteLength(data) / 1024);
     const supplierCount = Array.isArray(payload) ? payload.length : 1;
 
-    console.log('[Webhook] ========== DISPATCH START ==========');
-    console.log('[Webhook] URL:', url);
-    console.log('[Webhook] Payload size:', payloadSizeKB, 'KB');
-    console.log('[Webhook] Supplier count:', supplierCount);
-    console.log('[Webhook] Timestamp:', new Date().toISOString());
-
     if (!url) {
-      console.error('[Webhook] ERROR: URL is undefined or empty!');
-      console.error('[Webhook] N8N_EXPEDITE_WEBHOOK_URL env var is not set');
+      log.error('webhook.url_missing', null, { envVar: 'N8N_EXPEDITE_WEBHOOK_URL' });
       resolve({ ok: false, error: 'no-url' });
       return;
     }
@@ -50,7 +46,8 @@ function httpsPostOnce(url: string, payload: unknown): Promise<WebhookResult> {
     try {
       parsedUrl = new URL(url);
     } catch (err) {
-      console.error('[Webhook] ERROR: Invalid URL:', url, err);
+      /* The URL can carry a webhook secret in its path, so only its shape is logged. */
+      log.error('webhook.url_invalid', err);
       resolve({ ok: false, error: 'invalid-url' });
       return;
     }
@@ -69,42 +66,56 @@ function httpsPostOnce(url: string, payload: unknown): Promise<WebhookResult> {
       timeout: 15000,
     };
 
-    console.log('[Webhook] Connecting to:', options.hostname, 'port:', options.port);
+    log.debug('webhook.dispatch_start', {
+      host: options.hostname,
+      port: options.port,
+      payloadSizeKB,
+      supplierCount,
+    });
 
     let settled = false;
     const done = (r: WebhookResult) => { if (!settled) { settled = true; resolve(r); } };
 
     const req = https.request(options, (res) => {
-      console.log('[Webhook] Response status:', res.statusCode);
-      console.log('[Webhook] Response headers:', JSON.stringify(res.headers));
+      /* The response body is deliberately NOT logged — it is remote content of
+         unbounded size. Status plus a short reason is what diagnosis needs. */
       let responseData = '';
       res.on('data', (chunk) => { responseData += chunk; });
       res.on('end', () => {
-        console.log('[Webhook] Response body:', responseData.slice(0, 500));
         const ok = !!res.statusCode && res.statusCode >= 200 && res.statusCode < 300;
-        if (ok) console.log('[Webhook] ========== DISPATCH SUCCESS ==========');
-        else console.error('[Webhook] Non-2xx response:', res.statusCode);
+        if (ok) {
+          log.info('webhook.dispatched', { status: res.statusCode, payloadSizeKB, supplierCount });
+        } else {
+          log.error('webhook.non_2xx', null, {
+            status: res.statusCode,
+            payloadSizeKB,
+            supplierCount,
+            responseBytes: Buffer.byteLength(responseData),
+          });
+        }
         done({ ok, status: res.statusCode });
       });
     });
 
     req.on('error', (err: NodeJS.ErrnoException) => {
-      console.error('[Webhook] ========== DISPATCH ERROR ==========');
-      console.error('[Webhook] Error message:', err.message);
-      console.error('[Webhook] Error code:', err.code);
-      console.error('[Webhook] Error syscall:', err.syscall);
-      if (err.code === 'ECONNREFUSED') console.error('[Webhook] DIAGNOSIS: n8n server refused connection. Is n8n running?');
-      else if (err.code === 'ENOTFOUND') console.error('[Webhook] DIAGNOSIS: DNS lookup failed for:', options.hostname);
-      else if (err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') console.error('[Webhook] DIAGNOSIS: SSL certificate issue');
-      else if (err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT') console.error('[Webhook] DIAGNOSIS: Connection timed out after 15s');
-      else if (err.code === 'ECONNRESET') console.error('[Webhook] DIAGNOSIS: Connection reset - payload may be too large');
+      const diagnosis =
+        err.code === 'ECONNREFUSED' ? 'n8n refused the connection — is it running?'
+        : err.code === 'ENOTFOUND' ? 'DNS lookup failed for the webhook host'
+        : err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ? 'TLS certificate could not be verified'
+        : err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT' ? 'connection timed out after 15s'
+        : err.code === 'ECONNRESET' ? 'connection reset — the payload may be too large'
+        : undefined;
+      log.error('webhook.request_failed', err, {
+        host: options.hostname,
+        syscall: err.syscall,
+        payloadSizeKB,
+        ...(diagnosis ? { diagnosis } : {}),
+      });
       done({ ok: false, error: err.code || err.message });
     });
 
     req.on('timeout', () => {
-      console.error('[Webhook] ========== TIMEOUT ==========');
-      console.error('[Webhook] Request timed out after 15 seconds');
-      console.error('[Webhook] Payload size was:', payloadSizeKB, 'KB');
+      log.error('webhook.timeout', null, { host: options.hostname, timeoutMs: 15000, payloadSizeKB });
       req.destroy(new Error('Request timeout after 15s'));
       done({ ok: false, error: 'timeout' });
     });
@@ -112,9 +123,8 @@ function httpsPostOnce(url: string, payload: unknown): Promise<WebhookResult> {
     try {
       req.write(data);
       req.end();
-      console.log('[Webhook] Request sent successfully');
     } catch (err) {
-      console.error('[Webhook] Failed to write/send request:', err);
+      log.error('webhook.write_failed', err, { host: options.hostname });
       done({ ok: false, error: 'write-failed' });
     }
   });
@@ -124,15 +134,13 @@ function httpsPostOnce(url: string, payload: unknown): Promise<WebhookResult> {
 async function httpsPostWithRetry(url: string, payload: unknown, maxAttempts = 2): Promise<WebhookResult> {
   let last: WebhookResult = { ok: false, error: 'not-attempted' };
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    console.log(`[Webhook] Attempt ${attempt} of ${maxAttempts}`);
     last = await httpsPostOnce(url, payload);
     if (last.ok) return last;
-    console.error(`[Webhook] Attempt ${attempt} failed:`, last.error);
+    log.warn('webhook.attempt_failed', { attempt, maxAttempts, reason: last.error ?? last.status });
     if (attempt < maxAttempts) {
-      console.log('[Webhook] Retrying in 3 seconds...');
       await new Promise((r) => setTimeout(r, 3000));
     } else {
-      console.error('[Webhook] All retry attempts exhausted');
+      log.error('webhook.retries_exhausted', null, { attempts: maxAttempts, reason: last.error ?? last.status });
     }
   }
   return last;
@@ -505,7 +513,7 @@ export async function prepareAllExpediteDispatches(
       } catch (err) {
         await client.query('ROLLBACK TO SAVEPOINT dispatch_group');
         await client.query('RELEASE SAVEPOINT dispatch_group');
-        console.error('[prepareAllExpediteDispatches] DB error for', supplierName, err);
+        log.error('dispatch.supplier_failed', err, { supplierName });
         results.push({
           supplierName,
           success: false,
@@ -553,7 +561,7 @@ export async function prepareAllExpediteDispatches(
     const staleRefs = priorRefs.filter((ref) => ref !== sessionRef);
     if (staleRefs.length > 0) {
       await client.query(
-        `WITH refs AS (SELECT unnest($1::text[]) AS session_ref),
+        `WITH refs AS (SELECT unnest($1::uuid[]) AS session_ref),
               stats AS (
                 SELECT r.session_ref,
                        COUNT(ae.id)                                                AS total_lines,
@@ -630,20 +638,17 @@ export async function prepareAllExpediteDispatches(
 
     const payloadSizeKB = Math.round(Buffer.byteLength(JSON.stringify(webhookPayload)) / 1024);
 
-    console.log('[Dispatch] All DB inserts complete');
-    console.log('[Dispatch] Preparing webhook payload...');
-    console.log('[Dispatch] N8N_EXPEDITE_WEBHOOK_URL:', webhookUrl ? 'SET' : 'NOT SET');
-    webhookPayload.forEach((supplier, i) => {
-      const size = Math.round(Buffer.byteLength(JSON.stringify(supplier)) / 1024);
-      console.log(`[Dispatch] Supplier ${i + 1}: ${supplier.supplierName} — ${size}KB`);
+    log.debug('dispatch.payload_ready', {
+      suppliers: webhookPayload.length,
+      payloadSizeKB,
+      webhookConfigured: Boolean(webhookUrl),
     });
-    console.log('[Dispatch] Total payload:', payloadSizeKB, 'KB');
     if (payloadSizeKB > 5000) {
-      console.warn('[Dispatch] WARNING: Payload exceeds 5MB — may cause issues');
+      log.warn('dispatch.payload_oversized', { payloadSizeKB, suppliers: webhookPayload.length });
     }
 
     if (!webhookUrl) {
-      console.error('[Dispatch] N8N_EXPEDITE_WEBHOOK_URL not set — emails will NOT be sent');
+      log.error('dispatch.webhook_not_configured', null, { envVar: 'N8N_EXPEDITE_WEBHOOK_URL', suppliers: webhookPayload.length });
       webhook = {
         triggered: false, ok: false, payloadSizeKB, suppliers: webhookPayload.length,
         message: 'DB records created but webhook URL not configured — emails not sent.',

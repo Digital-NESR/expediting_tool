@@ -56,10 +56,6 @@ export default function ConfirmDispatchPage() {
   const [body, setBody] = useState(DEFAULT_BODY);
   const [sendPhase, setSendPhase] = useState<SendPhase>({ phase: 'idle' });
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
-  // Supplier link tokens once generated (supplierId → full URL)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [generatedLinks, _setGeneratedLinks] = useState<Record<string, string>>({});
-
   // Which cell is being edited: { supplierId, field, value }
   const [editingCell, setEditingCell] = useState<{
     supplierId: string;
@@ -134,8 +130,23 @@ export default function ConfirmDispatchPage() {
       return;
     }
     setValidationErrors(new Set());
-    const resp = await dispatchGroups(groups);
-    setSendPhase({ phase: 'done', results: resp.results, webhook: resp.webhook });
+    try {
+      const resp = await dispatchGroups(groups);
+      setSendPhase({ phase: 'done', results: resp.results, webhook: resp.webhook });
+    } catch (err) {
+      /* Without this the rejection was unhandled, `phase` stayed 'sending', and the
+         button span "Sending…" forever — indistinguishable from a slow network. */
+      console.error('[confirm] dispatch failed', err);
+      setSendPhase({
+        phase: 'done',
+        results: groups.map((g) => ({
+          supplierName: g.supplierName,
+          success: false,
+          error: 'The dispatch failed before any email was sent. Nothing was saved — please try again.',
+        })),
+        webhook: { triggered: false, ok: false, payloadSizeKB: 0, suppliers: 0 },
+      });
+    }
   }
 
   async function handleRetryFailed() {
@@ -145,14 +156,32 @@ export default function ConfirmDispatchPage() {
     const failedGroups = groups.filter((g) => failedNames.has(g.supplierName));
     if (failedGroups.length === 0) return;
 
-    const resp = await dispatchGroups(failedGroups);
+    try {
+      const resp = await dispatchGroups(failedGroups);
 
-    // Merge: keep prior successes, replace failed rows with fresh results
-    setSendPhase({
-      phase: 'done',
-      results: [...prevResults.filter((r) => r.success), ...resp.results],
-      webhook: resp.webhook,
-    });
+      // Merge: keep prior successes, replace failed rows with fresh results
+      setSendPhase({
+        phase: 'done',
+        results: [...prevResults.filter((r) => r.success), ...resp.results],
+        webhook: resp.webhook,
+      });
+    } catch (err) {
+      /* Same reason as handleSendAll: an unhandled rejection left the retry
+         button spinning with no way back. Keep the earlier successes. */
+      console.error('[confirm] retry failed', err);
+      setSendPhase({
+        phase: 'done',
+        results: [
+          ...prevResults.filter((r) => r.success),
+          ...failedGroups.map((g) => ({
+            supplierName: g.supplierName,
+            success: false,
+            error: 'The retry failed before any email was sent. Nothing was saved — please try again.',
+          })),
+        ],
+        webhook: { triggered: false, ok: false, payloadSizeKB: 0, suppliers: 0 },
+      });
+    }
   }
 
   /* ── Empty state ── */
