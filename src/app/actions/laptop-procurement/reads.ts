@@ -1,0 +1,288 @@
+'use server';
+
+/* ─── Everything the pages read. Each one resolves the actor first and scopes its query to them. ─── */
+
+import { asSerialised } from '@/lib/db/sql';
+import {
+  ADMIN_REQUESTS_PAGE_SIZE,
+  APPROVAL_ACTIVE_STATUSES,
+  IT_MANAGER_STATUSES,
+} from '@/lib/laptopProcurement-utils';
+import type {
+  LaptopActivityRow,
+  LaptopAdminData,
+  LaptopAnalyticsData,
+  LaptopDashboardData,
+  LaptopDelegationRow,
+  LaptopDeviceCatalogRow,
+  LaptopDocument,
+  LaptopPermissionRow,
+  LaptopRequest,
+  LaptopRequestDetailData,
+  LaptopRequestListData,
+  LaptopWorkQueueData,
+} from '@/types/laptopProcurement';
+import type { QueryResultRow } from 'pg';
+import {
+  getScopedActions,
+  laptopActingIdentities,
+  requireAdminActor,
+  requireAnalyticsAccess,
+  requireOperationalAccess,
+  requireReviewerQueueAccess,
+  scopedWhere,
+} from '@/lib/laptop-procurement/access';
+import { anyMatrixCapabilityForCountry, getActor } from '@/lib/laptop-procurement/actor';
+import {
+  buildDelegatableRoles,
+  buildMergedPermissionsList,
+  computeLaptopAnalytics,
+  resolveStageAssignees,
+} from '@/lib/laptop-procurement/admin-data';
+import { MEANINGFUL_ACTIVITY_WHERE, sql } from '@/lib/laptop-procurement/db';
+import { applyLaptopDelegationExpiry } from '@/lib/laptop-procurement/delegation';
+import { computeLaptopStats } from '@/lib/laptop-procurement/internals';
+import { ensureLaptopDelegationTable } from '@/lib/laptop-procurement/schema';
+
+export async function getLaptopRequestsData(): Promise<LaptopRequestListData | null> {
+  try {
+    const actor = await getActor();
+    requireOperationalAccess(actor);
+    const scope = scopedWhere(actor);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_requests ${scope.where} ORDER BY created_at DESC, id DESC`,
+      scope.params,
+    );
+    return { actor, requests: asSerialised<LaptopRequest[]>(rows) };
+  } catch (err) {
+    console.error('[getLaptopRequestsData]', err);
+    return null;
+  }
+}
+
+export async function getLaptopDashboardData(): Promise<LaptopDashboardData | null> {
+  try {
+    const actor = await getActor();
+    requireOperationalAccess(actor);
+    const scope = scopedWhere(actor);
+
+    // Pull a generous batch of active-approval requests in scope, then keep only the
+    // ones actually awaiting this actor's decision (same "needs my action" filter as
+    // My Work) — being in scope isn't enough, since scope includes requests already
+    // past this actor's stage and sitting with someone else.
+    const activePlaceholders = APPROVAL_ACTIVE_STATUSES.map(() => '?').join(', ');
+    const pendingWhere = scope.where
+      ? `${scope.where} AND status IN (${activePlaceholders})`
+      : `WHERE status IN (${activePlaceholders})`;
+
+    // One fetch of the in-scope active-approval rows, shared with computeLaptopStats
+    // below — it needs exactly this set for pending_review and used to issue the very
+    // same query itself. The LIMIT 50 that used to be in SQL is applied in JS instead,
+    // after the same ORDER BY, so the queue is still the 50 most recent and the count
+    // still spans everything.
+    const activeRequestsPromise = sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_requests ${pendingWhere} ORDER BY created_at DESC`,
+      [...scope.params, ...APPROVAL_ACTIVE_STATUSES],
+    ).then((rows) => asSerialised<LaptopRequest[]>(rows));
+
+    const [activeRequests, activityRows, stats] = await Promise.all([
+      activeRequestsPromise,
+      // Always the actor's own actions — not everything canViewAll can see — so
+      // "Recent Activity" reflects what this person actually did.
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_activity_log WHERE actor_email = ? AND ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 12`,
+        [actor.email],
+      ),
+      // Handed the same promise, so its aggregate query still runs in parallel with the
+      // fetch it is reusing rather than waiting on it.
+      computeLaptopStats(actor, scope.where, scope.params, activeRequestsPromise),
+    ]);
+
+    const pendingQueue = activeRequests.slice(0, 50).filter((r) => {
+      const actions = getScopedActions(actor, r);
+      return (
+        actions.canApprove ||
+        actions.canReject ||
+        actions.canAssignInventory ||
+        actions.canProcureNew ||
+        actions.canSubmitProcureDetails
+      );
+    });
+
+    return {
+      stats,
+      pendingQueue,
+      activity: asSerialised<LaptopActivityRow[]>(activityRows),
+      actor,
+    };
+  } catch (err) {
+    console.error('[getLaptopDashboardData]', err);
+    return null;
+  }
+}
+
+export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestDetailData | null> {
+  try {
+    const actor = await getActor();
+    requireOperationalAccess(actor);
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
+      id,
+    ]);
+    if (!rows[0]) return null;
+
+    const request = asSerialised<LaptopRequest>(rows[0]);
+    // Visible if EITHER the actor's own identity or any identity they hold via
+    // delegation can see it — mirrors the list query (scopedWhere), which already
+    // accounts for delegation. Every delegation grant already has canViewAll=true
+    // (enforced in resolveLaptopDelegations), so only the actor's own identity ever
+    // needs the "it's my own request" fallback.
+    const canView = laptopActingIdentities(actor).some((id) =>
+      id.permissions.canViewAll
+        ? id.permissions.canViewEveryCountry ||
+          anyMatrixCapabilityForCountry(id.matrixCapabilities, request.country)
+        : id.email.toLowerCase() === request.requested_by_email?.toLowerCase(),
+    );
+    if (!canView) return null;
+
+    const [activityRows, documentRows] = await Promise.all([
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_activity_log WHERE request_id = ? ORDER BY created_at DESC`,
+        [id],
+      ),
+      sql<QueryResultRow[]>(
+        `SELECT id, request_id, document_name, original_name, document_type, file_type, file_size,
+                uploaded_by_name, uploaded_by_email, uploaded_at
+         FROM laptop_documents WHERE request_id = ? ORDER BY uploaded_at DESC`,
+        [id],
+      ),
+    ]);
+
+    return {
+      actor,
+      request,
+      activity: asSerialised<LaptopActivityRow[]>(activityRows),
+      documents: asSerialised<LaptopDocument[]>(documentRows),
+      actions: getScopedActions(actor, request),
+      stageAssignees: await resolveStageAssignees(request),
+    };
+  } catch (err) {
+    console.error('[getLaptopRequestDetail]', err);
+    return null;
+  }
+}
+
+export async function getLaptopWorkQueueData(): Promise<LaptopWorkQueueData | null> {
+  try {
+    const actor = await getActor();
+    requireReviewerQueueAccess(actor);
+    const scope = scopedWhere(actor);
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT * FROM laptop_requests ${scope.where} ORDER BY created_at DESC, id DESC`,
+      scope.params,
+    );
+    const requests = asSerialised<LaptopRequest[]>(rows);
+    const items = requests
+      .map((request) => ({ request, actions: getScopedActions(actor, request) }))
+      .filter(
+        (item) =>
+          item.actions.canApprove ||
+          item.actions.canReject ||
+          item.actions.canAssignInventory ||
+          item.actions.canProcureNew ||
+          item.actions.canSubmitProcureDetails,
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.request.created_at).getTime() - new Date(b.request.created_at).getTime(),
+      );
+
+    return {
+      actor,
+      items,
+      stats: {
+        total: items.length,
+        approval: items.filter((item) => item.actions.canApprove).length,
+        it_review: items.filter((item) => IT_MANAGER_STATUSES.includes(item.request.status)).length,
+      },
+    };
+  } catch (err) {
+    console.error('[getLaptopWorkQueueData]', err);
+    return null;
+  }
+}
+
+export async function getLaptopAdminData(
+  requestsPage: number = 0,
+): Promise<LaptopAdminData | null> {
+  try {
+    const actor = await requireAdminActor();
+    await ensureLaptopDelegationTable();
+    const offset = Math.max(0, Math.floor(requestsPage)) * ADMIN_REQUESTS_PAGE_SIZE;
+    const [
+      requestRows,
+      requestsCountRows,
+      activityRows,
+      permissionRows,
+      delegationRows,
+      deviceRows,
+      matrixRows,
+      stats,
+    ] = await Promise.all([
+      // Only the current page — the table only ever shows ADMIN_REQUESTS_PAGE_SIZE
+      // rows at a time, so there's no reason to pull the entire (and ever-growing)
+      // requests table on every admin panel load or action.
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_requests ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
+        [ADMIN_REQUESTS_PAGE_SIZE, offset],
+      ),
+      sql<QueryResultRow[]>(`SELECT COUNT(*)::int AS count FROM laptop_requests`),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_activity_log WHERE ${MEANINGFUL_ACTIVITY_WHERE} ORDER BY created_at DESC LIMIT 100`,
+      ),
+      sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions ORDER BY role, email`),
+      sql<QueryResultRow[]>(
+        `SELECT * FROM laptop_delegations ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`,
+      ),
+      sql<QueryResultRow[]>(`SELECT * FROM laptop_device_catalog ORDER BY type_of_device, model`),
+      sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix WHERE is_active = TRUE`),
+      computeLaptopStats(actor, '', []),
+    ]);
+    const delegations = applyLaptopDelegationExpiry(
+      asSerialised<LaptopDelegationRow[]>(delegationRows),
+    );
+    return {
+      actor,
+      requests: asSerialised<LaptopRequest[]>(requestRows),
+      requestsTotal: Number(requestsCountRows[0]?.count ?? 0),
+      activity: asSerialised<LaptopActivityRow[]>(activityRows),
+      permissions: asSerialised<LaptopPermissionRow[]>(permissionRows),
+      delegations,
+      deviceCatalog: asSerialised<LaptopDeviceCatalogRow[]>(deviceRows),
+      stats,
+      delegatableRoles: buildDelegatableRoles(matrixRows),
+      permissionsList: buildMergedPermissionsList(permissionRows, matrixRows),
+    };
+  } catch (err) {
+    console.error('[getLaptopAdminData]', err);
+    return null;
+  }
+}
+
+// Scoped to the actor's own approval countries (plus their own submitted requests) —
+// same scoping the request list and reviewer queue use. This is what the admin panel's
+// embedded analytics tab has always shown (admin's own scope is unrestricted, so it
+// reads as "global" there), and what the laptop-procurement Analytics page's Personal
+// tab shows for everyone else.
+export async function getLaptopAnalyticsData(): Promise<LaptopAnalyticsData | null> {
+  try {
+    const actor = await getActor();
+    requireAnalyticsAccess(actor);
+    const scope = scopedWhere(actor);
+    return await computeLaptopAnalytics(actor, scope.where, scope.params);
+  } catch (err) {
+    console.error('[getLaptopAnalyticsData]', err);
+    return null;
+  }
+}
+
+/* ── Create / update ──────────────────────────────────────────── */
