@@ -1,7 +1,7 @@
 'use server';
 
 import pool from '@/lib/db';
-import { DS_DESCRIPTIONS } from '@/lib/constants';
+import { SELECTABLE_DS_CODES } from '@/lib/ds-codes';
 import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
 import { logger } from '@/lib/logger';
 
@@ -153,7 +153,8 @@ export async function submitSupplierUpdates(
     return { success: false, error: GENERIC_SUBMIT_ERROR };
   }
 
-  const validCodes = new Set(Object.keys(DS_DESCRIPTIONS));
+  /* Selectable only: a retired code exists so history still renders, never to be chosen again. */
+  const validCodes = new Set(SELECTABLE_DS_CODES.map((c) => c.code));
   const cleaned: LineUpdate[] = [];
   /* The old row-at-a-time loop updated the first copy of a repeated (po, line)
      and then silently no-opped on the rest, because the first update had already

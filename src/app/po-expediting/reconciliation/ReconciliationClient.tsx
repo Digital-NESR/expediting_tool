@@ -4,12 +4,9 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { saveBuyerComment, getMyExpeditingSessions } from '@/app/actions/reconciliation';
 import type { SessionData, SupplierGroup, LineData } from '@/app/actions/reconciliation';
-import { DS_DESCRIPTIONS } from '@/lib/constants';
+import { DS_DESCRIPTIONS, dsTone } from '@/lib/ds-codes';
 
 /* ─── DS-code colour sets ────────────────────────────────────── */
-const DS_GREEN = new Set(['DS04', 'DS12', 'DS13', 'DS14', 'DS19']);
-const DS_AMBER = new Set(['DS05', 'DS15', 'DS16', 'DS17', 'DS18']);
-const DS_RED = new Set(['DS01', 'DS02', 'DS03', 'DS06', 'DS07', 'DS08', 'DS09', 'DS10', 'DS11']);
 
 /* ─── Helper functions ───────────────────────────────────────── */
 
@@ -185,7 +182,8 @@ function DsStatusBadge({ code }: { code: string | null }) {
   }
   const base = code.split(' ')[0].toUpperCase();
   const tooltip = DS_DESCRIPTIONS[base];
-  if (DS_GREEN.has(base))
+  const tone = dsTone(base);
+  if (tone === 'green')
     return (
       <span
         title={tooltip}
@@ -194,7 +192,7 @@ function DsStatusBadge({ code }: { code: string | null }) {
         {base}
       </span>
     );
-  if (DS_AMBER.has(base))
+  if (tone === 'amber')
     return (
       <span
         title={tooltip}
@@ -203,7 +201,7 @@ function DsStatusBadge({ code }: { code: string | null }) {
         {base}
       </span>
     );
-  if (DS_RED.has(base))
+  if (tone === 'red')
     return (
       <span
         title={tooltip}

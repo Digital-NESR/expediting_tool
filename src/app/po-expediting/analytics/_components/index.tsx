@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef } from 'react';
 import type React from 'react';
-import { DS_DESCRIPTIONS } from '@/lib/constants';
+import { DS_DESCRIPTIONS } from '@/lib/ds-codes';
 
 /**
  * The analytics UI kit, shared by the three expediting analytics surfaces:

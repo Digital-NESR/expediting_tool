@@ -3,29 +3,12 @@
 import React, { useState, useMemo, useRef } from 'react';
 import type { PortalData, LineUpdate } from '@/app/actions/supplierPortal';
 import { submitSupplierUpdates } from '@/app/actions/supplierPortal';
+import { SELECTABLE_DS_CODES, dsLabel } from '@/lib/ds-codes';
 
 /* ─── DS code list ───────────────────────────────────────── */
-const DS_CODES = [
-  { code: 'DS01', label: 'DS01 – PO Copy Not Received' },
-  { code: 'DS02', label: 'DS02 – PO Rejected' },
-  { code: 'DS03', label: 'DS03 – PO Pending Revision' },
-  { code: 'DS04', label: 'DS04 – PO Acknowledged - Delivery On Time' },
-  { code: 'DS05', label: 'DS05 – PO Acknowledged - Delivery Delay' },
-  { code: 'DS06', label: 'DS06 – Delivery On Hold - Pending Import Permit' },
-  { code: 'DS07', label: 'DS07 – PO Acknowledged - No response' },
-  { code: 'DS08', label: 'DS08 – Delivery On Hold - Pending LC' },
-  { code: 'DS09', label: 'DS09 – Delivery On Hold - Pending Advance Payment' },
-  { code: 'DS10', label: 'DS10 – Delivery On-Hold - Payment Issues' },
-  { code: 'DS11', label: 'DS11 – Delivery On Hold - Others' },
-  { code: 'DS12', label: 'DS12 – Delivered & Invoiced' },
-  { code: 'DS13', label: 'DS13 – Service Ongoing' },
-  { code: 'DS14', label: 'DS14 – Service Completed' },
-  { code: 'DS15', label: 'DS15 – Shipped - In Transit' },
-  { code: 'DS16', label: 'DS16 – Ready for Collection' },
-  { code: 'DS17', label: 'DS17 – Collected by Freight Forwarder' },
-  { code: 'DS18', label: 'DS18 – Customs Clearance' },
-  { code: 'DS19', label: 'DS19 – Products Delivered to Base' },
-];
+/* The statuses a supplier may choose come from the one DS catalogue, not a copy. This
+   dropdown is the only writer of DS codes anywhere in the platform, so a list that drifts
+   here silently teaches every supplier the wrong vocabulary. Retired codes are excluded. */
 
 /* ─── Helpers ────────────────────────────────────────────── */
 function formatCurrency(val: number | string | null | undefined) {
@@ -535,9 +518,9 @@ export function SupplierPortalForm({ token, data }: Props) {
                               className="text-[13px] text-gray-800 rounded-md px-2.5 py-1.5 bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] min-w-[220px]"
                             >
                               <option value="">Select status…</option>
-                              {DS_CODES.map((ds) => (
+                              {SELECTABLE_DS_CODES.map((ds) => (
                                 <option key={ds.code} value={ds.code}>
-                                  {ds.label}
+                                  {dsLabel(ds.code, '–')}
                                 </option>
                               ))}
                             </select>
@@ -664,9 +647,9 @@ export function SupplierPortalForm({ token, data }: Props) {
                             }`}
                           >
                             <option value="">Select status…</option>
-                            {DS_CODES.map((ds) => (
+                            {SELECTABLE_DS_CODES.map((ds) => (
                               <option key={ds.code} value={ds.code}>
-                                {ds.label}
+                                {dsLabel(ds.code, '–')}
                               </option>
                             ))}
                           </select>
