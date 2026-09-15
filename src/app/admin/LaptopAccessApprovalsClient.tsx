@@ -11,14 +11,7 @@ import {
 } from '@/app/actions/laptopProcurement';
 import { COUNTRY_OPTIONS, PERMISSION_ROLE_OPTIONS, SEGMENT_OPTIONS } from '@/lib/laptopProcurement-utils';
 import type { LaptopAccessRequestRow, LaptopPermissionRole } from '@/types/laptopProcurement';
-
-function formatDate(raw: string | null): string {
-  if (!raw) return '-';
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return raw;
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
-}
+import { formatDate } from '@/lib/format';
 
 function StatusBadge({ status }: { status: LaptopAccessRequestRow['status'] }) {
   const cls = status === 'Approved'

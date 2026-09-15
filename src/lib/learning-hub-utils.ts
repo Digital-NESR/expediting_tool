@@ -10,11 +10,11 @@ export function formatDuration(minutes: number): string {
   return m === 0 ? `${h} hr` : `${h} hr ${m} min`;
 }
 
-export function isAdminEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  return adminEmails.includes(email.toLowerCase());
-}
+/*
+ * `isAdminEmail()` used to live here — a 28th inline ADMIN_EMAILS parse with no callers
+ * anywhere in src/. Deleted rather than re-pointed at `isPlatformAdminEmail()`: this module
+ * is imported by client components (CourseDetailClient, LessonViewerClient, for
+ * formatDuration), and pulling in `@/lib/require-access` would drag the server-only
+ * session module into the client bundle. Learning Hub admin checks go through
+ * `isPlatformAdminEmail()` from '@/lib/require-access' on the server.
+ */

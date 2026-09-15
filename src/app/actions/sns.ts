@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth';
 import type { PoolClient } from 'pg';
 import { authOptions } from '@/lib/auth';
+import { isPlatformAdminEmail } from '@/lib/require-access';
 import snsPool from '@/lib/db-sns';
 import { ROLES } from '@/app/sns-registry/lib/constants';
 import { addDays, parseISODate, toISODate, today, todayISO } from '@/app/sns-registry/lib/date';
@@ -34,13 +35,6 @@ type Queryable = Pick<PoolClient, 'query'>;
 
 /* ═══ Viewer / permissions ═══════════════════════════════════════ */
 
-function adminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS ?? '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 /**
  * Resolves the signed-in user's S&S permissions.
  *
@@ -56,7 +50,7 @@ export async function getSnsViewer(): Promise<SnsViewer | null> {
 
   const name = session.user.name ?? email;
 
-  if (adminEmails().includes(email.toLowerCase())) {
+  if (isPlatformAdminEmail(email)) {
     return { email, name, isAdmin: true, role: null, roleKind: 'admin', countryCodes: [] };
   }
 
@@ -115,10 +109,15 @@ function isAdminOr(viewer: SnsViewer | null, ...kinds: string[]): boolean {
   return viewer.isAdmin || kinds.includes(viewer.roleKind);
 }
 
+/* Platform ADMIN_EMAILS only — the S&S registry has no per-tool admin env list, so a
+   SourceGuide/TI-TE style `*_ADMIN_EMAILS` merge would WIDEN this gate. Returns the
+   session-cased email (not the normalised one) because callers write it straight into
+   the audit trail, and returns null rather than throwing because every caller degrades
+   to an empty list or a failure result instead of a digest error. */
 async function requireAdmin(): Promise<string | null> {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email;
-  if (!email || !adminEmails().includes(email.toLowerCase())) return null;
+  if (!email || !isPlatformAdminEmail(email)) return null;
   return email;
 }
 

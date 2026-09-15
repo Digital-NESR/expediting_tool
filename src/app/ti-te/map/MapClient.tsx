@@ -3,13 +3,13 @@
 import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import TiteSidebar from '@/components/TiteSidebar';
-import { ALERT_LABEL, BUCKET_HEX, usdFmt } from '@/lib/tite-utils';
+import { ALERT_LABEL, BUCKET_HEX, usdFmt, isClosedStatus, isUrgentAlertLevel, TITE_OPEN_ALERT_LEVELS } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
 
 /* Load Leaflet map client-side only — Leaflet requires window/document. */
 const LeafletMap = dynamic(() => import('./LeafletMap'), { ssr: false });
 
-const ALERT_LEVELS = ['overdue', 'urgent', 'action', 'plan', 'info', 'ok'] as const;
+const ALERT_LEVELS = TITE_OPEN_ALERT_LEVELS;
 
 /* Labels shown on filter badges (differ from table labels for compactness) */
 const FILTER_ALERT_LABEL: Record<string, string> = {
@@ -49,9 +49,7 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
   /* Active (non-closed) shipments — memoised so downstream memos stay stable */
   const open = useMemo(
     () =>
-      (shipments ?? []).filter(
-        s => s.status !== 'Closed' && s.status !== 'Closed - Refund Recovered',
-      ),
+      (shipments ?? []).filter(s => !isClosedStatus(s.status)),
     [shipments],
   );
 
@@ -117,7 +115,7 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
   }
 
   const activeCount  = open.length;
-  const urgentCount  = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
+  const urgentCount  = open.filter(s => isUrgentAlertLevel(s.alert_level)).length;
   const countrySet   = new Set(filtered.flatMap(s => [s.from_country, s.to_country].filter(Boolean)));
 
   /* Route aggregation from filtered dataset */

@@ -4,9 +4,8 @@ export type ShipmentStatus =
   | 'Closed'
   | 'Closed - Refund Recovered';
 
-export function isClosedStatus(status: string): boolean {
-  return status === 'Closed' || status === 'Closed - Refund Recovered';
-}
+/* `isClosedStatus` / `isOpenStatus` live in `@/lib/tite-utils`, next to the
+   alert-level rule that uses them. */
 
 export interface Shipment {
   id: number;

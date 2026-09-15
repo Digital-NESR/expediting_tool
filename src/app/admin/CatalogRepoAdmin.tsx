@@ -12,16 +12,10 @@ import {
 } from '@/app/actions/catalog-manager';
 import type { CatalogAccessRequestRow, CatalogAdminSummary, CatalogRole, PirSyncHealth } from '@/types/catalog-manager';
 import { ALL_ROLES, SEED_COUNTRIES } from '@/lib/catalog-manager-utils';
+import { formatDate } from '@/lib/format';
+import { Kpi, Panel } from './_components/Panel';
 
 const BRAND = '#307c4c';
-
-function formatDate(raw: string | null): string {
-  if (!raw) return '—';
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return raw;
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
-}
 
 /* ============================================================================
    1) ACCESS APPROVALS — self-service role-upgrade requests
@@ -257,27 +251,8 @@ export function CatalogAccessApprovalsClient({
    Shared read-only summary UI (KPI tiles + panels)
 ============================================================================ */
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'good' | 'warn' | 'bad' }) {
-  const col = tone === 'warn' ? '#b45309' : tone === 'bad' ? '#b91c1c' : tone === 'good' ? BRAND : '#0f172a';
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="text-[22px] font-bold tracking-tight" style={{ color: col }}>{value}</div>
-      <div className="mt-0.5 text-[12px] text-slate-500">{label}</div>
-      {sub && <div className="mt-0.5 text-[11px] text-slate-400">{sub}</div>}
-    </div>
-  );
-}
-
-function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <h3 className="text-[14px] font-bold text-slate-900">{title}</h3>
-      {subtitle && <p className="mb-4 mt-0.5 text-[12px] text-slate-500">{subtitle}</p>}
-      {!subtitle && <div className="mb-4" />}
-      {children}
-    </div>
-  );
-}
+/* Kpi + Panel now live in ./_components/Panel — Catalog Manager uses the app green,
+   which is the shared component's default. */
 
 /* ============================================================================
    2) ADMIN PANEL — read-only master-data snapshot

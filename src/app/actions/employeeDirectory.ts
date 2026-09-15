@@ -76,9 +76,11 @@ export async function searchEmployees(query: string): Promise<EmployeeDirectoryE
       `SELECT DISTINCT ON (LOWER(mail)) display_name, mail, job_title, department, country
        FROM azure_ad_users_staging
        WHERE mail IS NOT NULL AND mail <> ''
-         AND (display_name ILIKE $1 OR mail ILIKE $1)
+         AND (display_name ILIKE $1 OR mail ILIKE $1
+              OR department ILIKE $1 OR job_title ILIKE $1)
        ORDER BY LOWER(mail),
                 (mail ILIKE $2) DESC,
+                (display_name ILIKE $1 OR mail ILIKE $1) DESC,
                 (job_title IS NOT NULL) DESC,
                 display_name ASC
        LIMIT 40`,
@@ -95,6 +97,12 @@ export async function searchEmployees(query: string): Promise<EmployeeDirectoryE
         country: (r.country as string) ?? null,
       }))
       .sort((a, b) => {
+        // Name/email hits rank above department or job-title hits, so searching a
+        // person's name is never buried under everyone who shares their team.
+        const lq = q.toLowerCase();
+        const aDirect = a.name.toLowerCase().includes(lq) || a.email.toLowerCase().includes(lq);
+        const bDirect = b.name.toLowerCase().includes(lq) || b.email.toLowerCase().includes(lq);
+        if (aDirect !== bDirect) return aDirect ? -1 : 1;
         const aPrefix = a.email.toLowerCase().startsWith(q.toLowerCase()) || a.name.toLowerCase().startsWith(q.toLowerCase());
         const bPrefix = b.email.toLowerCase().startsWith(q.toLowerCase()) || b.name.toLowerCase().startsWith(q.toLowerCase());
         if (aPrefix !== bPrefix) return aPrefix ? -1 : 1;

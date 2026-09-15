@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
 import {
   ALERT_PILL, ALERT_DOT, BUCKET_HEX, ALERT_LABEL,
-  fmtDate, usdFmt, calcDays, getStatusBadge,
+  fmtDate, usdFmt, calcDays, getStatusBadge, isOpenStatus, isUrgentAlertLevel,
 } from '@/lib/tite-utils';
 import type { Shipment, ShipmentStats } from '@/types/tite';
 import type { RecentActivityRow } from '@/app/actions/tite';
@@ -129,10 +129,10 @@ export default function TiteDashboardClient({
   if (shipments.length === 0) return <EmptyState viewOnly={viewOnly} />;
 
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const open = shipments.filter(s => s.status === 'Open' || s.status === 'Open - Extended');
+  const open = shipments.filter(s => isOpenStatus(s.status));
 
   const activeCount = open.length;
-  const urgentCount = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
+  const urgentCount = open.filter(s => isUrgentAlertLevel(s.alert_level)).length;
 
   const buckets = [
     { key: 'overdue', label: 'Overdue',    count: open.filter(s => s.alert_level === 'overdue').length },
@@ -153,7 +153,7 @@ export default function TiteDashboardClient({
   const segments = Object.entries(segMap).sort((a, b) => b[1].count - a[1].count);
 
   const actionQueue = open
-    .filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level))
+    .filter(s => isUrgentAlertLevel(s.alert_level))
     .slice(0, 8);
 
   return (

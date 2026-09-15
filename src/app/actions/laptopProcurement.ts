@@ -8,6 +8,7 @@ import { after } from 'next/server';
 import { cache } from 'react';
 import { getProcureGuardUser } from '@/lib/auth';
 import laptopProcurementPool from '@/lib/db-laptop';
+import { uploadMimeTypeFor } from '@/lib/documents';
 import { asSerialised, createSqlHelpers } from '@/lib/db/sql';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import empDirectoryPool from '@/lib/db-emp-directory';
@@ -30,7 +31,7 @@ import {
   laptopIsProcureNewFlow,
   resolveLaptopMatrixCountry,
 } from '@/lib/laptopProcurement-utils';
-import { normalizeEmail } from '@/lib/require-access';
+import { isToolAdminEmail, normalizeEmail } from '@/lib/require-access';
 import type { LaptopApprovalStage, LaptopPermissionKey } from '@/lib/laptopProcurement-utils';
 import type {
   ActionResult,
@@ -80,31 +81,12 @@ type ExecResult = { rowCount: number; insertId: number };
 
 const MEANINGFUL_ACTIVITY_WHERE = "request_id > 0 AND action NOT ILIKE '%seeded%'";
 const MAX_LAPTOP_FILE_BYTES = 10 * 1024 * 1024;
-const FILE_MIME_MAP: Record<string, string> = {
-  pdf: 'application/pdf',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  txt: 'text/plain',
-  csv: 'text/csv',
-  zip: 'application/zip',
-  msg: 'application/vnd.ms-outlook',
-  eml: 'message/rfc822',
-};
-
 function fileBaseName(name: string): string {
   return name.replace(/\.[^/.]+$/, '').trim() || 'Attachment';
 }
 
 function detectMime(file: File): string {
-  const fileExt = (file.name.split('.').pop() ?? '').toLowerCase();
-  return FILE_MIME_MAP[fileExt] || file.type || 'application/octet-stream';
+  return uploadMimeTypeFor(file.name, file.type);
 }
 
 const { sql, exec } = createSqlHelpers(laptopProcurementPool);
@@ -123,18 +105,16 @@ function execTx(client: PoolClient, statement: string, params: QueryParams = [])
 
 /* ── Actor / access ───────────────────────────────────────────── */
 
-// Combined list, used ONLY by requireAdminActor()'s bypass below and by the
-// "don't delete this row" guards further down — i.e. it only ever affects the
-// /admin console's Laptop Procurement admin pages, never the actor's own role on
-// the main /laptop-procurement app (see laptopProcurementAdminEmails for that).
-function adminEmails(): string[] {
-  return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.LAPTOP_PROCUREMENT_ADMIN_EMAILS ?? ''}`)
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
+// Combined list (platform ADMIN_EMAILS + LAPTOP_PROCUREMENT_ADMIN_EMAILS), used ONLY by
+// requireAdminActor()'s bypass below and by the "don't delete this row" guards further
+// down — i.e. it only ever affects the /admin console's Laptop Procurement admin pages,
+// never the actor's own role on the main /laptop-procurement app (see
+// laptopProcurementAdminEmails for that).
+function isLaptopConsoleAdminEmail(email: string | null | undefined): boolean {
+  return isToolAdminEmail(email, process.env.LAPTOP_PROCUREMENT_ADMIN_EMAILS);
 }
 
-// Deliberately narrower than adminEmails(): the shared, platform-wide ADMIN_EMAILS
+// Deliberately narrower than isLaptopConsoleAdminEmail(): the shared, platform-wide ADMIN_EMAILS
 // list only ever grants the outer /admin shell and its console pages (see
 // requireAdminActor) — by itself it must never make someone an Admin on the actual
 // /laptop-procurement app. Only this app's own dedicated env var can bootstrap a
@@ -348,7 +328,7 @@ const getActor = cache(async (): Promise<LaptopActor> => {
   // Applied even when an explicit permissions row exists, so a platform admin who also
   // holds a Requester row keeps that row's abilities and still isn't 404'd out of the
   // request details the /admin console links them to.
-  const permissions = buildEffectivePermissions(baseRole, matrixCapabilities, adminEmails().includes(email.toLowerCase()));
+  const permissions = buildEffectivePermissions(baseRole, matrixCapabilities, isLaptopConsoleAdminEmail(email));
   // Whole-page gates (Admin Panel, Analytics, Reviewer Queue) use the best access
   // tier across the actor's own role and every role they hold via delegation, so a
   // delegate can actually reach those pages — not just act on individual requests,
@@ -727,7 +707,7 @@ function requireReviewerQueueAccess(actor: LaptopActor): void {
 async function requireAdminActor(): Promise<LaptopActor> {
   const actor = await getActor();
   if (canUseLaptopAdmin(actor.effectiveAccessView)) return actor;
-  if (!adminEmails().includes(normalizeEmail(actor.email))) {
+  if (!isLaptopConsoleAdminEmail(actor.email)) {
     throw new Error('Admin access is required.');
   }
   // Scoped to the actor object this call returns; it never touches what getActor() hands
@@ -754,7 +734,7 @@ async function requireAdminActor(): Promise<LaptopActor> {
  * behind naming who holds what, instead of applying invisibly to every admin action.
  */
 function canBootstrapOwnLaptopPermission(actor: LaptopActor, targetEmail: string): boolean {
-  return adminEmails().includes(normalizeEmail(actor.email))
+  return isLaptopConsoleAdminEmail(actor.email)
     && normalizeEmail(targetEmail) === normalizeEmail(actor.email);
 }
 
@@ -3286,7 +3266,7 @@ export async function rejectLaptopAccess(userEmail: string): Promise<ActionResul
          WHERE user_email = ?`,
         [actor.email, email],
       );
-      if (!adminEmails().includes(email)) {
+      if (!isLaptopConsoleAdminEmail(email)) {
         await execTx(client, `DELETE FROM laptop_permissions WHERE email = ?`, [email]);
       }
     });
@@ -3314,7 +3294,7 @@ export async function revokeLaptopAccess(userEmail: string): Promise<ActionResul
            status = 'Revoked', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = EXCLUDED.reviewed_by`,
         [email, email, actor.email],
       );
-      if (!adminEmails().includes(email)) {
+      if (!isLaptopConsoleAdminEmail(email)) {
         await execTx(client, `DELETE FROM laptop_permissions WHERE email = ?`, [email]);
       }
     });
@@ -3334,7 +3314,7 @@ export async function deleteLaptopAccessRequest(userEmail: string): Promise<Acti
     const email = requireText(userEmail, 'Email').toLowerCase();
     await withTransaction(laptopProcurementPool, async (client) => {
       await execTx(client, `DELETE FROM laptop_access_requests WHERE user_email = ?`, [email]);
-      if (!adminEmails().includes(email)) {
+      if (!isLaptopConsoleAdminEmail(email)) {
         await execTx(client, `DELETE FROM laptop_permissions WHERE email = ?`, [email]);
       }
     });

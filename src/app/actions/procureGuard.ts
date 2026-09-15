@@ -4,7 +4,8 @@ import type { QueryResultRow } from 'pg';
 import { cache } from 'react';
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
-import { normalizeEmail } from '@/lib/require-access';
+import { uploadMimeTypeFor } from '@/lib/documents';
+import { isToolAdminEmail, normalizeEmail } from '@/lib/require-access';
 import {
   countryRecipientKeys,
   ensureProcureGuardDelegationTable,
@@ -94,31 +95,12 @@ const MAX_PROCURE_GUARD_FILE_BYTES = 10 * 1024 * 1024;
 // free text — the request forms are the only uploaders and only ever send 'request_attachment'.
 const PROCURE_GUARD_DOCUMENT_TYPES = new Set(['request_attachment']);
 const MAX_PROCURE_GUARD_DOCUMENT_NAME_CHARS = 200;
-const FILE_MIME_MAP: Record<string, string> = {
-  pdf: 'application/pdf',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  txt: 'text/plain',
-  csv: 'text/csv',
-  zip: 'application/zip',
-  msg: 'application/vnd.ms-outlook',
-  eml: 'message/rfc822',
-};
-
 function fileBaseName(name: string): string {
   return name.replace(/\.[^/.]+$/, '').trim() || 'Attachment';
 }
 
 function detectMime(file: File): string {
-  const fileExt = (file.name.split('.').pop() ?? '').toLowerCase();
-  return FILE_MIME_MAP[fileExt] || file.type || 'application/octet-stream';
+  return uploadMimeTypeFor(file.name, file.type);
 }
 
 function normalisePermissionCountryForRole(role: ProcureGuardPermissionRole, country: string | null | undefined): string | null {
@@ -271,11 +253,11 @@ function requireCountryOption(value: string | null | undefined, label = 'Country
   return country;
 }
 
-function adminEmails(): string[] {
-  return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.PROCURE_GUARD_ADMIN_EMAILS ?? ''}`)
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
+// Platform ADMIN_EMAILS merged with PROCURE_GUARD_ADMIN_EMAILS — the same combined list
+// `procureGuardAdminEmails()` in lib/procure-guard/actor-scope.ts resolves, now via the one
+// shared parser instead of a third hand-rolled copy of it.
+function isProcureGuardAdminEmail(email: string | null | undefined): boolean {
+  return isToolAdminEmail(email, process.env.PROCURE_GUARD_ADMIN_EMAILS);
 }
 
 function testerEmails(): string[] {
@@ -438,7 +420,7 @@ function getScopedProcureGuardAvailableActions(
 
 async function requireAdminActor(): Promise<ProcureGuardActor> {
   const actor = await getActor();
-  if (!canUseProcureGuardAdmin(getProcureGuardAccessView(actor.role)) && !adminEmails().includes(actor.email.toLowerCase())) {
+  if (!canUseProcureGuardAdmin(getProcureGuardAccessView(actor.role)) && !isProcureGuardAdminEmail(actor.email)) {
     throw new Error('Admin access is required.');
   }
   return actor;
@@ -1630,7 +1612,7 @@ export async function adminGrantProcureGuardDelegation(input: {
 
     // The delegator must have approval authority to hand off.
     const delegatorRow = await getPermissionRowForEmail(delegatorEmail);
-    const delegatorRole = (delegatorRow?.role ?? (adminEmails().includes(delegatorEmail) ? 'Admin' : 'Requester')) as ProcureGuardPermissionRole;
+    const delegatorRole = (delegatorRow?.role ?? (isProcureGuardAdminEmail(delegatorEmail) ? 'Admin' : 'Requester')) as ProcureGuardPermissionRole;
     const delegatorProfile = getPermissionProfile(delegatorRole);
     if (!delegatorProfile.canViewAll) {
       return { success: false, error: 'The selected approver has no approval authority to delegate.' };
@@ -3971,7 +3953,7 @@ export async function deleteProcureGuardAccessRequest(userEmail: string): Promis
     await ensureProcureGuardAccessRequestTable();
     const email = requireText(userEmail, 'Email').toLowerCase();
     await exec(`DELETE FROM procure_guard_access_requests WHERE user_email = ?`, [email]);
-    if (!adminEmails().includes(email)) {
+    if (!isProcureGuardAdminEmail(email)) {
       await exec(`DELETE FROM procure_guard_permissions WHERE email = ?`, [email]);
     }
     revalidateProcureGuardPaths();
@@ -3990,7 +3972,7 @@ export async function updateProcureGuardPermission(input: UpdateProcureGuardPerm
     const role = input.role;
     const country = normalisePermissionCountryForRole(role, input.country);
     const canManageAll = canUseProcureGuardAdmin(getProcureGuardAccessView(actor.role));
-    const canManageOwnConfiguredAdmin = actor.email.toLowerCase() === email && adminEmails().includes(email);
+    const canManageOwnConfiguredAdmin = actor.email.toLowerCase() === email && isProcureGuardAdminEmail(email);
 
     if (!canManageAll && !canManageOwnConfiguredAdmin) {
       return { success: false, error: 'Permission management access is required.' };

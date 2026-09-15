@@ -63,6 +63,23 @@ export function usdFmt(n: number | string | null | undefined): string {
   return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/* ─── Status predicates ───────────────────────────────────────────────
+   `shipments.status` is one of the four `ShipmentStatus` values. The TI-TE
+   pages used to inline these two comparisons in six places.
+
+   `isOpenStatus` is deliberately NOT `!isClosedStatus`: each allow-lists its own
+   two values, so a status string from outside the union (a legacy or migrated
+   row) counts as neither open nor closed — which is what the inlined copies did.
+   ────────────────────────────────────────────────────────────────────── */
+
+export function isClosedStatus(status: string | null | undefined): boolean {
+  return status === 'Closed' || status === 'Closed - Refund Recovered';
+}
+
+export function isOpenStatus(status: string | null | undefined): boolean {
+  return status === 'Open' || status === 'Open - Extended';
+}
+
 export function getStatusBadge(status: string): { label: string; className: string } {
   switch (status) {
     case 'Open':
@@ -98,6 +115,23 @@ export function calcDays(s: Shipment, today: Date = new Date()): number | null {
 export type TiteAlertLevel =
   | 'overdue' | 'urgent' | 'action' | 'plan' | 'info' | 'ok' | 'closed';
 
+/** Every bucket, in escalation order. The order is what filter UIs list. */
+export const TITE_ALERT_LEVELS: readonly TiteAlertLevel[] =
+  ['overdue', 'urgent', 'action', 'plan', 'info', 'ok', 'closed'];
+
+/** The buckets an open shipment can be in — {@link TITE_ALERT_LEVELS} less `closed`. */
+export const TITE_OPEN_ALERT_LEVELS: readonly TiteAlertLevel[] =
+  ['overdue', 'urgent', 'action', 'plan', 'info', 'ok'];
+
+/** The buckets that count as "needs attention" — the sidebar badge and action queue. */
+export const TITE_URGENT_ALERT_LEVELS: readonly TiteAlertLevel[] =
+  ['overdue', 'urgent', 'action', 'plan'];
+
+/** True when an alert level is one of {@link TITE_URGENT_ALERT_LEVELS}. */
+export function isUrgentAlertLevel(level: string): boolean {
+  return (TITE_URGENT_ALERT_LEVELS as readonly string[]).includes(level);
+}
+
 /**
  * The ONE alert-level rule for TI-TE.
  *
@@ -131,7 +165,7 @@ export function alertLevelFor(
   status:   string | null | undefined,
   today:    Date = new Date(),
 ): TiteAlertLevel {
-  if (status === 'Closed' || status === 'Closed - Refund Recovered') return 'closed';
+  if (isClosedStatus(status)) return 'closed';
   const days = calcDays(
     { expiry_date: expiry ?? null, extended_date: extended ?? null } as Shipment,
     today,

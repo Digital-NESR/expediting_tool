@@ -2,10 +2,22 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { searchEmployees } from '@/app/actions/employees';
-import type { Employee } from '@/app/actions/employees';
+import { searchEmployees } from '@/app/actions/employeeDirectory';
 
-export type { Employee } from '@/app/actions/employees';
+/**
+ * The shape this input hands to `onSelect`. Kept in the snake_case spelling the
+ * directory table uses (and that every consumer already reads) while the single
+ * shared `searchEmployees` in `employeeDirectory` speaks camelCase — the mapping
+ * lives in `doSearch` below. There used to be a second `searchEmployees` action
+ * backing this file; it matched on department/job_title as well as name/mail and
+ * did not dedupe by mail.
+ */
+export interface Employee {
+  display_name: string;
+  mail: string;
+  job_title: string | null;
+  department: string | null;
+}
 
 interface EmployeeSearchInputProps {
   placeholder?: string;
@@ -90,7 +102,14 @@ export default function EmployeeSearchInput({
     setLoading(true);
     try {
       const data = await searchEmployees(q);
-      const filtered = data.filter(e => !excludeSet.current.has(e.mail.toLowerCase()));
+      const filtered = data
+        .filter(e => !excludeSet.current.has(e.email.toLowerCase()))
+        .map<Employee>(e => ({
+          display_name: e.name,
+          mail: e.email,
+          job_title: e.jobTitle,
+          department: e.department,
+        }));
       setResults(filtered);
       setOpen(true);
     } catch {
@@ -175,7 +194,7 @@ export default function EmployeeSearchInput({
       ) : (
         results.map((emp, idx) => (
           <button
-            key={emp.id}
+            key={emp.mail}
             type="button"
             onClick={() => handleSelect(emp)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 cursor-pointer transition-colors ${

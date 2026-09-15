@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
-import { ALERT_LABEL, ALERT_PILL, BUCKET_HEX, fmtDate, usdFmt, calcDays, getStatusBadge } from '@/lib/tite-utils';
+import { ALERT_LABEL, ALERT_PILL, BUCKET_HEX, fmtDate, usdFmt, calcDays, getStatusBadge, isClosedStatus, isUrgentAlertLevel } from '@/lib/tite-utils';
 import type { Shipment } from '@/types/tite';
 
 const GROUPS = [
@@ -32,9 +32,9 @@ export default function AlertsClient({ shipments }: { shipments: Shipment[] | nu
     );
   }
 
-  const open = shipments.filter(s => s.status !== 'Closed' && s.status !== 'Closed - Refund Recovered');
+  const open = shipments.filter(s => !isClosedStatus(s.status));
   const activeCount = open.length;
-  const urgentCount = open.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
+  const urgentCount = open.filter(s => isUrgentAlertLevel(s.alert_level)).length;
 
   const groups = GROUPS.map(g => ({
     ...g,

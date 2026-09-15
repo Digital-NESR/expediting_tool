@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState, type ComponentProps } from 'react';
 import { Pencil } from 'lucide-react';
 import {
   getProcureGuardApproverMatrix,
@@ -15,133 +15,26 @@ import {
   type ApproverCell,
   type ProcureGuardViewerGrant,
 } from '@/app/actions/procureGuard';
-import { searchEmployees, type EmployeeDirectoryEntry } from '@/app/actions/employeeDirectory';
+import { type EmployeeDirectoryEntry } from '@/app/actions/employeeDirectory';
 import { COUNTRY_OPTIONS } from '@/lib/procureGuard-utils';
+import {
+  personInitials,
+  usePickerAnchor,
+  PickerPortal as PickerPortalBase,
+} from './_components/EmployeePicker';
 
-function personInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const s = (parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '');
-  return s.toUpperCase() || '?';
-}
-
-/* ── Employee-directory picker (fixed-positioned so the table's horizontal scroll can't clip it) ── */
-function EmployeePicker({
-  pos,
-  onPick,
-  onClose,
-}: {
-  pos: { top: number; left: number };
-  onPick: (emp: EmployeeDirectoryEntry) => void;
-  onClose: () => void;
-}) {
-  const [q, setQ] = useState('');
-  const [results, setResults] = useState<EmployeeDirectoryEntry[]>([]);
-  const [searching, setSearching] = useState(false);
-
-  useEffect(() => {
-    if (q.trim().length < 2) {
-      setResults([]);
-      setSearching(false);
-      return;
-    }
-    let active = true;
-    setSearching(true);
-    const t = setTimeout(async () => {
-      const r = await searchEmployees(q);
-      if (active) {
-        setResults(r);
-        setSearching(false);
-      }
-    }, 250);
-    return () => {
-      active = false;
-      clearTimeout(t);
-    };
-  }, [q]);
-
+/* personInitials / EmployeePicker / usePickerAnchor / PickerPortal are shared with the
+   Laptop approver matrix and now live in ./_components/EmployeePicker. ProcureGuard keeps
+   its own picker wording (and has no clear-assignment footer), so it binds that copy here
+   rather than at each call site. */
+function PickerPortal(props: ComponentProps<typeof PickerPortalBase>) {
   return (
-    <div
-      className="fixed z-50 w-72 rounded-lg border border-slate-200 bg-white p-2 shadow-xl"
-      style={{ top: pos.top, left: pos.left }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <input
-        autoFocus
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose();
-        }}
-        placeholder="Search name or email..."
-        className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-[#307c4c]"
-      />
-      <div className="mt-1.5 max-h-56 overflow-auto">
-        {searching ? (
-          <div className="px-2 py-3 text-xs text-slate-400">Searching...</div>
-        ) : q.trim().length < 2 ? (
-          <div className="px-2 py-3 text-xs text-slate-400">Type at least 2 characters.</div>
-        ) : results.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-slate-400">No matches.</div>
-        ) : (
-          results.map((emp) => (
-            <button
-              key={emp.email}
-              type="button"
-              onClick={() => onPick(emp)}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-slate-50"
-            >
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#307c4c]/10 text-[9px] font-bold text-[#307c4c]">
-                {personInitials(emp.name)}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium text-slate-800">{emp.name}</span>
-                <span className="block truncate text-[11px] text-slate-400">{emp.email}</span>
-              </span>
-            </button>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Shared anchor logic for the fixed-positioned employee picker (used by both cells and column headers).
-function usePickerAnchor() {
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const toggle = useCallback(() => {
-    setOpen((o) => {
-      if (o) return false;
-      const r = btnRef.current?.getBoundingClientRect();
-      if (r) {
-        const left = Math.min(r.left, window.innerWidth - 288 - 12);
-        setPos({ top: r.bottom + 4, left: Math.max(12, left) });
-      }
-      return true;
-    });
-  }, []);
-  const close = useCallback(() => setOpen(false), []);
-  return { btnRef, open, pos, toggle, close };
-}
-
-function PickerPortal({
-  open,
-  pos,
-  onPick,
-  onClose,
-}: {
-  open: boolean;
-  pos: { top: number; left: number } | null;
-  onPick: (emp: EmployeeDirectoryEntry) => void;
-  onClose: () => void;
-}) {
-  if (!open || !pos) return null;
-  return (
-    <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <EmployeePicker pos={pos} onPick={onPick} onClose={onClose} />
-    </>
+    <PickerPortalBase
+      placeholder="Search name or email..."
+      searchingLabel="Searching..."
+      noMatchesLabel="No matches."
+      {...props}
+    />
   );
 }
 

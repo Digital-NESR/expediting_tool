@@ -14,6 +14,7 @@ import type {
   SgInsights, SgAuditEntry, SgUserActivity,
 } from '@/app/actions/sourceguide';
 import type { SgGuide } from '@/types/sourceguide';
+import { Kpi as KpiBase, Panel } from './_components/Panel';
 
 const BRAND = '#2A7E4F';
 
@@ -344,26 +345,11 @@ export function SourceGuideAnalyticsClient() {
 
 /* ─── shared analytics UI ─────────────────────────────────────── */
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'good' | 'warn' | 'bad' }) {
-  const col = tone === 'warn' ? '#b45309' : tone === 'bad' ? '#b91c1c' : tone === 'good' ? BRAND : '#0f172a';
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="text-[22px] font-bold tracking-tight" style={{ color: col }}>{value}</div>
-      <div className="mt-0.5 text-[12px] text-slate-500">{label}</div>
-      {sub && <div className="mt-0.5 text-[11px] text-slate-400">{sub}</div>}
-    </div>
-  );
-}
-
-function Panel({ title, subtitle, children, className = '' }: { title: string; subtitle?: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`rounded-xl border border-slate-200 bg-white p-5 ${className}`}>
-      <h3 className="text-[14px] font-bold text-slate-900">{title}</h3>
-      {subtitle && <p className="mb-4 mt-0.5 text-[12px] text-slate-500">{subtitle}</p>}
-      {!subtitle && <div className="mb-4" />}
-      {children}
-    </div>
-  );
+/* Kpi + Panel now live in ./_components/Panel. SourceGuide's brand green (#2A7E4F)
+   is not the app green, so the `good` tone colour is bound here once rather than at
+   each of the call sites below. */
+function Kpi(props: Omit<React.ComponentProps<typeof KpiBase>, 'brand'>) {
+  return <KpiBase {...props} brand={BRAND} />;
 }
 
 function BarRow({ label, value, max, color = BRAND, labelWidth = 'w-24', suffix }: {

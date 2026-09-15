@@ -6,7 +6,7 @@ import TiteSidebar from '@/components/TiteSidebar';
 import DocumentUploadSection from '@/components/tite/DocumentUploadSection';
 import NotificationRecipientsCard from '@/components/tite/NotificationRecipientsCard';
 import {
-  ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, calcDays, getStatusBadge,
+  ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, calcDays, getStatusBadge, isClosedStatus,
 } from '@/lib/tite-utils';
 import { DOCUMENT_STAGES, getNextStatusOptions } from '@/lib/tite-stage-config';
 import { updateShipmentStatus } from '@/app/actions/tite';
@@ -619,7 +619,7 @@ export default function ShipmentDetailClient({
   const pct       = Math.max(0, Math.min(100, (elapsed / (totalDays || 1)) * 100));
 
   const deadlineBg = DEADLINE_BG[s.alert_level] || DEADLINE_BG.default;
-  const isClosed          = s.status === 'Closed' || s.status === 'Closed - Refund Recovered';
+  const isClosed          = isClosedStatus(s.status);
   const isFullyClosed     = s.status === 'Closed - Refund Recovered';
   const showExtensionDocs = s.status === 'Open - Extended' || (isClosed && !!s.extended_date);
   const showClosureDocs   = isClosed;

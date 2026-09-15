@@ -7,28 +7,16 @@ import { submitAccessRequest, getCountries } from '@/app/actions/access';
 import { submitTiteAccessRequest } from '@/app/actions/tite';
 import { submitSourceGuideAccessRequest } from '@/app/actions/sourceguide';
 import { Laptop, Gavel, Sparkles, ScanSearch, BookOpen, Building2, HelpCircle, Search, BarChart3, GraduationCap, Receipt, ShieldCheck } from 'lucide-react';
+import { TITE_COUNTRY_VALUES, TITE_VIEW_ALL_COUNTRIES } from '@/lib/tite-constants';
 
 type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
 type ModalType = 'po-request' | 'po-pending' | 'tite-request' | 'tite-pending' | 'sg-request' | 'sg-pending' | null;
 
-/* ─── TI-TE static country list ─────────────────────────────── */
+/* ─── TI-TE country list ────────────────────────────────────────
+   Same list the in-app request overlay offers, from the one canonical source.
+   The copy that used to live here had drifted — it was missing Indonesia. */
 
-const TITE_COUNTRIES = [
-  'All Countries - View Only',
-  'Saudi Arabia (KSA)',
-  'United Arab Emirates (UAE)',
-  'Qatar',
-  'Kuwait',
-  'Oman',
-  'Bahrain',
-  'Egypt',
-  'Algeria',
-  'Iraq',
-  'Libya',
-  'Chad',
-  'Congo',
-  'Other',
-];
+const TITE_COUNTRIES = [TITE_VIEW_ALL_COUNTRIES, ...TITE_COUNTRY_VALUES];
 
 /* ─── Spinner ────────────────────────────────────────────────── */
 
@@ -987,33 +975,6 @@ function AdminPreviewCard({
   );
 }
 
-function ComingSoonCard({
-  name,
-  description,
-  icon,
-}: {
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className="relative bg-white rounded-xl border border-gray-200 p-8 flex flex-col gap-4 opacity-60 cursor-default select-none">
-      <span className="absolute top-4 right-4 bg-gray-100 text-gray-400 text-[11px] font-medium px-2 py-1 rounded-full">
-        Coming Soon
-      </span>
-
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100">
-        {icon}
-      </div>
-
-      <div className="flex-1">
-        <h3 className="text-[18px] font-semibold text-gray-400">{name}</h3>
-        <p className="text-sm text-gray-500 mt-2 leading-relaxed">{description}</p>
-      </div>
-    </div>
-  );
-}
-
 /* ─── Learning Hub Card (open access, live) ───
    Learning Hub is open to every signed-in user (no access request), so
    it renders as a live green tool card, clickable for everyone. */
@@ -1071,9 +1032,9 @@ export default function HomePage() {
 
   const rawName = session?.user?.name ?? '';
   const firstName = rawName.split(' ')[0] || 'there';
-  const userDisplay = session?.user?.name || session?.user?.email || '';
   const userEmail = session?.user?.email ?? '';
-  const displayName = session?.user?.name ?? userEmail;
+  /* Shown in the header and sent with every access request — one value, not two. */
+  const displayName = session?.user?.name || userEmail;
   const jobTitle = session?.user?.jobTitle;
   const department = session?.user?.department;
 
@@ -1211,8 +1172,8 @@ export default function HomePage() {
         </div>
 
         <div className="flex items-center gap-4">
-          {userDisplay && (
-            <span className="text-sm text-slate-500 hidden sm:block">{userDisplay}</span>
+          {displayName && (
+            <span className="text-sm text-slate-500 hidden sm:block">{displayName}</span>
           )}
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}

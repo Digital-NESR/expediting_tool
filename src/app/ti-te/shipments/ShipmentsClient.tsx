@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import TiteSidebar from '@/components/TiteSidebar';
 import MultiSelectDropdown from '@/components/MultiSelectDropdown';
-import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, getStatusBadge } from '@/lib/tite-utils';
+import { ALERT_PILL, ALERT_DOT, ALERT_LABEL, fmtDate, usdFmt, getStatusBadge, isClosedStatus, isUrgentAlertLevel, TITE_ALERT_LEVELS } from '@/lib/tite-utils';
 import type { TiteListShipment } from '@/types/tite';
 
 /* ─── Error / empty states ───────────────────────────────────── */
@@ -63,7 +63,7 @@ const ALERT_DISPLAY: Record<string, string> = {
   closed:  'Closed',
 };
 
-const ALL_ALERT_OPTIONS = ['overdue', 'urgent', 'action', 'plan', 'info', 'ok', 'closed'];
+const ALL_ALERT_OPTIONS: readonly string[] = TITE_ALERT_LEVELS;
 const ALL_STATUS_OPTIONS = ['Open', 'Open - Extended', 'Closed', 'Closed - Refund Recovered'];
 
 /* ─── Main ───────────────────────────────────────────────────── */
@@ -81,8 +81,8 @@ export default function ShipmentsClient({ shipments, viewOnly }: { shipments: Ti
   const [filterAlerts,       setFilterAlerts]       = useState<string[]>([]);
 
   const list = shipments ?? [];
-  const activeCount = list.filter(s => s.status !== 'Closed' && s.status !== 'Closed - Refund Recovered').length;
-  const urgentCount = list.filter(s => ['overdue', 'urgent', 'action', 'plan'].includes(s.alert_level)).length;
+  const activeCount = list.filter(s => !isClosedStatus(s.status)).length;
+  const urgentCount = list.filter(s => isUrgentAlertLevel(s.alert_level)).length;
 
   const hasActiveFilters =
     search !== '' ||

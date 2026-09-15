@@ -3,31 +3,8 @@ import { getProcureGuardUser } from '@/lib/auth';
 import procureGuardPool from '@/lib/db-procureguard';
 import { canActorViewRequest } from '@/lib/procure-guard/access';
 import { resolveProcureGuardActorScope } from '@/lib/procure-guard/actor-scope';
-import { attachmentContentDisposition } from '@/lib/contentDisposition';
+import { fileDownloadResponse } from '@/lib/documents';
 import type { ProcureGuardActor } from '@/types/procureGuard';
-
-const MIME_MAP: Record<string, string> = {
-  pdf: 'application/pdf',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  txt: 'text/plain',
-  csv: 'text/csv',
-  zip: 'application/zip',
-  msg: 'application/vnd.ms-outlook',
-  eml: 'message/rfc822',
-};
-
-function extOf(filename: string): string {
-  const parts = filename.split('.');
-  return parts.length > 1 ? parts.pop()!.toLowerCase() : '';
-}
 
 export async function GET(
   _req: NextRequest,
@@ -90,31 +67,11 @@ export async function GET(
       return new NextResponse('Forbidden', { status: 403 });
     }
 
-    const nameForExt: string = doc.original_name || doc.document_name;
-    const ext = extOf(nameForExt);
-    let contentType: string = doc.file_type || '';
-    if (!contentType || contentType === 'application/octet-stream') {
-      contentType = MIME_MAP[ext] || 'application/octet-stream';
-    }
-
-    let fileBuffer: Buffer;
-    if (Buffer.isBuffer(doc.file_content)) {
-      fileBuffer = doc.file_content;
-    } else {
-      const str = String(doc.file_content);
-      fileBuffer = str.startsWith('\\x') ? Buffer.from(str.slice(2), 'hex') : Buffer.from(str, 'binary');
-    }
-
-    const dlFilename = doc.original_name || doc.document_name;
-    return new Response(new Uint8Array(fileBuffer), {
-      status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': attachmentContentDisposition(dlFilename),
-        'Content-Length': String(fileBuffer.byteLength),
-        'Cache-Control': 'private, no-cache',
-      },
-    });
+    return fileDownloadResponse(
+      doc.file_content,
+      doc.original_name || doc.document_name,
+      doc.file_type,
+    );
   } catch (err) {
     console.error('[ProcureGuard] document download error:', err);
     return new NextResponse('Internal server error', { status: 500 });

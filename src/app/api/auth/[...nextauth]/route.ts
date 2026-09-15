@@ -8,7 +8,7 @@ import procureGuardPool from "@/lib/db-procureguard";
 import snsPool from "@/lib/db-sns";
 import learningHubPool from "@/lib/db-learning-hub";
 import { getPermissionProfile } from "@/lib/procureGuard-utils";
-import { normalizeEmail } from "@/lib/require-access";
+import { isPlatformAdminEmail, isToolAdminEmail, normalizeEmail } from "@/lib/require-access";
 import { saveUserPhoto, parseDataUri } from "@/lib/user-photo";
 import type { ProcureGuardPermissionRole } from "@/types/procureGuard";
 
@@ -182,17 +182,15 @@ export const authOptions: NextAuthOptions = {
           return token;
         }
         try {
-          const adminEmails = (process.env.ADMIN_EMAILS || '')
-            .split(',')
-            .map(e => e.trim().toLowerCase())
-            .filter(Boolean);
-
-          token.isAdmin = adminEmails.includes(email);
-
-          const sourceGuideAdminEmails = (`${process.env.ADMIN_EMAILS ?? ''},${process.env.SOURCEGUIDE_ADMIN_EMAILS ?? ''}`)
-            .split(',')
-            .map(e => e.trim().toLowerCase())
-            .filter(Boolean);
+          /* `email` is already normalizeEmail()'d above, so both of these resolve exactly
+             what the inline parses they replace resolved:
+               - token.isAdmin: the PLATFORM list only (ADMIN_EMAILS). Widening it to a
+                 per-tool list here would grant every tool's admin the platform-admin flag
+                 the whole session is built on, so it stays platform-only.
+               - the SourceGuide branch below: ADMIN_EMAILS merged with
+                 SOURCEGUIDE_ADMIN_EMAILS, which is what isToolAdminEmail() means. */
+          token.isAdmin = isPlatformAdminEmail(email);
+          const isSourceGuideAdmin = isToolAdminEmail(email, process.env.SOURCEGUIDE_ADMIN_EMAILS);
 
           // Query each tool's access table in parallel. Every predicate is
           // LOWER(column) = $1 against the already-lowercased `email`, so rows
@@ -288,7 +286,7 @@ export const authOptions: NextAuthOptions = {
           // For approved users, approvedCountries = [] (they view all countries, edit none).
           let sgStatus: string;
           let sgCountries: string[];
-          if (token.isAdmin || sourceGuideAdminEmails.includes(email)) {
+          if (token.isAdmin || isSourceGuideAdmin) {
             sgStatus = 'approved';
             sgCountries = [];
           } else if (sgChampResult.rows.length > 0) {

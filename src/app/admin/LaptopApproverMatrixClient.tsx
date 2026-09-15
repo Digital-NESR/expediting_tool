@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pencil } from 'lucide-react';
 import {
   getLaptopApproverMatrix,
@@ -8,7 +8,12 @@ import {
   setLaptopApproverColumn,
   setLaptopApproverCountryActive,
 } from '@/app/actions/laptopProcurement';
-import { searchEmployees, type EmployeeDirectoryEntry } from '@/app/actions/employeeDirectory';
+import { type EmployeeDirectoryEntry } from '@/app/actions/employeeDirectory';
+import {
+  personInitials,
+  usePickerAnchor,
+  PickerPortal,
+} from './_components/EmployeePicker';
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
 import type { LaptopApproverMatrixRow } from '@/types/laptopProcurement';
 
@@ -42,143 +47,9 @@ function cellValue(row: LaptopApproverMatrixRow, col: MatrixColumn): { name: str
   return { name: name || email, email };
 }
 
-function personInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const s = (parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '');
-  return s.toUpperCase() || '?';
-}
-
-/* ── Employee-directory picker ───────────────────────────────────
-   Fixed-positioned rather than absolute so the table's horizontal scroll can't clip it. */
-function EmployeePicker({
-  pos,
-  onPick,
-  onClear,
-  onClose,
-}: {
-  pos: { top: number; left: number };
-  onPick: (emp: EmployeeDirectoryEntry) => void;
-  onClear?: () => void;
-  onClose: () => void;
-}) {
-  const [q, setQ] = useState('');
-  // Results are stamped with the query they answered, so "is this list current?" and
-  // "are we still searching?" are both derived at render rather than tracked in state —
-  // that keeps the debounce effect free of synchronous setState calls.
-  const [answered, setAnswered] = useState<{ query: string; rows: EmployeeDirectoryEntry[] } | null>(null);
-
-  const query = q.trim();
-  const tooShort = query.length < 2;
-  const rows = answered?.query === query ? answered.rows : null;
-
-  useEffect(() => {
-    const pending = q.trim();
-    if (pending.length < 2) return;
-    let active = true;
-    const t = setTimeout(async () => {
-      const r = await searchEmployees(pending);
-      if (active) setAnswered({ query: pending, rows: r });
-    }, 250);
-    return () => {
-      active = false;
-      clearTimeout(t);
-    };
-  }, [q]);
-
-  return (
-    <div
-      className="fixed z-50 w-72 rounded-lg border border-slate-200 bg-white p-2 shadow-xl"
-      style={{ top: pos.top, left: pos.left }}
-      onClick={e => e.stopPropagation()}
-    >
-      <input
-        autoFocus
-        value={q}
-        onChange={e => setQ(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
-        placeholder="Search name or email…"
-        className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-[#307c4c]"
-      />
-      <div className="mt-1.5 max-h-56 overflow-auto">
-        {tooShort ? (
-          <div className="px-2 py-3 text-xs text-slate-400">Type at least 2 characters.</div>
-        ) : rows === null ? (
-          <div className="px-2 py-3 text-xs text-slate-400">Searching…</div>
-        ) : rows.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-slate-400">No matches in the employee directory.</div>
-        ) : (
-          rows.map(emp => (
-            <button
-              key={emp.email}
-              type="button"
-              onClick={() => onPick(emp)}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-slate-50"
-            >
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#307c4c]/10 text-[9px] font-bold text-[#307c4c]">
-                {personInitials(emp.name)}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium text-slate-800">{emp.name}</span>
-                <span className="block truncate text-[11px] text-slate-400">{emp.email}</span>
-              </span>
-            </button>
-          ))
-        )}
-      </div>
-      {onClear && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="mt-1 w-full border-t border-slate-100 px-2 py-1.5 text-left text-[11px] font-semibold text-red-600 hover:bg-red-50"
-        >
-          Clear this assignment
-        </button>
-      )}
-    </div>
-  );
-}
-
-// Shared anchor logic for the fixed-positioned picker (used by cells and column headers).
-function usePickerAnchor() {
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const toggle = useCallback(() => {
-    setOpen(o => {
-      if (o) return false;
-      const r = btnRef.current?.getBoundingClientRect();
-      if (r) {
-        const left = Math.min(r.left, window.innerWidth - 288 - 12);
-        setPos({ top: r.bottom + 4, left: Math.max(12, left) });
-      }
-      return true;
-    });
-  }, []);
-  const close = useCallback(() => setOpen(false), []);
-  return { btnRef, open, pos, toggle, close };
-}
-
-function PickerPortal({
-  open,
-  pos,
-  onPick,
-  onClear,
-  onClose,
-}: {
-  open: boolean;
-  pos: { top: number; left: number } | null;
-  onPick: (emp: EmployeeDirectoryEntry) => void;
-  onClear?: () => void;
-  onClose: () => void;
-}) {
-  if (!open || !pos) return null;
-  return (
-    <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <EmployeePicker pos={pos} onPick={onPick} onClear={onClear} onClose={onClose} />
-    </>
-  );
-}
+/* personInitials / EmployeePicker / usePickerAnchor / PickerPortal are shared with the
+   ProcureGuard approvals panel and now live in ./_components/EmployeePicker. This panel
+   uses the shared defaults verbatim. */
 
 function EditableApproverCell({
   cell,

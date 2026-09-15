@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { getToolScope, toolReadScope } from '@/lib/tool-scope';
 import { getAllShipments, getRecentActivity } from '@/app/actions/tite';
 import TiteDashboardClient from './TiteDashboardClient';
+import { isOpenStatus } from '@/lib/tite-utils';
 import type { ShipmentStats } from '@/types/tite';
 
 export const metadata: Metadata = { title: 'NESR | TI-TE' };
@@ -25,9 +26,7 @@ export default async function TiteDashboardPage() {
   // urgency rather than the stale stored alert_level column.
   let stats: ShipmentStats | null = null;
   if (shipments) {
-    const open = shipments.filter(
-      s => s.status === 'Open' || s.status === 'Open - Extended',
-    );
+    const open = shipments.filter(s => isOpenStatus(s.status));
     stats = {
       active_count:      open.length,
       overdue_count:     open.filter(s => s.alert_level === 'overdue').length,

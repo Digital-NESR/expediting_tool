@@ -3,20 +3,21 @@
 import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { isPlatformAdminEmail } from '@/lib/require-access';
 import snsPool from '@/lib/db-sns';
 import type { ActionResult } from './sns';
 
 /* ═══ Admin gate ═════════════════════════════════════════════════ */
 
+/* The same platform-ADMIN_EMAILS-only gate as sns.ts. It stays a second local copy
+   rather than a shared import because sns.ts is a `'use server'` module: exporting the
+   gate from there would publish it as a callable server action. Both now parse the env
+   list through the one shared helper, which is where the two used to be able to drift. */
 async function requireAdmin(): Promise<string | null> {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email;
   if (!email) return null;
-  const admins = (process.env.ADMIN_EMAILS ?? '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  return admins.includes(email.toLowerCase()) ? email : null;
+  return isPlatformAdminEmail(email) ? email : null;
 }
 
 /* ═══ Shapes ═════════════════════════════════════════════════════ */

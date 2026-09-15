@@ -1,6 +1,7 @@
 'use server';
 
 import titePool from '@/lib/db-tite';
+import { uploadMimeTypeFor } from '@/lib/documents';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import { titeCountryCode, formatTiteReference } from '@/lib/tite-constants';
 import { alertLevelFor, shipmentAlertLevel } from '@/lib/tite-utils';
@@ -827,25 +828,7 @@ export async function uploadShipmentDocument(
     if (denied) return forbidden(denied);
 
     /* Detect MIME from extension — more reliable than browser-reported file.type */
-    const MIME_MAP: Record<string, string> = {
-      pdf:  'application/pdf',
-      doc:  'application/msword',
-      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      xls:  'application/vnd.ms-excel',
-      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      png:  'image/png',
-      jpg:  'image/jpeg',
-      jpeg: 'image/jpeg',
-      gif:  'image/gif',
-      webp: 'image/webp',
-      txt:  'text/plain',
-      csv:  'text/csv',
-      zip:  'application/zip',
-      msg:  'application/vnd.ms-outlook',
-      eml:  'message/rfc822',
-    };
-    const fileExt     = (file.name.split('.').pop() ?? '').toLowerCase();
-    const detectedMime = MIME_MAP[fileExt] || file.type || 'application/octet-stream';
+    const detectedMime = uploadMimeTypeFor(file.name, file.type);
 
     const arrayBuf   = await file.arrayBuffer();
     const buffer     = Buffer.from(arrayBuf);

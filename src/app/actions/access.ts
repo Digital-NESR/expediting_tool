@@ -4,7 +4,7 @@ import https from 'https';
 import pool from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { normalizeEmail } from '@/lib/require-access';
+import { isPlatformAdminEmail, normalizeEmail, platformAdminEmails } from '@/lib/require-access';
 import type { StoredAccessStatus } from '@/types/access';
 
 /* ─── httpsPost (fire-and-forget, mirrors expediteDispatch) ──── */
@@ -102,8 +102,7 @@ export async function submitAccessRequest(
     // session finished loading and the card still showed "Request Access") must not demote an
     // already-approved user back to Pending. Admins and approved users are no-ops.
     const normalizedEmail = normalizeEmail(userEmail);
-    const adminList = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-    if (adminList.includes(normalizedEmail)) return { success: true };
+    if (isPlatformAdminEmail(normalizedEmail)) return { success: true };
     const existing = await pool.query<{ status: string }>(
       `SELECT status FROM access_requests WHERE LOWER(user_email) = $1`,
       [normalizedEmail],
@@ -149,10 +148,10 @@ async function sendAdminNotificationEmail(
   const webhookUrl = process.env.N8N_ACCESS_NOTIFICATION_WEBHOOK_URL;
   if (!webhookUrl) return;
 
-  const adminEmails = (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map(e => e.trim())
-    .filter(Boolean);
+  /* Recipients, not an access decision — but the same env list, so it comes from the
+     same parser. platformAdminEmails() lowercases as well as trims; SMTP routing at
+     NESR is case-insensitive, so the delivered recipients are unchanged. */
+  const adminEmails = platformAdminEmails();
 
   if (adminEmails.length === 0) return;
 

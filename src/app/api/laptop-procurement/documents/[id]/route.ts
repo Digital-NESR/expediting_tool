@@ -1,31 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProcureGuardUser } from '@/lib/auth';
 import laptopProcurementPool from '@/lib/db-laptop';
-import { attachmentContentDisposition } from '@/lib/contentDisposition';
+import { fileDownloadResponse } from '@/lib/documents';
 import { canViewLaptopRequest } from '@/app/actions/laptopProcurement';
-
-const MIME_MAP: Record<string, string> = {
-  pdf: 'application/pdf',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  txt: 'text/plain',
-  csv: 'text/csv',
-  zip: 'application/zip',
-  msg: 'application/vnd.ms-outlook',
-  eml: 'message/rfc822',
-};
-
-function extOf(filename: string): string {
-  const parts = filename.split('.');
-  return parts.length > 1 ? parts.pop()!.toLowerCase() : '';
-}
 
 export async function GET(
   _req: NextRequest,
@@ -71,31 +48,13 @@ export async function GET(
       return new NextResponse('Document not found', { status: 404 });
     }
 
-    const nameForExt: string = doc.original_name || doc.document_name;
-    const ext = extOf(nameForExt);
-    let contentType: string = doc.file_type || '';
-    if (!contentType || contentType === 'application/octet-stream') {
-      contentType = MIME_MAP[ext] || 'application/octet-stream';
-    }
-
-    let fileBuffer: Buffer;
-    if (Buffer.isBuffer(fileContent)) {
-      fileBuffer = fileContent;
-    } else {
-      const str = String(fileContent);
-      fileBuffer = str.startsWith('\\x') ? Buffer.from(str.slice(2), 'hex') : Buffer.from(str, 'binary');
-    }
-
-    const dlFilename = doc.original_name || doc.document_name;
-    return new Response(new Uint8Array(fileBuffer), {
-      status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': attachmentContentDisposition(dlFilename),
-        'Content-Length': String(fileBuffer.byteLength),
-        'Cache-Control': 'private, no-cache',
-      },
-    });
+    // Note the content type still comes from the METADATA row read before the
+    // authorization check — the second query deliberately fetches nothing but the blob.
+    return fileDownloadResponse(
+      fileContent,
+      doc.original_name || doc.document_name,
+      doc.file_type,
+    );
   } catch (err) {
     console.error('[Laptop Procurement] document download error:', err);
     return new NextResponse('Internal server error', { status: 500 });

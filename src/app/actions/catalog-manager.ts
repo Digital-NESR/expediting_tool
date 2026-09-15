@@ -8,7 +8,7 @@ import catalogManagerPool from '@/lib/db-catalog-manager';
 import { createSqlHelpers } from '@/lib/db/sql';
 import { withTransaction } from '@/lib/db/tx';
 import { getProcureGuardUser } from '@/lib/auth';
-import { AccessError, normalizeEmail } from '@/lib/require-access';
+import { AccessError, isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
 import { getDelegatorsForApp } from '@/app/actions/delegation';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
 import { SERVICE_ACTIVITIES } from '@/lib/catalog-service-activities';
@@ -603,11 +603,6 @@ const loadCatalogActor = cache(async (): Promise<CatalogActor> => {
   const email = (sessionUser?.email ?? '').toLowerCase();
   const name = sessionUser?.name ?? 'Catalog User';
 
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-
   // The app_user row and the delegations granted TO this user are independent lookups (and live in
   // different databases), so they go out together rather than one after the other.
   const [rows, delegatedFrom] = await Promise.all([
@@ -623,7 +618,7 @@ const loadCatalogActor = cache(async (): Promise<CatalogActor> => {
   if (userRow) {
     role = userRow.role;
     countryCode = userRow.country_code;
-  } else if (adminEmails.includes(email)) {
+  } else if (isPlatformAdminEmail(email)) {
     // Admin-preview AND the bootstrap path: a platform admin configured in ADMIN_EMAILS acts as
     // Admin with no app_user row, which is what lets the first real admin sign in to an empty
     // database and grant everyone else a role. (Demo accounts used to be seeded for this.)
