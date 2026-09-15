@@ -7,6 +7,7 @@ import { getProcureGuardUser } from '@/lib/auth';
 import { asSerialised } from '@/lib/db/sql';
 import { bestAccessView, getPermissionProfile } from '@/lib/laptopProcurement-utils';
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
+import { logger } from '@/lib/logger';
 import { isToolAdminEmail } from '@/lib/require-access';
 import type {
   LaptopActor,
@@ -20,6 +21,8 @@ import { normaliseScopeValue } from '@/lib/laptop-procurement/access';
 import { sql } from '@/lib/laptop-procurement/db';
 import { resolveLaptopDelegations } from '@/lib/laptop-procurement/delegation';
 import { ensureLaptopApproverMatrixColumns } from '@/lib/laptop-procurement/schema';
+
+const log = logger('laptop-procurement');
 
 // Combined list (platform ADMIN_EMAILS + LAPTOP_PROCUREMENT_ADMIN_EMAILS), used ONLY by
 // requireAdminActor()'s bypass below and by the "don't delete this row" guards further
@@ -51,7 +54,7 @@ export async function getPermissionRowForEmail(email: string): Promise<LaptopPer
     );
     return rows[0] ? asSerialised<LaptopPermissionRow>(rows[0]) : null;
   } catch (err) {
-    console.error('[laptop getPermissionRowForEmail]', err);
+    log.error('getPermissionRowForEmail.failed', err);
     return null;
   }
 }
@@ -109,7 +112,7 @@ export async function getApproverMatrixCapabilities(
       add('Supply Chain Director', row.scd_email, country);
     }
   } catch (err) {
-    console.error('[getApproverMatrixCapabilities]', err);
+    log.error('getApproverMatrixCapabilities.failed', err);
   }
   return capabilities;
 }

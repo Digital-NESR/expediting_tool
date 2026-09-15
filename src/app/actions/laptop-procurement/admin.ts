@@ -7,6 +7,7 @@ import { asSerialised } from '@/lib/db/sql';
 import { withTransaction } from '@/lib/db/tx';
 import { getPermissionProfile, resolveLaptopMatrixCountry } from '@/lib/laptopProcurement-utils';
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
+import { logger } from '@/lib/logger';
 import type {
   ActionResult,
   LaptopApproverMatrixRow,
@@ -32,6 +33,8 @@ import {
   ensureLaptopApproverMatrixColumns,
   ensureLaptopPermissionsRoleConstraint,
 } from '@/lib/laptop-procurement/schema';
+
+const log = logger('laptop-procurement');
 
 export async function updateLaptopPermission(
   input: UpdateLaptopPermissionInput,
@@ -63,7 +66,7 @@ export async function updateLaptopPermission(
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[updateLaptopPermission]', err);
+    log.error('updateLaptopPermission.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to update permission.',
@@ -80,7 +83,7 @@ export async function deleteLaptopPermission(email: string): Promise<ActionResul
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[deleteLaptopPermission]', err);
+    log.error('deleteLaptopPermission.failed', err);
     return { success: false, error: 'Failed to delete permission.' };
   }
 }
@@ -95,7 +98,7 @@ export async function getLaptopApproverMatrix(): Promise<LaptopApproverMatrixRow
     );
     return asSerialised<LaptopApproverMatrixRow[]>(rows);
   } catch (err) {
-    console.error('[getLaptopApproverMatrix]', err);
+    log.error('getLaptopApproverMatrix.failed', err);
     return null;
   }
 }
@@ -160,7 +163,7 @@ export async function setLaptopApproverCell(input: {
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[setLaptopApproverCell]', err);
+    log.error('setLaptopApproverCell.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to update approver.',
@@ -185,7 +188,7 @@ export async function setLaptopApproverCountryActive(input: {
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[setLaptopApproverCountryActive]', err);
+    log.error('setLaptopApproverCountryActive.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to update country status.',
@@ -276,7 +279,7 @@ export async function saveApproverMatrixRole(input: {
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[saveApproverMatrixRole]', err);
+    log.error('saveApproverMatrixRole.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to save approver.',
@@ -318,7 +321,7 @@ export async function setLaptopApproverColumn(input: {
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[setLaptopApproverColumn]', err);
+    log.error('setLaptopApproverColumn.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to update this role for every country.',
@@ -348,7 +351,7 @@ export async function removeApproverMatrixRole(input: {
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[removeApproverMatrixRole]', err);
+    log.error('removeApproverMatrixRole.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to remove approver.',

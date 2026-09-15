@@ -3,6 +3,7 @@
 /* ─── The device catalogue an admin maintains. ─── */
 
 import { asSerialised } from '@/lib/db/sql';
+import { logger } from '@/lib/logger';
 import type {
   ActionResult,
   CreateLaptopDeviceInput,
@@ -15,6 +16,8 @@ import { getActor } from '@/lib/laptop-procurement/actor';
 import { QueryParams, exec, sql } from '@/lib/laptop-procurement/db';
 import { requireText, revalidateLaptopPaths } from '@/lib/laptop-procurement/internals';
 
+const log = logger('laptop-procurement');
+
 export async function getLaptopDeviceOptions(): Promise<LaptopDeviceOption[]> {
   try {
     await getActor();
@@ -23,7 +26,7 @@ export async function getLaptopDeviceOptions(): Promise<LaptopDeviceOption[]> {
     );
     return asSerialised<LaptopDeviceOption[]>(rows);
   } catch (err) {
-    console.error('[getLaptopDeviceOptions]', err);
+    log.error('getLaptopDeviceOptions.failed', err);
     return [];
   }
 }
@@ -43,7 +46,7 @@ export async function addLaptopDevice(input: CreateLaptopDeviceInput): Promise<A
     revalidateLaptopPaths();
     return { success: true };
   } catch (err) {
-    console.error('[addLaptopDevice]', err);
+    log.error('addLaptopDevice.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to add device.' };
   }
 }
@@ -77,7 +80,7 @@ export async function updateLaptopDevice(
     revalidateLaptopPaths();
     return { success: true };
   } catch (err) {
-    console.error('[updateLaptopDevice]', err);
+    log.error('updateLaptopDevice.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to update device.',
@@ -94,7 +97,7 @@ export async function deleteLaptopDevice(id: number): Promise<ActionResult> {
     revalidateLaptopPaths();
     return { success: true };
   } catch (err) {
-    console.error('[deleteLaptopDevice]', err);
+    log.error('deleteLaptopDevice.failed', err);
     return { success: false, error: 'Failed to delete device.' };
   }
 }

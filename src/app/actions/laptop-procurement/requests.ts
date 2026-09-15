@@ -5,6 +5,7 @@
 import laptopProcurementPool from '@/lib/db-laptop';
 import { lockForTransaction, withTransaction } from '@/lib/db/tx';
 import { IT_MANAGER_STATUSES } from '@/lib/laptopProcurement-utils';
+import { logger } from '@/lib/logger';
 import type {
   ActionResult,
   AdminCreateLaptopRequestInput,
@@ -34,6 +35,8 @@ import {
 } from '@/lib/laptop-procurement/notifications';
 import { ensureLaptopReferenceUniqueIndex } from '@/lib/laptop-procurement/schema';
 import { insertRequest, validateCreateInput } from '@/lib/laptop-procurement/write-requests';
+
+const log = logger('laptop-procurement');
 
 export async function createLaptopRequest(
   input: CreateLaptopRequestInput,
@@ -75,7 +78,7 @@ export async function createLaptopRequest(
     deferLaptopNotifications('new-request', () => notifyNewLaptopRequest(id));
     return { success: true, data: { id }, reference_number: reference };
   } catch (err) {
-    console.error('[createLaptopRequest]', err);
+    log.error('createLaptopRequest.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to create laptop request.',
@@ -151,7 +154,7 @@ export async function updateLaptopRequest(
     revalidatePath(`/laptop-procurement/requests/${id}`);
     return { success: true, data: { id }, reference_number: row.reference_number };
   } catch (err) {
-    console.error('[updateLaptopRequest]', err);
+    log.error('updateLaptopRequest.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to update laptop request.',
@@ -229,7 +232,7 @@ export async function updateLaptopExistingDevice(
     revalidatePath(`/laptop-procurement/requests/${id}`);
     return { success: true };
   } catch (err) {
-    console.error('[updateLaptopExistingDevice]', err);
+    log.error('updateLaptopExistingDevice.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to update existing device details.',
@@ -272,7 +275,7 @@ export async function createAdminLaptopRequest(
     deferLaptopNotifications('new-request', () => notifyNewLaptopRequest(id));
     return { success: true, data: { id }, reference_number: reference };
   } catch (err) {
-    console.error('[createAdminLaptopRequest]', err);
+    log.error('createAdminLaptopRequest.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to create laptop request.',

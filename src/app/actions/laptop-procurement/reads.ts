@@ -8,6 +8,7 @@ import {
   APPROVAL_ACTIVE_STATUSES,
   IT_MANAGER_STATUSES,
 } from '@/lib/laptopProcurement-utils';
+import { logger } from '@/lib/logger';
 import type {
   LaptopActivityRow,
   LaptopAdminData,
@@ -44,6 +45,8 @@ import { applyLaptopDelegationExpiry } from '@/lib/laptop-procurement/delegation
 import { computeLaptopStats } from '@/lib/laptop-procurement/internals';
 import { ensureLaptopDelegationTable } from '@/lib/laptop-procurement/schema';
 
+const log = logger('laptop-procurement');
+
 export async function getLaptopRequestsData(): Promise<LaptopRequestListData | null> {
   try {
     const actor = await getActor();
@@ -55,7 +58,7 @@ export async function getLaptopRequestsData(): Promise<LaptopRequestListData | n
     );
     return { actor, requests: asSerialised<LaptopRequest[]>(rows) };
   } catch (err) {
-    console.error('[getLaptopRequestsData]', err);
+    log.error('getLaptopRequestsData.failed', err);
     return null;
   }
 }
@@ -116,7 +119,7 @@ export async function getLaptopDashboardData(): Promise<LaptopDashboardData | nu
       actor,
     };
   } catch (err) {
-    console.error('[getLaptopDashboardData]', err);
+    log.error('getLaptopDashboardData.failed', err);
     return null;
   }
 }
@@ -166,7 +169,7 @@ export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestD
       stageAssignees: await resolveStageAssignees(request),
     };
   } catch (err) {
-    console.error('[getLaptopRequestDetail]', err);
+    log.error('getLaptopRequestDetail.failed', err);
     return null;
   }
 }
@@ -206,7 +209,7 @@ export async function getLaptopWorkQueueData(): Promise<LaptopWorkQueueData | nu
       },
     };
   } catch (err) {
-    console.error('[getLaptopWorkQueueData]', err);
+    log.error('getLaptopWorkQueueData.failed', err);
     return null;
   }
 }
@@ -263,7 +266,7 @@ export async function getLaptopAdminData(
       permissionsList: buildMergedPermissionsList(permissionRows, matrixRows),
     };
   } catch (err) {
-    console.error('[getLaptopAdminData]', err);
+    log.error('getLaptopAdminData.failed', err);
     return null;
   }
 }
@@ -280,7 +283,7 @@ export async function getLaptopAnalyticsData(): Promise<LaptopAnalyticsData | nu
     const scope = scopedWhere(actor);
     return await computeLaptopAnalytics(actor, scope.where, scope.params);
   } catch (err) {
-    console.error('[getLaptopAnalyticsData]', err);
+    log.error('getLaptopAnalyticsData.failed', err);
     return null;
   }
 }

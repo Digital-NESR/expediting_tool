@@ -3,8 +3,11 @@
 
 import empDirectoryPool from '@/lib/db-emp-directory';
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
+import { logger } from '@/lib/logger';
 import type { PoolClient } from 'pg';
 import { exec, execTx } from '@/lib/laptop-procurement/db';
+
+const log = logger('laptop-procurement');
 
 /**
  * Returns whichever of `emails` have no matching person in the Azure AD directory.
@@ -31,7 +34,7 @@ export async function findUnknownDirectoryEmails(
     const known = new Set(rows.map((r) => r.mail as string));
     return wanted.filter((e) => !known.has(e));
   } catch (err) {
-    console.error('[findUnknownDirectoryEmails]', err);
+    log.error('findUnknownDirectoryEmails.failed', err);
     return [];
   }
 }

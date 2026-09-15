@@ -3,6 +3,7 @@
 import { asSerialised } from '@/lib/db/sql';
 import { getLaptopApprovalStage } from '@/lib/laptopProcurement-utils';
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
+import { logger } from '@/lib/logger';
 import type { LaptopRequest } from '@/types/laptopProcurement';
 import { request as httpRequest } from 'http';
 import { request as httpsRequest } from 'https';
@@ -11,6 +12,8 @@ import type { QueryResultRow } from 'pg';
 import { getActiveApproverMatrixForCountry } from '@/lib/laptop-procurement/actor';
 import { sql } from '@/lib/laptop-procurement/db';
 import { loadLaptopDelegationChain } from '@/lib/laptop-procurement/delegation';
+
+const log = logger('laptop-procurement');
 
 export function stripEnvQuotes(value: string): string {
   const trimmed = value.trim();
@@ -150,11 +153,10 @@ export function deferLaptopNotifications(label: string, run: () => Promise<void>
     try {
       await run();
     } catch (err) {
-      console.error(
-        `[Laptop Procurement n8n] Deferred notification failed (${label})`,
-        laptopWebhookErrorMessage(err),
-        err,
-      );
+      log.error('deferredNotification.failed', err, {
+        label,
+        reason: laptopWebhookErrorMessage(err),
+      });
     }
   });
 }
@@ -218,9 +220,10 @@ export async function sendLaptopDelegationNotification(
 ): Promise<void> {
   const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_DELEGATION_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn(
-      '[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_DELEGATION_WEBHOOK_URL not configured; skipping delegation notification.',
-    );
+    log.warn('webhook.delegation.unconfigured', {
+      reason: 'N8N_LAPTOP_PROCUREMENT_DELEGATION_WEBHOOK_URL is not set',
+      kind,
+    });
     return;
   }
   try {
@@ -242,23 +245,22 @@ export async function sendLaptopDelegationNotification(
     };
     const response = await postLaptopWebhook(webhookUrl, headers, payload);
     if (!response.ok) {
-      console.error(
-        '[Laptop Procurement n8n] Delegation webhook failed',
-        response.status,
-        response.statusText,
-      );
+      log.error('webhook.delegation.failed', null, {
+        kind,
+        status: response.status,
+        statusText: response.statusText,
+      });
     } else {
-      console.log('[Laptop Procurement n8n] Delegation webhook sent', {
+      log.info('webhook.delegation.sent', {
         kind,
         status: response.status,
       });
     }
   } catch (err) {
-    console.error(
-      '[Laptop Procurement n8n] Delegation webhook failed',
-      laptopWebhookErrorMessage(err),
-      err,
-    );
+    log.error('webhook.delegation.failed', err, {
+      kind,
+      reason: laptopWebhookErrorMessage(err),
+    });
   }
 }
 
@@ -272,9 +274,11 @@ export async function sendLaptopDelegationNotification(
 export async function notifyLaptopNextApprover(request: LaptopRequest): Promise<void> {
   const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn(
-      '[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL not configured; skipping approval-chain notification.',
-    );
+    log.warn('webhook.approval.unconfigured', {
+      reason: 'N8N_LAPTOP_PROCUREMENT_WEBHOOK_URL is not set',
+      requestId: request.id,
+      referenceNumber: request.reference_number,
+    });
     return;
   }
   const stage = getLaptopApprovalStage(request.status);
@@ -340,10 +344,12 @@ export async function notifyLaptopNextApprover(request: LaptopRequest): Promise<
     const routedRecipients = testCandidates ? [testCandidates[0]] : realRecipients;
 
     if (routedRecipients.length === 0) {
-      console.warn(
-        '[Laptop Procurement n8n] No approver configured for stage; skipping notification',
-        { stage, country: request.country },
-      );
+      log.warn('webhook.approval.noRecipients', {
+        stage,
+        country: request.country,
+        requestId: request.id,
+        referenceNumber: request.reference_number,
+      });
       return;
     }
 
@@ -377,24 +383,28 @@ export async function notifyLaptopNextApprover(request: LaptopRequest): Promise<
 
     const response = await postLaptopWebhook(webhookUrl, headers, payload);
     if (!response.ok) {
-      console.error(
-        '[Laptop Procurement n8n] Approval webhook failed',
-        response.status,
-        response.statusText,
-      );
-    } else {
-      console.log('[Laptop Procurement n8n] Approval webhook sent', {
+      log.error('webhook.approval.failed', null, {
         stage,
         requestId: request.id,
+        referenceNumber: request.reference_number,
+        status: response.status,
+        statusText: response.statusText,
+      });
+    } else {
+      log.info('webhook.approval.sent', {
+        stage,
+        requestId: request.id,
+        referenceNumber: request.reference_number,
         status: response.status,
       });
     }
   } catch (err) {
-    console.error(
-      '[Laptop Procurement n8n] Approval webhook failed',
-      laptopWebhookErrorMessage(err),
-      err,
-    );
+    log.error('webhook.approval.failed', err, {
+      stage,
+      requestId: request.id,
+      referenceNumber: request.reference_number,
+      reason: laptopWebhookErrorMessage(err),
+    });
   }
 }
 
@@ -414,9 +424,11 @@ export async function notifyLaptopFinalApproval(request: LaptopRequest): Promise
   // meant to also serve this notification's different purpose/wording.
   const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_FINAL_APPROVAL_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn(
-      '[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_FINAL_APPROVAL_WEBHOOK_URL not configured; skipping final-approval notification.',
-    );
+    log.warn('webhook.finalApproval.unconfigured', {
+      reason: 'N8N_LAPTOP_PROCUREMENT_FINAL_APPROVAL_WEBHOOK_URL is not set',
+      requestId: request.id,
+      referenceNumber: request.reference_number,
+    });
     return;
   }
 
@@ -456,10 +468,11 @@ export async function notifyLaptopFinalApproval(request: LaptopRequest): Promise
     );
 
     if (recipients.length === 0) {
-      console.warn(
-        '[Laptop Procurement n8n] No IT Manager configured; skipping final-approval notification',
-        { country: request.country },
-      );
+      log.warn('webhook.finalApproval.noRecipients', {
+        country: request.country,
+        requestId: request.id,
+        referenceNumber: request.reference_number,
+      });
       return;
     }
 
@@ -491,23 +504,25 @@ export async function notifyLaptopFinalApproval(request: LaptopRequest): Promise
 
     const response = await postLaptopWebhook(webhookUrl, headers, payload);
     if (!response.ok) {
-      console.error(
-        '[Laptop Procurement n8n] Final-approval webhook failed',
-        response.status,
-        response.statusText,
-      );
-    } else {
-      console.log('[Laptop Procurement n8n] Final-approval webhook sent', {
+      log.error('webhook.finalApproval.failed', null, {
         requestId: request.id,
+        referenceNumber: request.reference_number,
+        status: response.status,
+        statusText: response.statusText,
+      });
+    } else {
+      log.info('webhook.finalApproval.sent', {
+        requestId: request.id,
+        referenceNumber: request.reference_number,
         status: response.status,
       });
     }
   } catch (err) {
-    console.error(
-      '[Laptop Procurement n8n] Final-approval webhook failed',
-      laptopWebhookErrorMessage(err),
-      err,
-    );
+    log.error('webhook.finalApproval.failed', err, {
+      requestId: request.id,
+      referenceNumber: request.reference_number,
+      reason: laptopWebhookErrorMessage(err),
+    });
   }
 }
 
@@ -533,9 +548,12 @@ export async function notifyLaptopRequesterUpdate(
 
   const webhookUrl = process.env.N8N_LAPTOP_PROCUREMENT_REQUESTER_UPDATE_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn(
-      '[Laptop Procurement n8n] N8N_LAPTOP_PROCUREMENT_REQUESTER_UPDATE_WEBHOOK_URL not configured; skipping requester update.',
-    );
+    log.warn('webhook.requester.unconfigured', {
+      reason: 'N8N_LAPTOP_PROCUREMENT_REQUESTER_UPDATE_WEBHOOK_URL is not set',
+      kind: params.kind,
+      requestId: request.id,
+      referenceNumber: request.reference_number,
+    });
     return;
   }
 
@@ -576,24 +594,28 @@ export async function notifyLaptopRequesterUpdate(
 
     const response = await postLaptopWebhook(webhookUrl, headers, payload);
     if (!response.ok) {
-      console.error(
-        '[Laptop Procurement n8n] Requester-update webhook failed',
-        response.status,
-        response.statusText,
-      );
-    } else {
-      console.log('[Laptop Procurement n8n] Requester-update webhook sent', {
+      log.error('webhook.requester.failed', null, {
         kind: params.kind,
         requestId: request.id,
+        referenceNumber: request.reference_number,
+        status: response.status,
+        statusText: response.statusText,
+      });
+    } else {
+      log.info('webhook.requester.sent', {
+        kind: params.kind,
+        requestId: request.id,
+        referenceNumber: request.reference_number,
         status: response.status,
       });
     }
   } catch (err) {
-    console.error(
-      '[Laptop Procurement n8n] Requester-update webhook failed',
-      laptopWebhookErrorMessage(err),
-      err,
-    );
+    log.error('webhook.requester.failed', err, {
+      kind: params.kind,
+      requestId: request.id,
+      referenceNumber: request.reference_number,
+      reason: laptopWebhookErrorMessage(err),
+    });
   }
 }
 
@@ -606,6 +628,6 @@ export async function notifyNewLaptopRequest(id: number): Promise<void> {
     ]);
     if (rows[0]) await notifyLaptopNextApprover(asSerialised<LaptopRequest>(rows[0]));
   } catch (err) {
-    console.error('[notifyNewLaptopRequest]', err);
+    log.error('notifyNewLaptopRequest.failed', err);
   }
 }

@@ -6,6 +6,7 @@ import laptopProcurementPool from '@/lib/db-laptop';
 import { asSerialised } from '@/lib/db/sql';
 import { withTransaction } from '@/lib/db/tx';
 import { canUseLaptopReviewerQueue } from '@/lib/laptopProcurement-utils';
+import { logger } from '@/lib/logger';
 import type { ActionResult, LaptopDocument } from '@/types/laptopProcurement';
 import { revalidatePath } from 'next/cache';
 import type { QueryResultRow } from 'pg';
@@ -20,6 +21,8 @@ import {
   sqlTx,
 } from '@/lib/laptop-procurement/db';
 import { LAPTOP_DOCUMENT_TYPES, writeActivity } from '@/lib/laptop-procurement/internals';
+
+const log = logger('laptop-procurement');
 
 export async function uploadLaptopDocument(
   formData: FormData,
@@ -109,7 +112,7 @@ export async function uploadLaptopDocument(
     revalidatePath(`/laptop-procurement/requests/${requestId}`);
     return { success: true, document: asSerialised<LaptopDocument>(docs[0]) };
   } catch (err) {
-    console.error('[uploadLaptopDocument]', err);
+    log.error('uploadLaptopDocument.failed', err);
     return { success: false, error: 'Upload failed. Please try again.' };
   }
 }
@@ -148,7 +151,7 @@ export async function deleteLaptopDocument(documentId: number): Promise<ActionRe
     revalidatePath(`/laptop-procurement/requests/${doc.request_id}`);
     return { success: true };
   } catch (err) {
-    console.error('[deleteLaptopDocument]', err);
+    log.error('deleteLaptopDocument.failed', err);
     return { success: false, error: 'Delete failed. Please try again.' };
   }
 }

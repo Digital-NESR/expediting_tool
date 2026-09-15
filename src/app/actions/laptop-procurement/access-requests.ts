@@ -4,6 +4,7 @@
 
 import laptopProcurementPool from '@/lib/db-laptop';
 import { withTransaction } from '@/lib/db/tx';
+import { logger } from '@/lib/logger';
 import type {
   ActionResult,
   LaptopAccessRequestRow,
@@ -21,6 +22,8 @@ import {
   ensureLaptopAccessRequestTable,
   ensureLaptopPermissionsRoleConstraint,
 } from '@/lib/laptop-procurement/schema';
+
+const log = logger('laptop-procurement');
 
 export async function getLaptopAccessRequests(): Promise<LaptopAccessRequestRow[]> {
   try {
@@ -69,7 +72,7 @@ export async function getLaptopAccessRequests(): Promise<LaptopAccessRequestRow[
       );
     });
   } catch (err) {
-    console.error('[getLaptopAccessRequests]', err);
+    log.error('getLaptopAccessRequests.failed', err);
     return [];
   }
 }
@@ -83,7 +86,7 @@ export async function getLaptopPendingAccessCount(): Promise<number> {
     );
     return Number(rows[0]?.cnt ?? 0);
   } catch (err) {
-    console.error('[getLaptopPendingAccessCount]', err);
+    log.error('getLaptopPendingAccessCount.failed', err);
     return 0;
   }
 }
@@ -150,7 +153,7 @@ export async function approveLaptopAccess(input: {
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[approveLaptopAccess]', err);
+    log.error('approveLaptopAccess.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to approve Laptop Procurement access.',
@@ -189,7 +192,7 @@ export async function rejectLaptopAccess(userEmail: string): Promise<ActionResul
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[rejectLaptopAccess]', err);
+    log.error('rejectLaptopAccess.failed', err);
     return { success: false, error: 'Failed to reject Laptop Procurement access.' };
   }
 }
@@ -218,7 +221,7 @@ export async function revokeLaptopAccess(userEmail: string): Promise<ActionResul
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[revokeLaptopAccess]', err);
+    log.error('revokeLaptopAccess.failed', err);
     return { success: false, error: 'Failed to revoke Laptop Procurement access.' };
   }
 }
@@ -239,7 +242,7 @@ export async function deleteLaptopAccessRequest(userEmail: string): Promise<Acti
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[deleteLaptopAccessRequest]', err);
+    log.error('deleteLaptopAccessRequest.failed', err);
     return { success: false, error: 'Failed to delete Laptop Procurement access record.' };
   }
 }

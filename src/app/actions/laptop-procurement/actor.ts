@@ -3,17 +3,20 @@
 /* ─── Who the caller is. Read by the layout and by every page that gates on access view. ─── */
 
 import { getProcureGuardUser } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 import type { LaptopActor } from '@/types/laptopProcurement';
 import type { QueryResultRow } from 'pg';
 import { scopedWhere } from '@/lib/laptop-procurement/access';
 import { getActor } from '@/lib/laptop-procurement/actor';
 import { sql } from '@/lib/laptop-procurement/db';
 
+const log = logger('laptop-procurement');
+
 export async function getLaptopActor(): Promise<LaptopActor | null> {
   try {
     return await getActor();
   } catch (err) {
-    console.error('[getLaptopActor]', err);
+    log.error('getLaptopActor.failed', err);
     return null;
   }
 }
@@ -43,7 +46,7 @@ export async function canViewLaptopRequest(requestId: number): Promise<boolean> 
     ]);
     return rows.length > 0;
   } catch (err) {
-    console.error('[canViewLaptopRequest]', err);
+    log.error('canViewLaptopRequest.failed', err);
     return false;
   }
 }

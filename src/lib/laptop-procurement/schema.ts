@@ -4,8 +4,11 @@
    (laptop-procurement-4). Collecting them here does not fix that; it makes the eventual move to
    real migrations a matter of reading one file instead of six scattered memos. ─── */
 
+import { logger } from '@/lib/logger';
 import type { QueryResultRow } from 'pg';
 import { exec, sql } from '@/lib/laptop-procurement/db';
+
+const log = logger('laptop-procurement');
 
 // laptop_approver_matrix predates this app's incremental-migration pattern (its
 // it_manager_2_* columns were added directly against the DB, not via code here) — this
@@ -116,10 +119,10 @@ export async function ensureLaptopReferenceUniqueIndex(): Promise<void> {
        ORDER BY reference_number`,
     );
     if (duplicates.length) {
-      console.error(
-        '[ensureLaptopReferenceUniqueIndex] reference_number is not unique — index skipped. Duplicates:',
-        duplicates.map((d) => `${d.reference_number} x${d.copies}`).join(', '),
-      );
+      log.error('ensureLaptopReferenceUniqueIndex.duplicateReferences', null, {
+        hint: 'reference_number is not unique — index skipped. De-duplicate the references below.',
+        duplicates: duplicates.map((d) => `${d.reference_number} x${d.copies}`),
+      });
       return;
     }
     await exec(
@@ -128,7 +131,9 @@ export async function ensureLaptopReferenceUniqueIndex(): Promise<void> {
   })().catch((err) => {
     // Not retried: the advisory lock is what actually prevents collisions, this is
     // only the belt-and-braces. Never fail a request creation over it.
-    console.warn('[ensureLaptopReferenceUniqueIndex]', err);
+    log.warn('ensureLaptopReferenceUniqueIndex.failed', {
+      reason: err instanceof Error ? err.message : String(err),
+    });
   });
   return laptopReferenceIndexEnsured;
 }

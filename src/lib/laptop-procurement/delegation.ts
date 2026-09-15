@@ -2,11 +2,14 @@
    cannot hang a request. ─── */
 
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
+import { logger } from '@/lib/logger';
 import type { LaptopDelegationGrant, LaptopDelegationRow } from '@/types/laptopProcurement';
 import type { QueryResultRow } from 'pg';
 import { buildEffectivePermissions, emptyMatrixCapabilities } from '@/lib/laptop-procurement/actor';
 import { sql } from '@/lib/laptop-procurement/db';
 import { ensureLaptopDelegationTable } from '@/lib/laptop-procurement/schema';
+
+const log = logger('laptop-procurement');
 
 // A delegation whose expires_at has simply passed still carries is_active = TRUE until
 // someone explicitly revokes it — resolveLaptopDelegations already filters on expires_at
@@ -117,7 +120,7 @@ export async function loadLaptopDelegationChain(
       },
     };
   } catch (err) {
-    console.error('[loadLaptopDelegationChain]', err);
+    log.error('loadLaptopDelegationChain.failed', err);
     return NO_LAPTOP_DELEGATIONS;
   }
 }
@@ -163,7 +166,7 @@ export async function resolveLaptopDelegations(email: string): Promise<LaptopDel
     }
     return grants;
   } catch (err) {
-    console.error('[resolveLaptopDelegations]', err);
+    log.error('resolveLaptopDelegations.failed', err);
     return [];
   }
 }

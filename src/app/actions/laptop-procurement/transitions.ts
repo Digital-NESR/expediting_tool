@@ -14,6 +14,7 @@ import {
   laptopIsProcureNewFlow,
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopPermissionKey } from '@/lib/laptopProcurement-utils';
+import { logger } from '@/lib/logger';
 import type {
   ActionResult,
   AssignExistingLaptopInput,
@@ -52,6 +53,8 @@ import {
   STAGE_COMMENT_COLUMN,
   STAGE_DECISION_COLUMN,
 } from '@/lib/laptop-procurement/write-requests';
+
+const log = logger('laptop-procurement');
 
 /**
  * Every rejection bounces the request back to the IT Manager to fix and resend, rather
@@ -160,7 +163,7 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     });
     return { success: true };
   } catch (err) {
-    console.error('[rejectLaptopRequest]', err);
+    log.error('rejectLaptopRequest.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to reject request.',
@@ -419,7 +422,7 @@ export async function updateLaptopRequestStatus(
     });
     return { success: true };
   } catch (err) {
-    console.error('[updateLaptopRequestStatus]', err);
+    log.error('updateLaptopRequestStatus.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to update request status.',
@@ -512,7 +515,7 @@ export async function submitProcureNewDetails(
     });
     return { success: true };
   } catch (err) {
-    console.error('[submitProcureNewDetails]', err);
+    log.error('submitProcureNewDetails.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to submit device details.',
@@ -551,7 +554,7 @@ export async function deleteLaptopRecord(
     revalidateLaptopPaths();
     return { success: true };
   } catch (err) {
-    console.error('[deleteLaptopRecord]', err);
+    log.error('deleteLaptopRecord.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to delete record.',

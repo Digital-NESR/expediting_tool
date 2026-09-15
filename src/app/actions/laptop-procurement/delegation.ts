@@ -6,6 +6,7 @@ import laptopProcurementPool from '@/lib/db-laptop';
 import { asSerialised } from '@/lib/db/sql';
 import { withTransaction } from '@/lib/db/tx';
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
+import { logger } from '@/lib/logger';
 import type {
   ActionResult,
   LaptopDelegationData,
@@ -30,6 +31,8 @@ import {
   sendLaptopDelegationNotification,
 } from '@/lib/laptop-procurement/notifications';
 import { ensureLaptopDelegationTable } from '@/lib/laptop-procurement/schema';
+
+const log = logger('laptop-procurement');
 
 export async function getLaptopDelegationData(): Promise<LaptopDelegationData | null> {
   try {
@@ -58,7 +61,7 @@ export async function getLaptopDelegationData(): Promise<LaptopDelegationData | 
       received: applyLaptopDelegationExpiry(asSerialised<LaptopDelegationRow[]>(receivedRows)),
     };
   } catch (err) {
-    console.error('[getLaptopDelegationData]', err);
+    log.error('getLaptopDelegationData.failed', err);
     return null;
   }
 }
@@ -142,7 +145,7 @@ export async function grantLaptopDelegation(input: {
     );
     return { success: true, data: { count: input.roles.length } };
   } catch (err) {
-    console.error('[grantLaptopDelegation]', err);
+    log.error('grantLaptopDelegation.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to create delegation.',
@@ -192,7 +195,7 @@ export async function revokeLaptopDelegation(id: number): Promise<ActionResult> 
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[revokeLaptopDelegation]', err);
+    log.error('revokeLaptopDelegation.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to revoke delegation.',
@@ -292,7 +295,7 @@ export async function adminGrantLaptopDelegation(input: {
     );
     return { success: true, data: { count: input.roles.length } };
   } catch (err) {
-    console.error('[adminGrantLaptopDelegation]', err);
+    log.error('adminGrantLaptopDelegation.failed', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to create delegation.',
