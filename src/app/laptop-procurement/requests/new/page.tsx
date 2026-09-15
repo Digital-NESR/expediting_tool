@@ -4,6 +4,7 @@ import { getLaptopActor } from '@/app/actions/laptopProcurement';
 import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import { getProcureGuardUser } from '@/lib/auth';
 import { canUseLaptopOperationalPages } from '@/lib/laptopProcurement-utils';
+import { departmentsSeedFor } from '@/lib/laptopCostCenters.server';
 import LaptopRequestFormClient from './LaptopRequestFormClient';
 
 export const metadata: Metadata = { title: 'NESR | New Request - Laptop Procurement' };
@@ -23,6 +24,7 @@ export default async function NewLaptopRequestPage() {
       requesterName={user?.name ?? user?.email ?? ''}
       requesterEmail={user?.email ?? ''}
       directoryDefaults={directoryDefaults}
+      initialDepartments={departmentsSeedFor(directoryDefaults?.companyCode)}
       accessView={actor.effectiveAccessView}
     />
   );

@@ -7,7 +7,7 @@ import { Icon } from '../../components/CatalogManagerUI';
 import BulkImportPanel from '../import/BulkImportPanel';
 import GridEntryPanel from './GridEntryPanel';
 import { createCatalogEntriesBatch, searchSupplierDirectory, type CatalogEntryLine } from '@/app/actions/catalog-manager';
-import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
+import type { TaxCategory } from '@/lib/catalog-taxonomy-types';
 import type { ApprovalThresholdRule, SpendType } from '@/types/catalog-manager';
 import { effectiveThresholdUsd, fmtUsd, usdRateFor, usdRatesFrom, SPEND_TYPE_OPTIONS, INCOTERMS } from '@/lib/catalog-manager-utils';
 
@@ -40,8 +40,15 @@ function blankLine(currency: string): LineState {
 
 export default function AddEntriesClient({
   countries, currencies, uoms, services, managers, scope, initialTab, roleLabel, canApprove, canAdmin, pendingCount, thresholds,
+  taxonomy: SPEND_TAXONOMY,
 }: {
   countries: ScopeCountry[];
+  /**
+   * The full spend taxonomy, handed down by the server page. It used to be imported straight
+   * into this client component, which put ~197 KB of generated TypeScript into the browser
+   * bundle for every visitor. Passing it as a prop keeps every lookup below synchronous.
+   */
+  taxonomy: TaxCategory[];
   /** Rates come from the `currency` table, so this preview follows an admin's edit like the server does. */
   currencies: { code: string; usd_rate: number }[];
   uoms: { name: string }[];
@@ -78,7 +85,7 @@ export default function AddEntriesClient({
 
   const catGroups = useMemo(
     () => SPEND_TYPE_OPTIONS.map((t) => ({ type: t, cats: SPEND_TAXONOMY.filter((c) => c.type === t) })).filter((g) => g.cats.length),
-    [],
+    [SPEND_TAXONOMY],
   );
 
   function onSupplierName(name: string) {
@@ -222,7 +229,7 @@ export default function AddEntriesClient({
         {tab === 'bulk' ? (
           <BulkImportPanel />
         ) : tab === 'grid' ? (
-          <GridEntryPanel countries={countries} currencies={currencies} uoms={uoms} services={services} defaultCountry={scope} />
+          <GridEntryPanel countries={countries} currencies={currencies} uoms={uoms} services={services} defaultCountry={scope} taxonomy={SPEND_TAXONOMY} />
         ) : (
           <div className="space-y-4">
             {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}

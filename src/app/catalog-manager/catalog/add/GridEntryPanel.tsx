@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '../../components/CatalogManagerUI';
 import { bulkImportCatalogEntries, type CatalogImportRow } from '@/app/actions/catalog-manager';
-import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
+import type { TaxCategory } from '@/lib/catalog-taxonomy-types';
 import { SPEND_TYPE_OPTIONS, INCOTERMS } from '@/lib/catalog-manager-utils';
 
 interface GridRow {
@@ -32,13 +32,16 @@ const cellCls = 'w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 
 let keySeq = 1;
 
 export default function GridEntryPanel({
-  countries, currencies, uoms, services, defaultCountry,
+  countries, currencies, uoms, services, defaultCountry, taxonomy: SPEND_TAXONOMY,
 }: {
   countries: { code: string; name: string; flag: string | null }[];
   currencies: { code: string }[];
   uoms: { name: string }[];
   services: string[];
   defaultCountry: string;
+  /** Passed down from AddEntriesClient (ultimately the server page) rather than imported, so the
+   *  ~197 KB taxonomy module never reaches the client bundle. */
+  taxonomy: TaxCategory[];
 }) {
   const baseCountry = defaultCountry !== 'ALL' ? defaultCountry : countries[0]?.code ?? 'SA';
   const baseCcy = CCY_BY_COUNTRY[baseCountry] ?? currencies[0]?.code ?? 'USD';

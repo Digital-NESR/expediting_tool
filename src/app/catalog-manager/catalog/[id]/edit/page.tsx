@@ -11,6 +11,7 @@ import {
   getApprovalThresholds,
 } from '@/app/actions/catalog-manager';
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
+import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy.server';
 import CatalogEntryFormClient from '../../CatalogEntryFormClient';
 
 export const metadata: Metadata = { title: 'NESR | Edit Entry - Catalog Manager' };
@@ -36,6 +37,7 @@ export default async function EditCatalogEntryPage({ params }: { params: Promise
   return (
     <CatalogEntryFormClient
       initial={entry}
+      taxonomy={SPEND_TAXONOMY}
       countries={countries.map((c) => ({ code: c.code, name: c.name, flag: c.flag }))}
       currencies={currencies.map((c) => ({ code: c.code, usd_rate: c.usd_rate }))}
       uoms={uoms.map((u) => ({ name: u.name }))}

@@ -11,7 +11,7 @@ import { withTransaction } from '@/lib/db/tx';
 import { getProcureGuardUser } from '@/lib/auth';
 import { AccessError, isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
 import { getDelegatorsForApp } from '@/app/actions/delegation';
-import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
+import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy.server';
 import { SERVICE_ACTIVITIES } from '@/lib/catalog-service-activities';
 import {
   SEED_COUNTRIES,

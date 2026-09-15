@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, useTransition } from 'react';
+import { useEffect, useId, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import LaptopShell, { CTA, GLASS } from '../../components/LaptopShell';
 import { createLaptopRequest, updateLaptopRequest, uploadLaptopDocument } from '@/app/actions/laptopProcurement';
@@ -10,11 +10,11 @@ import {
   REQUEST_TYPE_OPTIONS,
 } from '@/lib/laptopProcurement-utils';
 import {
+  findCostCenter,
   getCompaniesForRequestorCountry,
   getCompanyByCode,
-  getCostCenterFor,
-  getDepartmentsForCompany,
-} from '@/lib/laptopCostCenterMapping';
+  type CostCenterDepartment,
+} from '@/lib/laptopCostCenters';
 import type { EmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import type {
   CreateLaptopRequestInput,
@@ -89,12 +89,21 @@ export default function LaptopRequestFormClient({
   accessView,
   editRequest,
   directoryDefaults,
+  initialDepartments,
 }: {
   requesterName: string;
   requesterEmail: string;
   accessView: LaptopAccessView;
   editRequest?: LaptopRequest;
   directoryDefaults?: EmployeeDirectoryDefaults | null;
+  /**
+   * Departments + cost centers for the company this form opens on, prefetched by the server page.
+   * The full 56-company table is ~138 KB and used to be bundled into this component; the form only
+   * ever needs one company at a time, so the opening company arrives here (keeping the auto-fill
+   * paths synchronous, exactly as before) and any company the user picks afterwards is fetched
+   * from /api/laptop-procurement/cost-centers/<code>.
+   */
+  initialDepartments?: Record<string, CostCenterDepartment[]>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -128,12 +137,48 @@ export default function LaptopRequestFormClient({
   const isSelfRequest = requestType === 'Upgrade/Replacement' || isUnit;
 
   // Companies available in the Cost Allocation dropdown for New Employee, filtered by
-  // the requestor's own country (from the Excel-derived mapping in laptopCostCenterMapping).
+  // the requestor's own country (from the Excel-derived mapping in laptopCostCenters).
   const availableCompanies = getCompaniesForRequestorCountry(country);
   // Departments (and their cost centers) available for whichever company is currently
   // selected — drives both the New Employee "Computer For" department dropdown and the
-  // Cost Center auto-fill.
-  const availableDepartments = getDepartmentsForCompany(companyCode);
+  // Cost Center auto-fill. Keyed by company code and seeded with the server-prefetched
+  // opening company, so nothing the form reads on first render arrives late.
+  const [departmentsByCompany, setDepartmentsByCompany] =
+    useState<Record<string, CostCenterDepartment[]>>(() => initialDepartments ?? {});
+  const availableDepartments = (companyCode && departmentsByCompany[companyCode]) || [];
+  // Derived rather than its own state: a company is "loading" exactly while it has no cache
+  // entry. The fetch below always writes an entry (an empty list if the request failed), so
+  // this can never stick on.
+  const loadingDepartments = Boolean(companyCode) && !(companyCode in departmentsByCompany);
+
+  /** Cost center lookup against whichever company slice is already in hand. */
+  function costCenterFor(code: string | null | undefined, dept: string | null | undefined): string | null {
+    if (!code) return null;
+    return findCostCenter(departmentsByCompany[code], dept);
+  }
+
+  // Only fires when the user picks a company other than the prefetched one. handleCompanyChange
+  // has already cleared Department and Cost Center by then, so there is nothing to lose while the
+  // slice is in flight — the Department select just shows a disabled "Loading departments…".
+  useEffect(() => {
+    if (!companyCode || companyCode in departmentsByCompany) return;
+    let cancelled = false;
+    fetch(`/api/laptop-procurement/cost-centers/${encodeURIComponent(companyCode)}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`Cost center request failed (${res.status})`);
+        return res.json() as Promise<CostCenterDepartment[]>;
+      })
+      .catch(err => {
+        // Cache an empty list so the select stops loading and behaves like an unmapped company
+        // code did before — the requester can still pick a different company, or reload.
+        console.error('[Laptop Procurement] cost center lookup failed:', err);
+        return [] as CostCenterDepartment[];
+      })
+      .then(rows => {
+        if (!cancelled) setDepartmentsByCompany(prev => ({ ...prev, [companyCode]: rows }));
+      });
+    return () => { cancelled = true; };
+  }, [companyCode, departmentsByCompany]);
 
   // Self-service requests (Upgrade/Replacement, Unit) are for the requester's own
   // record, so the directory can fill in what it already knows instead of the requester
@@ -161,7 +206,7 @@ export default function LaptopRequestFormClient({
     const company = getCompanyByCode(nextCompanyCode);
     if (company) setCompanyName(company.name);
 
-    const nextCostCenter = costCenter.trim() ? costCenter : (getCostCenterFor(nextCompanyCode, nextDepartment) ?? directoryDefaults.costCenter ?? '');
+    const nextCostCenter = costCenter.trim() ? costCenter : (costCenterFor(nextCompanyCode, nextDepartment) ?? directoryDefaults.costCenter ?? '');
     if (nextCostCenter !== costCenter) setCostCenter(nextCostCenter);
   }
 
@@ -170,7 +215,7 @@ export default function LaptopRequestFormClient({
   // looked up by company + department.
   function handleSelfDepartmentChange(value: string) {
     setDepartment(value);
-    const cc = getCostCenterFor(companyCode, value);
+    const cc = costCenterFor(companyCode, value);
     if (cc) setCostCenter(cc);
   }
 
@@ -178,7 +223,7 @@ export default function LaptopRequestFormClient({
   // company was already chosen in Cost Allocation.
   function handleComputerForDepartmentChange(value: string) {
     setDepartment(value);
-    setCostCenter(getCostCenterFor(companyCode, value) ?? '');
+    setCostCenter(costCenterFor(companyCode, value) ?? '');
   }
 
   // Company Name and Company Code are two views of the same underlying company record
@@ -406,10 +451,10 @@ export default function LaptopRequestFormClient({
                   <select
                     className={errors.department ? ERR : INP}
                     value={department}
-                    disabled={!companyCode}
+                    disabled={!companyCode || loadingDepartments}
                     onChange={e => handleComputerForDepartmentChange(e.target.value)}
                   >
-                    <option value="">{companyCode ? 'Select department' : 'Select company first'}</option>
+                    <option value="">{!companyCode ? 'Select company first' : loadingDepartments ? 'Loading departments…' : 'Select department'}</option>
                     {availableDepartments.map(d => <option key={d.department} value={d.department}>{d.department}</option>)}
                   </select>
                 </Field>

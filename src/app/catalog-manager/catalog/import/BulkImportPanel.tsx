@@ -7,7 +7,7 @@ import { readSpreadsheet } from '@/lib/spreadsheet-import';
 import { Icon } from '../../components/CatalogManagerUI';
 import { bulkImportCatalogEntries, buildCommodityReference, getSupplierDirectoryNames, type CatalogImportRow } from '@/app/actions/catalog-manager';
 import { SEED_UOMS, SEED_CURRENCIES, SEED_COUNTRIES, INCOTERMS, FIELD_MAX, LEAD_TIME_MAX_DAYS, UNIT_PRICE_MAX } from '@/lib/catalog-manager-utils';
-import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
+import type { TaxCategory } from '@/lib/catalog-taxonomy-types';
 
 type Phase = 'form' | 'running' | 'done';
 
@@ -173,6 +173,29 @@ function validationFor(kind: DVKind, required: boolean, listRange: Record<string
   }
 }
 
+/**
+ * The spend taxonomy is ~100 KB and used to be imported straight into this client component,
+ * which put it in the bundle of every page that renders the panel. This panel is mounted by two
+ * client components (CatalogImportClient and AdminClient), so there is no server page to take it
+ * as a prop from; instead it is fetched from the auth-gated, hard-cached taxonomy route. The only
+ * place it is read is `downloadTemplate()`, which was already async, so nothing that used to be
+ * synchronous became asynchronous. One in-flight request is shared by every caller; a failed
+ * fetch clears the cache so the next click retries.
+ */
+let taxonomyRequest: Promise<TaxCategory[]> | null = null;
+function loadSpendTaxonomy(): Promise<TaxCategory[]> {
+  taxonomyRequest ??= fetch('/api/catalog-manager/taxonomy')
+    .then((res) => {
+      if (!res.ok) throw new Error(`Spend taxonomy request failed (${res.status})`);
+      return res.json() as Promise<TaxCategory[]>;
+    })
+    .catch((err) => {
+      taxonomyRequest = null;
+      throw err;
+    });
+  return taxonomyRequest;
+}
+
 async function downloadTemplate() {
   // Loaded on demand so exceljs stays out of this page's initial client chunk.
   const ExcelJSLib = await import('exceljs');
@@ -181,7 +204,13 @@ async function downloadTemplate() {
   wb.created = new Date();
 
   // SAP supplier names for the Supplier dropdown (fail-safe to empty → free text if DB unreachable).
-  const supplierNames = await getSupplierDirectoryNames().catch(() => [] as string[]);
+  // The taxonomy, unlike the supplier names, has no usable fallback — a template without it would
+  // silently ship empty Category/Sub-category/Commodity dropdowns — so a failure propagates to the
+  // caller, which re-enables the button for a retry.
+  const [supplierNames, SPEND_TAXONOMY] = await Promise.all([
+    getSupplierDirectoryNames().catch(() => [] as string[]),
+    loadSpendTaxonomy(),
+  ]);
 
   // Validation source data (kept on a hidden "Lists" sheet, referenced by range).
   const subcats = Array.from(new Set(SPEND_TAXONOMY.flatMap((c) => c.subs.map((s) => s.name)))).sort();
@@ -448,6 +477,7 @@ export default function BulkImportPanel() {
   const [log, setLog] = useState<string[]>([]);
   const [result, setResult] = useState<{ inserted: number; skipped: number; errors: number } | null>(null);
   const [refBusy, setRefBusy] = useState(false);
+  const [tplBusy, setTplBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -467,6 +497,17 @@ export default function BulkImportPanel() {
       // silently ignore — the button re-enables so the user can retry
     } finally {
       setRefBusy(false);
+    }
+  }
+
+  async function handleDownloadTemplate() {
+    setTplBusy(true);
+    try {
+      await downloadTemplate();
+    } catch {
+      // silently ignore — the button re-enables so the user can retry
+    } finally {
+      setTplBusy(false);
     }
   }
 
@@ -515,8 +556,8 @@ export default function BulkImportPanel() {
           <button onClick={() => { void downloadReference(); }} disabled={refBusy} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-[#307c4c]/40 hover:text-[#307c4c] active:scale-[0.98] disabled:opacity-60" title="Full spend taxonomy: Category → Sub-category → Commodity">
             <Icon name={refBusy ? 'spinner' : 'sheet'} className={`h-3.5 w-3.5 ${refBusy ? 'animate-spin' : ''}`} /> {refBusy ? 'Preparing…' : 'Spend taxonomy reference'}
           </button>
-          <button onClick={() => { void downloadTemplate(); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-[#307c4c]/40 hover:text-[#307c4c] active:scale-[0.98]">
-            <Icon name="download" className="h-3.5 w-3.5" /> Download template
+          <button onClick={() => { void handleDownloadTemplate(); }} disabled={tplBusy} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-[#307c4c]/40 hover:text-[#307c4c] active:scale-[0.98] disabled:opacity-60">
+            <Icon name={tplBusy ? 'spinner' : 'download'} className={`h-3.5 w-3.5 ${tplBusy ? 'animate-spin' : ''}`} /> {tplBusy ? 'Preparing…' : 'Download template'}
           </button>
         </div>
       </div>

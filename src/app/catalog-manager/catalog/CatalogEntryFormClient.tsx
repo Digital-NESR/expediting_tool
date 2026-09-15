@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import CatalogManagerShell, { type ScopeCountry } from '../components/CatalogManagerShell';
 import { Icon } from '../components/CatalogManagerUI';
 import { createCatalogEntry, updateCatalogEntry } from '@/app/actions/catalog-manager';
-import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy';
+import type { TaxCategory } from '@/lib/catalog-taxonomy-types';
 import type { ApprovalThresholdRule, CatalogEntry, SpendType } from '@/types/catalog-manager';
 import { effectiveThresholdUsd, fmtUsd, usdRateFor, usdRatesFrom, sirionUrlFor, SPEND_TYPE_OPTIONS, INCOTERMS } from '@/lib/catalog-manager-utils';
 
@@ -46,8 +46,15 @@ const inputCls = (err?: boolean) =>
 
 export default function CatalogEntryFormClient({
   initial, countries, currencies, uoms, managers, scope, pendingCount, roleLabel, canApprove, canAdmin, thresholds,
+  taxonomy: SPEND_TAXONOMY,
 }: {
   initial: CatalogEntry | null;
+  /**
+   * The full spend taxonomy, handed down by the server page. It used to be imported straight
+   * into this client component, which put ~197 KB of generated TypeScript into the browser
+   * bundle for every visitor. Passing it as a prop keeps every lookup below synchronous.
+   */
+  taxonomy: TaxCategory[];
   countries: ScopeCountry[];
   /** Rates come from the `currency` table, so this preview follows an admin's edit like the server does. */
   currencies: { code: string; usd_rate: number }[];
@@ -109,7 +116,7 @@ export default function CatalogEntryFormClient({
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const catObj = useMemo(() => SPEND_TAXONOMY.find((c) => c.name === f.category_name), [f.category_name]);
+  const catObj = useMemo(() => SPEND_TAXONOMY.find((c) => c.name === f.category_name), [SPEND_TAXONOMY, f.category_name]);
   const subObj = useMemo(() => catObj?.subs.find((s) => s.name === f.subcategory_name), [catObj, f.subcategory_name]);
   const commodityOptions = subObj?.commodities ?? [];
 

@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getLaptopActor, getLaptopRequestDetail } from '@/app/actions/laptopProcurement';
 import { getProcureGuardUser } from '@/lib/auth';
 import { canUseLaptopOperationalPages } from '@/lib/laptopProcurement-utils';
+import { departmentsSeedFor } from '@/lib/laptopCostCenters.server';
 import LaptopRequestFormClient from '../../new/LaptopRequestFormClient';
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -30,6 +31,7 @@ export default async function EditLaptopRequestPage({ params }: PageProps) {
       requesterEmail={user?.email ?? ''}
       accessView={actor.effectiveAccessView}
       editRequest={data.request}
+      initialDepartments={departmentsSeedFor(data.request.company_code)}
     />
   );
 }
