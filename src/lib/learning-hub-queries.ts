@@ -242,8 +242,10 @@ async function ensureLearningHubSchema(): Promise<void> {
   )`);
 
   /* There is deliberately no access_requests table here. One was created to mirror the other
-     tools, but the Learning Hub is open to every signed-in employee, so nothing ever wrote to
-     it or read it. The table itself still exists in learning_hub_db and wants a DROP. */
+     tools and was briefly used — two people were approved through it on 8 Sep 2026 — before the
+     Learning Hub became open to every signed-in employee, after which nothing read or wrote it.
+     It was retired on 15 Sep 2026 by renaming it to access_requests_bak_lhretire rather than
+     dropping it, so those two approval rows survive. Drop that backup once nobody wants them. */
 }
 
 // Inserts a track's courses/modules/lessons one multi-row INSERT per level: three round trips for the
