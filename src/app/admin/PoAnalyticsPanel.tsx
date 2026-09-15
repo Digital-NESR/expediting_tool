@@ -447,10 +447,7 @@ function BuyerTable({
   rows: BuyerRow[];
   onBuyerClick: (buyer: BuyerRow) => void;
 }) {
-  const { sorted, sortKey, sortDir, handleSort } = useSortable(
-    rows as unknown as Record<string, unknown>[],
-    'total_lines',
-  );
+  const { sorted, sortKey, sortDir, handleSort } = useSortable(rows, 'total_lines');
   type Col = { key: string; label: string; align?: 'right' | 'center' };
   const cols: Col[] = [
     { key: 'display_name',      label: 'Buyer'             },
@@ -495,11 +492,12 @@ function BuyerTable({
                 </td>
               </tr>
             )}
-            {sorted.map((row, idx) => {
-              const r = row as unknown as BuyerRow;
+            {sorted.map((r, idx) => {
               return (
                 <tr
-                  key={idx}
+                  /* Stable identity: an index key re-used a row's DOM node for a
+                     different buyer after every sort. `idx` is still the zebra stripe. */
+                  key={r.email}
                   onClick={() => onBuyerClick(r)}
                   className={`border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
                 >
@@ -552,10 +550,7 @@ function SupplierTable({
   rows: SupplierRow[];
   onSupplierClick: (name: string) => void;
 }) {
-  const { sorted, sortKey, sortDir, handleSort } = useSortable(
-    rows as unknown as Record<string, unknown>[],
-    'response_rate',
-  );
+  const { sorted, sortKey, sortDir, handleSort } = useSortable(rows, 'response_rate');
   type Col = { key: string; label: string; align?: 'right' | 'center' };
   const cols: Col[] = [
     { key: 'supplier_name',   label: 'Supplier Name'                        },
@@ -598,11 +593,10 @@ function SupplierTable({
                 </td>
               </tr>
             )}
-            {sorted.map((row, idx) => {
-              const r = row as unknown as SupplierRow;
+            {sorted.map((r, idx) => {
               return (
                 <tr
-                  key={idx}
+                  key={r.supplier_name}
                   onClick={() => onSupplierClick(r.supplier_name)}
                   className={`border-b border-slate-100 hover:bg-[#307c4c]/5 cursor-pointer transition-colors ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
                 >

@@ -11,6 +11,7 @@ import LearningHubBackButton from '../../../components/LearningHubBackButton';
 import { markLessonComplete, markLessonIncomplete, submitLessonQuiz } from '@/app/actions/learning-hub';
 import { formatDuration } from '@/lib/learning-hub-utils';
 import type { LessonDetailData, LessonQuiz, LessonQuizAttemptResult, QuizAnswerInput } from '@/types/learning-hub';
+import { DEFAULT_TRACK_COLOR } from '@/lib/learning-hub-display';
 
 const MARKDOWN_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
 
@@ -191,7 +192,7 @@ export default function LessonViewerClient({ data }: { data: LessonDetailData })
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const { track, course, lesson, prev, next, quiz } = data;
-  const color = track.color || '#307c4c';
+  const color = track.color || DEFAULT_TRACK_COLOR;
   const hasQuiz = !!quiz;
   const canProceed = hasQuiz ? passed : true;
 

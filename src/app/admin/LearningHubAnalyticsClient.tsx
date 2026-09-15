@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { GraduationCap, Users, CheckCircle2, BookOpen, PlayCircle, Trophy, Medal, User, UsersRound } from 'lucide-react';
-import type { LearningHubAnalytics, LhTrackAnalytics } from '@/app/actions/learning-hub';
+import type { LearningHubAnalytics, LhTrackAnalytics } from '@/types/learning-hub';
 
 const GREEN = '#307c4c';
 

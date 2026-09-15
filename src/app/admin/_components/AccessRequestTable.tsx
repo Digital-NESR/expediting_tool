@@ -37,6 +37,18 @@ export interface AccessRequestLike {
   reviewed_at: string | null;
 }
 
+/** What every access-mutating server action in this codebase returns. `void`
+    and other shapes are tolerated so a caller that reports nothing still type-checks. */
+export type ActionResult = { success: boolean; error?: string } | void | undefined | unknown;
+
+function failureMessage(result: ActionResult, fallback: string): string | null {
+  if (result && typeof result === 'object' && 'success' in result) {
+    const r = result as { success: boolean; error?: string };
+    if (!r.success) return r.error || fallback;
+  }
+  return null;
+}
+
 export interface AccessRequestTableProps<TRow extends AccessRequestLike> {
   /* Copy */
   title: string;
@@ -52,12 +64,15 @@ export interface AccessRequestTableProps<TRow extends AccessRequestLike> {
   loadOptions?: () => Promise<string[]>;
   options?: string[];
 
-  /* Actions — each returns once the write has landed; the table then refreshes. */
-  onApprove: (email: string, selected: string[]) => Promise<unknown>;
-  onReject: (email: string) => Promise<unknown>;
-  onRevoke: (email: string) => Promise<unknown>;
-  onEdit: (email: string, selected: string[]) => Promise<unknown>;
-  onDelete: (email: string) => Promise<unknown>;
+  /* Actions — each returns once the write has landed; the table then refreshes.
+     A `{ success: false }` result is surfaced as a banner instead of being
+     discarded, which used to make a failed approve or revoke look like it
+     worked until the operator reloaded the page. */
+  onApprove: (email: string, selected: string[]) => Promise<ActionResult>;
+  onReject: (email: string) => Promise<ActionResult>;
+  onRevoke: (email: string) => Promise<ActionResult>;
+  onEdit: (email: string, selected: string[]) => Promise<ActionResult>;
+  onDelete: (email: string) => Promise<ActionResult>;
 
   onPendingCountChange?: (count: number) => void;
 }
@@ -157,6 +172,8 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
   const [expandMode, setExpandMode]         = useState<'approve' | 'edit' | null>(null);
   const [isPending, startTransition]        = useTransition();
   const [processingEmail, setProcessingEmail] = useState<string | null>(null);
+  /** Non-null whenever the last load or write failed. Cleared by the next success. */
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
@@ -164,7 +181,10 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
       const data = await loadRequests();
       setRequests(data);
       setLastRefreshed(new Date());
+      setErrorMessage(null);
       onPendingCountChange?.(data.filter(r => r.status === 'Pending').length);
+    } catch {
+      setErrorMessage('Could not refresh the list. The data below may be out of date.');
     } finally {
       setIsRefreshing(false);
     }
@@ -181,6 +201,8 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
         setLastRefreshed(new Date());
         onPendingCountChange?.(reqs.filter(r => r.status === 'Pending').length);
       })
+      /* Without this the spinner never stopped when the initial load threw. */
+      .catch(() => setErrorMessage('Could not load access requests. Please refresh to try again.'))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onPendingCountChange]);
@@ -199,12 +221,26 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
   }
 
   /** Runs one write then refreshes; `collapse` clears the expanded row afterwards. */
-  function run(email: string, write: () => Promise<unknown>, collapse = false) {
+  function run(
+    email: string,
+    write: () => Promise<ActionResult>,
+    collapse = false,
+    fallbackError = 'The action could not be completed. Please try again.',
+  ) {
     setProcessingEmail(email);
     startTransition(async () => {
-      await write();
+      let failed: string | null;
+      try {
+        failed = failureMessage(await write(), fallbackError);
+      } catch {
+        failed = fallbackError;
+      }
+      /* Refresh either way: on failure it re-reads the true state, so the row
+         does not sit there showing an outcome that never happened. The refresh
+         clears the banner on success, so the write's failure is re-applied after. */
       await refreshData();
-      if (collapse) {
+      setErrorMessage(prev => failed ?? prev);
+      if (collapse && !failed) {
         setExpandedEmail(null);
         setExpandMode(null);
       }
@@ -213,21 +249,22 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
   }
 
   const handleApprove = (email: string, selected: string[]) =>
-    run(email, () => onApprove(email, selected), true);
+    run(email, () => onApprove(email, selected), true, 'Failed to approve the request.');
 
-  const handleReject = (email: string) => run(email, () => onReject(email));
+  const handleReject = (email: string) =>
+    run(email, () => onReject(email), false, 'Failed to reject the request.');
 
   function handleRevoke(email: string) {
     if (!confirm(revokeConfirm(email))) return;
-    run(email, () => onRevoke(email));
+    run(email, () => onRevoke(email), false, 'Failed to revoke access.');
   }
 
   const handleEditAccess = (email: string, selected: string[]) =>
-    run(email, () => onEdit(email, selected), true);
+    run(email, () => onEdit(email, selected), true, 'Failed to update access.');
 
   function handleDelete(email: string) {
     if (!confirm(deleteConfirm)) return;
-    run(email, () => onDelete(email));
+    run(email, () => onDelete(email), false, 'Failed to delete the access request.');
   }
 
   return (
@@ -258,6 +295,26 @@ export default function AccessRequestTable<TRow extends AccessRequestLike>({
           {isRefreshing ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
+
+      {/* ── Failure banner ── */}
+      {errorMessage && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3"
+        >
+          <svg className="w-4 h-4 mt-0.5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <p className="text-[13px] text-red-700 flex-1">{errorMessage}</p>
+          <button
+            type="button"
+            onClick={() => setErrorMessage(null)}
+            className="text-[12px] font-medium text-red-600 hover:text-red-800 shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* ── Pending Requests ── */}
       <div>

@@ -116,15 +116,6 @@ export default function LeafletMap({ shipments }: { shipments: Shipment[] }) {
       },
     ).addTo(map);
 
-    /* ── Debug: log unique country strings from DB ── */
-    const uniqueCountries = [
-      ...new Set(shipments.flatMap(s => [
-        ...(s.from_country ?? '').split(',').map(c => c.trim()).filter(Boolean),
-        s.to_country,
-      ].filter(Boolean))),
-    ].sort();
-    console.log('[LeafletMap] unique from/to countries in shipments data:', uniqueCountries);
-
     /* ── Build per-country metadata ── */
     const countryMeta: Record<string, { movementTypes: string[]; shipments: Shipment[] }> = {};
 

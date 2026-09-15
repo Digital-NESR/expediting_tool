@@ -8,6 +8,7 @@
  */
 
 import type { QueryResultRow } from 'pg';
+import { logger } from '@/lib/logger';
 import {
   APPROVAL_ACTIVE_STATUSES,
   formatProcureGuardStatusLabel,
@@ -34,6 +35,8 @@ import {
   sql,
   type ProcureGuardWebhookRequest,
 } from './internals';
+
+const log = logger('procure-guard');
 
 function buildProcureGuardReminderEmail(input: {
   requestType: ProcureGuardRequestType;
@@ -84,7 +87,7 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
   const summary = { checked: 0, sent: 0, skipped: 0, errors: 0 };
   const webhookUrl = process.env.N8N_PROCUREGUARD_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn('[ProcureGuard reminders] N8N_PROCUREGUARD_WEBHOOK_URL not configured; skipping.');
+    log.warn('reminders.unconfigured', { reason: 'N8N_PROCUREGUARD_WEBHOOK_URL is not set' });
     return summary;
   }
   await ensureProcureGuardPaymentRequestColumns();
@@ -119,7 +122,7 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
         [...APPROVAL_ACTIVE_STATUSES],
       );
     } catch (err) {
-      console.error('[ProcureGuard reminders] query failed', table, err);
+      log.error('reminders.queryFailed', err, { table });
       summary.errors += 1;
       continue;
     }
@@ -199,10 +202,10 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
 
       try {
         const response = await postProcureGuardWebhook(webhookUrl, headers, payload);
-        if (!response.ok) { console.error('[ProcureGuard reminders] webhook failed', response.status, response.statusText); summary.errors += 1; continue; }
+        if (!response.ok) { log.error('reminders.webhookFailed', null, { table, requestId: request.id, status: response.status, statusText: response.statusText }); summary.errors += 1; continue; }
         summary.sent += 1;
       } catch (err) {
-        console.error('[ProcureGuard reminders] webhook failed', procureGuardWebhookErrorMessage(err), err);
+        log.error('reminders.webhookFailed', err, { table, requestId: request.id, reason: procureGuardWebhookErrorMessage(err) });
         summary.errors += 1;
         continue;
       }
@@ -215,7 +218,7 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{ checked:
       try {
         await exec(`UPDATE ${table} SET ${setCols} WHERE id = ?`, [request.id]);
       } catch (err) {
-        console.error('[ProcureGuard reminders] failed to mark reminder sent', table, request.id, err);
+        log.error('reminders.markSentFailed', err, { table, requestId: request.id });
       }
     }
   }

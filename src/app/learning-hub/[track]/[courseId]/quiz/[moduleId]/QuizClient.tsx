@@ -9,6 +9,7 @@ import LearningHubHomeButton from '../../../../components/LearningHubHomeButton'
 import LearningHubBackButton from '../../../../components/LearningHubBackButton';
 import { submitQuizAttempt } from '@/app/actions/learning-hub';
 import type { ModuleQuizPageData, QuizAttemptResult } from '@/types/learning-hub';
+import { DEFAULT_TRACK_COLOR } from '@/lib/learning-hub-display';
 
 export default function QuizClient({ data }: { data: ModuleQuizPageData }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -16,7 +17,7 @@ export default function QuizClient({ data }: { data: ModuleQuizPageData }) {
   const [result, setResult] = useState<QuizAttemptResult | null>(null);
   const [isPending, startTransition] = useTransition();
   const { track, course, module: mod, quiz } = data;
-  const color = track.color || '#307c4c';
+  const color = track.color || DEFAULT_TRACK_COLOR;
 
   const allAnswered = quiz.questions.every((q) => answers[q.id] != null);
 

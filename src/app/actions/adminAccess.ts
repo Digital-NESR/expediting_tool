@@ -2,7 +2,14 @@
 
 import pool from '@/lib/db';
 import { normalizeEmail, requireAdmin, withAccessFallback } from '@/lib/require-access';
+import { logger } from '@/lib/logger';
 import type { StoredAccessStatus } from '@/types/access';
+
+/* One structured logger for the whole file. NOTE: the request rows carry
+   requester email, display name and job title — a list of people. Read paths
+   therefore log a COUNT only; the mutation paths log the one actor and the one
+   subject that the audit trail genuinely needs. */
+const log = logger('po-expediting-access');
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -39,6 +46,7 @@ export async function getAccessRequests(): Promise<AccessRequestRow[]> {
           CASE ar.status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END,
           ar.requested_at DESC
       `);
+      log.debug('access_requests.read', { count: rows.length });
       return rows.map(r => ({
         user_email:          String(r.user_email),
         display_name:        r.display_name ? String(r.display_name) : null,
@@ -50,7 +58,7 @@ export async function getAccessRequests(): Promise<AccessRequestRow[]> {
         reviewed_at:         r.reviewed_at  instanceof Date ? r.reviewed_at.toISOString()  : (r.reviewed_at ?? null),
       }));
     } catch (err) {
-      console.error('[getAccessRequests]', err);
+      log.error('access_requests.read_failed', err);
       return [];
     }
   }, []);
@@ -67,7 +75,7 @@ export async function getPendingAccessCount(): Promise<number> {
       );
       return Number(rows[0]?.cnt ?? 0);
     } catch (err) {
-      console.error('[getPendingAccessCount]', err);
+      log.error('access_requests.pending_count_failed', err);
       return 0;
     }
   }, 0);
@@ -93,9 +101,10 @@ export async function approveAccessRequest(
         WHERE LOWER(user_email) = $1`,
       [normalizeEmail(userEmail), countries, actor.email],
     );
+    log.info('access.approved', { subject: normalizeEmail(userEmail), actor: actor.email, countries: countries.length });
     return { success: true };
   } catch (err) {
-    console.error('[approveAccessRequest]', err);
+    log.error('access.approve_failed', err, { subject: normalizeEmail(userEmail) });
     return { success: false, error: 'Failed to approve request.' };
   }
 }
@@ -116,9 +125,10 @@ export async function rejectAccessRequest(
         WHERE LOWER(user_email) = $1`,
       [normalizeEmail(userEmail), actor.email],
     );
+    log.info('access.rejected', { subject: normalizeEmail(userEmail), actor: actor.email });
     return { success: true };
   } catch (err) {
-    console.error('[rejectAccessRequest]', err);
+    log.error('access.reject_failed', err, { subject: normalizeEmail(userEmail) });
     return { success: false, error: 'Failed to reject request.' };
   }
 }
@@ -134,9 +144,10 @@ export async function deleteAccessRequest(
       `DELETE FROM access_requests WHERE LOWER(user_email) = $1`,
       [normalizeEmail(userEmail)],
     );
+    log.info('access.request_deleted', { subject: normalizeEmail(userEmail) });
     return { success: true };
   } catch (err) {
-    console.error('[deleteAccessRequest]', err);
+    log.error('access.delete_failed', err, { subject: normalizeEmail(userEmail) });
     return { success: false, error: 'Failed to delete access request.' };
   }
 }
@@ -157,9 +168,10 @@ export async function revokeAccess(
         WHERE LOWER(user_email) = $1`,
       [normalizeEmail(userEmail), actor.email],
     );
+    log.info('access.revoked', { subject: normalizeEmail(userEmail), actor: actor.email });
     return { success: true };
   } catch (err) {
-    console.error('[revokeAccess]', err);
+    log.error('access.revoke_failed', err, { subject: normalizeEmail(userEmail) });
     return { success: false, error: 'Failed to revoke access.' };
   }
 }
@@ -183,9 +195,10 @@ export async function editUserAccess(
         WHERE LOWER(user_email) = $1`,
       [normalizeEmail(userEmail), countries, actor.email],
     );
+    log.info('access.edited', { subject: normalizeEmail(userEmail), actor: actor.email, countries: countries.length });
     return { success: true };
   } catch (err) {
-    console.error('[editUserAccess]', err);
+    log.error('access.edit_failed', err, { subject: normalizeEmail(userEmail) });
     return { success: false, error: 'Failed to update access.' };
   }
 }

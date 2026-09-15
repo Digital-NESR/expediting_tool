@@ -1,13 +1,12 @@
 'use client';
 
-import { createContext, useContext } from 'react';
+import { createContext } from 'react';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
 interface TiteAccessContextType {
   isAdmin: boolean;
   approvedCountries: string[];
-  hasFullAccess: boolean;
 }
 
 /* ─── Context ────────────────────────────────────────────────── */
@@ -15,7 +14,6 @@ interface TiteAccessContextType {
 const TiteAccessContext = createContext<TiteAccessContextType>({
   isAdmin: false,
   approvedCountries: [],
-  hasFullAccess: false,
 });
 
 /* ─── Provider ───────────────────────────────────────────────── */
@@ -31,15 +29,14 @@ export function TiteAccessProvider({
 }) {
   return (
     <TiteAccessContext.Provider
-      value={{ isAdmin, approvedCountries, hasFullAccess: isAdmin }}
+      value={{ isAdmin, approvedCountries }}
     >
       {children}
     </TiteAccessContext.Provider>
   );
 }
 
-/* ─── Hook ───────────────────────────────────────────────────── */
-
-export function useTiteAccess() {
-  return useContext(TiteAccessContext);
-}
+/* `useTiteAccess()` and the `hasFullAccess` mirror of `isAdmin` were deleted: no
+   component in src/ ever read this context (grep -rn "useTiteAccess"), so both
+   were dead. Every TI-TE page takes its scope from `getToolScope` on the server
+   instead. The provider itself stays because ti-te/layout.tsx still renders it. */

@@ -9,9 +9,10 @@ import LearningHubHero from '../components/LearningHubHero';
 import LearningHubHomeButton from '../components/LearningHubHomeButton';
 import LearningHubBackButton from '../components/LearningHubBackButton';
 import type { MyWorkCourse, MyWorkData } from '@/types/learning-hub';
+import { DEFAULT_TRACK_COLOR } from '@/lib/learning-hub-display';
 
 function CourseRow({ course }: { course: MyWorkCourse }) {
-  const color = course.track_color || '#307c4c';
+  const color = course.track_color || DEFAULT_TRACK_COLOR;
   return (
     <Link
       href={`/learning-hub/${course.track_key}/${course.course_id}`}

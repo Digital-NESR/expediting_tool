@@ -134,23 +134,33 @@ export function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc'
   );
 }
 
-export function useSortable<T extends Record<string, unknown>>(
+/**
+ * Sorts a list of plain row objects by one column.
+ *
+ * `T extends object` rather than `Record<string, unknown>`: a row interface has
+ * no index signature, so the old constraint forced every call site to write
+ * `rows as unknown as Record<string, unknown>[]` and then cast each row back on
+ * the way out. The one unavoidable dynamic read now lives here, and `sorted`
+ * comes back as `T[]`. The comparison itself is unchanged.
+ */
+export function useSortable<T extends object>(
   data: T[],
-  defaultKey: keyof T,
+  defaultKey: keyof T & string,
   defaultDir: 'asc' | 'desc' = 'desc',
 ) {
-  const [sortKey, setSortKey] = useState<keyof T>(defaultKey);
+  const [sortKey, setSortKey] = useState<string>(defaultKey);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultDir);
 
-  function handleSort(key: keyof T) {
+  function handleSort(key: string) {
     if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortKey(key); setSortDir('desc'); }
   }
 
   const sorted = useMemo(() => {
+    const read = (row: T): unknown => (row as Record<string, unknown>)[sortKey];
     return [...data].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
+      const av = read(a) as string | number;
+      const bv = read(b) as string | number;
       if (av === null || av === undefined) return 1;
       if (bv === null || bv === undefined) return -1;
       const cmp = av < bv ? -1 : av > bv ? 1 : 0;

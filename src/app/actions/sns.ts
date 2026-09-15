@@ -6,6 +6,7 @@ import type { PoolClient } from 'pg';
 import { authOptions } from '@/lib/auth';
 import { isPlatformAdminEmail } from '@/lib/require-access';
 import snsPool from '@/lib/db-sns';
+import { logger } from '@/lib/logger';
 import { ROLES } from '@/app/sns-registry/lib/constants';
 import { addDays, parseISODate, toISODate, today, todayISO } from '@/app/sns-registry/lib/date';
 import { roleKind } from '@/app/sns-registry/lib/helpers';
@@ -24,6 +25,8 @@ import type {
   SnsViewer,
   TaxCategory,
 } from '@/app/sns-registry/lib/types';
+
+const log = logger('sns-registry');
 
 export interface ActionResult {
   success: boolean;
@@ -74,7 +77,7 @@ export async function getSnsViewer(): Promise<SnsViewer | null> {
       countryCodes: await normaliseCountryCodes((r.approved_countries as string[]) ?? []),
     };
   } catch (err) {
-    console.error('[getSnsViewer]', err);
+    log.error('viewer.load.failed', err);
     return null;
   }
 }
@@ -191,7 +194,7 @@ export async function getSnsReferenceData(): Promise<ReferenceData> {
       reasons: reasonMap,
     };
   } catch (err) {
-    console.error('[getSnsReferenceData]', err);
+    log.error('referenceData.load.failed', err);
     return empty;
   }
 }
@@ -213,7 +216,7 @@ export async function getSnsCountryOptions(): Promise<Country[]> {
     );
     return rows.map((r) => [String(r.name), String(r.code)] as Country);
   } catch (err) {
-    console.error('[getSnsCountryOptions]', err);
+    log.error('countryOptions.load.failed', err);
     return [];
   }
 }
@@ -303,7 +306,7 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       history: histBy.get(Number(r.rid)) ?? [],
     }));
   } catch (err) {
-    console.error('[getSnsRecords]', err);
+    log.error('records.load.failed', err, { actor: viewer.email, role: viewer.role });
     return [];
   }
 }
@@ -445,7 +448,7 @@ export async function createSnsRecord(draft: Draft, base: 'Draft' | 'Pending Lev
   } catch (err) {
     const msg = unknownCountryMessage(err);
     if (msg) return { success: false, error: msg };
-    console.error('[createSnsRecord] country lookup', err);
+    log.error('record.create.countryLookup.failed', err, { country: draft.country, actor: viewer.email });
     return { success: false, error: 'Could not save the record.' };
   }
   if (!canActInCountry(viewer, code)) {
@@ -497,7 +500,7 @@ export async function createSnsRecord(draft: Draft, base: 'Draft' | 'Pending Lev
     return { success: true, rid };
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[createSnsRecord]', err);
+    log.error('record.create.failed', err, { country: code, base, actor: viewer.email, supplierId: draft.supplierId });
     return { success: false, error: 'Could not save the record.' };
   } finally {
     client.release();
@@ -619,7 +622,7 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
     return { success: true };
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[advanceSnsRecord]', err);
+    log.error('record.advance.failed', err, { rid, actor: viewer.email });
     return { success: false, error: unknownCountryMessage(err) ?? 'Could not update the record.' };
   } finally {
     client.release();
@@ -680,7 +683,7 @@ export async function rejectSnsRecord(rid: number, note: string): Promise<Action
     return { success: true };
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[rejectSnsRecord]', err);
+    log.error('record.reject.failed', err, { rid, actor: viewer.email });
     return { success: false, error: 'Could not reject the record.' };
   } finally {
     client.release();
@@ -744,7 +747,7 @@ export async function startSnsReview(rid: number): Promise<ActionResult> {
     return { success: true };
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[startSnsReview]', err);
+    log.error('record.review.start.failed', err, { rid, actor: viewer.email });
     return { success: false, error: 'Could not start the review.' };
   } finally {
     client.release();
@@ -780,7 +783,7 @@ async function checkCountries(values: string[]): Promise<{ codes: string[] } | {
     }
     return { codes: Array.from(new Set(values.map((v) => byKey.get(v) as string))) };
   } catch (err) {
-    console.error('[checkCountries]', err);
+    log.error('countries.check.failed', err, { requested: values });
     return { error: 'Could not verify the country list.' };
   }
 }
@@ -815,7 +818,7 @@ export async function getMySnsAccessRequest(): Promise<SnsAccessRequestRow | nul
     );
     return rows.length ? mapAccessRow(rows[0]) : null;
   } catch (err) {
-    console.error('[getMySnsAccessRequest]', err);
+    log.error('access.request.load.failed', err);
     return null;
   }
 }
@@ -873,7 +876,7 @@ export async function submitSnsAccessRequest(
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[submitSnsAccessRequest]', err);
+    log.error('access.request.submit.failed', err, { user: email, requestedRole });
     return { success: false, error: 'Could not submit your request.' };
   }
 }
@@ -891,7 +894,7 @@ export async function getSnsAccessRequests(): Promise<SnsAccessRequestRow[]> {
     );
     return rows.map(mapAccessRow);
   } catch (err) {
-    console.error('[getSnsAccessRequests]', err);
+    log.error('access.requests.load.failed', err);
     return [];
   }
 }
@@ -903,7 +906,7 @@ export async function getSnsPendingAccessCount(): Promise<number> {
     );
     return Number(rows[0]?.n ?? 0);
   } catch (err) {
-    console.error('[getSnsPendingAccessCount]', err);
+    log.error('access.pendingCount.failed', err);
     return 0;
   }
 }
@@ -938,7 +941,7 @@ export async function approveSnsAccess(
     revalidatePath('/sns-registry');
     return { success: true };
   } catch (err) {
-    console.error('[approveSnsAccess]', err);
+    log.error('access.approve.failed', err, { user: userEmail, approvedRole, actor: admin });
     return { success: false, error: 'Could not approve the request.' };
   }
 }
@@ -958,7 +961,7 @@ export async function rejectSnsAccess(userEmail: string): Promise<ActionResult> 
     revalidatePath('/sns-registry');
     return { success: true };
   } catch (err) {
-    console.error('[rejectSnsAccess]', err);
+    log.error('access.reject.failed', err, { user: userEmail, actor: admin });
     return { success: false, error: 'Could not reject the request.' };
   }
 }
@@ -978,7 +981,7 @@ export async function revokeSnsAccess(userEmail: string): Promise<ActionResult> 
     revalidatePath('/sns-registry');
     return { success: true };
   } catch (err) {
-    console.error('[revokeSnsAccess]', err);
+    log.error('access.revoke.failed', err, { user: userEmail, actor: admin });
     return { success: false, error: 'Could not revoke access.' };
   }
 }
@@ -992,7 +995,7 @@ export async function deleteSnsAccessRequest(userEmail: string): Promise<ActionR
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[deleteSnsAccessRequest]', err);
+    log.error('access.delete.failed', err, { user: userEmail, actor: admin });
     return { success: false, error: 'Could not delete the request.' };
   }
 }

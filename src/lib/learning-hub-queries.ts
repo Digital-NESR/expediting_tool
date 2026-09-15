@@ -18,6 +18,7 @@ import learningHubPool from '@/lib/db-learning-hub';
 import { createSqlHelpers } from '@/lib/db/sql';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import { currentActor, normalizeEmail } from '@/lib/require-access';
+import { logger } from '@/lib/logger';
 import { SEED_TRACKS, type SeedTrack } from '@/lib/learning-hub-seed-content';
 import type {
   LearningTrack,
@@ -38,6 +39,11 @@ import type {
   ModuleQuizPageData,
   LessonQuiz,
 } from '@/types/learning-hub';
+
+const log = logger('learning-hub');
+
+/** Pass mark applied when a quiz row carries no `pass_pct` of its own. */
+export const DEFAULT_QUIZ_PASS_PCT = 70;
 
 /* ── Query helpers (house pattern: ? -> $n, sql() for SELECT, exec() for writes) ── */
 
@@ -328,7 +334,13 @@ export function hashSeedTrack(track: SeedTrack): string {
 export async function applySeedTrack(track: SeedTrack, orderIndex: number, force = false): Promise<boolean> {
   const version = hashSeedTrack(track);
 
-  return withTransaction(learningHubPool, async (client) => {
+  /* The transaction reports what it destroyed rather than logging it: a rollback must
+     not leave a log claiming that content which still exists was wiped, so the line is
+     emitted below, once the commit has actually happened. */
+  const { replaced, destroyed } = await withTransaction(learningHubPool, async (client): Promise<{
+    replaced: boolean;
+    destroyed: { trackId: number; coursesDeleted: number; learnerProgressRowsWiped: number } | null;
+  }> => {
     await lockForTransaction(client, `learning-hub:seed-track:${track.key}`);
 
     // Re-read under the lock: a concurrent cold start may have finished the rebuild while we
@@ -339,9 +351,10 @@ export async function applySeedTrack(track: SeedTrack, orderIndex: number, force
       [track.key],
     );
     const existing = existingRows[0];
-    if (existing && !force && String(existing.seed_version ?? '') === version) return false;
+    if (existing && !force && String(existing.seed_version ?? '') === version) return { replaced: false, destroyed: null };
 
     let trackId: number;
+    let wiped: { trackId: number; coursesDeleted: number; learnerProgressRowsWiped: number } | null = null;
     if (existing) {
       trackId = Number(existing.id);
       // seed_version deliberately NOT set here — see the final UPDATE below.
@@ -350,7 +363,26 @@ export async function applySeedTrack(track: SeedTrack, orderIndex: number, force
         `UPDATE learning_tracks SET name = ?, description = ?, icon = ?, color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         [track.name, track.description, track.icon, track.color, trackId],
       );
-      await execOn(client, `DELETE FROM learning_courses WHERE track_id = ?`, [trackId]);
+      /* Count what the cascade is about to take with it BEFORE deleting: this log is
+         the only record that a learner's progress was wiped, and after the DELETE the
+         rows are gone and uncountable. Both queries run on the transaction client, so
+         they are inside the same locked transaction as the rebuild. */
+      const doomed = await sqlOn<QueryResultRow[]>(
+        client,
+        `SELECT (SELECT COUNT(*) FROM learning_courses WHERE track_id = ?)                       AS courses,
+                (SELECT COUNT(*) FROM learning_lesson_progress p
+                   JOIN learning_lessons l  ON l.id = p.lesson_id
+                   JOIN learning_modules m  ON m.id = l.module_id
+                   JOIN learning_courses c  ON c.id = m.course_id
+                  WHERE c.track_id = ?)                                                          AS progress_rows`,
+        [trackId, trackId],
+      );
+      const deleted = await execOn(client, `DELETE FROM learning_courses WHERE track_id = ?`, [trackId]);
+      wiped = {
+        trackId,
+        coursesDeleted: deleted.rowCount,
+        learnerProgressRowsWiped: Number(doomed[0]?.progress_rows ?? 0),
+      };
     } else {
       const inserted = await execOn(
         client,
@@ -364,8 +396,13 @@ export async function applySeedTrack(track: SeedTrack, orderIndex: number, force
 
     // Last statement: the stamp only exists if everything above it does.
     await execOn(client, `UPDATE learning_tracks SET seed_version = ? WHERE id = ?`, [version, trackId]);
-    return true;
+    return { replaced: true, destroyed: wiped };
   });
+
+  if (destroyed) {
+    log.info('seed.track.replaced', { track: track.key, force, seedVersion: version.slice(0, 12), ...destroyed });
+  }
+  return replaced;
 }
 
 // Runs on every cold start (cheap once synced, just one SELECT + hash comparison per track).
@@ -382,6 +419,9 @@ async function syncSeedTracks(): Promise<void> {
   for (let trackIdx = 0; trackIdx < SEED_TRACKS.length; trackIdx++) {
     const track = SEED_TRACKS[trackIdx];
     if (versionByKey.get(track.key) === hashSeedTrack(track)) continue;
+    /* A track whose code content changed is about to have its courses replaced, which
+       cascades to learner progress. Nothing else records that a cold start did this. */
+    log.info('seed.sync.trackStale', { track: track.key, known: versionByKey.has(track.key) });
     await applySeedTrack(track, trackIdx);
   }
 }
@@ -652,7 +692,7 @@ async function getCourseGating(courseId: number, userEmail: string): Promise<Map
     const quizId = r.quiz_id != null ? Number(r.quiz_id) : null;
     const hasQuiz = quizId != null;
     const quizPassed = r.passed === true;
-    map.set(Number(r.lesson_id), { hasQuiz, quizId, passPct: Number(r.pass_pct ?? 70), quizPassed, locked: blocked });
+    map.set(Number(r.lesson_id), { hasQuiz, quizId, passPct: Number(r.pass_pct ?? DEFAULT_QUIZ_PASS_PCT), quizPassed, locked: blocked });
     if (hasQuiz && !quizPassed) blocked = true;
   }
   return map;
@@ -680,7 +720,7 @@ async function loadLessonQuiz(quizId: number): Promise<LessonQuiz | null> {
   return {
     id: Number(quizRows[0].id),
     title: String(quizRows[0].title),
-    pass_pct: Number(quizRows[0].pass_pct ?? 70),
+    pass_pct: Number(quizRows[0].pass_pct ?? DEFAULT_QUIZ_PASS_PCT),
     questions: questions.map((q) => ({ id: Number(q.id), text: String(q.question_text), options: optsByQ.get(Number(q.id)) ?? [] })),
   };
 }
@@ -824,7 +864,7 @@ export async function getLessonDetail(
   const g = gating.get(lessonId);
   const locked = !!g?.locked;
   const quizPassed = !!g?.quizPassed;
-  const passPct = g?.passPct ?? 70;
+  const passPct = g?.passPct ?? DEFAULT_QUIZ_PASS_PCT;
   const quiz = g?.hasQuiz && g.quizId != null && !locked ? await loadLessonQuiz(g.quizId) : null;
   const nextLocked = nextRow ? !!gating.get(Number(nextRow.id))?.locked : false;
   // Don't ship a locked lesson's body/video to the client.

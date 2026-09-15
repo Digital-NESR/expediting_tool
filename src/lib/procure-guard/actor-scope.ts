@@ -12,6 +12,7 @@
 
 import type { QueryResultRow } from 'pg';
 import { normalizeEmail } from '@/lib/require-access';
+import { logger } from '@/lib/logger';
 import { getPermissionProfile, normalizeProcureGuardCountryScope } from '@/lib/procureGuard-utils';
 import { ensureProcureGuardDelegationTable, serialise, sql } from './internals';
 import type {
@@ -20,6 +21,8 @@ import type {
   ProcureGuardPermissionRow,
   ProcureGuardReviewGrant,
 } from '@/types/procureGuard';
+
+const log = logger('procure-guard');
 
 export function procureGuardAdminEmails(): string[] {
   return (`${process.env.ADMIN_EMAILS ?? ''},${process.env.PROCURE_GUARD_ADMIN_EMAILS ?? ''}`)
@@ -41,7 +44,7 @@ export async function getPermissionRowForEmail(email: string): Promise<ProcureGu
     const row = serialise<ProcureGuardPermissionRow>(rows[0]);
     return { ...row, country: normalizeProcureGuardCountryScope(row.country) };
   } catch (err) {
-    console.error('[getPermissionRowForEmail]', err);
+    log.error('permissionRow.lookupFailed', err, { email: normalizeEmail(email) });
     return null;
   }
 }
@@ -51,7 +54,7 @@ const ACCESS_VIEW_RANK: Record<string, number> = { requester: 0, analyst: 1, rev
 // Delegation grants the delegate the delegator's APPROVAL authority only — not data/permission/delete
 // admin powers — and never elevates the UI past 'reviewer'. So an admin can hand off their approvals
 // without handing over the admin panel.
-export function mergeApprovalAuthority(base: ProcureGuardPermissionProfile, granted: ProcureGuardPermissionProfile): ProcureGuardPermissionProfile {
+function mergeApprovalAuthority(base: ProcureGuardPermissionProfile, granted: ProcureGuardPermissionProfile): ProcureGuardPermissionProfile {
   const grantedView = granted.accessView === 'admin' ? 'reviewer' : granted.accessView;
   const accessView = ACCESS_VIEW_RANK[grantedView] > ACCESS_VIEW_RANK[base.accessView] ? grantedView : base.accessView;
   return {
@@ -103,7 +106,7 @@ export async function resolveProcureGuardActorScope(rawEmail: string, fallbackNa
          AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
       [email],
     ).catch(err => {
-      console.error('[resolveProcureGuardActorScope delegations]', err);
+      log.error('actorScope.delegationsFailed', err, { email });
       return [] as QueryResultRow[];
     }),
   ]);

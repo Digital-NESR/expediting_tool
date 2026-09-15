@@ -24,7 +24,6 @@ const BRAND = '#2A7E4F';
 export function SourceGuideAccessApprovalsClient({
   onPendingCountChange,
 }: {
-  userEmail: string;
   onPendingCountChange?: (n: number) => void;
 }) {
   const [requests, setRequests] = useState<SgAccessRequest[]>([]);

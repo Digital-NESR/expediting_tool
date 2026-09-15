@@ -14,32 +14,16 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { ADMIN_APPS, COMING_SOON, DEFAULT_APP, findAdminApp, resolveSection, type AdminCounts } from './adminNav';
 
-const navItemBase: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: 6,
-  fontSize: 14,
-  fontWeight: 500,
-  textAlign: 'left',
-};
+/* Tailwind equivalents of the two shared style objects this shell used to carry.
+   The per-app accent (colour, active background, active border) is data on the
+   ADMIN_APPS entries, so those few declarations stay inline — a class name
+   cannot be produced from a runtime value without a safelist. */
+const NAV_ITEM_BASE =
+  'flex items-center justify-between w-full px-3 py-2.5 rounded-md text-sm font-medium text-left';
 
-const badgeStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minWidth: 18,
-  height: 18,
-  padding: '0 5px',
-  borderRadius: 9999,
-  fontSize: 10,
-  fontWeight: 700,
-  background: '#fef3c7',
-  color: '#b45309',
-  border: '1px solid #fde68a',
-};
+const BADGE =
+  'inline-flex items-center justify-center min-w-[18px] h-[18px] px-[5px] rounded-full ' +
+  'text-[10px] font-bold bg-[#fef3c7] text-[#b45309] border border-[#fde68a]';
 
 interface AdminShellProps {
   userEmail: string;
@@ -120,8 +104,8 @@ export default function AdminShell({ userEmail, userName, counts, children }: Ad
       <div className="flex flex-1">
 
         {/* ── Sidebar ── */}
-        <aside className="shrink-0 bg-white" style={{ width: 240, borderRight: '1px solid #e5e7eb', padding: '24px 16px' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>
+        <aside className="shrink-0 bg-white w-60 border-r border-[#e5e7eb] px-4 py-6">
+          <p className="text-[11px] font-semibold text-[#9ca3af] tracking-[0.05em] uppercase mb-2">
             Tools
           </p>
 
@@ -130,35 +114,24 @@ export default function AdminShell({ userEmail, userName, counts, children }: Ad
             const isActiveApp = app.id === activeAppId;
             const pendingSum = appPendingSum(app.id);
             return (
-              <div key={app.id} style={{ marginBottom: 2 }}>
+              <div key={app.id} className="mb-0.5">
                 {/* Group header — click to expand/collapse */}
                 <button
                   onClick={() => toggle(app.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    width: '100%',
-                    padding: '6px 12px',
-                    borderRadius: 6,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: isActiveApp ? '#111827' : '#374151',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
+                  className={`flex items-center justify-between w-full px-3 py-1.5 rounded-md text-[13px] font-semibold text-left bg-transparent cursor-pointer ${
+                    isActiveApp ? 'text-[#111827]' : 'text-[#374151]'
+                  }`}
                 >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span className="inline-flex items-center gap-1.5">
                     <svg
                       width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
-                      style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', color: '#9ca3af' }}
+                      className={`text-[#9ca3af] transition-transform ${isOpen ? 'rotate-90' : 'rotate-0'}`}
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
                     {app.label}
                   </span>
-                  {!isOpen && pendingSum > 0 && <span style={badgeStyle}>{pendingSum}</span>}
+                  {!isOpen && pendingSum > 0 && <span className={BADGE}>{pendingSum}</span>}
                 </button>
 
                 {/* Sections */}
@@ -169,18 +142,14 @@ export default function AdminShell({ userEmail, userName, counts, children }: Ad
                     <Link
                       key={section.id}
                       href={`/admin/${app.id}?section=${section.id}`}
-                      style={{
-                        ...navItemBase,
-                        paddingLeft: 24,
-                        textDecoration: 'none',
-                        borderLeft: isActive ? `3px solid ${app.color}` : '3px solid transparent',
-                        background: isActive ? app.activeBg : 'transparent',
-                        color: isActive ? app.activeColor : '#6b7280',
-                        cursor: 'pointer',
-                      }}
+                      className={`${NAV_ITEM_BASE} pl-6 no-underline cursor-pointer border-l-[3px] ${
+                        isActive ? '' : 'border-l-transparent bg-transparent text-[#6b7280]'
+                      }`}
+                      /* Per-app accent only — everything static is a class above. */
+                      style={isActive ? { borderLeftColor: app.color, background: app.activeBg, color: app.activeColor } : undefined}
                     >
                       <span>{section.label}</span>
-                      {count > 0 && <span style={badgeStyle}>{count}</span>}
+                      {count > 0 && <span className={BADGE}>{count}</span>}
                     </Link>
                   );
                 })}
@@ -188,16 +157,16 @@ export default function AdminShell({ userEmail, userName, counts, children }: Ad
             );
           })}
 
-          <div style={{ margin: '8px 0' }} />
+          <div className="my-2" />
 
           {/* Coming-soon tools */}
           {COMING_SOON.map(label => (
             <div
               key={label}
-              style={{ ...navItemBase, borderLeft: '3px solid transparent', color: '#d1d5db', cursor: 'not-allowed' }}
+              className={`${NAV_ITEM_BASE} border-l-[3px] border-l-transparent text-[#d1d5db] cursor-not-allowed`}
             >
               <span>{label}</span>
-              <span style={{ background: '#f3f4f6', color: '#9ca3af', fontSize: 10, padding: '2px 6px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
+              <span className="bg-[#f3f4f6] text-[#9ca3af] text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap">
                 Soon
               </span>
             </div>
@@ -205,7 +174,7 @@ export default function AdminShell({ userEmail, userName, counts, children }: Ad
         </aside>
 
         {/* ── Main content ── */}
-        <main className="flex-1 overflow-auto" style={{ padding: 32 }}>
+        <main className="flex-1 overflow-auto p-8">
           {children}
         </main>
       </div>

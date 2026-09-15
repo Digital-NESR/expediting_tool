@@ -10,11 +10,12 @@ import LearningHubHomeButton from '../../components/LearningHubHomeButton';
 import LearningHubBackButton from '../../components/LearningHubBackButton';
 import { formatDuration } from '@/lib/learning-hub-utils';
 import type { CourseDetailData } from '@/types/learning-hub';
+import { DEFAULT_TRACK_COLOR } from '@/lib/learning-hub-display';
 
 export default function CourseDetailClient({ data }: { data: CourseDetailData }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { track, course, modules, completed_count, lesson_count, progress_pct } = data;
-  const color = track.color || '#307c4c';
+  const color = track.color || DEFAULT_TRACK_COLOR;
 
   // First not-yet-completed lesson across the whole course, for a "Resume" CTA.
   const nextLesson = modules.flatMap((m) => m.lessons).find((l) => !l.completed);

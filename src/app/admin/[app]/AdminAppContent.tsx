@@ -22,7 +22,7 @@ import type { TiteAnalyticsShipment } from '@/types/tite';
 import type { ProcureGuardAdminAnalyticsData, ProcureGuardAdminData, ProcureGuardAnalyticsData } from '@/types/procureGuard';
 import type { LaptopAdminData, LaptopAnalyticsData } from '@/types/laptopProcurement';
 import type { LearningHubAdminData } from '@/types/learning-hub';
-import type { LearningHubAnalytics } from '@/app/actions/learning-hub';
+import type { LearningHubAnalytics } from '@/types/learning-hub';
 import type { ExpeditingAnalytics } from '@/app/actions/adminAnalytics';
 
 /* Same shape as ./loading.tsx — the skeleton the route already shows
@@ -89,7 +89,6 @@ const LearningHubAnalyticsClient = dynamic(() => import('../LearningHubAnalytics
 export interface AdminAppContentProps {
   app: string;
   section: string;
-  userEmail: string;
   poAnalytics?: ExpeditingAnalytics;
   titeShipments?: TiteAnalyticsShipment[] | null;
   pgAdminData?: ProcureGuardAdminData | null;
@@ -101,9 +100,9 @@ export interface AdminAppContentProps {
   learningHubAnalytics?: LearningHubAnalytics;
 }
 
-/* Badges live in the sidebar (server-fetched in the layout), so the
-   access panels no longer drive a live count here. */
-const noop = () => {};
+/* Badges live in the sidebar (server-fetched in the layout), so the access
+   panels no longer drive a live count here — the prop is simply not passed.
+   Every panel declares it optional, so nothing is called and nothing computes. */
 
 export default function AdminAppContent(props: AdminAppContentProps) {
   const { app, section } = props;
@@ -114,7 +113,7 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     case 'po-expediting/analytics':
       return <PoAnalyticsPanel analytics={props.poAnalytics!} />;
     case 'po-expediting/access-approvals':
-      return <AccessApprovalsClient onPendingCountChange={noop} />;
+      return <AccessApprovalsClient />;
 
     /* ── TI-TE ── */
     case 'tite/migration':
@@ -124,7 +123,7 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     case 'tite/analytics':
       return <TiteAnalyticsClient shipments={props.titeShipments ?? null} />;
     case 'tite/access-approvals':
-      return <TiteAccessApprovalsClient onPendingCountChange={noop} />;
+      return <TiteAccessApprovalsClient />;
 
     /* ── ProcureGuard ── */
     case 'procureguard/admin':
@@ -134,7 +133,7 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     case 'procureguard/usage':
       return <ProcureGuardAdminAnalyticsClient data={props.pgUsageData ?? null} embedded />;
     case 'procureguard/access':
-      return <ProcureGuardAccessApprovalsClient userEmail={props.userEmail} onPendingCountChange={noop} />;
+      return <ProcureGuardAccessApprovalsClient />;
 
     /* ── SourceGuide ── */
     case 'sourceguide/guides':
@@ -144,7 +143,7 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     case 'sourceguide/analytics':
       return <SourceGuideAnalyticsClient />;
     case 'sourceguide/access':
-      return <SourceGuideAccessApprovalsClient userEmail={props.userEmail} onPendingCountChange={noop} />;
+      return <SourceGuideAccessApprovalsClient />;
 
     /* ── Catalog Repo ── */
     case 'catalog/admin':
@@ -152,11 +151,11 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     case 'catalog/sync':
       return <CatalogSyncHealthClient />;
     case 'catalog/access':
-      return <CatalogAccessApprovalsClient onPendingCountChange={noop} />;
+      return <CatalogAccessApprovalsClient />;
 
     /* ── S&S Registry ── */
     case 'sns/access':
-      return <SnsAccessApprovalsClient onPendingCountChange={noop} />;
+      return <SnsAccessApprovalsClient />;
     case 'sns/reference':
       return <SnsReferenceDataClient />;
 
@@ -168,7 +167,7 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     case 'laptop/access':
       return (
         <div className="space-y-8">
-          <LaptopAccessApprovalsClient onPendingCountChange={noop} />
+          <LaptopAccessApprovalsClient />
           <div className="border-t border-slate-200 pt-8">
             <LaptopApproverMatrixClient />
           </div>
@@ -177,7 +176,7 @@ export default function AdminAppContent(props: AdminAppContentProps) {
 
     /* ── Learning Hub ── */
     case 'learning-hub/admin':
-      return <LearningHubAdminClient data={props.learningHubAdminData!} embedded />;
+      return <LearningHubAdminClient data={props.learningHubAdminData!} />;
     case 'learning-hub/analytics':
       return <LearningHubAnalyticsClient data={props.learningHubAnalytics!} />;
 

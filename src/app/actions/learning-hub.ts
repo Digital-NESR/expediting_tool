@@ -2,9 +2,10 @@
 
 import type { QueryResultRow } from 'pg';
 import { AccessError, currentActor, normalizeEmail } from '@/lib/require-access';
-import { getRedBullGameStats, type RedBullGameStats } from './learning-game';
+import { getRedBullGameStats } from './learning-game';
 import { SEED_TRACKS } from '@/lib/learning-hub-seed-content';
 import learningHubPool from '@/lib/db-learning-hub';
+import { logger } from '@/lib/logger';
 import { withTransaction } from '@/lib/db/tx';
 import {
   sql,
@@ -14,6 +15,7 @@ import {
   ensureLearningHubReady,
   applySeedTrack,
   loadModuleQuizRaw,
+  DEFAULT_QUIZ_PASS_PCT,
 } from '@/lib/learning-hub-queries';
 import type {
   LearningTrack,
@@ -29,7 +31,12 @@ import type {
   QuizAnswerInput,
   QuizAttemptResult,
   LessonQuizAttemptResult,
+  LhCourseAnalytics,
+  LhTrackAnalytics,
+  LearningHubAnalytics,
 } from '@/types/learning-hub';
+
+const log = logger('learning-hub');
 
 /* ── Actor + guards ──────────────────────────────────────────────────────
    Every export below is a public POST endpoint reachable by any signed-in
@@ -92,41 +99,6 @@ function sanitiseVideoUrl(raw: string | null | undefined): string | null {
 }
 
 /* ── Admin analytics ──────────────────────────────────────────────────── */
-
-export interface LhCourseAnalytics {
-  id: number;
-  title: string;
-  status: string;
-  lessonCount: number;
-  learners: number;          // distinct users with any progress in the course
-  completedLearners: number; // users who completed every lesson in the course
-  lessonCompletions: number; // total lesson completions across users
-  completionPct: number;     // completedLearners / learners
-}
-
-export interface LhTrackAnalytics {
-  key: string;
-  name: string;
-  color: string | null;
-  learners: number;
-  lessonCount: number;
-  lessonCompletions: number;
-  completedLearners: number;
-  courses: LhCourseAnalytics[];
-}
-
-export interface LearningHubAnalytics {
-  overview: {
-    learners: number;
-    lessonCompletions: number;
-    courseCompletions: number;
-    trackCount: number;
-    courseCount: number;
-    lessonCount: number;
-  };
-  tracks: LhTrackAnalytics[];
-  redBull: RedBullGameStats;
-}
 
 const EMPTY_ANALYTICS: LearningHubAnalytics = {
   overview: { learners: 0, lessonCompletions: 0, courseCompletions: 0, trackCount: 0, courseCount: 0, lessonCount: 0 },
@@ -231,7 +203,7 @@ export async function getLearningHubAnalytics(): Promise<LearningHubAnalytics> {
       redBull,
     };
   } catch (err) {
-    console.error('[lh.getLearningHubAnalytics]', err);
+    log.error('analytics.load.failed', err);
     return EMPTY_ANALYTICS;
   }
 }
@@ -292,7 +264,7 @@ export async function submitLessonQuiz(quizId: number, answers: QuizAnswerInput[
     const scorePct = Math.round((correctCount / total) * 100);
 
     const meta = await sql<QueryResultRow[]>(`SELECT pass_pct, lesson_id FROM learning_quizzes WHERE id = ?`, [quizId]);
-    const passPct = Number(meta[0]?.pass_pct ?? 70);
+    const passPct = Number(meta[0]?.pass_pct ?? DEFAULT_QUIZ_PASS_PCT);
     const lessonId = meta[0]?.lesson_id != null ? Number(meta[0].lesson_id) : null;
     const passed = scorePct >= passPct;
 
@@ -314,7 +286,7 @@ export async function submitLessonQuiz(quizId: number, answers: QuizAnswerInput[
     }
     return { total, correctCount, scorePct, passed, pass_pct: passPct, results };
   } catch (err) {
-    console.error('[lh.submitLessonQuiz]', err);
+    log.error('lessonQuiz.submit.failed', err, { quizId });
     return null;
   }
 }
@@ -362,11 +334,12 @@ export async function getLearningHubAdminData(): Promise<LearningHubAdminData> {
 // runs the whole replacement in one locked transaction, so a failure here leaves the track as it was
 // rather than emptied, and it cannot interleave with a cold-start sync of the same track.
 export async function resyncTrackFromSeed(trackKey: string): Promise<{ success: boolean; message: string }> {
-  await requireLearningHubAdmin();
+  const actor = await requireLearningHubAdmin();
   await ensureLearningHubReady();
   const seedTrack = SEED_TRACKS.find((t) => t.key === trackKey);
   if (!seedTrack) return { success: false, message: `No seed content defined for track "${trackKey}".` };
 
+  log.info('cms.track.resync.requested', { track: trackKey, actor: actor.email });
   await applySeedTrack(seedTrack, SEED_TRACKS.indexOf(seedTrack), true);
   return { success: true, message: `Reset "${seedTrack.name}" to its default seed content.` };
 }
@@ -401,9 +374,28 @@ export async function updateCourse(
 }
 
 export async function deleteCourse(id: number): Promise<void> {
-  await requireLearningHubAdmin();
+  const actor = await requireLearningHubAdmin();
   await ensureLearningHubReady();
-  await exec(`DELETE FROM learning_courses WHERE id = ?`, [id]);
+  /* Deleting a course cascades to its modules, its lessons and the learner progress
+     recorded against them. Count first: after the DELETE there is nothing left to count,
+     and this line is the only record of what went. */
+  const doomed = await sql<QueryResultRow[]>(
+    `SELECT (SELECT COUNT(*)::int FROM learning_modules WHERE course_id = $1) AS modules,
+                (SELECT COUNT(*)::int FROM learning_lessons l JOIN learning_modules m ON m.id = l.module_id
+                  WHERE m.course_id = $1) AS lessons,
+                (SELECT COUNT(*)::int FROM learning_lesson_progress p
+                   JOIN learning_lessons l ON l.id = p.lesson_id
+                   JOIN learning_modules m ON m.id = l.module_id
+                  WHERE m.course_id = $1) AS progress_rows`,
+    [id],
+  );
+  const result = await exec(`DELETE FROM learning_courses WHERE id = ?`, [id]);
+  log.info('cms.course.deleted', {
+    courseId: id,
+    actor: actor.email,
+    rowsDeleted: result.rowCount,
+    ...doomed[0],
+  });
 }
 
 export async function createModule(courseId: number, title: string): Promise<{ id: number }> {
@@ -432,9 +424,24 @@ export async function updateModule(
 }
 
 export async function deleteModule(id: number): Promise<void> {
-  await requireLearningHubAdmin();
+  const actor = await requireLearningHubAdmin();
   await ensureLearningHubReady();
-  await exec(`DELETE FROM learning_modules WHERE id = ?`, [id]);
+  /* Deleting a module cascades to its lessons and the learner progress recorded against
+     them. Count first: after the DELETE there is nothing left to count. */
+  const doomed = await sql<QueryResultRow[]>(
+    `SELECT (SELECT COUNT(*)::int FROM learning_lessons WHERE module_id = $1) AS lessons,
+                (SELECT COUNT(*)::int FROM learning_lesson_progress p
+                   JOIN learning_lessons l ON l.id = p.lesson_id
+                  WHERE l.module_id = $1) AS progress_rows`,
+    [id],
+  );
+  const result = await exec(`DELETE FROM learning_modules WHERE id = ?`, [id]);
+  log.info('cms.module.deleted', {
+    moduleId: id,
+    actor: actor.email,
+    rowsDeleted: result.rowCount,
+    ...doomed[0],
+  });
 }
 
 export async function createLesson(
@@ -470,9 +477,21 @@ export async function updateLesson(
 }
 
 export async function deleteLesson(id: number): Promise<void> {
-  await requireLearningHubAdmin();
+  const actor = await requireLearningHubAdmin();
   await ensureLearningHubReady();
-  await exec(`DELETE FROM learning_lessons WHERE id = ?`, [id]);
+  /* Cascades to the learner progress recorded against this lesson. Count first: after the
+     DELETE there is nothing left to count. */
+  const doomed = await sql<QueryResultRow[]>(
+    `SELECT (SELECT COUNT(*)::int FROM learning_lesson_progress WHERE lesson_id = $1) AS progress_rows`,
+    [id],
+  );
+  const result = await exec(`DELETE FROM learning_lessons WHERE id = ?`, [id]);
+  log.info('cms.lesson.deleted', {
+    lessonId: id,
+    actor: actor.email,
+    rowsDeleted: result.rowCount,
+    ...doomed[0],
+  });
 }
 
 type ReorderTable = 'learning_courses' | 'learning_modules' | 'learning_lessons';

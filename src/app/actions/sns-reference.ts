@@ -5,7 +5,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { isPlatformAdminEmail } from '@/lib/require-access';
 import snsPool from '@/lib/db-sns';
+import { logger } from '@/lib/logger';
 import type { ActionResult } from './sns';
+
+const log = logger('sns-reference');
 
 /* ═══ Admin gate ═════════════════════════════════════════════════ */
 
@@ -91,7 +94,7 @@ export async function getSnsReferenceAdminData(): Promise<SnsReferenceAdminData>
       })),
     };
   } catch (err) {
-    console.error('[getSnsReferenceAdminData]', err);
+    log.error('referenceAdminData.load.failed', err);
     return empty;
   }
 }
@@ -105,7 +108,7 @@ export async function getSnsReferenceAdminData(): Promise<SnsReferenceAdminData>
  * uniqueness constraint on its name, so that is always "this name is taken"
  * rather than an unexpected failure, and gets a readable message.
  */
-async function mutate(label: string, fn: () => Promise<void>): Promise<ActionResult> {
+async function mutate(label: string, target: Record<string, unknown>, fn: () => Promise<void>): Promise<ActionResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: 'Admins only.' };
   try {
@@ -116,7 +119,9 @@ async function mutate(label: string, fn: () => Promise<void>): Promise<ActionRes
   } catch (err) {
     const code = (err as { code?: string }).code;
     if (code === '23505') return { success: false, error: 'That name already exists here.' };
-    console.error(`[${label}]`, err);
+    /* The caller still sees the generic message; `target` is what makes a reported
+       failure findable — which row, edited by whom — instead of a bare tag. */
+    log.error(`${label}.failed`, err, { ...target, actor: admin });
     return { success: false, error: 'Could not save the change.' };
   }
 }
@@ -129,7 +134,7 @@ function clean(s: string): string {
 
 export async function addSnsCategory(name: string, spendType: 'Direct' | 'Indirect'): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('addSnsCategory', async () => {
+  return mutate('addSnsCategory', { name, spendType }, async () => {
     await snsPool.query(
       `INSERT INTO sns_category (name, spend_type, sort_order)
        VALUES ($1, $2, COALESCE((SELECT MAX(sort_order) + 1 FROM sns_category), 0))`,
@@ -140,14 +145,14 @@ export async function addSnsCategory(name: string, spendType: 'Direct' | 'Indire
 
 export async function updateSnsCategory(id: number, name: string, spendType: 'Direct' | 'Indirect'): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('updateSnsCategory', async () => {
+  return mutate('updateSnsCategory', { id, name, spendType }, async () => {
     await snsPool.query(`UPDATE sns_category SET name = $2, spend_type = $3 WHERE id = $1`, [id, clean(name), spendType]);
   });
 }
 
 export async function addSnsSubCategory(categoryId: number, name: string): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('addSnsSubCategory', async () => {
+  return mutate('addSnsSubCategory', { categoryId, name }, async () => {
     await snsPool.query(
       `INSERT INTO sns_sub_category (category_id, name, sort_order)
        VALUES ($1, $2, COALESCE((SELECT MAX(sort_order) + 1 FROM sns_sub_category WHERE category_id = $1), 0))`,
@@ -158,14 +163,14 @@ export async function addSnsSubCategory(categoryId: number, name: string): Promi
 
 export async function updateSnsSubCategory(id: number, name: string): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('updateSnsSubCategory', async () => {
+  return mutate('updateSnsSubCategory', { id, name }, async () => {
     await snsPool.query(`UPDATE sns_sub_category SET name = $2 WHERE id = $1`, [id, clean(name)]);
   });
 }
 
 export async function addSnsFamily(subCategoryId: number, name: string): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('addSnsFamily', async () => {
+  return mutate('addSnsFamily', { subCategoryId, name }, async () => {
     await snsPool.query(
       `INSERT INTO sns_family (sub_category_id, name, sort_order)
        VALUES ($1, $2, COALESCE((SELECT MAX(sort_order) + 1 FROM sns_family WHERE sub_category_id = $1), 0))`,
@@ -176,14 +181,14 @@ export async function addSnsFamily(subCategoryId: number, name: string): Promise
 
 export async function updateSnsFamily(id: number, name: string): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('updateSnsFamily', async () => {
+  return mutate('updateSnsFamily', { id, name }, async () => {
     await snsPool.query(`UPDATE sns_family SET name = $2 WHERE id = $1`, [id, clean(name)]);
   });
 }
 
 export async function addSnsCommodity(familyId: number, name: string): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('addSnsCommodity', async () => {
+  return mutate('addSnsCommodity', { familyId, name }, async () => {
     await snsPool.query(
       `INSERT INTO sns_commodity (family_id, name, sort_order)
        VALUES ($1, $2, COALESCE((SELECT MAX(sort_order) + 1 FROM sns_commodity WHERE family_id = $1), 0))`,
@@ -194,7 +199,7 @@ export async function addSnsCommodity(familyId: number, name: string): Promise<A
 
 export async function updateSnsCommodity(id: number, name: string): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('updateSnsCommodity', async () => {
+  return mutate('updateSnsCommodity', { id, name }, async () => {
     await snsPool.query(`UPDATE sns_commodity SET name = $2 WHERE id = $1`, [id, clean(name)]);
   });
 }
@@ -211,7 +216,7 @@ export async function setSnsTaxonomyActive(
     family: 'sns_family',
     commodity: 'sns_commodity',
   }[level];
-  return mutate('setSnsTaxonomyActive', async () => {
+  return mutate('setSnsTaxonomyActive', { level, id, active }, async () => {
     await snsPool.query(`UPDATE ${table} SET active = $2 WHERE id = $1`, [id, active]);
   });
 }
@@ -231,7 +236,7 @@ export async function deleteSnsTaxonomyNode(
     family: 'sns_family',
     commodity: 'sns_commodity',
   }[level];
-  return mutate('deleteSnsTaxonomyNode', async () => {
+  return mutate('deleteSnsTaxonomyNode', { level, id }, async () => {
     await snsPool.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
   });
 }
@@ -242,7 +247,7 @@ export async function addSnsCountry(code: string, name: string): Promise<ActionR
   const c = clean(code).toUpperCase();
   if (!c || !clean(name)) return { success: false, error: 'Code and name are required.' };
   if (c.length > 4) return { success: false, error: 'Code must be 4 characters or fewer.' };
-  return mutate('addSnsCountry', async () => {
+  return mutate('addSnsCountry', { code: c, name }, async () => {
     await snsPool.query(
       `INSERT INTO sns_country (code, name, sort_order)
        VALUES ($1, $2, COALESCE((SELECT MAX(sort_order) + 1 FROM sns_country), 0))`,
@@ -258,13 +263,13 @@ export async function addSnsCountry(code: string, name: string): Promise<ActionR
  */
 export async function updateSnsCountry(code: string, name: string): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('updateSnsCountry', async () => {
+  return mutate('updateSnsCountry', { code, name }, async () => {
     await snsPool.query(`UPDATE sns_country SET name = $2 WHERE code = $1`, [code, clean(name)]);
   });
 }
 
 export async function setSnsCountryActive(code: string, active: boolean): Promise<ActionResult> {
-  return mutate('setSnsCountryActive', async () => {
+  return mutate('setSnsCountryActive', { code, active }, async () => {
     await snsPool.query(`UPDATE sns_country SET active = $2 WHERE code = $1`, [code, active]);
   });
 }
@@ -287,7 +292,7 @@ export async function deleteSnsCountry(code: string): Promise<ActionResult> {
     revalidatePath('/sns-registry');
     return { success: true };
   } catch (err) {
-    console.error('[deleteSnsCountry]', err);
+    log.error('deleteSnsCountry.failed', err, { code });
     return { success: false, error: 'Could not delete the country.' };
   }
 }
@@ -296,7 +301,7 @@ export async function deleteSnsCountry(code: string): Promise<ActionResult> {
 
 export async function addSnsSegment(name: string): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('addSnsSegment', async () => {
+  return mutate('addSnsSegment', { name }, async () => {
     await snsPool.query(
       `INSERT INTO sns_segment (name, sort_order)
        VALUES ($1, COALESCE((SELECT MAX(sort_order) + 1 FROM sns_segment), 0))`,
@@ -307,19 +312,19 @@ export async function addSnsSegment(name: string): Promise<ActionResult> {
 
 export async function updateSnsSegment(id: number, name: string): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('updateSnsSegment', async () => {
+  return mutate('updateSnsSegment', { id, name }, async () => {
     await snsPool.query(`UPDATE sns_segment SET name = $2 WHERE id = $1`, [id, clean(name)]);
   });
 }
 
 export async function setSnsSegmentActive(id: number, active: boolean): Promise<ActionResult> {
-  return mutate('setSnsSegmentActive', async () => {
+  return mutate('setSnsSegmentActive', { id, active }, async () => {
     await snsPool.query(`UPDATE sns_segment SET active = $2 WHERE id = $1`, [id, active]);
   });
 }
 
 export async function deleteSnsSegment(id: number): Promise<ActionResult> {
-  return mutate('deleteSnsSegment', async () => {
+  return mutate('deleteSnsSegment', { id }, async () => {
     await snsPool.query(`DELETE FROM sns_segment WHERE id = $1`, [id]);
   });
 }
@@ -328,7 +333,7 @@ export async function deleteSnsSegment(id: number): Promise<ActionResult> {
 
 export async function addSnsReason(classification: 'SGL' | 'SOL', name: string): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('addSnsReason', async () => {
+  return mutate('addSnsReason', { classification, name }, async () => {
     await snsPool.query(
       `INSERT INTO sns_reason (classification, name, sort_order)
        VALUES ($1, $2, COALESCE((SELECT MAX(sort_order) + 1 FROM sns_reason WHERE classification = $1), 0))`,
@@ -339,19 +344,19 @@ export async function addSnsReason(classification: 'SGL' | 'SOL', name: string):
 
 export async function updateSnsReason(id: number, name: string): Promise<ActionResult> {
   if (!clean(name)) return { success: false, error: 'Name is required.' };
-  return mutate('updateSnsReason', async () => {
+  return mutate('updateSnsReason', { id, name }, async () => {
     await snsPool.query(`UPDATE sns_reason SET name = $2 WHERE id = $1`, [id, clean(name)]);
   });
 }
 
 export async function setSnsReasonActive(id: number, active: boolean): Promise<ActionResult> {
-  return mutate('setSnsReasonActive', async () => {
+  return mutate('setSnsReasonActive', { id, active }, async () => {
     await snsPool.query(`UPDATE sns_reason SET active = $2 WHERE id = $1`, [id, active]);
   });
 }
 
 export async function deleteSnsReason(id: number): Promise<ActionResult> {
-  return mutate('deleteSnsReason', async () => {
+  return mutate('deleteSnsReason', { id }, async () => {
     await snsPool.query(`DELETE FROM sns_reason WHERE id = $1`, [id]);
   });
 }

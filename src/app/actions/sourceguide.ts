@@ -4,7 +4,7 @@ import sourceGuidePool from '@/lib/db-sourceguide';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { AccessError, isToolAdminEmail, normalizeEmail, withAccessFallback } from '@/lib/require-access';
-import { getToolScope } from '@/lib/tool-scope';
+import { getToolScope, type ToolAccessStatus } from '@/lib/tool-scope';
 import { matchScore, MATCH_THRESHOLD, norm } from '@/lib/sg-fuzzy';
 import type {
   SgCountry, SgCommodity, SgSupplier, SgMapping, SgCategory, SgStats,
@@ -12,8 +12,32 @@ import type {
   SgActivityEntry, SgSearchFilters, SgFacets, Tier,
 } from '@/types/sourceguide';
 import type { AccessStatus, StoredAccessStatus } from '@/types/access';
+import { logger } from '@/lib/logger';
 
 /* ─── helpers ────────────────────────────────────────────────── */
+
+const log = logger('sourceguide');
+
+/**
+ * A read that a server page renders reached its catch block, so the query
+ * itself failed: access denial never gets here, because the `canRead()` guard
+ * above already returned the empty value — that degrade is what keeps the
+ * pending-access overlay rendering and is deliberately untouched.
+ *
+ * Returning the same empty value for a broken query is what made a database
+ * failure indistinguishable from "no rows": the page rendered a legitimate
+ * empty state over an outage. Log the detail server-side and throw a generic
+ * message, which the SourceGuide error boundary renders as a retryable failure.
+ *
+ * Only reads a SERVER page renders use this. The reads a client component calls
+ * (search, the mappings editor, the admin panels, the /admin pending badge) still
+ * degrade to an empty value and log: a throw there is an unhandled rejection in
+ * the browser, or a dead /admin for every other tool, not a visible failure.
+ */
+function readFailed(event: string, err: unknown, fields?: Record<string, unknown>): never {
+  log.error(`${event}.failed`, err, fields);
+  throw new Error('SourceGuide could not load this data. Please try again.');
+}
 
 function isoOf(v: unknown): string {
   return v instanceof Date ? v.toISOString() : String(v ?? '');
@@ -24,7 +48,7 @@ interface SgUser {
   name: string;
   isAdmin: boolean;
   /** SourceGuide access status from the session ('approved' = champion or approved user). */
-  status: string;
+  status: ToolAccessStatus;
   approvedCountries: string[];
   viewOnly: boolean;
 }
@@ -131,8 +155,7 @@ export async function getCountries(): Promise<SgCountry[]> {
     );
     return rows.map(r => ({ code: r.code, name: r.name, champion: r.champion, tone: r.tone }));
   } catch (err) {
-    console.error('[sg.getCountries]', err);
-    return [];
+    readFailed('getCountries', err);
   }
 }
 
@@ -153,8 +176,7 @@ export async function getStats(): Promise<SgStats> {
       mappings: Number(r.mappings), countries: Number(r.countries), categories: Number(r.categories),
     };
   } catch (err) {
-    console.error('[sg.getStats]', err);
-    return { commodities: 0, suppliers: 0, mappings: 0, countries: 0, categories: 0 };
+    readFailed('getStats', err);
   }
 }
 
@@ -175,8 +197,7 @@ export async function getCategories(): Promise<SgCategory[]> {
       count: Number(r.count), subs: (r.subs || []).filter(Boolean),
     }));
   } catch (err) {
-    console.error('[sg.getCategories]', err);
-    return [];
+    readFailed('getCategories', err);
   }
 }
 
@@ -201,8 +222,7 @@ export async function getSearchFacets(): Promise<SgFacets> {
       tiers: tierRes.rows.map(r => ({ tier: r.tier as Tier, count: Number(r.count) })),
     };
   } catch (err) {
-    console.error('[sg.getSearchFacets]', err);
-    return { countries: [], spendTypes: [], tiers: [] };
+    readFailed('getSearchFacets', err);
   }
 }
 
@@ -214,8 +234,7 @@ export async function getSpendTypes(): Promise<string[]> {
     );
     return rows.map(r => r.spend_type);
   } catch (err) {
-    console.error('[sg.getSpendTypes]', err);
-    return [];
+    readFailed('getSpendTypes', err);
   }
 }
 
@@ -367,7 +386,7 @@ export async function searchCommodities(
 
     return results;
   } catch (err) {
-    console.error('[sg.searchCommodities]', err);
+    log.error('searchCommodities.failed', err);
     return [];
   }
 }
@@ -422,7 +441,7 @@ export async function globalSearch(query: string): Promise<SgGlobalResults> {
 
     return { commodities, suppliers: sup, categories: cats, countries: ctry };
   } catch (err) {
-    console.error('[sg.globalSearch]', err);
+    log.error('globalSearch.failed', err);
     return { commodities: [], suppliers: [], categories: [], countries: [] };
   }
 }
@@ -448,7 +467,7 @@ export async function searchSuppliers(query: string, limit = 6): Promise<SgSuppl
       .slice(0, limit)
       .map(x => ({ code: x.s.code, name: x.s.name, countries: x.s.countries }));
   } catch (err) {
-    console.error('[sg.searchSuppliers]', err);
+    log.error('searchSuppliers.failed', err);
     return [];
   }
 }
@@ -492,8 +511,7 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
     void logUsage('view', 'commodity', commodity.name, String(commodityId), viewer);
     return { commodity, countries, mappingsByCountry };
   } catch (err) {
-    console.error('[sg.getCommodityDetail]', err);
-    return null;
+    readFailed('getCommodityDetail', err, { commodityId });
   }
 }
 
@@ -538,8 +556,7 @@ export async function getSupplierProfile(supplierCode: string): Promise<SgSuppli
       mappings,
     };
   } catch (err) {
-    console.error('[sg.getSupplierProfile]', err);
-    return null;
+    readFailed('getSupplierProfile', err, { supplierCode });
   }
 }
 
@@ -555,8 +572,7 @@ export async function getCommoditiesByIds(ids: number[]): Promise<SgCommodity[]>
     );
     return rows.map(rowToCommodity);
   } catch (err) {
-    console.error('[sg.getCommoditiesByIds]', err);
-    return [];
+    readFailed('getCommoditiesByIds', err, { count: ids.length });
   }
 }
 
@@ -592,8 +608,7 @@ export async function getTaxonomyFacts(): Promise<SgTaxonomyRow[]> {
     `);
     return rows.map(r => [r.spend_type, r.category, r.sub, r.fam, r.name] as SgTaxonomyRow);
   } catch (err) {
-    console.error('[sg.getTaxonomyFacts]', err);
-    return [];
+    readFailed('getTaxonomyFacts', err);
   }
 }
 
@@ -619,8 +634,7 @@ export async function getCommodityCatalog(): Promise<SgCatalogRow[]> {
       suppliers: Number(r.suppliers), countries: Number(r.countries),
     }));
   } catch (err) {
-    console.error('[sg.getCommodityCatalog]', err);
-    return [];
+    readFailed('getCommodityCatalog', err);
   }
 }
 
@@ -660,8 +674,7 @@ export async function getTaxonomy(): Promise<SgTaxonomyCategory[]> {
     }
     return [...catMap.values()].sort((a, b) => b.count - a.count);
   } catch (err) {
-    console.error('[sg.getTaxonomy]', err);
-    return [];
+    readFailed('getTaxonomy', err);
   }
 }
 
@@ -677,7 +690,7 @@ export async function getCountryMappingSummary(country: string): Promise<{ mappi
     );
     return { mappings: Number(rows[0].mappings), commodities: Number(rows[0].commodities) };
   } catch (err) {
-    console.error('[sg.getCountryMappingSummary]', err);
+    log.error('getCountryMappingSummary.failed', err, { country });
     return { mappings: 0, commodities: 0 };
   }
 }
@@ -748,7 +761,7 @@ export async function getMappingEditList(
 
     return comRes.rows.map(r => ({ commodity: rowToCommodity(r), mappings: byCom.get(r.id) ?? [] }));
   } catch (err) {
-    console.error('[sg.getMappingEditList]', err);
+    log.error('getMappingEditList.failed', err);
     return [];
   }
 }
@@ -800,7 +813,7 @@ export async function getCoverageGapsSummary(): Promise<SgCoverageGap[]> {
       };
     });
   } catch (err) {
-    console.error('[sg.getCoverageGapsSummary]', err);
+    log.error('getCoverageGapsSummary.failed', err);
     return [];
   }
 }
@@ -841,7 +854,7 @@ export async function getCountryGuideRows(code: string): Promise<SgGuideRow[]> {
       supplierCode: r.supplier_code, supplierName: r.supplier_name, supplierEmail: r.supplier_email,
     }));
   } catch (err) {
-    console.error('[sg.getCountryGuideRows]', err);
+    log.error('getCountryGuideRows.failed', err, { code });
     return [];
   }
 }
@@ -875,7 +888,7 @@ export async function supplierOptions(country: string, prefix: string, limit = 8
       .slice(0, limit)
       .map(x => ({ code: x.a.code, name: x.a.name, countries: inCountry.has(x.a.code) ? [country] : [] }));
   } catch (err) {
-    console.error('[sg.supplierOptions]', err);
+    log.error('supplierOptions.failed', err, { country });
     return [];
   }
 }
@@ -907,7 +920,7 @@ async function logSafe(
   try {
     await logActivity(country, commodityId, action, details, by ?? 'System', byEmail);
   } catch (err) {
-    console.error('[sg.logSafe]', err);
+    log.error('logSafe.failed', err);
   }
 }
 
@@ -930,7 +943,7 @@ async function logUsage(
       [u.email, u.name, eventType, target, label, ref],
     );
   } catch (err) {
-    console.error('[sg.logUsage]', err);
+    log.error('logUsage.failed', err);
   }
 }
 
@@ -980,7 +993,7 @@ export async function addMapping(input: {
       `${input.tier} · ${supplierName} → ${com.rows[0]?.name ?? ''}`, user.name, user.email);
     return { success: true };
   } catch (err) {
-    console.error('[sg.addMapping]', err);
+    log.error('addMapping.failed', err);
     return { success: false, error: 'Failed to add supplier.' };
   }
 }
@@ -1007,7 +1020,7 @@ export async function removeMapping(mapId: number): Promise<{ success: boolean; 
       `${row.tier} · ${row.supplier_name} ✕ ${row.com_name}`, user.name, user.email);
     return { success: true };
   } catch (err) {
-    console.error('[sg.removeMapping]', err);
+    log.error('removeMapping.failed', err, { mapId });
     return { success: false, error: 'Failed to remove supplier.' };
   }
 }
@@ -1034,7 +1047,7 @@ export async function changeTier(mapId: number, tier: Tier): Promise<{ success: 
       `${row.supplier_name}: ${row.tier} → ${tier} (${row.com_name})`, user.name, user.email);
     return { success: true };
   } catch (err) {
-    console.error('[sg.changeTier]', err);
+    log.error('changeTier.failed', err, { mapId, tier });
     return { success: false, error: 'Failed to change tier.' };
   }
 }
@@ -1053,7 +1066,7 @@ export async function getActivityLog(country: string | null, limit = 20): Promis
       performedAt: isoOf(r.performed_at),
     }));
   } catch (err) {
-    console.error('[sg.getActivityLog]', err);
+    log.error('getActivityLog.failed', err, { country });
     return [];
   }
 }
@@ -1090,7 +1103,7 @@ export async function getGuides(): Promise<SgGuide[]> {
       mappings: Number(r.mappings), commodities: Number(r.commodities),
     }));
   } catch (err) {
-    console.error('[sg.getGuides]', err);
+    log.error('getGuides.failed', err);
     return [];
   }
 }
@@ -1154,8 +1167,7 @@ export async function getCountryDashboard(code: string): Promise<SgCountryDashbo
       topSuppliers: supRes.rows.map(r => ({ code: r.supplier_code, name: r.name, mappings: Number(r.mappings) })),
     };
   } catch (err) {
-    console.error('[sg.getCountryDashboard]', err);
-    return null;
+    readFailed('getCountryDashboard', err, { code });
   }
 }
 
@@ -1214,7 +1226,7 @@ export async function getSourceGuideAnalytics(): Promise<SgAnalytics> {
       spendTypeBreakdown: spendRes.rows.map(r => ({ spendType: r.spend_type, count: Number(r.count) })),
     };
   } catch (err) {
-    console.error('[sg.getSourceGuideAnalytics]', err);
+    log.error('getSourceGuideAnalytics.failed', err);
     return EMPTY_ANALYTICS;
   }
 }
@@ -1306,7 +1318,7 @@ export async function getSourceGuideInsights(): Promise<SgInsights> {
       activity30d: Number(actRes.rows[0].n),
     };
   } catch (err) {
-    console.error('[sg.getSourceGuideInsights]', err);
+    log.error('getSourceGuideInsights.failed', err);
     return EMPTY_INSIGHTS;
   }
 }
@@ -1345,7 +1357,7 @@ export async function getSourceGuideAuditLog(limit = 500): Promise<SgAuditEntry[
       performedBy: r.performed_by, performedAt: isoOf(r.performed_at),
     }));
   } catch (err) {
-    console.error('[sg.getSourceGuideAuditLog]', err);
+    log.error('getSourceGuideAuditLog.failed', err);
     return [];
   }
 }
@@ -1416,7 +1428,7 @@ export async function getUserActivity(): Promise<SgUserActivity[]> {
     return [...map.values()].sort((a, b) =>
       (b.views + b.searches + b.edits) - (a.views + a.searches + a.edits) || b.lastActive.localeCompare(a.lastActive));
   } catch (err) {
-    console.error('[sg.getUserActivity]', err);
+    log.error('getUserActivity.failed', err);
     return [];
   }
 }
@@ -1440,7 +1452,7 @@ export async function getChampionsByCountry(): Promise<SgCountryChampions[]> {
     }
     return countries.rows.map(c => ({ country: c.code, name: c.name, tone: c.tone, champions: byCountry.get(c.code) ?? [] }));
   } catch (err) {
-    console.error('[sg.getChampionsByCountry]', err);
+    log.error('getChampionsByCountry.failed', err);
     return [];
   }
 }
@@ -1462,7 +1474,7 @@ export async function addChampion(countryCode: string, name: string, email: stri
     await logSafe(countryCode, null, 'Champion added', `${n}${e ? ` (${e})` : ''}`, user.name, user.email);
     return { success: true };
   } catch (err) {
-    console.error('[sg.addChampion]', err);
+    log.error('addChampion.failed', err, { countryCode });
     return { success: false, error: 'Failed to add champion.' };
   }
 }
@@ -1488,7 +1500,7 @@ export async function updateChampion(id: number, name: string, email: string | n
       `${prev.name}${prev.email ? ` (${prev.email})` : ''} to ${n}${e ? ` (${e})` : ''}`, user.name, user.email);
     return { success: true };
   } catch (err) {
-    console.error('[sg.updateChampion]', err);
+    log.error('updateChampion.failed', err, { id });
     return { success: false, error: 'Failed to update champion.' };
   }
 }
@@ -1504,7 +1516,7 @@ export async function removeChampion(id: number): Promise<{ success: boolean; er
       `${prev.name}${prev.email ? ` (${prev.email})` : ''}`, user.name, user.email);
     return { success: true };
   } catch (err) {
-    console.error('[sg.removeChampion]', err);
+    log.error('removeChampion.failed', err, { id });
     return { success: false, error: 'Failed to remove champion.' };
   }
 }
@@ -1543,7 +1555,7 @@ export async function getSourceGuideAccessRequest(userEmail: string): Promise<Sg
       reviewed_at: r.reviewed_at ? isoOf(r.reviewed_at) : null,
     };
   } catch (err) {
-    console.error('[sg.getSourceGuideAccessRequest]', err);
+    log.error('getSourceGuideAccessRequest.failed', err);
     return null;
   }
 }
@@ -1557,7 +1569,7 @@ export async function submitSourceGuideAccessRequest(input: {
   try {
     // Never demote an already-approved user (e.g. a mis-click before the session finished loading).
     if (isToolAdminEmail(input.userEmail, process.env.SOURCEGUIDE_ADMIN_EMAILS)) return { success: true };
-    const existing = await sourceGuidePool.query<{ status: string }>(`SELECT status FROM access_requests WHERE LOWER(user_email) = $1`, [requesterEmail]);
+    const existing = await sourceGuidePool.query<{ status: StoredAccessStatus }>(`SELECT status FROM access_requests WHERE LOWER(user_email) = $1`, [requesterEmail]);
     if (existing.rows[0]?.status === 'Approved') return { success: true };
 
     await sourceGuidePool.query(
@@ -1571,7 +1583,7 @@ export async function submitSourceGuideAccessRequest(input: {
     );
     return { success: true };
   } catch (err) {
-    console.error('[sg.submitSourceGuideAccessRequest]', err);
+    log.error('submitSourceGuideAccessRequest.failed', err);
     return { success: false, error: 'Failed to submit request. Please try again.' };
   }
 }
@@ -1591,7 +1603,7 @@ export async function getSourceGuideAccessRequests(): Promise<SgAccessRequest[]>
       reviewed_at: r.reviewed_at ? isoOf(r.reviewed_at) : null,
     }));
   } catch (err) {
-    console.error('[sg.getSourceGuideAccessRequests]', err);
+    log.error('getSourceGuideAccessRequests.failed', err);
     return [];
   }
 }
@@ -1602,7 +1614,7 @@ export async function getSourceGuidePendingCount(): Promise<number> {
     const { rows } = await sourceGuidePool.query(`SELECT COUNT(*) AS cnt FROM access_requests WHERE status='Pending'`);
     return Number(rows[0]?.cnt ?? 0);
   } catch (err) {
-    console.error('[sg.getSourceGuidePendingCount]', err);
+    log.error('getSourceGuidePendingCount.failed', err);
     return 0;
   }
 }
@@ -1619,7 +1631,7 @@ export async function approveSourceGuideAccessRequest(userEmail: string): Promis
     await logSafe(null, null, 'Access approved', userEmail, user.name, user.email);
     return { success: true };
   } catch (err) {
-    console.error('[sg.approveSourceGuideAccessRequest]', err);
+    log.error('approveSourceGuideAccessRequest.failed', err);
     return { success: false, error: 'Failed to approve request.' };
   }
 }
@@ -1635,7 +1647,7 @@ async function denyAccess(userEmail: string, action: 'Access denied' | 'Access r
     await logSafe(null, null, action, userEmail, user.name, user.email);
     return { success: true };
   } catch (err) {
-    console.error(`[sg.${action}]`, err);
+    log.error('accessDecision.failed', err, { action });
     return { success: false, error: 'Action failed.' };
   }
 }
@@ -1660,7 +1672,7 @@ export async function editSourceGuideAccess(userEmail: string, countries: string
     await logSafe(null, null, 'Access updated', `${userEmail}: ${countries.join(', ')}`, user.name, user.email);
     return { success: true };
   } catch (err) {
-    console.error('[sg.editSourceGuideAccess]', err);
+    log.error('editSourceGuideAccess.failed', err);
     return { success: false, error: 'Failed to update access.' };
   }
 }
@@ -1673,7 +1685,7 @@ export async function deleteSourceGuideAccessRequest(userEmail: string): Promise
     await logSafe(null, null, 'Access request deleted', userEmail, user.name, user.email);
     return { success: true };
   } catch (err) {
-    console.error('[sg.deleteSourceGuideAccessRequest]', err);
+    log.error('deleteSourceGuideAccessRequest.failed', err);
     return { success: false, error: 'Failed to delete request.' };
   }
 }

@@ -8,7 +8,7 @@ import LearningHubLogo from './components/LearningHubLogo';
 import LearningHubHero from './components/LearningHubHero';
 import LearningHubHomeButton from './components/LearningHubHomeButton';
 import TrackIcon from './components/TrackIcon';
-import { isComingSoon } from '@/lib/learning-hub-display';
+import { isComingSoon, DEFAULT_TRACK_COLOR } from '@/lib/learning-hub-display';
 import type { LearningHubDashboardData } from '@/types/learning-hub';
 
 function ProgressBar({ pct, color }: { pct: number; color: string }) {
@@ -20,7 +20,7 @@ function ProgressBar({ pct, color }: { pct: number; color: string }) {
 }
 
 function TrackCard({ track }: { track: LearningHubDashboardData['tracks'][number] }) {
-  const color = track.color || '#307c4c';
+  const color = track.color || DEFAULT_TRACK_COLOR;
   // Badged from the track's own published content, not from a list of keys.
   const comingSoon = isComingSoon(track);
   return (

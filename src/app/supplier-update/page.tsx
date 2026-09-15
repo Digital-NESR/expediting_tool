@@ -36,6 +36,25 @@ function ExpiredView() {
   );
 }
 
+/* Shown when the lookup itself failed. A supplier whose link is fine must not be
+   told it does not exist — the real cause is logged server-side. */
+function LookupFailedView() {
+  return (
+    <div style={{ maxWidth: '480px', margin: '80px auto', background: '#fff', borderRadius: '16px', padding: '48px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
+      <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#fef2f2', border: '2px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+        <svg style={{ width: '24px', height: '24px' }} fill="none" viewBox="0 0 24 24" stroke="#ef4444" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+        </svg>
+      </div>
+      <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#111827', marginTop: '24px' }}>Something Went Wrong</h2>
+      <p style={{ fontSize: '14px', color: '#6b7280', lineHeight: '1.6', marginTop: '12px' }}>
+        We could not load your delivery updates just now. Your link is still valid —
+        please refresh the page in a few minutes, or contact your NESR buyer.
+      </p>
+    </div>
+  );
+}
+
 /* ─── Page ───────────────────────────────────────────────── */
 
 export default async function SupplierUpdatePage({
@@ -49,6 +68,7 @@ export default async function SupplierUpdatePage({
 
   const result = await getExpediteByToken(token);
 
+  if ('failed' in result) return <LookupFailedView />;
   if ('notFound' in result) return <NotFoundView />;
   if ('expired' in result) return <ExpiredView />;
 

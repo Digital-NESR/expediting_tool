@@ -6,6 +6,7 @@ import { unstable_cache } from 'next/cache';
 import ExcelJS from 'exceljs';
 import catalogManagerPool from '@/lib/db-catalog-manager';
 import { createSqlHelpers } from '@/lib/db/sql';
+import { logger } from '@/lib/logger';
 import { withTransaction } from '@/lib/db/tx';
 import { getProcureGuardUser } from '@/lib/auth';
 import { AccessError, isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
@@ -68,6 +69,46 @@ type QueryParams = (string | number | boolean | null | undefined | string[] | nu
 const { sql, exec } = createSqlHelpers(catalogManagerPool);
 
 /**
+ * Named `catalogLog` rather than `log` because `bulkImportCatalogEntries` already has a local
+ * `log: string[]` (the per-row report shown to the importer) that would otherwise shadow it.
+ */
+const catalogLog = logger('catalog-manager');
+
+/**
+ * What a user is told when an action fails for a reason that is not their doing. The detail
+ * goes to the server log; it must not go to the browser, because the only detail available here
+ * is the raw Postgres message, which names tables, columns and constraints.
+ */
+const GENERIC_ACTION_ERROR = 'Something went wrong. Please try again, or contact the Catalog Repo admin if it keeps happening.';
+
+/**
+ * `pg` puts the five-character SQLSTATE on `err.code`, and that is the one reliable way to tell a
+ * database failure from the deliberate, already-user-facing messages this file raises ("Entry not
+ * found.", "You are not an approver for Chad."). Those must keep reaching the user unchanged.
+ */
+function isDatabaseError(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null | undefined)?.code;
+  return typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code);
+}
+
+/**
+ * Run a write, log whatever it throws, and keep raw database text out of the browser.
+ *
+ * The action layer had no server-side logging at all, so a failed approval left nothing behind to
+ * investigate — and what the user saw instead was the Postgres message, naming tables, columns and
+ * constraints. Deliberate messages pass through; database errors become GENERIC_ACTION_ERROR.
+ */
+async function catalogWrite<T>(event: string, fields: Record<string, unknown>, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if (err instanceof AccessError) throw err;
+    catalogLog.error(event, err, fields);
+    throw isDatabaseError(err) ? new Error(GENERIC_ACTION_ERROR) : err;
+  }
+}
+
+/**
  * The sql()/exec() pair a piece of work runs its statements through. Defaults to the pool-bound
  * helpers above; inside withTransaction() every statement must instead go through the pair bound
  * to the supplied client (see dbOn) — anything reaching for the pool lands on a DIFFERENT
@@ -98,7 +139,13 @@ async function execBatch(statements: string[]): Promise<void> {
   if (statements.length === 0) return;
   try {
     await catalogManagerPool.query(statements.join(';\n'));
-  } catch {
+  } catch (batchErr) {
+    // Expected on a schema that is already there; logged all the same, because it is also what a
+    // genuinely broken DDL statement looks like and the slow path below can hide it.
+    catalogLog.debug('schema.batchFallback', {
+      statements: statements.length,
+      reason: batchErr instanceof Error ? batchErr.message : String(batchErr),
+    });
     for (const statement of statements) {
       try {
         await exec(statement);
@@ -125,6 +172,7 @@ function ensureCatalogManagerSchema(): Promise<void> {
   if (!schemaPromise) {
     schemaPromise = initCatalogManagerSchema().catch((err) => {
       schemaPromise = null; // let a later request retry if init failed
+      catalogLog.error('schema.initFailed', err);
       throw err;
     });
   }
@@ -411,8 +459,12 @@ async function initCatalogManagerSchema(): Promise<void> {
     await exec(`CREATE INDEX IF NOT EXISTS pir_desc_trgm ON pir_catalog USING gin (material_description gin_trgm_ops)`);
     await exec(`CREATE INDEX IF NOT EXISTS pir_supplier_trgm ON pir_catalog USING gin (supplier_name gin_trgm_ops)`);
     await exec(`CREATE INDEX IF NOT EXISTS pir_product_trgm ON pir_catalog USING gin (product_number gin_trgm_ops)`);
-  } catch {
+  } catch (err) {
     // pg_trgm not available to this role — search degrades to a scan, everything else is fine.
+    catalogLog.warn('schema.trigramIndexesSkipped', {
+      impact: 'PIR search falls back to a sequential scan',
+      reason: err instanceof Error ? err.message : String(err),
+    });
   }
 
   await seedMasterData();
@@ -451,8 +503,13 @@ async function seedSupplierDirectory(): Promise<void> {
         params,
       );
     }
-  } catch {
-    // expediting DB not reachable — leave the directory empty for now.
+  } catch (err) {
+    // expediting DB not reachable — leave the directory empty for now. Worth a line: the supplier
+    // typeahead silently returns nothing when this fails, which looks like "no such supplier".
+    catalogLog.warn('supplierDirectory.seedFailed', {
+      impact: 'supplier typeahead stays empty until the next attempt',
+      reason: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
@@ -1519,7 +1576,8 @@ async function insertCatalogEntry(
 /** Create a new entry. mode 'draft' keeps it Draft; 'submit' sends for approval (or auto-activates Tier 1). */
 export async function createCatalogEntry(input: CatalogEntryInput, mode: 'draft' | 'submit'): Promise<{ id: number; code: string; status: CatalogStatus }> {
   const actor = await requireCatalogActor('Contributor');
-  return withTransaction(catalogManagerPool, (client) => insertCatalogEntry(dbOn(client), actor, input, mode));
+  return catalogWrite('entry.createFailed', { actor: actor.email, mode }, () =>
+    withTransaction(catalogManagerPool, (client) => insertCatalogEntry(dbOn(client), actor, input, mode)));
 }
 
 export type CatalogEntryLine = Omit<CatalogEntryInput, 'id' | 'supplier_name' | 'supplier_code' | 'manager' | 'country_code'>;
@@ -1567,7 +1625,8 @@ export async function updateCatalogEntry(input: CatalogEntryInput, mode: 'draft'
   // The entry row and its new rate version are one unit of work. Previously the version went in
   // FIRST and on its own: a failure before the UPDATE left an orphan version whose number then
   // collided with the next edit's, making the entry permanently un-editable.
-  return withTransaction(catalogManagerPool, async (client) => {
+  return catalogWrite('entry.updateFailed', { actor: actor.email, entryId, mode }, () =>
+    withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
 
     const current = await db.sql<{ code: string; current_version_no: number }[]>(
@@ -1607,12 +1666,13 @@ export async function updateCatalogEntry(input: CatalogEntryInput, mode: 'draft'
     );
     await writeAudit('Edit', current[0].code, actor.name, actor.email, `Edited entry — version ${nextVersion} saved`, db);
     return { id: entryId, status };
-  });
+    }));
 }
 
 export async function submitForApproval(entryId: number): Promise<void> {
   const actor = await requireCatalogActor('Contributor');
-  await withTransaction(catalogManagerPool, async (client) => {
+  await catalogWrite('entry.submitFailed', { actor: actor.email, entryId }, () =>
+    withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
     const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
     if (!rows[0]) throw new Error('Entry not found.');
@@ -1624,14 +1684,15 @@ export async function submitForApproval(entryId: number): Promise<void> {
     await db.exec(`UPDATE catalog_entry SET status = ?, approver_name = ?, modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`,
       [next, approver, actor.name, entryId]);
     await writeAudit('Status change', e.code, actor.name, actor.email, `${e.status} → ${next}`, db);
-  });
+    }));
 }
 
 export async function decideCatalogEntry(entryId: number, decision: 'approve' | 'reject' | 'revise', comment: string): Promise<void> {
   const actor = await requireCatalogActor('Approver');
   if (!comment.trim()) throw new Error('A comment is required to record this decision.');
 
-  await withTransaction(catalogManagerPool, async (client) => {
+  await catalogWrite('entry.decideFailed', { actor: actor.email, entryId, decision }, () =>
+    withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
     const rows = await db.sql<QueryResultRow[]>(`${ENTRY_SELECT} WHERE e.id = ?`, [entryId]);
     if (!rows[0]) throw new Error('Entry not found.');
@@ -1655,18 +1716,19 @@ export async function decideCatalogEntry(entryId: number, decision: 'approve' | 
     );
     await writeAudit(decision === 'approve' ? 'Approve' : 'Reject', e.code, acting.label, actor.email,
       `${decision === 'approve' ? 'Approved' : decision === 'revise' ? 'Revision requested' : 'Rejected'} — "${comment.trim().slice(0, 48)}"`, db);
-  });
+    }));
 }
 
 export async function deactivateCatalogEntry(entryId: number): Promise<void> {
   const actor = await requireCatalogActor('Contributor');
-  await withTransaction(catalogManagerPool, async (client) => {
+  await catalogWrite('entry.deactivateFailed', { actor: actor.email, entryId }, () =>
+    withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
     const rows = await db.sql<{ code: string; status: string }[]>(`SELECT code, status FROM catalog_entry WHERE id = ?`, [entryId]);
     if (!rows[0]) throw new Error('Entry not found.');
     await db.exec(`UPDATE catalog_entry SET status = 'Expired', modified_by = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?`, [actor.name, entryId]);
     await writeAudit('Status change', rows[0].code, actor.name, actor.email, `${rows[0].status} → Deactivated`, db);
-  });
+    }));
 }
 
 /* ============================================================================
@@ -1709,7 +1771,8 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
   // One transaction for the whole import, with a SAVEPOINT around each row's writes so a bad row
   // still only rolls back its own statements — the per-row log keeps reporting exactly as before,
   // but a row can no longer leave a half-written entry (entry with no rate version) behind.
-  return withTransaction(catalogManagerPool, async (client) => {
+  return catalogWrite('import.failed', { actor: actor.email, filename: input.filename, rows: input.rows.length }, () =>
+    withTransaction(catalogManagerPool, async (client) => {
   const db = dbOn(client);
   const ROW_SAVEPOINT = 'catalog_import_row';
 
@@ -1907,7 +1970,17 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
         await client.query(`RELEASE SAVEPOINT ${ROW_SAVEPOINT}`);
       }
       errors++;
-      log.push(`❌ Row ${r.rowIndex}: ${err instanceof Error ? err.message : 'unexpected error'}`);
+      // Every rejection the importer is meant to read is reported above by an explicit `continue`
+      // with its own message. Anything landing here is unexpected — in practice a raw Postgres
+      // error naming tables, columns and constraints, which used to be echoed straight back into
+      // the import log the user reads. The detail now goes to the server log only.
+      catalogLog.error('import.rowFailed', err, {
+        filename: input.filename,
+        rowIndex: r.rowIndex,
+        supplierCode: r.supplier_code,
+        country: r.country,
+      });
+      log.push(`❌ Row ${r.rowIndex}: could not be imported (logged for the Catalog Repo admin)`);
     }
   }
 
@@ -1915,7 +1988,7 @@ export async function bulkImportCatalogEntries(input: { rows: CatalogImportRow[]
     await writeAudit('Import', `Catalog — ${input.filename}`, actor.name, actor.email, `Bulk imported ${inserted} entries (${skipped} skipped, ${errors} errors)`, db);
   }
   return { inserted, skipped, errors, log };
-  });
+    }));
 }
 
 /* ============================================================================
@@ -1992,7 +2065,8 @@ export async function bulkDecideEntries(entryIds: number[], comment: string): Pr
   const actor = await requireCatalogActor('Approver');
   if (!comment.trim()) throw new Error('A comment is required to record this decision.');
 
-  return withTransaction(catalogManagerPool, async (client) => {
+  return catalogWrite('entry.bulkDecideFailed', { actor: actor.email, entryCount: entryIds.length }, () =>
+    withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
     // Load the actor's (and their delegators') authority rows once for the whole batch.
     const scopes = await loadApproverScopes([actor.email, ...(actor.delegatedFrom ?? []).map((d) => d.email)], db);
@@ -2043,7 +2117,7 @@ export async function bulkDecideEntries(entryIds: number[], comment: string): Pr
     );
     await writeAuditBatch(audits, db);
     return { approved: decisions.length };
-  });
+    }));
 }
 
 /* ============================================================================

@@ -3,6 +3,9 @@
 import pool from '@/lib/db';
 import { DS_DESCRIPTIONS } from '@/lib/constants';
 import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
+import { logger } from '@/lib/logger';
+
+const log = logger('supplier-portal');
 
 /* ─── Types ──────────────────────────────────────────────── */
 
@@ -31,7 +34,12 @@ export interface PortalData {
 
 export type GetTokenResult =
   | { expired: true }
+  /** The token genuinely is not in the table. */
   | { notFound: true }
+  /** The lookup itself failed (database down, schema error). Distinct from
+      `notFound` so the portal can say "try again" instead of telling a supplier
+      with a perfectly good link that it does not exist. */
+  | { failed: true }
   | PortalData;
 
 export interface LineUpdate {
@@ -94,8 +102,10 @@ export async function getExpediteByToken(token: string): Promise<GetTokenResult>
       lines: result.rows,
     };
   } catch (err) {
-    console.error('[getExpediteByToken]', err);
-    return { notFound: true };
+    /* A read failure is NOT a missing token: report it as a failure so the page
+       renders an error state rather than "Link Not Found". */
+    log.error('token_lookup.failed', err);
+    return { failed: true };
   }
 }
 
@@ -192,7 +202,7 @@ export async function submitSupplierUpdates(
   try {
     await ensureActiveExpeditingColumns();
   } catch (err) {
-    console.error('[submitSupplierUpdates] ensureActiveExpeditingColumns', err);
+    log.error('submit.schema_check_failed', err);
     return { success: false, error: GENERIC_SUBMIT_ERROR };
   }
 
@@ -305,7 +315,7 @@ export async function submitSupplierUpdates(
   } catch (err) {
     await client.query('ROLLBACK');
     /* Real cause stays server-side; the supplier only sees a generic message. */
-    console.error('[submitSupplierUpdates]', err);
+    log.error('submit.failed', err);
     return { success: false, error: GENERIC_SUBMIT_ERROR };
   } finally {
     client.release();

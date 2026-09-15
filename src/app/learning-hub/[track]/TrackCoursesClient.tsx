@@ -9,13 +9,13 @@ import LearningHubHero from '../components/LearningHubHero';
 import LearningHubHomeButton from '../components/LearningHubHomeButton';
 import LearningHubBackButton from '../components/LearningHubBackButton';
 import TrackIcon from '../components/TrackIcon';
-import { isComingSoon } from '@/lib/learning-hub-display';
+import { isComingSoon, DEFAULT_TRACK_COLOR } from '@/lib/learning-hub-display';
 import type { TrackDetailData } from '@/types/learning-hub';
 
 export default function TrackCoursesClient({ data }: { data: TrackDetailData }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { track, courses } = data;
-  const color = track.color || '#307c4c';
+  const color = track.color || DEFAULT_TRACK_COLOR;
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">

@@ -217,7 +217,6 @@ function BuyerCommentCell({
 
 function SupplierSection({
   supplier,
-  supplierKey,
   isExpanded,
   onToggle,
   expandedPOs,
@@ -228,7 +227,6 @@ function SupplierSection({
   saveStates,
 }: {
   supplier: SupplierGroup;
-  supplierKey: string;
   isExpanded: boolean;
   onToggle: () => void;
   expandedPOs: Set<string>;
@@ -313,10 +311,12 @@ function SupplierSection({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {lines.map((line, idx) => {
+                    {lines.map((line) => {
+                      /* Unique per (token, PO, line) — an index key remounted the
+                         wrong row's comment box whenever the list re-ordered. */
                       const commentKey = `${line.po_number}|${line.po_line}|${supplier.expedite_token}`;
                       return (
-                        <tr key={idx} className="hover:bg-[#307c4c]/5 transition-colors">
+                        <tr key={commentKey} className="hover:bg-[#307c4c]/5 transition-colors">
                           {/* PO Number — 32px left indent */}
                           <td className="py-3 pl-10 pr-3 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
                             {line.po_number}
@@ -505,7 +505,6 @@ function SessionCard({
               <SupplierSection
                 key={supplier.expedite_token}
                 supplier={supplier}
-                supplierKey={supplierKey}
                 isExpanded={expandedSuppliers.has(supplierKey)}
                 onToggle={() => toggleSupplier(supplierKey)}
                 expandedPOs={expandedPOs}
@@ -613,7 +612,7 @@ export default function ReconciliationClient({ userName }: { userName: string })
   function toggleSession(ref: string) {
     setExpandedSessions(prev => {
       const next = new Set(prev);
-      next.has(ref) ? next.delete(ref) : next.add(ref);
+      if (next.has(ref)) next.delete(ref); else next.add(ref);
       return next;
     });
   }
@@ -621,7 +620,7 @@ export default function ReconciliationClient({ userName }: { userName: string })
   function toggleSupplier(key: string) {
     setExpandedSuppliers(prev => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   }
@@ -629,7 +628,7 @@ export default function ReconciliationClient({ userName }: { userName: string })
   function togglePO(key: string) {
     setExpandedPOs(prev => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   }
@@ -704,7 +703,6 @@ export default function ReconciliationClient({ userName }: { userName: string })
         });
       }, 2000);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buyerComments]);
 
   /* ── Per-session Excel export ────────────────────────────── */
@@ -941,7 +939,8 @@ export default function ReconciliationClient({ userName }: { userName: string })
                     onSelectToggle={() => {
                       setSelectedSessions(prev => {
                         const next = new Set(prev);
-                        next.has(session.session_ref) ? next.delete(session.session_ref) : next.add(session.session_ref);
+                        if (next.has(session.session_ref)) next.delete(session.session_ref);
+                        else next.add(session.session_ref);
                         return next;
                       });
                     }}

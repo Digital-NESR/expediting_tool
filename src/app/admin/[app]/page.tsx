@@ -43,7 +43,6 @@ export default async function AdminAppPage({
   const base: AdminAppContentProps = {
     app: app.id,
     section,
-    userEmail: actor.email,
   };
 
   /* Fetch ONLY the data the current section renders. Switching sections

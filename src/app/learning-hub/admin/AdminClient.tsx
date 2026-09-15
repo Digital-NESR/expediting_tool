@@ -1,15 +1,11 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { createContext, useContext, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus, Pencil, Trash2, ChevronUp, ChevronDown, Check, X, Eye, EyeOff, RotateCcw, ExternalLink, Video,
   ClipboardCheck,
 } from 'lucide-react';
-import LearningHubSidebar from '../components/LearningHubSidebar';
-import LearningHubLogo from '../components/LearningHubLogo';
-import LearningHubHero from '../components/LearningHubHero';
-import LearningHubHomeButton from '../components/LearningHubHomeButton';
 import {
   createCourse, updateCourse, deleteCourse, moveCourse,
   createModule, updateModule, deleteModule, moveModule,
@@ -33,6 +29,42 @@ function blankQuestion(): EditableQuestion {
 const BTN = 'inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700';
 const BTN_DANGER = 'inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600';
 
+/* ── CMS failure channel ──────────────────────────────────────────────────
+   Every mutation below is a server action that THROWS on failure: a pg error,
+   or an AccessError from the video-URL check. An unhandled rejection inside a
+   transition escapes to the route error boundary and takes the whole editor
+   with it, so the admin loses their place and never learns which save failed.
+   `useCmsAction()` catches it and reports it to the banner at the top of the
+   page; the write either applied or it did not, so a failure never needs a
+   local rollback. ── */
+
+const CmsErrorContext = createContext<(message: string | null) => void>(() => {});
+
+function useCmsAction(): [boolean, (fn: () => Promise<void>) => void] {
+  const report = useContext(CmsErrorContext);
+  const [isPending, startTransition] = useTransition();
+
+  function run(fn: () => Promise<void>) {
+    report(null);
+    startTransition(async () => {
+      try {
+        await fn();
+      } catch (err) {
+        /* Next redacts a server action's message in production, so only keep it
+           when it still looks like one of our own validation messages. */
+        const raw = err instanceof Error ? err.message : '';
+        report(
+          raw && raw.length < 160 && !raw.includes('Server Components render')
+            ? raw
+            : 'That change could not be saved. Please try again.',
+        );
+      }
+    });
+  }
+
+  return [isPending, run];
+}
+
 /* ── Lesson row ───────────────────────────────────────────────────────── */
 
 function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; moduleId: number; onChanged: () => void }) {
@@ -41,10 +73,10 @@ function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; 
   const [body, setBody] = useState(lesson.body);
   const [videoUrl, setVideoUrl] = useState(lesson.video_url ?? '');
   const [duration, setDuration] = useState(lesson.duration_minutes != null ? String(lesson.duration_minutes) : '');
-  const [isPending, startTransition] = useTransition();
+  const [isPending, run] = useCmsAction();
 
   function save() {
-    startTransition(async () => {
+    run(async () => {
       const durationValue = duration.trim() ? Number(duration) : null;
       await updateLesson(lesson.id, { title, body, video_url: videoUrl.trim() || null, duration_minutes: durationValue });
       setEditing(false);
@@ -53,13 +85,13 @@ function LessonAdmin({ lesson, moduleId, onChanged }: { lesson: LearningLesson; 
   }
   function remove() {
     if (!confirm(`Delete lesson "${lesson.title}"? This cannot be undone.`)) return;
-    startTransition(async () => {
+    run(async () => {
       await deleteLesson(lesson.id);
       onChanged();
     });
   }
   function move(direction: 'up' | 'down') {
-    startTransition(async () => {
+    run(async () => {
       await moveLesson(moduleId, lesson.id, direction);
       onChanged();
     });
@@ -112,11 +144,11 @@ function NewLessonForm({ moduleId, onChanged }: { moduleId: number; onChanged: (
   const [body, setBody] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [duration, setDuration] = useState('');
-  const [isPending, startTransition] = useTransition();
+  const [isPending, run] = useCmsAction();
 
   function submit() {
     if (!title.trim()) return;
-    startTransition(async () => {
+    run(async () => {
       const durationValue = duration.trim() ? Number(duration) : null;
       await createLesson(moduleId, title.trim(), body.trim() || 'TODO: add lesson content.', durationValue, videoUrl.trim() || null);
       setTitle(''); setBody(''); setVideoUrl(''); setDuration(''); setOpen(false);
@@ -174,7 +206,7 @@ function QuizEditor({
         }))
       : [blankQuestion()],
   );
-  const [isPending, startTransition] = useTransition();
+  const [isPending, run] = useCmsAction();
 
   const valid = questions.length > 0 && questions.every(
     (q) => q.question_text.trim() && q.options.filter((o) => o.option_text.trim()).length >= 2 && q.options.some((o) => o.is_correct && o.option_text.trim()),
@@ -209,7 +241,7 @@ function QuizEditor({
   }
 
   function save() {
-    startTransition(async () => {
+    run(async () => {
       await saveModuleQuiz(
         moduleId,
         title.trim() || 'Knowledge check',
@@ -288,13 +320,13 @@ function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons
   const [title, setTitle] = useState(mod.title);
   const [resourceLabel, setResourceLabel] = useState(mod.resource_label ?? '');
   const [resourceUrl, setResourceUrl] = useState(mod.resource_url ?? '');
-  const [isPending, startTransition] = useTransition();
+  const [isPending, run] = useCmsAction();
   const [quizEditorOpen, setQuizEditorOpen] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
   const [loadedQuiz, setLoadedQuiz] = useState<ModuleQuizWithAnswers | null>(null);
 
   function save() {
-    startTransition(async () => {
+    run(async () => {
       await updateModule(mod.id, { title, resource_label: resourceLabel.trim() || null, resource_url: resourceUrl.trim() || null });
       setEditing(false);
       onChanged();
@@ -308,13 +340,13 @@ function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons
   }
   function remove() {
     if (!confirm(`Delete module "${mod.title}" and all its lessons?`)) return;
-    startTransition(async () => {
+    run(async () => {
       await deleteModule(mod.id);
       onChanged();
     });
   }
   function move(direction: 'up' | 'down') {
-    startTransition(async () => {
+    run(async () => {
       await moveModule(courseId, mod.id, direction);
       onChanged();
     });
@@ -332,7 +364,7 @@ function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons
   }
   function removeQuiz() {
     if (!confirm(`Delete the knowledge check on "${mod.title}"? This cannot be undone.`)) return;
-    startTransition(async () => {
+    run(async () => {
       await deleteModuleQuiz(mod.id);
       onChanged();
     });
@@ -426,11 +458,11 @@ function ModuleAdmin({ mod, courseId, onChanged }: { mod: AdminModuleWithLessons
 function NewModuleForm({ courseId, onChanged }: { courseId: number; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
-  const [isPending, startTransition] = useTransition();
+  const [isPending, run] = useCmsAction();
 
   function submit() {
     if (!title.trim()) return;
-    startTransition(async () => {
+    run(async () => {
       await createModule(courseId, title.trim());
       setTitle(''); setOpen(false);
       onChanged();
@@ -462,10 +494,10 @@ function CourseAdmin({ course, trackId, onChanged }: { course: AdminCourseWithMo
   const [title, setTitle] = useState(course.title);
   const [description, setDescription] = useState(course.description ?? '');
   const [status, setStatus] = useState<CourseStatus>(course.status);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, run] = useCmsAction();
 
   function save() {
-    startTransition(async () => {
+    run(async () => {
       await updateCourse(course.id, { title, description, status });
       setEditing(false);
       onChanged();
@@ -473,20 +505,20 @@ function CourseAdmin({ course, trackId, onChanged }: { course: AdminCourseWithMo
   }
   function togglePublish() {
     const nextStatus: CourseStatus = course.status === 'published' ? 'draft' : 'published';
-    startTransition(async () => {
+    run(async () => {
       await updateCourse(course.id, { title: course.title, description: course.description ?? '', status: nextStatus });
       onChanged();
     });
   }
   function remove() {
     if (!confirm(`Delete course "${course.title}" and everything in it? This cannot be undone.`)) return;
-    startTransition(async () => {
+    run(async () => {
       await deleteCourse(course.id);
       onChanged();
     });
   }
   function move(direction: 'up' | 'down') {
-    startTransition(async () => {
+    run(async () => {
       await moveCourse(trackId, course.id, direction);
       onChanged();
     });
@@ -549,11 +581,11 @@ function NewCourseForm({ trackId, onChanged }: { trackId: number; onChanged: () 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [isPending, startTransition] = useTransition();
+  const [isPending, run] = useCmsAction();
 
   function submit() {
     if (!title.trim()) return;
-    startTransition(async () => {
+    run(async () => {
       await createCourse(trackId, title.trim(), description.trim(), 'draft');
       setTitle(''); setDescription(''); setOpen(false);
       onChanged();
@@ -585,7 +617,7 @@ function NewCourseForm({ trackId, onChanged }: { trackId: number; onChanged: () 
 /* ── Reset track to defaults ──────────────────────────────────────────── */
 
 function ResetTrackButton({ trackKey, trackName, onChanged }: { trackKey: string; trackName: string; onChanged: () => void }) {
-  const [isPending, startTransition] = useTransition();
+  const [isPending, run] = useCmsAction();
   const [message, setMessage] = useState<string | null>(null);
 
   function reset() {
@@ -595,7 +627,7 @@ function ResetTrackButton({ trackKey, trackName, onChanged }: { trackKey: string
       `progress on them) and replaces it with what's defined in code. This cannot be undone.`,
     )) return;
     setMessage(null);
-    startTransition(async () => {
+    run(async () => {
       const result = await resyncTrackFromSeed(trackKey);
       setMessage(result.message);
       onChanged();
@@ -620,9 +652,13 @@ function ResetTrackButton({ trackKey, trackName, onChanged }: { trackKey: string
 
 /* ── Page ──────────────────────────────────────────────────────────────── */
 
-export default function AdminClient({ data, embedded = false }: { data: LearningHubAdminData; embedded?: boolean }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+/* Rendered only inside the /admin shell (AdminAppContent), which supplies the
+   chrome. The standalone shell this file used to carry — its own sidebar,
+   header and hero behind an `embedded` prop — was unreachable: there is no
+   learning-hub/admin/page.tsx, so nothing ever rendered it un-embedded. */
+export default function AdminClient({ data }: { data: LearningHubAdminData }) {
   const [selectedKey, setSelectedKey] = useState(data.tracks[0]?.key ?? '');
+  const [cmsError, setCmsError] = useState<string | null>(null);
   const router = useRouter();
 
   function onChanged() {
@@ -631,55 +667,46 @@ export default function AdminClient({ data, embedded = false }: { data: Learning
 
   const selectedTrack = data.tracks.find((t) => t.key === selectedKey) ?? data.tracks[0];
 
-  const content = (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          {data.tracks.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setSelectedKey(t.key)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-                selectedTrack?.key === t.key ? 'bg-[#307c4c] text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {t.name} <span className="ml-1 opacity-70">({t.courses.length})</span>
+  return (
+    <CmsErrorContext.Provider value={setCmsError}>
+      <div className="space-y-6">
+        {cmsError && (
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <span>{cmsError}</span>
+            <button onClick={() => setCmsError(null)} className="shrink-0 rounded-lg p-0.5 text-red-400 hover:text-red-600" title="Dismiss">
+              <X className="h-4 w-4" />
             </button>
-          ))}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {data.tracks.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setSelectedKey(t.key)}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+                  selectedTrack?.key === t.key ? 'bg-[#307c4c] text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {t.name} <span className="ml-1 opacity-70">({t.courses.length})</span>
+              </button>
+            ))}
+          </div>
+          {selectedTrack && (
+            <ResetTrackButton trackKey={selectedTrack.key} trackName={selectedTrack.name} onChanged={onChanged} />
+          )}
         </div>
+
         {selectedTrack && (
-          <ResetTrackButton trackKey={selectedTrack.key} trackName={selectedTrack.name} onChanged={onChanged} />
+          <div className="space-y-4">
+            {selectedTrack.courses.map((c) => (
+              <CourseAdmin key={c.id} course={c} trackId={selectedTrack.id} onChanged={onChanged} />
+            ))}
+            <NewCourseForm trackId={selectedTrack.id} onChanged={onChanged} />
+          </div>
         )}
       </div>
-
-      {selectedTrack && (
-        <div className="space-y-4">
-          {selectedTrack.courses.map((c) => (
-            <CourseAdmin key={c.id} course={c} trackId={selectedTrack.id} onChanged={onChanged} />
-          ))}
-          <NewCourseForm trackId={selectedTrack.id} onChanged={onChanged} />
-        </div>
-      )}
-    </div>
-  );
-
-  if (embedded) return content;
-
-  return (
-    <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
-      <LearningHubSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200/70 bg-white/80 px-4 backdrop-blur-md md:h-16 md:px-8">
-        <button onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100">
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
-        </button>
-        <LearningHubHomeButton />
-        <LearningHubLogo size="sm" />
-        <span className="text-sm font-semibold text-slate-900">Learning Hub Admin</span>
-      </header>
-      <main className="mx-auto max-w-[1000px] space-y-6 px-4 py-6 sm:px-6">
-        <LearningHubHero title="Content Admin" subtitle="Create, edit, reorder, and publish courses, modules, and lessons for each track." />
-        {content}
-      </main>
-    </div>
+    </CmsErrorContext.Provider>
   );
 }

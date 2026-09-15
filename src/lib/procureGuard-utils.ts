@@ -1,7 +1,5 @@
 import type { ProcureGuardAccessView, ProcureGuardPermissionProfile, ProcureGuardPermissionRole, ProcureGuardPriority, ProcureGuardRequestType, ProcureGuardStatus } from '@/types/procureGuard';
 
-export const PROCUREMENT_GREEN = '#006B0C';
-
 // Advance payments at or below this USD value are fully approved by the country finance
 // controller alone — the request goes straight to Approved with no further sign-off.
 export const ADVANCE_COUNTRY_CONTROLLER_ONLY_MAX_USD = 50000;

@@ -5,6 +5,7 @@ import { cache } from 'react';
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
 import { getProcureGuardUser } from '@/lib/auth';
 import { uploadMimeTypeFor } from '@/lib/documents';
+import { logger } from '@/lib/logger';
 import { isToolAdminEmail, normalizeEmail } from '@/lib/require-access';
 import {
   countryRecipientKeys,
@@ -38,7 +39,7 @@ import {
   scopedRequestWhere as scopedWhere,
 } from '@/lib/procure-guard/access';
 import { getPermissionRowForEmail, resolveProcureGuardActorScope } from '@/lib/procure-guard/actor-scope';
-import { canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, CURRENCY_OPTIONS, formatProcureGuardStatusLabel, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getProcureGuardCountryScopeCountries, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, procureGuardThreshold, normalizeProcureGuardCountry, normalizeProcureGuardCountryScope, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, roleRequiresProcureGuardCountryScope, toUsd } from '@/lib/procureGuard-utils';
+import { ADHOC_STATUS_OPTIONS, ADVANCE_STATUS_OPTIONS, APPROVAL_ACTIVE_STATUSES, canUseProcureGuardAdmin, canUseProcureGuardAnalytics, canUseProcureGuardOperationalPages, canUseProcureGuardReviewerQueue, CURRENCY_OPTIONS, formatProcureGuardStatusLabel, getNextApprovalStatus, getPermissionProfile, getProcureGuardAvailableActions, getProcureGuardAccessView, getProcureGuardCountryScopeCountries, getRequiredPermissionForTransition, getWorkflowSteps, isActiveApprovalStatus, procureGuardThreshold, normalizeProcureGuardCountry, normalizeProcureGuardCountryScope, PERMISSION_ROLE_OPTIONS, REVIEWED_STATUSES, roleRequiresProcureGuardCountryScope, toUsd } from '@/lib/procureGuard-utils';
 import type { ProcureGuardAvailableActions } from '@/lib/procureGuard-utils';
 import type {
   ActionResult,
@@ -74,6 +75,37 @@ import type {
   UpdateProcureGuardPermissionInput,
   ProcureGuardVendorMetric,
 } from '@/types/procureGuard';
+
+const log = logger('procure-guard');
+
+/**
+ * One shape check for every address this file accepts — notification lists, delegates, request
+ * viewers, notification recipients and approver-matrix rows. It was eight identical inline copies
+ * of the same literal, so any tightening of it reached only whichever call sites were remembered.
+ * Not exported: this file is `'use server'`, where every export becomes a public endpoint.
+ */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidEmail(value: string): boolean {
+  return EMAIL_PATTERN.test(value);
+}
+
+/**
+ * A deliberate refusal: the actor is signed in but may not see this thing.
+ * Distinct from a failure — callers turn this into "not found" / an empty view,
+ * while anything else means the request could not be answered at all and must
+ * surface as an error rather than as a 404 that claims the row does not exist.
+ */
+class ProcureGuardAccessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProcureGuardAccessError';
+  }
+}
+
+/** The still-in-flight statuses of each request type, derived rather than retyped in SQL. */
+const adhocActiveStatuses = APPROVAL_ACTIVE_STATUSES.filter(status => ADHOC_STATUS_OPTIONS.includes(status));
+const advanceActiveStatuses = APPROVAL_ACTIVE_STATUSES.filter(status => ADVANCE_STATUS_OPTIONS.includes(status));
 
 const STATUS_SORT_ORDER: ProcureGuardStatus[] = [
   'Submitted',
@@ -202,7 +234,7 @@ async function ensureProcureGuardReferenceUniqueness(): Promise<void> {
       await exec(`CREATE SEQUENCE IF NOT EXISTS procure_guard_adhoc_reference_seq`);
       await exec(`CREATE SEQUENCE IF NOT EXISTS procure_guard_advance_reference_seq`);
     } catch (err) {
-      console.warn('[ProcureGuard] reference sequence ensure failed', err);
+      log.warn('reference.sequenceEnsureFailed', { reason: err instanceof Error ? err.message : String(err) });
     }
     const targets = [
       { table: 'procure_guard_adhoc_payments', index: 'uq_procure_guard_adhoc_reference_number' },
@@ -219,20 +251,21 @@ async function ensureProcureGuardReferenceUniqueness(): Promise<void> {
         }
         const present = await sql<QueryResultRow[]>(`SELECT 1 FROM pg_indexes WHERE indexname = ? LIMIT 1`, [index]);
         if (present.length > 0) {
-          console.log(`[ProcureGuard] reference_number uniqueness ENFORCED on ${table} (index ${index}).`);
+          log.debug('reference.uniquenessEnforced', { table, index });
         } else {
           const dups = await sql<QueryResultRow[]>(
             `SELECT reference_number, COUNT(*)::int AS n FROM ${table}
              GROUP BY reference_number HAVING COUNT(*) > 1 ORDER BY n DESC LIMIT 5`,
           );
-          console.warn(
-            `[ProcureGuard] reference_number uniqueness NOT enforced on ${table}: unique index ${index} could not be created. ` +
-            `${dups.length} duplicate reference value(s) found (top 5 shown). De-duplicate, then restart to enforce.`,
-            dups.map(r => `${r.reference_number} x${r.n}`),
-          );
+          log.warn('reference.uniquenessNotEnforced', {
+            table,
+            index,
+            hint: 'De-duplicate the reference numbers below, then restart to enforce.',
+            duplicates: dups.map(r => `${r.reference_number} x${r.n}`),
+          });
         }
       } catch (err) {
-        console.warn(`[ProcureGuard] reference_number uniqueness check failed for ${table}`, err);
+        log.warn('reference.uniquenessCheckFailed', { table, reason: err instanceof Error ? err.message : String(err) });
       }
     }
   })();
@@ -258,13 +291,6 @@ function requireCountryOption(value: string | null | undefined, label = 'Country
 // shared parser instead of a third hand-rolled copy of it.
 function isProcureGuardAdminEmail(email: string | null | undefined): boolean {
   return isToolAdminEmail(email, process.env.PROCURE_GUARD_ADMIN_EMAILS);
-}
-
-function testerEmails(): string[] {
-  return (`${process.env.PROCURE_GUARD_TESTER_EMAILS ?? ''},${process.env.PROCURE_GUARD_TEST_EMAILS ?? ''}`)
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
 }
 
 // A delegation hands over live approval authority, so its end date is validated rather than passed
@@ -320,7 +346,7 @@ const getActor = cache(async (): Promise<ProcureGuardActor> => {
   const email = normalizeEmail(user?.email);
 
   if (!email) {
-    throw new Error('You must be signed in to use ProcureGuard.');
+    throw new ProcureGuardAccessError('You must be signed in to use ProcureGuard.');
   }
 
   // Permission row + delegations + review grants, resolved by the SAME helper the document download
@@ -345,7 +371,7 @@ export async function getProcureGuardActor(): Promise<ProcureGuardActor | null> 
   try {
     return await getActor();
   } catch (err) {
-    console.error('[getProcureGuardActor]', err);
+    log.error('getProcureGuardActor.failed', err);
     return null;
   }
 }
@@ -440,19 +466,19 @@ async function requirePermissionManager(): Promise<ProcureGuardActor> {
 // and must never confer admin.
 function requireProcureGuardOperationalAccess(actor: ProcureGuardActor): void {
   if (!canUseProcureGuardOperationalPages(actor.permissions.accessView)) {
-    throw new Error('Operational ProcureGuard access is required.');
+    throw new ProcureGuardAccessError('Operational ProcureGuard access is required.');
   }
 }
 
 function requireProcureGuardAnalyticsAccess(actor: ProcureGuardActor): void {
   if (!canUseProcureGuardAnalytics(actor.permissions.accessView)) {
-    throw new Error('Analytics access is required.');
+    throw new ProcureGuardAccessError('Analytics access is required.');
   }
 }
 
 function requireProcureGuardReviewerQueueAccess(actor: ProcureGuardActor): void {
   if (!canUseProcureGuardReviewerQueue(actor.permissions.accessView)) {
-    throw new Error('Reviewer access is required.');
+    throw new ProcureGuardAccessError('Reviewer access is required.');
   }
 }
 
@@ -529,13 +555,12 @@ function normalizeRequesterNotificationEmails(value: unknown, requesterEmail?: s
       ? value.split(/[\s,;]+/)
       : [];
   const requester = requesterEmail?.trim().toLowerCase();
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const emails = new Set<string>();
 
   for (const raw of rawValues) {
     const email = String(raw ?? '').trim().toLowerCase();
     if (!email) continue;
-    if (!emailPattern.test(email)) throw new Error(`Invalid notification email: ${email}`);
+    if (!isValidEmail(email)) throw new Error(`Invalid notification email: ${email}`);
     if (email !== requester) emails.add(email);
   }
 
@@ -835,7 +860,7 @@ async function notifyProcureGuardNextApprover(input: {
 }): Promise<void> {
   const webhookUrl = process.env.N8N_PROCUREGUARD_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn('[ProcureGuard n8n] N8N_PROCUREGUARD_WEBHOOK_URL is not configured; skipping webhook notification.');
+    log.warn('webhook.unconfigured', { reason: 'N8N_PROCUREGUARD_WEBHOOK_URL is not set', requestType: input.requestType, requestId: input.requestId });
     return;
   }
 
@@ -972,17 +997,21 @@ async function notifyProcureGuardNextApprover(input: {
       try {
         const requesterResponse = await postProcureGuardWebhook(webhookUrl, headers, requesterPayload);
         if (!requesterResponse.ok) {
-          console.error('[ProcureGuard n8n] Requester webhook failed', requesterResponse.status, requesterResponse.statusText);
-        } else {
-          console.log('[ProcureGuard n8n] Requester webhook sent', {
+          log.error('webhook.requester.failed', null, {
             requestType: input.requestType,
             requestId: input.requestId,
             status: requesterResponse.status,
+            statusText: requesterResponse.statusText,
           });
         }
+        // The success case is deliberately not logged: this runs on every status change.
       } catch (err) {
         // Isolated so a requester-side failure never blocks the approver notification below.
-        console.error('[ProcureGuard n8n] Requester webhook failed', procureGuardWebhookErrorMessage(err), err);
+        log.error('webhook.requester.failed', err, {
+          requestType: input.requestType,
+          requestId: input.requestId,
+          reason: procureGuardWebhookErrorMessage(err),
+        });
       }
     }
 
@@ -1014,7 +1043,7 @@ async function notifyProcureGuardNextApprover(input: {
       : recipients;
 
     if (recipients.length === 0) {
-      console.warn('[ProcureGuard n8n] No notification recipients found', {
+      log.warn('webhook.noRecipients', {
         requestType: input.requestType,
         requestId: input.requestId,
         country: request.country,
@@ -1080,17 +1109,21 @@ async function notifyProcureGuardNextApprover(input: {
     const response = await postProcureGuardWebhook(webhookUrl, headers, payload);
 
     if (!response.ok) {
-      console.error('[ProcureGuard n8n] Webhook failed', response.status, response.statusText);
-    } else {
-      console.log('[ProcureGuard n8n] Webhook sent', {
+      log.error('webhook.failed', null, {
         requestType: input.requestType,
         requestId: input.requestId,
         recipientCount: recipients.length,
         status: response.status,
+        statusText: response.statusText,
       });
     }
+    // The success case is deliberately not logged: this is the hot path of every status change.
   } catch (err) {
-    console.error('[ProcureGuard n8n] Webhook notification failed', procureGuardWebhookErrorMessage(err), err);
+    log.error('webhook.failed', err, {
+      requestType: input.requestType,
+      requestId: input.requestId,
+      reason: procureGuardWebhookErrorMessage(err),
+    });
   }
 }
 
@@ -1265,7 +1298,7 @@ export async function getAdhocPayments(): Promise<AdhocPaymentRequest[] | null> 
     );
     return normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(rows));
   } catch (err) {
-    console.error('[getAdhocPayments]', err);
+    log.error('getAdhocPayments.failed', err);
     return null;
   }
 }
@@ -1284,7 +1317,7 @@ export async function getAdhocPaymentsData(): Promise<ProcureGuardRequestListDat
     );
     return { actor, requests: normalisePaymentCountries(serialise<AdhocPaymentRequest[]>(rows)) };
   } catch (err) {
-    console.error('[getAdhocPaymentsData]', err);
+    log.error('getAdhocPaymentsData.failed', err);
     return null;
   }
 }
@@ -1303,7 +1336,7 @@ export async function getAdvancePaymentRequestsData(): Promise<ProcureGuardReque
     );
     return { actor, requests: normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(rows)) };
   } catch (err) {
-    console.error('[getAdvancePaymentRequestsData]', err);
+    log.error('getAdvancePaymentRequestsData.failed', err);
     return null;
   }
 }
@@ -1322,7 +1355,7 @@ export async function getAdvancePaymentRequests(): Promise<AdvancePaymentRequest
     );
     return normalisePaymentCountries(serialise<AdvancePaymentRequest[]>(rows));
   } catch (err) {
-    console.error('[getAdvancePaymentRequests]', err);
+    log.error('getAdvancePaymentRequests.failed', err);
     return null;
   }
 }
@@ -1369,7 +1402,7 @@ export async function getProcureGuardWorkQueueData(): Promise<ProcureGuardWorkQu
       },
     };
   } catch (err) {
-    console.error('[getProcureGuardWorkQueueData]', err);
+    log.error('getProcureGuardWorkQueueData.failed', err);
     return null;
   }
 }
@@ -1415,7 +1448,7 @@ async function getDelegatorOpenItems(grant: ProcureGuardReviewGrant): Promise<De
       .slice(0, 8)
       .map(item => ({ reference: item.request.reference_number, requestType: item.requestType, status: item.request.status }));
   } catch (err) {
-    console.error('[getDelegatorOpenItems]', err);
+    log.error('getDelegatorOpenItems.failed', err);
     return [];
   }
 }
@@ -1426,7 +1459,16 @@ async function sendProcureGuardDelegationEmail(
 ): Promise<void> {
   const webhookUrl = process.env.N8N_PROCUREGUARD_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
-    console.warn('[ProcureGuard n8n] N8N_PROCUREGUARD_WEBHOOK_URL not configured; skipping delegation email.');
+    log.warn('delegationEmail.unconfigured', { reason: 'N8N_PROCUREGUARD_WEBHOOK_URL is not set', kind });
+    return;
+  }
+  // Resolved up front: getAppBaseUrl() now refuses to invent a localhost link in production, and
+  // an email we cannot address must not take the delegation write down with it.
+  let appBaseUrl: string;
+  try {
+    appBaseUrl = getAppBaseUrl();
+  } catch (err) {
+    log.error('delegationEmail.failed', err, { kind });
     return;
   }
   const to = params.delegateEmail.trim().toLowerCase();
@@ -1458,7 +1500,7 @@ async function sendProcureGuardDelegationEmail(
       <p style="margin:0 0 ${expiryLine ? '8' : '22'}px 0;color:#4b5563;">${lead}</p>
       ${expiryLine ? `<p style="margin:0 0 22px 0;color:#4b5563;">${expiryLine}</p>` : ''}
       ${openBlock}
-      ${granted ? `<div style="text-align:center;margin:24px 0;"><a href="${escapeHtml(getAppBaseUrl())}/procure-guard/my-work" style="display:inline-block;background:${accent};color:#ffffff;padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:700;">Open ProcureGuard</a></div>` : ''}
+      ${granted ? `<div style="text-align:center;margin:24px 0;"><a href="${escapeHtml(appBaseUrl)}/procure-guard/my-work" style="display:inline-block;background:${accent};color:#ffffff;padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:700;">Open ProcureGuard</a></div>` : ''}
       <div style="border-top:1px solid #e5e7eb;padding-top:14px;font-size:12px;color:#6b7280;">This message was generated by the ProcureGuard workflow.</div>
     </div>
   `;
@@ -1480,9 +1522,9 @@ async function sendProcureGuardDelegationEmail(
   if (secret) headers['x-procureguard-secret'] = secret;
   try {
     const response = await postProcureGuardWebhook(webhookUrl, headers, payload);
-    if (!response.ok) console.error('[ProcureGuard n8n] Delegation email failed', response.status, response.statusText);
+    if (!response.ok) log.error('delegationEmail.failed', null, { kind, status: response.status, statusText: response.statusText });
   } catch (err) {
-    console.error('[ProcureGuard n8n] Delegation email failed', procureGuardWebhookErrorMessage(err), err);
+    log.error('delegationEmail.failed', err, { kind, reason: procureGuardWebhookErrorMessage(err) });
   }
 }
 
@@ -1504,7 +1546,7 @@ export async function getProcureGuardDelegationData(): Promise<ProcureGuardDeleg
       received: serialise<ProcureGuardDelegation[]>(receivedRows),
     };
   } catch (err) {
-    console.error('[getProcureGuardDelegationData]', err);
+    log.error('getProcureGuardDelegationData.failed', err);
     return null;
   }
 }
@@ -1521,7 +1563,7 @@ export async function grantProcureGuardDelegation(input: { delegateEmail: string
       return { success: false, error: ADMIN_DELEGATION_REFUSAL };
     }
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(delegateEmail)) {
+    if (!isValidEmail(delegateEmail)) {
       return { success: false, error: 'Enter a valid delegate email address.' };
     }
     if (delegateEmail === normalizeEmail(actor.email)) {
@@ -1553,7 +1595,7 @@ export async function grantProcureGuardDelegation(input: { delegateEmail: string
     revalidatePath('/procure-guard/delegate');
     return { success: true, data: { id: result.insertId } };
   } catch (err) {
-    console.error('[grantProcureGuardDelegation]', err);
+    log.error('grantProcureGuardDelegation.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
   }
 }
@@ -1586,7 +1628,7 @@ export async function revokeProcureGuardDelegation(id: number): Promise<ActionRe
     revalidatePath('/admin');
     return { success: true };
   } catch (err) {
-    console.error('[revokeProcureGuardDelegation]', err);
+    log.error('revokeProcureGuardDelegation.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to revoke delegation.' };
   }
 }
@@ -1603,11 +1645,10 @@ export async function adminGrantProcureGuardDelegation(input: {
     await requireAdminActor();
     await ensureProcureGuardDelegationTable();
 
-    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const delegatorEmail = requireText(input.delegatorEmail, 'Approver email').toLowerCase();
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
-    if (!emailRe.test(delegatorEmail)) return { success: false, error: 'Enter a valid approver email address.' };
-    if (!emailRe.test(delegateEmail)) return { success: false, error: 'Enter a valid delegate email address.' };
+    if (!isValidEmail(delegatorEmail)) return { success: false, error: 'Enter a valid approver email address.' };
+    if (!isValidEmail(delegateEmail)) return { success: false, error: 'Enter a valid delegate email address.' };
     if (delegatorEmail === delegateEmail) return { success: false, error: 'Approver and delegate must be different people.' };
 
     // The delegator must have approval authority to hand off.
@@ -1657,7 +1698,7 @@ export async function adminGrantProcureGuardDelegation(input: {
     revalidatePath('/procure-guard/delegate');
     return { success: true, data: { id: result.insertId } };
   } catch (err) {
-    console.error('[adminGrantProcureGuardDelegation]', err);
+    log.error('adminGrantProcureGuardDelegation.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to create delegation.' };
   }
 }
@@ -1680,7 +1721,7 @@ export async function getProcureGuardNotificationPreview(input: {
       currency: input.currency || 'USD',
     });
   } catch (err) {
-    console.error('[getProcureGuardNotificationPreview]', err);
+    log.error('getProcureGuardNotificationPreview.failed', err);
     return [];
   }
 }
@@ -1700,7 +1741,10 @@ export async function getProcureGuardRequestDetail(
       [id],
     );
 
-    if (!rows[0]) return null;
+    if (!rows[0]) {
+      log.info('requestDetail.notFound', { requestType, id });
+      return null;
+    }
 
     const request = normalisePaymentCountry(serialise<AdhocPaymentRequest | AdvancePaymentRequest>(rows[0]));
     // ONE view predicate, shared with the list SQL and the document download route. The detail page
@@ -1708,6 +1752,7 @@ export async function getProcureGuardRequestDetail(
     // reviewer opening a request they had raised themselves (or been added as a viewer on) outside
     // their review scope got a 404 on a row their own list had just shown them.
     if (!canActorViewRequest(actor, request)) {
+      log.info('requestDetail.denied', { requestType, id, actor: actor.email, reason: 'out of scope' });
       return null;
     }
 
@@ -1738,7 +1783,7 @@ export async function getProcureGuardRequestDetail(
            WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
            ORDER BY created_at DESC`,
         ).catch(err => {
-          console.error('[getProcureGuardRequestDetail delegations]', err);
+          log.error('requestDetail.delegationsFailed', err, { requestType, id });
           return [] as QueryResultRow[];
         }),
       ),
@@ -1755,8 +1800,16 @@ export async function getProcureGuardRequestDetail(
       actions: getScopedProcureGuardAvailableActions(actor, requestType, request),
     };
   } catch (err) {
-    console.error('[getProcureGuardRequestDetail]', err);
-    return null;
+    // `null` means "there is nothing here for you", and the page turns it into a 404. A failed
+    // query is NOT that: 404-ing on it told the user the request did not exist when the database
+    // was simply unreachable. Refusals stay a 404; everything else is logged and rethrown so it
+    // surfaces as an error page instead of a silent, wrong "not found".
+    if (err instanceof ProcureGuardAccessError) {
+      log.info('requestDetail.denied', { requestType, id, reason: err.message });
+      return null;
+    }
+    log.error('requestDetail.failed', err, { requestType, id });
+    throw err;
   }
 }
 
@@ -1825,7 +1878,7 @@ export async function getProcureGuardDashboardData(): Promise<ProcureGuardDashbo
       actor,
     };
   } catch (err) {
-    console.error('[getProcureGuardDashboardData]', err);
+    log.error('getProcureGuardDashboardData.failed', err);
     return null;
   }
 }
@@ -1866,7 +1919,7 @@ export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData 
       stats: buildStats(adhoc, advance),
     };
   } catch (err) {
-    console.error('[getProcureGuardAdminData]', err);
+    log.error('getProcureGuardAdminData.failed', err);
     return null;
   }
 }
@@ -2037,7 +2090,7 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
       generated_at: new Date().toISOString(),
     };
   } catch (err) {
-    console.error('[getProcureGuardAnalyticsData]', err);
+    log.error('getProcureGuardAnalyticsData.failed', err);
     return null;
   }
 }
@@ -2127,12 +2180,15 @@ export async function getProcureGuardAdminAnalyticsData(): Promise<ProcureGuardA
         ORDER BY occurred_at DESC
         LIMIT 50
       `),
+      // The two status lists were spelled out inside this SQL string, so adding a workflow stage
+      // left this counter quietly behind. Derived from the same constants the workflow uses, and
+      // bound as parameters the way the reminder job already does it.
       sql<QueryResultRow[]>(`
         SELECT (
-          (SELECT COUNT(*) FROM procure_guard_adhoc_payments WHERE status IN ('Submitted', 'Under Review', 'Approved by SCM')) +
-          (SELECT COUNT(*) FROM procure_guard_advance_payments WHERE status IN ('Submitted', 'Under Review', 'Approved by Country Controller', 'Approved by Supply Chain Director', 'Approved by Treasury Director', 'Approved by Corporate Controller'))
+          (SELECT COUNT(*) FROM procure_guard_adhoc_payments WHERE status IN (${adhocActiveStatuses.map(() => '?').join(', ')})) +
+          (SELECT COUNT(*) FROM procure_guard_advance_payments WHERE status IN (${advanceActiveStatuses.map(() => '?').join(', ')}))
         )::int AS pending_review
-      `),
+      `, [...adhocActiveStatuses, ...advanceActiveStatuses]),
     ]);
 
     return {
@@ -2154,7 +2210,7 @@ export async function getProcureGuardAdminAnalyticsData(): Promise<ProcureGuardA
       generated_at: new Date().toISOString(),
     };
   } catch (err) {
-    console.error('[getProcureGuardAdminAnalyticsData]', err);
+    log.error('getProcureGuardAdminAnalyticsData.failed', err);
     return null;
   }
 }
@@ -2253,7 +2309,7 @@ export async function createAdhocPayment(input: CreateAdhocPaymentInput): Promis
     revalidatePath('/procure-guard/adhoc-payments');
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
-    console.error('[createAdhocPayment]', err);
+    log.error('createAdhocPayment.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to create adhoc PO request.' };
   }
 }
@@ -2366,7 +2422,7 @@ export async function createAdvancePayment(input: CreateAdvancePaymentInput): Pr
     revalidatePath('/procure-guard/advance-payments');
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
-    console.error('[createAdvancePayment]', err);
+    log.error('createAdvancePayment.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to create advance payment request.' };
   }
 }
@@ -2491,7 +2547,7 @@ export async function updateAdhocPaymentRequest(id: number, input: CreateAdhocPa
     revalidatePath(`/procure-guard/adhoc-payments/${id}`);
     return { success: true, data: { id }, reference_number: existing.reference_number };
   } catch (err) {
-    console.error('[updateAdhocPaymentRequest]', err);
+    log.error('updateAdhocPaymentRequest.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update adhoc PO request.' };
   }
 }
@@ -2627,7 +2683,7 @@ export async function updateAdvancePaymentRequest(id: number, input: CreateAdvan
     revalidatePath(`/procure-guard/advance-payments/${id}`);
     return { success: true, data: { id }, reference_number: existing.reference_number };
   } catch (err) {
-    console.error('[updateAdvancePaymentRequest]', err);
+    log.error('updateAdvancePaymentRequest.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update advance payment request.' };
   }
 }
@@ -2725,7 +2781,7 @@ export async function createAdminAdhocPayment(input: AdminCreateAdhocPaymentInpu
     revalidateProcureGuardPaths();
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
-    console.error('[createAdminAdhocPayment]', err);
+    log.error('createAdminAdhocPayment.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to create adhoc PO.' };
   }
 }
@@ -2838,7 +2894,7 @@ export async function createAdminAdvancePayment(input: AdminCreateAdvancePayment
     revalidateProcureGuardPaths();
     return { success: true, data: { id: result.insertId }, reference_number: reference };
   } catch (err) {
-    console.error('[createAdminAdvancePayment]', err);
+    log.error('createAdminAdvancePayment.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to create advance payment.' };
   }
 }
@@ -2888,7 +2944,7 @@ export async function deleteProcureGuardRecord(
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
-    console.error('[deleteProcureGuardRecord]', err);
+    log.error('deleteProcureGuardRecord.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to delete record.' };
   }
 }
@@ -3041,7 +3097,7 @@ export async function updateAdhocPaymentStatus(
       notes,
     });
   } catch (err) {
-    console.error('[updateAdhocPaymentStatus]', err);
+    log.error('updateAdhocPaymentStatus.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update adhoc PO status.' };
   }
 }
@@ -3060,7 +3116,7 @@ export async function updateAdvancePaymentStatus(
       notes,
     });
   } catch (err) {
-    console.error('[updateAdvancePaymentStatus]', err);
+    log.error('updateAdvancePaymentStatus.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update advance payment status.' };
   }
 }
@@ -3143,7 +3199,7 @@ export async function uploadProcureGuardDocument(
     revalidatePath(`/procure-guard/${requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${requestId}`);
     return { success: true, document: serialise<ProcureGuardDocument>(docs[0]) };
   } catch (err) {
-    console.error('[uploadProcureGuardDocument]', err);
+    log.error('uploadProcureGuardDocument.failed', err);
     return { success: false, error: 'Upload failed. Please try again.' };
   }
 }
@@ -3202,7 +3258,7 @@ export async function deleteProcureGuardDocument(documentId: number): Promise<Ac
     revalidatePath(`/procure-guard/${doc.request_type === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${doc.request_id}`);
     return { success: true };
   } catch (err) {
-    console.error('[deleteProcureGuardDocument]', err);
+    log.error('deleteProcureGuardDocument.failed', err);
     return { success: false, error: 'Delete failed. Please try again.' };
   }
 }
@@ -3248,7 +3304,7 @@ export async function addProcureGuardRequestViewer(input: {
     const { table, request } = loaded;
 
     const email = requireText(input.email, 'Viewer email').toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { success: false, error: 'Enter a valid email address.' };
+    if (!isValidEmail(email)) return { success: false, error: 'Enter a valid email address.' };
     if (email === String(request.requested_by_email).toLowerCase()) return { success: false, error: 'The requester can already view this request.' };
 
     const existing = requesterNotificationEmailsOf(request);
@@ -3269,7 +3325,7 @@ export async function addProcureGuardRequestViewer(input: {
     revalidatePath(`/procure-guard/${input.requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${input.requestId}`);
     return { success: true };
   } catch (err) {
-    console.error('[addProcureGuardRequestViewer]', err);
+    log.error('addProcureGuardRequestViewer.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to add viewer.' };
   }
 }
@@ -3304,7 +3360,7 @@ export async function removeProcureGuardRequestViewer(input: {
     revalidatePath(`/procure-guard/${input.requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${input.requestId}`);
     return { success: true };
   } catch (err) {
-    console.error('[removeProcureGuardRequestViewer]', err);
+    log.error('removeProcureGuardRequestViewer.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to remove viewer.' };
   }
 }
@@ -3323,7 +3379,7 @@ export async function updateProcureGuardNotificationRecipient(input: {
     const id = Number(input.id);
     const displayName = requireText(input.display_name, 'Display name');
     const email = requireText(input.email, 'Email').toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!isValidEmail(email)) {
       return { success: false, error: 'Enter a valid email address.' };
     }
 
@@ -3340,7 +3396,7 @@ export async function updateProcureGuardNotificationRecipient(input: {
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
-    console.error('[updateProcureGuardNotificationRecipient]', err);
+    log.error('updateProcureGuardNotificationRecipient.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update notification recipient.' };
   }
 }
@@ -3361,7 +3417,7 @@ export async function updateProcureGuardNotificationRecipientGroup(input: {
 
     const displayName = requireText(input.display_name, 'Display name');
     const email = requireText(input.email, 'Email').toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!isValidEmail(email)) {
       return { success: false, error: 'Enter a valid email address.' };
     }
 
@@ -3378,7 +3434,7 @@ export async function updateProcureGuardNotificationRecipientGroup(input: {
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
-    console.error('[updateProcureGuardNotificationRecipientGroup]', err);
+    log.error('updateProcureGuardNotificationRecipientGroup.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update notification recipient group.' };
   }
 }
@@ -3477,7 +3533,7 @@ export async function getProcureGuardApproverMatrix(): Promise<ProcureGuardAppro
     }
     return { countries, columns: APPROVER_MATRIX_COLUMNS, cells };
   } catch (err) {
-    console.error('[getProcureGuardApproverMatrix]', err);
+    log.error('getProcureGuardApproverMatrix.failed', err);
     return { countries: [], columns: APPROVER_MATRIX_COLUMNS, cells: {} };
   }
 }
@@ -3497,7 +3553,7 @@ export async function setProcureGuardApprover(input: {
       return { success: false, error: 'Permission management access is required.' };
     }
     const email = requireText(input.email, 'Email').toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { success: false, error: 'Enter a valid email address.' };
+    if (!isValidEmail(email)) return { success: false, error: 'Enter a valid email address.' };
     const displayName = requireText(input.displayName, 'Name');
     const country = requireText(input.country, 'Country');
     const role = requireText(input.notificationRole, 'Role');
@@ -3509,7 +3565,7 @@ export async function setProcureGuardApprover(input: {
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
-    console.error('[setProcureGuardApprover]', err);
+    log.error('setProcureGuardApprover.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to set approver.' };
   }
 }
@@ -3528,7 +3584,7 @@ export async function setProcureGuardApproverForColumn(input: {
       return { success: false, error: 'Permission management access is required.' };
     }
     const email = requireText(input.email, 'Email').toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { success: false, error: 'Enter a valid email address.' };
+    if (!isValidEmail(email)) return { success: false, error: 'Enter a valid email address.' };
     const displayName = requireText(input.displayName, 'Name');
     const role = requireText(input.notificationRole, 'Role');
     const rt = input.requestType === 'adhoc' ? 'adhoc' : 'advance';
@@ -3550,7 +3606,7 @@ export async function setProcureGuardApproverForColumn(input: {
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
-    console.error('[setProcureGuardApproverForColumn]', err);
+    log.error('setProcureGuardApproverForColumn.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to set column approver.' };
   }
 }
@@ -3575,7 +3631,7 @@ export async function getProcureGuardViewerGrants(): Promise<ProcureGuardViewerG
       countries: getProcureGuardCountryScopeCountries(r.country ? String(r.country) : null),
     }));
   } catch (err) {
-    console.error('[getProcureGuardViewerGrants]', err);
+    log.error('getProcureGuardViewerGrants.failed', err);
     return [];
   }
 }
@@ -3620,7 +3676,7 @@ export async function testProcureGuardN8nWebhook(): Promise<ActionResult<{
       error: response.ok ? undefined : `n8n responded with ${response.status} ${response.statusText || ''}`.trim(),
     };
   } catch (err) {
-    console.error('[testProcureGuardN8nWebhook]', err);
+    log.error('testProcureGuardN8nWebhook.failed', err);
     return {
       success: false,
       error: procureGuardWebhookErrorMessage(err),
@@ -3748,7 +3804,7 @@ async function loadRecipientCountryScopes(): Promise<RecipientCountryScopes> {
     }
     return scopes.size > 0 ? scopes : fromSeed();
   } catch (err) {
-    console.error('[loadRecipientCountryScopes] falling back to the in-source seed', err);
+    log.error('recipientCountryScopes.loadFailed', err, { fallback: 'in-source seed' });
     return fromSeed();
   }
 }
@@ -3819,7 +3875,7 @@ async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
 
   for (const row of rows) {
     const email = String(row.email ?? '').trim().toLowerCase();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
+    if (!email || !isValidEmail(email)) continue;
     if (PROCURE_GUARD_LOCAL_TEST_EMAILS.includes(email)) continue;
 
     const role = procureGuardRoleFromRecipient({
@@ -3942,7 +3998,7 @@ export async function resyncProcureGuardRecipientAccess(): Promise<ActionResult>
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
-    console.error('[resyncProcureGuardRecipientAccess]', err);
+    log.error('resyncProcureGuardRecipientAccess.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to re-sync approver access.' };
   }
 }
@@ -3959,7 +4015,7 @@ export async function deleteProcureGuardAccessRequest(userEmail: string): Promis
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
-    console.error('[deleteProcureGuardAccessRequest]', err);
+    log.error('deleteProcureGuardAccessRequest.failed', err);
     return { success: false, error: 'Failed to delete ProcureGuard access record.' };
   }
 }
@@ -4004,7 +4060,7 @@ export async function updateProcureGuardPermission(input: UpdateProcureGuardPerm
     revalidateProcureGuardPaths();
     return { success: true };
   } catch (err) {
-    console.error('[updateProcureGuardPermission]', err);
+    log.error('updateProcureGuardPermission.failed', err);
     return { success: false, error: err instanceof Error ? err.message : 'Failed to update permission.' };
   }
 }

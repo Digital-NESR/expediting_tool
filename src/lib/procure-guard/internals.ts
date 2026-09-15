@@ -11,6 +11,7 @@ import { request as httpsRequest } from 'https';
 import type { QueryResultRow } from 'pg';
 import procureGuardPool from '@/lib/db-procureguard';
 import { asSerialised, createSqlHelpers, serialise } from '@/lib/db/sql';
+import { logger } from '@/lib/logger';
 import { isActiveApprovalStatus, normalizeProcureGuardCountry } from '@/lib/procureGuard-utils';
 import type {
   AdhocPaymentRequest,
@@ -25,6 +26,8 @@ export type QueryParams = QueryParam[];
 export type { ExecResult } from '@/lib/db/sql';
 
 export const { sql, exec } = createSqlHelpers(procureGuardPool);
+
+const log = logger('procure-guard');
 
 export { serialise };
 
@@ -129,7 +132,7 @@ export async function ensureProcureGuardDelegationTable(): Promise<void> {
       await exec(`CREATE INDEX IF NOT EXISTS idx_pg_delegations_delegator ON procure_guard_delegations (LOWER(delegator_email))`);
     } catch (err) {
       delegationTableEnsured = null; // allow a later retry
-      console.error('[ensureProcureGuardDelegationTable]', err);
+      log.error('delegationTable.ensureFailed', err);
     }
   })();
   return delegationTableEnsured;
@@ -149,7 +152,7 @@ export async function getActiveDelegatesByDelegator(): Promise<Record<string, Pr
       (map[key] ??= []).push(d);
     }
   } catch (err) {
-    console.error('[ProcureGuard] active-delegates lookup failed', err);
+    log.error('activeDelegates.lookupFailed', err);
   }
   return map;
 }
@@ -189,9 +192,33 @@ export type ProcureGuardNotificationRecipient = {
   source_column: string;
 };
 
+/**
+ * Base URL for the links in ProcureGuard's approval emails.
+ *
+ * This used to fall back to `http://localhost:4001` unconditionally, so a production deployment
+ * with none of these set sent approvers an email whose "Open ProcureGuard" button pointed at their
+ * own machine — a dead link, with nothing in the logs to say why. It now throws in production
+ * rather than mailing out a link that cannot work; the localhost default survives only in
+ * development, where it is the right answer.
+ */
 export function getAppBaseUrl(): string {
-  const configured = process.env.CLIENT_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:4001';
-  return stripEnvQuotes(configured).replace(/\/$/, '');
+  const configured =
+    process.env.CLIENT_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '') ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+
+  const base = stripEnvQuotes(configured || '').replace(/\/$/, '');
+  if (base) return base;
+
+  if (process.env.NODE_ENV === 'production') {
+    log.error('appBaseUrl.unconfigured', null, {
+      hint: 'Set CLIENT_URL or NEXT_PUBLIC_APP_URL; email links cannot be built without it.',
+    });
+    throw new Error('ProcureGuard email links need CLIENT_URL or NEXT_PUBLIC_APP_URL to be set.');
+  }
+  return 'http://localhost:4001';
 }
 
 export function getRequestDetailUrl(requestType: ProcureGuardRequestType, id: number): string {

@@ -1,3 +1,5 @@
+import type { RedBullGameStats } from '@/app/actions/learning-game';
+
 export type CourseStatus = 'draft' | 'published';
 
 export interface LearningTrack {
@@ -246,4 +248,44 @@ export interface AdminTrackWithCourses extends LearningTrack {
 
 export interface LearningHubAdminData {
   tracks: AdminTrackWithCourses[];
+}
+
+/* ── Admin analytics shapes ───────────────────────────────────────────────
+   These used to live in `src/app/actions/learning-hub.ts`. A `'use server'`
+   module may only export async functions, so every type declared there is a
+   footgun waiting for someone to export a value beside it. ── */
+
+export interface LhCourseAnalytics {
+  id: number;
+  title: string;
+  status: string;
+  lessonCount: number;
+  learners: number;          // distinct users with any progress in the course
+  completedLearners: number; // users who completed every lesson in the course
+  lessonCompletions: number; // total lesson completions across users
+  completionPct: number;     // completedLearners / learners
+}
+
+export interface LhTrackAnalytics {
+  key: string;
+  name: string;
+  color: string | null;
+  learners: number;
+  lessonCount: number;
+  lessonCompletions: number;
+  completedLearners: number;
+  courses: LhCourseAnalytics[];
+}
+
+export interface LearningHubAnalytics {
+  overview: {
+    learners: number;
+    lessonCompletions: number;
+    courseCompletions: number;
+    trackCount: number;
+    courseCount: number;
+    lessonCount: number;
+  };
+  tracks: LhTrackAnalytics[];
+  redBull: RedBullGameStats;
 }

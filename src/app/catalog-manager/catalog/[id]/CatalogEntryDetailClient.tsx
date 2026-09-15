@@ -8,7 +8,7 @@ import { Icon, StatusPill, Chip, Avatar, SectionTitle } from '../../components/C
 import DecisionDialog from '../../components/DecisionDialog';
 import { submitForApproval, deactivateCatalogEntry, addEntryDocument, deleteEntryDocument, getDocumentDataUrl } from '@/app/actions/catalog-manager';
 import type { CatalogEntry } from '@/types/catalog-manager';
-import { fmtMoney, fmtUsd, fmtDateNice, daysUntil, isExpiringSoon, PROOF_TYPES, spendTypeTone } from '@/lib/catalog-manager-utils';
+import { fmtMoney, fmtUsd, fmtDateNice, daysUntil, isApproverTier, isExpiringSoon, PROOF_TYPES, spendTypeTone } from '@/lib/catalog-manager-utils';
 
 function fileSizeLabel(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -153,8 +153,8 @@ export default function CatalogEntryDetailClient({
           </div>
           <div className="relative text-right">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#1d4f31]">Approval tier</div>
-            <Chip tone={entry.tier_label.includes('Tier 2') ? 'amber' : 'green'}>
-              <Icon name={entry.tier_label.includes('Tier 2') ? 'approve' : 'check'} className="h-3.5 w-3.5" />{entry.tier_label}
+            <Chip tone={isApproverTier(entry.tier_label) ? 'amber' : 'green'}>
+              <Icon name={isApproverTier(entry.tier_label) ? 'approve' : 'check'} className="h-3.5 w-3.5" />{entry.tier_label}
             </Chip>
           </div>
         </div>

@@ -6,6 +6,13 @@
  */
 
 /**
+ * Track accent colour used when a track row carries no `color` of its own.
+ * NESR green — the same value the Learning Hub chrome is built from. Six client
+ * components each inlined this hex literal; a re-brand had to find all six.
+ */
+export const DEFAULT_TRACK_COLOR = '#307c4c';
+
+/**
  * "Coming Soon": there is genuinely nothing to open yet.
  *
  * Derived from the counts, never from a hard-coded list of track keys - a track/course

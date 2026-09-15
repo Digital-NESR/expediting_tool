@@ -16,6 +16,7 @@ import {
   type TiteUser,
 } from '@/lib/tite-auth';
 import { AccessError, requireAdmin, forbidden, normalizeEmail, isAdminActor } from '@/lib/require-access';
+import { logger } from '@/lib/logger';
 import type { Shipment, TiteListShipment, TiteAnalyticsShipment, ShipmentStats, ShipmentStatus, ShipmentDocument, ActivityLogRow, NotificationContact, CountryStakeholder, CountryStakeholderFull } from '@/types/tite';
 import {
   dbInsertDocument,
@@ -26,6 +27,8 @@ import {
   dbUpdateShipmentWithLog,
   ensureTiteActivityLogSchema,
 } from '@/lib/tite-documents';
+
+const log = logger('ti-te');
 
 /* ─── CreateShipmentInput ─────────────────────────────────────── */
 
@@ -177,10 +180,9 @@ export async function getAllShipments(approvedCountries?: string[]): Promise<Shi
       const db = b.extended_date || b.expiry_date || '';
       return da < db ? -1 : da > db ? 1 : 0;
     });
-    console.log(`[TI-TE] getAllShipments: ${fresh.length} rows returned`);
     return fresh;
   } catch (err) {
-    console.error('[TI-TE] getAllShipments error:', err);
+    log.error('getAllShipments.failed', err);
     return null;
   }
 }
@@ -244,7 +246,7 @@ export async function getShipmentsForList(
     });
     return fresh;
   } catch (err) {
-    console.error('[TI-TE] getShipmentsForList error:', err);
+    log.error('getShipmentsForList.failed', err);
     return null;
   }
 }
@@ -307,7 +309,7 @@ export async function getShipmentsForAnalytics(
     });
     return fresh;
   } catch (err) {
-    console.error('[TI-TE] getShipmentsForAnalytics error:', err);
+    log.error('getShipmentsForAnalytics.failed', err);
     return null;
   }
 }
@@ -328,7 +330,7 @@ export async function getShipmentById(id: number): Promise<Shipment | null> {
     if (!canViewTiteCountry(user, r.country)) return null;
     return { ...r, alert_level: shipmentAlertLevel(r) };
   } catch (err) {
-    console.error('[TI-TE] getShipmentById error:', err);
+    log.error('getShipmentById.failed', err);
     return null;
   }
 }
@@ -473,7 +475,7 @@ export async function createShipment(
 
     return { id: shipmentId };
   } catch (err) {
-    console.error('[TI-TE] createShipment error:', err);
+    log.error('createShipment.failed', err);
     return null;
   }
 }
@@ -510,7 +512,7 @@ export async function getShipmentStats(approvedCountries?: string[]): Promise<Sh
       export_count:      Number(r.export_count),
     };
   } catch (err) {
-    console.error('[TI-TE] getShipmentStats error:', err);
+    log.error('getShipmentStats.failed', err);
     return null;
   }
 }
@@ -531,7 +533,7 @@ export async function getAllTiteCountries(): Promise<string[]> {
     );
     return rows.map(r => String(r.country));
   } catch (err) {
-    console.error('[TI-TE] getAllTiteCountries error:', err);
+    log.error('getAllTiteCountries.failed', err);
     return [];
   }
 }
@@ -565,7 +567,7 @@ export async function getTiteUserAccess(userEmail: string): Promise<{
       approvedCountries: status === 'approved' ? (r.approved_countries ?? []) : [],
     };
   } catch (err) {
-    console.error('[TI-TE] getTiteUserAccess error:', err);
+    log.error('getTiteUserAccess.failed', err);
     return { status: 'new', approvedCountries: [] };
   }
 }
@@ -612,7 +614,7 @@ export async function submitTiteAccessRequest(params: {
     );
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] submitTiteAccessRequest error:', err);
+    log.error('submitTiteAccessRequest.failed', err);
     return { success: false, error: 'Failed to submit request. Please try again.' };
   }
 }
@@ -643,7 +645,7 @@ export async function approveTiteAccess(params: {
     );
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] approveTiteAccess error:', err);
+    log.error('approveTiteAccess.failed', err);
     return { success: false, error: 'Failed to approve access.' };
   }
 }
@@ -667,7 +669,7 @@ export async function rejectTiteAccess(
     );
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] rejectTiteAccess error:', err);
+    log.error('rejectTiteAccess.failed', err);
     return { success: false, error: 'Failed to reject access.' };
   }
 }
@@ -685,7 +687,7 @@ export async function deleteTiteAccessRequest(
     );
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] deleteTiteAccessRequest error:', err);
+    log.error('deleteTiteAccessRequest.failed', err);
     return { success: false, error: 'Failed to delete access request.' };
   }
 }
@@ -709,7 +711,7 @@ export async function revokeTiteAccess(
     );
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] revokeTiteAccess error:', err);
+    log.error('revokeTiteAccess.failed', err);
     return { success: false, error: 'Failed to revoke access.' };
   }
 }
@@ -736,7 +738,7 @@ export async function editTiteAccess(
     );
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] editTiteAccess error:', err);
+    log.error('editTiteAccess.failed', err);
     return { success: false, error: 'Failed to update access.' };
   }
 }
@@ -770,7 +772,7 @@ export async function getTiteAccessRequests(): Promise<TiteAccessRequestRow[]> {
       notes:               r.notes        ?? null,
     }));
   } catch (err) {
-    console.error('[TI-TE] getTiteAccessRequests error:', err);
+    log.error('getTiteAccessRequests.failed', err);
     return [];
   }
 }
@@ -785,7 +787,7 @@ export async function getTitePendingCount(): Promise<number> {
     );
     return Number(rows[0]?.cnt ?? 0);
   } catch (err) {
-    console.error('[TI-TE] getTitePendingCount error:', err);
+    log.error('getTitePendingCount.failed', err);
     return 0;
   }
 }
@@ -801,7 +803,7 @@ export async function getShipmentDocuments(
     if (!(await canReadShipment(user, shipmentId))) return [];
     return await dbGetDocuments(shipmentId);
   } catch (err) {
-    console.error('[TI-TE] getShipmentDocuments error:', err);
+    log.error('getShipmentDocuments.failed', err);
     return [];
   }
 }
@@ -846,7 +848,7 @@ export async function uploadShipmentDocument(
 
     return { success: true, document: doc };
   } catch (err) {
-    console.error('[TI-TE] uploadShipmentDocument error:', err);
+    log.error('uploadShipmentDocument.failed', err);
     return { success: false, error: 'Upload failed. Please try again.' };
   }
 }
@@ -870,7 +872,7 @@ export async function deleteShipmentDocument(
     await dbDeleteDocument(documentId);
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] deleteShipmentDocument error:', err);
+    log.error('deleteShipmentDocument.failed', err);
     return { success: false, error: 'Delete failed. Please try again.' };
   }
 }
@@ -886,7 +888,7 @@ export async function getShipmentActivityLog(
     if (!(await canReadShipment(user, shipmentId))) return [];
     return await dbGetActivityLog(shipmentId);
   } catch (err) {
-    console.error('[TI-TE] getShipmentActivityLog error:', err);
+    log.error('getShipmentActivityLog.failed', err);
     return [];
   }
 }
@@ -920,7 +922,7 @@ export async function extendShipment(params: {
     });
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] extendShipment error:', err);
+    log.error('extendShipment.failed', err);
     return { success: false, error: 'Failed to extend shipment.' };
   }
 }
@@ -950,7 +952,7 @@ export async function closeShipment(params: {
     });
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] closeShipment error:', err);
+    log.error('closeShipment.failed', err);
     return { success: false, error: 'Failed to close shipment.' };
   }
 }
@@ -980,7 +982,7 @@ export async function markRefundReceived(params: {
     });
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] markRefundReceived error:', err);
+    log.error('markRefundReceived.failed', err);
     return { success: false, error: 'Failed to mark refund received.' };
   }
 }
@@ -1058,7 +1060,7 @@ export async function updateShipmentStatus(params: {
 
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] updateShipmentStatus error:', err);
+    log.error('updateShipmentStatus.failed', err);
     return { success: false, error: 'Failed to update status. Please try again.' };
   }
 }
@@ -1080,7 +1082,7 @@ export async function getCountryStakeholders(
     );
     return rows;
   } catch (err) {
-    console.error('[TI-TE] getCountryStakeholders error:', err);
+    log.error('getCountryStakeholders.failed', err);
     return [];
   }
 }
@@ -1098,7 +1100,7 @@ export async function getAllStakeholders(): Promise<CountryStakeholderFull[]> {
     );
     return rows;
   } catch (err) {
-    console.error('[TI-TE] getAllStakeholders error:', err);
+    log.error('getAllStakeholders.failed', err);
     return [];
   }
 }
@@ -1121,7 +1123,7 @@ export async function addStakeholder(params: {
     );
     return { success: true, stakeholder: rows[0] };
   } catch (err) {
-    console.error('[TI-TE] addStakeholder error:', err);
+    log.error('addStakeholder.failed', err);
     return { success: false, error: 'Failed to add notifier.' };
   }
 }
@@ -1148,7 +1150,7 @@ export async function updateStakeholder(params: {
     if (rows.length === 0) return { success: false, error: 'Notifier not found.' };
     return { success: true, stakeholder: rows[0] };
   } catch (err) {
-    console.error('[TI-TE] updateStakeholder error:', err);
+    log.error('updateStakeholder.failed', err);
     return { success: false, error: 'Failed to update notifier.' };
   }
 }
@@ -1161,7 +1163,7 @@ export async function deleteStakeholder(id: number): Promise<{ success: boolean;
     await titePool.query(`DELETE FROM country_stakeholders WHERE id = $1`, [id]);
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] deleteStakeholder error:', err);
+    log.error('deleteStakeholder.failed', err);
     return { success: false, error: 'Failed to delete notifier.' };
   }
 }
@@ -1180,7 +1182,7 @@ export async function toggleStakeholderActive(
     );
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] toggleStakeholderActive error:', err);
+    log.error('toggleStakeholderActive.failed', err);
     return { success: false, error: 'Failed to toggle status.' };
   }
 }
@@ -1210,7 +1212,7 @@ export async function getShipmentNotificationStatus(
     );
     return rows;
   } catch (err) {
-    console.error('[TI-TE] getShipmentNotificationStatus error:', err);
+    log.error('getShipmentNotificationStatus.failed', err);
     return [];
   }
 }
@@ -1235,7 +1237,7 @@ export async function getShipmentNotificationContacts(
     );
     return rows;
   } catch (err) {
-    console.error('[TI-TE] getShipmentNotificationContacts error:', err);
+    log.error('getShipmentNotificationContacts.failed', err);
     return [];
   }
 }
@@ -1309,7 +1311,7 @@ export async function saveNotificationContacts(params: {
 
     return { success: true };
   } catch (err) {
-    console.error('[TI-TE] saveNotificationContacts error:', err);
+    log.error('saveNotificationContacts.failed', err);
     return { success: false, error: 'Failed to save notification contacts.' };
   }
 }
@@ -1378,7 +1380,7 @@ export async function getRecentActivity(
     );
     return rows;
   } catch (err) {
-    console.error('[TI-TE] getRecentActivity error:', err);
+    log.error('getRecentActivity.failed', err);
     return [];
   }
 }

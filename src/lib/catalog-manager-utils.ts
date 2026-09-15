@@ -291,9 +291,24 @@ export function isExpiringSoon(status: CatalogStatus, expiry: string | null, tod
 
 /* ---------------- approval tier ---------------- */
 
+/**
+ * The two tier labels, as one definition. `catalog_entry.tier_label` stores this text, and the UI
+ * used to work out the tier by asking whether the stored label contained the substring "Tier 2" —
+ * so renaming the label (to "Tier II", say, or to something with the word Approver in it) silently
+ * reclassified every entry on screen. Read the tier through `isApproverTier` instead; both the
+ * writer and the readers then move together when the wording changes.
+ */
+export const TIER_1_LABEL = 'Tier 1 — Auto';
+export const TIER_2_LABEL = 'Tier 2 — Approver';
+
 export function approvalTier(usdEquivalent: number, thresholdUsd: number = APPROVAL_THRESHOLD_USD): { needsApproval: boolean; label: string } {
   const needsApproval = usdEquivalent >= thresholdUsd;
-  return { needsApproval, label: needsApproval ? 'Tier 2 — Approver' : 'Tier 1 — Auto' };
+  return { needsApproval, label: needsApproval ? TIER_2_LABEL : TIER_1_LABEL };
+}
+
+/** Does a stored `tier_label` mean "this needed an approver"? */
+export function isApproverTier(tierLabel: string | null | undefined): boolean {
+  return (tierLabel ?? '').trim() === TIER_2_LABEL;
 }
 
 /** A configurable approval-threshold rule (null country/category = "any"). */

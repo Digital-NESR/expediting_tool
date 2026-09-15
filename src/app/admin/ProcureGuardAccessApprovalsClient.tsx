@@ -502,7 +502,6 @@ function GrantViewerAccess() {
 export default function ProcureGuardAccessApprovalsClient({
   onPendingCountChange,
 }: {
-  userEmail?: string;
   onPendingCountChange?: (count: number) => void;
 }) {
   const [refreshKey, setRefreshKey] = useState(0);

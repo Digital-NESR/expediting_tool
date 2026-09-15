@@ -5,11 +5,9 @@
 // spend_type classifies each category as Direct or Indirect spend.
 
 export type SpendTypeName = "Direct" | "Indirect";
-export interface TaxCommodity { n: string; f: string; code: string; desc: string; kw: string[] }
+export interface TaxCommodity { n: string; f: string; code: string; desc: string }
 export interface TaxSubcategory { name: string; commodities: TaxCommodity[] }
 export interface TaxCategory { type: SpendTypeName; name: string; subs: TaxSubcategory[] }
-
-export const SPEND_TYPES = ["Direct", "Indirect"] as const;
 
 export const SPEND_TAXONOMY: TaxCategory[] = [
   {
@@ -23,15 +21,13 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Class G Cement",
             "f": "Cement",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Oil Well Lightweight Cement",
             "f": "Cement",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -48,8 +44,7 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Chemicals",
             "f": "Chemicals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -60,15 +55,13 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Base Fluids & Brines",
             "f": "Base Fluids & Brines",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Monovalent brines",
             "f": "Completion fluids",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -79,127 +72,109 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Commodities Chemicals",
             "f": "Commodities Chemicals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Methanol",
             "f": "Commodities Chemicals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hydrochloric acid",
             "f": "Acid",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Class G Cement",
             "f": "Cement",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Oil Well Lightweight Cement",
             "f": "Cement",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Oil well standard fine type III cement",
             "f": "Cement",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cement Extenders",
             "f": "Cement Extenders",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drilling mud and materials",
             "f": "Drilling mud and materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mud weighting Agent",
             "f": "Drilling mud and materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Acetylene",
             "f": "Gases",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Carbon Dioxide",
             "f": "Gases",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Nitrogen",
             "f": "Gases",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ammonium sulphate",
             "f": "Inorganic compounds",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Inorganic acids",
             "f": "Inorganic compounds",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Inorganic metal salts",
             "f": "Inorganic compounds",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sodium hydroxide",
             "f": "Inorganic compounds",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Liquid Nitrogen",
             "f": "Nitrogen",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wetting Agents",
             "f": "Wetting Agents",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -210,15 +185,13 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Minerals",
             "f": "Minerals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Barium Ba",
             "f": "Barite",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -229,29 +202,25 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Cement expanding agents",
             "f": "Cement expanding agents",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ceramic proppants",
             "f": "Ceramic proppants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Resin Coated Ceramics",
             "f": "Resin Coated Ceramics",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fracturing Sands",
             "f": "Well fracturing proppants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -262,358 +231,307 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Specialty Chemicals",
             "f": "Specialty Chemicals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Acidic polymer breakers",
             "f": "Acidic polymer breakers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Anionic Friction Reducer",
             "f": "Anionic Friction Reducer",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Bactericide",
             "f": "Bactericide",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Organic polymer breakers",
             "f": "Breakers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Acid buffers",
             "f": "Buffer",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Basic buffers",
             "f": "Buffer",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Neutral buffers",
             "f": "Buffer",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cationic friction reducers",
             "f": "Cationic friction reducers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cement Defoamer: Silicone/PDMS-based",
             "f": "Cement Defoamer: Silicone/PDMS-based",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cement expanding agents",
             "f": "Cement Expander",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cement Extenders",
             "f": "Cement Extenders",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Organic clay stabilizers",
             "f": "Clay Stabilizer & Fluid reduce control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Corrosion Inhibitors",
             "f": "Corrosion Inhibitors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Crosslinker",
             "f": "Crosslinker",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cement Accelerator",
             "f": "Curing agents",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cement Retarders",
             "f": "Curing agents",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Detergent Surfactants",
             "f": "Detergent Surfactants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drilling mud and materials",
             "f": "Drilling mud and materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fluid spacers",
             "f": "Drilling mud and materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "General drilling chemical",
             "f": "Drilling mud and materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lost Circulation Material & Bridging",
             "f": "Drilling mud and materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fluid Loss Additives",
             "f": "Fluid Loss Additives",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Modified polymer fluid loss additives",
             "f": "Fluid Loss Additives",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Other Fluid Loss Additives Fluid Loss Additives",
             "f": "Fluid Loss Additives",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Anionic friction reducers",
             "f": "Friction Reducer",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Anti gas migration additives",
             "f": "Gas Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Canthaxanthin",
             "f": "Gelling Agent",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hydrochloric acid",
             "f": "Hydrochloric acid",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Diverting agents",
             "f": "Indicators and Reagents",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Inorganic Clay Stabilizers",
             "f": "Inorganic Clay Stabilizers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Inorganic metal salts",
             "f": "Inorganic compounds",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Inorganic metal Salts",
             "f": "Inorganic metal Salts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Iron Control Agent",
             "f": "Iron Control Agent",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Monovalent brines",
             "f": "Monovalent brines",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Natural gelling agents",
             "f": "Natural gelling agents",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Oxygenated solvents",
             "f": "Oxygenated solvents",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Scale Inhibitor",
             "f": "Scale Inhibitor",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "H2S absorbent",
             "f": "Scavengers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Production oil treatment chemicals",
             "f": "Scavengers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Scavengers",
             "f": "Scavengers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hydrocarbonated solvents",
             "f": "Solvents",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Inorganic clay stabilizers",
             "f": "Stabilizers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Anti-Foam",
             "f": "Surfactants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Anti-Sludge Agent",
             "f": "Surfactants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Detergent surfactants",
             "f": "Surfactants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Dispersant",
             "f": "Surfactants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Foaming Agent",
             "f": "Surfactants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Suspending Agent",
             "f": "Suspending Agent",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Synthetic gelling agents Polymer base",
             "f": "Visocosifier",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wetting Agents",
             "f": "Wetting Agents",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -630,197 +548,169 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "CC&C GPS Tracking - Hardware",
             "f": "General CC&C",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "CC&C GPS Tracking - Software / Services",
             "f": "General CC&C",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Engineering & Design CC&C (DNV)",
             "f": "General CC&C",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Engineering & Design CC&C (Non-DNV)",
             "f": "General CC&C",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Camp Accommodation Units",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Land Cabins - Manufacture (e.g. Offices, Labs)",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Land Cabins - Rental (e.g. Offices, Labs)",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Land Cabins - Repair & Maintenance",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Land Cabins - Spare Parts",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mobile Land Camps - Manufacture (e.g. Accommodations)",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mobile Land Camps - Rentals (e.g. Accommodations)",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mobile Land Camps - Repair & Maintenance",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mobile Land Camps - Spare Parts",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Office Containers",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Portable Buildings - Purchase",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Portable Buildings - Rental",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Welfare Units",
             "f": "Land Cabins & Camps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Offshore Accommodation Modules",
             "f": "Offshore Cabins",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Offshore Office Modules",
             "f": "Offshore Cabins",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Equipment Leasing Services",
             "f": "Operational Leasing",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Baskets & Skips",
             "f": "Portable Cargo",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cargo Carrying Units - Bins / Waste Skips",
             "f": "Portable Cargo",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cargo Carrying Units (CCU)",
             "f": "Portable Cargo",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cargo Carrying Units - Drill Cuttings / Mud Skips",
             "f": "Portable Cargo",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hazmat (Explosive, Radioactive) Transport Units - Purchase",
             "f": "Portable Cargo",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hazmat (Explosive, Radioactive) Transport Units - Rental",
             "f": "Portable Cargo",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Offshore Containers",
             "f": "Portable Cargo",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tank Containers",
             "f": "Portable Cargo",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -831,799 +721,685 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Cross Coupling Cable Protectors",
             "f": "Cable Protectors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hybrid PDC",
             "f": "Cables",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Permanent Downhole Cable (PDC)",
             "f": "Cables",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Twisted Pair PDC",
             "f": "Cables",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Casing Baskets",
             "f": "Casing Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Casing Cleaners",
             "f": "Casing Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Centralizers & Turbolizers",
             "f": "Casing Hardware",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Float Equipment (Collar, Shoe)",
             "f": "Casing Hardware",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Plugs (Top, Bottom)",
             "f": "Casing Hardware",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Stage Equipment (Mechanical, Hydraulic)",
             "f": "Casing Hardware",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Adjustable Joints",
             "f": "Completion Tubular Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Expansion Joints",
             "f": "Completion Tubular Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "No-Go Nipples & Locks",
             "f": "Completion Tubular Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "On-Off Units",
             "f": "Completion Tubular Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sliding Sleeves",
             "f": "Completion Tubular Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tubing Plugs",
             "f": "Completion Tubular Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Seamless Control Line",
             "f": "Control Line",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Welded Control Line",
             "f": "Control Line",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (Adjustable Joints)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (Elastomeric Sliding Sleeves)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (Expansion Joints)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (No-Go Locks)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (No-Go Nipples)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (Non-Elastomeric Sliding Sleeves)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (On-Off Units)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (Other Tubular)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (Pump Out Plugs/Subs)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (Receptacle Sub)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (Stinger)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (Swivels)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Tubular ACCS (Tubing Plugs)",
             "f": "Core Completions Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Downhole Lubricator Valve (SFIV)",
             "f": "Downhole Flow Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Flow Control Valves",
             "f": "Downhole Flow Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Formation Isolation Valve",
             "f": "Downhole Flow Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Landing Nipples",
             "f": "Downhole Flow Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Downhole Well Testing Test Tools",
             "f": "Downhole Well Testing Test Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "3 Way Sub",
             "f": "Dumb Iron Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Blast Joints",
             "f": "Dumb Iron Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Bull Plugs",
             "f": "Dumb Iron Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Completion Crossovers",
             "f": "Dumb Iron Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Flow Couplings",
             "f": "Dumb Iron Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Multiple Joint Lifting Plugs",
             "f": "Dumb Iron Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Perforated Pup Joints",
             "f": "Dumb Iron Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pipe Plug",
             "f": "Dumb Iron Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Production Tubing Pup Joints - Purchase",
             "f": "Dumb Iron Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Single Joint Lifting Plugs",
             "f": "Dumb Iron Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireline Entry Guide",
             "f": "Dumb Iron Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Annulus Gas Vent Valve",
             "f": "ESP Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Gas Vent Valve with SSD",
             "f": "ESP Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Penetrator",
             "f": "ESP Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Penetrator Retainer",
             "f": "ESP Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Vent Valve",
             "f": "ESP Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Liner Hanger Running Tools",
             "f": "Liner Hangers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Liner Hanger Systems",
             "f": "Liner Hangers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Blanking Plug",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Equalizing Check Valve",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Equalizing Plug",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Equalizing Prong",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Equalizing Sub",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Instrument Hanger",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lock",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Locking Collet",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Locking Dog",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lock Mandrel Redress Kit",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lock Mandrel Running Kit",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lock Ring",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Plug Redress Kit",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Prong Plug",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pulling Prong",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Running Prong",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Standing Valve",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tubing Hanger Lock",
             "f": "Lock & Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Multilateral Casing",
             "f": "Multilateral Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Multilateral Junctions",
             "f": "Multilateral Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Multilateral Packer Parts & Accessories",
             "f": "Multilateral Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Multilateral Packers",
             "f": "Multilateral Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Anchor Latch",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cement Retainer Settling Tool",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Crossover Seal Unit",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Locator",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Locator Seal Assembly/Seal Unit",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mandrel Seal Unit",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Millout Seal Unit",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Polished Bore Receptacle",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Seal Assembly",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Seal Bore Extension",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Seal Unit",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Spacer Seal Assembly",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireline Adapter Kit",
             "f": "Packers Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Bridge Plugs",
             "f": "Packers & Bridge Plugs",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cement Retainers",
             "f": "Packers & Bridge Plugs",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Packer Accessories",
             "f": "Packers & Bridge Plugs",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Production Packers",
             "f": "Packers & Bridge Plugs",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Perforating Accessories",
             "f": "Perforating Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Perforating Guns",
             "f": "Perforating Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Shaped Charges",
             "f": "Perforating Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "RMC - Splice Sub",
             "f": "RMC",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "RMC - Splice Sub RDK",
             "f": "RMC",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "RMC - Wellhead Outlet",
             "f": "RMC",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Gravel Pack Equipment",
             "f": "Sand Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Inflow Control Devices (ICD)",
             "f": "Sand Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sand Screens",
             "f": "Sand Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "O-Ring Seal Sub & Slick Joints",
             "f": "Sandface Completions",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "SSSV Accessories Communication Tool",
             "f": "SSSV Flow Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "SSSV Accessories Communication Tool RDK",
             "f": "SSSV Flow Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "SSSV Accessories Flow Tubes",
             "f": "SSSV Flow Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "SSSV Accessories Lockout Tool",
             "f": "SSSV Flow Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "SSSV Accessories Lockout Tool RDK",
             "f": "SSSV Flow Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "HPHT, Subsea or Downhole Connectors",
             "f": "Subsea Downhole Connectors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "SSSV Accessories",
             "f": "Subsurface Safety Valves",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "SSSV Systems",
             "f": "Subsurface Safety Valves",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Blast Joints & Flow Couplings",
             "f": "Tubing Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tubing Anchors",
             "f": "Tubing Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tubing Hangers",
             "f": "Tubing Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -1634,666 +1410,571 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Pneumatic, Hydraulic, Electric & Others",
             "f": "Actuators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air & Steam Accessories - Purchase",
             "f": "Air & Steam Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air & Steam Accessories - Rental",
             "f": "Air & Steam Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Assembly Design & Engineering Services",
             "f": "Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Oilfield Equipment Mounted on Truck/Trailer - Purchase",
             "f": "Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Oilfield Equipment Mounted on Truck/Trailer - Rental",
             "f": "Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pump Skid, Instrumentation, Controls",
             "f": "Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pump Skids",
             "f": "Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Bulk Compressor Maintenance",
             "f": "Bulk Compressors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Bulk Compressors - Purchase",
             "f": "Bulk Compressors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Bulk Compressors - Rental",
             "f": "Bulk Compressors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air Cooler, Centrifuge, Filtration Components",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air Dryers - Power Building",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air Receivers - Power Building",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air System Components - Power Building",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fuel System - Power Building",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hardware - Power Building",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hydraulic Installations - Power Building",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Motors - All Types (Hydraulic, Electric, Pneumatic)",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Power Generation (Hydraulic, Pneumatic & Electric)",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Radiators - Power Building",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Regulators - All Types",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Silencer - Power Building",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Spare Parts",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Valves",
             "f": "Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Compressor - Operating Services",
             "f": "Compressors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Compressor - Purchase",
             "f": "Compressors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Compressor - Rental",
             "f": "Compressors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Compressor - Repair & Maintenance",
             "f": "Compressors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "All KVA Rating",
             "f": "Generators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heat Exchangers (A&S Testing Applications) - Product",
             "f": "Heat Exchangers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heat Exchangers (A&S Testing Applications) - Rental",
             "f": "Heat Exchangers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Brake System",
             "f": "Mechanical",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Gearbox",
             "f": "Mechanical",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Other Rotating Equipment",
             "f": "Other Rotating Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Other Rotating Equipment - Spare Parts",
             "f": "Other Rotating Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Doghouse",
             "f": "Performance Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Performance Materials - Other",
             "f": "Performance Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Riser Buoyancy",
             "f": "Performance Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Stiffener",
             "f": "Performance Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Strake",
             "f": "Performance Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Thermal Insulation",
             "f": "Performance Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Diesel Generators - Purchase",
             "f": "Power Generators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Diesel Generators - Rental",
             "f": "Power Generators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Gas Turbine Generators",
             "f": "Power Generators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Generator Maintenance",
             "f": "Power Generators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Engine Accessories (Radiators, Exhaust & Cooling Systems)",
             "f": "Powertrain",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Engine Replacement Parts",
             "f": "Powertrain",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Engines < 750 hp",
             "f": "Powertrain",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Engines > 751 hp",
             "f": "Powertrain",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Engines Rental",
             "f": "Powertrain",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Engines Repair",
             "f": "Powertrain",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Planned/Routine Maintenance",
             "f": "Powertrain",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Transmission Parts",
             "f": "Powertrain",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Transmissions",
             "f": "Powertrain",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Unplanned Maintenance",
             "f": "Powertrain",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Centrifugal Pumps - Pump",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Centrifugal Pumps - Repair",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Centrifugal Pumps - Spare Parts",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cryogenic Pumps - Pump",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cryogenic Pumps - Repair",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cryogenic Pumps - Spare Parts",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Plunger Pumps - Fluid End Repair",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Plunger Pumps - Power End",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Plunger Pumps - Power End Repair",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Plunger Pumps - Pump 1000-2200 HP",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Plunger Pumps - Pump >= 2250 HP",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Plunger Pumps - Pump <= 600HP",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Progressive Cavity Pumps - Pump",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Progressive Cavity Pumps - Repair",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Progressive Cavity Pumps - Spare Parts",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sucker Rod Pumping System - Pump",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sucker Rod Pumping System - Repair",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sucker Rod Pumping System - Spare Parts",
             "f": "Pumps",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Cooling - Maintenance",
             "f": "Rig Cooling",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Cooling - Operating Services",
             "f": "Rig Cooling",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Cooling - Rental",
             "f": "Rig Cooling",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sand Filters - Purchase",
             "f": "Sand Filters",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sand Filters - Rental",
             "f": "Sand Filters",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Steam Generators - Maintenance",
             "f": "Steam Generators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Steam Generators - Operating Services",
             "f": "Steam Generators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Steam Generators - Purchase",
             "f": "Steam Generators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Steam Generators - Rental",
             "f": "Steam Generators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subsea Flow Meter, Multi-Phase",
             "f": "Subsea Meters",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subsea Flow Meter, Single-Phase",
             "f": "Subsea Meters",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subsea Wet Gas Meter",
             "f": "Subsea Meters",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subsea Buoyancy Equipment or Module",
             "f": "Subsea Pipeline Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subsea Fitting",
             "f": "Subsea Pipeline Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subsea Flange",
             "f": "Subsea Pipeline Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subsea Manifold",
             "f": "Subsea Project Installation Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subsea Running Tool",
             "f": "Subsea Project Installation Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subsea Production Monitoring Equipment",
             "f": "Subsea Well Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Well Test Compressor Services",
             "f": "Well Testing Compressors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Well Test Compressors - Purchase",
             "f": "Well Testing Compressors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Well Test Compressors - Rental",
             "f": "Well Testing Compressors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -2304,71 +1985,61 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Conventional Gyro Services",
             "f": "Downhole Data Acquisition",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Gravity/Magnetic Field Surveys",
             "f": "Downhole Data Acquisition",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mud Pulse Telemetry",
             "f": "Downhole Data Acquisition",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireless Data Transmission",
             "f": "Downhole Data Acquisition",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "GWD Services",
             "f": "Gyro While Drilling (GWD)",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "GWD Systems",
             "f": "Gyro While Drilling (GWD)",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Seismic Processing Services",
             "f": "Seismic Data Acquisition",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Seismic Survey Equipment",
             "f": "Seismic Data Acquisition",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Real-time Data Transmission",
             "f": "Surface Data Acquisition",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Surface Data Logging",
             "f": "Surface Data Acquisition",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -2379,99 +2050,85 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Gas Lift Equipment",
             "f": "Artificial Lift",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Progressive Cavity Pumps",
             "f": "Artificial Lift",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rod Pumps & Sucker Rods",
             "f": "Artificial Lift",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "CT Bottomhole Assemblies",
             "f": "Coiled Tubing Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "CT Clean Out Tools",
             "f": "Coiled Tubing Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "CT Milling Tools",
             "f": "Coiled Tubing Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Electric Submersible Pumps",
             "f": "ESP Systems",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "ESP Accessories",
             "f": "ESP Systems",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "ESP Motors & Cables",
             "f": "ESP Systems",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Bailers & Dump Valves",
             "f": "Slickline Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Gauge Cutters & Swabs",
             "f": "Slickline Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pulling & Running Tools",
             "f": "Slickline Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireline Punchers & Cutters",
             "f": "Wireline Conveyed Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireline Setting Tools",
             "f": "Wireline Conveyed Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -2482,729 +2139,625 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Casing Running & Tubing Equipment Rental",
             "f": "Casing Running & Tubing Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Casing Running & Tubing Service Offshore - Conventional",
             "f": "Casing Running & Tubing Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Casing Running & Tubing Service Offshore - CRT",
             "f": "Casing Running & Tubing Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Casing Running & Tubing Service Onshore - Conventional",
             "f": "Casing Running & Tubing Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Casing Running & Tubing Service Onshore - CRT",
             "f": "Casing Running & Tubing Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hydraulic Catwalk",
             "f": "Casing Running & Tubing Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drilling Spear",
             "f": "Casing While Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drilling Spear Parts & Accessories",
             "f": "Casing While Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drill Shoe",
             "f": "Casing While Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drill Shoe Parts & Accessories",
             "f": "Casing While Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Casing Scraper Parts & Accessories",
             "f": "Conventional Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Casing Scrapers",
             "f": "Conventional Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Coring Equipment",
             "f": "Conventional Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drill Pipe Thread Protectors",
             "f": "Conventional Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Gauge Rings",
             "f": "Conventional Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hole Openers (Downhole Drilling Applications)",
             "f": "Conventional Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rotating Control Head (Downhole Drilling Applications)",
             "f": "Conventional Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rotating Control Head Parts & Accessories",
             "f": "Conventional Drilling Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Conventional Gyro Services - LIH Insurance",
             "f": "Conventional Gyro",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Conventional Gyro Services - Lost in Hole (LIH)",
             "f": "Conventional Gyro",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Coring Services Offshore",
             "f": "Coring Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Coring Services Onshore",
             "f": "Coring Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Downhole Casing Inspection Tool & Accessories",
             "f": "Data Acquisition - Downhole",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Logging - Downhole Camera",
             "f": "Data Acquisition - Downhole",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Other Downhole Data Acquisition (MWD/LWD/DD/Ranging)",
             "f": "Data Acquisition - Downhole",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Downhole Drilling Mud/Fluid Analysis",
             "f": "Data Acquisition - Off Site/Lab",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Other Off-Site Laboratory Downhole Data Acquisition",
             "f": "Data Acquisition - Off Site/Lab",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Motor Accessories & Parts",
             "f": "Downhole Motors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mud Motor - Lost in Hole (LIH)",
             "f": "Downhole Motors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mud Motor - Lost in Hole (LIH) Insurance",
             "f": "Downhole Motors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mud Motor - Relines",
             "f": "Downhole Motors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mud Motor - Rotors, Stators, Power-Sections",
             "f": "Downhole Motors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Positive Displacement Motors",
             "f": "Downhole Motors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Turbine Motors",
             "f": "Downhole Motors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "PDC Bits - Purchase",
             "f": "Drilling Bits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "PDC Bits - Rental",
             "f": "Drilling Bits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Roller Cone Bits - Milltooth",
             "f": "Drilling Bits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Roller Cone Bits - TCI",
             "f": "Drilling Bits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Circulating Tools (Bypass Subs) - Purchase",
             "f": "Drilling Products",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Circulating Tools (Bypass Subs) - Rental",
             "f": "Drilling Products",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Debris Recovery Tools - Rental",
             "f": "Drilling Products",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drilling Products - Lost in Hole (LIH) Insurance",
             "f": "Drilling Products",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Reamers & Underreamers - Purchase",
             "f": "Drilling Products",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Reamers & Underreamers - Rental",
             "f": "Drilling Products",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fishing Jars",
             "f": "Fishing Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fishing Tools - Lost in Hole (LIH) Insurance",
             "f": "Fishing Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Magnets & Junk Baskets",
             "f": "Fishing Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mills & Cutters",
             "f": "Fishing Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Overshots & Spears",
             "f": "Fishing Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Coating Services",
             "f": "Machine Shop Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Threading Services",
             "f": "Machine Shop Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Welding Services",
             "f": "Machine Shop Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Downhole Casing",
             "f": "Oil Country Tubular Goods",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drill Pipe - Purchase",
             "f": "Oil Country Tubular Goods",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drill Pipe - Rental",
             "f": "Oil Country Tubular Goods",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heavy Weight Drill Pipe (HWDP) - Purchase",
             "f": "Oil Country Tubular Goods",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heavy Weight Drill Pipe (HWDP) - Rental",
             "f": "Oil Country Tubular Goods",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Line Pipe",
             "f": "Oil Country Tubular Goods",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Production Tubing",
             "f": "Oil Country Tubular Goods",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Camp & Catering at Rig Site",
             "f": "Other Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Equipment Rental - Rig Site",
             "f": "Other Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Other Rig Site Services",
             "f": "Other Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Mud Cleaning Services",
             "f": "Other Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wellsite Construction Services",
             "f": "Other Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wellsite Construction Services - Sub-Contracted Services",
             "f": "Other Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "WSV - Well Cementing Services (Alliance)",
             "f": "Rig Cementing System",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "DROPS Survey",
             "f": "Rig Inspection Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Human Competence Inspection",
             "f": "Rig Inspection Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Management System Inspection",
             "f": "Rig Inspection Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Other Rig Inspection Services",
             "f": "Rig Inspection Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Acceptance Inspection",
             "f": "Rig Inspection Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Offshore Drilling Rig Rentals",
             "f": "Rig Rentals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Offshore Workover Rig Rentals",
             "f": "Rig Rentals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Onshore Drilling Rig Rentals",
             "f": "Rig Rentals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Onshore Workover Rig Rentals",
             "f": "Rig Rentals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Move Services",
             "f": "Rig Rentals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "WSV - Multistage Acid Fracturing",
             "f": "Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "WSV - Multistage CO2 Fracturing",
             "f": "Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "WSV - Multistage Hydraulic Proppant Fracturing",
             "f": "Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "WSV - Single Stage Acid Fracturing",
             "f": "Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "WSV - Single Stage CO2 Fracturing",
             "f": "Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "WSV - Single Stage Hydraulic Proppant Fracturing",
             "f": "Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "WSV - Well Cementing Services",
             "f": "Rig Site Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Waste Offshore - Disposal Facility",
             "f": "Rig Waste Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Waste Offshore - Trucking",
             "f": "Rig Waste Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Waste Onshore - Disposal Facility",
             "f": "Rig Waste Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Waste Onshore - Trucking",
             "f": "Rig Waste Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Thru Tubing Mills",
             "f": "Thru Tubing Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Thru Tubing Whipstocks",
             "f": "Thru Tubing Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Casing & Tubing",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drill Collars",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drilling Tubular Pup Joints - Purchase",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drilling Tubular Pup Joints - Rental",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drill Pipe",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drillstring Crossovers & Subs - Purchase",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drillstring Crossovers & Subs - Rental",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heavy Weight Drill Pipe",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Stabilizer - Purchase",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Stabilizer - Rental",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tubulars - Lost in Hole (LIH)",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tubulars - Lost in Hole (LIH) Insurance",
             "f": "Tubulars",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "While Drilling Gyro",
             "f": "While Drilling Gyro",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "While Drilling Gyro - LIH Insurance",
             "f": "While Drilling Gyro",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "While Drilling Gyro - Lost in Hole (LIH)",
             "f": "While Drilling Gyro",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -3215,99 +2768,85 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Motor Control Centers",
             "f": "Electrical Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Power Distribution Equipment",
             "f": "Electrical Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Variable Frequency Drives",
             "f": "Electrical Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Actuators & Solenoids",
             "f": "Electro-Mechanical Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Control Systems",
             "f": "Electro-Mechanical Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Circuit Boards & PCBs",
             "f": "Electronic Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Integrated Circuits",
             "f": "Electronic Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Resistors & Capacitors",
             "f": "Electronic Components",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Accelerometers",
             "f": "Sensors & Transducers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Magnetometers",
             "f": "Sensors & Transducers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pressure Transducers",
             "f": "Sensors & Transducers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Temperature Sensors",
             "f": "Sensors & Transducers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Connectors & Harnesses",
             "f": "Wire, Cable & Connectors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Downhole Cables",
             "f": "Wire, Cable & Connectors",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -3318,57 +2857,49 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Routine Core Analysis",
             "f": "Core Analysis",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Special Core Analysis (SCAL)",
             "f": "Core Analysis",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mud Analysis Services",
             "f": "Fluid Analysis",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Oil & Gas PVT Analysis",
             "f": "Fluid Analysis",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Water Analysis Services",
             "f": "Fluid Analysis",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Chemical Analysis",
             "f": "Material Testing",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Metallurgical Testing",
             "f": "Material Testing",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Non-Destructive Testing (NDT)",
             "f": "Material Testing",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -3379,85 +2910,73 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Acoustic/Sonic Tools",
             "f": "Formation Evaluation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Nuclear Magnetic Resonance (NMR)",
             "f": "Formation Evaluation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Porosity Tools (Neutron, Density)",
             "f": "Formation Evaluation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Resistivity Tools",
             "f": "Formation Evaluation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Borehole Imaging Tools",
             "f": "Imaging Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Formation Micro-Imaging",
             "f": "Imaging Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Logging While Drilling (LWD) Tools",
             "f": "LWD/MWD Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Measurement While Drilling (MWD) Tools",
             "f": "LWD/MWD Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rotary Steerable Systems",
             "f": "LWD/MWD Tools",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cased Hole Logging Tools",
             "f": "Wireline Logging",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Open Hole Logging Tools",
             "f": "Wireline Logging",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Production Logging Tools",
             "f": "Wireline Logging",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -3468,50 +2987,43 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Design & Engineering Services",
             "f": "Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Skid Unit - Purchase",
             "f": "Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Skid Unit - Rental",
             "f": "Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Trailer/Truck Unit - Purchase",
             "f": "Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Trailer/Truck Unit - Rental",
             "f": "Assembly",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Skid Unit Refurbishment",
             "f": "Refurbishment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Trailer Unit Refurbishment",
             "f": "Refurbishment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -3522,323 +3034,277 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Coiled Tubing Pipe Purchase",
             "f": "Coiled Tubing Pipe",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Coiled Tubing Pipe Services",
             "f": "Coiled Tubing Pipe",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Flexible Hoses Services",
             "f": "Flow Control - Flexible Hoses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "High Pressure Flexible Hoses Purchase (Coflexip)",
             "f": "Flow Control - Flexible Hoses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "High Pressure Flexible Hoses Rental (Coflexip)",
             "f": "Flow Control - Flexible Hoses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Low Pressure Flexible Hoses Purchase",
             "f": "Flow Control - Flexible Hoses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Low Pressure Flexible Hoses Rental",
             "f": "Flow Control - Flexible Hoses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Surface Crossover, Adapters & Flanges",
             "f": "Flow Control - Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Treating Iron Accessories, Spare Parts & Consumables",
             "f": "Flow Control - Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Treating Iron Piping Purchase (Straight Joint, Swivel, Tee)",
             "f": "Flow Control - Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Treating Iron Rental",
             "f": "Flow Control - Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Treating Iron Services (Inspection, Certification, Repair)",
             "f": "Flow Control - Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Treating Iron Valves Purchase (Plug, Check, Relief Valves)",
             "f": "Flow Control - Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Well Testing Piping, Flowback Iron (Piping, Elbow, Tee)",
             "f": "Flow Control - Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Flexible Hoses",
             "f": "High Pressure Hoses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Flexible Steel Hoses (Coflexip)",
             "f": "High Pressure Hoses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "High Pressure Hoses - Rental",
             "f": "High Pressure Hoses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Flow Control Recertification",
             "f": "Recertification Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wellhead Maintenance & Recertification",
             "f": "Recertification Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Chokes & Choke Manifolds",
             "f": "Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Flowback Iron (Piping, Elbows)",
             "f": "Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Flow Control Valves (Gate, Globe, Ball)",
             "f": "Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pressure Relief & Safety Valves",
             "f": "Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Treating Iron Equipment",
             "f": "Valves & Piping",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cement Heads & Accessories",
             "f": "Wellhead Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Coiled Tubing WPCE",
             "f": "Wellhead Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drilling BOP",
             "f": "Wellhead Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Frac Head Equipment",
             "f": "Wellhead Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subsea Wellhead Equipment",
             "f": "Wellhead Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Surface Wellhead & Xmas Tree",
             "f": "Wellhead Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireline/Slickline WPCE",
             "f": "Wellhead Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Coiled Tubing WPCE Accessories, Spare Parts & Consumables",
             "f": "Wellhead Equipment - Coiled Tubing WPCE",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Coiled Tubing WPCE Purchase",
             "f": "Wellhead Equipment - Coiled Tubing WPCE",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Coiled Tubing WPCE Rental",
             "f": "Wellhead Equipment - Coiled Tubing WPCE",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Coiled Tubing WPCE Services",
             "f": "Wellhead Equipment - Coiled Tubing WPCE",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Surface Wellhead Purchase (Frac Head, Flowhead, Cement Head)",
             "f": "Wellhead Equipment - Surface Wellhead",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Surface Wellhead Rental (Frac Head, Flowhead, Cement Head)",
             "f": "Wellhead Equipment - Surface Wellhead",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Surface Wellhead Services (Frac Head, Flowhead, Cement Head)",
             "f": "Wellhead Equipment - Surface Wellhead",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Treesaver Tool Accessories, Spare Parts & Consumables",
             "f": "Wellhead Equipment - Treesaver",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Treesaver Tool Purchase (Wellhead Isolation Tool)",
             "f": "Wellhead Equipment - Treesaver",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Treesaver Tool Rental (Wellhead Isolation Tool)",
             "f": "Wellhead Equipment - Treesaver",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Treesaver Tool Services (Wellhead Isolation Tool)",
             "f": "Wellhead Equipment - Treesaver",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireline/Slickline WPCE Accessories, Spare Parts & Consumables",
             "f": "Wellhead Equipment - Wireline/Slickline WPCE",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireline/Slickline WPCE Purchase",
             "f": "Wellhead Equipment - Wireline/Slickline WPCE",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireline/Slickline WPCE Rental",
             "f": "Wellhead Equipment - Wireline/Slickline WPCE",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireline/Slickline WPCE Services",
             "f": "Wellhead Equipment - Wireline/Slickline WPCE",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -3849,57 +3315,49 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Detonators & Boosters",
             "f": "Explosives",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Explosive Accessories",
             "f": "Explosives",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Explosive Powder",
             "f": "Explosives",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Shaped Charges",
             "f": "Explosives",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Neutron Sources",
             "f": "Nuclear Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pulse Neutron Generators (PNG)",
             "f": "Nuclear Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Logging Sources",
             "f": "Radioactive Sources",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Source Handling Equipment",
             "f": "Radioactive Sources",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -3916,50 +3374,43 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Diesel Exhaust Fluid (DEF) for On-Site Fueling",
             "f": "Bulk & Onsite",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Diesel - Off-Road (Red/Dyed) Bulk Transport/Inventory Fuel",
             "f": "Bulk & Onsite",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Diesel - Off-Road (Red/Dyed) On-Site Fueling",
             "f": "Bulk & Onsite",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Diesel - On-Road (Green/Clear) Bulk Transport/Inventory Fuel",
             "f": "Bulk & Onsite",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Diesel - On-Road (Green/Clear) On-Site Fueling",
             "f": "Bulk & Onsite",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Diesel - Off-Road Fuel Card/Petrol Station",
             "f": "Retail & Alternative",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Diesel - On-Road Fuel Card/Petrol Station",
             "f": "Retail & Alternative",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -3970,120 +3421,103 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Compressed Natural Gas (CNG)",
             "f": "Alternative Fuels",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ethanol",
             "f": "Alternative Fuels",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ethanol Based Fuel",
             "f": "Alternative Fuels",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Kerosene",
             "f": "Alternative Fuels",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Liquefied Natural Gas (LNG)",
             "f": "Alternative Fuels",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Methane",
             "f": "Alternative Fuels",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Unleaded Gasoline for Bulk Transport/Inventory Fuel",
             "f": "Alternative Fuels",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Unleaded Gasoline for Fuel Card/Petrol Station",
             "f": "Alternative Fuels",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Unleaded Gasoline for On-Site Fueling",
             "f": "Alternative Fuels",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Urea/Diesel Exhaust Fluid (DEF)",
             "f": "Alternative Fuels",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Vehicle Propane",
             "f": "Alternative Fuels",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Argon",
             "f": "Industrial Gases",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Carbon Dioxide (CO2)",
             "f": "Industrial Gases",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Helium",
             "f": "Industrial Gases",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Industrial Nitrogen",
             "f": "Industrial Gases",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Industrial Oxygen",
             "f": "Industrial Gases",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mixed & Specialty Gases",
             "f": "Industrial Gases",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4094,36 +3528,31 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Antifreeze",
             "f": "Lubricants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Engine Oil",
             "f": "Lubricants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hydraulic Fluid",
             "f": "Lubricants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Industrial Grease",
             "f": "Lubricants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Transmission Fluid for Land Based Lubricants",
             "f": "Lubricants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -4140,29 +3569,25 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Flow Meter Calibration",
             "f": "Calibration Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Instrument Calibration",
             "f": "Calibration Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pressure Gauge Calibration",
             "f": "Calibration Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Temperature Calibration",
             "f": "Calibration Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4173,29 +3598,25 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Equipment Certification",
             "f": "Certification Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Material Certification",
             "f": "Certification Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Personnel Certification",
             "f": "Certification Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "System Certification",
             "f": "Certification Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4206,92 +3627,79 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Internal Audits",
             "f": "Audits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Third Party Audits",
             "f": "Audits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Class Services - Marine Assurance",
             "f": "Class Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Class Services - Offshore Classification",
             "f": "Class Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Marine Classification",
             "f": "Class Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Offshore Classification",
             "f": "Class Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "QHSE Training",
             "f": "Consulting Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Risk Management Advisory",
             "f": "Consulting Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Technical Support Services",
             "f": "Consulting Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Consulting Services - Technical Support",
             "f": "Consulting Services (Inspection & Quality)",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Inspection Services",
             "f": "Technical Assurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "NDT Inspection Services",
             "f": "Technical Assurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Testing Services",
             "f": "Technical Assurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -4308,78 +3716,67 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Crane Maintenance Services",
             "f": "Crane Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Crane Operator Services",
             "f": "Crane Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Crane Rental Services",
             "f": "Crane Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "All Terrain Cranes",
             "f": "Mobile Cranes",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Crawler Cranes",
             "f": "Mobile Cranes",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Truck Mounted Cranes",
             "f": "Mobile Cranes",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Knuckle Boom Cranes",
             "f": "Offshore Cranes",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pedestal Cranes",
             "f": "Offshore Cranes",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Gantry Cranes",
             "f": "Static Cranes",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Overhead Cranes",
             "f": "Static Cranes",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tower Cranes",
             "f": "Static Cranes",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4390,85 +3787,73 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Diesel/LPG Forklifts",
             "f": "Counterbalance Forklifts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Electric Forklifts",
             "f": "Counterbalance Forklifts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Forklift Maintenance",
             "f": "Forklift Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Forklift Rental",
             "f": "Forklift Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rough Terrain Forklifts",
             "f": "Heavy Duty Forklifts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Telehandlers",
             "f": "Heavy Duty Forklifts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pallet Trucks",
             "f": "Warehouse Forklifts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Reach Trucks",
             "f": "Warehouse Forklifts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lifting Equipment & Accessories",
             "f": "Material Handling",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lifting Equipment & Accessories Maintenance & Certification",
             "f": "Material Handling",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lifting Equipment & Accessories Rental",
             "f": "Material Handling",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Material Handling Equipment (Forklifts, Pallet Trucks)",
             "f": "Material Handling",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4479,43 +3864,37 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Rigging Hardware",
             "f": "Rigging Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Spreader Bars & Lifting Beams",
             "f": "Rigging Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Certified Riggers",
             "f": "Rigging Personnel",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rigging Supervisors",
             "f": "Rigging Personnel",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heavy Lift Services",
             "f": "Rigging Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lift Planning Services",
             "f": "Rigging Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4526,85 +3905,73 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Grade 100 Chain Slings",
             "f": "Chain Slings",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Grade 80 Chain Slings",
             "f": "Chain Slings",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lifting Equipment Inspection",
             "f": "Inspection Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Load Testing Services",
             "f": "Inspection Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Eyebolts & Pad Eyes",
             "f": "Lifting Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hooks & Links",
             "f": "Lifting Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Shackles",
             "f": "Lifting Accessories",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Polyester Round Slings",
             "f": "Synthetic Slings",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Webbing Slings",
             "f": "Synthetic Slings",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Steel Wire Rope",
             "f": "Wire Rope",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wire Rope Fittings",
             "f": "Wire Rope",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wire Rope Slings",
             "f": "Wire Rope",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -4621,22 +3988,19 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Downhole Tool Cleaning Services",
             "f": "Downhole Tool MRO",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Downhole Tool Repair & Reconditioning",
             "f": "Downhole Tool MRO",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Downhole Tool Spare Parts",
             "f": "Downhole Tool MRO",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4647,29 +4011,25 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Manufacturing Machinery (CNC, Lathe, Grinding, Welding)",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Manufacturing Machinery Servicing",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Paints (Bulk, Bucket, etc.)",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Paint Service",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4680,22 +4040,19 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Field Equipment Calibration Services",
             "f": "Field Equipment MRO",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Field Equipment Repair & Overhaul",
             "f": "Field Equipment MRO",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Field Equipment Spare Parts & Components",
             "f": "Field Equipment MRO",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4706,8 +4063,7 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Filtration & Rubber Accessories",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4718,15 +4074,13 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Hydraulic or Pneumatic Pump & Related Spares",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pipes or Hoses, Valves & Fittings (Commercial Items)",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4737,22 +4091,19 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Acoustic Insulation Materials",
             "f": "Insulation Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Insulation Installation Services",
             "f": "Insulation Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Thermal Insulation Materials",
             "f": "Insulation Materials",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4763,57 +4114,49 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Adhesives & Sealants",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fasteners & Hardware",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Kevlar, Optical Fiber, Yarn, Other Fabrics",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Laboratory & Testing - Calibration & Repair Services",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Laboratory & Testing - Lab Instruments (Non-Chemical)",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Measuring & Inspection",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mechanical Drive & Accessories",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tools & Metal Cutting Accessories",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4824,8 +4167,7 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Material Handling & Securing",
             "f": "MRO or Distributor Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4836,22 +4178,19 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Mechanical Seal Assemblies",
             "f": "Mechanical Seals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mechanical Seal Repair Services",
             "f": "Mechanical Seals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mechanical Seal Spare Parts & Kits",
             "f": "Mechanical Seals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4862,22 +4201,19 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Radiator Cores & Assemblies",
             "f": "Radiators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Radiator Repair & Maintenance",
             "f": "Radiators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Radiator Spare Parts",
             "f": "Radiators",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -4888,15 +4224,13 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Rigging Equipment Inspection & Recertification",
             "f": "Rigging MRO",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sling & Shackle Replacement Parts",
             "f": "Rigging MRO",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -4913,8 +4247,7 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Fracturing Sands",
             "f": "Well fracturing proppants",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -4931,15 +4264,13 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Helium",
             "f": "Gases",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Liquid Nitrogen",
             "f": "Nitrogen",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -4956,43 +4287,37 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "HVAC Equipment Rental",
             "f": "General Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lighting Equipment Rental",
             "f": "General Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Power Tools Rental",
             "f": "General Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Communication Equipment Rental",
             "f": "Office Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "IT Equipment Rental",
             "f": "Office Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Office Furniture Rental",
             "f": "Office Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -5003,64 +4328,55 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Flowback Equipment Rental",
             "f": "Completion Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wellhead Equipment Rental",
             "f": "Completion Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Well Testing Equipment Rental",
             "f": "Completion Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mud Systems Rental",
             "f": "Drilling Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Rentals",
             "f": "Drilling Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Solids Control Rental",
             "f": "Drilling Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Coiled Tubing Units Rental",
             "f": "Well Service Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Nitrogen Equipment Rental",
             "f": "Well Service Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireline Units Rental",
             "f": "Well Service Equipment Rental",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -5077,78 +4393,67 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Catering Services",
             "f": "Catering Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Banquet Services",
             "f": "Event Catering",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Meeting & Event Catering",
             "f": "Event Catering",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Kitchen Equipment Maintenance",
             "f": "Kitchen Operations",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Kitchen Equipment Supply",
             "f": "Kitchen Operations",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cafeteria Services",
             "f": "On-Site Catering",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Crew Catering Services",
             "f": "On-Site Catering",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Rig Catering Services",
             "f": "On-Site Catering",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drinking Water Supply",
             "f": "Pantry & Vending",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pantry Supplies",
             "f": "Pantry & Vending",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Vending Machine Services",
             "f": "Pantry & Vending",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -5159,309 +4464,265 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Engineering & Construction",
             "f": "Engineering & Construction",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Professional Fees & Commissioning Services",
             "f": "Closing Process - Commissioning Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Civil Works Construction",
             "f": "Construction Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Electrical Construction",
             "f": "Construction Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "General Contracting",
             "f": "Construction Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "HVAC Installation",
             "f": "Construction Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Plumbing Construction",
             "f": "Construction Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Structural Construction",
             "f": "Construction Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Architectural Design",
             "f": "Design Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Civil Engineering Design",
             "f": "Design Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "MEP Design Services",
             "f": "Design Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Structural Engineering Design",
             "f": "Design Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Architectural, Civil & Structural Works",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Construction Consultancy & Professional Services",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Construction Materials & Equipment",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Energy Conservation & Energy Saving Features Installation",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fit Out & Site Renovation Products",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fit Out & Site Renovation Services",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "General Contractor Management & Preliminaries",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "IT, Communications, Security, Safety & Access Equipment",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "IT, Communications, Security, Safety & Access Installation",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Landscape Architecture",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mechanical, Electrical & Plumbing (MEP)",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Non Rig-site Non-Facility Construction (Clients Contracts)",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pre-Fabricated Structures",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Site Preparation & Exterior Works",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Site Supervision & Project Management",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Site Utilities & Services Network",
             "f": "Execution Process - Construction Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "All Disciplines Construction Contractor Design",
             "f": "Execution Process - Design Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Architectural, Interior Design & Professional Services",
             "f": "Execution Process - Design Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Civil Engineering Discipline",
             "f": "Execution Process - Design Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "HVAC Design Discipline",
             "f": "Execution Process - Design Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mechanical & Electrical Engineering Discipline",
             "f": "Execution Process - Design Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Plumbing & Drainage Engineering Discipline",
             "f": "Execution Process - Design Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Quantity Surveying & Cost Estimation",
             "f": "Execution Process - Design Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Structural & Geotechnical Engineering Disciplines",
             "f": "Execution Process - Design Phase",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Consulting to Improve Operational Flow within Facility",
             "f": "Planning Process - Feasibility",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Environmental & Legal Assessment & Permits",
             "f": "Planning Process - Feasibility",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Site Assessment, Surveys & Investigations",
             "f": "Planning Process - Feasibility",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Construction Management Services",
             "f": "Project Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Project Commissioning Services",
             "f": "Project Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fire Protection Systems",
             "f": "Specialty Construction",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Landscaping Construction",
             "f": "Specialty Construction",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Security Systems Installation",
             "f": "Specialty Construction",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -5472,57 +4733,49 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Furniture",
             "f": "Furniture",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Kitchen Appliances",
             "f": "Appliances",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Office Appliances",
             "f": "Appliances",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Meeting Room Furniture",
             "f": "Office Furniture",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Office Chairs & Seating",
             "f": "Office Furniture",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Office Desks & Workstations",
             "f": "Office Furniture",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Filing Cabinets & Storage",
             "f": "Storage Furniture",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Shelving Systems",
             "f": "Storage Furniture",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -5533,225 +4786,193 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Operations & Maintenance",
             "f": "Operations & Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Archiving & Document Storage",
             "f": "Archiving & Document Storage",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Shredding Services",
             "f": "Archiving & Document Storage",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Building Exterior Maintenance",
             "f": "Building Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Corrective Maintenance Services",
             "f": "Building Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Preventive Maintenance Services",
             "f": "Building Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Deep Cleaning Services",
             "f": "Cleaning Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Janitorial Services",
             "f": "Cleaning Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Window Cleaning Services",
             "f": "Cleaning Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fire & Life Safety Equipment",
             "f": "Fire & Life Safety Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fire & Life Safety Services",
             "f": "Fire & Life Safety Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Landscaping Services",
             "f": "Grounds Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Roads & Pavement Maintenance",
             "f": "Grounds Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Facility - Skilled Temp Labor (Handy Man, Electrician)",
             "f": "Hard Services - Temp Labor",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Facility - Laundry Services",
             "f": "Laundry Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mailing Room Services",
             "f": "Mailing Room Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "At Facility Medic & Nurses Services",
             "f": "Medical Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Non-Facility Medic & Nurses Services",
             "f": "Medical Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Medicines & First Aid Supplies",
             "f": "Medicines & First Aid",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Supplies for Log Printing",
             "f": "Non-Facility Supplies",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Office Assistance (Receptionist, Admins)",
             "f": "Office Assistance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Office Moving (Move, Add & Changes)",
             "f": "Office Moving",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Office Supplies (Excluding IT & Operation Supplies)",
             "f": "Office Supplies",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pest Control Services",
             "f": "Pest Control",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "HSE Certification/Inspection for Statutory & Safety",
             "f": "Statutory Safety Inspection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Electrical Maintenance Services",
             "f": "Technical Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Elevator Maintenance Services",
             "f": "Technical Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Generator & UPS Maintenance",
             "f": "Technical Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "HVAC Maintenance Services",
             "f": "Technical Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Plumbing Maintenance Services",
             "f": "Technical Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Facility - Non-Skilled (Helper, Cleaner)",
             "f": "Temp Labor - Facility",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Facility - Skilled (Handy Man, Electrician, Fork-Driver)",
             "f": "Temp Labor - Facility",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -5762,99 +4983,85 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Property Management",
             "f": "Property Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Building & Land Tax and Municipality Fees",
             "f": "Buildings & Land",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fixed Crew Housing (Staff House Rental)",
             "f": "Buildings & Land",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lease & Rent Property (excluding Employee Housing)",
             "f": "Buildings & Land",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Real Estate Broker Services (excluding Employee Housing)",
             "f": "Buildings & Land",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Site Selection & Appraisal Services",
             "f": "Buildings & Land",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Temporary Crew Accommodation (Travel to Job)",
             "f": "Buildings & Land",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Turnkey Fixed Camp Rental including Hospitality Services",
             "f": "Camp Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Land Lease",
             "f": "Lease Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Office Space Lease",
             "f": "Lease Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Warehouse Space Lease",
             "f": "Lease Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Building & Land Taxation",
             "f": "Property Taxes",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Property Valuation Services",
             "f": "Real Estate Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Real Estate Brokerage",
             "f": "Real Estate Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -5865,64 +5072,55 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Security",
             "f": "Security",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Access Control Systems",
             "f": "Electronic Security",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Alarm & Intrusion Detection",
             "f": "Electronic Security",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "CCTV Systems & Monitoring",
             "f": "Electronic Security",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Armed Security Services",
             "f": "Guarding Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Manned Security Services",
             "f": "Guarding Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Reception & Concierge Security",
             "f": "Guarding Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Security Risk Assessment",
             "f": "Security Consulting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Security System Design",
             "f": "Security Consulting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -5933,57 +5131,49 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Staff House",
             "f": "Staff House",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Camp Housekeeping Services",
             "f": "Camp Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Camp Management Services",
             "f": "Camp Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Camp Recreation Services",
             "f": "Camp Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Integrated Camp Management Services",
             "f": "Camp Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Crew Camp Services",
             "f": "Crew Accommodation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hotel Crew Accommodation",
             "f": "Crew Accommodation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Staff House Rental",
             "f": "Crew Accommodation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -5994,64 +5184,55 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Utility",
             "f": "Utility",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Electricity Supply",
             "f": "Electricity",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Renewable Energy Supply",
             "f": "Electricity",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Energy Audit Services",
             "f": "Energy Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Energy Conservation Services",
             "f": "Energy Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Generator Fuel Supply",
             "f": "Fuel",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Natural Gas Supply",
             "f": "Natural Gas",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Industrial Water Supply",
             "f": "Water",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Water Supply Services",
             "f": "Water",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -6062,106 +5243,91 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Waste Disposal",
             "f": "Waste Disposal",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Environmental Baseline Audits and Survey",
             "f": "Environmental Consulting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Environmental Management & Protection Services",
             "f": "Environmental Consulting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Environmental Remediation",
             "f": "Environmental Consulting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hazardous & Industrial Waste Containers & Accessories (Buy)",
             "f": "Facility Containment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hazardous & Industrial Waste Containers & Accessories - Rental",
             "f": "Facility Containment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pollutants Tracking, Monitoring, Rehabilitation Services",
             "f": "Facility Waste Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Municipal Waste Collection",
             "f": "General Waste",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Recycling Services",
             "f": "General Waste",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Chemical Waste Disposal",
             "f": "Hazardous Waste",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hazardous Waste Disposal",
             "f": "Hazardous Waste",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Industrial Waste Incineration",
             "f": "Hazardous Waste",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Spill Cleanup Services",
             "f": "Spill Response",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drainage Services",
             "f": "Wastewater",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wastewater Treatment Services",
             "f": "Wastewater",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -6178,8 +5344,7 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Light vehicles",
             "f": "Light vehicles",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -6190,36 +5355,31 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Car Allowance Programs",
             "f": "Employee Vehicles",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Company Car Lease",
             "f": "Employee Vehicles",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pool Vehicle Services",
             "f": "Employee Vehicles",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fleet Management Services",
             "f": "Vehicle Administration",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Vehicle Insurance",
             "f": "Vehicle Administration",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -6230,71 +5390,61 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Medical Checkup",
             "f": "Medical Checkup",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Industrial Hygiene",
             "f": "Environment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Annual Health Checkups",
             "f": "Periodic Medical",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Occupational Health Assessments",
             "f": "Periodic Medical",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Drug & Alcohol Testing",
             "f": "Pre-Employment Medical",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pre-Employment Screening",
             "f": "Pre-Employment Medical",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Regulatory Compliance",
             "f": "Safety",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Risk Management Providers",
             "f": "Safety",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fitness for Duty Assessments",
             "f": "Specialty Assessments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Vision & Hearing Tests",
             "f": "Specialty Assessments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -6305,113 +5455,97 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Medical Insurance",
             "f": "Medical Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Employee Seniority Awards and Recognition",
             "f": "Awards & Recognition",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Life Insurance and AD&D providers & Plan administrators",
             "f": "Deferred & Insured Benefits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Retirement Plans (Pension, Savings, Provident Funds)",
             "f": "Deferred & Insured Benefits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "EAP Services",
             "f": "Employee Assistance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mental Health Services",
             "f": "Employee Assistance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Medical Check Up",
             "f": "Employee Benefits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Schooling (For Employee Dependents Only)",
             "f": "Employee Benefits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Housing Business Delivery (not crew related)",
             "f": "Fringe & Mobility Benefits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Housing Business Enablement (not crew related)",
             "f": "Fringe & Mobility Benefits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Recreational Membership & Discount Programs",
             "f": "Fringe & Mobility Benefits",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Dental Insurance",
             "f": "Health Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Group Medical Insurance",
             "f": "Health Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Vision Insurance",
             "f": "Health Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Disability Insurance",
             "f": "Life & Disability",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Group Life Insurance",
             "f": "Life & Disability",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -6422,113 +5556,97 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Recruitment",
             "f": "Recruitment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Executive Search Firms",
             "f": "Agency Recruitment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Recruitment Agencies",
             "f": "Agency Recruitment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Technical Recruitment Specialists",
             "f": "Agency Recruitment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Assessment & Testing Services",
             "f": "Assessment Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Background Verification",
             "f": "Assessment Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Direct Hire Recruiting or Headhunting Firm",
             "f": "Direct Hire Recruiting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Job Boards & Social Media",
             "f": "Direct Hire Recruiting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Recruiting Process Outsourcing",
             "f": "Direct Hire Recruiting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Job Posting Services",
             "f": "Direct Sourcing",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Recruitment Marketing",
             "f": "Direct Sourcing",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Relocation Services",
             "f": "Onboarding",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Visa & Immigration Services",
             "f": "Onboarding",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Relocation Management Companies",
             "f": "Relocation Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Household Good Shipments, Packing, Storage",
             "f": "Relocation Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Relocation Services - Destination Services",
             "f": "Relocation Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -6539,120 +5657,103 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Training",
             "f": "Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Business Delivery Training",
             "f": "Continued Education & Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Business Enablement Training",
             "f": "Continued Education & Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "HSE Services Training",
             "f": "Continued Education & Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "IT Training",
             "f": "Continued Education & Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Leadership Development Training",
             "f": "Continued Education & Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "NExT Training",
             "f": "Continued Education & Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Professional Certifications & Memberships",
             "f": "Continued Education & Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Custom E-Learning Development",
             "f": "E-Learning",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Online Learning Platforms",
             "f": "E-Learning",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Conferences & Seminars",
             "f": "External Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Professional Certifications",
             "f": "External Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Leadership Training",
             "f": "Professional Development",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Soft Skills Training",
             "f": "Professional Development",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "IT Skills Training",
             "f": "Technical Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Safety & Compliance Training",
             "f": "Technical Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Technical Skills Training",
             "f": "Technical Training",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -6669,239 +5770,205 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Hardware",
             "f": "Hardware",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Computers, PCs, Tablet - Rental",
             "f": "Computers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Desktop Computers",
             "f": "Computers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Handheld Computer Scanners",
             "f": "Computers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Laptop Computers",
             "f": "Computers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tablets",
             "f": "Computers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Uninterrupted Power Supplies (UPS)",
             "f": "Critical Power for DC",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Data Storage, Tape Library",
             "f": "Maintenance & Repairs, Spare Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Data Storage, Tape Library - Data Processing",
             "f": "Maintenance & Repairs, Spare Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Maintenance & Repairs, Spare Parts for Computer",
             "f": "Maintenance & Repairs, Spare Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Maintenance & Repairs, Spare Parts for Servers",
             "f": "Maintenance & Repairs, Spare Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Maintenance & Repairs, Spare Parts for Telecom Equipment",
             "f": "Maintenance & Repairs, Spare Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mobile Accessories",
             "f": "Mobile Devices",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mobile Phones",
             "f": "Mobile Devices",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Input Devices",
             "f": "Peripherals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Monitors & Displays",
             "f": "Peripherals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Printers & MFDs",
             "f": "Peripherals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Visual Display Units (Large Format Displays - Not Desktop)",
             "f": "Peripherals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Facility - Managed Printers Services - Lease",
             "f": "Printers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Printer Supplies, Spare Parts, Maintenance (not paper)",
             "f": "Printers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Specialized Label Printers",
             "f": "Printers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Enterprise Servers & Mid-Range - Lease",
             "f": "Server",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Server Support & Extension",
             "f": "Server",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Enterprise Servers",
             "f": "Servers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Server Accessories & Parts",
             "f": "Servers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Data Storage Systems",
             "f": "Storage",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Storage Media",
             "f": "Storage",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Storage Media (Tapes & Library) - Data Processing",
             "f": "Storage",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Storage Systems High End - Datacenter - Lease",
             "f": "Storage",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Storage System Support & Extension",
             "f": "Storage",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fixed phones & PBX (Legacy or IP)",
             "f": "Telecom Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Satellite Equipment",
             "f": "Telecom Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Telecom Infrastructure Hardware",
             "f": "Telecom Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Video-Conferencing Equipment",
             "f": "Telecom Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -6912,8 +5979,7 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Hardware/ Software",
             "f": "Hardware/ Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -6924,127 +5990,109 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Infrastructure",
             "f": "Infrastructure",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fiber Optic Infrastructure",
             "f": "Cabling",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Structured Cabling",
             "f": "Cabling",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Conferencing Services - Audio & Web",
             "f": "Conferencing",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cloud Infrastructure Services",
             "f": "Data Center",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Data Center Hosting Services",
             "f": "Data Center",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Data Network Services (Terrestrial)",
             "f": "Data Networks",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "IPT Management Services (IP Telephony)",
             "f": "Fixed Voice",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Voice Services - Fixed Line, Fax, & Toll",
             "f": "Fixed Voice",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mobile Services - Cellular Voice, 3G Data, & Pagers",
             "f": "Mobile Voice & Data",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Firewalls & Security Appliances",
             "f": "Network Infrastructure",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Network Switches & Routers",
             "f": "Network Infrastructure",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Wireless Infrastructure",
             "f": "Network Infrastructure",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Satellite Communications Services (VSAT, L-Band, M2M)",
             "f": "Satellite Networks",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Management for Telecom Device & Services",
             "f": "Telecom Expenses Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "PBX & Phone Systems",
             "f": "Telecommunications",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Satellite Communication",
             "f": "Telecommunications",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Video Conferencing Systems",
             "f": "Telecommunications",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -7055,57 +6103,49 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Licenses",
             "f": "Licenses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Perpetual Software Licenses",
             "f": "Software Licenses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Software Maintenance & Support",
             "f": "Software Licenses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subscription Software Licenses",
             "f": "Software Licenses",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fixed Line Services",
             "f": "Telecommunications",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Internet Services",
             "f": "Telecommunications",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Mobile Voice & Data Services",
             "f": "Telecommunications",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Satellite Services",
             "f": "Telecommunications",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -7116,141 +6156,121 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Software",
             "f": "Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Application Development, Systems Integration & Sustaining",
             "f": "Application Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Consulting & Research Services Related To IT",
             "f": "Application Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Enterprise Applications",
             "f": "Application Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Productivity Software",
             "f": "Application Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Software as a Service (SaaS)",
             "f": "Application Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Software (Maintenance & Support)",
             "f": "Application Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Software (Perpetual License)",
             "f": "Application Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Software (Termed Licenses)",
             "f": "Application Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Specialized Applications",
             "f": "Application Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Database Management Systems",
             "f": "Database Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hosting Co-location Services",
             "f": "Data Center Hosting Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hosting Infrastructure-as-a-Service (IaaS)",
             "f": "Data Center Hosting Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "On-premise Data Center Hosting Services",
             "f": "Data Center Hosting Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Data & Record Migration, Storage, Digitization",
             "f": "Data Record Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "IT Strategy",
             "f": "IT Strategy Consulting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Desktop Operating Systems",
             "f": "Operating Systems",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Server Operating Systems",
             "f": "Operating Systems",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Antivirus & Endpoint Security",
             "f": "Security Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Firewall & Network Security",
             "f": "Security Software",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -7267,64 +6287,55 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Crew Transportation",
             "f": "Crew Transportation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fixed Wing Charter",
             "f": "Air Transport",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Helicopter Charter Services",
             "f": "Air Transport",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Crew Land Shuttle to & from Jobsite",
             "f": "Crew Shuttle Land",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Charter - Helicopters - People Movers",
             "f": "Crew Shuttle Other",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Crew Bus Services",
             "f": "Ground Transport",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Crew Van Services",
             "f": "Ground Transport",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Crew Boat Services",
             "f": "Marine Transport",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fast Supply Vessel Crew Transfer",
             "f": "Marine Transport",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -7335,78 +6346,67 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Custom Clearance Services",
             "f": "Custom Clearance Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Bonded Transit Document Fee",
             "f": "Customs Clearance Agent Fees",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Customs Clearance Fees",
             "f": "Customs Clearance Agent Fees",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Customs Fines and Penalties",
             "f": "Customs Clearance Agent Fees",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Customs Duties",
             "f": "Customs Duties",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Customs Duties Payment",
             "f": "Duties & Taxes",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Trade Compliance Services",
             "f": "Duties & Taxes",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Export Customs Clearance",
             "f": "Export Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Export Documentation",
             "f": "Export Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Import Customs Clearance",
             "f": "Import Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Import Documentation",
             "f": "Import Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -7417,99 +6417,85 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Freight Forwarding Services",
             "f": "Freight Forwarding Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air Charter",
             "f": "Charter Brokers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ocean Charter",
             "f": "Charter Brokers",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Domestic Distribution",
             "f": "Domestic Forwarding",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Freight Payment System - Auditor Fees",
             "f": "Freight Payment System",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Freight Payment System - Passthrough Charges",
             "f": "Freight Payment System",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air Freight Forwarding",
             "f": "International Forwarding",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Multimodal Forwarding",
             "f": "International Forwarding",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sea Freight Forwarding",
             "f": "International Forwarding",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Parcel - Domestic Shipment",
             "f": "Parcel",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Parcel - International Shipment",
             "f": "Parcel",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Postage",
             "f": "Postage & Courier",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cargo Insurance",
             "f": "Value Added Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cargo Tracking",
             "f": "Value Added Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -7520,141 +6506,121 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Heavy Trucks and Parts",
             "f": "Heavy Trucks and Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Domestic - Bulk Cargo",
             "f": "Call Out Truck",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Domestic - Hotshot",
             "f": "Call Out Truck",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "International - Bulk Cargo",
             "f": "Call Out Truck",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "International - Full Truckload (FTL)",
             "f": "Call Out Truck",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "International - Hotshot",
             "f": "Call Out Truck",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "International - Less Than Truckload (LTL)",
             "f": "Call Out Truck",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Demurrage & Detention (Trucking)",
             "f": "Demurrage & Detention (Trucking)",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Trucks/Trailers - Rental/Lease",
             "f": "Fleet Rental Truck",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heavy Duty Vehicle - Purchase (Body, Chassis, Truck, Tractor)",
             "f": "Heavy Trucks & Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heavy Duty Vehicle - Purchase (Maintenance Parts & Spares)",
             "f": "Heavy Trucks & Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Powertrain Planned/Routine Maintenance - Heavy Vehicles",
             "f": "Heavy Trucks & Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Standard Trailers - Purchase (Tanker Trailers, Flatbeds)",
             "f": "Heavy Trucks & Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heavy Duty Trucks",
             "f": "Heavy Vehicles",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Specialized Heavy Vehicles",
             "f": "Heavy Vehicles",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heavy Vehicle Maintenance",
             "f": "Parts & Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heavy Vehicle Spare Parts",
             "f": "Parts & Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tire Services",
             "f": "Parts & Maintenance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Domestic - Tank Truck",
             "f": "Tank Truck",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "International - Tank Truck",
             "f": "Tank Truck",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -7665,92 +6631,79 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Light Vehicles for Operation",
             "f": "Light Vehicles for Operation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Material Handling Rental Rigsite - Excl Crane Services",
             "f": "Lease & Rent",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pickup Trucks",
             "f": "Light Vehicles",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "SUVs & 4x4 Vehicles",
             "f": "Light Vehicles",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Vans & Utility Vehicles",
             "f": "Light Vehicles",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Light Duty Vehicle Maintenance Parts & Spares",
             "f": "Light Vehicles & Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Light Duty Vehicle - Purchase",
             "f": "Light Vehicles & Parts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Driving Monitors (Hardware & Related Charges)",
             "f": "Safety Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "RDMD, DIM Installation & Services",
             "f": "Safety Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Subscription Costs Related to Driving Monitors",
             "f": "Safety Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fuel Cards & Management",
             "f": "Vehicle Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Light Vehicle Lease & Rental",
             "f": "Vehicle Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Light Vehicle Maintenance",
             "f": "Vehicle Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -7761,162 +6714,139 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Shipping Services",
             "f": "Shipping Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air Cargo Services",
             "f": "Air Freight",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Express Air Services",
             "f": "Air Freight",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air Shipment - Dangerous Goods",
             "f": "Air Shipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air Shipment - Express",
             "f": "Air Shipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air Shipment - Standard",
             "f": "Air Shipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Barges",
             "f": "Barge",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Air & Ocean Demurrage, Detention & Storage",
             "f": "Demurrage & Detention (Freight Shipping)",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ocean Break Bulk",
             "f": "Ocean Bulk Shipments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ocean Dry Bulk",
             "f": "Ocean Bulk Shipments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ocean Liquid Bulk",
             "f": "Ocean Bulk Shipments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ocean FCL",
             "f": "Ocean Container Shipments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ocean FCL - Dangerous Goods",
             "f": "Ocean Container Shipments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ocean LCL",
             "f": "Ocean Container Shipments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Ocean LCL - Dangerous Goods",
             "f": "Ocean Container Shipments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Break Bulk Shipping",
             "f": "Ocean Freight",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Container Shipping",
             "f": "Ocean Freight",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Port Terminal Services",
             "f": "Port Terminal Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Full Truckload (FTL)",
             "f": "Road Freight",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Less Than Truckload (LTL)",
             "f": "Road Freight",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tanker Transport",
             "f": "Road Freight",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hazardous Materials Transport",
             "f": "Specialized Transport",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Heavy Lift Transport",
             "f": "Specialized Transport",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -7927,71 +6857,61 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Cross-docking Services",
             "f": "Handling Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Inventory Management",
             "f": "Handling Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Pick & Pack Services",
             "f": "Handling Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "General Warehousing",
             "f": "Storage Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hazardous Materials Storage",
             "f": "Storage Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Temperature Controlled Storage",
             "f": "Storage Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Disposal Services",
             "f": "Warehousing Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Handling In/Out",
             "f": "Warehousing Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Packing",
             "f": "Warehousing Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sampling",
             "f": "Warehousing Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -8008,43 +6928,37 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Manpower",
             "f": "Manpower",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Administrative Contract Staff",
             "f": "Contract Labor",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Field Operations Contract Staff",
             "f": "Contract Labor",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Technical Contract Staff",
             "f": "Contract Labor",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Managed Service Provider",
             "f": "Managed Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Statement of Work Services",
             "f": "Managed Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -8055,71 +6969,61 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Contractor Cost Business Delivery",
             "f": "Contingent Workforce",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Contractor Cost Business Enablement",
             "f": "Contingent Workforce",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Payroll Service Providers",
             "f": "Contingent Workforce",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Vendor Management System & Managed Service Providers",
             "f": "Contingent Workforce",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Direct Hire Recruitment",
             "f": "Permanent Placement",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Executive Search Services",
             "f": "Permanent Placement",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Background Screening Services",
             "f": "Recruitment Support",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Job Boards & Advertising",
             "f": "Recruitment Support",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Seasonal Staff Services",
             "f": "Temporary Staffing",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Temporary Labor Agencies",
             "f": "Temporary Staffing",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -8136,197 +7040,169 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Finance",
             "f": "Finance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Bookkeeping Services",
             "f": "Accounting Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Financial Reporting Services",
             "f": "Accounting Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Bank Charges",
             "f": "Banking",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Insurance (Including Building & Building Contents Insurance)",
             "f": "Banking",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Payroll Provider / Pension Administration",
             "f": "Banking",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Business Process Outsourcing Services (excluding IT & HR)",
             "f": "BPO Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Client Entertainment",
             "f": "Entertainment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Gifts & Giveaways",
             "f": "Entertainment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Internal Entertainment",
             "f": "Entertainment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Social Club Dues & Memberships",
             "f": "Entertainment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Regulatory Agencies (Fees, Surcharges, Permits & Penalties)",
             "f": "Federal & State Payments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Financial Investment Consulting",
             "f": "Financial",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "External Audit Services",
             "f": "Financial Audit",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Internal Audit Services",
             "f": "Financial Audit",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Payments for Customs Related Tax or Duties Collections",
             "f": "Government Payments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Regulatory Agencies (Fees, Surcharges, Permits, & Penalties)",
             "f": "Government Payments",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "HR Consulting & Research Services",
             "f": "HR Consulting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Management Consulting Services (excluding IT & HR)",
             "f": "Management Consulting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Automobile Licenses & Taxes",
             "f": "Taxes & Fees",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Franchise Taxes",
             "f": "Taxes & Fees",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Local Taxes, Municipality Taxes, & Tax Authorities",
             "f": "Taxes & Fees",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Miscellaneous (Taxes & Fees)",
             "f": "Taxes & Fees",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Stamp Duties & Taxes",
             "f": "Taxes & Fees",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tax Advisory Services",
             "f": "Tax Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Tax Preparation Services",
             "f": "Tax Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Transfer Pricing Services",
             "f": "Tax Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Technical Consulting Services (excl. Field, Facilities, IT)",
             "f": "Technical Consulting",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -8337,85 +7213,73 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Insurance",
             "f": "Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Group Life Insurance",
             "f": "Employee Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Workers Compensation Insurance",
             "f": "Employee Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Directors & Officers Insurance",
             "f": "Liability Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "General Liability Insurance",
             "f": "Liability Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Professional Indemnity Insurance",
             "f": "Liability Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Building & Contents Insurance",
             "f": "Property Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Business Interruption Insurance",
             "f": "Property Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Equipment & Machinery Insurance",
             "f": "Property Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cyber Insurance",
             "f": "Specialty Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Environmental Liability Insurance",
             "f": "Specialty Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Marine Cargo Insurance",
             "f": "Specialty Insurance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -8426,64 +7290,55 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Legal",
             "f": "Legal",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Contract Drafting & Review",
             "f": "Corporate Legal",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Corporate Governance Services",
             "f": "Corporate Legal",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "M&A Legal Services",
             "f": "Corporate Legal",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Arbitration & Mediation Services",
             "f": "Litigation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Commercial Litigation Services",
             "f": "Litigation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Employment Law Services",
             "f": "Regulatory & Compliance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Intellectual Property Services",
             "f": "Regulatory & Compliance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Regulatory Compliance Services",
             "f": "Regulatory & Compliance",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -8494,120 +7349,103 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Marketing",
             "f": "Marketing",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Advertising Agency Services",
             "f": "Advertising",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Digital Marketing Services",
             "f": "Advertising",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Media Buying Services",
             "f": "Advertising",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Graphic Design Services",
             "f": "Creative Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Video Production Services",
             "f": "Creative Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Donations / Sponsors",
             "f": "CSR & Donations",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Non-Deductible Donations",
             "f": "CSR & Donations",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "SEED Donations",
             "f": "CSR & Donations",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Student Organizations",
             "f": "CSR & Donations",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Event Management Services",
             "f": "Events & Promotions",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Promotional Items & Merchandise",
             "f": "Events & Promotions",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Sponsorships",
             "f": "Events & Promotions",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Market & Industry Research & Memberships",
             "f": "MarCom",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Translation & Interpretation Services",
             "f": "MarCom",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Printing Services",
             "f": "Print & Publications",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Publications & Subscriptions",
             "f": "Print & Publications",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -8618,57 +7456,49 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Treasury",
             "f": "Treasury",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Bank Account Management",
             "f": "Cash Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Cash Pooling Services",
             "f": "Cash Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Payment Processing Services",
             "f": "Cash Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "FX Hedging Services",
             "f": "Foreign Exchange",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "FX Trading Services",
             "f": "Foreign Exchange",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Short-term Investment Services",
             "f": "Investment Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Treasury Advisory Services",
             "f": "Investment Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -8685,8 +7515,7 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Safety",
             "f": "Safety",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -8697,92 +7526,79 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Life Safety (PPE)",
             "f": "Life Safety (PPE)",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hi-Visibility Clothing",
             "f": "Body Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Safety Coveralls",
             "f": "Body Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hearing Protection",
             "f": "Eye & Ear Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Safety Glasses & Goggles",
             "f": "Eye & Ear Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Lanyards & Lifelines",
             "f": "Fall Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Safety Harnesses",
             "f": "Fall Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Safety Footwear",
             "f": "Hand & Foot Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Safety Gloves",
             "f": "Hand & Foot Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Face Shields & Visors",
             "f": "Head Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Safety Helmets & Hard Hats",
             "f": "Head Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Respirators & Masks",
             "f": "Respiratory Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Self-Contained Breathing Apparatus",
             "f": "Respiratory Protection",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -8793,85 +7609,73 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Safety Equipment",
             "f": "Safety Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Gas Detectors",
             "f": "Detection Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Smoke & Heat Detectors",
             "f": "Detection Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Emergency Showers",
             "f": "Emergency Response",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Spill Kits",
             "f": "Emergency Response",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fire Blankets & Kits",
             "f": "Fire Safety Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Fire Extinguishers",
             "f": "Fire Safety Equipment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "AED Defibrillators",
             "f": "First Aid",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Eye Wash Stations",
             "f": "First Aid",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "First Aid Kits",
             "f": "First Aid",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Safety Barriers & Cones",
             "f": "Safety Signage",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Safety Signs & Labels",
             "f": "Safety Signage",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
@@ -8888,71 +7692,61 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Air Tickets",
             "f": "Air Tickets",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Charter - Private Aircraft",
             "f": "Air Charter",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Airport Lounge Access",
             "f": "Ancillary Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Baggage & Seat Fees",
             "f": "Ancillary Services",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Domestic Air Tickets",
             "f": "Commercial Air",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "International Air Tickets",
             "f": "Commercial Air",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Passport/Visa/Global Entry & Travel Related Admin Fees",
             "f": "Travel Administration",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Corporate Travel Programs",
             "f": "Travel Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Travel Agency Services",
             "f": "Travel Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Travel Agency Transaction Fees",
             "f": "Travel Management",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -8963,57 +7757,49 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Entertainment",
             "f": "Entertainment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Client Events & Hospitality",
             "f": "Client Entertainment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Client Meals & Dining",
             "f": "Client Entertainment",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Employee Social Events",
             "f": "Employee Events",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Team Building Events",
             "f": "Employee Events",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Business Gifts",
             "f": "Gifts",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Internal Meetings",
             "f": "Meetings & Events",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Non-Facility Catering (training/meeting related)",
             "f": "Meetings & Events",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       },
@@ -9024,64 +7810,55 @@ export const SPEND_TAXONOMY: TaxCategory[] = [
             "n": "Hotel",
             "f": "Hotel",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hotel Booking Services",
             "f": "Corporate Programs",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Hotel Corporate Rates",
             "f": "Corporate Programs",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Short-Term Vehicle Rental",
             "f": "Ground Transport",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Shuttle Services (T&E)",
             "f": "Ground Transport",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Taxi & Limo Services",
             "f": "Ground Transport",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Employee Meals (not crew)",
             "f": "Meals",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Business Hotels",
             "f": "Transient Accommodation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           },
           {
             "n": "Extended Stay Hotels",
             "f": "Transient Accommodation",
             "code": "",
-            "desc": "",
-            "kw": []
+            "desc": ""
           }
         ]
       }
