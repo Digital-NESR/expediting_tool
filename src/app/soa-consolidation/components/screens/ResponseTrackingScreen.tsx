@@ -1,71 +1,48 @@
 import { Fragment } from 'react';
 import type { ScreenProps } from '../../types';
+import { FILTER_TAB_SELECTED, VENDOR_STATUS_BADGE } from '../tones';
+
+const COLUMNS = 'grid-cols-[1fr_100px_90px_80px_80px_80px_60px]';
 
 export default function ResponseTrackingScreen({ vm }: ScreenProps) {
   return (
-    <div style={{ animation: 'fadeIn 0.2s ease' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          marginBottom: 14,
-        }}
-      >
+    <div className="animate-[fadeIn_0.2s_ease]">
+      <div className="flex items-start justify-between mb-3.5">
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 3 }}>Response Tracking</h1>
-          <p style={{ fontSize: 12, color: '#58595B' }}>
+          <h1 className="text-[20px] font-bold mb-[3px]">Response Tracking</h1>
+          <p className="text-[12px] text-sns-grey">
             Live vendor response status — Saudi Arabia (SA) · Q3 2026
           </p>
         </div>
         {vm.hasRemindable && (
           <button
             onClick={vm.onSendReminders}
-            style={{
-              background: '#E65100',
-              color: 'white',
-              border: 'none',
-              padding: '8px 14px',
-              borderRadius: 7,
-              fontSize: 12,
-              fontWeight: 'bold',
-            }}
+            className="bg-[#E65100] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold"
           >
             Send All Reminders ({vm.remindCount})
           </button>
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+      <div className="flex gap-1.5 mb-3 flex-wrap">
         {vm.filterTabs.map((tab) => (
-          <div key={tab.status} onClick={tab.onClick} style={tab.tabStyle}>
+          <div
+            key={tab.status}
+            onClick={tab.onClick}
+            className={`px-3 py-1.5 rounded-[20px] cursor-pointer text-[11px] font-bold border-2 whitespace-nowrap ${
+              tab.isSelected
+                ? FILTER_TAB_SELECTED[tab.status]
+                : 'border-transparent bg-[#F0F0F0] text-sns-grey'
+            }`}
+          >
             {tab.label} ({tab.count})
           </div>
         ))}
       </div>
 
-      <div
-        style={{
-          background: 'white',
-          borderRadius: 10,
-          overflow: 'hidden',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
-        }}
-      >
+      <div className="bg-white rounded-[10px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 100px 90px 80px 80px 80px 60px',
-            gap: 8,
-            padding: '10px 14px',
-            background: '#2A7E4F',
-            color: 'white',
-            fontSize: 10,
-            fontWeight: 'bold',
-            textTransform: 'uppercase',
-            letterSpacing: 0.5,
-            alignItems: 'center',
-          }}
+          className={`grid ${COLUMNS} gap-2 px-3.5 py-2.5 bg-sns-green text-white text-[10px] font-bold uppercase tracking-[0.5px] items-center`}
         >
           <div>Vendor</div>
           <div>Status</div>
@@ -79,52 +56,35 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
           <Fragment key={v.id}>
             <div
               onClick={v.onToggle}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 100px 90px 80px 80px 80px 60px',
-                gap: 8,
-                padding: '10px 14px',
-                fontSize: 12,
-                borderBottom: '1px solid #F0F0F0',
-                cursor: 'pointer',
-                alignItems: 'center',
-                background: v.rowBg,
-              }}
+              className={`grid ${COLUMNS} gap-2 px-3.5 py-2.5 text-[12px] border-b border-b-[#F0F0F0] cursor-pointer items-center ${
+                v.isExpanded ? 'bg-[#F0F9F4]' : 'bg-white'
+              }`}
             >
               <div>
-                <div style={{ fontWeight: 'bold', fontSize: 13 }}>{v.name}</div>
-                <div
-                  style={{ fontSize: 10, color: '#58595B', fontFamily: 'monospace', marginTop: 1 }}
-                >
+                <div className="font-bold text-[13px]">{v.name}</div>
+                <div className="text-[10px] text-sns-grey font-[family-name:monospace] mt-px">
                   {v.no}
                 </div>
               </div>
-              <div style={v.badgeStyle}>{v.statusLabel}</div>
-              <div style={{ fontWeight: 'bold' }}>{v.fmtOpenPO}</div>
-              <div style={{ fontSize: 11, color: '#58595B' }}>{v.reqDate}</div>
-              <div style={{ fontSize: 11, color: '#58595B' }}>{v.remDate ?? '—'}</div>
-              <div style={{ fontSize: 11, color: '#58595B' }}>{v.respDate ?? '—'}</div>
-              <div style={{ fontSize: 11, color: '#58595B', textAlign: 'right' }}>
-                {v.isExpanded ? '▲' : '▼'}
+              <div
+                className={`${VENDOR_STATUS_BADGE[v.status]} rounded-xl px-[9px] py-0.5 text-[10px] font-bold inline-block`}
+              >
+                {v.statusLabel}
               </div>
+              <div className="font-bold">{v.fmtOpenPO}</div>
+              <div className="text-[11px] text-sns-grey">{v.reqDate}</div>
+              <div className="text-[11px] text-sns-grey">{v.remDate ?? '—'}</div>
+              <div className="text-[11px] text-sns-grey">{v.respDate ?? '—'}</div>
+              <div className="text-[11px] text-sns-grey text-right">{v.isExpanded ? '▲' : '▼'}</div>
             </div>
             {v.isExpanded && (
-              <div
-                style={{
-                  background: '#F5FAF7',
-                  borderBottom: '1px solid #D1D3D4',
-                  padding: '12px 14px',
-                  display: 'flex',
-                  gap: 10,
-                  alignItems: 'center',
-                }}
-              >
-                <div style={{ flex: 1, fontSize: 11, color: '#58595B' }}>
+              <div className="bg-[#F5FAF7] border-b border-b-sns-line px-3.5 py-3 flex gap-2.5 items-center">
+                <div className="flex-1 text-[11px] text-sns-grey">
                   {v.canAccept && (
                     <span>Upload link active · Vendor can submit via email link</span>
                   )}
                   {v.isReceived && (
-                    <span style={{ color: '#2A7E4F', fontWeight: 'bold' }}>
+                    <span className="text-sns-green font-bold">
                       ✓ SOA received · {v.invCount} invoices on file · Currency: {v.currency}
                     </span>
                   )}
@@ -132,15 +92,7 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
                 {v.canAccept && (
                   <button
                     onClick={v.onAccept}
-                    style={{
-                      background: '#2A7E4F',
-                      color: 'white',
-                      border: 'none',
-                      padding: '7px 12px',
-                      borderRadius: 6,
-                      fontSize: 11,
-                      fontWeight: 'bold',
-                    }}
+                    className="bg-sns-green text-white border-none px-3 py-[7px] rounded-md text-[11px] font-bold"
                   >
                     Accept SOA Upload
                   </button>
@@ -148,15 +100,7 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
                 {v.canRemind && (
                   <button
                     onClick={v.onRemind}
-                    style={{
-                      background: '#1565C0',
-                      color: 'white',
-                      border: 'none',
-                      padding: '7px 12px',
-                      borderRadius: 6,
-                      fontSize: 11,
-                      fontWeight: 'bold',
-                    }}
+                    className="bg-[#1565C0] text-white border-none px-3 py-[7px] rounded-md text-[11px] font-bold"
                   >
                     Send Reminder
                   </button>
@@ -164,15 +108,7 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
                 {v.canNR && (
                   <button
                     onClick={v.onNR}
-                    style={{
-                      background: '#B71C1C',
-                      color: 'white',
-                      border: 'none',
-                      padding: '7px 12px',
-                      borderRadius: 6,
-                      fontSize: 11,
-                      fontWeight: 'bold',
-                    }}
+                    className="bg-[#B71C1C] text-white border-none px-3 py-[7px] rounded-md text-[11px] font-bold"
                   >
                     Mark Non-Responder
                   </button>

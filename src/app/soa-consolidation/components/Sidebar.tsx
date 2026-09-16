@@ -2,72 +2,40 @@ import type { ScreenProps } from '../types';
 
 export default function Sidebar({ vm }: ScreenProps) {
   return (
-    <aside
-      style={{
-        width: 205,
-        background: '#151C18',
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        overflowY: 'auto',
-        padding: '12px 10px',
-      }}
-    >
-      <div
-        style={{
-          background: 'rgba(42,126,79,0.15)',
-          border: '1px solid rgba(42,126,79,0.3)',
-          borderRadius: 7,
-          padding: '10px 11px',
-          marginBottom: 12,
-        }}
-      >
-        <div
-          style={{
-            color: 'rgba(255,255,255,0.4)',
-            fontSize: 9,
-            textTransform: 'uppercase',
-            letterSpacing: 1,
-            marginBottom: 2,
-          }}
-        >
+    <aside className="w-[205px] bg-[#151C18] flex flex-col shrink-0 overflow-y-auto px-2.5 py-3">
+      <div className="bg-[rgba(42,126,79,0.15)] border border-[rgba(42,126,79,0.3)] rounded-[7px] px-[11px] py-2.5 mb-3">
+        <div className="text-[rgba(255,255,255,0.4)] text-[9px] uppercase tracking-[1px] mb-0.5">
           Active Scope
         </div>
-        <div style={{ color: 'white', fontSize: 13, fontWeight: 'bold', lineHeight: 1.3 }}>
-          {vm.roleCountry}
-        </div>
-        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, marginTop: 1 }}>
-          {vm.roleLabel}
-        </div>
+        <div className="text-white text-[13px] font-bold leading-[1.3]">{vm.roleCountry}</div>
+        <div className="text-[rgba(255,255,255,0.5)] text-[10px] mt-px">{vm.roleLabel}</div>
       </div>
 
       {vm.navItems.map((nav) => (
-        <div key={nav.id} onClick={nav.onClick} style={nav.style}>
-          <span style={{ flex: 1 }}>{nav.label}</span>
+        <div
+          key={nav.id}
+          onClick={nav.onClick}
+          className={`flex items-center gap-2 px-[11px] py-2 rounded-md mb-0.5 cursor-pointer text-[12px] ${
+            nav.isActive
+              ? 'font-bold bg-[rgba(42,126,79,0.3)] text-white'
+              : 'font-normal bg-transparent text-[rgba(255,255,255,0.6)]'
+          }`}
+        >
+          <span className="flex-1">{nav.label}</span>
           {nav.hasBadge && (
-            <span
-              style={{
-                background: '#E65100',
-                color: 'white',
-                borderRadius: 10,
-                padding: '1px 6px',
-                fontSize: 10,
-                fontWeight: 'bold',
-                flexShrink: 0,
-              }}
-            >
+            <span className="bg-[#E65100] text-white rounded-[10px] px-1.5 py-px text-[10px] font-bold shrink-0">
               {nav.badge}
             </span>
           )}
         </div>
       ))}
 
-      <div style={{ flex: 1 }} />
-      <div style={{ padding: 10, borderTop: '1px solid rgba(255,255,255,0.07)', marginTop: 10 }}>
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 9, lineHeight: 1.7 }}>
+      <div className="flex-1" />
+      <div className="p-2.5 border-t border-t-[rgba(255,255,255,0.07)] mt-2.5">
+        <div className="text-[rgba(255,255,255,0.3)] text-[9px] leading-[1.7]">
           NESR-SC-01-GR2PAY
         </div>
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 9 }}>Rev.01 · Jul 2024</div>
+        <div className="text-[rgba(255,255,255,0.3)] text-[9px]">Rev.01 · Jul 2024</div>
       </div>
     </aside>
   );

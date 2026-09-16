@@ -5,6 +5,23 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --color-nesr-green: #307c4c;
+
+  /* SOA Consolidation's palette. It was ported from a standalone app and carries its own green,
+     a shade off the NESR green above. The two are NOT interchangeable, so both are tokens rather
+     than one being "corrected" into the other — that is a decision for whoever owns the brand,
+     not a side effect of a refactor.
+
+     These exist because the same few colours were spread across the screens as raw hex literals,
+     which is how one of them quietly drifts. The S&S Registry shares this palette and is still on
+     literals; when it is converted it should read these tokens rather than add its own. */
+  --color-sns-green: #2a7e4f;
+  --color-sns-green-pale: #c5e0d2;
+  --color-sns-green-wash: #e8f5ee;
+
+  /* Neutrals from the same port. Slate-ish but not Tailwind's slate, so they need naming too. */
+  --color-sns-ink: #1f1f1d;
+  --color-sns-grey: #58595b;
+  --color-sns-line: #d1d3d4;
 }
 
 /* ── Skeleton shimmer (cannot be done with pure Tailwind utilities) ── */

@@ -1,150 +1,86 @@
 import type { ScreenProps } from '../../types';
 
+const COLUMNS = 'grid-cols-[30px_1fr_110px_65px_85px_55px_80px]';
+
 export default function ConsolidationScreen({ vm }: ScreenProps) {
   return (
-    <div style={{ animation: 'fadeIn 0.2s ease' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
+    <div className="animate-[fadeIn_0.2s_ease]">
+      <div className="flex items-start justify-between mb-4">
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 3 }}>
-            Consolidation &amp; Handoff
-          </h1>
-          <p style={{ fontSize: 12, color: '#58595B' }}>
+          <h1 className="text-[20px] font-bold mb-[3px]">Consolidation &amp; Handoff</h1>
+          <p className="text-[12px] text-sns-grey">
             Automated consolidation · Saudi Arabia (SA) · Q3 2026
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="flex gap-2">
           <button
             onClick={vm.onGenerateExport}
-            style={{
-              background: '#1565C0',
-              color: 'white',
-              border: 'none',
-              padding: '9px 14px',
-              borderRadius: 7,
-              fontSize: 12,
-              fontWeight: 'bold',
-            }}
+            className="bg-[#1565C0] text-white border-none px-3.5 py-[9px] rounded-[7px] text-[12px] font-bold"
           >
             Generate Export File
           </button>
           {vm.canHandoff && (
             <button
               onClick={vm.onOpenHandoffModal}
-              style={{
-                background: '#2A7E4F',
-                color: 'white',
-                border: 'none',
-                padding: '9px 14px',
-                borderRadius: 7,
-                fontSize: 12,
-                fontWeight: 'bold',
-              }}
+              className="bg-sns-green text-white border-none px-3.5 py-[9px] rounded-[7px] text-[12px] font-bold"
             >
               Mark Handed Off to Finance →
             </button>
           )}
           {vm.handedOff && (
-            <div
-              style={{
-                background: '#E8F5EE',
-                border: '1px solid #2A7E4F',
-                borderRadius: 7,
-                padding: '9px 14px',
-                fontSize: 12,
-                fontWeight: 'bold',
-                color: '#2A7E4F',
-              }}
-            >
+            <div className="bg-sns-green-wash border border-sns-green rounded-[7px] px-3.5 py-[9px] text-[12px] font-bold text-sns-green">
               ✓ Handed Off
             </div>
           )}
         </div>
       </div>
 
-      <div
-        style={{
-          background: 'white',
-          borderRadius: 10,
-          padding: 16,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
-          marginBottom: 14,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 12,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 'bold',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              color: '#58595B',
-            }}
-          >
+      <div className="bg-white rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.07)] mb-3.5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-[12px] font-bold uppercase tracking-[0.5px] text-sns-grey">
             Control Criteria Check (SOP NESR-SC-01-GR2PAY)
           </div>
-          <div style={vm.allPassStyle}>{vm.allPassLabel}</div>
+          <div
+            className={`text-[12px] font-bold rounded-md px-3 py-1 border ${
+              vm.allPass
+                ? 'text-sns-green bg-sns-green-wash border-sns-green'
+                : 'text-[#E65100] bg-[#FFF3E0] border-[#E65100]'
+            }`}
+          >
+            {vm.allPassLabel}
+          </div>
         </div>
         {vm.complianceItems.map((ci) => (
-          <div key={ci.label} style={ci.rowStyle}>
-            <div style={ci.iconStyle}>{ci.icon}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 2 }}>{ci.label}</div>
-              <div style={{ fontSize: 11, color: '#58595B', lineHeight: 1.4 }}>{ci.detail}</div>
+          <div
+            key={ci.label}
+            className={`flex items-start gap-3 px-[15px] py-3 bg-white rounded-lg mb-2 border-l-4 ${
+              ci.pass ? 'border-l-sns-green' : 'border-l-[#B71C1C]'
+            }`}
+          >
+            <div
+              className={`w-6.5 h-6.5 rounded-full text-white flex items-center justify-center font-bold shrink-0 text-[13px] mt-px ${
+                ci.pass ? 'bg-sns-green' : 'bg-[#B71C1C]'
+              }`}
+            >
+              {ci.icon}
+            </div>
+            <div className="flex-1">
+              <div className="text-[12px] font-bold mb-0.5">{ci.label}</div>
+              <div className="text-[11px] text-sns-grey leading-[1.4]">{ci.detail}</div>
             </div>
           </div>
         ))}
       </div>
 
-      <div
-        style={{
-          background: 'white',
-          borderRadius: 10,
-          overflow: 'hidden',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
-        }}
-      >
-        <div
-          style={{
-            padding: '12px 14px',
-            borderBottom: '1px solid #F0F0F0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ fontSize: 12, fontWeight: 'bold', color: '#1F1F1D' }}>
+      <div className="bg-white rounded-[10px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
+        <div className="px-3.5 py-3 border-b border-b-[#F0F0F0] flex items-center justify-between">
+          <div className="text-[12px] font-bold text-sns-ink">
             Consolidated SOA — {vm.receivedCount} Vendors · NESR-KSA-SOA-Q3-2026
           </div>
-          <div style={{ fontSize: 11, color: '#58595B' }}>Auto-compiled · No manual re-keying</div>
+          <div className="text-[11px] text-sns-grey">Auto-compiled · No manual re-keying</div>
         </div>
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '30px 1fr 110px 65px 85px 55px 80px',
-            gap: 8,
-            padding: '9px 14px',
-            background: '#2A7E4F',
-            color: 'white',
-            fontSize: 10,
-            fontWeight: 'bold',
-            textTransform: 'uppercase',
-            letterSpacing: 0.5,
-            alignItems: 'center',
-          }}
+          className={`grid ${COLUMNS} gap-2 px-3.5 py-[9px] bg-sns-green text-white text-[10px] font-bold uppercase tracking-[0.5px] items-center`}
         >
           <div>#</div>
           <div>Vendor Name</div>
@@ -154,27 +90,20 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
           <div>Inv.</div>
           <div>Response</div>
         </div>
-        {vm.consolidatedRows.map((r) => (
+        {vm.consolidatedRows.map((r, i) => (
           <div
             key={r.id}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '30px 1fr 110px 65px 85px 55px 80px',
-              gap: 8,
-              padding: '9px 14px',
-              fontSize: 11,
-              borderBottom: '1px solid #F0F0F0',
-              alignItems: 'center',
-              background: r.rowBg,
-            }}
+            className={`grid ${COLUMNS} gap-2 px-3.5 py-[9px] text-[11px] border-b border-b-[#F0F0F0] items-center ${
+              i % 2 === 0 ? 'bg-white' : 'bg-[#F0F7F3]'
+            }`}
           >
-            <div style={{ color: '#58595B' }}>{r.num}</div>
-            <div style={{ fontWeight: 'bold', fontSize: 12 }}>{r.name}</div>
-            <div style={{ color: '#58595B', fontFamily: 'monospace', fontSize: 10 }}>{r.no}</div>
-            <div style={{ color: '#58595B' }}>{r.currency}</div>
-            <div style={{ fontWeight: 'bold', color: '#2A7E4F' }}>{r.fmtOpenPO}</div>
-            <div style={{ color: '#58595B' }}>{r.invCount}</div>
-            <div style={{ color: '#58595B', fontSize: 10 }}>{r.respDate}</div>
+            <div className="text-sns-grey">{r.num}</div>
+            <div className="font-bold text-[12px]">{r.name}</div>
+            <div className="text-sns-grey font-[family-name:monospace] text-[10px]">{r.no}</div>
+            <div className="text-sns-grey">{r.currency}</div>
+            <div className="font-bold text-sns-green">{r.fmtOpenPO}</div>
+            <div className="text-sns-grey">{r.invCount}</div>
+            <div className="text-sns-grey text-[10px]">{r.respDate}</div>
           </div>
         ))}
       </div>

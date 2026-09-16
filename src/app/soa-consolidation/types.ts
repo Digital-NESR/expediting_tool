@@ -1,5 +1,3 @@
-import type { CSSProperties } from 'react';
-
 export type Role = 'champion' | 'manager' | 'director';
 
 export type ScreenId =
@@ -25,6 +23,15 @@ export type CountryStatus =
 export type EvidenceType = 'info' | 'upload' | 'reminder' | 'scope' | 'email' | 'handoff';
 
 export type ToastType = 'success' | 'warning' | 'info';
+
+/* How a figure reads against the collection targets in SOP NESR-SC-01-GR2PAY. `on-track` clears
+   the threshold it is measured against, `behind` falls short of it but is still recoverable
+   inside the cycle, `breach` has failed the control, `in-flight` is work under way that nothing
+   is owed on yet, and `neutral` is a count that carries no judgement either way.
+
+   The view model says which of these a figure is; the components decide what each one looks
+   like, so that changing the palette never means touching the derivation. */
+export type Standing = 'on-track' | 'behind' | 'breach' | 'in-flight' | 'neutral';
 
 export interface Vendor {
   id: string;
@@ -88,7 +95,7 @@ export interface NavItemVM {
   label: string;
   badge: string | null;
   hasBadge: boolean;
-  style: CSSProperties;
+  isActive: boolean;
   onClick: () => void;
 }
 
@@ -96,9 +103,7 @@ export interface KpiCardVM {
   label: string;
   value: string;
   sub: string;
-  accent: string;
-  cardStyle: CSSProperties;
-  valueStyle: CSSProperties;
+  accent: Standing;
 }
 
 export interface PipelineStepVM {
@@ -109,31 +114,25 @@ export interface PipelineStepVM {
   done: boolean;
   active: boolean;
   nodeIcon: string;
-  stepStyle: CSSProperties;
 }
 
 export interface StatusBarSegVM {
-  color: string;
+  status: VendorStatus;
   count: number;
   label: string;
-  segStyle: CSSProperties;
-  dotStyle: CSSProperties;
 }
 
 export interface FilterTabVM {
   label: string;
   status: 'all' | VendorStatus;
   count: number;
-  color: string | null;
-  tabStyle: CSSProperties;
+  isSelected: boolean;
   onClick: () => void;
 }
 
 export interface VendorRowVM extends Vendor {
   statusLabel: string;
-  badgeStyle: CSSProperties;
   fmtOpenPO: string;
-  rowBg: string;
 }
 
 export interface VendorEnrichedVM extends VendorRowVM {
@@ -151,7 +150,7 @@ export interface VendorEnrichedVM extends VendorRowVM {
 export interface ScopingVendorVM extends VendorRowVM {
   rank: number;
   cumPct: number;
-  cumStyle: CSSProperties;
+  cumStanding: Standing;
 }
 
 export interface ComplianceItemVM {
@@ -159,37 +158,24 @@ export interface ComplianceItemVM {
   icon: string;
   detail: string;
   pass: boolean;
-  borderColor: string;
-  iconBg: string;
-  rowStyle: CSSProperties;
-  iconStyle: CSSProperties;
 }
 
 export interface ConsolidatedRowVM extends Vendor {
   num: number;
   fmtOpenPO: string;
-  rowBg: string;
 }
 
 export interface EvidenceRowVM extends Evidence {
-  typeColor: string;
   typeLabel: string;
-  badgeStyle: CSSProperties;
-  dotStyle: CSSProperties;
 }
 
 export interface CountryRowVM extends Country {
   statusLabel: string;
   fmtBalance: string;
   isAtRisk: boolean;
-  badgeStyle: CSSProperties;
-  pctBarStyle: CSSProperties;
-  rowStyle: CSSProperties;
-  daysStyle: CSSProperties;
-}
-
-export interface ToastVM extends Toast {
-  toastStyle: CSSProperties;
+  coverageStanding: Standing;
+  /** The deadline is close enough that an unfinished country needs chasing today. */
+  isDeadlineTight: boolean;
 }
 
 export interface ViewModel {
@@ -212,11 +198,8 @@ export interface ViewModel {
   pipeline: PipelineStepVM[];
   statusBarSegs: StatusBarSegVM[];
 
-  coverageBarStyle: CSSProperties;
-  coverageValueStyle: CSSProperties;
-  coverageCheckLabelStyle: CSSProperties;
   coverageCheckLabel: string;
-  coveragePct: string;
+  coveragePct: number;
   coverageMet: boolean;
 
   hasRemindable: boolean;
@@ -237,8 +220,8 @@ export interface ViewModel {
 
   complianceItems: ComplianceItemVM[];
   consolidatedRows: ConsolidatedRowVM[];
+  allPass: boolean;
   allPassLabel: string;
-  allPassStyle: CSSProperties;
   handedOff: boolean;
   canHandoff: boolean;
   onGenerateExport: () => void;
@@ -254,7 +237,6 @@ export interface ViewModel {
   avgCoverage: number;
   hasAtRisk: boolean;
   noAtRisk: boolean;
-  atRiskAlertStyle: CSSProperties;
 
   hasModal: boolean;
   isUploadModal: boolean;
@@ -272,7 +254,7 @@ export interface ViewModel {
   onAcceptSOA: () => void;
   onConfirmHandoff: () => void;
 
-  toasts: ToastVM[];
+  toasts: Toast[];
   hasToasts: boolean;
 }
 

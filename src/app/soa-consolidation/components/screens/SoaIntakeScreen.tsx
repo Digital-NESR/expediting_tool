@@ -2,254 +2,98 @@ import type { ScreenProps } from '../../types';
 
 export default function SoaIntakeScreen({ vm }: ScreenProps) {
   return (
-    <div style={{ animation: 'fadeIn 0.2s ease' }}>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 3 }}>SOA Intake</h1>
-        <p style={{ fontSize: 12, color: '#58595B' }}>
+    <div className="animate-[fadeIn_0.2s_ease]">
+      <div className="mb-4">
+        <h1 className="text-[20px] font-bold mb-[3px]">SOA Intake</h1>
+        <p className="text-[12px] text-sns-grey">
           Vendor-facing secure upload experience (portal preview)
         </p>
       </div>
-      <div
-        style={{
-          background: '#F0F4F1',
-          border: '2px dashed #2A7E4F',
-          borderRadius: 10,
-          padding: '12px 16px',
-          marginBottom: 16,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-        }}
-      >
-        <div
-          style={{
-            background: '#2A7E4F',
-            color: 'white',
-            borderRadius: 6,
-            padding: '4px 10px',
-            fontSize: 11,
-            fontWeight: 'bold',
-            flexShrink: 0,
-          }}
-        >
+      <div className="bg-[#F0F4F1] border-2 border-dashed border-sns-green rounded-[10px] px-4 py-3 mb-4 flex items-center gap-2.5">
+        <div className="bg-sns-green text-white rounded-md px-2.5 py-1 text-[11px] font-bold shrink-0">
           PREVIEW
         </div>
-        <div style={{ fontSize: 12, color: '#2A7E4F' }}>
+        <div className="text-[12px] text-sns-green">
           This is what the vendor sees when they click the secure link in their request email. No
           account creation required.
         </div>
       </div>
 
-      <div
-        style={{
-          background: 'white',
-          borderRadius: 12,
-          overflow: 'hidden',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          maxWidth: 680,
-          margin: '0 auto',
-        }}
-      >
-        <div
-          style={{
-            background: '#2A7E4F',
-            padding: '16px 22px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
+      <div className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.1)] max-w-[680px] mx-auto">
+        <div className="bg-sns-green px-5.5 py-4 flex items-center justify-between">
           <div>
-            <div style={{ color: 'white', fontWeight: 'bold', fontSize: 14, letterSpacing: 2 }}>
-              NESR
-            </div>
-            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
+            <div className="text-white font-bold text-[14px] tracking-[2px]">NESR</div>
+            <div className="text-[rgba(255,255,255,0.7)] text-[11px]">
               Vendor Statement of Account Portal
             </div>
           </div>
-          <div
-            style={{
-              background: 'rgba(255,255,255,0.15)',
-              borderRadius: 6,
-              padding: '5px 12px',
-              color: 'white',
-              fontSize: 11,
-              fontWeight: 'bold',
-            }}
-          >
+          <div className="bg-[rgba(255,255,255,0.15)] rounded-md px-3 py-[5px] text-white text-[11px] font-bold">
             Q3 2026
           </div>
         </div>
-        <div style={{ padding: 22 }}>
-          <div style={{ borderBottom: '1px solid #E0E0E0', paddingBottom: 14, marginBottom: 16 }}>
-            <div style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 6 }}>
-              Statement of Account Submission
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div style={{ background: '#F5F5F5', borderRadius: 6, padding: '8px 12px' }}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: '#58595B',
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                    fontWeight: 'bold',
-                  }}
-                >
+        <div className="p-5.5">
+          <div className="border-b border-b-[#E0E0E0] pb-3.5 mb-4">
+            <div className="text-[16px] font-bold mb-1.5">Statement of Account Submission</div>
+            <div className="grid grid-cols-[1fr_1fr] gap-2">
+              <div className="bg-[#F5F5F5] rounded-md px-3 py-2">
+                <div className="text-[10px] text-sns-grey uppercase tracking-[0.5px] font-bold">
                   Legal Entity
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 'bold', marginTop: 2 }}>
-                  NESR Saudi Arabia Co.
-                </div>
+                <div className="text-[13px] font-bold mt-0.5">NESR Saudi Arabia Co.</div>
               </div>
-              <div style={{ background: '#F5F5F5', borderRadius: 6, padding: '8px 12px' }}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: '#58595B',
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                    fontWeight: 'bold',
-                  }}
-                >
+              <div className="bg-[#F5F5F5] rounded-md px-3 py-2">
+                <div className="text-[10px] text-sns-grey uppercase tracking-[0.5px] font-bold">
                   Submission Deadline
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 'bold', color: '#E65100', marginTop: 2 }}>
-                  15 July 2026
-                </div>
+                <div className="text-[13px] font-bold text-[#E65100] mt-0.5">15 July 2026</div>
               </div>
             </div>
           </div>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 8, color: '#1F1F1D' }}>
-              Required Information
-            </div>
-            <div
-              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}
-            >
+          <div className="mb-3.5">
+            <div className="text-[12px] font-bold mb-2 text-sns-ink">Required Information</div>
+            <div className="grid grid-cols-[1fr_1fr] gap-2 mb-2">
               <div>
-                <div
-                  style={{ fontSize: 11, color: '#58595B', marginBottom: 3, fontWeight: 'bold' }}
-                >
-                  Vendor Name *
-                </div>
-                <div
-                  style={{
-                    border: '1px solid #D1D3D4',
-                    borderRadius: 5,
-                    padding: '8px 10px',
-                    fontSize: 12,
-                    color: '#58595B',
-                  }}
-                >
+                <div className="text-[11px] text-sns-grey mb-[3px] font-bold">Vendor Name *</div>
+                <div className="border border-sns-line rounded-[5px] px-2.5 py-2 text-[12px] text-sns-grey">
                   Al-Zamil Industrial Inv.
                 </div>
               </div>
               <div>
-                <div
-                  style={{ fontSize: 11, color: '#58595B', marginBottom: 3, fontWeight: 'bold' }}
-                >
-                  Vendor No. *
-                </div>
-                <div
-                  style={{
-                    border: '1px solid #D1D3D4',
-                    borderRadius: 5,
-                    padding: '8px 10px',
-                    fontSize: 12,
-                    color: '#58595B',
-                    fontFamily: 'monospace',
-                  }}
-                >
+                <div className="text-[11px] text-sns-grey mb-[3px] font-bold">Vendor No. *</div>
+                <div className="border border-sns-line rounded-[5px] px-2.5 py-2 text-[12px] text-sns-grey font-[family-name:monospace]">
                   SA-023456
                 </div>
               </div>
             </div>
-            <div
-              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}
-            >
+            <div className="grid grid-cols-[1fr_1fr] gap-2 mb-2">
               <div>
-                <div
-                  style={{ fontSize: 11, color: '#58595B', marginBottom: 3, fontWeight: 'bold' }}
-                >
-                  Period *
-                </div>
-                <div
-                  style={{
-                    border: '1px solid #D1D3D4',
-                    borderRadius: 5,
-                    padding: '8px 10px',
-                    fontSize: 12,
-                    color: '#58595B',
-                  }}
-                >
+                <div className="text-[11px] text-sns-grey mb-[3px] font-bold">Period *</div>
+                <div className="border border-sns-line rounded-[5px] px-2.5 py-2 text-[12px] text-sns-grey">
                   Q3 2026 (Apr – Jun 2026)
                 </div>
               </div>
               <div>
-                <div
-                  style={{ fontSize: 11, color: '#58595B', marginBottom: 3, fontWeight: 'bold' }}
-                >
-                  Currency *
-                </div>
-                <div
-                  style={{
-                    border: '1px solid #D1D3D4',
-                    borderRadius: 5,
-                    padding: '8px 10px',
-                    fontSize: 12,
-                    color: '#58595B',
-                  }}
-                >
+                <div className="text-[11px] text-sns-grey mb-[3px] font-bold">Currency *</div>
+                <div className="border border-sns-line rounded-[5px] px-2.5 py-2 text-[12px] text-sns-grey">
                   SAR
                 </div>
               </div>
             </div>
           </div>
-          <div
-            style={{
-              border: '2px dashed #D1D3D4',
-              borderRadius: 8,
-              padding: 20,
-              textAlign: 'center',
-              marginBottom: 14,
-              background: '#FAFAFA',
-            }}
-          >
-            <div style={{ fontSize: 24, marginBottom: 6 }}>📄</div>
-            <div style={{ fontSize: 13, fontWeight: 'bold', color: '#1F1F1D', marginBottom: 4 }}>
-              Upload SOA File
-            </div>
-            <div style={{ fontSize: 11, color: '#58595B', marginBottom: 10 }}>
+          <div className="border-2 border-dashed border-sns-line rounded-lg p-5 text-center mb-3.5 bg-[#FAFAFA]">
+            <div className="text-[24px] mb-1.5">📄</div>
+            <div className="text-[13px] font-bold text-sns-ink mb-1">Upload SOA File</div>
+            <div className="text-[11px] text-sns-grey mb-2.5">
               Excel (.xlsx) or signed PDF · Max 10MB
             </div>
             <div
               onClick={vm.onOpenUploadFlow}
-              style={{
-                background: '#2A7E4F',
-                color: 'white',
-                display: 'inline-block',
-                padding: '8px 18px',
-                borderRadius: 6,
-                fontSize: 12,
-                fontWeight: 'bold',
-                cursor: 'pointer',
-              }}
+              className="bg-sns-green text-white inline-block px-[18px] py-2 rounded-md text-[12px] font-bold cursor-pointer"
             >
               Browse File
             </div>
           </div>
-          <div
-            style={{
-              background: '#F0F7F3',
-              border: '1px solid #C5E0D2',
-              borderRadius: 6,
-              padding: '10px 12px',
-              fontSize: 11,
-              color: '#2A7E4F',
-              lineHeight: 1.5,
-            }}
-          >
+          <div className="bg-[#F0F7F3] border border-sns-green-pale rounded-md px-3 py-2.5 text-[11px] text-sns-green leading-[1.5]">
             Your submission is encrypted and stored securely. It will be validated against the NESR
             SOA template and acknowledged within 24 hours. Contact aarashidi@nesr.com with any
             questions.

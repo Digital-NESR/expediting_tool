@@ -206,26 +206,16 @@ export default function SoaConsolidationPage() {
   const vm = deriveViewModel(state, handlers);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        fontFamily: 'Arial, Calibri, Helvetica, sans-serif',
-        background: '#EAEDE9',
-        color: '#1F1F1D',
-        overflow: 'hidden',
-      }}
-    >
+    <div className="flex flex-col h-screen font-[family-name:Arial,_Calibri,_Helvetica,_sans-serif] bg-[#EAEDE9] text-sns-ink overflow-hidden">
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
 
       <Navbar vm={vm} />
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="flex flex-1 overflow-hidden">
         <Sidebar vm={vm} />
-        <main style={{ flex: 1, overflowY: 'auto', padding: '20px 22px', background: '#EAEDE9' }}>
+        <main className="flex-1 overflow-y-auto px-[22px] py-5 bg-[#EAEDE9]">
           {vm.showDashboard && <DashboardScreen vm={vm} />}
           {vm.showScoping && <VendorScopingScreen vm={vm} />}
           {vm.showOutreach && <OutreachScreen vm={vm} />}
@@ -243,30 +233,12 @@ export default function SoaConsolidationPage() {
         typeof document !== 'undefined' &&
         createPortal(
           <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.45)',
-              zIndex: 300,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            className="fixed inset-0 bg-[rgba(0,0,0,0.45)] z-[300] flex items-center justify-center"
             onClick={(e) => {
               if (e.target === e.currentTarget) vm.onCloseModal();
             }}
           >
-            <div
-              style={{
-                background: 'white',
-                borderRadius: 12,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-                width: 480,
-                overflow: 'hidden',
-                maxHeight: '90vh',
-                overflowY: 'auto',
-              }}
-            >
+            <div className="bg-white rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.2)] w-[480px] overflow-x-hidden max-h-[90vh] overflow-y-auto">
               {vm.isUploadModal && <UploadModal vm={vm} />}
               {vm.isHandoffModal && <HandoffModal vm={vm} />}
             </div>
