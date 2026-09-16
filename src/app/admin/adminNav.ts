@@ -109,7 +109,9 @@ export const ADMIN_APPS: AdminApp[] = [
       { id: 'admin', label: 'Admin Panel' },
       { id: 'analytics', label: 'Analytics' },
       { id: 'cost-centers', label: 'Cost Centers' },
-      { id: 'access', label: 'Approval Access', countKey: 'laptop' },
+      // No countKey: Laptop Procurement is open to every signed-in user, so there is
+      // no queue of access requests to count.
+      { id: 'access', label: 'Approval Access' },
     ],
   },
   {

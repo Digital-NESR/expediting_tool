@@ -1,6 +1,9 @@
 'use server';
 
-/* ─── The access-request queue. ─── */
+/* ─── The Laptop Procurement access roster.
+
+   Not a request queue: the tool is open to every signed-in user, so nobody asks to
+   join. These actions only record who an admin has granted or taken access from. ─── */
 
 import laptopProcurementPool from '@/lib/db-laptop';
 import { withTransaction } from '@/lib/db/tx';
@@ -35,7 +38,7 @@ export async function getLaptopAccessRequests(): Promise<LaptopAccessRequestRow[
     const [requestRows, permissionRows] = await Promise.all([
       sql<QueryResultRow[]>(
         `SELECT * FROM laptop_access_requests
-         ORDER BY CASE status WHEN 'Pending' THEN 0 WHEN 'Approved' THEN 1 ELSE 2 END, requested_at DESC`,
+         ORDER BY CASE status WHEN 'Approved' THEN 0 ELSE 1 END, requested_at DESC`,
       ),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_permissions ORDER BY updated_at DESC, email`),
     ]);
@@ -67,9 +70,9 @@ export async function getLaptopAccessRequests(): Promise<LaptopAccessRequestRow[
       });
     }
 
+    // Live access first, then everyone whose access was taken away.
     return [...byEmail.values()].sort((a, b) => {
-      const rank = (status: LaptopAccessRequestStatus) =>
-        status === 'Pending' ? 0 : status === 'Approved' ? 1 : 2;
+      const rank = (status: LaptopAccessRequestStatus) => (status === 'Approved' ? 0 : 1);
       return (
         rank(a.status) - rank(b.status) || Date.parse(b.requested_at) - Date.parse(a.requested_at)
       );
@@ -77,20 +80,6 @@ export async function getLaptopAccessRequests(): Promise<LaptopAccessRequestRow[
   } catch (err) {
     log.error('getLaptopAccessRequests.failed', err);
     return [];
-  }
-}
-
-export async function getLaptopPendingAccessCount(): Promise<number> {
-  try {
-    await requireAdminActor();
-    await ensureLaptopAccessRequestTable();
-    const rows = await sql<QueryResultRow[]>(
-      `SELECT COUNT(*) AS cnt FROM laptop_access_requests WHERE status = 'Pending'`,
-    );
-    return Number(rows[0]?.cnt ?? 0);
-  } catch (err) {
-    log.error('getLaptopPendingAccessCount.failed', err);
-    return 0;
   }
 }
 
@@ -171,33 +160,6 @@ export async function editLaptopAccess(input: {
   segment?: string | null;
 }): Promise<ActionResult> {
   return approveLaptopAccess({ ...input, notes: 'Access edited by admin' });
-}
-
-export async function rejectLaptopAccess(userEmail: string): Promise<ActionResult> {
-  try {
-    const actor = await requireAdminActor();
-    if (!actor.permissions.canManagePermissions)
-      return { success: false, error: 'Permission management access is required.' };
-    await ensureLaptopAccessRequestTable();
-    const email = requireText(userEmail, 'Email').toLowerCase();
-    await withTransaction(laptopProcurementPool, async (client) => {
-      await execTx(
-        client,
-        `UPDATE laptop_access_requests
-         SET status = 'Rejected', approved_role = NULL, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
-         WHERE user_email = ?`,
-        [actor.email, email],
-      );
-      if (!isLaptopConsoleAdminEmail(email)) {
-        await execTx(client, `DELETE FROM laptop_permissions WHERE email = ?`, [email]);
-      }
-    });
-    revalidateLaptopAdminPath();
-    return { success: true };
-  } catch (err) {
-    log.error('rejectLaptopAccess.failed', err);
-    return { success: false, error: 'Failed to reject Laptop Procurement access.' };
-  }
 }
 
 export async function revokeLaptopAccess(userEmail: string): Promise<ActionResult> {

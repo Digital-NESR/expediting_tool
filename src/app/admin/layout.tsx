@@ -8,7 +8,6 @@ import { getTitePendingCount } from '@/app/actions/tite';
 import { getSourceGuidePendingCount } from '@/app/actions/sourceguide';
 import { getCatalogAccessPendingCount } from '@/app/actions/catalog-manager';
 import { getSnsPendingAccessCount } from '@/app/actions/sns';
-import { getLaptopPendingAccessCount } from '@/app/actions/laptopProcurement';
 
 export const metadata = { title: 'NESR | Admin' };
 
@@ -17,21 +16,20 @@ export const metadata = { title: 'NESR | Admin' };
 // static pass (which would flag AdminShell's useSearchParams usage).
 export const dynamic = 'force-dynamic';
 
-/* The six badge COUNTs, resolved ONCE per request. Wrapped in React's
+/* The five badge COUNTs, resolved ONCE per request. Wrapped in React's
    cache() so any re-render of this segment within the same request
    (and any other server component that needs the same numbers) shares
-   one evaluation instead of firing six queries across six pools again.
+   one evaluation instead of firing five queries across five pools again.
    Same values, same freshness — cache() has request scope only. */
 const getAdminCounts = cache(async (): Promise<AdminCounts> => {
-  const [po, tite, sourceguide, catalog, sns, laptop] = await Promise.all([
+  const [po, tite, sourceguide, catalog, sns] = await Promise.all([
     getPendingAccessCount(),
     getTitePendingCount(),
     getSourceGuidePendingCount(),
     getCatalogAccessPendingCount(),
     getSnsPendingAccessCount(),
-    getLaptopPendingAccessCount(),
   ]);
-  return { po, tite, sourceguide, catalog, sns, laptop };
+  return { po, tite, sourceguide, catalog, sns };
 });
 
 /* This layout gates the ENTIRE /admin/* segment: only ADMIN_EMAILS
@@ -87,7 +85,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   /* Lightweight badge counts (COUNT queries), memoized per request by
-     getAdminCounts above. ProcureGuard is open-access → no pending badge. */
+     getAdminCounts above. ProcureGuard and Laptop Procurement are open-access
+     → no pending badge. */
   const counts = await getAdminCounts();
 
   return (

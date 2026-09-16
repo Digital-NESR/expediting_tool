@@ -210,8 +210,13 @@ export const SEED_TRACKS: SeedTrack[] = [
             lessons: [
               {
                 title: 'Course Introduction',
-                videoUrl:
-                  'https://url.us.m.mimecastprotect.com/s/vmLQCKrj6MCA2RlKivhXc5SPEK?domain=1drv.ms',
+                /* No videoUrl. This carried a Mimecast link — the per-recipient tracking URL an
+                   email security gateway rewrites a link into — wrapping a personal OneDrive
+                   share. Those neither frame nor outlive the recipient, so the lesson rendered
+                   an empty player. Removed rather than guessed at: the real walkthrough has not
+                   been recorded yet, which the placeholder body below already says. Put the
+                   canonical nesrcorp.sharepoint.com embed URL here when it exists, the way the
+                   other nineteen seed videos do. */
                 body: `Placeholder lesson. This course walks through NESR's Source-to-Pay process cycle exactly as mapped in the current AS-IS → TO BE roadmap: Source → Contract → Catalog feeding into the main Demand → Procure → Deliver → Pay flow, with Logistics and Inventory as cross-cutting lanes. Each module below covers one stage of that cycle and the system that supports it today, noting where a step is still a manual, email-driven process, where it runs in core SAP, where a dedicated system is in limited use, and where a system is in phased deployment. Replace this lesson with a real walkthrough of the roadmap and how it is expected to evolve.`,
               },
             ],

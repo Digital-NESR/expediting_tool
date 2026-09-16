@@ -1,12 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 import {
-  approveLaptopAccess,
   deleteLaptopAccessRequest,
   editLaptopAccess,
   getLaptopAccessRequests,
-  rejectLaptopAccess,
   revokeLaptopAccess,
 } from '@/app/actions/laptopProcurement';
 import {
@@ -21,9 +19,7 @@ function StatusBadge({ status }: { status: LaptopAccessRequestRow['status'] }) {
   const cls =
     status === 'Approved'
       ? 'bg-[#307c4c]/10 text-[#307c4c] border-[#307c4c]/20'
-      : status === 'Pending'
-        ? 'bg-amber-100 text-amber-700 border-amber-200'
-        : 'bg-red-100 text-red-700 border-red-200';
+      : 'bg-red-100 text-red-700 border-red-200';
   return (
     <span
       className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold whitespace-nowrap ${cls}`}
@@ -54,13 +50,11 @@ function ScopePills({ country, segment }: { country: string | null; segment: str
 
 function RoleSelector({
   row,
-  mode,
   loading,
   onCancel,
   onConfirm,
 }: {
   row: LaptopAccessRequestRow;
-  mode: 'approve' | 'edit';
   loading: boolean;
   onCancel: () => void;
   onConfirm: (role: LaptopPermissionRole, country: string, segment: string) => void;
@@ -73,9 +67,7 @@ function RoleSelector({
 
   return (
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="mb-3 text-xs font-semibold text-slate-600">
-        {mode === 'approve' ? 'Approve role and scope' : 'Edit role and scope'}
-      </p>
+      <p className="mb-3 text-xs font-semibold text-slate-600">Edit role and scope</p>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <label>
           <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">
@@ -144,19 +136,14 @@ function RoleSelector({
   );
 }
 
-// No userEmail prop: the reviewer identity on every approve/reject/revoke now comes
-// from the authenticated actor inside the server action, not from the client.
-export default function LaptopAccessApprovalsClient({
-  onPendingCountChange,
-}: {
-  onPendingCountChange?: (count: number) => void;
-}) {
+// No userEmail prop: the reviewer identity on every approve/revoke now comes from the
+// authenticated actor inside the server action, not from the client.
+export default function LaptopAccessApprovalsClient() {
   const [requests, setRequests] = useState<LaptopAccessRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
-  const [expandMode, setExpandMode] = useState<'approve' | 'edit' | null>(null);
   const [processingEmail, setProcessingEmail] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
   const [isPending, startTransition] = useTransition();
@@ -167,61 +154,24 @@ export default function LaptopAccessApprovalsClient({
       const data = await getLaptopAccessRequests();
       setRequests(data);
       setLastRefreshed(new Date());
-      onPendingCountChange?.(data.filter((row) => row.status === 'Pending').length);
     } finally {
       setIsRefreshing(false);
     }
-  }, [onPendingCountChange]);
+  }, []);
 
   useEffect(() => {
     getLaptopAccessRequests()
       .then((data) => {
         setRequests(data);
         setLastRefreshed(new Date());
-        onPendingCountChange?.(data.filter((row) => row.status === 'Pending').length);
       })
       .finally(() => setLoading(false));
-  }, [onPendingCountChange]);
+  }, []);
 
-  const pending = useMemo(() => requests.filter((row) => row.status === 'Pending'), [requests]);
   const allUsers = requests;
 
-  function openExpand(email: string, mode: 'approve' | 'edit') {
-    if (expandedEmail === email && expandMode === mode) {
-      setExpandedEmail(null);
-      setExpandMode(null);
-      return;
-    }
-    setExpandedEmail(email);
-    setExpandMode(mode);
-  }
-
-  function handleApprove(
-    row: LaptopAccessRequestRow,
-    role: LaptopPermissionRole,
-    country: string,
-    segment: string,
-  ) {
-    setActionError('');
-    setProcessingEmail(row.user_email);
-    startTransition(async () => {
-      const result = await approveLaptopAccess({
-        userEmail: row.user_email,
-        approvedRole: role,
-        country,
-        segment,
-        notes: null,
-      });
-      if (!result.success) {
-        setActionError(result.error ?? 'Failed to approve Laptop Procurement access.');
-        setProcessingEmail(null);
-        return;
-      }
-      await refreshData();
-      setExpandedEmail(null);
-      setExpandMode(null);
-      setProcessingEmail(null);
-    });
+  function openExpand(email: string) {
+    setExpandedEmail(expandedEmail === email ? null : email);
   }
 
   function handleEdit(
@@ -246,16 +196,6 @@ export default function LaptopAccessApprovalsClient({
       }
       await refreshData();
       setExpandedEmail(null);
-      setExpandMode(null);
-      setProcessingEmail(null);
-    });
-  }
-
-  function handleReject(email: string) {
-    setProcessingEmail(email);
-    startTransition(async () => {
-      await rejectLaptopAccess(email);
-      await refreshData();
       setProcessingEmail(null);
     });
   }
@@ -323,9 +263,6 @@ export default function LaptopAccessApprovalsClient({
                       <p className="font-semibold text-slate-800">
                         {row.approved_role ?? row.requested_role}
                       </p>
-                      {row.status === 'Pending' && (
-                        <p className="text-xs text-slate-500">requested</p>
-                      )}
                     </td>
                     <td className="px-4 py-3">
                       <ScopePills country={row.country} segment={row.segment} />
@@ -338,32 +275,12 @@ export default function LaptopAccessApprovalsClient({
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex flex-wrap justify-end gap-2">
-                        {row.status === 'Pending' && (
-                          <>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => openExpand(row.user_email, 'approve')}
-                              className="rounded-lg bg-[#307c4c] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => handleReject(row.user_email)}
-                              className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60"
-                            >
-                              Reject
-                            </button>
-                          </>
-                        )}
                         {row.status === 'Approved' && (
                           <>
                             <button
                               type="button"
                               disabled={busy}
-                              onClick={() => openExpand(row.user_email, 'edit')}
+                              onClick={() => openExpand(row.user_email)}
                               className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-60"
                             >
                               Edit
@@ -389,20 +306,14 @@ export default function LaptopAccessApprovalsClient({
                           </button>
                         )}
                       </div>
-                      {expanded && expandMode && (
+                      {expanded && (
                         <RoleSelector
                           row={row}
-                          mode={expandMode}
                           loading={busy}
-                          onCancel={() => {
-                            setExpandedEmail(null);
-                            setExpandMode(null);
-                          }}
-                          onConfirm={(role, country, segment) => {
-                            if (expandMode === 'approve')
-                              handleApprove(row, role, country, segment);
-                            else handleEdit(row, role, country, segment);
-                          }}
+                          onCancel={() => setExpandedEmail(null)}
+                          onConfirm={(role, country, segment) =>
+                            handleEdit(row, role, country, segment)
+                          }
                         />
                       )}
                     </td>
@@ -440,7 +351,7 @@ export default function LaptopAccessApprovalsClient({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-            Laptop Procurement Access Requests
+            Laptop Procurement Access
           </h2>
           <p className="mt-0.5 text-[12px] text-gray-400">
             Last updated:{' '}
@@ -467,16 +378,6 @@ export default function LaptopAccessApprovalsClient({
           {actionError}
         </p>
       )}
-
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900">Pending Requests</h3>
-          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
-            {pending.length}
-          </span>
-        </div>
-        {renderRows(pending, 'No pending Laptop Procurement access requests.')}
-      </section>
 
       <section>
         <div className="mb-3 flex items-center justify-between">

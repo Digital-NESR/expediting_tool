@@ -150,24 +150,37 @@ export interface LessonQuiz {
   pass_pct: number;
   questions: LessonQuizQuestion[];
 }
-export interface LessonQuizAttemptResult {
+/* ── Quiz attempt results ────────────────────────────────────────────────
+   Both knowledge checks are graded server-side and report the same score, so the score and the
+   per-question outcome are declared once here and the two attempt shapes add what only they
+   have: a pass mark on the lesson gate, and an answer key that only it withholds. ── */
+
+export interface QuizAttemptScore {
   total: number;
   correctCount: number;
   scorePct: number;
+}
+
+export interface QuizQuestionOutcome {
+  questionId: number;
+  selectedOptionId: number | null;
+  correct: boolean;
+}
+
+export interface LessonQuizQuestionResult extends QuizQuestionOutcome {
+  /**
+   * Null until the learner passes. This quiz gates the next lesson, so returning the key on a
+   * failed attempt let anyone submit blank, read the answers out of the response, and resubmit.
+   * `correct` still comes back either way, so a learner always sees WHICH questions they got
+   * wrong — just not what the right answer was until they have earned it.
+   */
+  correctOptionId: number | null;
+}
+
+export interface LessonQuizAttemptResult extends QuizAttemptScore {
   passed: boolean;
   pass_pct: number;
-  results: {
-    questionId: number;
-    selectedOptionId: number | null;
-    /**
-     * Null until the learner passes. This quiz gates the next lesson, so returning the key on a
-     * failed attempt let anyone submit blank, read the answers out of the response, and resubmit.
-     * `correct` still comes back either way, so a learner always sees WHICH questions they got
-     * wrong — just not what the right answer was until they have earned it.
-     */
-    correctOptionId: number | null;
-    correct: boolean;
-  }[];
+  results: LessonQuizQuestionResult[];
 }
 
 export interface MyWorkCourse {
@@ -188,7 +201,11 @@ export interface MyWorkData {
   notStarted: MyWorkCourse[];
 }
 
-/* ── Knowledge checks (one optional quiz per module) ─────────────────── */
+/* ── Knowledge checks (one optional quiz per module) ──────────────────────
+   These carry the same data as `LessonQuizOption` / `LessonQuizQuestion` above under different
+   names: `option_text` and `question_text` here, `text` on both there. The names are set where
+   the rows are shaped, in `src/lib/learning-hub-queries.ts`, so settling on one spelling means
+   changing those loaders and every reader at once. ── */
 
 export interface QuizOption {
   id: number;
@@ -233,17 +250,12 @@ export interface QuizAnswerInput {
   optionId: number | null;
 }
 
-export interface QuizQuestionResult {
-  questionId: number;
-  selectedOptionId: number | null;
+export interface QuizQuestionResult extends QuizQuestionOutcome {
+  /** Always present: a module check gates nothing, so the key ships with every attempt. */
   correctOptionId: number;
-  correct: boolean;
 }
 
-export interface QuizAttemptResult {
-  total: number;
-  correctCount: number;
-  scorePct: number;
+export interface QuizAttemptResult extends QuizAttemptScore {
   results: QuizQuestionResult[];
 }
 

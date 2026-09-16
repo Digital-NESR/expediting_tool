@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   CheckCircle2,
-  XCircle,
   Clock,
   ArrowLeft,
   ArrowRight,
@@ -13,10 +12,8 @@ import {
   ClipboardCheck,
   RotateCcw,
 } from 'lucide-react';
-import LearningHubSidebar from '../../../components/LearningHubSidebar';
-import LearningHubLogo from '../../../components/LearningHubLogo';
-import LearningHubHomeButton from '../../../components/LearningHubHomeButton';
-import LearningHubBackButton from '../../../components/LearningHubBackButton';
+import LearningHubShell from '../../../components/LearningHubShell';
+import QuizOptionButton, { type QuizOptionState } from '../../../components/QuizOptionButton';
 import {
   markLessonComplete,
   markLessonIncomplete,
@@ -85,6 +82,7 @@ function LessonVideo({ videoUrl, title }: { videoUrl: string; title: string }) {
   );
 }
 
+// Both the locked notice and the lesson itself sit in the same frame, headed by the course.
 function Shell({
   track,
   course,
@@ -94,37 +92,21 @@ function Shell({
   course: LessonDetailData['course'];
   children: React.ReactNode;
 }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
-    <div className="min-h-[100dvh] bg-slate-50 font-sans text-slate-900">
-      <LearningHubSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200/70 bg-white/80 px-4 backdrop-blur-md md:h-16 md:px-8">
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
-        <LearningHubBackButton href={`/learning-hub/${track.key}/${course.id}`} />
-        <LearningHubHomeButton />
-        <LearningHubLogo size="sm" />
+    <LearningHubShell
+      backHref={`/learning-hub/${track.key}/${course.id}`}
+      title={
         <Link
           href={`/learning-hub/${track.key}/${course.id}`}
           className="truncate text-sm font-medium text-slate-400 hover:text-slate-600"
         >
           {course.title}
         </Link>
-      </header>
-      <main className="mx-auto max-w-[820px] space-y-6 px-4 py-8 sm:px-6">{children}</main>
-    </div>
+      }
+      mainClassName="max-w-[820px] py-8"
+    >
+      {children}
+    </LearningHubShell>
   );
 }
 
@@ -227,41 +209,21 @@ function QuizBlock({
                   const chosenWasRight = chosen && outcomeByQ.get(q.id) === true;
                   const showRight = isCorrect || (revealed == null && chosenWasRight);
                   const isWrongChosen = result != null && chosen && !showRight;
-                  let cls = 'border-slate-200 bg-white hover:bg-slate-50';
-                  if (result) {
-                    if (showRight) cls = 'border-emerald-300 bg-emerald-50';
-                    else if (isWrongChosen) cls = 'border-red-300 bg-red-50';
-                    else cls = 'border-slate-200 bg-white';
-                  } else if (chosen) {
-                    cls = 'bg-white';
-                  }
+                  let state: QuizOptionState = 'idle';
+                  if (result)
+                    state = showRight ? 'correct' : isWrongChosen ? 'incorrect' : 'graded';
+                  else if (chosen) state = 'selected';
                   return (
-                    <button
+                    <QuizOptionButton
                       key={o.id}
-                      type="button"
+                      variant="lesson"
+                      state={state}
+                      chosen={chosen}
+                      label={o.text}
+                      accentColor={color}
                       disabled={result != null || submitting}
                       onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: o.id }))}
-                      className={`flex w-full items-center gap-3 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors ${cls}`}
-                      style={
-                        !result && chosen
-                          ? { borderColor: color, boxShadow: `0 0 0 1px ${color}` }
-                          : undefined
-                      }
-                    >
-                      <span
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${chosen ? '' : 'border-slate-300'}`}
-                        style={
-                          chosen && !result ? { borderColor: color, background: color } : undefined
-                        }
-                      >
-                        {chosen && !result && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                        )}
-                      </span>
-                      <span className="flex-1 text-slate-700">{o.text}</span>
-                      {showRight && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />}
-                      {isWrongChosen && <XCircle className="h-4 w-4 shrink-0 text-red-500" />}
-                    </button>
+                    />
                   );
                 })}
               </div>

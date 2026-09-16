@@ -74,16 +74,11 @@ export async function proxy(req: NextRequest) {
   // /ti-te/* → accessible to all authenticated users (no tool-level check)
   // (login is already enforced above; no additional gate needed)
 
-  // /po-expediting/* → check tool-level access for 'po_expediting'
-  if (pathname.startsWith('/po-expediting')) {
-    const isAdmin = token.isAdmin as boolean | undefined;
-    const toolAccess = token.toolAccess as { po_expediting?: { status: string } } | undefined;
-    const poStatus = toolAccess?.po_expediting?.status;
-
-    if (!isAdmin && poStatus !== 'approved') {
-      return NextResponse.redirect(new URL('/home', req.url));
-    }
-  }
+  /* /po-expediting/* is gated by its own layout, not here. This used to read
+     toolAccess.po_expediting out of the JWT cookie, which only the browser can be handed a new
+     copy of — so an approval did not take effect until the user signed out and back in, and a
+     freshly approved person was bounced to /home with nothing explaining why. A server-side
+     check can read the access row instead; see src/app/po-expediting/layout.tsx. */
 
   // /learning-hub/* → open to every authenticated user (no tool-level check).
   // Login is already enforced above; no access request needed.

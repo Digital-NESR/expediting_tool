@@ -363,6 +363,10 @@ export interface LaptopPermissionListItem {
   matrixSlot?: number;
 }
 
+// Mirrors the CHECK constraint on laptop_access_requests.status, not what this app
+// writes: there is no request-to-join flow any more, so only 'Approved' and 'Revoked'
+// are ever produced. 'Pending' and 'Rejected' stay in the union because the column
+// still accepts them and historic rows may carry them.
 export type LaptopAccessRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
 
 export interface LaptopAccessRequestRow {
