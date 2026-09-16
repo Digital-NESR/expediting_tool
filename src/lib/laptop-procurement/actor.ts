@@ -4,6 +4,7 @@
    before that, at four round trips each. ─── */
 
 import { getProcureGuardUser } from '@/lib/auth';
+import { LAPTOP_APPROVAL_STAGES } from '@/types/laptopProcurement';
 import { asSerialised } from '@/lib/db/sql';
 import { bestAccessView, getPermissionProfile } from '@/lib/laptopProcurement-utils';
 import type { LaptopApprovalStage } from '@/lib/laptopProcurement-utils';
@@ -65,20 +66,12 @@ export async function getPermissionRowForEmail(email: string): Promise<LaptopPer
 // those stages across different countries, which a single role+country permission row
 // could never express — e.g. Country Manager for one country and Supply Chain
 // Director broadly.
-export const APPROVAL_STAGES: LaptopApprovalStage[] = [
-  'IT Manager',
-  'Country Manager',
-  'IT Director',
-  'Supply Chain Director',
-];
+export const APPROVAL_STAGES: readonly LaptopApprovalStage[] = LAPTOP_APPROVAL_STAGES;
 
 export function emptyMatrixCapabilities(): Record<LaptopApprovalStage, string[]> {
-  return {
-    'IT Manager': [],
-    'Country Manager': [],
-    'IT Director': [],
-    'Supply Chain Director': [],
-  };
+  const capabilities = {} as Record<LaptopApprovalStage, string[]>;
+  for (const stage of LAPTOP_APPROVAL_STAGES) capabilities[stage] = [];
+  return capabilities;
 }
 
 export async function getApproverMatrixCapabilities(

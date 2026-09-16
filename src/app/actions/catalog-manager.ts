@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
 import { withTransaction } from '@/lib/db/tx';
 import { getProcureGuardUser } from '@/lib/auth';
 import { AccessError, isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
-import { getDelegatorsForApp } from '@/app/actions/delegation';
+import { getDelegatorsForApp } from '@/lib/delegation';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy.server';
 import { SERVICE_ACTIVITIES } from '@/lib/catalog-service-activities';
 import {
@@ -1326,7 +1326,19 @@ export async function exportPirEntries(query: PirQuery = {}): Promise<PirEntry[]
   return rows.map(mapPirRow);
 }
 
-/** Stat-card totals + facet dropdown values. Cached — the mirror only changes on the nightly sync. */
+/**
+ * Stat-card totals + facet dropdown values. Cached — the mirror only changes on the nightly sync.
+ *
+ * The `pir-catalog` tag is cleared by POST /api/catalog-manager/revalidate, which the n8n job
+ * should call once its reload has committed. Until that call was available the one-hour
+ * revalidate was the only thing that expired this, so the figures on screen could disagree with
+ * the table for up to an hour after a sync with no way for a user to tell.
+ *
+ * Still on `unstable_cache`, which the bundled Next 16 docs say `use cache` replaces. Moving is
+ * not a local edit: `use cache` requires the `cacheComponents` flag, which changes prerendering
+ * semantics for every route in a nine-tool app, and this repository cannot run `next build` to
+ * check the result. That migration wants its own change, deliberately planned.
+ */
 const loadPirMeta = unstable_cache(
   async (): Promise<PirMeta> => {
     const facetList = async (col: string) => {

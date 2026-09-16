@@ -25,7 +25,11 @@ import {
   DELEGATION_EMAIL_RE,
   applyLaptopDelegationExpiry,
 } from '@/lib/laptop-procurement/delegation';
-import { blankToNull, requireText } from '@/lib/laptop-procurement/internals';
+import {
+  blankToNull,
+  requireText,
+  revalidateLaptopAdminPath,
+} from '@/lib/laptop-procurement/internals';
 import {
   deferLaptopNotifications,
   sendLaptopDelegationNotification,
@@ -192,7 +196,7 @@ export async function revokeLaptopDelegation(id: number): Promise<ActionResult> 
       );
     }
     revalidatePath('/laptop-procurement/delegate');
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('revokeLaptopDelegation.failed', err);
@@ -281,7 +285,7 @@ export async function adminGrantLaptopDelegation(input: {
         );
       }
     });
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     revalidatePath('/laptop-procurement/delegate');
     deferLaptopNotifications('delegation-granted', () =>
       sendLaptopDelegationNotification('granted', {

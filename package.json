@@ -18,7 +18,8 @@
     "prepare": "husky",
     "laptop:db:seed": "node --env-file=.env.local scripts/laptop-seed-data.mjs",
     "laptop:cost-centers:seed": "node scripts/seed-laptop-cost-centers.mjs",
-    "sns:db:init": "node scripts/sns-init-db.mjs"
+    "sns:db:init": "node scripts/sns-init-db.mjs",
+    "delegation:db:init": "node scripts/delegation-init-db.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

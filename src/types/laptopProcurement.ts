@@ -71,18 +71,29 @@ export interface UpdateLaptopPermissionInput {
   segment?: string;
 }
 
+/* The approval chain, in climbing order — the sole declaration of it. The four stages
+   used to be spelled out separately here, in laptopProcurement-utils and again in
+   laptop-procurement/actor, so adding a fifth meant finding every copy. The union, the
+   runtime arrays and the per-stage records are all derived from this one tuple, and
+   `satisfies` pins each stage to a real permission role so a typo cannot introduce a
+   stage nobody can ever hold.
+
+   The ORDER is load-bearing: admin-data ranks a request's progress by indexOf. */
+export const LAPTOP_APPROVAL_STAGES = [
+  'IT Manager',
+  'Country Manager',
+  'IT Director',
+  'Supply Chain Director',
+] as const satisfies readonly LaptopPermissionRole[];
+
+export type LaptopApprovalStageName = (typeof LAPTOP_APPROVAL_STAGES)[number];
+
 // Which countries this identity is the named approver for, per approval stage — the
 // approver matrix (laptop_approver_matrix) is the sole source of this, replacing the
 // old single role+country scope from laptop_permissions. One identity can hold several
 // stages across different (or overlapping) countries, e.g. Country Manager for one
 // country and Supply Chain Director broadly.
-export type LaptopApproverCapabilities = Record<
-  'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director',
-  string[]
->;
-
-export type LaptopApprovalStageName =
-  'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
+export type LaptopApproverCapabilities = Record<LaptopApprovalStageName, string[]>;
 
 // One specific role a person can delegate — a single (stage, country) slot they hold
 // in the approver matrix, not "everything this person happens to have." Delegating a

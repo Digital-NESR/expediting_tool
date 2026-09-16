@@ -1,17 +1,23 @@
 /*
- * TUTORIAL_VIDEO_URL — SharePoint Stream embed URL. To update, replace with a new embed link from
- *   SharePoint / Stream > Share > Embed. The video is always rendered as an <iframe>.
- * DOCS_PDF_URL — place the PDF at /public/help/documentation.pdf, or update the constant to an
- *   Azure Blob URL. For large video files, upload to Azure Blob Storage and update TUTORIAL_VIDEO_URL.
+ * The in-app TI-TE help page. Same two tabs as the public /help/tite page, inside
+ * the TI-TE sidebar shell rather than the public header — so only the tab strip
+ * and the material locations are shared with it, not the frame.
+ *
+ * Where the video and the PDF live is configuration; see `@/app/help/media` for
+ * the environment variables and the SharePoint embed-URL rules.
  */
 'use client';
 
 import { useState } from 'react';
 import TiteSidebar from '@/components/TiteSidebar';
+import HelpTabBar from '@/app/help/HelpTabBar';
+import { TITE_BRAND } from '@/app/help/brand';
+import { TITE_TRAINING_DOC_URL, TITE_TRAINING_VIDEO_EMBED_URL } from '@/app/help/media';
 
-const TUTORIAL_VIDEO_URL =
-  'https://nesrcorp-my.sharepoint.com/personal/mfarhan1_nesr_com/_layouts/15/embed.aspx?UniqueId=6d6aa2cc-81db-4eb1-aec6-24014ef1aa7f&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
-const DOCS_PDF_URL = '/help/documentation.pdf';
+const TABS = [
+  { key: 'video', label: 'Video Tutorial' },
+  { key: 'docs', label: 'Training Documentation' },
+] as const;
 
 /* ─── Page ─────────────────────────────────────────────────────── */
 
@@ -40,7 +46,7 @@ export default function HelpPage() {
         </button>
         <div
           className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
-          style={{ background: '#006B0C' }}
+          style={{ background: TITE_BRAND }}
         >
           <span className="text-white font-extrabold text-[10px] tracking-tight">TI·TE</span>
         </div>
@@ -58,27 +64,7 @@ export default function HelpPage() {
           </p>
         </div>
 
-        {/* Tab navigation */}
-        <div className="flex gap-0.5 border-b border-slate-200 mb-6">
-          {(
-            [
-              { key: 'video', label: 'Video Tutorial' },
-              { key: 'docs', label: 'Training Documentation' },
-            ] as const
-          ).map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`px-4 py-2.5 text-[13.5px] font-medium transition-colors border-b-2 -mb-px ${
-                tab === key
-                  ? 'text-[#006B0C] border-[#006B0C] font-semibold'
-                  : 'text-slate-400 border-transparent hover:text-slate-700'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <HelpTabBar tabs={TABS} active={tab} onSelect={setTab} brand={TITE_BRAND} boldActiveTab />
 
         {/* ── Video Tutorial ── */}
         {tab === 'video' && (
@@ -91,7 +77,7 @@ export default function HelpPage() {
             </div>
             <div className="p-5">
               <iframe
-                src={TUTORIAL_VIDEO_URL}
+                src={TITE_TRAINING_VIDEO_EMBED_URL}
                 width="100%"
                 height="500"
                 frameBorder="0"
@@ -115,10 +101,10 @@ export default function HelpPage() {
                 </p>
               </div>
               <a
-                href="/help/documentation.pdf"
+                href={TITE_TRAINING_DOC_URL}
                 download="TITE-Training-Documentation.pdf"
                 className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-                style={{ background: '#006B0C' }}
+                style={{ background: TITE_BRAND }}
               >
                 <svg
                   className="w-4 h-4"
@@ -138,7 +124,7 @@ export default function HelpPage() {
             </div>
             <div className="p-5">
               <object
-                data="/help/documentation.pdf"
+                data={TITE_TRAINING_DOC_URL}
                 type="application/pdf"
                 width="100%"
                 height="800px"
@@ -167,10 +153,10 @@ export default function HelpPage() {
                     </p>
                   </div>
                   <a
-                    href="/help/documentation.pdf"
+                    href={TITE_TRAINING_DOC_URL}
                     download="TITE-Training-Documentation.pdf"
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-                    style={{ background: '#006B0C' }}
+                    style={{ background: TITE_BRAND }}
                   >
                     <svg
                       className="w-4 h-4"

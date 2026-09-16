@@ -14,7 +14,6 @@ import type {
   LaptopPermissionRole,
   UpdateLaptopPermissionInput,
 } from '@/types/laptopProcurement';
-import { revalidatePath } from 'next/cache';
 import type { QueryResultRow } from 'pg';
 import {
   canBootstrapOwnLaptopPermission,
@@ -22,7 +21,11 @@ import {
 } from '@/lib/laptop-procurement/access';
 import { existingMatrixCountries, unknownMatrixCountryError } from '@/lib/laptop-procurement/actor';
 import { exec, execTx, sql, sqlTx } from '@/lib/laptop-procurement/db';
-import { blankToNull, requireText } from '@/lib/laptop-procurement/internals';
+import {
+  blankToNull,
+  requireText,
+  revalidateLaptopAdminPath,
+} from '@/lib/laptop-procurement/internals';
 import {
   clearApproverMatrixRoleForEmail,
   findUnknownDirectoryEmails,
@@ -63,7 +66,7 @@ export async function updateLaptopPermission(
         blankToNull(input.segment),
       ],
     );
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('updateLaptopPermission.failed', err);
@@ -80,7 +83,7 @@ export async function deleteLaptopPermission(email: string): Promise<ActionResul
     if (!actor.permissions.canManagePermissions)
       return { success: false, error: 'Permission management access is required.' };
     await exec(`DELETE FROM laptop_permissions WHERE email = ?`, [email.toLowerCase()]);
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('deleteLaptopPermission.failed', err);
@@ -160,7 +163,7 @@ export async function setLaptopApproverCell(input: {
         );
       }
     });
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('setLaptopApproverCell.failed', err);
@@ -185,7 +188,7 @@ export async function setLaptopApproverCountryActive(input: {
       `UPDATE laptop_approver_matrix SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE country = ?`,
       [input.isActive, country],
     );
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('setLaptopApproverCountryActive.failed', err);
@@ -276,7 +279,7 @@ export async function saveApproverMatrixRole(input: {
         }
       }
     });
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('saveApproverMatrixRole.failed', err);
@@ -318,7 +321,7 @@ export async function setLaptopApproverColumn(input: {
       `UPDATE laptop_approver_matrix SET ${cols.emailCol} = ?, ${cols.nameCol} = ?, updated_at = CURRENT_TIMESTAMP`,
       [email, blankToNull(input.displayName)],
     );
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('setLaptopApproverColumn.failed', err);
@@ -348,7 +351,7 @@ export async function removeApproverMatrixRole(input: {
     if (!email) return { success: false, error: 'Email is required.' };
 
     await clearApproverMatrixRoleForEmail(email, input.role, input.slot ?? 1);
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('removeApproverMatrixRole.failed', err);

@@ -520,8 +520,10 @@ export default function ConfirmDispatchPage() {
                   <PlaceholderPill label="{Supplier Link}" />
                 </div>
                 <p className="text-[10px] text-slate-400 leading-relaxed">
-                  These placeholders are replaced automatically for each supplier before sending.
-                  The supplier link is a unique, token-protected URL generated per batch.
+                  Every occurrence of these placeholders is replaced before the email leaves the
+                  server. The supplier link is a unique, token-protected URL generated per supplier,
+                  and each email also carries it as a button — so the body only needs to mention it
+                  if you want the link inline as well.
                 </p>
               </div>
             </div>

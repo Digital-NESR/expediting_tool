@@ -1,18 +1,14 @@
 /*
  * Public help & training page for RFx Officer — no auth required.
- * Tab 1: Training video (SharePoint). Tab 2: the RFQ Flow walkthrough (training material).
+ * Tabs 1 and 2: training videos (SharePoint). Tab 3: the RFQ Flow walkthrough.
  *
- * The iframe MUST use the SharePoint "Embed" URL (…/_layouts/15/embed.aspx?UniqueId=…) —
- * same format TI-TE/ProcureGuard use. A plain share link (…/:v:/g/personal/…) is served
- * with frame-blocking headers and renders as an empty/blocked box. To refresh the video,
- * open it in SharePoint/Stream → Share → Embed, and paste the new embed.aspx URL below.
- * VIDEO_SHARE_URL is only the "open in SharePoint" fallback link (opens the full page).
+ * The header comes from the /help layout and the tab strip from ../HelpTabBar,
+ * which TI-TE shares. Where the videos live is configuration now — see ../media
+ * for the environment variables and the embed-URL rules.
  */
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
 import {
   FileText,
   Upload,
@@ -32,16 +28,13 @@ import {
   Sparkles,
   Play,
 } from 'lucide-react';
+import HelpTabBar from '../HelpTabBar';
+import {
+  RFX_FULL_GUIDE_VIDEO_EMBED_URL,
+  RFX_FULL_GUIDE_VIDEO_SHARE_URL,
+  RFX_SUPPLIER_GUIDE_VIDEO_EMBED_URL,
+} from '../media';
 
-// Inline player — SharePoint "Embed" URL (frame-safe). Refresh via Share > Embed in Stream.
-const VIDEO_EMBED_URL =
-  'https://nesrcorp-my.sharepoint.com/personal/mfarhan1_nesr_com/_layouts/15/embed.aspx?UniqueId=793971d1-3475-4c69-8c1f-382878b94142&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
-// Fallback "open in SharePoint" link — the plain share URL opens the full Stream page.
-const VIDEO_SHARE_URL =
-  'https://nesrcorp-my.sharepoint.com/:v:/g/personal/mfarhan1_nesr_com/IQDRcTl5dTRpTIwfOCh4uUFCAUJ0EWXTUU_V7YUUqBI1ocY';
-// Supplier-facing training video (RFx officer - Supplier Guide.mp4), SharePoint "Embed" URL.
-const SUPPLIER_EMBED_URL =
-  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=6c8641fa-4747-460f-9b0a-1eeb7cff1d68&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
 const GREEN = '#307c4c';
 
 // The two training videos shown under the "Training Videos" tab.
@@ -58,8 +51,8 @@ const VIDEO_GUIDES: {
     label: 'Full Guide',
     title: 'Full Training',
     blurb: 'A walkthrough of the RFx Officer RFQ lifecycle.',
-    embed: VIDEO_EMBED_URL,
-    share: VIDEO_SHARE_URL,
+    embed: RFX_FULL_GUIDE_VIDEO_EMBED_URL,
+    share: RFX_FULL_GUIDE_VIDEO_SHARE_URL,
   },
   {
     key: 'supplier',
@@ -67,7 +60,7 @@ const VIDEO_GUIDES: {
     title: 'Supplier Guide',
     blurb:
       'For suppliers: how to open the RFQ invitation, review the request, and submit a quote through the vendor portal.',
-    embed: SUPPLIER_EMBED_URL,
+    embed: RFX_SUPPLIER_GUIDE_VIDEO_EMBED_URL,
     share: null,
   },
 ];
@@ -846,124 +839,77 @@ function RFQFlow() {
 
 /* ── Page ──────────────────────────────────────────────────────── */
 
+const TABS = [
+  { key: 'full', label: 'Full Guide' },
+  { key: 'supplier', label: 'Supplier Guide' },
+  { key: 'docs', label: 'RFQ Flow' },
+] as const;
+
 export default function RFxOfficerHelpPage() {
   const [tab, setTab] = useState<'full' | 'supplier' | 'docs'>('full');
   const g = VIDEO_GUIDES.find((x) => x.key === tab); // set for the two video tabs; undefined for 'docs'
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center gap-3 sticky top-0 z-30">
-        <Image
-          src="/nesr-logo-circle.png"
-          alt="NESR"
-          width={30}
-          height={30}
-          className="rounded-full"
-        />
-        <span className="font-semibold text-slate-900 text-sm tracking-tight">
-          NESR Digital Supply Chain
-        </span>
-        <div className="flex-1" />
-        <Link
-          href="/home"
-          className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
+    <main className="max-w-[960px] mx-auto px-6 pb-16 pt-6">
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <div
+            className="flex h-6 w-6 items-center justify-center rounded-md shrink-0"
+            style={{ background: GREEN }}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to Home
-        </Link>
-      </header>
-
-      <main className="max-w-[960px] mx-auto px-6 pb-16 pt-6">
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-1">
-            <div
-              className="flex h-6 w-6 items-center justify-center rounded-md shrink-0"
-              style={{ background: GREEN }}
-            >
-              <span className="text-white font-extrabold text-[9px] tracking-tight">RFx</span>
-            </div>
-            <p className="text-xs text-slate-400">RFx Officer / Help</p>
+            <span className="text-white font-extrabold text-[9px] tracking-tight">RFx</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Help &amp; Training</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Watch the training videos, then read the full RFQ flow walkthrough.
-          </p>
+          <p className="text-xs text-slate-400">RFx Officer / Help</p>
         </div>
+        <h1 className="text-2xl font-bold tracking-tight">Help &amp; Training</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Watch the training videos, then read the full RFQ flow walkthrough.
+        </p>
+      </div>
 
-        {/* Tabs */}
-        <div className="flex gap-0.5 border-b border-slate-200 mb-6">
-          {(
-            [
-              { key: 'full', label: 'Full Guide' },
-              { key: 'supplier', label: 'Supplier Guide' },
-              { key: 'docs', label: 'RFQ Flow' },
-            ] as const
-          ).map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className="px-4 py-2.5 text-[13.5px] font-medium transition-colors border-b-2 -mb-px"
-              style={
-                tab === key
-                  ? { color: GREEN, borderColor: GREEN }
-                  : { color: '#94a3b8', borderColor: 'transparent' }
-              }
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <HelpTabBar tabs={TABS} active={tab} onSelect={setTab} brand={GREEN} inactive="dim" />
 
-        {g && (
-          <Card className="shadow-sm overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-slate-100">
-              <h2 className="text-sm font-bold text-slate-900">{g.title}</h2>
-              <p className="text-xs text-slate-400 mt-0.5">{g.blurb}</p>
-            </div>
-            <div className="p-5 space-y-3">
-              <iframe
-                key={g.key}
-                src={g.embed}
-                width="100%"
-                height="520"
-                frameBorder="0"
-                scrolling="no"
-                allowFullScreen
-                title={`RFx Officer ${g.label}`}
-                className="rounded-lg bg-slate-100"
-              />
-              {g.share && (
-                <a
-                  href={g.share}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-                  style={{ background: GREEN }}
-                >
-                  <Play className="w-4 h-4" /> Open video in SharePoint
-                </a>
-              )}
-              <p className="text-xs text-slate-400">
-                If the video doesn&apos;t play inline,{' '}
-                {g.share
-                  ? 'use the button above to open it in SharePoint'
-                  : 'open it directly in SharePoint / Stream'}
-                .
-              </p>
-            </div>
-          </Card>
-        )}
+      {g && (
+        <Card className="shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-100">
+            <h2 className="text-sm font-bold text-slate-900">{g.title}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{g.blurb}</p>
+          </div>
+          <div className="p-5 space-y-3">
+            <iframe
+              key={g.key}
+              src={g.embed}
+              width="100%"
+              height="520"
+              frameBorder="0"
+              scrolling="no"
+              allowFullScreen
+              title={`RFx Officer ${g.label}`}
+              className="rounded-lg bg-slate-100"
+            />
+            {g.share && (
+              <a
+                href={g.share}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+                style={{ background: GREEN }}
+              >
+                <Play className="w-4 h-4" /> Open video in SharePoint
+              </a>
+            )}
+            <p className="text-xs text-slate-400">
+              If the video doesn&apos;t play inline,{' '}
+              {g.share
+                ? 'use the button above to open it in SharePoint'
+                : 'open it directly in SharePoint / Stream'}
+              .
+            </p>
+          </div>
+        </Card>
+      )}
 
-        {tab === 'docs' && <RFQFlow />}
-      </main>
-    </div>
+      {tab === 'docs' && <RFQFlow />}
+    </main>
   );
 }

@@ -282,6 +282,22 @@ function isoDate(value: Date | string | null | undefined): string {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
+/**
+ * Fill both template placeholders everywhere they appear. String.replace only
+ * touches the first match, so a body that greeted the supplier twice mailed the
+ * literal "{Supplier Name}" out in the second position. {Supplier Link} was never
+ * substituted at all: n8n reads the separate supplierLink field to build its CTA
+ * button and does nothing to the body text, so a buyer who typed the placeholder
+ * inline — which the confirm page invites — sent the supplier raw template text.
+ * Both are resolved here so the contract the UI promises holds server-side,
+ * whatever n8n does downstream.
+ */
+function fillPlaceholders(template: string, supplierName: string, supplierLink: string): string {
+  return template
+    .replaceAll('{Supplier Name}', supplierName)
+    .replaceAll('{Supplier Link}', supplierLink);
+}
+
 function deniedResponse(paramsList: SupplierDispatchParams[], message: string): DispatchResponse {
   const groups = Array.isArray(paramsList) ? paramsList : [];
   return {
@@ -333,7 +349,33 @@ export async function prepareAllExpediteDispatches(
      TABLE on a second connection would block on the transaction's own locks. */
   await ensureActiveExpeditingColumns();
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+  /* The supplier link is the only way a supplier can answer, so a missing or
+     relative NEXT_PUBLIC_APP_URL is fatal rather than cosmetic — the emails go out
+     with a CTA pointing at a path no mail client can resolve, and the lines sit in
+     "Pending Supplier Response" forever waiting on a reply that cannot arrive.
+     Refused before any row is written, so a misconfigured deployment leaves no
+     half-finished batch behind: startup-check only reports the variable, it has
+     never been able to stop a dispatch. Trailing slashes are trimmed because the
+     link is built by concatenation and a configured "…/" yields a double slash. */
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? '').trim().replace(/\/+$/, '');
+  let appUrlUsable = false;
+  try {
+    const parsed = new URL(appUrl);
+    appUrlUsable = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    appUrlUsable = false;
+  }
+  if (!appUrlUsable) {
+    log.error('dispatch.app_url_not_configured', null, {
+      envVar: 'NEXT_PUBLIC_APP_URL',
+      suppliers: groupsIn.length,
+    });
+    return deniedResponse(
+      groupsIn,
+      'Supplier link cannot be built: NEXT_PUBLIC_APP_URL is missing or is not an absolute http(s) URL. Nothing was saved and no emails were sent — please contact your administrator.',
+    );
+  }
+
   const results: DispatchResult[] = [];
   const preparedGroups: PreparedGroup[] = [];
 
@@ -657,25 +699,30 @@ export async function prepareAllExpediteDispatches(
     const webhookUrl = process.env.N8N_EXPEDITE_WEBHOOK_URL;
 
     // Payload contents left intact: n8n renders emailBody as the email and the full
-    // poLines fields (description/qty/value/dates) as the PO table.
-    const webhookPayload = preparedGroups.map((group) => ({
-      supplierName: group.supplierName,
-      supplierId: group.supplierId,
-      toEmails: group.toEmails,
-      ccEmails: group.ccEmails,
-      subject: group.subject,
-      emailBody: group.emailBody.replace('{Supplier Name}', group.supplierName),
-      supplierLink: `${appUrl}/supplier-update?token=${group.expediteToken}`,
-      poLines: group.poLines.map((line) => ({
-        poNumber: line.po_number,
-        poLine: line.po_line,
-        description: line.item_description ? line.item_description.slice(0, 50) : '',
-        openQty: line.open_qty,
-        valueUsd: line.open_po_value_usd,
-        deliveryDate: line.delivery_date,
-        releaseDate: line.po_release_date ?? null,
-      })),
-    }));
+    // poLines fields (description/qty/value/dates) as the PO table. supplierLink stays
+    // its own field as well as being substituted into the body — n8n builds the CTA
+    // button from it, so dropping it would remove the link from every email.
+    const webhookPayload = preparedGroups.map((group) => {
+      const supplierLink = `${appUrl}/supplier-update?token=${group.expediteToken}`;
+      return {
+        supplierName: group.supplierName,
+        supplierId: group.supplierId,
+        toEmails: group.toEmails,
+        ccEmails: group.ccEmails,
+        subject: group.subject,
+        emailBody: fillPlaceholders(group.emailBody, group.supplierName, supplierLink),
+        supplierLink,
+        poLines: group.poLines.map((line) => ({
+          poNumber: line.po_number,
+          poLine: line.po_line,
+          description: line.item_description ? line.item_description.slice(0, 50) : '',
+          openQty: line.open_qty,
+          valueUsd: line.open_po_value_usd,
+          deliveryDate: line.delivery_date,
+          releaseDate: line.po_release_date ?? null,
+        })),
+      };
+    });
 
     const payloadSizeKB = Math.round(Buffer.byteLength(JSON.stringify(webhookPayload)) / 1024);
 

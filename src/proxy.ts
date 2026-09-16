@@ -33,6 +33,7 @@ const PUBLIC_PATHS = [
 const MACHINE_PATHS = [
   /^\/api\/procure-guard\/reminders\/?$/,
   /^\/api\/laptop-procurement\/requests\/[^/]+\/status\/?$/,
+  /^\/api\/catalog-manager\/revalidate\/?$/,
 ];
 
 export async function proxy(req: NextRequest) {

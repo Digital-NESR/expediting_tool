@@ -11,13 +11,16 @@ import type {
   LaptopAccessRequestStatus,
   LaptopPermissionRole,
 } from '@/types/laptopProcurement';
-import { revalidatePath } from 'next/cache';
 import type { QueryResultRow } from 'pg';
 import { requireAdminActor } from '@/lib/laptop-procurement/access';
 import { serialiseLaptopAccessRequest } from '@/lib/laptop-procurement/access-requests';
 import { isLaptopConsoleAdminEmail } from '@/lib/laptop-procurement/actor';
 import { execTx, sql } from '@/lib/laptop-procurement/db';
-import { blankToNull, requireText } from '@/lib/laptop-procurement/internals';
+import {
+  blankToNull,
+  requireText,
+  revalidateLaptopAdminPath,
+} from '@/lib/laptop-procurement/internals';
 import {
   ensureLaptopAccessRequestTable,
   ensureLaptopPermissionsRoleConstraint,
@@ -150,7 +153,7 @@ export async function approveLaptopAccess(input: {
       );
     });
 
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('approveLaptopAccess.failed', err);
@@ -189,7 +192,7 @@ export async function rejectLaptopAccess(userEmail: string): Promise<ActionResul
         await execTx(client, `DELETE FROM laptop_permissions WHERE email = ?`, [email]);
       }
     });
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('rejectLaptopAccess.failed', err);
@@ -218,7 +221,7 @@ export async function revokeLaptopAccess(userEmail: string): Promise<ActionResul
         await execTx(client, `DELETE FROM laptop_permissions WHERE email = ?`, [email]);
       }
     });
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('revokeLaptopAccess.failed', err);
@@ -239,7 +242,7 @@ export async function deleteLaptopAccessRequest(userEmail: string): Promise<Acti
         await execTx(client, `DELETE FROM laptop_permissions WHERE email = ?`, [email]);
       }
     });
-    revalidatePath('/admin');
+    revalidateLaptopAdminPath();
     return { success: true };
   } catch (err) {
     log.error('deleteLaptopAccessRequest.failed', err);

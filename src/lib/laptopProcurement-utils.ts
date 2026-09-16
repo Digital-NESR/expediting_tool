@@ -1,5 +1,7 @@
+import { LAPTOP_APPROVAL_STAGES } from '@/types/laptopProcurement';
 import type {
   LaptopAccessView,
+  LaptopApprovalStageName,
   LaptopPermissionProfile,
   LaptopPermissionRole,
   LaptopRequestActions,
@@ -22,12 +24,9 @@ export const PERMISSION_ROLE_OPTIONS: LaptopPermissionRole[] = [
   'Viewer',
 ];
 
-export const APPROVER_MATRIX_ROLES: LaptopPermissionRole[] = [
-  'IT Manager',
-  'Country Manager',
-  'IT Director',
-  'Supply Chain Director',
-];
+// The same four stages, seen as permission roles: every approval stage is also a role
+// someone can be given in the picker above.
+export const APPROVER_MATRIX_ROLES: LaptopPermissionRole[] = [...LAPTOP_APPROVAL_STAGES];
 
 const BASE_PERMISSION_PROFILE: Omit<
   LaptopPermissionProfile,
@@ -402,8 +401,9 @@ export function getRejectStatusForStage(
   }
 }
 
-export type LaptopApprovalStage =
-  'IT Manager' | 'Country Manager' | 'IT Director' | 'Supply Chain Director';
+// Most of this module's callers reach for the stage type here rather than from the types
+// file, so the name stays — it is an alias for the one declaration, not a second union.
+export type LaptopApprovalStage = LaptopApprovalStageName;
 
 // Which human role currently owns a given status — used both to route the
 // approval-chain notification email and, via the read-only status-check API, to let

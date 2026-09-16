@@ -211,22 +211,27 @@ export const STAGE_APPROVER_NAME_COLUMN: Partial<Record<LaptopRequestStatus, str
   'Supply Chain Director Approval': 'sc_director',
 };
 
+/* The admin console this tool owns. Mutations used to revalidate all of '/admin', back
+   when that one route fetched every tool's data in a single Promise.all — a laptop
+   mutation then paid for ProcureGuard's, SourceGuide's and TI-TE's databases too, and
+   for their failures. That shell is now split one route per application, so the laptop
+   pages can be refreshed without touching any other tool's. */
+const LAPTOP_ADMIN_PATH = '/admin/laptop';
+
+// Both this and revalidateLaptopPaths below refresh that console, so every laptop
+// mutation now reaches it by one policy — the console's own actions used to reach for
+// revalidatePath('/admin') by hand while this module insisted they must not.
+export function revalidateLaptopAdminPath(): void {
+  revalidatePath(LAPTOP_ADMIN_PATH);
+}
+
 export function revalidateLaptopPaths(): void {
   revalidatePath('/laptop-procurement');
   revalidatePath('/laptop-procurement/requests');
   revalidatePath('/laptop-procurement/requests/new');
   revalidatePath('/laptop-procurement/my-work');
   revalidatePath('/laptop-procurement/analytics');
-  // Deliberately NOT revalidating '/admin': that shared shell's Server Component
-  // fetches data for every admin tool in one Promise.all (ProcureGuard, SourceGuide,
-  // TI-TE, ...), several of which fail against databases this environment can't
-  // reach — revalidating it here made every laptop-procurement mutation pay for
-  // those unrelated failures in the background. LaptopAdminClient manages its own
-  // data after mount (see refreshAdminData) and no longer depends on this route's
-  // cache being fresh, so the only cost of dropping this is that a laptop-related
-  // tab elsewhere in the SAME shared shell (Analytics, Access Approvals) could show
-  // stale data until that admin reloads — a much smaller cost than paying for three
-  // broken database connections on every delete.
+  revalidateLaptopAdminPath();
 }
 
 /* ── Device catalogue ─────────────────────────────────────────── */

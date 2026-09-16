@@ -15,6 +15,21 @@ import { createSqlHelpers } from '@/lib/db/sql';
 
 const GAME_KEY = 'red_bull_distribution';
 
+/*
+ * The game sends a small, fixed vocabulary: grades are Excellent/Solid/Choppy/Whiplashed, roles are
+ * Retailer/Wholesaler/Distributor/Factory, patterns are step/seasonal/random. The longest of those is
+ * eleven characters, so these caps leave room for labels the game may grow later while stopping a
+ * tampered client from writing an essay into columns the leaderboard renders verbatim. An oversized
+ * value is refused rather than trimmed, so a genuinely longer new label fails loudly here instead of
+ * turning up mangled on the board.
+ */
+const MAX_GRADE_LEN = 16;
+const MAX_LABEL_LEN = 32;
+// A run is 20, 30 or 40 weeks today; the ceiling only has to keep the column sane.
+const MAX_WEEKS = 520;
+// Chain cost is a sum of holding and shortage charges, and the column is a 32-bit INTEGER.
+const MAX_CHAIN_COST = 1_000_000_000;
+
 const { sql } = createSqlHelpers(learningHubPool);
 
 let schemaReady: Promise<void> | null = null;
@@ -110,9 +125,27 @@ export interface RedBullLeaderboard {
   history: RedBullHistoryEntry[];
 }
 
-function toIntOrNull(v: unknown): number | null {
+/*
+ * A field that is absent is fine and stores NULL; a field that is present but oversized or of the
+ * wrong type fails the whole submission. Callers get a boolean back either way, so the shape stays
+ * the same whichever branch rejects.
+ */
+type Checked<T> = { ok: true; value: T | null } | { ok: false };
+
+function boundedText(v: unknown, max: number): Checked<string> {
+  if (v == null) return { ok: true, value: null };
+  if (typeof v !== 'string') return { ok: false };
+  const trimmed = v.trim();
+  if (!trimmed) return { ok: true, value: null };
+  return trimmed.length <= max ? { ok: true, value: trimmed } : { ok: false };
+}
+
+function boundedInt(v: unknown, min: number, max: number): Checked<number> {
+  if (v == null) return { ok: true, value: null };
   const n = Number(v);
-  return Number.isFinite(n) ? Math.round(n) : null;
+  if (!Number.isFinite(n)) return { ok: false };
+  const rounded = Math.round(n);
+  return rounded >= min && rounded <= max ? { ok: true, value: rounded } : { ok: false };
 }
 
 export async function submitRedBullScore(input: RedBullScoreInput): Promise<{ success: boolean }> {
@@ -121,8 +154,25 @@ export async function submitRedBullScore(input: RedBullScoreInput): Promise<{ su
     const user = await currentUser();
     if (!user) return { success: false };
 
+    /*
+     * Known limitation: the score cannot be trusted. The simulation runs entirely in the browser and
+     * reports its own result, so anyone willing to open the console can post a perfect 100 without
+     * playing. Proving a run happened would mean replaying the whole simulation server-side, which is
+     * a rewrite of the game rather than a fix here. This is an internal training leaderboard and the
+     * audit accepted the risk: read the board as a bit of fun, not as a record anything depends on.
+     * The checks below only keep the stored row sane — they are not an anti-cheat measure.
+     */
     const score = Number(input.score);
     if (!Number.isFinite(score) || score < 0 || score > 100) return { success: false };
+
+    const grade = boundedText(input.grade, MAX_GRADE_LEN);
+    const role = boundedText(input.role, MAX_LABEL_LEN);
+    const pattern = boundedText(input.pattern, MAX_LABEL_LEN);
+    const weeks = boundedInt(input.weeks, 0, MAX_WEEKS);
+    const chainCost = boundedInt(input.chainCost, 0, MAX_CHAIN_COST);
+    if (!grade.ok || !role.ok || !pattern.ok || !weeks.ok || !chainCost.ok) {
+      return { success: false };
+    }
 
     const mode = input.mode === 'team' ? 'team' : 'solo';
     await sql(
@@ -134,11 +184,11 @@ export async function submitRedBullScore(input: RedBullScoreInput): Promise<{ su
         user.email,
         user.name,
         Math.round(score),
-        toIntOrNull(input.chainCost),
-        input.grade ?? null,
-        input.role ?? null,
-        input.pattern ?? null,
-        toIntOrNull(input.weeks),
+        chainCost.value,
+        grade.value,
+        role.value,
+        pattern.value,
+        weeks.value,
         mode,
       ],
     );

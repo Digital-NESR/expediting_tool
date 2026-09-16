@@ -1,9 +1,28 @@
+/**
+ * Loads the historic laptop-procurement export (device catalogue CSV + purchase-exception
+ * CSV + Power BI workbook) into Postgres.
+ *
+ *   npm run laptop:db:seed                 # first load: refuses to run if requests exist
+ *   npm run laptop:db:seed -- --truncate   # wipe and reload
+ *
+ * WITHOUT --truncate the script writes nothing unless laptop_requests is empty, and it
+ * checks that before it inserts anything at all, so a refusal never leaves a partly
+ * loaded database. WITH --truncate it empties laptop_device_catalog, laptop_requests and
+ * laptop_activity_log first — and, through the CASCADE that truncating laptop_requests
+ * needs, laptop_documents, including uploads that were never part of this export. That
+ * truncate used to be unconditional, which meant re-running the seed to top up the
+ * catalogue destroyed every attachment anyone had added.
+ */
+
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Client } from 'pg';
 import ExcelJS from 'exceljs';
 
 const cwd = process.cwd();
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const TRUNCATE = process.argv.includes('--truncate');
 const envPath = path.join(cwd, '.env.local');
 const catalogPath = path.join(cwd, 'database', 'seed', 'device_catalog.csv');
 const csvPath = path.join(cwd, 'database', 'seed', 'purchase_exceptions.csv');
@@ -67,23 +86,25 @@ function parseCsv(text) {
   return rows;
 }
 
-const ALLOWED_STATUS = new Set([
-  'Submitted',
-  'IT Approval',
-  'CM Approval',
-  'IT Director Approval',
-  'Supply Chain Director Approval',
-  'Procure New',
-  'Approved',
-  'Assign from Inventory',
-  'Assign from Inventory & Closed',
-  'Repaired & Closed',
-  'Rejected',
-  'Rejected by CM',
-  'Rejected by ITD',
-  'Rejected by SCD',
-  'Cancelled',
-]);
+/* The statuses the app recognises, read out of its own LaptopRequestStatus union rather
+   than copied. The copy that used to live here had fallen two statuses behind the union
+   ('Procure New Details' and 'CM Confirm Device'), and every exported row sitting in one
+   of them was quietly rewritten to 'Submitted' on the way in.
+   This is a .mjs script and that is TypeScript, so the union cannot be imported (the same
+   wall seed-laptop-cost-centers.mjs hits); reading the declaration keeps one list instead
+   of two, and the throws below turn a rename into a loud failure rather than another
+   silent round of coercion. */
+function readAllowedStatuses() {
+  const typesPath = path.join(ROOT, 'src', 'types', 'laptopProcurement.ts');
+  const source = fs.readFileSync(typesPath, 'utf8');
+  const union = /export type LaptopRequestStatus\s*=([\s\S]*?);/.exec(source);
+  if (!union) throw new Error(`No LaptopRequestStatus union found in ${typesPath}.`);
+  const statuses = [...union[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  if (!statuses.length) throw new Error(`LaptopRequestStatus in ${typesPath} listed no statuses.`);
+  return new Set(statuses);
+}
+
+const ALLOWED_STATUS = readAllowedStatuses();
 
 const blank = (v) => {
   const s = (v ?? '').toString().trim();
@@ -171,6 +192,28 @@ const client = new Client({
 });
 await client.connect();
 
+/* Checked before the first write, not between them: a run that is going to refuse should
+   refuse while the database is still exactly as it was. */
+if (!TRUNCATE) {
+  const { rows } = await client.query('SELECT COUNT(*)::int AS n FROM laptop_requests');
+  if (rows[0].n > 0) {
+    console.error(
+      `laptop_requests already holds ${rows[0].n} row(s), so this seed would duplicate them.\n` +
+        'Nothing was written. Re-run with --truncate to empty laptop_device_catalog,\n' +
+        'laptop_requests and laptop_activity_log first — note that emptying laptop_requests\n' +
+        'cascades into laptop_documents and takes every uploaded attachment with it.',
+    );
+    await client.end();
+    process.exit(1);
+  }
+}
+
+if (TRUNCATE) {
+  console.log(
+    'Truncating laptop_device_catalog, laptop_requests (cascading into laptop_documents) and laptop_activity_log.',
+  );
+}
+
 /* ── Device catalogue ─────────────────────────────────────────── */
 const catRows = parseCsv(fs.readFileSync(catalogPath, 'utf8'));
 const catHeader = catRows[0].map((h) => h.trim());
@@ -184,7 +227,9 @@ const catalog = catRows
   )
   .map((r) => [r[cTypeIdx].trim(), r[cModelIdx].trim()]);
 
-await client.query('TRUNCATE laptop_device_catalog RESTART IDENTITY');
+// The insert below is ON CONFLICT DO NOTHING, so the catalogue tops up without this;
+// truncating only matters when the point is to drop models the CSV no longer lists.
+if (TRUNCATE) await client.query('TRUNCATE laptop_device_catalog RESTART IDENTITY');
 for (const [type, model] of catalog) {
   await client.query(
     `INSERT INTO laptop_device_catalog (type_of_device, model) VALUES ($1, $2)
@@ -228,8 +273,10 @@ for (const o of xlObjs) {
 // Append CSV-only ids (present in CSV but missing from the Power BI export).
 for (const id of csvMap.keys()) if (!xlMap.has(id)) orderedIds.push(id);
 
-await client.query('TRUNCATE laptop_requests RESTART IDENTITY CASCADE');
-await client.query('TRUNCATE laptop_activity_log RESTART IDENTITY');
+if (TRUNCATE) {
+  await client.query('TRUNCATE laptop_requests RESTART IDENTITY CASCADE');
+  await client.query('TRUNCATE laptop_activity_log RESTART IDENTITY');
+}
 
 const COLS = [
   'reference_number',
@@ -292,7 +339,14 @@ function buildRow(id) {
   const status = ALLOWED_STATUS.has(rawStatus) ? rawStatus : 'Submitted';
 
   const requestor = xg('Requestor') ?? cg('Requestor');
-  const email = (slug(requestor) || 'unknown') + '@nesr.local';
+  /* The export names the requester but never gives an address, and requested_by_email is
+     what the app treats as the requester's identity. These rows therefore get a reserved
+     .invalid address (RFC 2606 — it can never resolve or be registered) keyed on the name,
+     so a person's imported history still groups together while the address stays obviously
+     synthetic. It used to read <name>@nesr.local, which looked close enough to a real NESR
+     address to be mistaken for one. Nobody signs in as either: a requester who wants to see
+     these rows needs them re-pointed at their real account. */
+  const email = (slug(requestor) || 'unknown') + '@laptop-seed.invalid';
   const indirect =
     (x['On-Behalf of'] || '').toString().trim() !== '' ||
     ((c ? csvGet(c, 'In-Direct Request') : '') || '').toString().trim().toLowerCase() === 'true';
