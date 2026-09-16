@@ -1,4 +1,5 @@
 import pool from '@/lib/db';
+import { requireSchema } from '@/lib/db/schema-version';
 
 /* ── Profile photo store ──────────────────────────────────────────
    The Microsoft Graph avatar used to be inlined into the session JWT
@@ -8,32 +9,10 @@ import pool from '@/lib/db';
    by /api/me/photo, which the session points at instead; the token
    carries a single boolean.
 
-   Table is created lazily on first use, the same pattern the rest of
-   this codebase uses for its auxiliary tables. */
-
-const DDL = `
-  CREATE TABLE IF NOT EXISTS user_photos (
-    email        TEXT PRIMARY KEY,
-    photo        BYTEA NOT NULL,
-    content_type TEXT NOT NULL DEFAULT 'image/jpeg',
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-  )
-`;
-
-let ensured: Promise<void> | null = null;
-function ensureTable(): Promise<void> {
-  if (!ensured) {
-    ensured = pool.query(DDL).then(
-      () => undefined,
-      (err) => {
-        // Let the next caller retry rather than caching a failure forever.
-        ensured = null;
-        throw err;
-      },
-    );
-  }
-  return ensured;
-}
+   The `user_photos` table itself is in
+   database/migrations/default/001_baseline.sql. It used to be created
+   lazily on first use, from a `DDL` constant behind a `let ensured`
+   memo; the calls below now assert the migration has run instead. */
 
 /** Store (or replace) one user's avatar. `email` must already be normalized. */
 export async function saveUserPhoto(
@@ -43,7 +22,7 @@ export async function saveUserPhoto(
 ): Promise<boolean> {
   if (!email || photo.length === 0) return false;
   try {
-    await ensureTable();
+    await requireSchema(pool, 'default', '001_baseline');
     await pool.query(
       `INSERT INTO user_photos (email, photo, content_type, updated_at)
        VALUES ($1, $2, $3, now())
@@ -66,7 +45,7 @@ export async function getUserPhoto(
 ): Promise<{ photo: Buffer; contentType: string } | null> {
   if (!email) return null;
   try {
-    await ensureTable();
+    await requireSchema(pool, 'default', '001_baseline');
     const { rows } = await pool.query<{ photo: Buffer; content_type: string }>(
       `SELECT photo, content_type FROM user_photos WHERE email = $1`,
       [email],

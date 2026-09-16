@@ -17,6 +17,7 @@ import { createHash } from 'crypto';
 import learningHubPool from '@/lib/db-learning-hub';
 import { createSqlHelpers } from '@/lib/db/sql';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
+import { requireSchema } from '@/lib/db/schema-version';
 import { currentActor, normalizeEmail } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
 import { SEED_TRACKS, type SeedTrack } from '@/lib/learning-hub-seed-content';
@@ -89,163 +90,27 @@ function publishedFilter(isAdmin: boolean): string {
   return isAdmin ? '' : ` AND status = 'published'`;
 }
 
-/* ── Schema (created in code, idempotent) + one-time default content seed ── */
+/* ── Schema guard + one-time default content seed ─────────────────────────
+   The DDL that used to live here — 26 CREATE TABLE / ALTER TABLE / CREATE INDEX statements run
+   on the first request every serverless instance served — now lives in
+   database/migrations/learning-hub/001_baseline.sql and is applied once at deploy by
+   `npm run migrate`. What is left below is the assertion that it was, plus the two things that
+   were never schema: the tab_label_prefix backfill and the SEED_TRACKS content sync. */
 
-let readyPromise: Promise<void> | null = null;
+const DB_KEY = 'learning-hub';
+const BASELINE = '001_baseline';
 
-async function ensureLearningHubSchema(): Promise<void> {
-  async function execSchema(statement: string) {
-    try {
-      await exec(statement);
-    } catch (err) {
-      const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
-      if (code !== '23505' && code !== '42P07' && code !== '42710' && code !== '42701') throw err;
-    }
-  }
+/* Content, not structure: a one-time UPDATE and a seed-content sync. Both are idempotent and both
+   are memoised together, so a warm instance pays for them once rather than on every read. */
+let seedPromise: Promise<void> | null = null;
 
-  await execSchema(`CREATE TABLE IF NOT EXISTS learning_tracks (
-    id SERIAL PRIMARY KEY,
-    key TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    description TEXT,
-    icon TEXT,
-    color TEXT,
-    order_index INT NOT NULL DEFAULT 0,
-    seed_version TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await execSchema(`ALTER TABLE learning_tracks ADD COLUMN IF NOT EXISTS seed_version TEXT`);
-  // Browser-tab label rule as DATA instead of a track-key literal in the query layer: a track with a
-  // prefix set shows the compact "<prefix> lvl N" form in the tight tab space (see getCourseTabTitle).
-  await execSchema(`ALTER TABLE learning_tracks ADD COLUMN IF NOT EXISTS tab_label_prefix TEXT`);
-  // One-time, idempotent backfill of the single track that already had this behaviour hard-coded, so
-  // the column starts out matching what production renders today. New tracks opt in by setting it.
-  await execSchema(
+// One-time, idempotent backfill of the single track that already had the tab-label behaviour
+// hard-coded, so the column starts out matching what production renders today. New tracks opt in by
+// setting it. This is a data fix, which is why it stayed behind when the DDL moved to the migration.
+async function backfillTrackDefaults(): Promise<void> {
+  await exec(
     `UPDATE learning_tracks SET tab_label_prefix = 'SC' WHERE key = 'supply_chain' AND tab_label_prefix IS NULL`,
   );
-
-  await execSchema(`CREATE TABLE IF NOT EXISTS learning_courses (
-    id SERIAL PRIMARY KEY,
-    track_id INT NOT NULL REFERENCES learning_tracks(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    description TEXT,
-    order_index INT NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'draft',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await execSchema(
-    `CREATE INDEX IF NOT EXISTS idx_learning_courses_track ON learning_courses(track_id)`,
-  );
-
-  await execSchema(`CREATE TABLE IF NOT EXISTS learning_modules (
-    id SERIAL PRIMARY KEY,
-    course_id INT NOT NULL REFERENCES learning_courses(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    order_index INT NOT NULL DEFAULT 0,
-    resource_label TEXT,
-    resource_url TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await execSchema(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS resource_label TEXT`);
-  await execSchema(`ALTER TABLE learning_modules ADD COLUMN IF NOT EXISTS resource_url TEXT`);
-  await execSchema(
-    `CREATE INDEX IF NOT EXISTS idx_learning_modules_course ON learning_modules(course_id)`,
-  );
-
-  await execSchema(`CREATE TABLE IF NOT EXISTS learning_lessons (
-    id SERIAL PRIMARY KEY,
-    module_id INT NOT NULL REFERENCES learning_modules(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL,
-    video_url TEXT,
-    duration_minutes INT,
-    order_index INT NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await execSchema(`ALTER TABLE learning_lessons ADD COLUMN IF NOT EXISTS video_url TEXT`);
-  // No fabricated default: a lesson only shows a duration if someone actually set one.
-  await execSchema(`ALTER TABLE learning_lessons ALTER COLUMN duration_minutes DROP NOT NULL`);
-  await execSchema(`ALTER TABLE learning_lessons ALTER COLUMN duration_minutes DROP DEFAULT`);
-  await execSchema(
-    `CREATE INDEX IF NOT EXISTS idx_learning_lessons_module ON learning_lessons(module_id)`,
-  );
-
-  await execSchema(`CREATE TABLE IF NOT EXISTS learning_lesson_progress (
-    id SERIAL PRIMARY KEY,
-    user_email TEXT NOT NULL,
-    lesson_id INT NOT NULL REFERENCES learning_lessons(id) ON DELETE CASCADE,
-    completed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_email, lesson_id)
-  )`);
-  await execSchema(
-    `CREATE INDEX IF NOT EXISTS idx_learning_progress_user ON learning_lesson_progress(user_email)`,
-  );
-
-  // Knowledge checks: one optional quiz per module, feedback-only (not a completion gate).
-  await execSchema(`CREATE TABLE IF NOT EXISTS learning_quizzes (
-    id SERIAL PRIMARY KEY,
-    module_id INT NOT NULL UNIQUE REFERENCES learning_modules(id) ON DELETE CASCADE,
-    title TEXT NOT NULL DEFAULT 'Knowledge check',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  await execSchema(`CREATE TABLE IF NOT EXISTS learning_quiz_questions (
-    id SERIAL PRIMARY KEY,
-    quiz_id INT NOT NULL REFERENCES learning_quizzes(id) ON DELETE CASCADE,
-    question_text TEXT NOT NULL,
-    order_index INT NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await execSchema(
-    `CREATE INDEX IF NOT EXISTS idx_learning_quiz_questions_quiz ON learning_quiz_questions(quiz_id)`,
-  );
-
-  await execSchema(`CREATE TABLE IF NOT EXISTS learning_quiz_options (
-    id SERIAL PRIMARY KEY,
-    question_id INT NOT NULL REFERENCES learning_quiz_questions(id) ON DELETE CASCADE,
-    option_text TEXT NOT NULL,
-    is_correct BOOLEAN NOT NULL DEFAULT false,
-    order_index INT NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await execSchema(
-    `CREATE INDEX IF NOT EXISTS idx_learning_quiz_options_question ON learning_quiz_options(question_id)`,
-  );
-
-  // Lesson-level quizzes (attach a quiz to a lesson/video) + per-user pass tracking for gating.
-  await execSchema(`ALTER TABLE learning_quizzes ALTER COLUMN module_id DROP NOT NULL`);
-  await execSchema(
-    `ALTER TABLE learning_quizzes ADD COLUMN IF NOT EXISTS lesson_id INT REFERENCES learning_lessons(id) ON DELETE CASCADE`,
-  );
-  await execSchema(
-    `ALTER TABLE learning_quizzes ADD COLUMN IF NOT EXISTS pass_pct INT NOT NULL DEFAULT 70`,
-  );
-  await execSchema(
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_quizzes_lesson ON learning_quizzes(lesson_id) WHERE lesson_id IS NOT NULL`,
-  );
-  await execSchema(`CREATE TABLE IF NOT EXISTS learning_quiz_results (
-    id SERIAL PRIMARY KEY,
-    user_email TEXT NOT NULL,
-    quiz_id INT NOT NULL REFERENCES learning_quizzes(id) ON DELETE CASCADE,
-    best_pct INT NOT NULL DEFAULT 0,
-    passed BOOLEAN NOT NULL DEFAULT false,
-    attempts INT NOT NULL DEFAULT 0,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_email, quiz_id)
-  )`);
-
-  /* There is deliberately no access_requests table here. One was created to mirror the other
-     tools and was briefly used — two people were approved through it on 8 Sep 2026 — before the
-     Learning Hub became open to every signed-in employee, after which nothing read or wrote it.
-     It was retired on 15 Sep 2026 by renaming it to access_requests_bak_lhretire rather than
-     dropping it, so those two approval rows survive. Drop that backup once nobody wants them. */
 }
 
 // Inserts a track's courses/modules/lessons one multi-row INSERT per level: three round trips for the
@@ -484,18 +349,29 @@ async function syncSeedTracks(): Promise<void> {
   }
 }
 
+/**
+ * Assert the Learning Hub schema has been migrated, then make sure the code-defined seed content
+ * is in the database.
+ *
+ * This keeps its name and its export because src/app/actions/learning-hub.ts calls it in eighteen
+ * places. It is no longer a schema-creation function: the DDL moved to
+ * database/migrations/learning-hub/001_baseline.sql. What remains is the migration check plus the
+ * content sync, which is not schema and cannot move into a migration — SEED_TRACKS changes with
+ * ordinary deploys, and the sync deliberately leaves admin CMS edits alone.
+ */
 export async function ensureLearningHubReady(): Promise<void> {
-  if (!readyPromise) {
-    readyPromise = ensureLearningHubSchema()
+  await requireSchema(learningHubPool, DB_KEY, BASELINE);
+  if (!seedPromise) {
+    seedPromise = backfillTrackDefaults()
       .then(() => syncSeedTracks())
       .catch((err) => {
         // Don't let a failed cold-start attempt permanently wedge a warm serverless instance -
         // clear the cache so the next request gets a fresh try instead of the same cached rejection.
-        readyPromise = null;
+        seedPromise = null;
         throw err;
       });
   }
-  await readyPromise;
+  await seedPromise;
 }
 
 /* ── Shared row shapes for aggregate queries ─────────────────────────── */

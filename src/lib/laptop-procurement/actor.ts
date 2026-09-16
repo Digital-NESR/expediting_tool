@@ -21,7 +21,7 @@ import { cache } from 'react';
 import { normaliseScopeValue } from '@/lib/laptop-procurement/access';
 import { sql } from '@/lib/laptop-procurement/db';
 import { resolveLaptopDelegations } from '@/lib/laptop-procurement/delegation';
-import { ensureLaptopApproverMatrixColumns } from '@/lib/laptop-procurement/schema';
+import { ensureLaptopSchema } from '@/lib/laptop-procurement/schema';
 
 const log = logger('laptop-procurement');
 
@@ -81,7 +81,7 @@ export async function getApproverMatrixCapabilities(
   const target = email.trim().toLowerCase();
   if (!target) return capabilities;
   try {
-    await ensureLaptopApproverMatrixColumns();
+    await ensureLaptopSchema();
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM laptop_approver_matrix WHERE is_active = TRUE`,
     );

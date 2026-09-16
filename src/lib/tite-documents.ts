@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import titePool from '@/lib/db-tite';
 import { withTransaction } from '@/lib/db/tx';
+import { requireSchema } from '@/lib/db/schema-version';
 import type { ShipmentDocument, ActivityLogRow } from '@/types/tite';
 
 /* ─── Document helpers ──────────────────────────────────────────── */
@@ -77,37 +78,16 @@ export async function dbGetDocumentFile(id: number): Promise<{
 /* ─── Activity log helpers ──────────────────────────────────────── */
 
 /**
- * `shipment_activity_log.performed_by` is a free-text display name. Keying the
- * recent-activity feed on it breaks the moment someone is renamed in Azure AD,
- * and leaks one colleague's activity to another of the same name. The email is
- * the stable identity, so it is stored alongside.
+ * The activity-log column and index now live in `database/migrations/tite/001_baseline.sql`.
+ * They used to run here on the first request every serverless instance served, behind a memo
+ * and a try/catch that logged and carried on — so a genuinely missing column surfaced later as
+ * a confusing INSERT failure rather than as itself.
  *
- * Added with the codebase's idempotent ADD COLUMN IF NOT EXISTS pattern, memoised
- * so it costs one statement per process. It MUST be awaited before any
- * transaction that writes a log row opens — inside a transaction the failing
- * ALTER would abort the whole unit of work.
+ * What is left is the assertion that the migrations ran: one cheap memoised row lookup. It can
+ * throw where the old helper could not, which is the point.
  */
-let activityLogSchemaReady: Promise<void> | null = null;
-
-export function ensureTiteActivityLogSchema(): Promise<void> {
-  if (!activityLogSchemaReady) {
-    activityLogSchemaReady = (async () => {
-      try {
-        await titePool.query(
-          `ALTER TABLE shipment_activity_log ADD COLUMN IF NOT EXISTS performed_by_email TEXT`,
-        );
-        await titePool.query(
-          `CREATE INDEX IF NOT EXISTS idx_shipment_activity_log_email
-             ON shipment_activity_log (performed_by_email, performed_at DESC)`,
-        );
-      } catch (err) {
-        // Never let a schema hiccup take a write down; retry on the next call.
-        activityLogSchemaReady = null;
-        console.error('[TI-TE] ensureTiteActivityLogSchema failed', err);
-      }
-    })();
-  }
-  return activityLogSchemaReady;
+export function ensureTiteSchema(): Promise<void> {
+  return requireSchema(titePool, 'tite', '001_baseline');
 }
 
 /**
@@ -130,7 +110,7 @@ export async function dbInsertActivityLog(
   },
   client?: PoolClient,
 ): Promise<void> {
-  if (!client) await ensureTiteActivityLogSchema();
+  if (!client) await requireSchema(titePool, 'tite', '001_baseline');
   await (client ?? titePool).query(
     `INSERT INTO shipment_activity_log
        (shipment_id, action, details, performed_by, performed_by_email)
@@ -211,8 +191,9 @@ export async function dbUpdateShipmentWithLog(params: {
      string, so an empty `fields` still yields valid SQL. */
   const setClauses = [...keys.map((k, i) => `${k} = $${i + 2}`), 'updated_at = NOW()'].join(', ');
 
-  // Before the transaction opens: the ALTER would abort it from inside.
-  await ensureTiteActivityLogSchema();
+  // Before the transaction opens: fail on an unmigrated database without having
+  // taken a connection and opened a unit of work that can only be rolled back.
+  await requireSchema(titePool, 'tite', '001_baseline');
 
   // The row and the log entry describing it land together or not at all.
   await withTransaction(titePool, async (client) => {

@@ -28,7 +28,7 @@ import {
   deferLaptopNotifications,
   notifyNewLaptopRequest,
 } from '@/lib/laptop-procurement/notifications';
-import { ensureLaptopReferenceUniqueIndex } from '@/lib/laptop-procurement/schema';
+import { ensureLaptopSchema } from '@/lib/laptop-procurement/schema';
 import { insertRequest, validateCreateInput } from '@/lib/laptop-procurement/write-requests';
 
 const log = logger('laptop-procurement');
@@ -41,7 +41,7 @@ export async function createLaptopRequest(
     if (!actor.permissions.canCreateRequests)
       throw new Error('Request creation access is required.');
     const validated = validateCreateInput(input);
-    await ensureLaptopReferenceUniqueIndex();
+    await ensureLaptopSchema();
     // Reference allocation, the request row and its first log line are one unit: the
     // lock keeps two concurrent submissions off the same PLP number, and the
     // transaction means a failed insert doesn't leave a log line for a request that

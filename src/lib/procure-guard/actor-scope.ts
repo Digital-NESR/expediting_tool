@@ -14,7 +14,7 @@ import type { QueryResultRow } from 'pg';
 import { normalizeEmail } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
 import { getPermissionProfile, normalizeProcureGuardCountryScope } from '@/lib/procureGuard-utils';
-import { ensureProcureGuardDelegationTable, serialise, sql } from './internals';
+import { ensureProcureGuardSchema, serialise, sql } from './internals';
 import type {
   ProcureGuardPermissionProfile,
   ProcureGuardPermissionRole,
@@ -117,7 +117,7 @@ export async function resolveProcureGuardActorScope(
   const adminEmails = procureGuardAdminEmails();
 
   // The permission row and the user's delegations are independent — fetch them in parallel.
-  await ensureProcureGuardDelegationTable();
+  await ensureProcureGuardSchema();
   const [permissionRow, delegationRows] = await Promise.all([
     getPermissionRowForEmail(email),
     sql<QueryResultRow[]>(

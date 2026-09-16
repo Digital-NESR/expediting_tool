@@ -26,7 +26,7 @@ import {
   requireProcureGuardOperationalAccess,
 } from '@/lib/procure-guard/actor';
 import { PROCUREGUARD_DATA_TAG } from '@/lib/procure-guard/constants';
-import { ensureProcureGuardPaymentRequestColumns, exec, sql } from '@/lib/procure-guard/internals';
+import { ensureProcureGuardSchema, exec, sql } from '@/lib/procure-guard/internals';
 import { notifyProcureGuardNextApprover } from '@/lib/procure-guard/notifications';
 import { blankToNull } from '@/lib/procure-guard/validation';
 import {
@@ -55,7 +55,7 @@ export async function createAdhocPayment(
     requireProcureGuardOperationalAccess(actor);
     if (!actor.permissions.canCreateRequests)
       throw new Error('Request creation access is required.');
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const normalised = normaliseAdhocInput(input, {
       requesterEmail: actor.email,
       requireAcknowledgement: true,
@@ -109,7 +109,7 @@ export async function createAdvancePayment(
     requireProcureGuardOperationalAccess(actor);
     if (!actor.permissions.canCreateRequests)
       throw new Error('Request creation access is required.');
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const normalised = normaliseAdvanceInput(input, { requesterEmail: actor.email });
 
     const result = await insertAdvanceRequest({
@@ -159,7 +159,7 @@ export async function updateAdhocPaymentRequest(
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_adhoc_payments WHERE id = ? LIMIT 1`,
       [id],
@@ -233,7 +233,7 @@ export async function updateAdvancePaymentRequest(
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_advance_payments WHERE id = ? LIMIT 1`,
       [id],

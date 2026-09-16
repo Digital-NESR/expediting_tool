@@ -7,7 +7,9 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/migrate.mjs && next build",
+    "migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
+    "migrate:dry": "node --env-file-if-exists=.env.local scripts/migrate.mjs --dry",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

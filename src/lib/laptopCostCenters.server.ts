@@ -24,6 +24,7 @@
 
 import { cache } from 'react';
 import laptopProcurementPool from '@/lib/db-laptop';
+import { ensureLaptopSchema } from '@/lib/laptop-procurement/schema';
 import { logger } from '@/lib/logger';
 import type {
   CostCenterCountryMap,
@@ -71,81 +72,15 @@ export interface CostCenterSnapshot {
 }
 
 /* ═══ Schema ═════════════════════════════════════════════════════════════════
-   Created on first use, like every other table in this tool. The departments table is keyed
-   on (company_code, LOWER(department)) because the form's lookup is case-insensitive: two
-   departments differing only in case would make the cost-center auto-fill ambiguous.
+   The three tables are created by database/migrations/laptop-procurement/001_baseline.sql,
+   applied at deploy by `npm run migrate`. They used to be created on first use, behind a
+   module-level `schemaEnsured` memo that re-ran the DDL on every cold start; all that is left
+   here is the assertion that the migration ran, so a missing schema reads as one clear sentence
+   instead of a relation-does-not-exist error inside a form load.
+
+   Their seed rows are loaded separately by scripts/seed-laptop-cost-centers.mjs, and thereafter
+   edited at /admin/laptop?section=cost-centers.
    ═══════════════════════════════════════════════════════════════════════════ */
-
-let schemaEnsured: Promise<void> | null = null;
-
-export function ensureCostCenterSchema(): Promise<void> {
-  if (schemaEnsured) return schemaEnsured;
-  schemaEnsured = (async () => {
-    const exec = async (statement: string) => {
-      try {
-        await laptopProcurementPool.query(statement);
-      } catch (err) {
-        // Two instances racing to create the same object: whoever loses sees one of these.
-        const code =
-          typeof err === 'object' && err && 'code' in err
-            ? String((err as { code?: unknown }).code)
-            : '';
-        if (code !== '23505' && code !== '42P07' && code !== '42710') throw err;
-      }
-    };
-    await exec(`
-      CREATE TABLE IF NOT EXISTS laptop_cost_center_companies (
-        code        TEXT PRIMARY KEY,
-        name        TEXT NOT NULL,
-        country     TEXT NOT NULL,
-        active      BOOLEAN NOT NULL DEFAULT TRUE,
-        sort_order  INTEGER NOT NULL DEFAULT 0,
-        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_by  TEXT
-      )
-    `);
-    await exec(`
-      CREATE TABLE IF NOT EXISTS laptop_cost_center_departments (
-        id           SERIAL PRIMARY KEY,
-        company_code TEXT NOT NULL
-                     REFERENCES laptop_cost_center_companies (code)
-                     ON UPDATE CASCADE ON DELETE CASCADE,
-        department   TEXT NOT NULL,
-        cost_center  TEXT NOT NULL,
-        active       BOOLEAN NOT NULL DEFAULT TRUE,
-        sort_order   INTEGER NOT NULL DEFAULT 0,
-        created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_by   TEXT
-      )
-    `);
-    await exec(`
-      CREATE TABLE IF NOT EXISTS laptop_cost_center_country_map (
-        requestor_country TEXT NOT NULL,
-        mapped_country    TEXT NOT NULL,
-        sort_order        INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (requestor_country, mapped_country)
-      )
-    `);
-    await exec(
-      `CREATE UNIQUE INDEX IF NOT EXISTS idx_lcc_departments_company_dept
-         ON laptop_cost_center_departments (company_code, LOWER(department))`,
-    );
-    await exec(
-      `CREATE INDEX IF NOT EXISTS idx_lcc_departments_company
-         ON laptop_cost_center_departments (company_code)`,
-    );
-    await exec(
-      `CREATE INDEX IF NOT EXISTS idx_lcc_companies_country
-         ON laptop_cost_center_companies (country)`,
-    );
-  })().catch((err) => {
-    schemaEnsured = null;
-    throw err;
-  });
-  return schemaEnsured;
-}
 
 /* ═══ Snapshot ═══════════════════════════════════════════════════════════════ */
 
@@ -161,7 +96,7 @@ export function invalidateCostCenterCache(): void {
 }
 
 async function loadSnapshot(): Promise<CostCenterSnapshot> {
-  await ensureCostCenterSchema();
+  await ensureLaptopSchema();
   const [companies, departments, countryMap] = await Promise.all([
     laptopProcurementPool.query(
       `SELECT c.code, c.name, c.country, c.active, c.sort_order,

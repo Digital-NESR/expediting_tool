@@ -6,6 +6,7 @@ import { unstable_cache } from 'next/cache';
 import ExcelJS from 'exceljs';
 import catalogManagerPool from '@/lib/db-catalog-manager';
 import { createSqlHelpers } from '@/lib/db/sql';
+import { requireSchema } from '@/lib/db/schema-version';
 import { logger } from '@/lib/logger';
 import { withTransaction } from '@/lib/db/tx';
 import { getProcureGuardUser } from '@/lib/auth';
@@ -135,358 +136,32 @@ function dbOn(client: PoolClient): CatalogDb {
 }
 
 /**
- * Run many bind-param-free DDL/DML statements in ONE round trip instead of one per statement.
- * Calling `pool.query(text)` with NO params argument uses Postgres's simple query protocol, which
- * (unlike the parameterized/extended protocol `exec()` uses) allows multiple `;`-separated
- * statements in a single call. This is what keeps a cold schema bootstrap fast — see
- * initCatalogManagerSchema, whose ~35 idempotent (IF NOT EXISTS-style) statements used to run as
- * 35 sequential awaited round trips. Falls back to the slow-but-bulletproof one-by-one path
- * (preserving the original per-statement "already exists" tolerance) if the batch ever fails.
+ * Assert the schema is migrated, then make sure this database's reference data is in place.
+ *
+ * The ~39 idempotent DDL statements that used to run here on every cold start now live in
+ * database/migrations/catalog-manager/001_baseline.sql and are applied once at deploy by
+ * `npm run migrate`. What is left is the part a migration cannot carry: master data built from
+ * TypeScript constants (currencies, countries, UoMs, the spend taxonomy, service activities, the
+ * default approval threshold) and the supplier directory copied from the expediting database.
+ *
+ * Still memoized so concurrent callers (e.g. a page's Promise.all) share ONE seed run instead of
+ * racing — racing seeders previously collided on the catalog_entry code key.
  */
-async function execBatch(statements: string[]): Promise<void> {
-  if (statements.length === 0) return;
-  try {
-    await catalogManagerPool.query(statements.join(';\n'));
-  } catch (batchErr) {
-    // Expected on a schema that is already there; logged all the same, because it is also what a
-    // genuinely broken DDL statement looks like and the slow path below can hide it.
-    catalogLog.debug('schema.batchFallback', {
-      statements: statements.length,
-      reason: batchErr instanceof Error ? batchErr.message : String(batchErr),
-    });
-    for (const statement of statements) {
-      try {
-        await exec(statement);
-      } catch (err) {
-        const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
-        if (code !== '23505' && code !== '42P07' && code !== '42710' && code !== '42701') throw err;
-      }
-    }
-  }
-}
+let seedPromise: Promise<void> | null = null;
 
-/* ============================================================================
-   SCHEMA — created in code (idempotent), ensured before every action.
-   Mirrors the ERD: country / currency / unit_of_measure / spend_category /
-   spend_subcategory / app_user / supplier / catalog_entry / rate_version /
-   entry_document / approval_decision / audit_log + country_approver.
-============================================================================ */
-
-// Memoized so concurrent callers (e.g. a page's Promise.all) share ONE init/seed run
-// instead of racing — racing seeders previously collided on the catalog_entry code key.
-let schemaPromise: Promise<void> | null = null;
-
-function ensureCatalogManagerSchema(): Promise<void> {
-  if (!schemaPromise) {
-    schemaPromise = initCatalogManagerSchema().catch((err) => {
-      schemaPromise = null; // let a later request retry if init failed
-      catalogLog.error('schema.initFailed', err);
+function ensureCatalogSeedData(): Promise<void> {
+  if (!seedPromise) {
+    seedPromise = (async () => {
+      await requireSchema(catalogManagerPool, 'catalog-manager', '001_baseline');
+      await seedMasterData();
+      await seedSupplierDirectory();
+    })().catch((err) => {
+      seedPromise = null; // let a later request retry if seeding failed
+      catalogLog.error('schema.seedFailed', err);
       throw err;
     });
   }
-  return schemaPromise;
-}
-
-async function initCatalogManagerSchema(): Promise<void> {
-  // Collect every idempotent DDL/migration statement, then run them all in ONE round trip via
-  // execBatch (see its docblock) instead of one round trip per statement.
-  const pending: string[] = [];
-  function execSchema(statement: string) {
-    pending.push(statement);
-  }
-
-  execSchema(`CREATE TABLE IF NOT EXISTS currency (
-    code VARCHAR(3) PRIMARY KEY,
-    decimals SMALLINT NOT NULL DEFAULT 2,
-    usd_rate NUMERIC(14,6) NOT NULL DEFAULT 1
-  )`);
-
-  execSchema(`CREATE TABLE IF NOT EXISTS country (
-    code VARCHAR(2) PRIMARY KEY,
-    name TEXT NOT NULL,
-    default_currency VARCHAR(3),
-    flag TEXT,
-    status TEXT NOT NULL DEFAULT 'Active'
-  )`);
-
-  execSchema(`CREATE TABLE IF NOT EXISTS unit_of_measure (
-    id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    status TEXT NOT NULL DEFAULT 'Active'
-  )`);
-
-  execSchema(`CREATE TABLE IF NOT EXISTS spend_category (
-    id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    type TEXT NOT NULL DEFAULT 'Indirect',
-    status TEXT NOT NULL DEFAULT 'Active'
-  )`);
-
-  execSchema(`CREATE TABLE IF NOT EXISTS spend_subcategory (
-    id SERIAL PRIMARY KEY,
-    category_id INTEGER NOT NULL REFERENCES spend_category(id),
-    name TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'Active',
-    UNIQUE (category_id, name)
-  )`);
-
-  execSchema(`CREATE TABLE IF NOT EXISTS app_user (
-    id SERIAL PRIMARY KEY,
-    full_name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    country_code VARCHAR(2),
-    role TEXT NOT NULL DEFAULT 'Viewer'
-  )`);
-
-  execSchema(`CREATE TABLE IF NOT EXISTS supplier (
-    id SERIAL PRIMARY KEY,
-    vendor_code TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    accountable_manager TEXT
-  )`);
-
-  execSchema(`CREATE TABLE IF NOT EXISTS catalog_entry (
-    id SERIAL PRIMARY KEY,
-    code TEXT NOT NULL UNIQUE,
-    country_code VARCHAR(2) NOT NULL,
-    supplier_id INTEGER NOT NULL REFERENCES supplier(id),
-    category_id INTEGER REFERENCES spend_category(id),
-    subcategory_id INTEGER REFERENCES spend_subcategory(id),
-    uom_id INTEGER REFERENCES unit_of_measure(id),
-    spend_type TEXT,
-    family TEXT,
-    commodity TEXT,
-    unspsc_code TEXT,
-    item_name TEXT NOT NULL,
-    description TEXT,
-    sirion_contract_id TEXT,
-    sirion_url TEXT,
-    notes TEXT,
-    status TEXT NOT NULL DEFAULT 'Draft',
-    tier_label TEXT NOT NULL DEFAULT 'Tier 1 — Auto',
-    current_version_no INTEGER NOT NULL DEFAULT 1,
-    manager TEXT,
-    approver_name TEXT,
-    approval_comment TEXT,
-    created_by TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    modified_by TEXT,
-    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  // Entry codes (CAT-nnnn) come from a sequence, not SELECT MAX(...)+1: two concurrent creates (or
-  // two people importing at once) used to read the same max and mint the same code, and one request
-  // died on the unique key. nextval is atomic and never hands the same number out twice.
-  execSchema(`CREATE SEQUENCE IF NOT EXISTS catalog_entry_code_seq START WITH 1040`);
-  // Park the sequence above the highest code already in the table. Safe to re-run on every boot:
-  // it takes the GREATEST of (highest existing code, where the sequence already is, the 1039 floor),
-  // so it can only ever move forwards — never back onto a number that has already been handed out.
-  execSchema(`SELECT setval('catalog_entry_code_seq', GREATEST(
-      (SELECT COALESCE(MAX(CAST(SUBSTRING(code FROM 5) AS INTEGER)), 0) FROM catalog_entry WHERE code ~ '^CAT-[0-9]+$'),
-      (SELECT CASE WHEN is_called THEN last_value ELSE last_value - 1 END FROM catalog_entry_code_seq),
-      1039
-    ), TRUE)`);
-
-  execSchema(`CREATE TABLE IF NOT EXISTS rate_version (
-    id SERIAL PRIMARY KEY,
-    entry_id INTEGER NOT NULL REFERENCES catalog_entry(id) ON DELETE CASCADE,
-    version_no INTEGER NOT NULL,
-    unit_price NUMERIC(16,3) NOT NULL,
-    currency_code VARCHAR(3) NOT NULL,
-    effective_date DATE NOT NULL,
-    expiry_date DATE,
-    change_reason TEXT,
-    modified_by TEXT,
-    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (entry_id, version_no)
-  )`);
-
-  execSchema(`CREATE TABLE IF NOT EXISTS entry_document (
-    id SERIAL PRIMARY KEY,
-    entry_id INTEGER NOT NULL REFERENCES catalog_entry(id) ON DELETE CASCADE,
-    file_name TEXT NOT NULL,
-    doc_type TEXT,
-    size_label TEXT
-  )`);
-
-  execSchema(`CREATE TABLE IF NOT EXISTS approval_decision (
-    id SERIAL PRIMARY KEY,
-    entry_id INTEGER NOT NULL REFERENCES catalog_entry(id) ON DELETE CASCADE,
-    version_no INTEGER NOT NULL,
-    decided_by TEXT,
-    decision TEXT NOT NULL,
-    tier SMALLINT NOT NULL DEFAULT 2,
-    comment TEXT,
-    decided_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  execSchema(`CREATE TABLE IF NOT EXISTS audit_log (
-    id SERIAL PRIMARY KEY,
-    action TEXT NOT NULL,
-    target TEXT,
-    user_name TEXT,
-    detail TEXT,
-    occurred_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  // NEW (per request): people who approve for certain countries, linked to app_user.
-  execSchema(`CREATE TABLE IF NOT EXISTS country_approver (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
-    country_code VARCHAR(2) NOT NULL,
-    spend_category_id INTEGER REFERENCES spend_category(id),
-    tier SMALLINT NOT NULL DEFAULT 2,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-  // partial unique: one row per (user, country, category) — NULL category treated as "all".
-  execSchema(`CREATE UNIQUE INDEX IF NOT EXISTS country_approver_uniq
-    ON country_approver (user_id, country_code, COALESCE(spend_category_id, 0))`);
-
-  // Self-service role-upgrade requests, reviewed from the platform /admin console (mirrors the
-  // procure_guard_access_requests pattern: one row per user, upserted on re-request).
-  execSchema(`CREATE TABLE IF NOT EXISTS catalog_access_requests (
-    user_email TEXT PRIMARY KEY,
-    display_name TEXT,
-    job_title TEXT,
-    country_code VARCHAR(2),
-    status TEXT NOT NULL DEFAULT 'Pending',
-    requested_role TEXT NOT NULL,
-    approved_role TEXT,
-    reason TEXT,
-    requested_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    reviewed_at TIMESTAMPTZ,
-    reviewed_by TEXT
-  )`);
-
-  // Audit trail records the AUTHENTICATED actor's email alongside the (spoofable) display name.
-  execSchema(`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS user_email TEXT`);
-
-  // Logistics fields (added later): Incoterms 2020 code + supplier lead time in days.
-  execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms TEXT`);
-  execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS incoterms_location TEXT`);
-  execSchema(`ALTER TABLE catalog_entry ADD COLUMN IF NOT EXISTS lead_time_days INTEGER`);
-
-  // Real uploaded proof-of-agreement files are stored inline as a data URL (local-first).
-  execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS data_url TEXT`);
-  execSchema(`ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS uploaded_by TEXT`);
-  execSchema(
-    `ALTER TABLE entry_document ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP`,
-  );
-
-  // Approval thresholds — a global default plus optional per-country / per-category overrides.
-  execSchema(`CREATE TABLE IF NOT EXISTS approval_threshold (
-    id SERIAL PRIMARY KEY,
-    country_code VARCHAR(2),
-    spend_category_id INTEGER REFERENCES spend_category(id),
-    threshold_usd NUMERIC(16,2) NOT NULL,
-    updated_by TEXT,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-  execSchema(`CREATE UNIQUE INDEX IF NOT EXISTS approval_threshold_uniq
-    ON approval_threshold (COALESCE(country_code, ''), COALESCE(spend_category_id, 0))`);
-
-  // SAP service-activity reference list (every service in the system).
-  execSchema(`CREATE TABLE IF NOT EXISTS service_activity (
-    activity_number TEXT PRIMARY KEY,
-    short_text TEXT NOT NULL,
-    base_uom TEXT
-  )`);
-
-  // Supplier directory — the SAP supplier master, owned by the catalog DB (seeded once
-  // from the expediting DB, then queried locally so runtime never depends on that DB).
-  execSchema(`CREATE TABLE IF NOT EXISTS supplier_directory (
-    code TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    emails TEXT,
-    additional_email TEXT
-  )`);
-  execSchema(
-    `CREATE INDEX IF NOT EXISTS supplier_directory_name_idx ON supplier_directory (LOWER(name))`,
-  );
-
-  // PIR / Inventory catalog — a READ-ONLY mirror of SAP Purchasing Info Records, loaded by an
-  // external n8n job (Power BI → truncate + insert). The app never writes to this table.
-  execSchema(`CREATE TABLE IF NOT EXISTS pir_catalog (
-    info_record_number TEXT,
-    product_number TEXT,
-    material_description TEXT,
-    material_group TEXT,
-    suppliers_account_number TEXT,
-    supplier_name TEXT,
-    purchasing_organization TEXT,
-    purchase_org_description TEXT,
-    purchasing_group TEXT,
-    plant TEXT,
-    country TEXT,
-    order_unit TEXT,
-    base_unit_of_measure TEXT,
-    numerator_for_conversion NUMERIC,
-    unit_price NUMERIC,
-    currency_key TEXT,
-    standard_qty NUMERIC,
-    planned_delivery_time_days NUMERIC,
-    overdelivery_tolerance_limit NUMERIC,
-    shipping_instructions TEXT,
-    minimum_remaining_shelf_life NUMERIC,
-    incoterms TEXT,
-    incoterms_location_1 TEXT,
-    valid_days NUMERIC,
-    valid_till_expiry_date TEXT,
-    expiring_in TEXT,
-    status TEXT,
-    deletion_flag TEXT,
-    material_supplier TEXT,
-    material_supplier_org TEXT,
-    synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`);
-
-  // Perf indexes for the read-heavy PIR mirror. TRUNCATE (used by the n8n loader) keeps indexes,
-  // so these survive the nightly reload. btree covers the list sort + exact-match filters; the
-  // trigram GIN indexes make the dashboard's ILIKE '%…%' search fast (a plain btree can't).
-  // Trigram needs pg_trgm — best-effort: if the DB role can't create it, we fall back to btree-only
-  // (search still works, just scans) instead of failing the whole schema init.
-  execSchema(`CREATE INDEX IF NOT EXISTS pir_supplier_idx ON pir_catalog (supplier_name)`);
-  execSchema(`CREATE INDEX IF NOT EXISTS pir_product_idx ON pir_catalog (product_number)`);
-  execSchema(`CREATE INDEX IF NOT EXISTS pir_country_idx ON pir_catalog (country)`);
-  execSchema(`CREATE INDEX IF NOT EXISTS pir_synced_idx ON pir_catalog (synced_at)`);
-
-  // Durable material-name store. pir_catalog is TRUNCATEd + reloaded nightly by n8n, and some
-  // mornings the SUPPLYCHAIN lookup returns blank descriptions (Power BI not fully refreshed at
-  // load time) — which used to wipe good names. This table accumulates every non-blank name we
-  // have ever seen (keyed by product number) and is NEVER truncated, so reads can fall back to the
-  // last-known-good name when a reload brings a material in without one.
-  execSchema(`CREATE TABLE IF NOT EXISTS pir_name_cache (
-    product_number TEXT PRIMARY KEY,
-    material_description TEXT NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`);
-
-  // Flush every collected statement in ONE round trip (see execBatch) before anything below reads
-  // or writes these tables — seeding depends on them existing.
-  await execBatch(pending);
-
-  try {
-    await exec(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
-    await exec(
-      `CREATE INDEX IF NOT EXISTS pir_desc_trgm ON pir_catalog USING gin (material_description gin_trgm_ops)`,
-    );
-    await exec(
-      `CREATE INDEX IF NOT EXISTS pir_supplier_trgm ON pir_catalog USING gin (supplier_name gin_trgm_ops)`,
-    );
-    await exec(
-      `CREATE INDEX IF NOT EXISTS pir_product_trgm ON pir_catalog USING gin (product_number gin_trgm_ops)`,
-    );
-  } catch (err) {
-    // pg_trgm not available to this role — search degrades to a scan, everything else is fine.
-    catalogLog.warn('schema.trigramIndexesSkipped', {
-      impact: 'PIR search falls back to a sequential scan',
-      reason: err instanceof Error ? err.message : String(err),
-    });
-  }
-
-  await seedMasterData();
-  await seedSupplierDirectory();
+  return seedPromise;
 }
 
 /**
@@ -708,7 +383,7 @@ async function upsertSupplier(
  * write and revalidate, so the refreshed value is read by the NEXT request).
  */
 const loadCatalogActor = cache(async (): Promise<CatalogActor> => {
-  await ensureCatalogManagerSchema();
+  await ensureCatalogSeedData();
   const sessionUser = await getProcureGuardUser();
   const email = (sessionUser?.email ?? '').toLowerCase();
   const name = sessionUser?.name ?? 'Catalog User';
@@ -2848,7 +2523,7 @@ function mapAccessRequest(row: QueryResultRow): CatalogAccessRequestRow {
 
 /** The current user's own access request, if any — lets the request-access page show status. */
 export async function getMyCatalogAccessRequest(): Promise<CatalogAccessRequestRow | null> {
-  await ensureCatalogManagerSchema();
+  await requireSchema(catalogManagerPool, 'catalog-manager', '001_baseline');
   const sessionUser = await getProcureGuardUser();
   const email = normalizeEmail(sessionUser?.email);
   if (!email) return null;
@@ -2869,7 +2544,7 @@ export async function submitCatalogAccessRequest(input: {
   countryCode?: string | null;
   reason?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
-  await ensureCatalogManagerSchema();
+  await requireSchema(catalogManagerPool, 'catalog-manager', '001_baseline');
   const sessionUser = await getProcureGuardUser();
   const email = normalizeEmail(sessionUser?.email);
   if (!email) return { success: false, error: 'You must be signed in to request access.' };

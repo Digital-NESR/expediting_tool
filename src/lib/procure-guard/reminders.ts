@@ -20,7 +20,7 @@ import {
 } from '@/lib/procureGuard-utils';
 import type { ProcureGuardRequestType } from '@/types/procureGuard';
 import {
-  ensureProcureGuardPaymentRequestColumns,
+  ensureProcureGuardSchema,
   escapeHtml,
   exec,
   formatWebhookAmount,
@@ -95,7 +95,7 @@ export async function sendProcureGuardOpenRequestReminders(): Promise<{
     log.warn('reminders.unconfigured', { reason: 'N8N_PROCUREGUARD_WEBHOOK_URL is not set' });
     return summary;
   }
-  await ensureProcureGuardPaymentRequestColumns();
+  await ensureProcureGuardSchema();
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const secret = process.env.N8N_PROCUREGUARD_WEBHOOK_SECRET?.trim();

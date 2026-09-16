@@ -7,7 +7,7 @@ import pool from '@/lib/db';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import { authOptions } from '@/lib/auth';
 import { normalizeEmail } from '@/lib/require-access';
-import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
+import { ensurePoExpeditingSchema } from '@/lib/po-expediting-schema';
 import { logger } from '@/lib/logger';
 import type { PurchaseOrder } from '@/types/po';
 
@@ -347,7 +347,7 @@ export async function prepareAllExpediteDispatches(
   /* Snapshot columns must exist before the inserts below write them. Runs its DDL
      at most once per process and deliberately OUTSIDE the transaction — an ALTER
      TABLE on a second connection would block on the transaction's own locks. */
-  await ensureActiveExpeditingColumns();
+  await ensurePoExpeditingSchema();
 
   /* The supplier link is the only way a supplier can answer, so a missing or
      relative NEXT_PUBLIC_APP_URL is fatal rather than cosmetic — the emails go out

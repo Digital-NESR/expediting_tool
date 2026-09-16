@@ -1,4 +1,4 @@
-// One-time default content for the Learning Hub. Inserted by ensureLearningHubSchema()
+// One-time default content for the Learning Hub. Inserted by ensureLearningHubReady() via syncSeedTracks()
 // the first time the tables are empty (see src/app/actions/learning-hub.ts), there is no
 // separate script to run, so the tool is populated the first time it connects to a fresh DB.
 //

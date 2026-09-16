@@ -3,7 +3,7 @@
 import pool from '@/lib/db';
 import { getCachedSession } from '@/lib/session';
 import { isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
-import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
+import { ensurePoExpeditingSchema } from '@/lib/po-expediting-schema';
 
 /* ─── Access ─────────────────────────────────────────────────── */
 
@@ -188,7 +188,7 @@ export async function getAdminSupplierDetail(
   };
   if (!(await hasPoTeamAccess())) return [];
   try {
-    await ensureActiveExpeditingColumns();
+    await ensurePoExpeditingSchema();
     /* Matched and read off the dispatch-time snapshot, with the master LEFT
        JOINed only for the two fields that are not snapshotted (sap_mat_id and
        the live SAP delivery code). Matching on s.supplier_name through an INNER
@@ -277,7 +277,7 @@ export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSe
   };
   if (!(await hasPoTeamAccess())) return [];
   try {
-    await ensureActiveExpeditingColumns();
+    await ensurePoExpeditingSchema();
     const res = await pool.query(
       `
       SELECT

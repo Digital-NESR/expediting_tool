@@ -32,10 +32,7 @@ import {
   getMatrixColumns,
   unknownDirectoryEmailError,
 } from '@/lib/laptop-procurement/matrix';
-import {
-  ensureLaptopApproverMatrixColumns,
-  ensureLaptopPermissionsRoleConstraint,
-} from '@/lib/laptop-procurement/schema';
+import { ensureLaptopSchema } from '@/lib/laptop-procurement/schema';
 
 const log = logger('laptop-procurement');
 
@@ -51,7 +48,7 @@ export async function updateLaptopPermission(
       return { success: false, error: 'Permission management access is required.' };
     }
 
-    await ensureLaptopPermissionsRoleConstraint();
+    await ensureLaptopSchema();
     await exec(
       `INSERT INTO laptop_permissions (email, name, role, country, segment)
        VALUES (?, ?, ?, ?, ?)
@@ -140,7 +137,7 @@ export async function setLaptopApproverCell(input: {
       if (unknown.length) return { success: false, error: unknownDirectoryEmailError(unknown) };
     }
 
-    await ensureLaptopApproverMatrixColumns();
+    await ensureLaptopSchema();
     // Look-then-insert: without the transaction two admins adding the first approver
     // for the same country can both miss the row and both insert one.
     await withTransaction(laptopProcurementPool, async (client) => {
@@ -316,7 +313,7 @@ export async function setLaptopApproverColumn(input: {
     const unknown = await findUnknownDirectoryEmails([email]);
     if (unknown.length) return { success: false, error: unknownDirectoryEmailError(unknown) };
 
-    await ensureLaptopApproverMatrixColumns();
+    await ensureLaptopSchema();
     await exec(
       `UPDATE laptop_approver_matrix SET ${cols.emailCol} = ?, ${cols.nameCol} = ?, updated_at = CURRENT_TIMESTAMP`,
       [email, blankToNull(input.displayName)],

@@ -18,12 +18,7 @@ import { canActorViewRequest, scopedRequestWhere as scopedWhere } from '@/lib/pr
 import { getCachedDashboardRows } from '@/lib/procure-guard/activity';
 import { buildStats } from '@/lib/procure-guard/analytics';
 import { ProcureGuardAccessError } from '@/lib/procure-guard/constants';
-import {
-  ensureProcureGuardDelegationTable,
-  ensureProcureGuardPaymentRequestColumns,
-  serialise,
-  sql,
-} from '@/lib/procure-guard/internals';
+import { ensureProcureGuardSchema, serialise, sql } from '@/lib/procure-guard/internals';
 import { getProcureGuardNotificationContactPreviewRows } from '@/lib/procure-guard/notifications';
 import { normalisePaymentCountries, normalisePaymentCountry } from '@/lib/procure-guard/validation';
 import type {
@@ -66,7 +61,7 @@ export async function getAdhocPayments(): Promise<AdhocPaymentRequest[] | null> 
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const scope = scopedWhere(actor);
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_adhoc_payments
@@ -85,7 +80,7 @@ export async function getAdhocPaymentsData(): Promise<ProcureGuardRequestListDat
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const scope = scopedWhere(actor);
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_adhoc_payments
@@ -104,7 +99,7 @@ export async function getAdvancePaymentRequestsData(): Promise<ProcureGuardReque
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const scope = scopedWhere(actor);
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_advance_payments
@@ -123,7 +118,7 @@ export async function getAdvancePaymentRequests(): Promise<AdvancePaymentRequest
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const scope = scopedWhere(actor);
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_advance_payments
@@ -142,7 +137,7 @@ export async function getProcureGuardWorkQueueData(): Promise<ProcureGuardWorkQu
   try {
     const actor = await getActor();
     requireProcureGuardReviewerQueueAccess(actor);
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const scope = scopedWhere(actor);
     const [adhocRows, advanceRows] = await Promise.all([
       sql<QueryResultRow[]>(
@@ -223,7 +218,7 @@ export async function getProcureGuardRequestDetail(
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const table =
       requestType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM ${table} WHERE id = ? LIMIT 1`, [id]);
@@ -271,7 +266,7 @@ export async function getProcureGuardRequestDetail(
         amount: request.amount,
         currency: request.currency,
       }),
-      ensureProcureGuardDelegationTable().then(() =>
+      ensureProcureGuardSchema().then(() =>
         sql<QueryResultRow[]>(
           `SELECT * FROM procure_guard_delegations
            WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
@@ -311,7 +306,7 @@ export async function getProcureGuardDashboardData(): Promise<ProcureGuardDashbo
   try {
     const actor = await getActor();
     requireProcureGuardOperationalAccess(actor);
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const scope = scopedWhere(actor);
 
     const { adhoc, advance, activity } = await getCachedDashboardRows(

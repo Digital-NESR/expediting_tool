@@ -5,12 +5,16 @@
  * that is a live game. State lives in learning_game_sessions (learning_hub_db). Writes use
  * optimistic locking (a version column) so two players acting at once merge via client retry
  * instead of clobbering each other. Signed-in NESR users only — enforced here and by the proxy.
+ *
+ * learning_game_sessions is created by database/migrations/learning-hub/001_baseline.sql; the
+ * requireSchema() calls below only assert that the migrations have been run.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import learningHubPool from '@/lib/db-learning-hub';
+import { requireSchema } from '@/lib/db/schema-version';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,39 +30,6 @@ const MAX_ROOMS_PER_HOST = 10;
 // out of a running game would be worse than the write it prevents.
 const MAX_PARTICIPANTS = 40;
 
-let schemaReady: Promise<void> | null = null;
-async function ensureSchema(): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await learningHubPool.query(`
-        CREATE TABLE IF NOT EXISTS learning_game_sessions (
-          code TEXT PRIMARY KEY,
-          game_key TEXT NOT NULL DEFAULT 'red_bull_distribution',
-          host_email TEXT,
-          state JSONB NOT NULL,
-          version INTEGER NOT NULL DEFAULT 1,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )`);
-      await learningHubPool.query(
-        `CREATE INDEX IF NOT EXISTS idx_lgsess_updated ON learning_game_sessions (updated_at)`,
-      );
-      /*
-       * Who may write to a room. Added after rooms already existed, so a NULL here means "nobody has
-       * been recorded yet" and the first writers are admitted and remembered — a game that was live
-       * when this shipped keeps working instead of locking its own players out mid-run.
-       */
-      await learningHubPool.query(
-        `ALTER TABLE learning_game_sessions ADD COLUMN IF NOT EXISTS participant_emails TEXT[]`,
-      );
-    })().catch((err) => {
-      schemaReady = null;
-      throw err;
-    });
-  }
-  await schemaReady;
-}
-
 async function requireUserEmail(): Promise<string | null> {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email?.trim().toLowerCase();
@@ -73,7 +44,7 @@ export async function GET(req: NextRequest) {
   if (!CODE_RE.test(code)) return NextResponse.json({ error: 'bad_code' }, { status: 400 });
 
   try {
-    await ensureSchema();
+    await requireSchema(learningHubPool, 'learning-hub', '001_baseline');
     // Reading stays open to any signed-in user holding the code, because that is how a joiner sees
     // the room before the room knows them. Writing is where the roster check lives.
     const r = await learningHubPool.query(
@@ -119,7 +90,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await ensureSchema();
+    await requireSchema(learningHubPool, 'learning-hub', '001_baseline');
 
     if (body.create) {
       // Opportunistic cleanup so abandoned rooms don't accumulate (fire-and-forget).

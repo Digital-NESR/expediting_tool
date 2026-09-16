@@ -28,7 +28,7 @@ import {
   STATUS_SORT_ORDER,
 } from '@/lib/procure-guard/constants';
 import { serialise, sql } from '@/lib/procure-guard/internals';
-import { ensureProcureGuardUsageTables } from '@/lib/procure-guard/schema';
+import { ensureProcureGuardSchema } from '@/lib/procure-guard/schema';
 import { normalisePaymentCountries } from '@/lib/procure-guard/validation';
 import type {
   AdhocPaymentRequest,
@@ -230,7 +230,7 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
 export async function getProcureGuardAdminAnalyticsData(): Promise<ProcureGuardAdminAnalyticsData | null> {
   try {
     const actor = await requireAdminActor();
-    await ensureProcureGuardUsageTables();
+    await ensureProcureGuardSchema();
 
     const windowWhere = `occurred_at >= NOW() - INTERVAL '30 days'`;
     const [summaryRows, pageRows, clickRows, userRows, recentRows, pendingRows] = await Promise.all(

@@ -24,17 +24,14 @@ import {
   requireText,
   revalidateLaptopAdminPath,
 } from '@/lib/laptop-procurement/internals';
-import {
-  ensureLaptopAccessRequestTable,
-  ensureLaptopPermissionsRoleConstraint,
-} from '@/lib/laptop-procurement/schema';
+import { ensureLaptopSchema } from '@/lib/laptop-procurement/schema';
 
 const log = logger('laptop-procurement');
 
 export async function getLaptopAccessRequests(): Promise<LaptopAccessRequestRow[]> {
   try {
     await requireAdminActor();
-    await ensureLaptopAccessRequestTable();
+    await ensureLaptopSchema();
     const [requestRows, permissionRows] = await Promise.all([
       sql<QueryResultRow[]>(
         `SELECT * FROM laptop_access_requests
@@ -96,12 +93,9 @@ export async function approveLaptopAccess(input: {
     const actor = await requireAdminActor();
     if (!actor.permissions.canManagePermissions)
       return { success: false, error: 'Permission management access is required.' };
-    await ensureLaptopAccessRequestTable();
+    await ensureLaptopSchema();
     const email = requireText(input.userEmail, 'Email').toLowerCase();
     const role = requireText(input.approvedRole, 'Role') as LaptopPermissionRole;
-
-    // DDL, so it stays outside the transaction below.
-    await ensureLaptopPermissionsRoleConstraint();
 
     // The access record and the permission row that actually grants access have to
     // land together — a failure between them either logs an approval that grants
@@ -167,7 +161,7 @@ export async function revokeLaptopAccess(userEmail: string): Promise<ActionResul
     const actor = await requireAdminActor();
     if (!actor.permissions.canManagePermissions)
       return { success: false, error: 'Permission management access is required.' };
-    await ensureLaptopAccessRequestTable();
+    await ensureLaptopSchema();
     const email = requireText(userEmail, 'Email').toLowerCase();
     await withTransaction(laptopProcurementPool, async (client) => {
       await execTx(
@@ -196,7 +190,7 @@ export async function deleteLaptopAccessRequest(userEmail: string): Promise<Acti
     const actor = await requireAdminActor();
     if (!actor.permissions.canManagePermissions)
       return { success: false, error: 'Permission management access is required.' };
-    await ensureLaptopAccessRequestTable();
+    await ensureLaptopSchema();
     const email = requireText(userEmail, 'Email').toLowerCase();
     await withTransaction(laptopProcurementPool, async (client) => {
       await execTx(client, `DELETE FROM laptop_access_requests WHERE user_email = ?`, [email]);

@@ -11,6 +11,7 @@ import { request as httpsRequest } from 'https';
 import type { QueryResultRow } from 'pg';
 import procureGuardPool from '@/lib/db-procureguard';
 import { asSerialised, createSqlHelpers, serialise } from '@/lib/db/sql';
+import { requireSchema } from '@/lib/db/schema-version';
 import { logger } from '@/lib/logger';
 import { isActiveApprovalStatus, normalizeProcureGuardCountry } from '@/lib/procureGuard-utils';
 import type {
@@ -30,63 +31,24 @@ export const { sql, exec } = createSqlHelpers(procureGuardPool);
 
 const log = logger('procure-guard');
 
-export { serialise };
-
-// Memoized so the ~11 idempotent schema statements run once per process (e.g. on a warm serverless
-// instance) instead of on every page load — that per-request DDL was the main ProcureGuard load lag.
-// A fresh deploy starts a new process, so genuinely new columns still get applied.
-let paymentRequestColumnsEnsured: Promise<void> | null = null;
-export async function ensureProcureGuardPaymentRequestColumns(): Promise<void> {
-  if (paymentRequestColumnsEnsured) return paymentRequestColumnsEnsured;
-  paymentRequestColumnsEnsured = (async () => {
-    async function execSchema(statement: string) {
-      try {
-        await exec(statement);
-      } catch (err) {
-        const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
-        if (code !== '23505' && code !== '42P07' && code !== '42710' && code !== '42701') throw err;
-      }
-    }
-
-    // Add all columns per table in a single ALTER (one round-trip, one lock), and run the two tables
-    // in parallel — collapses the cold-start cost from ~8 sequential round-trips to ~1.
-    await Promise.all([
-      execSchema(`ALTER TABLE procure_guard_adhoc_payments
-      ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
-      ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE,
-      ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
-      ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB,
-      ADD COLUMN IF NOT EXISTS reminder_7d_sent_at TIMESTAMPTZ,
-      ADD COLUMN IF NOT EXISTS reminder_14d_sent_at TIMESTAMPTZ`),
-      execSchema(`ALTER TABLE procure_guard_advance_payments
-      ADD COLUMN IF NOT EXISTS requester_notification_emails TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
-      ADD COLUMN IF NOT EXISTS email_test_mode BOOLEAN NOT NULL DEFAULT FALSE,
-      ADD COLUMN IF NOT EXISTS email_test_recipients TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
-      ADD COLUMN IF NOT EXISTS email_test_recipient_overrides JSONB NOT NULL DEFAULT '{}'::JSONB,
-      ADD COLUMN IF NOT EXISTS reminder_7d_sent_at TIMESTAMPTZ,
-      ADD COLUMN IF NOT EXISTS reminder_14d_sent_at TIMESTAMPTZ`),
-      // Delegation attribution: when a delegate acts using someone else's authority, record who.
-      execSchema(`ALTER TABLE procure_guard_activity_log
-      ADD COLUMN IF NOT EXISTS on_behalf_of_name TEXT,
-      ADD COLUMN IF NOT EXISTS on_behalf_of_email TEXT`),
-    ]);
-    // Indexes after the columns exist (they depend on requester_notification_emails); both in parallel.
-    await Promise.all([
-      execSchema(
-        `CREATE INDEX IF NOT EXISTS idx_procure_guard_adhoc_requester_notification_emails ON procure_guard_adhoc_payments USING GIN (requester_notification_emails)`,
-      ),
-      execSchema(
-        `CREATE INDEX IF NOT EXISTS idx_procure_guard_advance_requester_notification_emails ON procure_guard_advance_payments USING GIN (requester_notification_emails)`,
-      ),
-    ]);
-    // Note: the reference_number UNIQUE index is ensured in the insert path
-    // (insertProcureGuardPaymentRequest), not here — read-only page loads don't need it.
-  })().catch((err) => {
-    paymentRequestColumnsEnsured = null; // allow a retry on the next request if it genuinely failed
-    throw err;
-  });
-  return paymentRequestColumnsEnsured;
+/**
+ * Assert that the procureguard database has had its migrations applied.
+ *
+ * There were five of these, one per group of DDL — the usage-event tables, the access-request
+ * table, the permission role values, the payment-request columns, the delegation table — each
+ * behind its own `let xEnsured` memo, and a caller picked whichever one guarded the columns it
+ * was about to touch. That distinction only meant something while each ran its own statements.
+ * The DDL is now database/migrations/procureguard/001_baseline.sql, applied at deploy, and a
+ * caller needs one thing from this module: that the migrations ran.
+ *
+ * It lives here rather than in ./schema because schema.ts imports from this file, and the
+ * reverse edge would make the pair circular.
+ */
+export function ensureProcureGuardSchema(): Promise<void> {
+  return requireSchema(procureGuardPool, 'procureguard', '001_baseline');
 }
+
+export { serialise };
 
 export function stripEnvQuotes(value: string): string {
   const trimmed = value.trim();
@@ -118,37 +80,6 @@ export function procureGuardWebhookErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'ProcureGuard n8n webhook failed.';
 }
 
-let delegationTableEnsured: Promise<void> | null = null;
-export async function ensureProcureGuardDelegationTable(): Promise<void> {
-  if (delegationTableEnsured) return delegationTableEnsured;
-  delegationTableEnsured = (async () => {
-    try {
-      await exec(`CREATE TABLE IF NOT EXISTS procure_guard_delegations (
-        id SERIAL PRIMARY KEY,
-        delegator_email TEXT NOT NULL,
-        delegator_name TEXT,
-        delegate_email TEXT NOT NULL,
-        delegate_name TEXT,
-        expires_at TIMESTAMPTZ,
-        is_active BOOLEAN NOT NULL DEFAULT TRUE,
-        revoked_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )`);
-      await exec(
-        `CREATE INDEX IF NOT EXISTS idx_pg_delegations_delegate ON procure_guard_delegations (LOWER(delegate_email))`,
-      );
-      await exec(
-        `CREATE INDEX IF NOT EXISTS idx_pg_delegations_delegator ON procure_guard_delegations (LOWER(delegator_email))`,
-      );
-    } catch (err) {
-      delegationTableEnsured = null; // allow a later retry
-      log.error('delegationTable.ensureFailed', err);
-    }
-  })();
-  return delegationTableEnsured;
-}
-
 // All active (non-expired) delegations grouped by delegator email (lowercased). Fail-safe → {}.
 // Shared by the initial approval notification and the reminder job so a delegate is emailed by both.
 export async function getActiveDelegatesByDelegator(): Promise<
@@ -156,7 +87,7 @@ export async function getActiveDelegatesByDelegator(): Promise<
 > {
   const map: Record<string, ProcureGuardDelegation[]> = {};
   try {
-    await ensureProcureGuardDelegationTable();
+    await ensureProcureGuardSchema();
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_delegations WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
     );

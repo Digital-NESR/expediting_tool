@@ -7,7 +7,7 @@ import type { LaptopDelegationGrant, LaptopDelegationRow } from '@/types/laptopP
 import type { QueryResultRow } from 'pg';
 import { buildEffectivePermissions, emptyMatrixCapabilities } from '@/lib/laptop-procurement/actor';
 import { sql } from '@/lib/laptop-procurement/db';
-import { ensureLaptopDelegationTable } from '@/lib/laptop-procurement/schema';
+import { ensureLaptopSchema } from '@/lib/laptop-procurement/schema';
 
 const log = logger('laptop-procurement');
 
@@ -137,7 +137,7 @@ export async function loadLaptopDelegationChain(
  */
 export async function resolveLaptopDelegations(email: string): Promise<LaptopDelegationGrant[]> {
   try {
-    await ensureLaptopDelegationTable();
+    await ensureLaptopSchema();
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM laptop_delegations
        WHERE LOWER(delegate_email) = ? AND is_active = TRUE

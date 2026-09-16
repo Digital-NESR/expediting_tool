@@ -46,7 +46,7 @@ import {
   notifyLaptopNextApprover,
   notifyLaptopRequesterUpdate,
 } from '@/lib/laptop-procurement/notifications';
-import { ensureLaptopDecisionColumns } from '@/lib/laptop-procurement/schema';
+import { ensureLaptopSchema } from '@/lib/laptop-procurement/schema';
 import {
   REJECTING_STAGE_LABEL,
   STAGE_COMMENT_COLUMN,
@@ -65,7 +65,7 @@ const log = logger('laptop-procurement');
 export async function rejectLaptopRequest(id: number, reason: string): Promise<ActionResult> {
   try {
     const actor = await getActor();
-    await ensureLaptopDecisionColumns();
+    await ensureLaptopSchema();
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
       id,
     ]);
@@ -179,7 +179,7 @@ export async function updateLaptopRequestStatus(
 ): Promise<ActionResult> {
   try {
     const actor = await getActor();
-    await ensureLaptopDecisionColumns();
+    await ensureLaptopSchema();
     const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
       id,
     ]);

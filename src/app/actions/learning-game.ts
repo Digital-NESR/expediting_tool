@@ -4,7 +4,8 @@
  * Leaderboard backend for the Learning Hub "Red Bull Distribution Game" (a Beer-Game supply
  * chain simulator). Scores are posted from the game (running in an iframe) up to the wrapper,
  * which calls submitRedBullScore. Identity comes from the NextAuth session server-side — the
- * game never supplies the email. Schema is created in code, idempotently (house pattern).
+ * game never supplies the email. The leaderboard table lives in
+ * database/migrations/learning-hub/001_baseline.sql; the calls below only assert it was applied.
  */
 
 import type { QueryResultRow } from 'pg';
@@ -12,6 +13,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import learningHubPool from '@/lib/db-learning-hub';
 import { createSqlHelpers } from '@/lib/db/sql';
+import { requireSchema } from '@/lib/db/schema-version';
 
 const GAME_KEY = 'red_bull_distribution';
 
@@ -31,43 +33,6 @@ const MAX_WEEKS = 520;
 const MAX_CHAIN_COST = 1_000_000_000;
 
 const { sql } = createSqlHelpers(learningHubPool);
-
-let schemaReady: Promise<void> | null = null;
-async function ensureGameSchema(): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await learningHubPool.query(`
-        CREATE TABLE IF NOT EXISTS learning_game_scores (
-          id SERIAL PRIMARY KEY,
-          game_key TEXT NOT NULL DEFAULT 'red_bull_distribution',
-          user_email TEXT NOT NULL,
-          player_name TEXT,
-          score INTEGER NOT NULL,
-          chain_cost INTEGER,
-          grade TEXT,
-          role TEXT,
-          pattern TEXT,
-          weeks INTEGER,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )`);
-      await learningHubPool.query(
-        `CREATE INDEX IF NOT EXISTS idx_lgs_game_score ON learning_game_scores (game_key, score DESC)`,
-      );
-      // Solo vs team runs (added later; existing rows default to 'solo').
-      await learningHubPool.query(
-        `ALTER TABLE learning_game_scores ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'solo'`,
-      );
-      await learningHubPool.query(
-        `CREATE INDEX IF NOT EXISTS idx_lgs_user ON learning_game_scores (game_key, user_email, created_at DESC)`,
-      );
-    })().catch((err) => {
-      // Don't let one failed attempt permanently wedge a warm serverless instance.
-      schemaReady = null;
-      throw err;
-    });
-  }
-  await schemaReady;
-}
 
 async function currentUser(): Promise<{ email: string; name: string } | null> {
   const session = await getServerSession(authOptions);
@@ -150,7 +115,7 @@ function boundedInt(v: unknown, min: number, max: number): Checked<number> {
 
 export async function submitRedBullScore(input: RedBullScoreInput): Promise<{ success: boolean }> {
   try {
-    await ensureGameSchema();
+    await requireSchema(learningHubPool, 'learning-hub', '001_baseline');
     const user = await currentUser();
     if (!user) return { success: false };
 
@@ -238,7 +203,7 @@ async function getRedBullTopScores(myEmail: string): Promise<RedBullLeaderboardE
 
 export async function getRedBullLeaderboard(): Promise<RedBullLeaderboard> {
   try {
-    await ensureGameSchema();
+    await requireSchema(learningHubPool, 'learning-hub', '001_baseline');
     const user = await currentUser();
     const myEmail = user?.email ?? '';
 
@@ -344,7 +309,7 @@ export interface RedBullGameStats {
 /** Aggregate stats + top leaderboard for the admin analytics page. */
 export async function getRedBullGameStats(): Promise<RedBullGameStats> {
   try {
-    await ensureGameSchema();
+    await requireSchema(learningHubPool, 'learning-hub', '001_baseline');
     const user = await currentUser();
     const myEmail = user?.email ?? '';
     // Only the board is needed here. This used to call getRedBullLeaderboard() and discard its `me`

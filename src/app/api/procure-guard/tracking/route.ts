@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getProcureGuardUser } from '@/lib/auth';
+import { requireSchema } from '@/lib/db/schema-version';
 import procureGuardPool from '@/lib/db-procureguard';
 
 export const dynamic = 'force-dynamic';
@@ -18,65 +19,6 @@ type TrackingPayload = {
   occurred_at?: unknown;
   metadata?: unknown;
 };
-
-// Memoized so the five idempotent DDL statements run once per process instead of on every tracked
-// click and page view — this is the hottest endpoint in the app, and the DDL was costing five extra
-// round-trips plus repeated catalog locks before each insert. The in-flight promise is cached (not
-// just its result) so concurrent requests share one execution, and it is cleared on failure so a
-// transient error does not poison the process. A fresh deploy starts a new process, so genuinely new
-// schema still gets applied.
-let usageTableEnsured: Promise<void> | null = null;
-
-async function ensureUsageTable(): Promise<void> {
-  if (usageTableEnsured) return usageTableEnsured;
-  usageTableEnsured = runEnsureUsageTable().catch((err) => {
-    usageTableEnsured = null; // allow a retry on the next request if it genuinely failed
-    throw err;
-  });
-  return usageTableEnsured;
-}
-
-async function runEnsureUsageTable(): Promise<void> {
-  async function querySchema(statement: string) {
-    try {
-      await procureGuardPool.query(statement);
-    } catch (err) {
-      const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
-      if (code !== '23505' && code !== '42P07' && code !== '42710') throw err;
-    }
-  }
-
-  await querySchema(`
-    CREATE TABLE IF NOT EXISTS procure_guard_usage_events (
-      id BIGSERIAL PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      user_email TEXT,
-      user_name TEXT,
-      event_type TEXT NOT NULL CHECK (event_type IN ('page_view', 'click')),
-      path TEXT NOT NULL,
-      page_title TEXT,
-      target_tag TEXT,
-      target_text TEXT,
-      target_href TEXT,
-      target_role TEXT,
-      duration_ms INTEGER,
-      occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      metadata JSONB NOT NULL DEFAULT '{}'::jsonb
-    )
-  `);
-  await querySchema(
-    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_occurred_at ON procure_guard_usage_events (occurred_at DESC)`,
-  );
-  await querySchema(
-    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_path ON procure_guard_usage_events (path)`,
-  );
-  await querySchema(
-    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_user ON procure_guard_usage_events (user_email)`,
-  );
-  await querySchema(
-    `CREATE INDEX IF NOT EXISTS idx_procure_guard_usage_events_type ON procure_guard_usage_events (event_type)`,
-  );
-}
 
 function cleanText(value: unknown, fallback = ''): string {
   return String(value ?? fallback)
@@ -123,7 +65,10 @@ export async function POST(request: Request) {
       );
     }
 
-    await ensureUsageTable();
+    // procure_guard_usage_events and its four indexes used to be created here, on every tracked
+    // click, behind a per-process memo. They now live in the 001_baseline migration; this is the
+    // cheap memoised check that the migration has actually been run.
+    await requireSchema(procureGuardPool, 'procureguard', '001_baseline');
 
     await procureGuardPool.query(
       `INSERT INTO procure_guard_usage_events (

@@ -34,14 +34,14 @@ import {
   deferLaptopNotifications,
   sendLaptopDelegationNotification,
 } from '@/lib/laptop-procurement/notifications';
-import { ensureLaptopDelegationTable } from '@/lib/laptop-procurement/schema';
+import { ensureLaptopSchema } from '@/lib/laptop-procurement/schema';
 
 const log = logger('laptop-procurement');
 
 export async function getLaptopDelegationData(): Promise<LaptopDelegationData | null> {
   try {
     const actor = await getActor();
-    await ensureLaptopDelegationTable();
+    await ensureLaptopSchema();
     const [grantedRows, receivedRows] = await Promise.all([
       sql<QueryResultRow[]>(
         `SELECT * FROM laptop_delegations WHERE LOWER(delegator_email) = ? ORDER BY is_active DESC, COALESCE(revoked_at, created_at) DESC`,
@@ -84,7 +84,7 @@ export async function grantLaptopDelegation(input: {
     if (!actor.permissions.canViewAll) {
       return { success: false, error: 'Only approvers can delegate their approval authority.' };
     }
-    await ensureLaptopDelegationTable();
+    await ensureLaptopSchema();
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
     if (!DELEGATION_EMAIL_RE.test(delegateEmail))
       return { success: false, error: 'Enter a valid delegate email address.' };
@@ -160,7 +160,7 @@ export async function grantLaptopDelegation(input: {
 export async function revokeLaptopDelegation(id: number): Promise<ActionResult> {
   try {
     const actor = await getActor();
-    await ensureLaptopDelegationTable();
+    await ensureLaptopSchema();
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM laptop_delegations WHERE id = ? LIMIT 1`,
       [id],
@@ -226,7 +226,7 @@ export async function adminGrantLaptopDelegation(input: {
     // requireAdminActor's old blanket elevation, which no longer grants writes.
     if (!actor.permissions.canManagePermissions)
       return { success: false, error: 'Permission management access is required.' };
-    await ensureLaptopDelegationTable();
+    await ensureLaptopSchema();
     const delegatorEmail = requireText(input.delegatorEmail, 'Approver email').toLowerCase();
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();
     if (!DELEGATION_EMAIL_RE.test(delegatorEmail))

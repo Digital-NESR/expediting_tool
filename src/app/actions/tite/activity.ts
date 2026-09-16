@@ -4,7 +4,7 @@
 
 import titePool from '@/lib/db-tite';
 import { currentTiteUser, isTiteApproved, titeReadScope } from '@/lib/tite-auth';
-import { ensureTiteActivityLogSchema } from '@/lib/tite-documents';
+import { ensureTiteSchema } from '@/lib/tite-documents';
 import { log } from '@/lib/tite/internals';
 import type { RecentActivityRow } from '@/lib/tite/types';
 
@@ -27,7 +27,7 @@ export async function getRecentActivity(days: number = 7): Promise<RecentActivit
   const user = await currentTiteUser();
   if (!isTiteApproved(user)) return [];
   try {
-    await ensureTiteActivityLogSchema();
+    await ensureTiteSchema();
     const userName = user.name;
     const { rows } = await titePool.query<RecentActivityRow>(
       `SELECT

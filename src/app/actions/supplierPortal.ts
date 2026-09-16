@@ -2,7 +2,7 @@
 
 import pool from '@/lib/db';
 import { SELECTABLE_DS_CODES } from '@/lib/ds-codes';
-import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
+import { ensurePoExpeditingSchema } from '@/lib/po-expediting-schema';
 import { logger } from '@/lib/logger';
 
 const log = logger('supplier-portal');
@@ -201,7 +201,7 @@ export async function submitSupplierUpdates(
      deliberately outside the transaction (DDL on a second connection would block
      on the transaction's row locks). */
   try {
-    await ensureActiveExpeditingColumns();
+    await ensurePoExpeditingSchema();
   } catch (err) {
     log.error('submit.schema_check_failed', err);
     return { success: false, error: GENERIC_SUBMIT_ERROR };

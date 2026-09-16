@@ -6,7 +6,7 @@ import titePool from '@/lib/db-tite';
 import { withTransaction } from '@/lib/db/tx';
 import { forbidden } from '@/lib/require-access';
 import { currentTiteUser, isTiteApproved, requireTiteUser } from '@/lib/tite-auth';
-import { dbInsertActivityLog, ensureTiteActivityLogSchema } from '@/lib/tite-documents';
+import { dbInsertActivityLog, ensureTiteSchema } from '@/lib/tite-documents';
 import type { NotificationContact } from '@/types/tite';
 import { canReadShipment, denyShipmentEdit } from '@/lib/tite/access';
 import { log } from '@/lib/tite/internals';
@@ -81,7 +81,7 @@ export async function saveNotificationContacts(params: {
     if (denied) return forbidden(denied);
     const performer = user.name;
 
-    await ensureTiteActivityLogSchema();
+    await ensureTiteSchema();
 
     /* Delete-then-insert: outside a transaction a failure between the two would
        leave the shipment with NO recipients, so nobody is alerted before the

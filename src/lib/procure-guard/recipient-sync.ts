@@ -6,6 +6,8 @@
  * admin "Re-sync" action may call it, and both guard first.
  */
 import type { QueryResultRow } from 'pg';
+import procureGuardPool from '@/lib/db-procureguard';
+import { requireSchema } from '@/lib/db/schema-version';
 import { logger } from '@/lib/logger';
 import {
   normalizeProcureGuardCountry,
@@ -18,10 +20,7 @@ import type {
 } from '@/types/procureGuard';
 import { isValidEmail } from './constants';
 import { exec, sql } from './internals';
-import {
-  ensureProcureGuardAccessRequestTable,
-  ensureProcureGuardPermissionRoleValues,
-} from './schema';
+import { ensureProcureGuardSchema } from './schema';
 import { blankToNull, normalisePersonName, normaliseProcureGuardRole } from './validation';
 
 const log = logger('procure-guard');
@@ -109,15 +108,11 @@ async function loadRecipientCountryScopes(): Promise<RecipientCountryScopes> {
     new Map(Object.entries(PROCURE_GUARD_CSV_ROLE_COUNTRIES));
 
   try {
-    await exec(`
-      CREATE TABLE IF NOT EXISTS procure_guard_recipient_country_scopes (
-        person_name TEXT NOT NULL,
-        role TEXT NOT NULL,
-        countries TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (person_name, role)
-      )
-    `);
+    // procure_guard_recipient_country_scopes used to be created right here, on every sync run.
+    // It is now part of the 001_baseline migration. The check stays inside this try/catch on
+    // purpose: an unmigrated database falls back to the in-source seed, exactly as a failed
+    // CREATE TABLE used to — losing a country scope silently is what caused the 404 incident.
+    await requireSchema(procureGuardPool, 'procureguard', '001_baseline');
 
     // Insert any seed entry the table does not already have. DO NOTHING, never overwrite: a row an
     // admin has corrected in the database wins over the seed, and a seed entry added after the table
@@ -198,8 +193,8 @@ function procureGuardRoleFromRecipient(row: {
  * action.
  */
 export async function syncProcureGuardRecipientAccessApprovals(): Promise<void> {
-  await ensureProcureGuardAccessRequestTable();
-  await ensureProcureGuardPermissionRoleValues();
+  await ensureProcureGuardSchema();
+  await ensureProcureGuardSchema();
   const countryScopes = await loadRecipientCountryScopes();
 
   for (const email of PROCURE_GUARD_LOCAL_TEST_EMAILS) {

@@ -26,12 +26,7 @@ import {
   PROCURE_GUARD_DOCUMENT_TYPES,
   PROCUREGUARD_DATA_TAG,
 } from '@/lib/procure-guard/constants';
-import {
-  ensureProcureGuardPaymentRequestColumns,
-  exec,
-  serialise,
-  sql,
-} from '@/lib/procure-guard/internals';
+import { ensureProcureGuardSchema, exec, serialise, sql } from '@/lib/procure-guard/internals';
 import {
   detectMime,
   fileBaseName,
@@ -238,7 +233,7 @@ async function loadRequestForViewerManagement(
 ) {
   const table =
     requestType === 'adhoc' ? 'procure_guard_adhoc_payments' : 'procure_guard_advance_payments';
-  await ensureProcureGuardPaymentRequestColumns();
+  await ensureProcureGuardSchema();
   const rows = await sql<QueryResultRow[]>(
     `SELECT id, reference_number, requested_by_email, requester_notification_emails, country, segment FROM ${table} WHERE id = ? LIMIT 1`,
     [requestId],

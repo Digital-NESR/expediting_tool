@@ -2,7 +2,7 @@
 
 import pool from '@/lib/db';
 import { currentActor } from '@/lib/require-access';
-import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
+import { ensurePoExpeditingSchema } from '@/lib/po-expediting-schema';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -78,7 +78,7 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
   const userEmail = actor.email;
 
   try {
-    await ensureActiveExpeditingColumns();
+    await ensurePoExpeditingSchema();
 
     /* Every query below reads active_expediting's dispatch-time snapshot instead
        of joining sap_open_po_master, which n8n truncates and reloads nightly with
@@ -269,7 +269,7 @@ export async function getSupplierDetail(supplierName: string): Promise<SupplierD
   if (!actor) return [];
   const userEmail = actor.email;
   try {
-    await ensureActiveExpeditingColumns();
+    await ensurePoExpeditingSchema();
     /* Matched and read off the snapshot; the master is LEFT JOINed only for the
        two fields that are not snapshotted. The old INNER JOIN on s.supplier_name
        hid every line whose PO had since closed, so this drill-down showed fewer
@@ -356,7 +356,7 @@ export async function getSessionDetail(sessionRef: string): Promise<SessionDetai
   if (!actor) return [];
   const userEmail = actor.email;
   try {
-    await ensureActiveExpeditingColumns();
+    await ensurePoExpeditingSchema();
     const res = await pool.query(
       `
       SELECT

@@ -14,7 +14,7 @@ import {
   titeReadScope,
 } from '@/lib/tite-auth';
 import { formatTiteReference, titeCountryCode } from '@/lib/tite-constants';
-import { ensureTiteActivityLogSchema } from '@/lib/tite-documents';
+import { ensureTiteSchema } from '@/lib/tite-documents';
 import { alertLevelFor, shipmentAlertLevel } from '@/lib/tite-utils';
 import type {
   Shipment,
@@ -229,7 +229,7 @@ export async function createShipment(input: CreateShipmentInput): Promise<{ id: 
 
     /* The activity-log column is added outside the transaction: an ALTER that ran
        inside it would abort the shipment insert on the first call after deploy. */
-    await ensureTiteActivityLogSchema();
+    await ensureTiteSchema();
 
     /* The shipment row, its notification contacts and its creation log entry all
        commit together — a shipment with no recipients would be silently missed by

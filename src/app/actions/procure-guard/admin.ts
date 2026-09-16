@@ -29,8 +29,7 @@ import type {
 } from '@/lib/procure-guard/approver-matrix';
 import { isValidEmail, MEANINGFUL_ACTIVITY_WHERE } from '@/lib/procure-guard/constants';
 import {
-  ensureProcureGuardDelegationTable,
-  ensureProcureGuardPaymentRequestColumns,
+  ensureProcureGuardSchema,
   exec,
   postProcureGuardWebhook,
   procureGuardWebhookErrorMessage,
@@ -41,10 +40,6 @@ import {
 import { buildStats } from '@/lib/procure-guard/analytics';
 import { notifyProcureGuardNextApprover } from '@/lib/procure-guard/notifications';
 import { syncProcureGuardRecipientAccessApprovals } from '@/lib/procure-guard/recipient-sync';
-import {
-  ensureProcureGuardAccessRequestTable,
-  ensureProcureGuardPermissionRoleValues,
-} from '@/lib/procure-guard/schema';
 import {
   blankToNull,
   isProcureGuardAdminEmail,
@@ -78,8 +73,8 @@ const log = logger('procure-guard');
 export async function getProcureGuardAdminData(): Promise<ProcureGuardAdminData | null> {
   try {
     const actor = await requireAdminActor();
-    await ensureProcureGuardPaymentRequestColumns();
-    await ensureProcureGuardDelegationTable();
+    await ensureProcureGuardSchema();
+    await ensureProcureGuardSchema();
     // No recipient sync here: this is a READ path. Rendering the admin panel used to rewrite every
     // approver permission row (and prune the ones the manual editor had granted). The sync now runs
     // from the recipient mutators and from resyncProcureGuardRecipientAccess() only.
@@ -137,7 +132,7 @@ export async function createAdminAdhocPayment(
 ): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await requireAdminActor();
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const requestedByEmail = input.requested_by_email?.trim() || actor.email;
     const requestedByName = input.requested_by_name?.trim() || actor.name;
     // Admin-create never had the acknowledgement check the requester forms carry.
@@ -190,7 +185,7 @@ export async function createAdminAdvancePayment(
 ): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await requireAdminActor();
-    await ensureProcureGuardPaymentRequestColumns();
+    await ensureProcureGuardSchema();
     const requestedByEmail = input.requested_by_email?.trim() || actor.email;
     const requestedByName = input.requested_by_name?.trim() || actor.name;
     const normalised = normaliseAdvanceInput(input, { requesterEmail: requestedByEmail });
@@ -586,7 +581,7 @@ export async function resyncProcureGuardRecipientAccess(): Promise<ActionResult>
 export async function deleteProcureGuardAccessRequest(userEmail: string): Promise<ActionResult> {
   try {
     await requirePermissionManager();
-    await ensureProcureGuardAccessRequestTable();
+    await ensureProcureGuardSchema();
     const email = requireText(userEmail, 'Email').toLowerCase();
     await exec(`DELETE FROM procure_guard_access_requests WHERE user_email = ?`, [email]);
     if (!isProcureGuardAdminEmail(email)) {
@@ -605,7 +600,7 @@ export async function updateProcureGuardPermission(
 ): Promise<ActionResult> {
   try {
     const actor = await getActor();
-    await ensureProcureGuardPermissionRoleValues();
+    await ensureProcureGuardSchema();
     const email = requireText(input.email, 'Email').toLowerCase();
     const role = input.role;
     const country = normalisePermissionCountryForRole(role, input.country);

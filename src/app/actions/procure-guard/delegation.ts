@@ -17,12 +17,7 @@ import {
   getDelegatorOpenItems,
   sendProcureGuardDelegationEmail,
 } from '@/lib/procure-guard/delegation-email';
-import {
-  ensureProcureGuardDelegationTable,
-  exec,
-  serialise,
-  sql,
-} from '@/lib/procure-guard/internals';
+import { ensureProcureGuardSchema, exec, serialise, sql } from '@/lib/procure-guard/internals';
 import {
   blankToNull,
   isProcureGuardAdminEmail,
@@ -41,7 +36,7 @@ const log = logger('procure-guard');
 export async function getProcureGuardDelegationData(): Promise<ProcureGuardDelegationData | null> {
   try {
     const actor = await getActor();
-    await ensureProcureGuardDelegationTable();
+    await ensureProcureGuardSchema();
     const grantedRows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_delegations WHERE LOWER(delegator_email) = LOWER(?) ORDER BY is_active DESC, created_at DESC`,
       [actor.email],
@@ -68,7 +63,7 @@ export async function grantProcureGuardDelegation(input: {
 }): Promise<ActionResult<{ id: number }>> {
   try {
     const actor = await getActor();
-    await ensureProcureGuardDelegationTable();
+    await ensureProcureGuardSchema();
     const selfGrant = actorReviewGrants(actor).find((grant) => grant.source === 'self');
     if (!selfGrant) {
       return { success: false, error: 'Only approvers can delegate their approval authority.' };
@@ -126,7 +121,7 @@ export async function grantProcureGuardDelegation(input: {
 export async function revokeProcureGuardDelegation(id: number): Promise<ActionResult> {
   try {
     const actor = await getActor();
-    await ensureProcureGuardDelegationTable();
+    await ensureProcureGuardSchema();
     const rows = await sql<QueryResultRow[]>(
       `SELECT * FROM procure_guard_delegations WHERE id = ? LIMIT 1`,
       [id],
@@ -172,7 +167,7 @@ export async function adminGrantProcureGuardDelegation(input: {
 }): Promise<ActionResult<{ id: number }>> {
   try {
     await requireAdminActor();
-    await ensureProcureGuardDelegationTable();
+    await ensureProcureGuardSchema();
 
     const delegatorEmail = requireText(input.delegatorEmail, 'Approver email').toLowerCase();
     const delegateEmail = requireText(input.delegateEmail, 'Delegate email').toLowerCase();

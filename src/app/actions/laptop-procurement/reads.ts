@@ -42,7 +42,7 @@ import {
 import { MEANINGFUL_ACTIVITY_WHERE, sql } from '@/lib/laptop-procurement/db';
 import { applyLaptopDelegationExpiry } from '@/lib/laptop-procurement/delegation';
 import { computeLaptopStats } from '@/lib/laptop-procurement/internals';
-import { ensureLaptopDelegationTable } from '@/lib/laptop-procurement/schema';
+import { ensureLaptopSchema } from '@/lib/laptop-procurement/schema';
 
 const log = logger('laptop-procurement');
 
@@ -215,7 +215,7 @@ export async function getLaptopAdminData(
 ): Promise<LaptopAdminData | null> {
   try {
     const actor = await requireAdminActor();
-    await ensureLaptopDelegationTable();
+    await ensureLaptopSchema();
     const offset = Math.max(0, Math.floor(requestsPage)) * ADMIN_REQUESTS_PAGE_SIZE;
     const [
       requestRows,

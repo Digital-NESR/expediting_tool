@@ -3,7 +3,7 @@
 import pool from '@/lib/db';
 import { getCachedSession } from '@/lib/session';
 import { isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
-import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
+import { ensurePoExpeditingSchema } from '@/lib/po-expediting-schema';
 import type {
   BuyerRow,
   SupplierRow,
@@ -202,7 +202,7 @@ export async function getTeamAnalyticsData(
   if (!(await hasPoTeamAccess())) return empty;
 
   try {
-    await ensureActiveExpeditingColumns();
+    await ensurePoExpeditingSchema();
 
     /* One line-level condition set and one session-level set, reused by every
        query below. The six queries used to rebuild these independently. */
@@ -418,7 +418,7 @@ export async function getFilterOptions(): Promise<FilterOptions> {
   if (!(await hasPoTeamAccess())) return empty;
 
   try {
-    await ensureActiveExpeditingColumns();
+    await ensurePoExpeditingSchema();
 
     /* Every dropdown is drawn from the SAME snapshot columns the filters now match
        on. Reading country/segment from sap_open_po_master instead would offer

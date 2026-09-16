@@ -21,8 +21,8 @@ import { logger } from '@/lib/logger';
 import { AccessError, forbidden, requireAdmin } from '@/lib/require-access';
 import { COUNTRY_OPTIONS } from '@/lib/laptopProcurement-utils';
 import { normaliseCostCenterText } from '@/lib/laptopCostCenters';
+import { ensureLaptopSchema } from '@/lib/laptop-procurement/schema';
 import {
-  ensureCostCenterSchema,
   getCostCenterAdminSnapshot,
   invalidateCostCenterCache,
   type CostCenterCompanyRow,
@@ -97,7 +97,7 @@ async function mutate(
   }
 
   try {
-    await ensureCostCenterSchema();
+    await ensureLaptopSchema();
     await run(actorEmail);
   } catch (err) {
     const code =
@@ -134,7 +134,7 @@ export async function getLaptopCostCenterAdminData(): Promise<LaptopCostCenterAd
     throw err;
   }
 
-  await ensureCostCenterSchema();
+  await ensureLaptopSchema();
   const snapshot = await getCostCenterAdminSnapshot();
   const labels = [...new Set(snapshot.companies.map((c) => c.country))].sort();
   const reachable = new Set(Object.values(snapshot.countryMap).flat());

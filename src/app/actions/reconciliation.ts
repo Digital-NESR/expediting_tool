@@ -2,7 +2,7 @@
 
 import pool from '@/lib/db';
 import { currentActor, requireUser } from '@/lib/require-access';
-import { ensureActiveExpeditingColumns } from '@/lib/po-expediting-schema';
+import { ensurePoExpeditingSchema } from '@/lib/po-expediting-schema';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -50,7 +50,7 @@ export async function getMyExpeditingSessions(): Promise<SessionData[]> {
   const userEmail = actor.email;
 
   try {
-    await ensureActiveExpeditingColumns();
+    await ensurePoExpeditingSchema();
     /* sap_open_po_master is reloaded nightly with only the POs still open, so a
        closed line's description/qty/value/date/supplier are gone from it. Read
        the dispatch-time snapshot first and fall back to the (live) master only
