@@ -61,6 +61,11 @@ export const DATABASES = [
     envStyle: 'sns',
   },
   {
+    key: 'soa',
+    database: () => process.env.SOA_DB_NAME || 'soa_consolidation',
+    envStyle: 'sns',
+  },
+  {
     key: 'sourceguide',
     database: () =>
       process.env.SourceGuide_DB || process.env.SOURCEGUIDE_DB_NAME || 'sourceguide_db',

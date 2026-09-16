@@ -21,6 +21,7 @@
     "laptop:db:seed": "node --env-file=.env.local scripts/laptop-seed-data.mjs",
     "laptop:cost-centers:seed": "node scripts/seed-laptop-cost-centers.mjs",
     "sns:db:init": "node scripts/sns-init-db.mjs",
+    "soa:countries:seed": "node --env-file-if-exists=.env scripts/soa-seed-countries.mjs",
     "delegation:db:init": "node scripts/delegation-init-db.mjs"
   },
   "lint-staged": {
