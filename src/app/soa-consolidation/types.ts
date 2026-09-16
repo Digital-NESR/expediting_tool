@@ -1,4 +1,27 @@
-export type Role = 'champion' | 'manager' | 'director';
+/**
+ * Roles exactly as `country_users` names them.
+ *
+ * The prototype's third role was called "director" and was picked from a dropdown in the navbar.
+ * The grant table calls the same thing `manager`, and the role now comes from a grant rather than
+ * a picker, so the database's spelling wins. `admin` is here because ADMIN_EMAILS can put someone
+ * in the tool without any grant at all — it is never seeded by `data.ts`, which starts everyone as
+ * a champion until the signed-in actor's real role replaces it.
+ */
+export type Role = 'admin' | 'manager' | 'champion' | 'viewer';
+
+/**
+ * The signed-in person, resolved on the server from `getSoaActor()` and handed to the client.
+ *
+ * `countries` is the scope from `countriesFor(actor, 'viewer')` — a list of country ids, or the
+ * literal `'all'`, which is not the same as listing every country today: it keeps covering a
+ * country added next quarter.
+ */
+export interface Viewer {
+  name: string;
+  email: string;
+  role: Role;
+  countries: string[] | 'all';
+}
 
 export type ScreenId =
   | 'dashboard'
@@ -182,7 +205,10 @@ export interface ViewModel {
   role: Role;
   roleLabel: string;
   roleCountry: string;
-  onRoleChange: (role: Role) => void;
+  viewerName: string;
+  viewerInitials: string;
+  /** Manager or admin. Gates the corporate rollup — both the nav item and the screen. */
+  canSeeRollup: boolean;
 
   showDashboard: boolean;
   showScoping: boolean;
@@ -264,7 +290,6 @@ export interface ScreenProps {
 
 /** The imperative actions `deriveViewModel` binds into the view model; owned/implemented by page.tsx. */
 export interface Handlers {
-  switchRole: (role: Role) => void;
   setScreen: (screen: ScreenId) => void;
   setFilterStatus: (status: 'all' | VendorStatus) => void;
   sendReminders: () => void;

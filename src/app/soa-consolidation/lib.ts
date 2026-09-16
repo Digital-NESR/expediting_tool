@@ -2,6 +2,7 @@ import { ACTIVE_COUNTRY_ID, TODAY_LABEL, TOTAL_BALANCE } from './data';
 import type {
   AppState,
   ComplianceItemVM,
+  Country,
   CountryRowVM,
   CountryStatus,
   EvidenceRowVM,
@@ -21,6 +22,7 @@ import type {
   VendorRowVM,
   VendorStatus,
   ViewModel,
+  Viewer,
 } from './types';
 
 export function fmtM(n: number): string {
@@ -75,12 +77,36 @@ const COUNTRY_PIPELINE_STAGE: Record<CountryStatus, number> = {
 };
 
 const ROLE_LABEL: Record<Role, string> = {
-  champion: 'SC SOA Champion',
+  admin: 'SOA Administrator',
   manager: 'Supply Chain Manager',
-  director: 'Supply Chain Director',
+  champion: 'SC SOA Champion',
+  viewer: 'Read-only Viewer',
 };
 
-export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel {
+/** "Name" the countries a grant covers, without pretending `'all'` is a list of today's twelve. */
+function scopeLabel(countries: Country[], scope: Viewer['countries']): string {
+  if (scope === 'all') return `All countries (${countries.length})`;
+  const names = scope.map((id) => countries.find((c) => c.id === id)?.name ?? id);
+  if (!names.length) return 'No countries';
+  if (names.length <= 3) return names.join(', ');
+  return `${names.length} countries`;
+}
+
+/** "Ahmed Al-Rashidi" → "AA". */
+function initials(name: string): string {
+  const parts = name.split(' ').filter(Boolean);
+  if (!parts.length) return '?';
+  return parts.length > 1
+    ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+    : parts[0].slice(0, 2).toUpperCase();
+}
+
+/**
+ * `viewer` carries who the signed-in person is; `state.role` carries what they are, seeded from
+ * that same actor when the state is created. Nothing switches it afterwards — the role picker is
+ * gone, and a role is now a grant.
+ */
+export function deriveViewModel(state: AppState, handlers: Handlers, viewer: Viewer): ViewModel {
   const {
     role,
     screen,
@@ -94,6 +120,13 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
     uploadStep,
     handedOff,
   } = state;
+
+  /* The corporate rollup is a manager's screen. It used to be reachable by picking "director" in
+     the navbar, which meant anyone could reach it; now it follows the grant, and the guard is
+     applied twice — the nav item is not offered, and a screen id that somehow says 'rollup'
+     falls back to the dashboard rather than rendering nothing. */
+  const canSeeRollup = role === 'admin' || role === 'manager';
+  const activeScreen: ScreenId = screen === 'rollup' && !canSeeRollup ? 'dashboard' : screen;
 
   const totalCount = vendors.length;
   const receivedCount = vendors.filter((v) => v.status === 'received').length;
@@ -184,12 +217,12 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
     { id: 'intake', label: 'SOA Intake', badge: null },
     { id: 'consolidation', label: 'Consolidation', badge: null },
     { id: 'evidence', label: 'Evidence Repository', badge: null },
-    { id: 'rollup', label: 'Corporate Rollup', badge: null },
+    ...(canSeeRollup ? [{ id: 'rollup' as ScreenId, label: 'Corporate Rollup', badge: null }] : []),
   ];
   const navItems: NavItemVM[] = NAV.map((n) => ({
     ...n,
     hasBadge: !!n.badge,
-    isActive: n.id === screen,
+    isActive: n.id === activeScreen,
     onClick: () => handlers.setScreen(n.id),
   }));
 
@@ -339,17 +372,19 @@ export function deriveViewModel(state: AppState, handlers: Handlers): ViewModel 
   return {
     role,
     roleLabel: ROLE_LABEL[role] ?? role,
-    roleCountry: role === 'director' ? 'All Countries (12)' : 'Saudi Arabia (KSA)',
-    onRoleChange: handlers.switchRole,
+    roleCountry: scopeLabel(countries, viewer.countries),
+    viewerName: viewer.name,
+    viewerInitials: initials(viewer.name),
+    canSeeRollup,
 
-    showDashboard: screen === 'dashboard',
-    showScoping: screen === 'scoping',
-    showOutreach: screen === 'outreach',
-    showTracking: screen === 'tracking',
-    showIntake: screen === 'intake',
-    showConsolidation: screen === 'consolidation',
-    showEvidence: screen === 'evidence',
-    showRollup: screen === 'rollup',
+    showDashboard: activeScreen === 'dashboard',
+    showScoping: activeScreen === 'scoping',
+    showOutreach: activeScreen === 'outreach',
+    showTracking: activeScreen === 'tracking',
+    showIntake: activeScreen === 'intake',
+    showConsolidation: activeScreen === 'consolidation',
+    showEvidence: activeScreen === 'evidence',
+    showRollup: activeScreen === 'rollup' && canSeeRollup,
 
     navItems,
     kpiCards,

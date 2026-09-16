@@ -338,9 +338,15 @@ export const TOOLS: ToolDef[] = [
     accent: PREVIEW_GREY,
     tone: 'preview',
     route: '/soa-consolidation',
-    access: { kind: 'adminPreview' },
-    badge: { kind: 'preview' },
-    openLabel: 'Open preview →',
+    /* Not `adminPreview` any more: the tool has a real access-request flow, and an
+       adminPreview card is inert for everyone else — an approved champion would pass the
+       tool's own gate and still have no way in from here short of typing the URL. `always`
+       is the right kind because the gate in the tool's layout does the enforcing, showing
+       the request page to anyone without a grant. It stays in the development group while
+       the screens still render fixtures. */
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Access Required' },
+    openLabel: 'Open →',
   },
 
   {

@@ -8,6 +8,7 @@ import { getTitePendingCount } from '@/app/actions/tite';
 import { getSourceGuidePendingCount } from '@/app/actions/sourceguide';
 import { getCatalogAccessPendingCount } from '@/app/actions/catalog-manager';
 import { getSnsPendingAccessCount } from '@/app/actions/sns';
+import { getSoaPendingCount } from '@/app/actions/soa/access';
 
 export const metadata = { title: 'NESR | Admin' };
 
@@ -16,20 +17,21 @@ export const metadata = { title: 'NESR | Admin' };
 // static pass (which would flag AdminShell's useSearchParams usage).
 export const dynamic = 'force-dynamic';
 
-/* The five badge COUNTs, resolved ONCE per request. Wrapped in React's
+/* The six badge COUNTs, resolved ONCE per request. Wrapped in React's
    cache() so any re-render of this segment within the same request
    (and any other server component that needs the same numbers) shares
-   one evaluation instead of firing five queries across five pools again.
+   one evaluation instead of firing six queries across six pools again.
    Same values, same freshness — cache() has request scope only. */
 const getAdminCounts = cache(async (): Promise<AdminCounts> => {
-  const [po, tite, sourceguide, catalog, sns] = await Promise.all([
+  const [po, tite, sourceguide, catalog, sns, soa] = await Promise.all([
     getPendingAccessCount(),
     getTitePendingCount(),
     getSourceGuidePendingCount(),
     getCatalogAccessPendingCount(),
     getSnsPendingAccessCount(),
+    getSoaPendingCount(),
   ]);
-  return { po, tite, sourceguide, catalog, sns };
+  return { po, tite, sourceguide, catalog, sns, soa };
 });
 
 /* This layout gates the ENTIRE /admin/* segment: only ADMIN_EMAILS

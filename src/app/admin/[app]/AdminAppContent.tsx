@@ -134,6 +134,10 @@ const LaptopAccessApprovalsClient = dynamic(() => import('../LaptopAccessApprova
 });
 const LaptopCostCentersClient = dynamic(() => import('../LaptopCostCentersClient'), { loading });
 
+/* ── SOA Consolidation ── */
+const SoaAccessApprovalsClient = dynamic(() => import('../SoaAccessApprovalsClient'), { loading });
+const SoaManagersClient = dynamic(() => import('../SoaManagersClient'), { loading });
+
 /* ── Learning Hub ── */
 const LearningHubAdminClient = dynamic(() => import('../../learning-hub/admin/AdminClient'), {
   loading,
@@ -231,6 +235,12 @@ export default function AdminAppContent(props: AdminAppContentProps) {
           </div>
         </div>
       );
+
+    /* ── SOA Consolidation ── */
+    case 'soa/access-approvals':
+      return <SoaAccessApprovalsClient />;
+    case 'soa/managers':
+      return <SoaManagersClient />;
 
     /* ── Learning Hub ── */
     case 'learning-hub/admin':

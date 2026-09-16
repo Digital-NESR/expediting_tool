@@ -115,6 +115,17 @@ export const ADMIN_APPS: AdminApp[] = [
     ],
   },
   {
+    id: 'soa',
+    label: 'SOA Consolidation',
+    color: '#2A7E4F',
+    activeBg: '#eaf4ef',
+    activeColor: '#1d4f31',
+    sections: [
+      { id: 'access-approvals', label: 'Access Approvals', countKey: 'soa' },
+      { id: 'managers', label: 'Managers' },
+    ],
+  },
+  {
     id: 'learning-hub',
     label: 'Learning Hub',
     color: '#059669',
