@@ -11,7 +11,6 @@ import {
   deactivateCatalogEntry,
   addEntryDocument,
   deleteEntryDocument,
-  getDocumentDataUrl,
 } from '@/app/actions/catalog-manager';
 import type { CatalogEntry } from '@/types/catalog-manager';
 import {
@@ -29,14 +28,6 @@ function fileSizeLabel(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
 }
 
 function KV({
@@ -97,13 +88,13 @@ export default function CatalogEntryDetailClient({
     }
     setUploading(true);
     try {
-      const dataUrl = await readAsDataUrl(file);
-      await addEntryDocument(entry.id, {
-        fileName: file.name,
-        docType,
-        sizeLabel: fileSizeLabel(file.size),
-        dataUrl,
-      });
+      // The file goes up as bytes in a FormData, not as a base64 data URL: base64 costs a third
+      // more on the wire, and the server stores the decoded bytes in a BYTEA column now.
+      const form = new FormData();
+      form.set('file', file);
+      form.set('docType', docType);
+      form.set('sizeLabel', fileSizeLabel(file.size));
+      await addEntryDocument(entry.id, form);
       router.refresh();
     } catch (e) {
       setDocError(e instanceof Error ? e.message : 'Upload failed.');
@@ -111,18 +102,6 @@ export default function CatalogEntryDetailClient({
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
     }
-  }
-
-  async function downloadDoc(docId: number, fileName: string) {
-    const dataUrl = await getDocumentDataUrl(docId);
-    if (!dataUrl) {
-      setDocError('This is a sample placeholder with no stored file.');
-      return;
-    }
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = fileName;
-    a.click();
   }
 
   async function removeDoc(docId: number) {
@@ -358,13 +337,16 @@ export default function CatalogEntryDetailClient({
                     </div>
                   </div>
                   {d.has_file ? (
-                    <button
-                      onClick={() => downloadDoc(d.id, d.file_name)}
+                    /* Streamed by an authenticated route handler with a Content-Disposition
+                       header — the bytes no longer travel through a server action result. */
+                    <a
+                      href={`/api/catalog-manager/documents/${d.id}`}
+                      download={d.file_name}
                       title="Download"
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-[#307c4c]/10 hover:text-[#307c4c]"
                     >
                       <Icon name="download" className="h-4 w-4" />
-                    </button>
+                    </a>
                   ) : (
                     <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold text-slate-400">
                       sample

@@ -1,8 +1,12 @@
 -- ============================================================================
 -- S&S Registry (Single & Sole Source) — schema for sns_registry_db
 --
--- Idempotent: safe to re-run. Applied by `npm run sns:db:init`, which also
--- creates the database if it does not exist and seeds reference data.
+-- Idempotent: safe to re-run. Applied by `npm run migrate` along with every other database, and
+-- also by `npm run sns:db:init`, which additionally CREATEs the database (the runner cannot — it
+-- has to connect to something) and seeds the reference data.
+--
+-- Unlike the other 001 baselines, this one DOES build the database from scratch: S&S was written
+-- after this file existed, so nothing here was created by hand against the server.
 --
 -- Two concerns live here:
 --   1. Access control — who may open the tool and in what role/countries.

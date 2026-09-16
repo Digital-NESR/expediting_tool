@@ -14,7 +14,11 @@ import { COUNTRIES, REASONS, SEGMENTS, TAXONOMY } from './sns-reference-seed.mjs
 
 const cwd = process.cwd();
 const envPath = path.join(cwd, '.env.local');
-const schemaPath = path.join(cwd, 'database', 'sns_registry_schema.sql');
+// The schema moved under database/migrations when the migration runner was adopted, so that
+// `npm run migrate` covers this database like every other one. This script still applies it
+// directly because it also CREATEs the database first, which the runner cannot do — it has to
+// connect to something. Both paths are safe: the file is idempotent.
+const schemaPath = path.join(cwd, 'database', 'migrations', 'sns', '001_baseline.sql');
 
 function loadEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;

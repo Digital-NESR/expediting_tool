@@ -12,6 +12,7 @@ import { withTransaction } from '@/lib/db/tx';
 import { getProcureGuardUser } from '@/lib/auth';
 import { AccessError, isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
 import { getDelegatorsForApp } from '@/lib/delegation';
+import { uploadMimeTypeFor, validateUploadSignature } from '@/lib/documents';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy.server';
 import { SERVICE_ACTIVITIES } from '@/lib/catalog-service-activities';
 import {
@@ -65,7 +66,10 @@ import type {
   UomRow,
 } from '@/types/catalog-manager';
 
-type QueryParams = (string | number | boolean | null | undefined | string[] | number[])[];
+// `Buffer` is here for entry_document.content. It was absent while proof-of-agreement files were
+// stored as base64 data URLs, which are strings; now that they are BYTEA the bytes go to the
+// driver as a Buffer. ProcureGuard's equivalent type has carried Buffer for the same reason.
+type QueryParams = (string | number | boolean | Buffer | null | undefined | string[] | number[])[];
 
 const { sql, exec } = createSqlHelpers(catalogManagerPool);
 
@@ -1096,7 +1100,7 @@ const loadCatalogEntry = cache(async (id: number): Promise<CatalogEntry | null> 
   const entry = mapEntry(rows[0], await loadCurrencyRates());
 
   const docs = await sql<QueryResultRow[]>(
-    `SELECT id, file_name, doc_type, size_label, (data_url IS NOT NULL) AS has_file, uploaded_by
+    `SELECT id, file_name, doc_type, size_label, (content IS NOT NULL) AS has_file, uploaded_by
      FROM entry_document WHERE entry_id = ? ORDER BY id`,
     [id],
   );
@@ -2995,25 +2999,52 @@ export async function logExport(scopeLabel: string, rowCount: number): Promise<v
 }
 
 /* ============================================================================
-   DOCUMENTS — real proof-of-agreement uploads (stored inline as a data URL)
+   DOCUMENTS — real proof-of-agreement uploads (bytes in BYTEA, streamed back by
+   /api/catalog-manager/documents/[id], like every other tool in this app)
 ============================================================================ */
 
-const MAX_DOC_DATAURL_LEN = 7_000_000; // ~5 MB once base64-encoded
+/*
+ * The old limit was 7,000,000 CHARACTERS of `data:…;base64,…` text. Base64 spends four characters
+ * on every three bytes, so that ceiling admitted at most ~5,250,000 bytes of actual file. Rather
+ * than let the number drift by accident when the units changed, it is restated here as the same
+ * 5 MiB the browser-side check already enforces — a hair under the old effective ceiling, and
+ * exactly equal to the client limit, so no upload that used to succeed is refused now.
+ */
+const MAX_DOC_BYTES = 5 * 1024 * 1024;
 
-export async function addEntryDocument(
-  entryId: number,
-  input: { fileName: string; docType: string | null; sizeLabel: string | null; dataUrl: string },
-): Promise<void> {
+export async function addEntryDocument(entryId: number, formData: FormData): Promise<void> {
   const actor = await requireCatalogActor('Contributor');
-  if (!input.dataUrl) throw new Error('No file content received.');
-  if (input.dataUrl.length > MAX_DOC_DATAURL_LEN) throw new Error('File is too large — max ~5 MB.');
+  // entry_document.content/content_type only exist from 002, so say that in one sentence rather
+  // than letting the INSERT fail with 'column "content" does not exist'.
+  await requireSchema(catalogManagerPool, 'catalog-manager', '002_entry_document_bytea');
+
+  // FormData carries the file as bytes. The old signature took a base64 data URL, which meant the
+  // browser shipped ~33% more than the file weighed and the server stored that inflated text.
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) throw new Error('No file content received.');
+  if (file.size > MAX_DOC_BYTES) throw new Error('File is too large — max 5 MB.');
+
+  const docType = String(formData.get('docType') ?? '').trim() || null;
+  const sizeLabel = String(formData.get('sizeLabel') ?? '').trim() || null;
+
+  const content = Buffer.from(await file.arrayBuffer());
+  // `file.size` is the client's word for it; this is the length actually received.
+  if (content.byteLength > MAX_DOC_BYTES) throw new Error('File is too large — max 5 MB.');
+
+  // The extension and the browser-reported type are both claims. Check the real leading bytes
+  // against them before storing anything. (A sanity check on disguised uploads, not a virus scan —
+  // see the note in @/lib/documents.)
+  const verdict = validateUploadSignature(file.name, content, file.type);
+  if (!verdict.ok) throw new Error(verdict.reason);
+
+  const contentType = uploadMimeTypeFor(file.name, file.type);
 
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);
     await db.exec(
-      `INSERT INTO entry_document (entry_id, file_name, doc_type, size_label, data_url, uploaded_by)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [entryId, input.fileName, input.docType, input.sizeLabel, input.dataUrl, actor.name],
+      `INSERT INTO entry_document (entry_id, file_name, doc_type, size_label, content, content_type, uploaded_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [entryId, file.name, docType, sizeLabel, content, contentType, actor.name],
     );
     const code = await db.sql<{ code: string }[]>(`SELECT code FROM catalog_entry WHERE id = ?`, [
       entryId,
@@ -3023,7 +3054,7 @@ export async function addEntryDocument(
       code[0]?.code ?? String(entryId),
       actor.name,
       actor.email,
-      `Attached ${input.docType || 'document'}: ${input.fileName}`,
+      `Attached ${docType || 'document'}: ${file.name}`,
       db,
     );
   });
@@ -3039,19 +3070,12 @@ export async function deleteEntryDocument(docId: number, entryId: number): Promi
   });
 }
 
-/**
- * Returns the stored data URL for a document (for download), or null if it's a seeded placeholder.
- * The bytes are released only to a signed-in catalog user whose visibility covers the document's
- * PARENT entry — without that join this was a document IDOR: any caller could walk `docId`.
+/*
+ * Downloads are NOT a server action. `getDocumentDataUrl` used to return the whole file to the
+ * browser as one base64 string inside an action result; the bytes now stream from
+ * src/app/api/catalog-manager/documents/[id]/route.ts, which is where every other tool in this app
+ * serves documents from, with the same authenticated gate and a Content-Disposition header.
  */
-export async function getDocumentDataUrl(docId: number): Promise<string | null> {
-  if (!(await optionalCatalogActor())) return null;
-  const rows = await sql<{ data_url: string | null }[]>(
-    `SELECT d.data_url FROM entry_document d JOIN catalog_entry e ON e.id = d.entry_id WHERE d.id = ?`,
-    [docId],
-  );
-  return rows[0]?.data_url ?? null;
-}
 
 /* ============================================================================
    ANALYTICS — spend by category/country, status mix, and rate-history movers

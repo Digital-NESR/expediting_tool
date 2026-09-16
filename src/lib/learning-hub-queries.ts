@@ -13,7 +13,6 @@
  */
 
 import type { PoolClient, QueryResultRow } from 'pg';
-import { createHash } from 'crypto';
 import learningHubPool from '@/lib/db-learning-hub';
 import { createSqlHelpers } from '@/lib/db/sql';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
@@ -21,6 +20,17 @@ import { requireSchema } from '@/lib/db/schema-version';
 import { currentActor, normalizeEmail } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
 import { SEED_TRACKS, type SeedTrack } from '@/lib/learning-hub-seed-content';
+/* The decisions this file used to make inline now live in one pg-free module so they can be unit
+   tested; everything below fetches rows and hands them to it. */
+import {
+  DEFAULT_QUIZ_PASS_PCT,
+  bucketMyWorkCourses,
+  foldCourseGating,
+  hashSeedTrack,
+  lessonProgressFlags,
+  progressPct,
+  type LessonGate,
+} from '@/lib/learning-hub-logic';
 import type {
   LearningTrack,
   LearningCourse,
@@ -43,8 +53,8 @@ import type {
 
 const log = logger('learning-hub');
 
-/** Pass mark applied when a quiz row carries no `pass_pct` of its own. */
-export const DEFAULT_QUIZ_PASS_PCT = 70;
+/* Re-exported from their new home so the eighteen existing import sites keep working. */
+export { DEFAULT_QUIZ_PASS_PCT, hashSeedTrack };
 
 /* ── Query helpers (house pattern: ? -> $n, sql() for SELECT, exec() for writes) ── */
 
@@ -194,12 +204,6 @@ async function insertTrackCourses(
      VALUES ${lessonRowsSql.join(', ')}`,
     lessonParams,
   );
-}
-
-// A stable fingerprint of a track's code-defined content. Stored per-track as seed_version so we can
-// tell whether SEED_TRACKS changed since the last sync, without diffing every field by hand.
-export function hashSeedTrack(track: SeedTrack): string {
-  return createHash('sha256').update(JSON.stringify(track)).digest('hex');
 }
 
 /**
@@ -543,7 +547,7 @@ export async function getLearningHubDashboardData(): Promise<LearningHubDashboar
       course_count: Number(counts?.course_count ?? 0),
       lesson_count: lessonCount,
       completed_count: completedCount,
-      progress_pct: lessonCount > 0 ? Math.round((completedCount / lessonCount) * 100) : 0,
+      progress_pct: progressPct(completedCount, lessonCount),
     });
   }
 
@@ -611,7 +615,7 @@ export async function getTrackDetail(trackKey: string): Promise<TrackDetailData 
       ...course,
       lesson_count: lessonCount,
       completed_count: completedCount,
-      progress_pct: lessonCount > 0 ? Math.round((completedCount / lessonCount) * 100) : 0,
+      progress_pct: progressPct(completedCount, lessonCount),
     };
   });
 
@@ -620,17 +624,9 @@ export async function getTrackDetail(trackKey: string): Promise<TrackDetailData 
 
 /* ── Quiz gating (lesson-level quizzes; must pass one to unlock the next lesson) ── */
 
-interface LessonGate {
-  hasQuiz: boolean;
-  quizId: number | null;
-  passPct: number;
-  quizPassed: boolean;
-  locked: boolean;
-}
-
-// For a course's lessons in order: a lesson is `locked` when any EARLIER lesson that has a quiz
-// has not been passed. The lesson holding the first unpassed quiz is itself unlocked (you take it);
-// everything after it is locked until it passes.
+// Fetch one course's lessons in presentation order, each with its quiz and this learner's result,
+// and hand them to the gating fold. The ORDER BY is the load-bearing part on this side: the fold
+// only knows "earlier" because the rows arrive in course order.
 async function getCourseGating(
   courseId: number,
   userEmail: string,
@@ -645,22 +641,7 @@ async function getCourseGating(
      ORDER BY m.order_index ASC, m.id ASC, l.order_index ASC, l.id ASC`,
     [normalizeEmail(userEmail), courseId],
   );
-  const map = new Map<number, LessonGate>();
-  let blocked = false;
-  for (const r of rows) {
-    const quizId = r.quiz_id != null ? Number(r.quiz_id) : null;
-    const hasQuiz = quizId != null;
-    const quizPassed = r.passed === true;
-    map.set(Number(r.lesson_id), {
-      hasQuiz,
-      quizId,
-      passPct: Number(r.pass_pct ?? DEFAULT_QUIZ_PASS_PCT),
-      quizPassed,
-      locked: blocked,
-    });
-    if (hasQuiz && !quizPassed) blocked = true;
-  }
-  return map;
+  return foldCourseGating(rows);
 }
 
 // The learner-facing quiz (no answer key).
@@ -774,17 +755,10 @@ export async function getCourseDetail(
   let completedCount = 0;
   for (const mod of modules) {
     const lessons = lessonsByModule.get(Number(mod.id)) ?? [];
-    const lessonsWithCompletion = lessons.map((l) => {
-      const g = gating.get(l.id);
-      const completed = g?.hasQuiz ? !!g.quizPassed : completedIds.has(l.id);
-      return {
-        ...l,
-        completed,
-        has_quiz: !!g?.hasQuiz,
-        quiz_passed: !!g?.quizPassed,
-        locked: !!g?.locked,
-      };
-    });
+    const lessonsWithCompletion = lessons.map((l) => ({
+      ...l,
+      ...lessonProgressFlags(gating.get(l.id), completedIds.has(l.id)),
+    }));
     lessonCount += lessons.length;
     completedCount += lessonsWithCompletion.filter((l) => l.completed).length;
     moduleOutlines.push({
@@ -800,7 +774,7 @@ export async function getCourseDetail(
     modules: moduleOutlines,
     lesson_count: lessonCount,
     completed_count: completedCount,
-    progress_pct: lessonCount > 0 ? Math.round((completedCount / lessonCount) * 100) : 0,
+    progress_pct: progressPct(completedCount, lessonCount),
   };
 }
 
@@ -855,8 +829,9 @@ export async function getLessonDetail(
   const nextRow = idx < lessons.length - 1 ? lessons[idx + 1] : null;
 
   const g = gating.get(lessonId);
-  const locked = !!g?.locked;
-  const quizPassed = !!g?.quizPassed;
+  const flags = lessonProgressFlags(g, completedRows.length > 0);
+  const locked = flags.locked;
+  const quizPassed = flags.quiz_passed;
   const passPct = g?.passPct ?? DEFAULT_QUIZ_PASS_PCT;
   const quiz = g?.hasQuiz && g.quizId != null && !locked ? await loadLessonQuiz(g.quizId) : null;
   const nextLocked = nextRow ? !!gating.get(Number(nextRow.id))?.locked : false;
@@ -867,7 +842,7 @@ export async function getLessonDetail(
     track,
     course,
     lesson: visibleLesson,
-    completed: g?.hasQuiz ? quizPassed : completedRows.length > 0,
+    completed: flags.completed,
     prev: prevRow
       ? { lesson_id: Number(prevRow.id), course_id: course.id, title: String(prevRow.title) }
       : null,
@@ -921,16 +896,12 @@ export async function getMyWorkData(): Promise<MyWorkData> {
       course_title: String(r.course_title),
       lesson_count: lessonCount,
       completed_count: completedCount,
-      progress_pct: lessonCount > 0 ? Math.round((completedCount / lessonCount) * 100) : 0,
+      progress_pct: progressPct(completedCount, lessonCount),
       last_activity_at: r.last_activity_at ? String(r.last_activity_at) : null,
     };
   });
 
-  return {
-    inProgress: courses.filter((c) => c.completed_count > 0 && c.completed_count < c.lesson_count),
-    completed: courses.filter((c) => c.lesson_count > 0 && c.completed_count === c.lesson_count),
-    notStarted: courses.filter((c) => c.completed_count === 0),
-  };
+  return bucketMyWorkCourses(courses);
 }
 
 /* ── Knowledge checks (one optional quiz per module) ─────────────────────

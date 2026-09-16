@@ -15,8 +15,17 @@ import {
   ensureLearningHubReady,
   applySeedTrack,
   loadModuleQuizRaw,
-  DEFAULT_QUIZ_PASS_PCT,
 } from '@/lib/learning-hub-queries';
+/* The rules — grading, the pass boundary, the answer-key redaction, the embed-host allowlist and
+   the reorder swap — live in one pg-free module so they can be unit tested without a database. */
+import {
+  DEFAULT_QUIZ_PASS_PCT,
+  checkVideoUrl,
+  gradeLessonQuizAttempt,
+  gradeQuizAttempt,
+  planOrderSwap,
+  progressPct,
+} from '@/lib/learning-hub-logic';
 import type {
   LearningTrack,
   LearningCourse,
@@ -71,41 +80,14 @@ async function requireLearningHubAdmin(): Promise<{
 
 /* ── Lesson video embeds ─────────────────────────────────────────────────
    A lesson's video_url is rendered as <iframe src={videoUrl}> in the lesson
-   viewer, so an arbitrary URL is an injected frame. Only the corporate embed
-   hosts that actually host the training videos are accepted, plus same-origin
-   relative paths for anything served from /public. ── */
-
-// Exact hosts. `url.us.m.mimecastprotect.com` is Mimecast's corporate link
-// rewrite and already appears in the seeded SAP content, so rejecting it would
-// break existing lessons the moment an admin re-saves them.
-const VIDEO_EMBED_HOSTS = new Set(['nesrcorp.sharepoint.com', 'url.us.m.mimecastprotect.com']);
-// Suffix matches: any *.sharepoint.com / *.microsoftstream.com tenant.
-const VIDEO_EMBED_HOST_SUFFIXES = ['.sharepoint.com', '.microsoftstream.com'];
+   viewer, so an arbitrary URL is an injected frame. The allowlist itself is
+   `checkVideoUrl()` in learning-hub-logic; this is only the throw, which is
+   what keeps the rule testable without dragging the auth module in. ── */
 
 function sanitiseVideoUrl(raw: string | null | undefined): string | null {
-  const value = (raw ?? '').trim();
-  if (!value) return null;
-  // Same-origin relative path (e.g. /videos/intro.mp4). `//host/...` is
-  // protocol-relative, i.e. off-origin, so it is not a relative path.
-  if (value.startsWith('/') && !value.startsWith('//')) return value;
-
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new AccessError('Video URL must be an https embed link or a relative path.', 400);
-  }
-  if (parsed.protocol !== 'https:') {
-    throw new AccessError('Video URL must use https.', 400);
-  }
-  const host = parsed.hostname.toLowerCase();
-  const allowed =
-    VIDEO_EMBED_HOSTS.has(host) ||
-    VIDEO_EMBED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
-  if (!allowed) {
-    throw new AccessError(`"${host}" is not an approved video embed host.`, 400);
-  }
-  return value;
+  const verdict = checkVideoUrl(raw);
+  if (!verdict.ok) throw new AccessError(verdict.message, 400);
+  return verdict.value;
 }
 
 /* ── Admin analytics ──────────────────────────────────────────────────── */
@@ -200,7 +182,7 @@ export async function getLearningHubAnalytics(): Promise<LearningHubAnalytics> {
             learners,
             completedLearners,
             lessonCompletions: Number(c.lesson_completions ?? 0),
-            completionPct: learners > 0 ? Math.round((completedLearners / learners) * 100) : 0,
+            completionPct: progressPct(completedLearners, learners),
           };
         });
       return {
@@ -287,21 +269,7 @@ export async function submitLessonQuiz(
     const correctByQ = new Map<number, number>();
     for (const r of rows)
       if (r.is_correct) correctByQ.set(Number(r.question_id), Number(r.option_id));
-    const total = correctByQ.size;
-    if (total === 0) return null;
-
-    const answerMap = new Map<number, number | null>();
-    for (const a of answers)
-      answerMap.set(Number(a.questionId), a.optionId != null ? Number(a.optionId) : null);
-
-    let correctCount = 0;
-    const graded = [...correctByQ.entries()].map(([questionId, correctOptionId]) => {
-      const selectedOptionId = answerMap.get(questionId) ?? null;
-      const correct = selectedOptionId === correctOptionId;
-      if (correct) correctCount++;
-      return { questionId, selectedOptionId, correctOptionId, correct };
-    });
-    const scorePct = Math.round((correctCount / total) * 100);
+    if (correctByQ.size === 0) return null;
 
     const meta = await sql<QueryResultRow[]>(
       `SELECT pass_pct, lesson_id FROM learning_quizzes WHERE id = ?`,
@@ -309,7 +277,10 @@ export async function submitLessonQuiz(
     );
     const passPct = Number(meta[0]?.pass_pct ?? DEFAULT_QUIZ_PASS_PCT);
     const lessonId = meta[0]?.lesson_id != null ? Number(meta[0].lesson_id) : null;
-    const passed = scorePct >= passPct;
+
+    /* Scoring, the pass boundary and the answer-key redaction are all decided here, with no
+       database in the way — see gradeLessonQuizAttempt() and its tests. */
+    const attempt = gradeLessonQuizAttempt(correctByQ, answers, passPct);
 
     await exec(
       `INSERT INTO learning_quiz_results (user_email, quiz_id, best_pct, passed, attempts)
@@ -319,21 +290,15 @@ export async function submitLessonQuiz(
          passed = learning_quiz_results.passed OR EXCLUDED.passed,
          attempts = learning_quiz_results.attempts + 1,
          updated_at = NOW()`,
-      [actor.email, quizId, scorePct, passed],
+      [actor.email, quizId, attempt.scorePct, attempt.passed],
     );
-    if (passed && lessonId != null) {
+    if (attempt.passed && lessonId != null) {
       await exec(
         `INSERT INTO learning_lesson_progress (user_email, lesson_id) VALUES (?, ?) ON CONFLICT (user_email, lesson_id) DO NOTHING`,
         [actor.email, lessonId],
       );
     }
-    /* Withhold the key until they pass. Graded above either way, so the score and the
-       per-question outcome are unaffected by what is redacted here. */
-    const results = graded.map((r) => ({
-      ...r,
-      correctOptionId: passed ? r.correctOptionId : null,
-    }));
-    return { total, correctCount, scorePct, passed, pass_pct: passPct, results };
+    return attempt;
   } catch (err) {
     log.error('lessonQuiz.submit.failed', err, { quizId });
     return null;
@@ -589,19 +554,15 @@ async function moveOrderIndex(
       `SELECT id, order_index FROM ${table} WHERE ${parentColumn} = ? ORDER BY order_index ASC, id ASC FOR UPDATE`,
       [parentId],
     );
-    const idx = rows.findIndex((r) => Number(r.id) === id);
-    if (idx < 0) return;
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= rows.length) return;
-    const a = rows[idx];
-    const b = rows[swapIdx];
+    const swap = planOrderSwap(rows, id, direction);
+    if (!swap) return;
     await execOn(client, `UPDATE ${table} SET order_index = ? WHERE id = ?`, [
-      Number(b.order_index),
-      Number(a.id),
+      swap.moved.order_index,
+      swap.moved.id,
     ]);
     await execOn(client, `UPDATE ${table} SET order_index = ? WHERE id = ?`, [
-      Number(a.order_index),
-      Number(b.id),
+      swap.displaced.order_index,
+      swap.displaced.id,
     ]);
   });
 }
@@ -738,33 +699,32 @@ export async function submitQuizAttempt(
   const actor = await getLearningHubActor();
   if (!actor) return EMPTY_ATTEMPT;
   await ensureLearningHubReady();
+  /*
+   * `module_id IS NOT NULL` is the security control, not a tidy-up.
+   *
+   * One table holds both kinds of quiz: a module knowledge check (module_id) and a lesson gating
+   * quiz (lesson_id). This action ships the answer key with every attempt, which is correct for a
+   * knowledge check — it gates nothing — and catastrophic for a gating quiz. `submitLessonQuiz`
+   * withholds the key until the learner passes, but that only closes the front door: the lesson
+   * payload hands the client `LessonQuiz.id`, this is a public POST endpoint guarded only by "is
+   * signed in", and it took any quizId at all. Submit a blank attempt here with a gating quiz's
+   * id, read the key out of the response, then pass the real quiz.
+   *
+   * Filtering to module quizzes means a gating quiz id now matches no rows and grades as an empty
+   * attempt, so the key never leaves the server by this route.
+   */
   const correctRows = await sql<QueryResultRow[]>(
     `SELECT o.question_id, o.id AS option_id
      FROM learning_quiz_options o
      JOIN learning_quiz_questions q ON q.id = o.question_id
-     WHERE q.quiz_id = ? AND o.is_correct = true`,
+     JOIN learning_quizzes z ON z.id = q.quiz_id
+     WHERE q.quiz_id = ? AND z.module_id IS NOT NULL AND o.is_correct = true`,
     [quizId],
   );
   const correctByQuestion = new Map<number, number>();
   for (const r of correctRows) correctByQuestion.set(Number(r.question_id), Number(r.option_id));
 
-  const results = Array.from(correctByQuestion.entries()).map(([questionId, correctOptionId]) => {
-    const submitted = answers.find((a) => a.questionId === questionId);
-    const selectedOptionId = submitted?.optionId ?? null;
-    return {
-      questionId,
-      selectedOptionId,
-      correctOptionId,
-      correct: selectedOptionId === correctOptionId,
-    };
-  });
-  const correctCount = results.filter((r) => r.correct).length;
-  const total = results.length;
-
-  return {
-    total,
-    correctCount,
-    scorePct: total > 0 ? Math.round((correctCount / total) * 100) : 0,
-    results,
-  };
+  /* Same grader as the gating quiz, minus the redaction: a module check gates nothing, so the
+     key ships with every attempt. */
+  return gradeQuizAttempt(correctByQuestion, answers);
 }

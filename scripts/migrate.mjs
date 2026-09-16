@@ -174,11 +174,25 @@ for (const entry of targets) {
   }
 }
 
-console.log(
-  failed
-    ? '\nMigration failed. The databases that succeeded are fully applied; nothing is half-applied.'
-    : DRY
-      ? `\n${total} migration(s) pending.`
-      : `\n${total} migration(s) applied.`,
-);
-process.exit(failed ? 1 : 0);
+if (failed) {
+  /*
+   * `npm run build` runs this first, so a failure here fails the deploy. That is deliberate —
+   * shipping the app against a database that has not been migrated gives every affected page a
+   * SchemaNotMigratedError instead — but a build that fails for a reason nobody can diagnose from
+   * the log is its own problem, so say what the two likely causes are and what to do about each.
+   */
+  console.error(
+    '\nMigration failed. Databases that succeeded are fully applied; nothing is half-applied.\n' +
+      '\nTwo things usually cause this at deploy time:\n' +
+      '  1. The build environment cannot reach the database. Run `npm run migrate` from somewhere\n' +
+      '     that can, then re-deploy.\n' +
+      '  2. A migration is genuinely wrong. Fix it and commit; do not edit one that has already\n' +
+      '     been applied — add a new numbered file instead.\n' +
+      '\nTo deploy without migrating while you sort it out, drop `node scripts/migrate.mjs &&`\n' +
+      "from the build script — but expect SchemaNotMigratedError on any page whose schema isn't\n" +
+      'there yet.',
+  );
+  process.exit(1);
+}
+
+console.log(DRY ? `\n${total} migration(s) pending.` : `\n${total} migration(s) applied.`);
