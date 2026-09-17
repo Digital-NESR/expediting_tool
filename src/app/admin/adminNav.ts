@@ -96,6 +96,7 @@ export const ADMIN_APPS: AdminApp[] = [
     activeColor: '#1d4f31',
     sections: [
       { id: 'access', label: 'Access Approvals', countKey: 'sns' },
+      { id: 'approvers', label: 'Approvers' },
       { id: 'reference', label: 'Reference Data' },
     ],
   },
@@ -180,6 +181,7 @@ export const LEGACY_TOOL_MAP: Record<string, { app: string; section: string }> =
   'catalog-sync': { app: 'catalog', section: 'sync' },
   'catalog-access': { app: 'catalog', section: 'access' },
   'sns-access': { app: 'sns', section: 'access' },
+  'sns-approvers': { app: 'sns', section: 'approvers' },
   'sns-reference': { app: 'sns', section: 'reference' },
   'laptop-procurement-admin': { app: 'laptop', section: 'admin' },
   'laptop-procurement-analytics': { app: 'laptop', section: 'analytics' },

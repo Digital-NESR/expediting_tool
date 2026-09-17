@@ -1,6 +1,23 @@
 import type { Draft } from './types';
 
 /**
+ * A calendar date the app can rely on, as YYYY-MM-DD.
+ *
+ * Checked by round-trip rather than by regex alone: '2026-02-31' matches the
+ * shape but is not a day, and an expiry that does not exist would produce a
+ * Registry ID nobody can reconcile.
+ */
+export function isExpiryDate(value: string | null | undefined): boolean {
+  const v = (value ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split('-').map(Number);
+  const asDate = new Date(Date.UTC(y, m - 1, d));
+  return (
+    asDate.getUTCFullYear() === y && asDate.getUTCMonth() === m - 1 && asDate.getUTCDate() === d
+  );
+}
+
+/**
  * Completeness rules for leaving Draft.
  *
  * Shared deliberately: the wizard uses it to grey out "Submit" and list what is
@@ -20,6 +37,9 @@ export function validateForSubmission(draft: Draft): string[] {
     missing.push('supplier SAP ID and name');
   if (!draft.reason) missing.push('reason code');
   if (!draft.justification.trim()) missing.push('justification narrative');
+  // Not merely a required field: Level 2 cannot mint a Registry ID without it,
+  // because the expiry year and month are part of the ID itself.
+  if (!isExpiryDate(draft.expiry)) missing.push('expiry date');
   return missing;
 }
 

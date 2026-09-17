@@ -10,7 +10,20 @@ import { logger } from '@/lib/logger';
 import { ROLES } from '@/app/sns-registry/lib/constants';
 import { addDays, parseISODate, toISODate, today, todayISO } from '@/app/sns-registry/lib/date';
 import { roleKind } from '@/app/sns-registry/lib/helpers';
-import { submissionError, validateForSubmission } from '@/app/sns-registry/lib/validate';
+import { nextRegistryIdFrom, registryIdPrefix } from '@/app/sns-registry/lib/registry-id';
+import { fetchSnsTaxonomyTree } from '@/lib/sns-taxonomy';
+import { buildWorkflowEmail, snsRecordUrl, trySnsWebhook } from '@/lib/sns-notify';
+import {
+  isSnsLevel1Approver,
+  isSnsLevel2Approver,
+  resolveSnsLevel1Approver,
+  resolveSnsLevel2Approvers,
+} from './sns-approvers';
+import {
+  isExpiryDate,
+  submissionError,
+  validateForSubmission,
+} from '@/app/sns-registry/lib/validate';
 import type {
   BaseStatus,
   Classification,
@@ -124,6 +137,48 @@ async function requireAdmin(): Promise<string | null> {
   return email;
 }
 
+/* --- Approval gates -----------------------------------------------------
+   Two things have to hold before someone can validate: they must carry the
+   role, and they must be the person named for this country or category.
+
+   The one deliberate exception is a country or category with nobody assigned
+   yet. Rather than deadlock those records, the gate falls back to the role
+   grant alone and logs it, so a missing assignment shows up in the logs rather
+   than as a stuck queue. Once the approver list is loaded the fallback stops
+   applying on its own.
+
+   Both return an error message, or null when the caller may proceed. */
+
+async function requireLevel1(
+  viewer: SnsViewer,
+  code: string,
+  country: string,
+): Promise<string | null> {
+  if (viewer.isAdmin) return null;
+  if (viewer.roleKind !== 'l1') return 'Only a Level 1 validator can approve this record.';
+
+  const { allowed, unassigned } = await isSnsLevel1Approver(viewer.email, code);
+  if (allowed) return null;
+  if (unassigned) {
+    log.warn('level1.unassigned', { countryCode: code, actor: viewer.email });
+    return null;
+  }
+  return `Level 1 validation for ${country} is assigned to that country's Supply Chain Manager.`;
+}
+
+async function requireLevel2(viewer: SnsViewer, categories: string[]): Promise<string | null> {
+  if (viewer.isAdmin) return null;
+  if (viewer.roleKind !== 'l2') return 'Only a Level 2 validator can sign this record off.';
+
+  const { allowed, unassigned } = await isSnsLevel2Approver(viewer.email, categories);
+  if (allowed) return null;
+  if (unassigned) {
+    log.warn('level2.unassigned', { categories, actor: viewer.email });
+    return null;
+  }
+  return 'Level 2 sign-off is assigned to the Category Manager for this record, or to a Supply Chain Director.';
+}
+
 /** The actor string written into the audit trail for a given step. */
 function actorFor(viewer: SnsViewer, kind: 'req' | 'l1' | 'l2', country: string): string {
   const who = viewer.name;
@@ -134,7 +189,19 @@ function actorFor(viewer: SnsViewer, kind: 'req' | 'l1' | 'l2', country: string)
 
 /* ═══ Reference data ═════════════════════════════════════════════ */
 
-/** Taxonomy tree, countries, segments and reason codes for the wizard. */
+/**
+ * Taxonomy tree, countries, segments and reason codes for the wizard.
+ *
+ * The Category > Sub-Category > Family > Commodity tree is read live from
+ * `sg_commodities` in SourceGuide's database, not from the registry's own
+ * sns_category/sub_category/family/commodity tables. Those still exist as a
+ * record of the tree as it stood for records raised before the switch, but
+ * nothing reads them: the platform keeps one spend taxonomy, maintained in
+ * /admin > SourceGuide > Spend Taxonomy, rather than a second copy that drifts.
+ *
+ * Scope is denormalised onto sns_record_node as text either way, so an existing
+ * record never depends on the tree still containing its branch.
+ */
 export async function getSnsReferenceData(): Promise<ReferenceData> {
   const empty: ReferenceData = {
     tax: [],
@@ -151,54 +218,21 @@ export async function getSnsReferenceData(): Promise<ReferenceData> {
   if (!viewer) return empty;
 
   try {
-    const [cats, subs, fams, coms, countries, segments, reasons] = await Promise.all([
-      snsPool.query(
-        `SELECT id, name, spend_type FROM sns_category WHERE active ORDER BY sort_order, name`,
-      ),
-      snsPool.query(
-        `SELECT id, category_id, name FROM sns_sub_category WHERE active ORDER BY sort_order, name`,
-      ),
-      snsPool.query(
-        `SELECT id, sub_category_id, name FROM sns_family WHERE active ORDER BY sort_order, name`,
-      ),
-      snsPool.query(
-        `SELECT id, family_id, name FROM sns_commodity WHERE active ORDER BY sort_order, name`,
-      ),
+    /* The taxonomy lives in SourceGuide's database, so it is settled separately
+       from the registry's own reference data: if that database is unreachable
+       the wizard should still open with its countries, segments and reason
+       codes rather than failing whole. */
+    const [tax, countries, segments, reasons] = await Promise.all([
+      fetchSnsTaxonomyTree().catch((err) => {
+        log.error('referenceData.taxonomy.unavailable', err);
+        return [] as TaxCategory[];
+      }),
       snsPool.query(`SELECT code, name FROM sns_country WHERE active ORDER BY sort_order, name`),
       snsPool.query(`SELECT name FROM sns_segment WHERE active ORDER BY sort_order, name`),
       snsPool.query(
         `SELECT classification, name FROM sns_reason WHERE active ORDER BY classification, sort_order, name`,
       ),
     ]);
-
-    // Assemble the four flat tables into the nested tree the wizard walks.
-    const comsByFamily = new Map<number, string[]>();
-    for (const c of coms.rows) {
-      const list = comsByFamily.get(c.family_id) ?? [];
-      list.push(String(c.name));
-      comsByFamily.set(c.family_id, list);
-    }
-    const famsBySub = new Map<number, { name: string; commodities: string[] }[]>();
-    for (const f of fams.rows) {
-      const list = famsBySub.get(f.sub_category_id) ?? [];
-      list.push({ name: String(f.name), commodities: comsByFamily.get(f.id) ?? [] });
-      famsBySub.set(f.sub_category_id, list);
-    }
-    const subsByCat = new Map<
-      number,
-      { name: string; families: { name: string; commodities: string[] }[] }[]
-    >();
-    for (const s of subs.rows) {
-      const list = subsByCat.get(s.category_id) ?? [];
-      list.push({ name: String(s.name), families: famsBySub.get(s.id) ?? [] });
-      subsByCat.set(s.category_id, list);
-    }
-
-    const tax: TaxCategory[] = cats.rows.map((c) => ({
-      name: String(c.name),
-      spendType: c.spend_type as 'Direct' | 'Indirect',
-      subs: subsByCat.get(c.id) ?? [],
-    }));
 
     const reasonMap: Record<Classification, string[]> = { SGL: [], SOL: [] };
     for (const r of reasons.rows) {
@@ -256,7 +290,7 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
   if (!viewer) return [];
 
   try {
-    const [recs, nodes, segs, hist] = await Promise.all([
+    const [recs, nodes, segs, hist, docs] = await Promise.all([
       /* COALESCE covers records raised before `country_code` existed: fall back
          to matching the stored display name, with no `active` filter, so a
          deactivated country still resolves. Unresolvable stays NULL. */
@@ -264,6 +298,7 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
         `SELECT r.rid, r.classification, r.country, r.scope_level, r.supplier_id, r.supplier_name,
                 r.reason, r.justification, r.base_status, r.spend, r.registry_id,
                 r.issue_date, r.expiry_date, r.requestor,
+                r.renewal_count, r.closed_at, r.closed_by, r.closed_reason,
                 COALESCE(r.country_code, c.code) AS resolved_country_code
            FROM sns_record r
            LEFT JOIN sns_country c ON c.name = r.country
@@ -281,6 +316,13 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       snsPool.query(
         `SELECT record_rid, step, actor, entry_date, note
            FROM sns_record_history ORDER BY record_rid, id`,
+      ),
+      /* Counts only. The bytes are served by /api/sns-registry/documents/[id];
+         selecting file_content here would pull every attachment in the registry
+         into memory to render a number. */
+      snsPool.query(
+        `SELECT record_rid, kind, COUNT(*)::int AS n
+           FROM sns_record_document GROUP BY record_rid, kind`,
       ),
     ]);
 
@@ -313,6 +355,15 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       histBy.set(h.record_rid, list);
     }
 
+    const docsBy = new Map<number, { evidence: number; review: number }>();
+    for (const d of docs.rows) {
+      const rid = Number(d.record_rid);
+      const entry = docsBy.get(rid) ?? { evidence: 0, review: 0 };
+      if (String(d.kind) === 'review') entry.review = Number(d.n);
+      else entry.evidence = Number(d.n);
+      docsBy.set(rid, entry);
+    }
+
     return recs.rows.map((r) => ({
       rid: Number(r.rid),
       cls: r.classification as Classification,
@@ -332,6 +383,16 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       expiry: isoOrNull(r.expiry_date),
       requestor: String(r.requestor ?? ''),
       history: histBy.get(Number(r.rid)) ?? [],
+      renewalCount: Number(r.renewal_count ?? 0),
+      closed: r.closed_at
+        ? {
+            at: r.closed_at instanceof Date ? r.closed_at.toISOString() : String(r.closed_at),
+            by: String(r.closed_by ?? ''),
+            reason: String(r.closed_reason ?? ''),
+          }
+        : null,
+      evidenceCount: docsBy.get(Number(r.rid))?.evidence ?? 0,
+      reviewCount: docsBy.get(Number(r.rid))?.review ?? 0,
     }));
   } catch (err) {
     log.error('records.load.failed', err, { actor: viewer.email, role: viewer.role });
@@ -372,6 +433,12 @@ async function draftFromRecord(client: PoolClient, rec: Record<string, unknown>)
   return {
     cls: rec.classification as Classification,
     country: String(rec.country ?? ''),
+    // ISO date only; a DATE column comes back as a Date object over the wire.
+    expiry: rec.expiry_date
+      ? rec.expiry_date instanceof Date
+        ? toISODate(rec.expiry_date)
+        : String(rec.expiry_date).slice(0, 10)
+      : '',
     level: rec.scope_level as ScopeLevel,
     nodes: nodes.rows.map((n) => ({
       cat: String(n.category),
@@ -429,13 +496,220 @@ function unknownCountryMessage(err: unknown): string | null {
  * mint a duplicate. The lock releases when the transaction ends. The year is
  * the business-timezone year, not the server's.
  */
+/* --- Supplier master ----------------------------------------------------- */
+
+/**
+ * Records the supplier named on a record in the supplier master.
+ *
+ * The record keeps its own denormalised supplier_id/supplier_name — a
+ * compliance artefact must read the way it read at sign-off — so this is not a
+ * foreign key. It is the roll-up that makes "close this supplier's account" a
+ * single act across every record naming it.
+ *
+ * An existing row's name is refreshed but its status is left alone: re-raising
+ * a record must not quietly reopen an account somebody deliberately closed.
+ */
+async function upsertSupplier(client: PoolClient, sapId: string, name: string): Promise<void> {
+  const id = sapId.trim();
+  if (!id) return;
+  await client.query(
+    `INSERT INTO sns_supplier (sap_id, name) VALUES ($1, $2)
+     ON CONFLICT (sap_id) DO UPDATE
+       SET name = EXCLUDED.name, updated_at = CURRENT_TIMESTAMP`,
+    [id, name.trim()],
+  );
+}
+
+/* --- Notification plumbing ------------------------------------------------ */
+
+interface RecordContext {
+  rid: number;
+  registryId: string;
+  cls: Classification;
+  clsLabel: string;
+  country: string;
+  countryCode: string;
+  supplierId: string;
+  supplierName: string;
+  scope: string;
+  categories: string[];
+  requestorEmail: string;
+  /** Everyone who has touched the record: the requestor and each validator. */
+  stakeholders: string[];
+}
+
+/**
+ * Gathers what the emails and the approver lookup need about a record.
+ *
+ * "Stakeholders" is deliberately wide — whoever raised it plus whoever has
+ * acted on it — because the outcome notices go to the people who own the
+ * record, not just to whoever happens to be the next approver.
+ */
+async function loadRecordContext(client: PoolClient, rid: number): Promise<RecordContext | null> {
+  const { rows } = await client.query(
+    `SELECT r.rid, r.registry_id, r.classification, r.country, r.supplier_id, r.supplier_name,
+            r.created_by, COALESCE(r.country_code, c.code) AS resolved_country_code
+       FROM sns_record r
+       LEFT JOIN sns_country c ON c.name = r.country
+      WHERE r.rid = $1`,
+    [rid],
+  );
+  if (!rows.length) return null;
+  const r = rows[0];
+
+  const [nodes, history] = await Promise.all([
+    client.query(
+      `SELECT category, family, commodity FROM sns_record_node
+        WHERE record_rid = $1 ORDER BY sort_order, id`,
+      [rid],
+    ),
+    client.query(
+      `SELECT DISTINCT actor_email FROM sns_record_history
+        WHERE record_rid = $1 AND COALESCE(actor_email, '') <> ''`,
+      [rid],
+    ),
+  ]);
+
+  const requestorEmail = r.created_by ? String(r.created_by).toLowerCase() : '';
+  const stakeholders = new Set<string>();
+  if (requestorEmail) stakeholders.add(requestorEmail);
+  for (const h of history.rows) stakeholders.add(String(h.actor_email).toLowerCase());
+
+  return {
+    rid: Number(r.rid),
+    registryId: r.registry_id ? String(r.registry_id) : `Draft #${r.rid}`,
+    cls: r.classification as Classification,
+    clsLabel: r.classification === 'SGL' ? 'Single-Source' : 'Sole-Source',
+    country: String(r.country),
+    countryCode: r.resolved_country_code ? String(r.resolved_country_code) : '',
+    supplierId: String(r.supplier_id ?? ''),
+    supplierName: String(r.supplier_name ?? ''),
+    scope: nodes.rows.map((n) => String(n.commodity || n.family)).join(', ') || '—',
+    categories: [...new Set(nodes.rows.map((n) => String(n.category)))],
+    requestorEmail,
+    stakeholders: [...stakeholders],
+  };
+}
+
+/**
+ * The people a record's outcome belongs to: whoever raised it, whoever
+ * validated it, and the two approvers responsible for it going forward.
+ */
+async function stakeholderRecipients(
+  ctx: RecordContext,
+): Promise<{ name: string; email: string; title: string }[]> {
+  const [l1, l2] = await Promise.all([
+    resolveSnsLevel1Approver(ctx.countryCode),
+    resolveSnsLevel2Approvers(ctx.categories),
+  ]);
+
+  const seen = new Set<string>();
+  const out: { name: string; email: string; title: string }[] = [];
+  const add = (name: string, email: string, title: string) => {
+    const key = email.trim().toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push({ name: name || email, email, title });
+  };
+
+  for (const email of ctx.stakeholders) add(email, email, 'Record stakeholder');
+  if (l1) add(l1.name, l1.email, l1.title);
+  for (const a of l2) add(a.name, a.email, a.title);
+  return out;
+}
+
+/**
+ * Hands one workflow event to n8n.
+ *
+ * Never allowed to throw: a record that has been validated stays validated
+ * whether or not the email went out. Failures are logged for the n8n run
+ * history to reconcile against.
+ */
+async function notifyWorkflow(
+  event: 'submitted' | 'level1_approved' | 'published' | 'rejected' | 'renewed' | 'closed',
+  ctx: RecordContext,
+  to: { name: string; email: string; title: string }[],
+  actor: string,
+  note = '',
+): Promise<void> {
+  const recipients = to.filter((p) => p.email);
+  if (!recipients.length) {
+    log.warn('notify.noRecipients', { event, registryId: ctx.registryId });
+    return;
+  }
+
+  const email = buildWorkflowEmail({
+    event,
+    registryId: ctx.registryId,
+    classification: ctx.clsLabel,
+    country: ctx.country,
+    supplierName: ctx.supplierName,
+    supplierId: ctx.supplierId,
+    scope: ctx.scope,
+    actor,
+    note,
+    recordUrl: snsRecordUrl(ctx.rid),
+  });
+
+  await trySnsWebhook(`workflow.${event}`, {
+    event: `record.${event}`,
+    source: 'sns-registry',
+    occurred_at: new Date().toISOString(),
+    record: {
+      rid: ctx.rid,
+      registry_id: ctx.registryId,
+      classification: ctx.cls,
+      country: ctx.country,
+      country_code: ctx.countryCode,
+      supplier_id: ctx.supplierId,
+      supplier_name: ctx.supplierName,
+      scope: ctx.scope,
+      categories: ctx.categories,
+      url: snsRecordUrl(ctx.rid),
+    },
+    recipients: recipients.map((p) => ({
+      display_name: p.name,
+      email: p.email,
+      notification_role: p.title,
+    })),
+    cc: ctx.stakeholders.filter((e) => !recipients.some((p) => p.email.toLowerCase() === e)),
+    actor,
+    note,
+    subject: email.subject,
+    body_html: email.bodyHtml,
+  });
+}
+
+/**
+ * Issues the next Registry ID.
+ *
+ * Format: {SGL|SOL}-{COUNTRY}-{SAP ID}-{IY}-{IM}-{EY}-{EM}-{NN}
+ *   e.g.  SGL-IRQ-0001103296-26-09-27-09-01
+ *
+ * Years are two digits and months are zero-padded, so the supplier and the
+ * whole validity window are legible from the ID itself — which is the point,
+ * since it is typed into SAP by hand and read by people who will not have the
+ * registry open.
+ *
+ * The trailing sequence is not decoration. Including the SAP ID makes a clash
+ * unlikely but not impossible: the same supplier can hold more than one record
+ * in a country for different taxonomy scopes, and two raised in the same month
+ * with the same validity would otherwise mint a byte-identical ID. Since
+ * `registry_id` is UNIQUE, that second record could not be published at all.
+ *
+ * The advisory lock is taken on the prefix so two concurrent sign-offs cannot
+ * both read the same maximum and mint a duplicate. It releases with the
+ * transaction.
+ */
 async function nextRegistryId(
   client: PoolClient,
   cls: Classification,
   code: string,
+  supplierId: string,
+  issue: Date,
+  expiry: Date,
 ): Promise<string> {
-  const year = today().getFullYear();
-  const prefix = `${cls}-${code}-${year}-`;
+  const prefix = registryIdPrefix(cls, code, supplierId, issue, expiry);
 
   await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [prefix]);
 
@@ -446,8 +720,7 @@ async function nextRegistryId(
       LIMIT 1`,
     [prefix + '%'],
   );
-  const last = rows[0]?.registry_id ? parseInt(String(rows[0].registry_id).slice(-4), 10) : 0;
-  return prefix + String((Number.isFinite(last) ? last : 0) + 1).padStart(4, '0');
+  return nextRegistryIdFrom(prefix, rows[0]?.registry_id ? String(rows[0].registry_id) : null);
 }
 
 /** Creates a record as either a private Draft or a submission awaiting Level 1. */
@@ -505,8 +778,8 @@ export async function createSnsRecord(
     const { rows } = await client.query(
       `INSERT INTO sns_record
          (classification, country, country_code, scope_level, supplier_id, supplier_name, reason,
-          justification, base_status, spend, requestor, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          justification, base_status, spend, requestor, created_by, expiry_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING rid`,
       [
         draft.cls,
@@ -521,9 +794,14 @@ export async function createSnsRecord(
         spend,
         requestor,
         viewer.email,
+        // A Draft may legitimately have no expiry yet; a submission cannot get
+        // past validateForSubmission without one.
+        isExpiryDate(draft.expiry) ? draft.expiry.trim() : null,
       ],
     );
     const rid = Number(rows[0].rid);
+
+    await upsertSupplier(client, draft.supplierId, draft.supplierName);
 
     for (const [i, n] of draft.nodes.entries()) {
       await client.query(
@@ -548,7 +826,23 @@ export async function createSnsRecord(
       viewer.email,
     );
 
+    /* Read inside the transaction, sent after it: a webhook must never be made
+       while a connection is held. */
+    const ctx = base === 'Pending Level 1' ? await loadRecordContext(client, rid) : null;
+
     await client.query('COMMIT');
+
+    if (ctx) {
+      const approver = await resolveSnsLevel1Approver(ctx.countryCode);
+      await notifyWorkflow(
+        'submitted',
+        ctx,
+        approver ? [approver] : [],
+        requestor,
+        approver ? '' : `No Country Supply Chain Manager is configured for ${ctx.country}.`,
+      );
+    }
+
     return { success: true, rid };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -606,6 +900,10 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
 
     const now = today();
 
+    /* Decided inside the transaction while the row is locked, sent after the
+       commit — a webhook must never be made on a held connection. */
+    let notify: (() => Promise<void>) | null = null;
+
     if (base === 'Draft' || base === 'Rejected') {
       if (!isAdminOr(viewer, 'req')) {
         await client.query('ROLLBACK');
@@ -622,33 +920,52 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
         `UPDATE sns_record SET base_status = 'Pending Level 1', updated_at = CURRENT_TIMESTAMP WHERE rid = $1`,
         [rid],
       );
-      await addHistory(
-        client,
-        rid,
-        'Submitted for Level 1 validation',
-        actorFor(viewer, 'req', country),
-        viewer.email,
-      );
+      const actor = actorFor(viewer, 'req', country);
+      await addHistory(client, rid, 'Submitted for Level 1 validation', actor, viewer.email);
+      const ctx = await loadRecordContext(client, rid);
+      notify = async () => {
+        if (!ctx) return;
+        const approver = await resolveSnsLevel1Approver(ctx.countryCode);
+        await notifyWorkflow(
+          'submitted',
+          ctx,
+          approver ? [approver] : [],
+          actor,
+          approver ? '' : `No Country Supply Chain Manager is configured for ${country}.`,
+        );
+      };
     } else if (base === 'Pending Level 1') {
-      if (!isAdminOr(viewer, 'l1')) {
+      const gate = await requireLevel1(viewer, code, country);
+      if (gate) {
         await client.query('ROLLBACK');
-        return { success: false, error: 'Only a Level 1 validator can approve this record.' };
+        return { success: false, error: gate };
       }
       await client.query(
         `UPDATE sns_record SET base_status = 'Pending Level 2', updated_at = CURRENT_TIMESTAMP WHERE rid = $1`,
         [rid],
       );
-      await addHistory(
-        client,
-        rid,
-        'Level 1 validated — routed to Level 2',
-        actorFor(viewer, 'l1', country),
-        viewer.email,
-      );
+      const actor = actorFor(viewer, 'l1', country);
+      await addHistory(client, rid, 'Level 1 validated — routed to Level 2', actor, viewer.email);
+      const ctx = await loadRecordContext(client, rid);
+      notify = async () => {
+        if (!ctx) return;
+        const approvers = await resolveSnsLevel2Approvers(ctx.categories);
+        await notifyWorkflow(
+          'level1_approved',
+          ctx,
+          approvers,
+          actor,
+          approvers.length
+            ? ''
+            : `No Category Manager is configured for ${ctx.categories.join(', ') || 'this record'}, and no Supply Chain Director is on file.`,
+        );
+      };
     } else if (base === 'Pending Level 2') {
-      if (!isAdminOr(viewer, 'l2')) {
+      const ctxForGate = await loadRecordContext(client, rid);
+      const gate = await requireLevel2(viewer, ctxForGate?.categories ?? []);
+      if (gate) {
         await client.query('ROLLBACK');
-        return { success: false, error: 'Only a Level 2 validator can sign this record off.' };
+        return { success: false, error: gate };
       }
       if (rec.registry_id) {
         // Periodic review: keep the existing Registry ID, extend 12 months.
@@ -663,8 +980,22 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
           'Periodic review complete — expiry extended 12 months',
           actorFor(viewer, 'l2', country),
           viewer.email,
-          'Original Registry ID retained. Review history kept for audit.',
+          // The ID embeds the validity window it was minted with, and it is
+          // immutable once quoted into SAP — so after a renewal it states the
+          // original window, not the current one. The record's own expiry date
+          // is the live figure; say so here rather than let someone read the ID
+          // as authoritative.
+          'Original Registry ID retained — it still reads with the validity window it was issued under. The expiry date on this record is the current one.',
         );
+        notify = async () => {
+          if (!ctxForGate) return;
+          await notifyWorkflow(
+            'renewed',
+            ctxForGate,
+            await stakeholderRecipients(ctxForGate),
+            actorFor(viewer, 'l2', country),
+          );
+        };
       } else {
         /* The Registry ID is immutable once written, so its country token is
            resolved here, inside the minting transaction, from the code pinned
@@ -672,13 +1003,37 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
            before `country_code` existed. If neither resolves, the sign-off
            fails rather than minting a guessed, colliding ID. */
         const mintCode = code || (await resolveCountryCode(client, country));
-        const newId = await nextRegistryId(client, rec.classification as Classification, mintCode);
+
+        /* Expiry is entered by the requestor, not derived from the issue date,
+           and the ID encodes its year and month — so a record that reached
+           Level 2 without one cannot be minted. validateForSubmission blocks
+           that at submission; this is the backstop for a row that predates the
+           field or was written another way. */
+        const storedExpiry = isoOrNull(rec.expiry_date);
+        if (!storedExpiry) {
+          await client.query('ROLLBACK');
+          return {
+            success: false,
+            error:
+              'This record has no expiry date, which the Registry ID is built from. Set one before signing it off.',
+          };
+        }
+        const expiryDate = parseISODate(storedExpiry);
+
+        const newId = await nextRegistryId(
+          client,
+          rec.classification as Classification,
+          mintCode,
+          String(rec.supplier_id ?? ''),
+          now,
+          expiryDate,
+        );
         await client.query(
           `UPDATE sns_record
               SET base_status = 'Active', issue_date = $2, expiry_date = $3,
                   registry_id = $4, country_code = $5, updated_at = CURRENT_TIMESTAMP
             WHERE rid = $1`,
-          [rid, toISODate(now), toISODate(addDays(now, 365)), newId, mintCode],
+          [rid, toISODate(now), storedExpiry, newId, mintCode],
         );
         await addHistory(
           client,
@@ -687,6 +1042,16 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
           actorFor(viewer, 'l2', country),
           viewer.email,
         );
+        notify = async () => {
+          if (!ctxForGate) return;
+          const published = { ...ctxForGate, registryId: newId };
+          await notifyWorkflow(
+            'published',
+            published,
+            await stakeholderRecipients(published),
+            actorFor(viewer, 'l2', country),
+          );
+        };
       }
     } else {
       await client.query('ROLLBACK');
@@ -694,6 +1059,7 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
     }
 
     await client.query('COMMIT');
+    if (notify) await notify();
     return { success: true };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -746,17 +1112,32 @@ export async function rejectSnsRecord(rid: number, note: string): Promise<Action
       `UPDATE sns_record SET base_status = 'Rejected', updated_at = CURRENT_TIMESTAMP WHERE rid = $1`,
       [rid],
     );
+    const rejectActor = actorFor(viewer, needed, country);
     await addHistory(
       client,
       rid,
       // The status written is 'Rejected', not 'Draft' — the trail says so.
       `Rejected at ${base === 'Pending Level 1' ? 'Level 1' : 'Level 2'} — returned to the requestor as Rejected`,
-      actorFor(viewer, needed, country),
+      rejectActor,
       viewer.email,
       note || 'No reason recorded.',
     );
+    const ctx = await loadRecordContext(client, rid);
 
     await client.query('COMMIT');
+
+    /* Straight to the requestor: a rejection is theirs to act on, and copying
+       the validators on their own decision is noise. */
+    if (ctx?.requestorEmail) {
+      await notifyWorkflow(
+        'rejected',
+        ctx,
+        [{ name: ctx.requestorEmail, email: ctx.requestorEmail, title: 'Requestor' }],
+        rejectActor,
+        note || 'No reason recorded.',
+      );
+    }
+
     return { success: true };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -830,6 +1211,227 @@ export async function startSnsReview(rid: number): Promise<ActionResult> {
     await client.query('ROLLBACK');
     log.error('record.review.start.failed', err, { rid, actor: viewer.email });
     return { success: false, error: 'Could not start the review.' };
+  } finally {
+    client.release();
+  }
+}
+
+/* ═══ Closing out ════════════════════════════════════════════════ */
+
+/**
+ * Closes a record — the alternative the renewal reminders offer to renewing.
+ *
+ * Closing is the only thing that stops the reminders, so it has to be a real
+ * state rather than a silenced flag: a record nobody renewed and nobody closed
+ * is exactly what the registry exists to surface.
+ *
+ * `alsoCloseSupplier` extends the close to the supplier master, which retires
+ * every other live record naming the same SAP ID in the same country. That is
+ * the "the arrangement has ended" case, as against "this one scope no longer
+ * applies", so it is opt-in rather than automatic.
+ */
+export async function closeSnsRecord(
+  rid: number,
+  reason: string,
+  alsoCloseSupplier: boolean,
+): Promise<ActionResult> {
+  const viewer = await getSnsViewer();
+  if (!viewer) return { success: false, error: 'You do not have access to the S&S Registry.' };
+  if (!reason.trim()) return { success: false, error: 'Give a reason for closing the record.' };
+
+  const client = await snsPool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `SELECT r.country, r.base_status, r.supplier_id,
+              COALESCE(r.country_code, c.code) AS resolved_country_code
+         FROM sns_record r
+         LEFT JOIN sns_country c ON c.name = r.country
+        WHERE r.rid = $1
+          FOR UPDATE OF r`,
+      [rid],
+    );
+    if (rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Record not found.' };
+    }
+    const country = String(rows[0].country);
+    const code = String(rows[0].resolved_country_code ?? '');
+    const base = String(rows[0].base_status) as BaseStatus;
+    const supplierId = String(rows[0].supplier_id ?? '');
+
+    if (base === 'Closed') {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'This record is already closed.' };
+    }
+    // Closing is a requestor or validator act; a read-only role must not be
+    // able to retire a record it could not have raised.
+    if (!isAdminOr(viewer, 'req', 'l1', 'l2')) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'You cannot close this record.' };
+    }
+    if (!canActInCountry(viewer, code)) {
+      await client.query('ROLLBACK');
+      return { success: false, error: `You are not approved to act on ${country} records.` };
+    }
+
+    const ctx = await loadRecordContext(client, rid);
+
+    await client.query(
+      `UPDATE sns_record
+          SET base_status = 'Closed', closed_at = CURRENT_TIMESTAMP,
+              closed_by = $2, closed_reason = $3, updated_at = CURRENT_TIMESTAMP
+        WHERE rid = $1`,
+      [rid, viewer.email, reason.trim()],
+    );
+
+    let alsoClosed = 0;
+    if (alsoCloseSupplier && supplierId) {
+      await client.query(
+        `UPDATE sns_supplier
+            SET status = 'Closed', closed_at = CURRENT_TIMESTAMP, closed_by = $2,
+                closed_reason = $3, updated_at = CURRENT_TIMESTAMP
+          WHERE sap_id = $1`,
+        [supplierId, viewer.email, reason.trim()],
+      );
+      /* Every other live record for the same supplier in the same country goes
+         with it — leaving them open would keep chasing an account that is
+         gone. Matched on the resolved code so a record filed under the old
+         display name is not missed. */
+      const others = await client.query(
+        `UPDATE sns_record r
+            SET base_status = 'Closed', closed_at = CURRENT_TIMESTAMP, closed_by = $3,
+                closed_reason = $4, updated_at = CURRENT_TIMESTAMP
+          FROM (SELECT rid, COALESCE(country_code, (SELECT code FROM sns_country WHERE name = country)) AS cc
+                  FROM sns_record) x
+          WHERE r.rid = x.rid AND x.cc = $2 AND r.supplier_id = $1 AND r.rid <> $5
+            AND r.base_status IN ('Active', 'Extended', 'Expired')
+          RETURNING r.rid`,
+        [supplierId, code, viewer.email, `Supplier account closed: ${reason.trim()}`, rid],
+      );
+      alsoClosed = others.rowCount ?? 0;
+      for (const o of others.rows) {
+        await addHistory(
+          client,
+          Number(o.rid),
+          'Closed — supplier account closed',
+          viewer.name,
+          viewer.email,
+          reason.trim(),
+        );
+      }
+    }
+
+    await addHistory(
+      client,
+      rid,
+      alsoCloseSupplier ? 'Closed — supplier account closed' : 'Closed — record retired',
+      viewer.name,
+      viewer.email,
+      alsoClosed
+        ? `${reason.trim()} (${alsoClosed} further record${alsoClosed === 1 ? '' : 's'} closed with it.)`
+        : reason.trim(),
+    );
+
+    await client.query('COMMIT');
+
+    if (ctx) {
+      await notifyWorkflow(
+        'closed',
+        ctx,
+        await stakeholderRecipients(ctx),
+        viewer.name,
+        reason.trim(),
+      );
+    }
+
+    return { success: true };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    log.error('record.close.failed', err, { rid });
+    return { success: false, error: 'Could not close the record.' };
+  } finally {
+    client.release();
+  }
+}
+
+/** Puts a closed record back into the registry, at Level 1, to be revalidated. */
+export async function reopenSnsRecord(rid: number): Promise<ActionResult> {
+  const viewer = await getSnsViewer();
+  if (!viewer) return { success: false, error: 'You do not have access to the S&S Registry.' };
+  if (!isAdminOr(viewer, 'req'))
+    return { success: false, error: 'Only a Requestor can reopen a record.' };
+
+  const client = await snsPool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `SELECT r.country, r.base_status, r.supplier_id,
+              COALESCE(r.country_code, c.code) AS resolved_country_code
+         FROM sns_record r
+         LEFT JOIN sns_country c ON c.name = r.country
+        WHERE r.rid = $1
+          FOR UPDATE OF r`,
+      [rid],
+    );
+    if (rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Record not found.' };
+    }
+    if (String(rows[0].base_status) !== 'Closed') {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Only a closed record can be reopened.' };
+    }
+    const country = String(rows[0].country);
+    const code = String(rows[0].resolved_country_code ?? '');
+    if (!canActInCountry(viewer, code)) {
+      await client.query('ROLLBACK');
+      return { success: false, error: `You are not approved to act on ${country} records.` };
+    }
+
+    /* Straight back to Level 1 rather than to whatever it was before: a record
+       that was retired has to earn its validity again before it can be quoted
+       in SAP. */
+    await client.query(
+      `UPDATE sns_record
+          SET base_status = 'Pending Level 1', closed_at = NULL, closed_by = NULL,
+              closed_reason = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE rid = $1`,
+      [rid],
+    );
+    const supplierId = String(rows[0].supplier_id ?? '');
+    if (supplierId) {
+      await client.query(
+        `UPDATE sns_supplier
+            SET status = 'Active', closed_at = NULL, closed_by = NULL,
+                closed_reason = NULL, updated_at = CURRENT_TIMESTAMP
+          WHERE sap_id = $1`,
+        [supplierId],
+      );
+    }
+    const actor = actorFor(viewer, 'req', country);
+    await addHistory(
+      client,
+      rid,
+      'Reopened — routed to Level 1',
+      actor,
+      viewer.email,
+      'Record reopened after closure; revalidation required.',
+    );
+
+    const ctx = await loadRecordContext(client, rid);
+    await client.query('COMMIT');
+
+    if (ctx) {
+      const approver = await resolveSnsLevel1Approver(ctx.countryCode);
+      await notifyWorkflow('submitted', ctx, approver ? [approver] : [], actor);
+    }
+
+    return { success: true };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    log.error('record.reopen.failed', err, { rid });
+    return { success: false, error: 'Could not reopen the record.' };
   } finally {
     client.release();
   }

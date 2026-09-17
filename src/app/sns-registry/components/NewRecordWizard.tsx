@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   clsLabel,
@@ -12,6 +13,9 @@ import {
   taxFamilies,
   taxSubs,
 } from '../lib/helpers';
+import { formatDate, todayISO } from '../lib/date';
+import SupplierPicker from './SupplierPicker';
+import { uploadSnsRecordDocument } from '@/app/actions/sns-documents';
 import type { RegistryApp } from '../lib/useRegistryApp';
 import type { ScopeNode } from '../lib/types';
 import { validateForSubmission } from '../lib/validate';
@@ -22,6 +26,14 @@ function levelWord(level: 'Family' | 'Commodity', count: number): string {
 }
 
 export default function NewRecordWizard({ app }: { app: RegistryApp }) {
+  /* Held here rather than on the Draft: a Draft crosses the server-action
+     boundary and must stay serialisable, and there is nothing to attach the
+     file to until the insert has returned an rid.
+
+     Declared before the early return below — a hook has to run in the same
+     order on every render. */
+  const [evidence, setEvidence] = useState<File | null>(null);
+
   const d = app.draft;
   if (!d) return null;
 
@@ -74,17 +86,31 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
       label: 'ESTIMATED ANNUAL SPEND',
       value: d.spend ? money(parseInt(String(d.spend).replace(/[^0-9]/g, ''), 10)) : 'Not set',
     },
+    { label: 'EXPIRY DATE', value: d.expiry ? formatDate(d.expiry) : 'Not set' },
   ];
 
   const cats = new Set(d.nodes.map((n) => n.cat));
   const selectedScopeCount = `${d.nodes.length} ${famMode ? 'FAMILY' : 'COMMODITY'}${d.nodes.length === 1 ? '' : ' LINES'}${cats.size > 1 ? ` ACROSS ${cats.size} CATEGORIES` : ''}`;
+
+  /** Uploads the chosen evidence against the record once it exists. */
+  const attachEvidence = async (rid: number): Promise<string | null> => {
+    if (!evidence) return null;
+    const form = new FormData();
+    form.set('rid', String(rid));
+    form.set('kind', 'evidence');
+    form.set('file', evidence);
+    const res = await uploadSnsRecordDocument(form);
+    return res.success
+      ? null
+      : `The record was saved, but the evidence file was not attached: ${res.error ?? 'upload failed'}. Attach it from the record.`;
+  };
 
   const submit = () => {
     if (missing.length) {
       app.setStep(4);
       return;
     }
-    app.commit('Pending Level 1');
+    app.commit('Pending Level 1', attachEvidence);
   };
 
   return (
@@ -171,18 +197,18 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                 {
                   code: 'SGL' as const,
                   title: 'Single-Source',
-                  kind: 'A market condition — evidence-based',
-                  body: 'Only one supplier is capable of fulfilling the requirement in that country: patented technology, an OEM part, a sole licensed distributor, or a regulatory restriction.',
-                  evidence:
-                    'Evidence required: market check, OEM confirmation, or similar proof that no viable alternative exists.',
-                },
-                {
-                  code: 'SOL' as const,
-                  title: 'Sole-Source',
                   kind: 'A business decision — justification-based',
                   body: 'Alternative suppliers exist, but NESR has chosen to procure from one vendor only: standardization, an active master agreement, warranty preservation, or a strategic relationship.',
                   evidence:
                     'Justification required: the business rationale for restricting sourcing, not proof that no alternative exists.',
+                },
+                {
+                  code: 'SOL' as const,
+                  title: 'Sole-Source',
+                  kind: 'A market condition — evidence-based',
+                  body: 'Only one supplier is capable of fulfilling the requirement in that country: patented technology, an OEM part, a sole licensed distributor, or a regulatory restriction.',
+                  evidence:
+                    'Evidence required: market check, OEM confirmation, or similar proof that no viable alternative exists.',
                 },
               ].map((c) => {
                 const sel = d.cls === c.code;
@@ -519,26 +545,30 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
             <div>
               <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>Supplier</div>
               <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 14 }}>
-                Supplier SAP ID and SAP Name are both mandatory. One supplier per record.
+                Chosen from the approved vendor list, so the SAP ID and name always agree with each
+                other. One supplier per record.
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 420 }}>
-                <Field
-                  label="SUPPLIER SAP ID"
-                  value={d.supplierId}
-                  placeholder="e.g. 1004521"
-                  onChange={(v) => app.setDraft({ supplierId: v })}
-                />
-                <Field
-                  label="SUPPLIER SAP NAME"
-                  value={d.supplierName}
-                  placeholder="Legal name as held in SAP"
-                  onChange={(v) => app.setDraft({ supplierName: v })}
+                <SupplierPicker
+                  sapId={d.supplierId}
+                  name={d.supplierName}
+                  onPick={(o) => app.setDraft({ supplierId: o.sapId, supplierName: o.name })}
+                  onClear={() => app.setDraft({ supplierId: '', supplierName: '' })}
                 />
                 <Field
                   label="ESTIMATED ANNUAL SPEND (USD)"
                   value={d.spend}
                   placeholder="e.g. 1250000"
                   onChange={(v) => app.setDraft({ spend: v })}
+                />
+                <Field
+                  label="EXPIRY DATE"
+                  type="date"
+                  min={todayISO()}
+                  value={d.expiry}
+                  placeholder="YYYY-MM-DD"
+                  onChange={(v) => app.setDraft({ expiry: v })}
+                  hint="The Registry ID is built from this date, so it cannot be issued without one."
                 />
               </div>
               {!!dup && (
@@ -574,8 +604,8 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
               <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>Reason code</div>
               <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 14 }}>
                 {d.cls === 'SGL'
-                  ? 'Single-source reason codes describe why no alternative supplier exists.'
-                  : 'Sole-source reason codes describe why NESR has restricted sourcing to one vendor.'}
+                  ? 'Single-source reason codes describe why NESR has restricted sourcing to one vendor.'
+                  : 'Sole-source reason codes describe why no alternative supplier exists.'}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 460 }}>
                 {app.reasons[d.cls].map((r) => {
@@ -617,8 +647,8 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
               </div>
               <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 10 }}>
                 {d.cls === 'SGL'
-                  ? 'State the market condition and how it was verified.'
-                  : 'State the business rationale for restricting sourcing to this vendor.'}
+                  ? 'State the business rationale for restricting sourcing to this vendor.'
+                  : 'State the market condition and how it was verified.'}
               </div>
               <textarea
                 value={d.justification}
@@ -640,6 +670,82 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
 
         {step === 4 && (
           <div>
+            <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>
+              Evidence attachment
+            </div>
+            <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 12, maxWidth: 760 }}>
+              {d.cls === 'SGL'
+                ? 'The contract clause, warranty terms, or equivalent support for the business rationale.'
+                : 'The market survey, OEM letter, or equivalent proof that no viable alternative exists.'}
+            </div>
+            <div
+              style={{
+                border: '2px dashed #6AAF8E',
+                background: '#F7FBF9',
+                padding: 20,
+                maxWidth: 560,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+              }}
+            >
+              <div
+                style={{
+                  width: 34,
+                  height: 42,
+                  background: evidence ? '#2A7E4F' : '#D1D3D4',
+                  color: '#fff',
+                  fontSize: 9,
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flex: '0 0 auto',
+                }}
+              >
+                DOC
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 'bold', wordBreak: 'break-word' }}>
+                  {evidence ? evidence.name : 'No file attached'}
+                </div>
+                <div style={{ fontSize: 11.5, color: '#58595B', marginTop: 3 }}>
+                  {evidence
+                    ? `${Math.max(1, Math.round(evidence.size / 1024))} KB — uploaded when the record is saved.`
+                    : 'PDF, DOCX, XLSX or MSG, up to 15 MB. Kept on the record for audit.'}
+                </div>
+              </div>
+              {evidence && (
+                <button
+                  onClick={() => setEvidence(null)}
+                  className="link-btn"
+                  style={{ fontSize: 11.5, flex: '0 0 auto' }}
+                >
+                  Remove
+                </button>
+              )}
+              <label
+                style={{
+                  background: '#2A7E4F',
+                  color: '#fff',
+                  fontWeight: 'bold',
+                  fontSize: 12,
+                  padding: '9px 14px',
+                  cursor: 'pointer',
+                  borderRadius: 2,
+                  flex: '0 0 auto',
+                }}
+              >
+                <span>{evidence ? 'Replace' : 'Choose file'}</span>
+                <input
+                  type="file"
+                  onChange={(e) => setEvidence(e.target.files?.[0] ?? null)}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            </div>
+
+            <div style={{ height: 1, background: '#E4E6E6', margin: '24px 0' }} />
             <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 12 }}>
               Review before submission
             </div>
@@ -767,7 +873,7 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
             )}
             {step === 4 && (
               <button
-                onClick={() => app.commit('Draft')}
+                onClick={() => app.commit('Draft', attachEvidence)}
                 disabled={app.busy}
                 className="btn-outline"
                 style={{ padding: '10px 18px' }}
@@ -797,11 +903,17 @@ function Field({
   value,
   placeholder,
   onChange,
+  type = 'text',
+  min,
+  hint,
 }: {
   label: string;
   value: string;
   placeholder: string;
   onChange: (v: string) => void;
+  type?: string;
+  min?: string;
+  hint?: string;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -809,11 +921,14 @@ function Field({
         {label}
       </label>
       <input
+        type={type}
+        min={min}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         style={{ border: '1px solid #D1D3D4', padding: '9px 10px', borderRadius: 2 }}
       />
+      {hint && <span style={{ fontSize: 11, color: '#58595B', lineHeight: 1.45 }}>{hint}</span>}
     </div>
   );
 }

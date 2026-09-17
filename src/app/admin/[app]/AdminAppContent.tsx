@@ -115,6 +115,7 @@ const CatalogSyncHealthClient = dynamic(
 
 /* ── S&S Registry ── */
 const SnsAccessApprovalsClient = dynamic(() => import('../SnsAccessApprovalsClient'), { loading });
+const SnsApproversClient = dynamic(() => import('../SnsApproversClient'), { loading });
 const SnsReferenceDataClient = dynamic(() => import('../SnsReferenceDataClient'), { loading });
 
 /* ── Laptop Procurement ── */
@@ -218,6 +219,8 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     /* ── S&S Registry ── */
     case 'sns/access':
       return <SnsAccessApprovalsClient />;
+    case 'sns/approvers':
+      return <SnsApproversClient />;
     case 'sns/reference':
       return <SnsReferenceDataClient />;
 

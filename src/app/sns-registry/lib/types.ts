@@ -3,7 +3,15 @@ export type Classification = 'SGL' | 'SOL';
 export type ScopeLevel = 'Family' | 'Commodity';
 
 export type BaseStatus =
-  'Draft' | 'Pending Level 1' | 'Pending Level 2' | 'Active' | 'Extended' | 'Expired' | 'Rejected';
+  | 'Draft'
+  | 'Pending Level 1'
+  | 'Pending Level 2'
+  | 'Active'
+  | 'Extended'
+  | 'Expired'
+  | 'Rejected'
+  /** Retired — the supplier account was closed. Stops the renewal reminders. */
+  | 'Closed';
 
 export type DisplayStatus = BaseStatus | 'Expiring soon';
 
@@ -80,6 +88,13 @@ export interface RegistryRecord {
   expiry: string | null;
   requestor: string;
   history: HistoryEntry[];
+  /** How many times the record has survived a periodic review. */
+  renewalCount: number;
+  /** Set only once the record has been retired; null while it is live. */
+  closed: { at: string; by: string; reason: string } | null;
+  /** Attachment counts, so the list can show what is on file without the bytes. */
+  evidenceCount: number;
+  reviewCount: number;
 }
 
 export interface Draft {
@@ -94,6 +109,12 @@ export interface Draft {
   spend: string;
   reason: string;
   justification: string;
+  /**
+   * Expiry, entered by the requestor as YYYY-MM-DD rather than derived from the
+   * issue date. The Registry ID encodes its year and month, so it has to be
+   * known before Level 2 can mint one.
+   */
+  expiry: string;
 }
 
 export type Screen = 'registry' | 'detail' | 'new' | 'inbox' | 'expiry' | 'dash';

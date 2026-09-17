@@ -41,11 +41,12 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
           Expiry &amp; Periodic Review
         </h1>
         <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#58595B', maxWidth: 760 }}>
-          Every record carries a fixed 12-month validity. Anything within 90 days of expiry is
-          listed below, and from 60 days out it shows as &ldquo;Expiring soon&rdquo; across the
-          registry. Reviews are started from here — there is no automated reminder, so check this
-          queue. A successful review keeps the original Registry ID and resets expiry by a further
-          12 months.
+          Anything within 90 days of expiry is listed below, and from 60 days out it shows as
+          &ldquo;Expiring soon&rdquo; across the registry. Reminders go to the requestor and both
+          validators at 60, 30, 14, 7, 5, 3, 2 and 1 days before expiry, on the expiry date itself,
+          and weekly after that until the record is renewed or the supplier account is closed — see
+          the Expiry Reminders panel on any record for what has been sent. A successful review keeps
+          the original Registry ID and extends expiry by a further 12 months.
         </p>
       </div>
 

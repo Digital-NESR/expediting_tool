@@ -119,6 +119,7 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
     setError(null);
     setDraftState({
       cls: 'SGL',
+      expiry: '',
       country:
         viewer.countryCodes.length === 1
           ? (countries.find((c) => c[1] === viewer.countryCodes[0])?.[0] ?? '')
@@ -169,8 +170,18 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
     setDraftState((prev) => (prev ? { ...prev, level, nodes: [] } : prev));
   }, []);
 
+  /**
+   * `onCreated` runs after the record exists and before the records are
+   * re-read. Attachments need it: a file chosen in the wizard has nothing to
+   * attach to until the insert has returned an rid, so it is uploaded here
+   * rather than being carried through the draft.
+   *
+   * A failure there is surfaced but does not undo the record — the record is
+   * the compliance artefact, and losing it because a file upload failed would
+   * be the worse outcome.
+   */
   const commit = useCallback(
-    (base: 'Draft' | 'Pending Level 1') => {
+    (base: 'Draft' | 'Pending Level 1', onCreated?: (rid: number) => Promise<string | null>) => {
       if (!draft) return;
       setError(null);
       startTransition(async () => {
@@ -178,6 +189,10 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
         if (!res.success) {
           setError(res.error ?? 'Could not save the record.');
           return;
+        }
+        if (onCreated && res.rid) {
+          const problem = await onCreated(res.rid);
+          if (problem) setError(problem);
         }
         setRecords(await getSnsRecords());
         setScreen('detail');

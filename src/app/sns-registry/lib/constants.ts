@@ -32,4 +32,5 @@ export const STATUS_STYLE: Record<DisplayStatus, [string, string, string]> = {
   'Expiring soon': ['#FDE6C8', '#8A4B00', '#E09A4E'],
   Expired: ['#F8DCDC', '#9B1C1C', '#B34141'],
   Rejected: ['#F8DCDC', '#9B1C1C', '#B34141'],
+  Closed: ['#EDEEEE', '#4A4B4D', '#9A9C9E'],
 };

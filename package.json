@@ -22,7 +22,9 @@
     "laptop:cost-centers:seed": "node scripts/seed-laptop-cost-centers.mjs",
     "sns:db:init": "node scripts/sns-init-db.mjs",
     "soa:countries:seed": "node --env-file-if-exists=.env scripts/soa-seed-countries.mjs",
-    "delegation:db:init": "node scripts/delegation-init-db.mjs"
+    "delegation:db:init": "node scripts/delegation-init-db.mjs",
+    "sns:seed:approvers": "node scripts/sns-seed-approvers.mjs",
+    "sns:test:reminders": "node scripts/sns-reminder-sql-test.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
