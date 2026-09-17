@@ -12,6 +12,12 @@ import {
 import { getLaptopAdminData, getLaptopAnalyticsData } from '@/app/actions/laptopProcurement';
 import { getLearningHubAdminData, getLearningHubAnalytics } from '@/app/actions/learning-hub';
 
+/* Server actions invoked from this page inherit its budget, and one of them is genuinely slow:
+   SOA's extract aggregates every PO transaction in an 18-month window and writes a few thousand
+   snapshot rows. Under the platform default it was being killed part-way, which looked from the
+   admin screen like the button doing nothing at all. */
+export const maxDuration = 60;
+
 /* One admin app per route. The ADMIN_EMAILS gate is enforced by the
    layout AND again here (see below), then we resolve the section and
    fetch the data THAT ONE SECTION needs — nothing else. Most sections'

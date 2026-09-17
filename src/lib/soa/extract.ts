@@ -193,24 +193,42 @@ export async function runExtract(window: CycleWindow): Promise<ExtractSummary> {
     // a supplier that has since dropped out of the window would overstate the denominator.
     await client.query(`DELETE FROM supplier_po_extract WHERE cycle_id = $1`, [window.cycleId]);
 
-    for (const s of mapped) {
-      await client.query(
-        `INSERT INTO supplier_po_extract
-           (cycle_id, supplier_id, supplier_name, po_country, pos_value, sap_email_ids)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (cycle_id, supplier_id, po_country) DO UPDATE SET
-           supplier_name = EXCLUDED.supplier_name,
-           pos_value     = EXCLUDED.pos_value,
-           sap_email_ids = EXCLUDED.sap_email_ids,
-           extracted_at  = NOW()`,
-        [
+    /* Inserted in batches, not one row at a time.
+       A row per round trip measured at ~9ms against this server, which is 26 seconds for a
+       typical 2,800-row snapshot — comfortably past the serverless function timeout, so the
+       extract was being killed mid-write and the admin screen just sat there. The same rows go in
+       under a second as multi-row statements.
+
+       500 is well inside Postgres' 65,535 bound parameters (six per row here). The rows are
+       unique by construction — `readSpend` groups by (country, supplier) — so no two rows in a
+       batch can collide on the conflict target, which is the one thing that would turn a
+       multi-row upsert into an error. */
+    const BATCH = 500;
+    for (let i = 0; i < mapped.length; i += BATCH) {
+      const chunk = mapped.slice(i, i + BATCH);
+      const params: unknown[] = [];
+      const tuples = chunk.map((s, n) => {
+        const b = n * 6;
+        params.push(
           window.cycleId,
           s.supplierCode,
           s.supplierName.slice(0, 200),
           s.spendCountry.slice(0, 100),
           s.valueUsd,
           s.emails.join(',') || null,
-        ],
+        );
+        return `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6})`;
+      });
+      await client.query(
+        `INSERT INTO supplier_po_extract
+           (cycle_id, supplier_id, supplier_name, po_country, pos_value, sap_email_ids)
+         VALUES ${tuples.join(', ')}
+         ON CONFLICT (cycle_id, supplier_id, po_country) DO UPDATE SET
+           supplier_name = EXCLUDED.supplier_name,
+           pos_value     = EXCLUDED.pos_value,
+           sap_email_ids = EXCLUDED.sap_email_ids,
+           extracted_at  = NOW()`,
+        params,
       );
     }
 
