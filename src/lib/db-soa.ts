@@ -3,10 +3,10 @@ import { createPool } from './db/pool';
 /**
  * SOA Consolidation's own database.
  *
- * The tool reads its PO figures from SourceGuide's `historic_spend` (see `@/lib/db-sourceguide`)
- * because those are the GRN'd lines — goods actually received — which is what a statement of
- * account is reconciled against. Open POs would be the wrong denominator entirely. Everything the
- * tool itself owns (cycles, vendors, outreach state, evidence) lives here.
+ * The tool reads its PO figures from SourceGuide's `historic_spend` (see `@/lib/db-sourceguide`),
+ * which holds all PO transactions — the completed record a statement of account is reconciled
+ * against. The open-PO data in nesr_expediting_db would be the wrong denominator entirely.
+ * Everything the tool itself owns (cycles, vendors, outreach state, evidence) lives here.
  *
  * `envStyle: 'sns'` is about environment variables, not about the S&S Registry. That style reads
  * the platform-standard `DB_*` names first and falls back to the `POSTGRES_*` names, which is the

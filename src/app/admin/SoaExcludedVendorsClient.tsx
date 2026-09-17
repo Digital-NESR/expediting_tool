@@ -3,7 +3,7 @@
 /* ─────────────────────────────────────────────────────────────
    SOA Consolidation · Excluded vendors.
 
-   NESR's own entities appear in receipted spend like any supplier —
+   NESR's own entities appear in the PO transactions like any supplier —
    EOS JAFZA is $250M across ten countries in the current cycle — and
    nobody emails a colleague to ask them to confirm a statement of
    account. So these vendors are never chased.
@@ -207,8 +207,8 @@ export default function SoaExcludedVendorsClient() {
       <div className="rounded-2xl border border-[#2A7E4F]/20 bg-[#2A7E4F]/[0.06] p-4">
         <p className="text-sm font-bold text-[#2A7E4F]">Not chased — but still counted</p>
         <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
-          NESR&apos;s own entities turn up in receipted spend like any supplier, and nobody emails a
-          colleague to ask them to confirm a statement of account. An excluded vendor is{' '}
+          NESR&apos;s own entities turn up in the PO transactions like any supplier, and nobody
+          emails a colleague to ask them to confirm a statement of account. An excluded vendor is{' '}
           <span className="font-semibold text-slate-800">never scoped into a chase list</span>.
         </p>
         <p className="mt-1.5 text-[12px] leading-relaxed text-slate-600">
@@ -306,7 +306,7 @@ export default function SoaExcludedVendorsClient() {
         {searched && results.length === 0 && !searching && (
           <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
             Nothing in the active cycle&apos;s snapshot matches “{query.trim()}”. A supplier with no
-            receipted spend this cycle does not appear here.
+            PO transactions this cycle does not appear here.
           </p>
         )}
 

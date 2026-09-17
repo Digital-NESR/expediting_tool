@@ -9,9 +9,9 @@ import { ensureSoaSchema, soaPool, sql } from './db';
  * Where a cycle's numbers come from.
  *
  * SOA Consolidation asks vendors to confirm what NESR believes it owes them, so the figure it
- * chases has to be spend that actually happened: `historic_spend` in sourceguide_db holds GRN'd PO
- * lines — goods received. The open-PO data in nesr_expediting_db is the wrong thing entirely; a
- * vendor cannot confirm a balance for goods that have not shipped.
+ * chases has to be spend that actually happened: `historic_spend` in sourceguide_db holds all PO
+ * transactions. The open-PO data in nesr_expediting_db is the wrong thing entirely; a vendor
+ * cannot confirm a balance for goods that have not shipped.
  *
  * The two databases cannot be joined, so this reads one and writes the other. That is not a
  * limitation worth working around: the read is an aggregate over ~413,000 lines that collapses to
@@ -72,7 +72,7 @@ export function parseAvlEmails(raw: string | null | undefined): string[] {
 }
 
 /**
- * Aggregate receipted spend per supplier per country over the cycle's window.
+ * Aggregate all PO transactions per supplier per country over the cycle's window.
  *
  * `historic_spend` labels two of its columns the wrong way round at source: `supplier` holds the
  * SAP supplier CODE and `supplier_id` holds the NAME. That is not a typo in this query. The names

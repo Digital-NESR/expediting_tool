@@ -156,19 +156,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
       ['Coverage target (quarterly)', `${targetPct}%`],
       ['Coverage target (year end)', `${Number(cycle.year_end_target_pct)}%`],
       ['Vendor threshold', `$${Number(cycle.vendor_threshold_usd).toLocaleString('en-US')}`],
-      ['Receipted-spend lookback', `${Number(cycle.lookback_months)} months`],
+      ['PO transaction lookback', `${Number(cycle.lookback_months)} months`],
       [
-        'Spend window read',
+        'PO transaction window read',
         cycle.extract_from ? `${asDate(cycle.extract_from)} to ${asDate(cycle.extract_to)}` : 'n/a',
       ],
-      ['Spend snapshot taken', cycle.extracted_at ? asIso(cycle.extracted_at) : 'n/a'],
+      ['Snapshot taken', cycle.extracted_at ? asIso(cycle.extracted_at) : 'n/a'],
     ] as [string, string][]) {
       summary.addRow([k, v]);
     }
 
     summary.addRow([]);
     summary.addRow(['Outcome']).font = { bold: true };
-    summary.addRow(['Country receipted balance', totalBalance]);
+    summary.addRow(['Country PO balance', totalBalance]);
     summary.addRow(['Balance confirmed by received SOAs', receivedBalance]);
     summary.addRow(['Coverage', `${coveragePct}%`]);
     summary.addRow(['Vendors in scope', vendors.length]);

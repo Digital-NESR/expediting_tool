@@ -18,7 +18,7 @@
        one cycle is active, and every champion's screen follows it.
      · Running the extract REPLACES that cycle's spend snapshot. It
        leaves chase lists alone — no champion's correspondence is
-       lost — and it is slow, because it aggregates every GRN'd PO
+       lost — and it is slow, because it aggregates every PO
        line in the window.
    ───────────────────────────────────────────────────────────── */
 
@@ -643,7 +643,7 @@ export default function SoaCyclesClient() {
               sub="supplier-country rows"
             />
             <Tile
-              label="Receipted spend"
+              label="All PO Transactions"
               value={summary ? fmtCompactUsd(summary.totalUsd) : '—'}
               sub="the coverage denominator"
             />
@@ -675,7 +675,7 @@ export default function SoaCyclesClient() {
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-800">Run the extract</p>
             <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
-              Reads every GRN&apos;d PO line in the {selected.lookback_months}-month window ending{' '}
+              Reads all PO transactions in the {selected.lookback_months}-month window ending{' '}
               {dateOnly(selected.period_end)} and writes this cycle&apos;s snapshot — roughly
               413,000 rows aggregated down to about 2,800 written, so it takes several seconds.
             </p>
@@ -704,7 +704,7 @@ export default function SoaCyclesClient() {
               </button>
               {extracting && (
                 <span className="text-[12px] font-medium text-slate-500">
-                  Aggregating receipted spend — this takes several seconds. Leave this page open.
+                  Aggregating PO transactions — this takes several seconds. Leave this page open.
                 </span>
               )}
             </div>
@@ -729,7 +729,7 @@ export default function SoaCyclesClient() {
                     <span className="font-semibold text-slate-800">
                       {fmtCompactUsd(extractResult.totalUsd)}
                     </span>{' '}
-                    of receipted spend ·{' '}
+                    in PO transactions ·{' '}
                     <span className="font-semibold text-slate-800">
                       {extractResult.countriesMatched}
                     </span>{' '}

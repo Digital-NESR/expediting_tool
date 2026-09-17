@@ -3,7 +3,7 @@
 /**
  * The vendors that are never chased.
  *
- * NESR's own entities turn up in receipted spend like any supplier — EOS JAFZA is the largest
+ * NESR's own entities turn up in the PO transactions like any supplier — EOS JAFZA is the largest
  * "vendor" in Saudi Arabia at $127M — and nobody sends a colleague a statement-of-account request.
  * Excluding them keeps champions off internal balances.
  *
@@ -30,7 +30,7 @@ export interface ExcludedVendorRow {
   reason: string;
   excludedBy: string;
   excludedAt: string;
-  /** Receipted spend in the active cycle, so an admin can see what the exclusion is worth. */
+  /** PO transactions in the active cycle, so an admin can see what the exclusion is worth. */
   cycleSpendUsd: number;
   /** Chase lists already drawn that still contain this vendor. */
   liveEntries: number;

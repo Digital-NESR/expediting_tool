@@ -24,8 +24,8 @@ const COPY: Record<string, { title: string; lead: string; next: string }> = {
   },
   'no-extract': {
     title: 'The quarter is open, but its PO snapshot has not been taken',
-    lead: 'Opening a cycle and extracting the receipted spend behind it are two steps. Until the second one runs there are no suppliers to scope from, so every figure on these screens reads zero — not because the country is empty, but because nothing has been read yet.',
-    next: 'An administrator runs the extract on /admin, under SOA Consolidation → Cycles. It aggregates every GRN’d PO line in the cycle’s window and takes a few seconds.',
+    lead: 'Opening a cycle and extracting the PO transactions behind it are two steps. Until the second one runs there are no suppliers to scope from, so every figure on these screens reads zero — not because the country is empty, but because nothing has been read yet.',
+    next: 'An administrator runs the extract on /admin, under SOA Consolidation → Cycles. It aggregates all PO transactions in the cycle’s window and takes a few seconds.',
   },
   'not-scoped': {
     title: 'This country has not been scoped yet',

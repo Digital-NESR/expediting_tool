@@ -88,7 +88,7 @@ export interface SoaPayload {
   countryName: string | null;
   /** Every country this actor may switch to. One entry means no picker is needed. */
   available: CountryOption[];
-  /** The country's whole receipted balance for the cycle — the coverage denominator. */
+  /** The country's whole PO balance for the cycle — the coverage denominator. */
   totalBalance: number;
   vendors: VendorRow[];
   countries: CountryRow[];
@@ -169,7 +169,7 @@ async function activeCycle(): Promise<ActiveCycle | null> {
 /**
  * The corporate rollup: every country that has started this cycle.
  *
- * Coverage is the received balance over the country's whole receipted balance for the cycle, which
+ * Coverage is the confirmed balance over the country's whole PO balance for the cycle, which
  * is why the denominator comes from `supplier_po_extract` rather than from the vendors being
  * chased — chasing only the large vendors does not make the small ones stop being money owed.
  * A country nobody has scoped yet is absent rather than present at 0%: it has not failed, it has

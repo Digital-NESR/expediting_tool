@@ -126,7 +126,7 @@ export async function scopeCountry(
   if (!snapshot.length) {
     throw new ScopeNotReadyError(
       `The cycle's spend snapshot contains no suppliers for this country. Either it has no ` +
-        `receipted spend in the window, or its spelling in the source data is not mapped to it.`,
+        `PO transactions in the window, or its spelling in the source data is not mapped to it.`,
     );
   }
   const countryCycleId = await ensureCountryCycle(cycleId, countryId);
@@ -195,8 +195,8 @@ export async function scopeCountry(
         [
           countryCycleId,
           actorEmail,
-          `${inScope.length} vendors above $${thresholdUsd.toLocaleString('en-US')} of receipted ` +
-            `spend (${added} new, ${refreshed} refreshed) from ${snapshot.length} suppliers` +
+          `${inScope.length} vendors above $${thresholdUsd.toLocaleString('en-US')} in PO ` +
+            `transactions (${added} new, ${refreshed} refreshed) from ${snapshot.length} suppliers` +
             (excludedCount ? `, ${excludedCount} excluded as intercompany` : '') +
             '.',
         ],

@@ -275,7 +275,7 @@ export async function addSoaSpendCountryAlias(input: {
 /**
  * Take the cycle's spend snapshot from historic_spend.
  *
- * Slow by the standards of a server action — it aggregates every GRN'd PO line in the window — so
+ * Slow by the standards of a server action — it aggregates every PO transaction in the window — so
  * it is deliberately a thing an admin triggers once per cycle rather than something that happens
  * on a page load.
  */
