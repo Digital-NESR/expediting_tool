@@ -20,6 +20,15 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
           >
             Download Consolidated CSV
           </button>
+          {/* The CSV is what Finance posts from; this is what an auditor reads. Different
+              questions — "what were the balances" against "prove you followed the SOP" — so it
+              is a separate download rather than more columns on the same one. */}
+          <a
+            href={`/api/soa/evidence-pack/${vm.activeCountryId}`}
+            className="bg-white text-sns-ink border border-sns-line px-3.5 py-[9px] rounded-[7px] text-[12px] font-bold hover:border-sns-green"
+          >
+            Download Evidence Pack
+          </a>
           {vm.canHandoff && (
             <button
               type="button"

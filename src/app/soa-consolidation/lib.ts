@@ -1,11 +1,10 @@
 import { shortDateTime, shortDateUTC } from '@/lib/format';
+import { complianceCriteria } from '@/lib/soa/compliance';
 import type {
   AppState,
-  ComplianceItemVM,
   Country,
   CountryRowVM,
   CountryStatus,
-  CriterionState,
   EmptyKind,
   EvidenceRowVM,
   EvidenceType,
@@ -174,99 +173,6 @@ function pageSlice<T>(rows: T[], page: number): T[] {
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(Math.max(page, 0), pageCount - 1);
   return rows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
-}
-
-/**
- * The four control criteria in SOP NESR-SC-01-GR2PAY.
- *
- * Three of these were hard-coded `pass: true` in the prototype, which made the panel a picture of
- * a control rather than a control. Each one now either measures something or says it could not:
- * `unknown` exists precisely so that an unmeasurable test cannot quietly report success.
- */
-function complianceItems(
-  vendors: Vendor[],
-  coveragePct: number,
-  coverageMet: boolean,
-  targetPct: number,
-  yearEndPct: number,
-): ComplianceItemVM[] {
-  const icon = (s: CriterionState) => (s === 'pass' ? '✓' : s === 'fail' ? '✗' : '?');
-
-  const outstanding = vendors.filter((v) => v.status !== 'received');
-  const missingSecond = outstanding.filter((v) => v.reqDate === '—' || !v.remDate);
-  const twoRequest: CriterionState = !vendors.length
-    ? 'unknown'
-    : missingSecond.length === 0
-      ? 'pass'
-      : 'fail';
-
-  const nonResponders = vendors.filter((v) => v.status === 'non_responder');
-  const undocumented = nonResponders.filter((v) => v.reqDate === '—' || !v.remDate);
-  const nrState: CriterionState = undocumented.length === 0 ? 'pass' : 'fail';
-
-  const coverage: CriterionState = coverageMet ? 'pass' : 'fail';
-
-  /* The SOP wants a reminder to follow its request by 10 to 14 days: sooner and the vendor was
-     not given a fair chance to answer, later and the chase stalled. Measured off the ISO
-     timestamps rather than the "03 Jul" display labels, which carry no year.
-
-     A reminder sent EARLY is as much a breach as one sent late, so the test is a window and not
-     a floor. Vendors with no reminder yet are not counted here — that is the 2-Request test's
-     job, and failing them twice for one omission would double-count it. */
-  const reminded = vendors.filter((v) => v.requestedAt && v.remindedAt);
-  const outsideWindow = reminded.filter((v) => {
-    /* Whole elapsed days, not fractional ones: a person counting "has it been ten days" counts
-       days that have finished, and a reminder sent at nine days and twenty-three hours has not
-       waited ten. Flooring is the stricter reading, which is the right way round for a control. */
-    const days = Math.floor((Date.parse(v.remindedAt!) - Date.parse(v.requestedAt!)) / 86_400_000);
-    return days < 10 || days > 14;
-  });
-  const gapState: CriterionState = !reminded.length
-    ? 'unknown'
-    : outsideWindow.length
-      ? 'fail'
-      : 'pass';
-
-  return [
-    {
-      label: '18-Month PO Coverage',
-      icon: icon(coverage),
-      detail: `${coveragePct}% of the 18-month PO balance is covered by received SOAs. Threshold: ${targetPct}% quarterly / ${yearEndPct}% year-end.`,
-      state: coverage,
-    },
-    {
-      label: '2-Request Evidence',
-      icon: icon(twoRequest),
-      detail: !vendors.length
-        ? 'No vendors are in scope for this country yet, so there is nothing to test.'
-        : missingSecond.length
-          ? `${missingSecond.length} of ${outstanding.length} vendors without a response are missing an initial request or a reminder on file.`
-          : outstanding.length
-            ? `All ${outstanding.length} vendors without a response have both an initial request and a reminder recorded.`
-            : 'Every in-scope vendor responded; no second request was owed.',
-      state: twoRequest,
-    },
-    {
-      label: '10–14 Day Gap Compliance',
-      icon: icon(gapState),
-      detail: !reminded.length
-        ? 'No reminder has been sent yet, so there is no interval to measure.'
-        : outsideWindow.length
-          ? `${outsideWindow.length} of ${reminded.length} reminders fell outside the 10–14 day window after the initial request.`
-          : `All ${reminded.length} reminders followed their initial request inside the 10–14 day window.`,
-      state: gapState,
-    },
-    {
-      label: 'Non-Responder Documentation',
-      icon: icon(nrState),
-      detail: !nonResponders.length
-        ? 'No vendor has been flagged as a non-responder, so no correspondence evidence is owed.'
-        : undocumented.length
-          ? `${undocumented.length} of ${nonResponders.length} flagged non-responders have no complete request-and-reminder trail on file.`
-          : `All ${nonResponders.length} flagged non-responders have time-stamped request and reminder correspondence retained.`,
-      state: nrState,
-    },
-  ];
 }
 
 /**
@@ -527,7 +433,7 @@ export function deriveViewModel(
     handlers.setScopePage,
   );
 
-  const items = complianceItems(
+  const items = complianceCriteria(
     vendors,
     coveragePct,
     coverageMet,
