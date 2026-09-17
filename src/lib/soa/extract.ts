@@ -203,8 +203,25 @@ export function windowFor(cycle: {
   period_end: Date | string;
   lookback_months: number;
 }): CycleWindow {
-  const to = new Date(cycle.period_end);
-  // Exclusive upper bound: add a day so the period's last day is included.
+  /*
+   * A DATE column arrives from `pg` as a Date at LOCAL midnight, not UTC midnight — so on a
+   * machine east of Greenwich, reading its UTC parts lands on the previous day and the window
+   * silently loses its last few hours. Take the calendar date the column actually holds (its
+   * local parts, which are the date SAP meant) and rebuild it in UTC.
+   */
+  const end =
+    typeof cycle.period_end === 'string'
+      ? new Date(`${cycle.period_end.slice(0, 10)}T00:00:00Z`)
+      : new Date(
+          Date.UTC(
+            cycle.period_end.getFullYear(),
+            cycle.period_end.getMonth(),
+            cycle.period_end.getDate(),
+          ),
+        );
+
+  // Exclusive upper bound: one day past the period end, so the period's last day is included.
+  const to = new Date(end);
   to.setUTCDate(to.getUTCDate() + 1);
   const from = new Date(to);
   from.setUTCMonth(from.getUTCMonth() - cycle.lookback_months);

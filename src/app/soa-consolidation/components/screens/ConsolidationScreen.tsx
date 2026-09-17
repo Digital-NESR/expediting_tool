@@ -1,4 +1,5 @@
 import type { ScreenProps } from '../../types';
+import { CRITERION_BORDER, CRITERION_FILL } from '../tones';
 
 const COLUMNS = 'grid-cols-[30px_1fr_110px_65px_85px_55px_80px]';
 
@@ -8,21 +9,23 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
       <div className="flex items-start justify-between mb-4">
         <div>
           <h1 className="text-[20px] font-bold mb-[3px]">Consolidation &amp; Handoff</h1>
-          <p className="text-[12px] text-sns-grey">
-            Automated consolidation · Saudi Arabia (SA) · Q3 2026
-          </p>
+          <p className="text-[12px] text-sns-grey">Automated consolidation · {vm.contextLine}</p>
         </div>
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={vm.onGenerateExport}
-            className="bg-[#1565C0] text-white border-none px-3.5 py-[9px] rounded-[7px] text-[12px] font-bold"
+            disabled={vm.busy}
+            className="bg-[#1565C0] text-white border-none px-3.5 py-[9px] rounded-[7px] text-[12px] font-bold disabled:opacity-50"
           >
-            Generate Export File
+            Download Consolidated CSV
           </button>
           {vm.canHandoff && (
             <button
+              type="button"
               onClick={vm.onOpenHandoffModal}
-              className="bg-sns-green text-white border-none px-3.5 py-[9px] rounded-[7px] text-[12px] font-bold"
+              disabled={vm.busy}
+              className="bg-sns-green text-white border-none px-3.5 py-[9px] rounded-[7px] text-[12px] font-bold disabled:opacity-50"
             >
               Mark Handed Off to Finance →
             </button>
@@ -53,14 +56,10 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
         {vm.complianceItems.map((ci) => (
           <div
             key={ci.label}
-            className={`flex items-start gap-3 px-[15px] py-3 bg-white rounded-lg mb-2 border-l-4 ${
-              ci.pass ? 'border-l-sns-green' : 'border-l-[#B71C1C]'
-            }`}
+            className={`flex items-start gap-3 px-[15px] py-3 bg-white rounded-lg mb-2 border-l-4 ${CRITERION_BORDER[ci.state]}`}
           >
             <div
-              className={`w-6.5 h-6.5 rounded-full text-white flex items-center justify-center font-bold shrink-0 text-[13px] mt-px ${
-                ci.pass ? 'bg-sns-green' : 'bg-[#B71C1C]'
-              }`}
+              className={`w-6.5 h-6.5 rounded-full text-white flex items-center justify-center font-bold shrink-0 text-[13px] mt-px ${CRITERION_FILL[ci.state]}`}
             >
               {ci.icon}
             </div>
@@ -70,12 +69,20 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
             </div>
           </div>
         ))}
+        {/* The handoff action refuses below the target server-side. Saying so here means the
+            button's absence is an explanation rather than a missing feature. */}
+        {!vm.handedOff && !vm.coverageMet && (
+          <div className="mt-1 rounded-lg bg-[#FFF3E0] px-[15px] py-2.5 text-[11px] text-[#E65100] leading-[1.5]">
+            Handoff stays closed until coverage reaches {vm.coverageTargetPct}%. It is currently{' '}
+            {vm.coveragePct}%, and the action itself refuses a country that is short.
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-[10px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
         <div className="px-3.5 py-3 border-b border-b-[#F0F0F0] flex items-center justify-between">
           <div className="text-[12px] font-bold text-sns-ink">
-            Consolidated SOA — {vm.receivedCount} Vendors · NESR-KSA-SOA-Q3-2026
+            Consolidated SOA — {vm.receivedCount} Vendors · {vm.exportFileName}
           </div>
           <div className="text-[11px] text-sns-grey">Auto-compiled · No manual re-keying</div>
         </div>

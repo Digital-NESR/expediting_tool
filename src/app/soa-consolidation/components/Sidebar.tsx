@@ -107,12 +107,43 @@ export default function Sidebar({
               <span className="truncate">Back to NESR Home</span>
             </Link>
 
+            {/* Active scope. A grant can name one country, several, or every country; the picker
+                appears only when there is something to pick, and navigating to `?country=XX` lets
+                the server re-read rather than the client guess at another country's numbers. */}
             <div className="mb-3 rounded-lg border border-sns-green/25 bg-sns-green-wash px-3 py-2.5">
               <div className="text-[9px] uppercase tracking-[1px] text-sns-grey">Active scope</div>
-              <div className="text-[13px] font-bold leading-[1.3] text-sns-ink">
-                {vm.roleCountry}
-              </div>
-              <div className="text-[10px] text-sns-grey mt-px">{vm.roleLabel}</div>
+              {vm.showCountryPicker ? (
+                <>
+                  <label htmlFor="soa-country" className="sr-only">
+                    Country
+                  </label>
+                  <select
+                    id="soa-country"
+                    value={vm.activeCountryId}
+                    onChange={(e) => {
+                      vm.onSelectCountry(e.target.value);
+                      closeOnNav();
+                    }}
+                    className="mt-1 w-full rounded-md border border-sns-green/30 bg-white px-2 py-1.5 text-[13px] font-bold leading-[1.3] text-sns-ink focus:border-sns-green focus:outline-none"
+                  >
+                    {vm.countryOptions.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="text-[10px] text-sns-grey mt-1">
+                    {vm.roleLabel} · {vm.roleCountry}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-[13px] font-bold leading-[1.3] text-sns-ink">
+                    {vm.roleCountry}
+                  </div>
+                  <div className="text-[10px] text-sns-grey mt-px">{vm.roleLabel}</div>
+                </>
+              )}
             </div>
 
             <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">

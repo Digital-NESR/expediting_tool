@@ -1,5 +1,13 @@
 import type { ScreenProps } from '../../types';
 
+/**
+ * A preview of what a vendor sees when they follow the link in their request email.
+ *
+ * Everything on it now names the real cycle, the real entity and a real vendor from this
+ * country's list, because a preview that shows a vendor who does not exist is a screenshot, not a
+ * preview. Nothing here is interactive: the vendor-facing upload is not this application, and a
+ * button that did nothing was the prototype's habit worth breaking.
+ */
 export default function SoaIntakeScreen({ vm }: ScreenProps) {
   return (
     <div className="animate-[fadeIn_0.2s_ease]">
@@ -16,6 +24,9 @@ export default function SoaIntakeScreen({ vm }: ScreenProps) {
         <div className="text-[12px] text-sns-green">
           This is what the vendor sees when they click the secure link in their request email. No
           account creation required.
+          {vm.hasSampleVendor
+            ? ` Filled in with ${vm.sampleVendorName}, the largest vendor in scope for ${vm.countryLabel}.`
+            : ' No vendor is in scope for this country yet, so the vendor fields are blank.'}
         </div>
       </div>
 
@@ -28,7 +39,7 @@ export default function SoaIntakeScreen({ vm }: ScreenProps) {
             </div>
           </div>
           <div className="bg-[rgba(255,255,255,0.15)] rounded-md px-3 py-[5px] text-white text-[11px] font-bold">
-            Q3 2026
+            {vm.cycleLabel}
           </div>
         </div>
         <div className="p-5.5">
@@ -39,13 +50,15 @@ export default function SoaIntakeScreen({ vm }: ScreenProps) {
                 <div className="text-[10px] text-sns-grey uppercase tracking-[0.5px] font-bold">
                   Legal Entity
                 </div>
-                <div className="text-[13px] font-bold mt-0.5">NESR Saudi Arabia Co.</div>
+                <div className="text-[13px] font-bold mt-0.5">{vm.entityName}</div>
               </div>
               <div className="bg-[#F5F5F5] rounded-md px-3 py-2">
                 <div className="text-[10px] text-sns-grey uppercase tracking-[0.5px] font-bold">
                   Submission Deadline
                 </div>
-                <div className="text-[13px] font-bold text-[#E65100] mt-0.5">15 July 2026</div>
+                <div className="text-[13px] font-bold text-[#E65100] mt-0.5">
+                  {vm.deadlineLabel}
+                </div>
               </div>
             </div>
           </div>
@@ -55,13 +68,13 @@ export default function SoaIntakeScreen({ vm }: ScreenProps) {
               <div>
                 <div className="text-[11px] text-sns-grey mb-[3px] font-bold">Vendor Name *</div>
                 <div className="border border-sns-line rounded-[5px] px-2.5 py-2 text-[12px] text-sns-grey">
-                  Al-Zamil Industrial Inv.
+                  {vm.sampleVendorName}
                 </div>
               </div>
               <div>
                 <div className="text-[11px] text-sns-grey mb-[3px] font-bold">Vendor No. *</div>
                 <div className="border border-sns-line rounded-[5px] px-2.5 py-2 text-[12px] text-sns-grey font-[family-name:monospace]">
-                  SA-023456
+                  {vm.sampleVendorNo}
                 </div>
               </div>
             </div>
@@ -69,13 +82,13 @@ export default function SoaIntakeScreen({ vm }: ScreenProps) {
               <div>
                 <div className="text-[11px] text-sns-grey mb-[3px] font-bold">Period *</div>
                 <div className="border border-sns-line rounded-[5px] px-2.5 py-2 text-[12px] text-sns-grey">
-                  Q3 2026 (Apr – Jun 2026)
+                  {vm.periodLabel}
                 </div>
               </div>
               <div>
                 <div className="text-[11px] text-sns-grey mb-[3px] font-bold">Currency *</div>
                 <div className="border border-sns-line rounded-[5px] px-2.5 py-2 text-[12px] text-sns-grey">
-                  SAR
+                  {vm.sampleVendorCurrency}
                 </div>
               </div>
             </div>
@@ -86,16 +99,13 @@ export default function SoaIntakeScreen({ vm }: ScreenProps) {
             <div className="text-[11px] text-sns-grey mb-2.5">
               Excel (.xlsx) or signed PDF · Max 10MB
             </div>
-            <div
-              onClick={vm.onOpenUploadFlow}
-              className="bg-sns-green text-white inline-block px-[18px] py-2 rounded-md text-[12px] font-bold cursor-pointer"
-            >
+            <div className="bg-sns-green text-white inline-block px-[18px] py-2 rounded-md text-[12px] font-bold opacity-70">
               Browse File
             </div>
           </div>
           <div className="bg-[#F0F7F3] border border-sns-green-pale rounded-md px-3 py-2.5 text-[11px] text-sns-green leading-[1.5]">
             Your submission is encrypted and stored securely. It will be validated against the NESR
-            SOA template and acknowledged within 24 hours. Contact aarashidi@nesr.com with any
+            SOA template and acknowledged within 24 hours. Contact {vm.championContact} with any
             questions.
           </div>
         </div>

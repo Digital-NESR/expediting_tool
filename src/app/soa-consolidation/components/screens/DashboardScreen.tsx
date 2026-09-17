@@ -8,14 +8,24 @@ export default function DashboardScreen({ vm }: ScreenProps) {
         <div>
           <h1 className="text-[20px] font-bold mb-[3px]">Dashboard</h1>
           <p className="text-[12px] text-sns-grey">
-            Saudi Arabia (SA) · Q3 2026 SOA Cycle · Deadline: 31 Jul 2026
+            {vm.contextLine} · Deadline: {vm.deadlineLabel} ({vm.daysRemaining} days remaining)
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
+          {vm.hasUnrequested && (
+            <button
+              onClick={vm.onSendRequests}
+              disabled={vm.busy}
+              className="bg-sns-green text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
+            >
+              Send {vm.unrequestedCount} Initial Requests
+            </button>
+          )}
           {vm.hasRemindable && (
             <button
               onClick={vm.onSendReminders}
-              className="bg-[#E65100] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold"
+              disabled={vm.busy}
+              className="bg-[#E65100] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
             >
               Send Reminders ({vm.remindCount})
             </button>
@@ -49,7 +59,7 @@ export default function DashboardScreen({ vm }: ScreenProps) {
       <div className="grid grid-cols-[3fr_1fr] gap-3 mb-3">
         <div className="bg-white rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
           <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey mb-3">
-            Workflow Pipeline — KSA Q3 2026
+            Workflow Pipeline — {vm.contextLine}
           </div>
           <div className="flex rounded-[7px] overflow-hidden">
             {vm.pipeline.map((step) => (
@@ -79,7 +89,9 @@ export default function DashboardScreen({ vm }: ScreenProps) {
           >
             {vm.coveragePct}%
           </div>
-          <div className="text-[10px] text-sns-grey mb-2">of total 18-month PO balance</div>
+          <div className="text-[10px] text-sns-grey mb-2">
+            of {vm.totalBalanceLabel} 18-month PO balance
+          </div>
           <div className="bg-[#E0E8E3] rounded-[3px] h-2.5 mb-[5px] overflow-hidden">
             {/* Width tracks a live percentage, so it is the one declaration that has to stay inline. */}
             <div
@@ -89,8 +101,8 @@ export default function DashboardScreen({ vm }: ScreenProps) {
           </div>
           <div className="flex justify-between text-[9px] text-sns-grey mb-2">
             <span>0%</span>
-            <span>70%</span>
-            <span>95%</span>
+            <span>{vm.coverageTargetPct}%</span>
+            <span>{vm.yearEndTargetPct}%</span>
           </div>
           <div
             className={`text-[11px] font-bold ${vm.coverageMet ? 'text-sns-green' : 'text-[#E65100]'}`}

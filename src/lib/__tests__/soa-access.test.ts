@@ -163,6 +163,20 @@ describe('windowFor', () => {
     expect(new Date('2026-10-01T00:00:00Z') < w.to).toBe(false);
   });
 
+  it('reads a pg DATE the same way it reads a string', () => {
+    /* pg hands a DATE back as a Date at LOCAL midnight. The suite runs pinned to Asia/Dubai
+       (+04:00), so a naive reading of its UTC parts lands on 29 September and the window loses
+       the last four hours of the quarter. */
+    const fromDate = windowFor({
+      id: 1,
+      period_end: new Date(2026, 8, 30),
+      lookback_months: 18,
+    });
+    const fromString = windowFor({ id: 1, period_end: '2026-09-30', lookback_months: 18 });
+    expect(fromDate.to.toISOString()).toBe(fromString.to.toISOString());
+    expect(fromDate.to.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+  });
+
   it('honours a lookback other than eighteen months', () => {
     const w = windowFor({ id: 2, period_end: '2026-12-31', lookback_months: 12 });
     expect(w.from.toISOString().slice(0, 10)).toBe('2026-01-01');

@@ -1,4 +1,11 @@
-import type { CountryStatus, EvidenceType, Standing, ToastType, VendorStatus } from '../types';
+import type {
+  CountryStatus,
+  CriterionState,
+  EvidenceType,
+  Standing,
+  ToastType,
+  VendorStatus,
+} from '../types';
 
 /* The view model says what a row or figure MEANS; these maps are the only place that decides
    what each meaning looks like. They sit beside the components rather than inside one of them
@@ -38,6 +45,7 @@ export const STANDING_BG: Record<Standing, string> = {
 
 /** Pill badge (wash background, matching text) for a vendor's response status. */
 export const VENDOR_STATUS_BADGE: Record<VendorStatus, string> = {
+  scoped: 'bg-[#F0F0F0] text-sns-grey',
   received: 'bg-sns-green-wash text-sns-green',
   requested: 'bg-[#E3F2FD] text-[#1565C0]',
   reminded: 'bg-[#FFF3E0] text-[#E65100]',
@@ -46,6 +54,7 @@ export const VENDOR_STATUS_BADGE: Record<VendorStatus, string> = {
 
 /** Solid fill of the same status, for the stacked response bar and its legend dots. */
 export const VENDOR_STATUS_FILL: Record<VendorStatus, string> = {
+  scoped: 'bg-[#BDBDBD]',
   received: 'bg-sns-green',
   requested: 'bg-[#1565C0]',
   reminded: 'bg-[#E65100]',
@@ -56,6 +65,7 @@ export const VENDOR_STATUS_FILL: Record<VendorStatus, string> = {
    ~9% for the fill (the trailing `18` is the alpha byte) and full strength for the rule and
    text. "All" has no status of its own, so it borrows the portal green. */
 export const FILTER_TAB_SELECTED: Record<'all' | VendorStatus, string> = {
+  scoped: 'border-sns-grey bg-[#6B6B6B18] text-sns-grey',
   all: 'border-sns-green bg-[#2A7E4F18] text-sns-green',
   received: 'border-sns-green bg-[#2A7E4F18] text-sns-green',
   requested: 'border-[#1565C0] bg-[#1565C018] text-[#1565C0]',
@@ -81,6 +91,19 @@ export const EVIDENCE_TYPE_FILL: Record<EvidenceType, string> = {
   scope: 'bg-[#6A1B9A]',
   info: 'bg-sns-grey',
   handoff: 'bg-sns-green',
+};
+
+/** A control criterion that passed, failed, or could not be measured from what the payload holds. */
+export const CRITERION_BORDER: Record<CriterionState, string> = {
+  pass: 'border-l-sns-green',
+  fail: 'border-l-[#B71C1C]',
+  unknown: 'border-l-[#E65100]',
+};
+
+export const CRITERION_FILL: Record<CriterionState, string> = {
+  pass: 'bg-sns-green',
+  fail: 'bg-[#B71C1C]',
+  unknown: 'bg-[#E65100]',
 };
 
 /** Toast background by how the news lands. */

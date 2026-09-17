@@ -8,6 +8,10 @@ import type { ViewModel } from '../types';
  * That was a prototype affordance — the role is a grant now, so the bar states what the signed-in
  * person actually is rather than offering to change it. The menu button is what opens the
  * sidebar, which is a slide-over drawer like every other NESR tool's.
+ *
+ * The signed-in person's name and avatar used to sit at the right of this bar as well as in the
+ * sidebar footer. Saying it twice told the reader nothing the second time, so the bar now carries
+ * only the tool and the cycle it is showing.
  */
 export default function Navbar({
   vm,
@@ -44,18 +48,9 @@ export default function Navbar({
         </div>
       </div>
       <div className="bg-[rgba(0,0,0,0.18)] rounded-[20px] px-2.5 py-[3px] text-[11px] text-[rgba(255,255,255,0.9)] font-bold tracking-[0.5px]">
-        Q3 2026
+        {vm.cycleChip}
       </div>
       <div className="flex-1" />
-      <div className="text-right leading-tight min-w-0">
-        <div className="text-white text-[12px] font-bold truncate">{vm.viewerName}</div>
-        <div className="text-[rgba(255,255,255,0.65)] text-[10px] truncate">
-          {vm.roleLabel} · {vm.roleCountry}
-        </div>
-      </div>
-      <div className="bg-[rgba(255,255,255,0.18)] rounded-full w-8 h-8 flex items-center justify-center text-white font-bold text-[13px] shrink-0">
-        {vm.viewerInitials}
-      </div>
     </nav>
   );
 }

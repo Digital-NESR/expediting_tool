@@ -10,7 +10,7 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
         <div>
           <h1 className="text-[20px] font-bold mb-[3px]">Corporate Rollup</h1>
           <p className="text-[12px] text-sns-grey">
-            All 12 legal entities · Q3 2026 SOA Cycle · Supply Chain Director view
+            {vm.entityCount} legal entities started · {vm.cycleLabel} · {vm.roleLabel} view
           </p>
         </div>
         <div
@@ -22,7 +22,8 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
         >
           {vm.hasAtRisk && (
             <>
-              ⚠ {vm.atRiskCount} countries at risk — below 70% coverage with &lt;10 days remaining
+              ⚠ {vm.atRiskCount} countries at risk — below {vm.coverageTargetPct}% coverage with
+              &lt;10 days remaining
             </>
           )}
           {vm.noAtRisk && <>✓ All active countries on track</>}
@@ -58,6 +59,12 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
           <div>Resp.</div>
           <div>Days</div>
         </div>
+        {vm.entityCount === 0 && (
+          <div className="px-3.5 py-6 text-center text-[12px] text-sns-grey">
+            No country has started this cycle yet. A country appears here once its vendor list has
+            been scoped — it has not failed, it has not begun.
+          </div>
+        )}
         {vm.countriesEnriched.map((c, i) => (
           <div
             key={c.id}
