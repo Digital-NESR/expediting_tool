@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { csvSafe } from '@/lib/catalog-manager-utils';
-import { scopeSoaCountry } from '@/app/actions/soa/cycles';
+import { applySoaScopeSelection, getSoaScopeCandidates } from '@/app/actions/soa/scoping';
 import {
   acceptSoaSubmission,
   getSoaExportRows,
@@ -16,7 +16,7 @@ import {
   sendSoaOutreachBatch,
   setSoaVendorContacts,
 } from '@/app/actions/soa/workflow';
-import { deriveViewModel } from './lib';
+import { deriveViewModel, fmtM } from './lib';
 import type { AppState, Handlers, SoaPayload, ToastType, Viewer } from './types';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -37,6 +37,9 @@ import CorporateRollupScreen from './components/screens/CorporateRollupScreen';
 // be read during render, so a plain counter avoids re-renders and ref lint churn.
 let toastIdCounter = 0;
 
+/** One frozen empty set, so a reset does not allocate a new one on every country switch. */
+const NO_SELECTION: ReadonlySet<string> = new Set<string>();
+
 const INITIAL: AppState = {
   screen: 'dashboard',
   filterStatus: 'all',
@@ -48,9 +51,18 @@ const INITIAL: AppState = {
   scopeSearch: '',
   scopePage: 0,
   busy: false,
-  scopeSummary: null,
   failures: null,
+  scopeCandidates: null,
+  scopeLoading: false,
+  scopeError: null,
+  scopeSelected: NO_SELECTION,
+  scopeSaved: null,
 };
+
+/** The vendor numbers a country is already chasing — where a fresh draft starts from. */
+function seedSelection(candidates: { vendorNo: string; selected: boolean }[]): ReadonlySet<string> {
+  return new Set(candidates.filter((c) => c.selected).map((c) => c.vendorNo));
+}
 
 /**
  * The tool's one client component.
@@ -71,6 +83,13 @@ export default function SoaConsolidationClient({
   const router = useRouter();
   const [state, setState] = useState<AppState>(INITIAL);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  /* An in-flight lock for the candidate fetch, set synchronously so that two renders of the
+     scoping screen in the same commit cannot both ask for the 525 rows. State cannot do this job:
+     both calls would read the same not-yet-applied `scopeLoading`. */
+  const scopeFetching = useRef(false);
+  /* Bumped when the country changes, so a read that was already in flight for the country the
+     champion just left cannot land in the new country's list. */
+  const scopeGeneration = useRef(0);
 
   const countryId = payload.countryId;
   const exportFileName = `NESR-${countryId ?? 'SOA'}-SOA-${(payload.cycle?.label ?? 'cycle').replace(/\s+/g, '-')}.csv`;
@@ -117,6 +136,46 @@ export default function SoaConsolidationClient({
     }
   }
 
+  /**
+   * Read the country's scoping candidates.
+   *
+   * Fetched here rather than in the page payload: it is 525 rows for Saudi Arabia, it is wanted on
+   * exactly one of the eight screens, and it would otherwise be serialised into every page load.
+   * A successful read also reseeds the draft, so what is ticked always starts from what the
+   * database actually holds — including after a save.
+   */
+  function loadScopeCandidates() {
+    const cycle = payload.cycle;
+    if (!countryId || !cycle || scopeFetching.current) return;
+    scopeFetching.current = true;
+    const generation = scopeGeneration.current;
+    patch({ scopeLoading: true, scopeError: null });
+    void getSoaScopeCandidates({ cycleId: cycle.id, countryId })
+      .then((data) => {
+        if (generation !== scopeGeneration.current) return;
+        /* The action answers a failed read with an empty list AND a reason. Without surfacing the
+           reason, "the database would not answer" is shown as "this country has no suppliers",
+           which reads as a fact about the country and stops the champion rather than prompting a
+           retry. */
+        patch({
+          scopeCandidates: data,
+          scopeSelected: seedSelection(data.candidates),
+          scopeLoading: false,
+          scopeError: data.error ?? null,
+        });
+      })
+      .catch(() => {
+        if (generation !== scopeGeneration.current) return;
+        patch({
+          scopeLoading: false,
+          scopeError: 'The supplier list could not be read. Try again in a moment.',
+        });
+      })
+      .finally(() => {
+        scopeFetching.current = false;
+      });
+  }
+
   const handlers: Handlers = {
     setScreen(screen) {
       patch({ screen, expandedVendor: null });
@@ -139,6 +198,7 @@ export default function SoaConsolidationClient({
     },
     selectCountry(id) {
       if (id === countryId) return;
+      scopeGeneration.current += 1;
       setState({ ...INITIAL, screen: state.screen });
       router.push(`/soa-consolidation?country=${encodeURIComponent(id)}`);
     },
@@ -247,20 +307,55 @@ export default function SoaConsolidationClient({
         'SOA not accepted',
       );
     },
-    scopeCountry() {
-      if (!countryId || !payload.cycle) return;
-      const cycleId = payload.cycle.id;
+    loadCandidates() {
+      loadScopeCandidates();
+    },
+    toggleScopeVendor(vendorNo) {
+      patch((prev) => {
+        const candidate = prev.scopeCandidates?.candidates.find((c) => c.vendorNo === vendorNo);
+        /* The two states that are not free choices are refused here as well as being disabled in
+           the markup: an excluded supplier is never ticked, and a contacted one is never
+           unticked. The server enforces both again, because a tick box is not a permission. */
+        if (!candidate || candidate.excluded || candidate.locked) return {};
+        const next = new Set(prev.scopeSelected);
+        if (next.has(vendorNo)) next.delete(vendorNo);
+        else next.add(vendorNo);
+        return { scopeSelected: next };
+      });
+    },
+    setScopeSelection(vendorNos) {
+      patch({ scopeSelected: vendorNos });
+    },
+    discardScopeSelection() {
+      patch((prev) => ({
+        scopeSelected: prev.scopeCandidates
+          ? seedSelection(prev.scopeCandidates.candidates)
+          : NO_SELECTION,
+      }));
+    },
+    saveScopeSelection() {
+      const cycle = payload.cycle;
+      if (!countryId || !cycle) return;
+      /* The whole desired set goes over in one call. Writing per tick would be 525 round trips
+         and would turn a misclick into a database change. */
+      const vendorNos = [...state.scopeSelected];
       void run(
-        () => scopeSoaCountry({ cycleId, countryId }),
+        () => applySoaScopeSelection({ cycleId: cycle.id, countryId, vendorNos }),
         (data) => {
-          if (data) patch({ scopeSummary: data });
+          patch({ scopeSaved: data ?? null });
+          // Re-read, so `selected` and `locked` on every row reflect what was just written.
+          loadScopeCandidates();
           addToast(
             'success',
-            `${data?.inScope ?? 0} vendors in scope`,
-            `${data?.added ?? 0} added · ${data?.refreshed ?? 0} refreshed · ${data?.unreachable ?? 0} with no email address · ${data?.excluded ?? 0} excluded.`,
+            `${data?.total ?? 0} suppliers in scope`,
+            `${data?.added ?? 0} added · ${data?.removed ?? 0} removed` +
+              (data?.keptLocked
+                ? ` · ${data.keptLocked} kept because they have already been contacted`
+                : '') +
+              ` · ${fmtM(data?.selectedUsd ?? 0)} of the country balance selected.`,
           );
         },
-        'Could not scope the country',
+        'Selection not saved',
       );
     },
     loadFailures() {

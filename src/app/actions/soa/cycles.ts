@@ -13,9 +13,8 @@ import type { QueryResultRow } from 'pg';
 import { AccessError } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
 import { ensureSoaSchema, exec, sql } from '@/lib/soa/db';
-import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
+import { requireSoaActor } from '@/lib/soa/access';
 import { runExtract, windowFor, type ExtractSummary } from '@/lib/soa/extract';
-import { scopeCountry, ScopeNotReadyError, type CountryScopeSummary } from '@/lib/soa/scope';
 
 const log = logger('soa-cycles');
 
@@ -304,34 +303,6 @@ export async function runSoaExtract(cycleId: number): Promise<SoaResult<ExtractS
     return {
       success: false,
       error: err instanceof AccessError ? err.message : 'The extract failed.',
-    };
-  }
-}
-
-/**
- * Scope one country against the active cycle's snapshot.
- *
- * The champion's own job for their own country, so this is guarded on the country rather than on
- * being an admin — `requireSoaCountry` refuses a champion of Oman asking to scope Saudi Arabia.
- */
-export async function scopeSoaCountry(input: {
-  cycleId: number;
-  countryId: string;
-}): Promise<SoaResult<CountryScopeSummary>> {
-  try {
-    const actor = await requireSoaCountry(input.countryId, 'champion');
-    const summary = await scopeCountry(input.cycleId, input.countryId, actor.email);
-    revalidatePath('/soa-consolidation');
-    return { success: true, data: summary };
-  } catch (err) {
-    /* A cycle that is not ready to scope is an ordinary state, not a fault — the admin simply has
-       not run the extract yet — so it carries its own message through instead of being flattened
-       into "could not scope", which tells the champion nothing about what to do next. */
-    if (err instanceof ScopeNotReadyError) return { success: false, error: err.message };
-    log.error('scopeSoaCountry.failed', err);
-    return {
-      success: false,
-      error: err instanceof AccessError ? err.message : 'Could not scope the country.',
     };
   }
 }

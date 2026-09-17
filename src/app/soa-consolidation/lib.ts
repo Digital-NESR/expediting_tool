@@ -14,8 +14,12 @@ import type {
   NavItemVM,
   PipelineStepVM,
   Role,
+  ScopeBulkVM,
+  ScopeCandidate,
+  ScopeCandidates,
+  ScopeCoverageVM,
+  ScopeRowVM,
   ScreenId,
-  ScopingVendorVM,
   SoaPayload,
   Standing,
   StatusBarSegVM,
@@ -110,10 +114,14 @@ function initials(name: string): string {
 }
 
 /** Name or vendor number, case-insensitive. The only two things a champion knows a vendor by. */
-function matchesSearch(v: Vendor, needle: string): boolean {
+function matchesText(name: string, no: string, needle: string): boolean {
   if (!needle) return true;
   const q = needle.toLowerCase();
-  return v.name.toLowerCase().includes(q) || v.no.toLowerCase().includes(q);
+  return name.toLowerCase().includes(q) || no.toLowerCase().includes(q);
+}
+
+function matchesSearch(v: Vendor, needle: string): boolean {
+  return matchesText(v.name, v.no, needle);
 }
 
 /** A date-only column out of the database, rendered without letting the viewer's zone shift it. */
@@ -207,6 +215,77 @@ export function pipelineStage(
   };
 }
 
+/** The empty answer, so the scoping screen can render its own frame before the list arrives. */
+const NO_CANDIDATES: ScopeCandidates = { thresholdUsd: 0, totalBalance: 0, candidates: [] };
+
+export interface ScopeTotals {
+  /** Ticked right now, including the locked rows that are ticked whether or not anyone said so. */
+  selectedCount: number;
+  selectedUsd: number;
+  /** What would be written on save. Deliberately the same two rules `applySoaScopeSelection` uses:
+   *  an excluded supplier is never added, and a locked one is never removed. */
+  addCount: number;
+  removeCount: number;
+  /** Ticked and removable — what "Clear selection" would actually clear. */
+  clearableCount: number;
+  /** The balance reachable if every supplier that *can* be ticked were: the ceiling on coverage. */
+  reachableUsd: number;
+  excludedCount: number;
+  lockedCount: number;
+  overThresholdCount: number;
+  overThresholdUnticked: number;
+  /** Ticked suppliers with no address on file — selected, but impossible to chase. */
+  unreachableSelected: number;
+}
+
+/**
+ * Every figure the KPI cards and the save button need, in one pass over the candidates.
+ *
+ * Exported and pure because this is the arithmetic a champion is trusting: it decides what the
+ * quarter's headline percentage says and how many rows the save button claims it will change, and
+ * it has to agree exactly with what the server action will do when the button is pressed.
+ */
+export function scopeTotals(
+  candidates: ScopeCandidate[],
+  selected: ReadonlySet<string>,
+): ScopeTotals {
+  const t: ScopeTotals = {
+    selectedCount: 0,
+    selectedUsd: 0,
+    addCount: 0,
+    removeCount: 0,
+    clearableCount: 0,
+    reachableUsd: 0,
+    excludedCount: 0,
+    lockedCount: 0,
+    overThresholdCount: 0,
+    overThresholdUnticked: 0,
+    unreachableSelected: 0,
+  };
+  for (const c of candidates) {
+    const ticked = selected.has(c.vendorNo);
+    if (ticked) {
+      t.selectedCount += 1;
+      t.selectedUsd += c.valueUsd;
+      if (!c.emails.length) t.unreachableSelected += 1;
+      if (!c.locked) t.clearableCount += 1;
+      if (!c.selected && !c.excluded) t.addCount += 1;
+    } else if (c.selected && !c.locked) {
+      t.removeCount += 1;
+    }
+    /* An excluded supplier cannot be added, so it is not part of the ceiling — unless it is
+       already in the cycle, in which case its balance is genuinely being chased. */
+    if (!c.excluded || c.selected) t.reachableUsd += c.valueUsd;
+    if (c.excluded) t.excludedCount += 1;
+    if (c.locked) t.lockedCount += 1;
+    if (c.overThreshold && !c.excluded) {
+      t.overThresholdCount += 1;
+      if (!ticked) t.overThresholdUnticked += 1;
+    }
+  }
+  return t;
+}
+
 /**
  * `payload` is the database's answer for this country and cycle; `state` is only what the screens
  * themselves own. Nothing about a vendor, a country or an evidence entry is held in client state
@@ -230,8 +309,12 @@ export function deriveViewModel(
     scopeSearch,
     scopePage,
     busy,
-    scopeSummary,
     failures,
+    scopeCandidates,
+    scopeLoading,
+    scopeError,
+    scopeSelected,
+    scopeSaved,
   } = state;
   const { cycle, vendors, countries, evidence, countryId, countryName, totalBalance } = payload;
   const role = viewer.role;
@@ -492,32 +575,183 @@ export function deriveViewModel(
     handlers.setPage,
   );
 
-  /* Vendor Scoping — the rank and the cumulative percentage are positions in the WHOLE country,
-     so they are computed over every vendor and only then filtered down to the page on screen.
-     Ranking the search results instead would make "#1" mean whatever was typed in the box. */
-  let cumBal = 0;
-  const scopingAll: ScopingVendorVM[] = [...vendors]
-    .sort((a, b) => b.openPO - a.openPO)
-    .map((v, i) => {
-      cumBal += v.openPO;
-      const cumPct = totalBalance > 0 ? Math.round((cumBal / totalBalance) * 100) : 0;
-      return {
-        ...enrichVendorRow(v),
-        rank: i + 1,
-        cumPct,
-        cumStanding: coverageStanding(cumPct, coverageTargetPct),
-      };
-    });
-  const scopingMatched = scopingAll.filter((v) => matchesSearch(v, scopeSearch));
-  const scopingVendors = pageSlice(scopingMatched, scopePage);
-  const scopingTable = tableControls(
-    scopingAll.length,
-    scopingMatched.length,
+  /* ── Vendor Scoping ───────────────────────────────────────────────────────────────────────
+     A champion picks the suppliers by hand. The list is every supplier in the cycle's PO
+     snapshot, not only the ones already in the cycle, so it is fetched on demand rather than
+     carried in the page payload: 525 rows are needed on exactly one screen.
+
+     Rank and cumulative % arrive from the server, computed across the WHOLE country. They are
+     never recomputed here, because recomputing them after the search box has filtered the list
+     would make "#1" mean "first search hit" and "covers 62%" mean nothing at all. */
+  const scope = scopeCandidates ?? NO_CANDIDATES;
+  const scopeLoaded = scopeCandidates !== null;
+  const canTick = canAct && !!cycle;
+  /* The screen asks for its list itself the first time it renders; this is the flag it asks on. */
+  const scopeNeedsLoad = !!countryId && !!cycle && !scopeLoaded && !scopeLoading && !scopeError;
+
+  /* The country's whole balance, which is the coverage denominator — excluded suppliers included,
+     because excluding one does not reduce what the country owes. */
+  const scopeDenominator = scope.totalBalance || totalBalance;
+  const scopeThresholdLabel = fmtUsd(scope.thresholdUsd || (cycle?.vendorThresholdUsd ?? 0));
+  const totals = scopeTotals(scope.candidates, scopeSelected);
+
+  const scopePct =
+    scopeDenominator > 0 ? Math.round((totals.selectedUsd / scopeDenominator) * 100) : 0;
+  const reachablePct =
+    scopeDenominator > 0 ? Math.round((totals.reachableUsd / scopeDenominator) * 100) : 0;
+  const scopeTargetUsd = (scopeDenominator * coverageTargetPct) / 100;
+  const scopeMeetsTarget = scopePct >= coverageTargetPct && scopeDenominator > 0;
+  const scopeTargetUnreachable =
+    scopeLoaded && scopeDenominator > 0 && !scopeMeetsTarget && reachablePct < coverageTargetPct;
+
+  const scopeCoverage: ScopeCoverageVM = {
+    pct: scopePct,
+    label: `${scopePct}%`,
+    standing: coverageStanding(scopePct, coverageTargetPct),
+    targetPct: coverageTargetPct,
+    barPct: Math.min(100, Math.max(0, scopePct)),
+    markerPct: Math.min(100, Math.max(0, coverageTargetPct)),
+    selectedLabel: fmtM(totals.selectedUsd),
+    totalLabel: fmtM(scopeDenominator),
+    targetValueLabel: fmtM(scopeTargetUsd),
+    meetsTarget: scopeMeetsTarget,
+    reachablePct,
+    targetUnreachable: scopeTargetUnreachable,
+    verdictLabel: scopeMeetsTarget
+      ? `✓ Meets the ${coverageTargetPct}% ${cycleLabel} target`
+      : scopeTargetUnreachable
+        ? `⚠ Ticking every selectable supplier reaches only ${reachablePct}% — the ${coverageTargetPct}% target cannot be met from this snapshot`
+        : `⚠ ${Math.max(0, coverageTargetPct - scopePct)} points short — another ${fmtM(Math.max(0, scopeTargetUsd - totals.selectedUsd))} needs selecting`,
+  };
+
+  const scopeCards: KpiCardVM[] = [
+    {
+      label: 'Suppliers Available',
+      value: String(scope.candidates.length),
+      sub: `${totals.overThresholdCount} above ${scopeThresholdLabel} · ${totals.excludedCount} excluded`,
+      accent: 'neutral',
+    },
+    {
+      label: 'Selected',
+      value: String(totals.selectedCount),
+      sub: `of ${scope.candidates.length} · ${totals.lockedCount} already contacted · ${totals.unreachableSelected} with no email`,
+      accent: totals.selectedCount > 0 ? 'in-flight' : 'neutral',
+    },
+    {
+      label: 'Selected Value',
+      value: fmtM(totals.selectedUsd),
+      sub: `of ${fmtM(scopeDenominator)} country balance`,
+      accent: totals.selectedUsd > 0 ? 'in-flight' : 'neutral',
+    },
+  ];
+
+  const scopeMatchedAll = scope.candidates.filter((c) =>
+    matchesText(c.name, c.vendorNo, scopeSearch),
+  );
+  const scopeIsFiltered = scopeSearch.trim().length > 0;
+  const matchedUnticked = scopeMatchedAll.filter(
+    (c) => !c.excluded && !scopeSelected.has(c.vendorNo),
+  ).length;
+
+  /** A bulk shortcut keeps every tick it cannot legitimately change. */
+  const withAdded = (rows: ScopeCandidate[]): ReadonlySet<string> => {
+    const next = new Set(scopeSelected);
+    for (const c of rows) if (!c.excluded) next.add(c.vendorNo);
+    return next;
+  };
+
+  const scopeBulkActions: ScopeBulkVM[] = [
+    {
+      id: 'threshold',
+      label: `Select all above ${scopeThresholdLabel}`,
+      hint: `${totals.overThresholdCount} suppliers · ${totals.overThresholdUnticked} not yet ticked`,
+      disabled: !canTick || busy || totals.overThresholdUnticked === 0,
+      onClick: () =>
+        handlers.setScopeSelection(
+          withAdded(scope.candidates.filter((c) => c.overThreshold && !c.excluded)),
+        ),
+    },
+    {
+      id: 'search',
+      label: scopeIsFiltered
+        ? `Select all matching “${scopeSearch}”`
+        : 'Select all matching the search',
+      hint: scopeIsFiltered
+        ? `${scopeMatchedAll.length} rows match · ${matchedUnticked} not yet ticked`
+        : 'Type in the search box to use this',
+      disabled: !canTick || busy || !scopeIsFiltered || matchedUnticked === 0,
+      onClick: () => handlers.setScopeSelection(withAdded(scopeMatchedAll)),
+    },
+    {
+      id: 'clear',
+      label: 'Clear selection',
+      hint: totals.clearableCount
+        ? `Unticks ${totals.clearableCount}${totals.lockedCount ? ` · ${totals.lockedCount} already contacted stay` : ''}`
+        : 'Nothing to clear',
+      disabled: !canTick || busy || totals.clearableCount === 0,
+      onClick: () =>
+        /* Locked suppliers stay ticked: unticking one would delete correspondence already
+           recorded against it, and the server would refuse the removal anyway. */
+        handlers.setScopeSelection(
+          new Set(scope.candidates.filter((c) => c.locked).map((c) => c.vendorNo)),
+        ),
+    },
+  ];
+
+  const scopeRows: ScopeRowVM[] = pageSlice(scopeMatchedAll, scopePage).map((c) => {
+    const ticked = scopeSelected.has(c.vendorNo);
+    const kind = c.excluded ? 'excluded' : c.locked ? 'locked' : 'free';
+    return {
+      vendorNo: c.vendorNo,
+      name: c.name,
+      rank: c.rank,
+      valueLabel: fmtM(c.valueUsd),
+      cumPct: c.cumulativePct,
+      cumStanding: coverageStanding(c.cumulativePct, coverageTargetPct),
+      kind,
+      checked: ticked,
+      disabled: !canTick || c.excluded || c.locked,
+      noteLabel: c.excluded
+        ? c.selected
+          ? 'Intercompany — excluded by an administrator, but already in this cycle'
+          : 'Intercompany — excluded by an administrator'
+        : c.locked
+          ? 'Already contacted — removing it would delete the correspondence on file'
+          : '',
+      isDirty: ticked !== c.selected && !c.excluded && !(c.selected && c.locked),
+      overThreshold: c.overThreshold,
+      isUnreachable: c.emails.length === 0,
+      toggleLabel: `Select ${c.name} (${c.vendorNo})`,
+      onToggle: () => handlers.toggleScopeVendor(c.vendorNo),
+    };
+  });
+
+  const scopeTable = tableControls(
+    scope.candidates.length,
+    scopeMatchedAll.length,
     scopePage,
     scopeSearch,
     handlers.setScopeSearch,
     handlers.setScopePage,
   );
+
+  const scopeDirty = totals.addCount > 0 || totals.removeCount > 0;
+  const changeParts = [
+    ...(totals.addCount ? [`${totals.addCount} to add`] : []),
+    ...(totals.removeCount ? [`${totals.removeCount} to remove`] : []),
+  ];
+  const scopeSaveLabel = busy
+    ? 'Saving…'
+    : scopeDirty
+      ? `Save selection — ${changeParts.join(', ')}`
+      : 'Save selection — no changes';
+
+  const scopeEmptyReason =
+    !scopeLoaded || scope.candidates.length > 0
+      ? ''
+      : !cycle?.extractedAt
+        ? `The ${cycleLabel} PO snapshot has not been taken yet, so there is nothing to select from. An administrator runs the extract.`
+        : `This cycle holds no PO transactions for ${countryName ?? 'this country'}, so there is no supplier list to select from.`;
 
   const items = complianceCriteria(
     vendors,
@@ -606,8 +840,12 @@ export function deriveViewModel(
   const sampleVendor = vendors[0];
 
   const cycleSlug = cycleLabel.replace(/\s+/g, '-');
-  const scopeSummaryLine = scopeSummary
-    ? `${scopeSummary.inScope} vendors above ${fmtUsd(scopeSummary.thresholdUsd)} · ${scopeSummary.added} added · ${scopeSummary.refreshed} refreshed · ${scopeSummary.unreachable} with no email · ${scopeSummary.excluded} excluded · ${fmtM(scopeSummary.inScopeUsd)} of ${fmtM(scopeSummary.totalUsd)} covered`
+  const scopeSavedLine = scopeSaved
+    ? `${scopeSaved.added} added · ${scopeSaved.removed} removed` +
+      (scopeSaved.keptLocked
+        ? ` · ${scopeSaved.keptLocked} kept because they have already been contacted`
+        : '') +
+      ` · ${scopeSaved.total} suppliers now in scope (${fmtM(scopeSaved.selectedUsd)})`
     : '';
 
   return {
@@ -675,12 +913,32 @@ export function deriveViewModel(
     onGoToConsolidation: handlers.goToConsolidation,
 
     isScoped: payload.scoped,
-    canScope: canAct && !!cycle,
-    scopingVendors,
-    scopingTable,
-    scopeSummary,
-    scopeSummaryLine,
-    onScopeCountry: handlers.scopeCountry,
+    canScope: canTick,
+    scopeNeedsLoad,
+    scopeLoading,
+    scopeLoaded,
+    scopeError,
+    scopeEmptyReason,
+    scopeIntroLine: `${scope.candidates.length || 'No'} suppliers in the ${cycleLabel} PO snapshot · Threshold ${scopeThresholdLabel} · Country balance ${fmtM(scopeDenominator)}`,
+    onLoadCandidates: handlers.loadCandidates,
+
+    scopeCards,
+    scopeCoverage,
+    scopeBulkActions,
+    scopeRows,
+    scopeTable,
+
+    scopeAddCount: totals.addCount,
+    scopeRemoveCount: totals.removeCount,
+    scopeDirty,
+    scopeSaveLabel,
+    scopeCanSave: canTick && scopeLoaded && scopeDirty && !busy,
+    scopeDirtyLine: scopeDirty
+      ? `Unsaved: ${changeParts.join(' · ')}. Nothing is written until you save.`
+      : '',
+    scopeSavedLine,
+    onSaveScope: handlers.saveScopeSelection,
+    onDiscardScope: handlers.discardScopeSelection,
 
     failures,
     hasFailures: !!failures?.length,

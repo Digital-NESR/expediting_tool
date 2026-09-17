@@ -1,3 +1,5 @@
+import type { ApplyScopeSummary } from '@/app/actions/soa/scoping';
+import type { ScopeCandidate, ScopeCandidates } from '@/lib/soa/candidates';
 import type { CountryOption, SoaPayload } from '@/lib/soa/read';
 
 /**
@@ -74,7 +76,7 @@ export type Standing = 'on-track' | 'behind' | 'breach' | 'in-flight' | 'neutral
 export type Vendor = SoaPayload['vendors'][number];
 export type Country = SoaPayload['countries'][number];
 export type Evidence = SoaPayload['evidence'][number];
-export type { CountryOption, SoaPayload };
+export type { ApplyScopeSummary, CountryOption, ScopeCandidate, ScopeCandidates, SoaPayload };
 
 export interface Toast {
   id: number;
@@ -84,18 +86,6 @@ export interface Toast {
 }
 
 export type ModalState = { type: 'upload'; vendorId: string } | { type: 'handoff' } | null;
-
-/** What `scopeSoaCountry` reported, kept so the scoping screen can show what the last run did. */
-export interface ScopeSummary {
-  inScope: number;
-  added: number;
-  refreshed: number;
-  unreachable: number;
-  excluded: number;
-  totalUsd: number;
-  inScopeUsd: number;
-  thresholdUsd: number;
-}
 
 /** An outreach attempt n8n or the mailer refused, from `getSoaOutreachFailures`. */
 export interface OutreachFailure {
@@ -110,6 +100,12 @@ export interface OutreachFailure {
  * page, which modal. Vendors, countries and evidence are NOT in here: every mutation goes to a
  * server action and then `router.refresh()`, so the payload is the single copy of the truth and
  * there is no local mirror of it to drift.
+ *
+ * Vendor Scoping is the one deliberate exception, and only while a champion is deciding. Its 525
+ * candidates are fetched on demand rather than carried in the page payload, and the tick boxes are
+ * a *draft* held in `scopeSelected` until "Save selection" writes the whole set in one call. That
+ * draft is not a mirror of the database — it is the edit in progress, which is exactly the thing
+ * that must not be written on every click.
  */
 export interface AppState {
   screen: ScreenId;
@@ -125,8 +121,21 @@ export interface AppState {
   scopePage: number;
   /** True while a server action is in flight; every mutating button is disabled on it. */
   busy: boolean;
-  scopeSummary: ScopeSummary | null;
   failures: OutreachFailure[] | null;
+
+  /* Vendor Scoping, all fetched on demand when the screen first opens. */
+  /** Null until the list has been read; an empty `candidates` array is a real, different answer. */
+  scopeCandidates: ScopeCandidates | null;
+  scopeLoading: boolean;
+  /** Set only when the fetch itself threw; a country with no PO rows is not an error. */
+  scopeError: string | null;
+  /**
+   * The champion's working tick boxes, by vendor number. Seeded from what is already in the cycle
+   * and edited freely until saved; a `Set` because 525 rows are looked up on every render.
+   */
+  scopeSelected: ReadonlySet<string>;
+  /** What the last successful save did, so the screen can say so rather than only toasting it. */
+  scopeSaved: ApplyScopeSummary | null;
 }
 
 export interface NavItemVM {
@@ -190,10 +199,73 @@ export interface VendorEnrichedVM extends VendorRowVM {
   onSaveContacts: (emails: string[]) => void;
 }
 
-export interface ScopingVendorVM extends VendorRowVM {
+/**
+ * One supplier in the Vendor Scoping list.
+ *
+ * `kind` is the whole of the row's behaviour, because two of the three states are not free
+ * choices: an `excluded` row can never be ticked and a `locked` row can never be unticked. The
+ * view model decides which one a row is and why; the component only decides what each looks like.
+ */
+export type ScopeRowKind = 'free' | 'locked' | 'excluded';
+
+export interface ScopeRowVM {
+  vendorNo: string;
+  name: string;
+  /** Position by value in the WHOLE country, from the server — never the position on this page. */
   rank: number;
+  valueLabel: string;
+  /** Running share of the country's balance at this row, also computed across the whole country. */
   cumPct: number;
   cumStanding: Standing;
+  kind: ScopeRowKind;
+  checked: boolean;
+  /** Cannot be changed: excluded, already contacted, or the viewer cannot act on this country. */
+  disabled: boolean;
+  /** Why the box cannot be changed; empty for a free row. */
+  noteLabel: string;
+  /** Ticked or unticked since the last save — the rows this save will actually change. */
+  isDirty: boolean;
+  /** Above the cycle's threshold, which is now a suggestion rather than the rule. */
+  overThreshold: boolean;
+  /** No address on file, so a request to this supplier cannot be sent until one is supplied. */
+  isUnreachable: boolean;
+  /** The label a screen reader reads for the tick box. */
+  toggleLabel: string;
+  onToggle: () => void;
+}
+
+/**
+ * The selected share of the country's balance — the figure the quarter is judged on.
+ *
+ * `reachablePct` is the same figure if every supplier that *could* be ticked were, so the screen
+ * can say "the target cannot be met from this snapshot" rather than letting a champion tick their
+ * way towards a number that was never available.
+ */
+export interface ScopeCoverageVM {
+  pct: number;
+  label: string;
+  standing: Standing;
+  targetPct: number;
+  /** Width of the filled bar and the position of the target marker, both clamped to 0–100. */
+  barPct: number;
+  markerPct: number;
+  selectedLabel: string;
+  totalLabel: string;
+  targetValueLabel: string;
+  meetsTarget: boolean;
+  reachablePct: number;
+  /** True when ticking every selectable supplier still would not reach the cycle's target. */
+  targetUnreachable: boolean;
+  verdictLabel: string;
+}
+
+/** One "tick these for me" shortcut, which always says how many rows it would change. */
+export interface ScopeBulkVM {
+  id: string;
+  label: string;
+  hint: string;
+  disabled: boolean;
+  onClick: () => void;
 }
 
 /**
@@ -333,11 +405,32 @@ export interface ViewModel {
   /* Vendor Scoping */
   isScoped: boolean;
   canScope: boolean;
-  scopingVendors: ScopingVendorVM[];
-  scopingTable: TableControlsVM;
-  scopeSummary: ScopeSummary | null;
-  scopeSummaryLine: string;
-  onScopeCountry: () => void;
+  /** The screen asks for its own data the first time it is opened; true until that has started. */
+  scopeNeedsLoad: boolean;
+  scopeLoading: boolean;
+  scopeLoaded: boolean;
+  scopeError: string | null;
+  /** Why the list came back empty, when it did. Empty string when there are rows. */
+  scopeEmptyReason: string;
+  scopeIntroLine: string;
+  onLoadCandidates: () => void;
+
+  scopeCards: KpiCardVM[];
+  scopeCoverage: ScopeCoverageVM;
+  scopeBulkActions: ScopeBulkVM[];
+  scopeRows: ScopeRowVM[];
+  scopeTable: TableControlsVM;
+
+  /** Rows this save would add and remove — the same arithmetic the server action will redo. */
+  scopeAddCount: number;
+  scopeRemoveCount: number;
+  scopeDirty: boolean;
+  scopeSaveLabel: string;
+  scopeCanSave: boolean;
+  scopeDirtyLine: string;
+  scopeSavedLine: string;
+  onSaveScope: () => void;
+  onDiscardScope: () => void;
 
   /* Outreach delivery failures */
   failures: OutreachFailure[] | null;
@@ -410,7 +503,16 @@ export interface Handlers {
   selectCountry: (countryId: string) => void;
   sendReminders: () => void;
   sendRequests: () => void;
-  scopeCountry: () => void;
+  /** Read the country's candidate list. Called by the scoping screen when it first renders. */
+  loadCandidates: () => void;
+  /** Tick or untick one supplier in the draft. Refused for locked and excluded rows. */
+  toggleScopeVendor: (vendorNo: string) => void;
+  /** Replace the whole draft, which is how the bulk shortcuts apply themselves. */
+  setScopeSelection: (vendorNos: ReadonlySet<string>) => void;
+  /** Throw the draft away and go back to what the database holds. */
+  discardScopeSelection: () => void;
+  /** Write the draft, once, for every supplier at the same time. */
+  saveScopeSelection: () => void;
   loadFailures: () => void;
   goToConsolidation: () => void;
   toggleExpand: (id: string) => void;
