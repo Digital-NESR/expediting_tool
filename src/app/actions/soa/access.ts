@@ -15,6 +15,7 @@ import { AccessError, currentActor, normalizeEmail } from '@/lib/require-access'
 import { logger } from '@/lib/logger';
 import { exec, ensureSoaSchema, sql } from '@/lib/soa/db';
 import { requireSoaActor } from '@/lib/soa/access';
+import { notifySoaAccessRequest } from '@/lib/soa/notify';
 
 const log = logger('soa-access');
 
@@ -114,6 +115,22 @@ export async function submitSoaAccessRequest(input: {
         (input.reason ?? '').trim() || null,
       ],
     );
+
+    /* After the write, and deliberately not awaited into the result: the request is already
+       recorded, so a webhook that is down should delay the admin hearing about it, not fail the
+       submission and send the person away thinking it did not go through. */
+    const country = input.countryId
+      ? ((
+          await sql<QueryResultRow[]>(`SELECT name FROM countries WHERE id = ?`, [input.countryId])
+        )[0]?.name ?? input.countryId)
+      : null;
+    await notifySoaAccessRequest({
+      name: actor.name,
+      email: normalizeEmail(actor.email),
+      role: input.role,
+      countryName: country ? String(country) : null,
+      reason: (input.reason ?? '').trim() || null,
+    });
 
     revalidatePath('/soa-consolidation');
     return { success: true };
