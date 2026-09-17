@@ -82,6 +82,53 @@ export async function getActiveSoaCycle(): Promise<SoaCycle | null> {
   }
 }
 
+export interface CycleSnapshotSummary {
+  /** Supplier-country rows in the snapshot. */
+  rows: number;
+  totalUsd: number;
+  /** Countries present in the snapshot. */
+  countries: number;
+  /** Countries a champion has actually scoped. */
+  scopedCountries: number;
+  vendorsInChase: number;
+}
+
+/**
+ * What a cycle's snapshot currently holds, for the admin screen.
+ *
+ * Separate from `getSoaCycles` because it is three aggregates over the biggest table in this
+ * database, and the cycle list is read on every admin page load while this is only wanted when
+ * somebody is looking at one cycle.
+ */
+export async function getSoaCycleSummary(cycleId: number): Promise<CycleSnapshotSummary> {
+  const empty = { rows: 0, totalUsd: 0, countries: 0, scopedCountries: 0, vendorsInChase: 0 };
+  try {
+    await requireSoaActor('admin');
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT
+         (SELECT COUNT(*)::int FROM supplier_po_extract WHERE cycle_id = ?)            AS rows,
+         (SELECT COALESCE(SUM(pos_value), 0) FROM supplier_po_extract WHERE cycle_id = ?) AS total,
+         (SELECT COUNT(DISTINCT po_country)::int FROM supplier_po_extract WHERE cycle_id = ?) AS countries,
+         (SELECT COUNT(*)::int FROM country_cycles WHERE cycle_id = ?)                 AS scoped,
+         (SELECT COUNT(*)::int FROM vendor_cycle_entries vce
+            JOIN country_cycles cc ON cc.id = vce.country_cycle_id
+           WHERE cc.cycle_id = ?)                                                      AS vendors`,
+      [cycleId, cycleId, cycleId, cycleId, cycleId],
+    );
+    const r = rows[0];
+    return {
+      rows: Number(r.rows),
+      totalUsd: Number(r.total),
+      countries: Number(r.countries),
+      scopedCountries: Number(r.scoped),
+      vendorsInChase: Number(r.vendors),
+    };
+  } catch (err) {
+    log.error('getSoaCycleSummary.failed', err);
+    return empty;
+  }
+}
+
 /**
  * Open a cycle.
  *
@@ -170,6 +217,58 @@ export async function activateSoaCycle(cycleId: number): Promise<SoaResult> {
   } catch (err) {
     log.error('activateSoaCycle.failed', err);
     return { success: false, error: 'Could not activate the cycle.' };
+  }
+}
+
+/**
+ * Teach a country to recognise another spelling of itself.
+ *
+ * `runSoaExtract` reports `spendCountriesUnmapped` when SAP produces a country string no country
+ * claims — and that country's spend is then missing from every coverage denominator, which makes
+ * every percentage it should have contributed to look better than it is. Without this the warning
+ * could name the problem but not fix it, and the only remedy was editing the database by hand.
+ *
+ * Adding an alias does not backfill: re-run the extract afterwards so the snapshot picks the
+ * country's rows up.
+ */
+export async function addSoaSpendCountryAlias(input: {
+  countryId: string;
+  spelling: string;
+}): Promise<SoaResult> {
+  try {
+    await requireSoaActor('admin');
+    await ensureSoaSchema();
+    const spelling = input.spelling.trim();
+    if (!spelling) return { success: false, error: 'A spelling is required.' };
+
+    const clash = await sql<QueryResultRow[]>(
+      `SELECT id FROM countries WHERE ? = ANY (spend_names) AND id <> ?`,
+      [spelling, input.countryId],
+    );
+    if (clash.length) {
+      return {
+        success: false,
+        error: `"${spelling}" is already claimed by ${clash[0].id}. One spelling can only belong to one country, or its spend would be counted twice.`,
+      };
+    }
+
+    const updated = await sql<QueryResultRow[]>(
+      `UPDATE countries
+          SET spend_names = (SELECT ARRAY(SELECT DISTINCT unnest(spend_names || ARRAY[?::text])))
+        WHERE id = ?
+        RETURNING id`,
+      [spelling, input.countryId],
+    );
+    if (!updated.length) return { success: false, error: 'Unknown country.' };
+
+    revalidatePath('/admin/soa');
+    return { success: true };
+  } catch (err) {
+    log.error('addSoaSpendCountryAlias.failed', err);
+    return {
+      success: false,
+      error: err instanceof AccessError ? err.message : 'Could not add the spelling.',
+    };
   }
 }
 

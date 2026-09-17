@@ -1,4 +1,5 @@
 import type { QueryResultRow } from 'pg';
+import expeditingPool from '@/lib/db-expediting';
 import sourceGuidePool from '@/lib/db-sourceguide';
 import { withTransaction } from '@/lib/db/tx';
 import { logger } from '@/lib/logger';
@@ -52,11 +53,11 @@ export interface ExtractSummary {
 }
 
 /**
- * Split whatever the Approved Vendor List has in its `email` column into real addresses.
+ * Split a free-text email column into real addresses.
  *
- * The AVL stores this as free text and frequently repeats one address behind commas
- * ('a@b.com,a@b.com,a@b.com' is a real value). Splitting and de-duplicating here means a champion
- * sees one address rather than three, and a later mail merge sends one email rather than three.
+ * Both sources store these as free text, and the Approved Vendor List frequently repeats one
+ * address behind commas ('a@b.com,a@b.com,a@b.com' is a real value). Splitting and de-duplicating
+ * here means a champion sees one address rather than three, and a send goes out once.
  */
 export function parseAvlEmails(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -108,6 +109,46 @@ export async function readSpend(window: CycleWindow): Promise<ExtractedSupplier[
   }));
 }
 
+/**
+ * Vendor email addresses, from the SAP supplier master.
+ *
+ * NOT from SourceGuide's Approved Vendor List, which was the obvious source and is the wrong one:
+ * the AVL holds 4,383 suppliers and had an address for only 49 of Saudi Arabia's 265 in-scope
+ * vendors. `supplier_contacts` in nesr_expediting_db holds 8,469, covers all 265, and has an
+ * address for 259 of them. It is also the list PO Expediting already emails suppliers from, so
+ * these addresses are ones that demonstrably reach somebody.
+ *
+ * Keyed on the SAP supplier code, which both sides store as the same zero-padded ten digits.
+ * Failure is swallowed: a missing email makes a vendor unreachable, which the tool shows and a
+ * champion can fix by typing one in — losing the whole snapshot because a third database was
+ * briefly unavailable would be the worse outcome.
+ */
+async function readSupplierEmails(codes: string[]): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>();
+  if (!codes.length) return map;
+  try {
+    const { rows } = await expeditingPool.query<QueryResultRow>(
+      `SELECT supplier_id, supplier_emails, additional_supplier_email
+         FROM supplier_contacts
+        WHERE supplier_id = ANY($1)`,
+      [codes],
+    );
+    for (const r of rows) {
+      const emails = [
+        ...parseAvlEmails(r.supplier_emails as string | null),
+        ...parseAvlEmails(r.additional_supplier_email as string | null),
+      ];
+      if (emails.length) map.set(String(r.supplier_id), [...new Set(emails)]);
+    }
+  } catch (err) {
+    log.warn('extract.supplierContactsUnavailable', {
+      note: 'falling back to the Approved Vendor List, which covers far fewer vendors',
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return map;
+}
+
 /** country spelling in historic_spend → this tool's country id. */
 export async function spendCountryMap(): Promise<Map<string, string>> {
   const rows = await sql<QueryResultRow[]>(`SELECT id, spend_names FROM countries WHERE active`);
@@ -131,6 +172,14 @@ export async function spendCountryMap(): Promise<Map<string, string>> {
 export async function runExtract(window: CycleWindow): Promise<ExtractSummary> {
   await ensureSoaSchema();
   const [suppliers, countryMap] = await Promise.all([readSpend(window), spendCountryMap()]);
+
+  /* The SAP supplier master is the primary address source; the AVL address that `readSpend`
+     already collected stays as the fallback for the handful it does not carry. */
+  const sapEmails = await readSupplierEmails([...new Set(suppliers.map((s) => s.supplierCode))]);
+  for (const supplier of suppliers) {
+    const fromSap = sapEmails.get(supplier.supplierCode);
+    if (fromSap?.length) supplier.emails = fromSap;
+  }
 
   const unmapped = new Set<string>();
   const mapped = suppliers.filter((s) => {

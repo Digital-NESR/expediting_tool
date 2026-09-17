@@ -39,6 +39,71 @@ export interface SeedTrack {
 }
 
 export const SEED_TRACKS: SeedTrack[] = [
+  /* ───────────────────────────── SAP MM Overview (Digital Studio video series) ──
+     Deliberately first: it is the orientation series, and the SAP track below assumes the
+     structure and master-data vocabulary these six videos introduce. The lessons are numbered
+     because they are a sequence, not a menu — the coding video means little before the structure
+     one. ── */
+  {
+    key: 'sap_mm_overview',
+    name: 'SAP MM Overview',
+    description:
+      'A six-part introduction to SAP Materials Management at NESR: how SAP’s structure maps onto ours, how it is coded, the master data underneath it, and the procure-to-pay cycle that runs on top.',
+    icon: 'boxes',
+    color: '#0f766e',
+    courses: [
+      {
+        title: 'SAP MM Overview',
+        description:
+          'Watch in order. Each video builds on the one before it, ending at the purchase requisition, which is where most people’s day-to-day use of SAP starts.',
+        status: 'published',
+        modules: [
+          {
+            title: 'Overview Series',
+            lessons: [
+              {
+                title: '1. SAP vs NESR Structure',
+                videoUrl:
+                  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=160b20f2-4984-468f-b189-5afa8f6e0c2a&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `How SAP’s own organisational structure maps onto NESR’s — the starting point for everything else in this track.`,
+              },
+              {
+                title: '2. NESR Structure Coding',
+                videoUrl:
+                  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=264853fe-16f8-49bd-a288-8da283c6f2e7&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `The coding behind that structure: how company codes, plants and storage locations are numbered, and how to read one.`,
+              },
+              {
+                title: '3. MM Master Data',
+                videoUrl:
+                  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=17667fd8-f2a9-4233-8504-3a64ca6f2af3&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `The master data Materials Management runs on, and why a purchase order can only be as good as the records behind it.`,
+              },
+              {
+                title: '4. Product Catalog',
+                videoUrl:
+                  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=0cb0d25d-088d-47a1-bd6b-44ed9f447524&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `How the product catalog is organised and how it relates to the material master.`,
+              },
+              {
+                title: '5. Procure to Pay',
+                videoUrl:
+                  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=52319a16-4bb9-4cdb-916d-fe0ce1f4ed10&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `The full procure-to-pay cycle end to end, from requisition through goods receipt to invoice.`,
+              },
+              {
+                title: '6. Purchase Requisition Overview',
+                videoUrl:
+                  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=56581a66-8f10-45e1-b4b7-1fe40fc15541&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `The purchase requisition in detail — where the cycle actually begins for most people using SAP.`,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+
   /* ───────────────────────────── SAP (real videos from the NESR SAP Training Hub) ── */
   {
     key: 'sap',

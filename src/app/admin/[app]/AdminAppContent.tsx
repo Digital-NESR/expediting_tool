@@ -135,6 +135,8 @@ const LaptopAccessApprovalsClient = dynamic(() => import('../LaptopAccessApprova
 const LaptopCostCentersClient = dynamic(() => import('../LaptopCostCentersClient'), { loading });
 
 /* ── SOA Consolidation ── */
+const SoaCyclesClient = dynamic(() => import('../SoaCyclesClient'), { loading });
+const SoaExcludedVendorsClient = dynamic(() => import('../SoaExcludedVendorsClient'), { loading });
 const SoaAccessApprovalsClient = dynamic(() => import('../SoaAccessApprovalsClient'), { loading });
 const SoaManagersClient = dynamic(() => import('../SoaManagersClient'), { loading });
 
@@ -237,6 +239,10 @@ export default function AdminAppContent(props: AdminAppContentProps) {
       );
 
     /* ── SOA Consolidation ── */
+    case 'soa/cycles':
+      return <SoaCyclesClient />;
+    case 'soa/excluded-vendors':
+      return <SoaExcludedVendorsClient />;
     case 'soa/access-approvals':
       return <SoaAccessApprovalsClient />;
     case 'soa/managers':

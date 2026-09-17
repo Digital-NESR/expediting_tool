@@ -121,6 +121,9 @@ export const ADMIN_APPS: AdminApp[] = [
     activeBg: '#eaf4ef',
     activeColor: '#1d4f31',
     sections: [
+      // Cycles first: nothing else in the tool works until a quarter is open.
+      { id: 'cycles', label: 'Cycles' },
+      { id: 'excluded-vendors', label: 'Excluded Vendors' },
       { id: 'access-approvals', label: 'Access Approvals', countKey: 'soa' },
       { id: 'managers', label: 'Managers' },
     ],
