@@ -56,6 +56,8 @@ export interface VendorRow {
   currency: string;
   invCount: number;
   contactEmails: string[];
+  /** Statements received from this vendor, newest first. Downloadable from /api/soa/submissions. */
+  submissions: { id: string; fileName: string; uploadedAt: string }[];
 }
 
 export interface CountryRow {
@@ -275,7 +277,7 @@ export async function loadSoa(
 
   const countryCycleId = Number(ccRows[0].id);
 
-  const [vendorRows, evidenceRows, countries] = await Promise.all([
+  const [vendorRows, submissionRows, evidenceRows, countries] = await Promise.all([
     sql<QueryResultRow[]>(
       `SELECT vce.id, vce.open_po_amount, vce.currency, vce.status::text AS status,
               vce.requested_at, vce.reminded_at, vce.responded_at, vce.invoice_count,
@@ -284,6 +286,17 @@ export async function loadSoa(
          JOIN vendors v ON v.id = vce.vendor_id
         WHERE vce.country_cycle_id = ?
         ORDER BY vce.open_po_amount DESC`,
+      [countryCycleId],
+    ),
+    /* One query for the whole country rather than one per vendor: a scoped country runs to a few
+       hundred vendors, and a per-row lookup would be a few hundred round trips for a list that is
+       usually almost empty. */
+    sql<QueryResultRow[]>(
+      `SELECT s.id, s.vendor_cycle_entry_id, s.file_name, s.uploaded_at
+         FROM soa_submissions s
+         JOIN vendor_cycle_entries vce ON vce.id = s.vendor_cycle_entry_id
+        WHERE vce.country_cycle_id = ?
+        ORDER BY s.uploaded_at DESC`,
       [countryCycleId],
     ),
     sql<QueryResultRow[]>(
@@ -296,6 +309,18 @@ export async function loadSoa(
     ),
     rollup(cycle.id, new Date(cycle.submissionDeadline)),
   ]);
+
+  const submissionsByEntry = new Map<string, SoaPayload['vendors'][number]['submissions']>();
+  for (const r of submissionRows) {
+    const key = String(r.vendor_cycle_entry_id);
+    const list = submissionsByEntry.get(key) ?? [];
+    list.push({
+      id: String(r.id),
+      fileName: String(r.file_name),
+      uploadedAt: asIso(r.uploaded_at),
+    });
+    submissionsByEntry.set(key, list);
+  }
 
   return {
     cycle,
@@ -321,6 +346,7 @@ export async function loadSoa(
       currency: String(r.currency),
       invCount: Number(r.invoice_count),
       contactEmails: ((r.contact_emails ?? []) as string[]).filter(Boolean),
+      submissions: submissionsByEntry.get(String(r.id)) ?? [],
     })),
     countries,
     evidence: evidenceRows.map((r) => ({

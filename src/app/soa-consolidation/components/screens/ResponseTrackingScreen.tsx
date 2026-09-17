@@ -85,6 +85,26 @@ function VendorDetail({
           </button>
         )}
       </div>
+      {v.submissions.length > 0 && (
+        /* The statement itself, which is the evidence the whole cycle exists to collect. It is
+           served from an authenticated route rather than linked from storage, because a statement
+           lists a vendor's invoice numbers and balances. */
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-sns-grey">
+            {v.submissions.length === 1 ? 'Statement on file:' : 'Statements on file:'}
+          </span>
+          {v.submissions.map((file) => (
+            <a
+              key={file.id}
+              href={`/api/soa/submissions/${file.id}`}
+              download={file.fileName}
+              className="inline-flex items-center gap-1.5 rounded-md border border-sns-line bg-white px-2.5 py-[5px] text-[11px] font-bold text-sns-green hover:border-sns-green"
+            >
+              {file.fileName}
+            </a>
+          ))}
+        </div>
+      )}
       {editing && (
         <div className="flex gap-2 items-center mt-2.5">
           <input
