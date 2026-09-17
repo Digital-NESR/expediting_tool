@@ -19,6 +19,14 @@ import { ensureSoaSchema, soaPool, sql } from './db';
 
 const log = logger('soa-scope');
 
+/** Thrown when a country cannot be scoped yet, as distinct from a country that scopes to nothing. */
+export class ScopeNotReadyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ScopeNotReadyError';
+  }
+}
+
 export interface CountryScopeSummary {
   countryCycleId: number;
   countryId: string;
@@ -75,11 +83,24 @@ export async function scopeCountry(
   await ensureSoaSchema();
 
   const cycleRows = await sql<QueryResultRow[]>(
-    `SELECT vendor_threshold_usd FROM cycles WHERE id = ?`,
+    `SELECT vendor_threshold_usd, extracted_at FROM cycles WHERE id = ?`,
     [cycleId],
   );
   if (!cycleRows.length) throw new Error(`No cycle ${cycleId}`);
   const thresholdUsd = Number(cycleRows[0].vendor_threshold_usd);
+
+  /* Refuse rather than scope nothing.
+     Opening a cycle and taking its spend snapshot are two separate admin steps, and a champion who
+     scopes between them used to get a silent success: a country_cycles row appeared, its status
+     advanced to in_progress, the evidence log gained a "0 vendors scoped" entry, and the dashboard
+     reported the country under way with nothing in it. Three clicks produced three such entries.
+     An empty scope is never what somebody meant to do. */
+  if (!cycleRows[0].extracted_at) {
+    throw new ScopeNotReadyError(
+      'The spend snapshot for this cycle has not been taken yet, so there is nothing to scope ' +
+        'from. An administrator needs to run the extract on /admin/soa first.',
+    );
+  }
 
   // The snapshot stores the country as historic_spend spells it, so the join goes through the
   // country's list of accepted spellings rather than its id.
@@ -98,6 +119,16 @@ export async function scopeCountry(
   const overThreshold = snapshot.filter((r) => Number(r.pos_value) > thresholdUsd);
   const inScope = overThreshold.filter((r) => !excluded.has(String(r.supplier_id)));
   const excludedCount = overThreshold.length - inScope.length;
+
+  /* The snapshot exists but holds nothing for this country — usually a country whose spend
+     spelling is not mapped, which the extract reports separately. Still a refusal rather than an
+     empty success: a champion told "scoped, 0 vendors" has no idea anything is wrong. */
+  if (!snapshot.length) {
+    throw new ScopeNotReadyError(
+      `The cycle's spend snapshot contains no suppliers for this country. Either it has no ` +
+        `receipted spend in the window, or its spelling in the source data is not mapped to it.`,
+    );
+  }
   const countryCycleId = await ensureCountryCycle(cycleId, countryId);
 
   let added = 0;
@@ -154,18 +185,23 @@ export async function scopeCountry(
       [countryCycleId],
     );
 
-    await client.query(
-      `INSERT INTO evidence_log (country_cycle_id, type, action, actor, detail)
+    /* Only record a scope that changed something. A re-scope that finds nothing new is a real
+       thing to do — a champion checking whether the list moved — and logging it would pad the
+       evidence trail with entries describing no event. */
+    if (added || refreshed) {
+      await client.query(
+        `INSERT INTO evidence_log (country_cycle_id, type, action, actor, detail)
        VALUES ($1, 'scope', 'Vendors scoped', $2, $3)`,
-      [
-        countryCycleId,
-        actorEmail,
-        `${inScope.length} vendors above $${thresholdUsd.toLocaleString('en-US')} of receipted ` +
-          `spend (${added} new, ${refreshed} refreshed) from ${snapshot.length} suppliers` +
-          (excludedCount ? `, ${excludedCount} excluded as intercompany` : '') +
-          '.',
-      ],
-    );
+        [
+          countryCycleId,
+          actorEmail,
+          `${inScope.length} vendors above $${thresholdUsd.toLocaleString('en-US')} of receipted ` +
+            `spend (${added} new, ${refreshed} refreshed) from ${snapshot.length} suppliers` +
+            (excludedCount ? `, ${excludedCount} excluded as intercompany` : '') +
+            '.',
+        ],
+      );
+    }
   });
 
   const summary: CountryScopeSummary = {

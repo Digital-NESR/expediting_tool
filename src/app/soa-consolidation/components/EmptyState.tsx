@@ -1,11 +1,15 @@
 import type { ScreenProps } from '../types';
 
 /**
- * The three states the prototype never had, all of them reachable on an ordinary morning.
+ * The states the prototype never had, all of them reachable on an ordinary morning.
  *
  * A tool whose fixtures always held a live quarter and a scoped country could render none of
- * these; the database can be in all three. Each says who fixes it and where, because "no data"
+ * these; the database can be in all of them. Each says who fixes it and where, because "no data"
  * on its own sends the reader to ask someone.
+ *
+ * `no-extract` is the one that caused real confusion: opening a cycle and taking its spend
+ * snapshot are two separate admin steps, and between them the tool looked open for business with
+ * nothing in it.
  */
 const COPY: Record<string, { title: string; lead: string; next: string }> = {
   'no-cycle': {
@@ -17,6 +21,11 @@ const COPY: Record<string, { title: string; lead: string; next: string }> = {
     title: 'Your access names no active country',
     lead: 'You hold a grant for SOA Consolidation, but none of the countries it covers is currently active.',
     next: 'An administrator can activate the country, or widen your grant, from the SOA access matrix on /admin.',
+  },
+  'no-extract': {
+    title: 'The quarter is open, but its PO snapshot has not been taken',
+    lead: 'Opening a cycle and extracting the receipted spend behind it are two steps. Until the second one runs there are no suppliers to scope from, so every figure on these screens reads zero — not because the country is empty, but because nothing has been read yet.',
+    next: 'An administrator runs the extract on /admin, under SOA Consolidation → Cycles. It aggregates every GRN’d PO line in the cycle’s window and takes a few seconds.',
   },
   'not-scoped': {
     title: 'This country has not been scoped yet',

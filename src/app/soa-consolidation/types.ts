@@ -259,7 +259,7 @@ export interface TableControlsVM {
 }
 
 /** Which "there is nothing to show yet, and here is why" the tool is in. */
-export type EmptyKind = 'none' | 'no-cycle' | 'no-country' | 'not-scoped';
+export type EmptyKind = 'none' | 'no-cycle' | 'no-extract' | 'no-country' | 'not-scoped';
 
 export interface ViewModel {
   role: Role;

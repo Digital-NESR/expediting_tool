@@ -15,7 +15,7 @@ import { logger } from '@/lib/logger';
 import { ensureSoaSchema, exec, sql } from '@/lib/soa/db';
 import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
 import { runExtract, windowFor, type ExtractSummary } from '@/lib/soa/extract';
-import { scopeCountry, type CountryScopeSummary } from '@/lib/soa/scope';
+import { scopeCountry, ScopeNotReadyError, type CountryScopeSummary } from '@/lib/soa/scope';
 
 const log = logger('soa-cycles');
 
@@ -324,6 +324,10 @@ export async function scopeSoaCountry(input: {
     revalidatePath('/soa-consolidation');
     return { success: true, data: summary };
   } catch (err) {
+    /* A cycle that is not ready to scope is an ordinary state, not a fault — the admin simply has
+       not run the extract yet — so it carries its own message through instead of being flattened
+       into "could not scope", which tells the champion nothing about what to do next. */
+    if (err instanceof ScopeNotReadyError) return { success: false, error: err.message };
     log.error('scopeSoaCountry.failed', err);
     return {
       success: false,

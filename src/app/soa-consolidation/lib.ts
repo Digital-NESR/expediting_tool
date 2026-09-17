@@ -79,15 +79,6 @@ const EVIDENCE_TYPE_LABEL: Record<EvidenceType, string> = {
   handoff: 'Handoff',
 };
 
-const COUNTRY_PIPELINE_STAGE: Record<CountryStatus, number> = {
-  not_started: 1,
-  requests_sent: 3,
-  in_progress: 4,
-  reminders_sent: 4,
-  consolidating: 5,
-  handed_off: 6,
-};
-
 const ROLE_LABEL: Record<Role, string> = {
   admin: 'SOA Administrator',
   manager: 'Supply Chain Manager',
@@ -176,6 +167,47 @@ function pageSlice<T>(rows: T[], page: number): T[] {
 }
 
 /**
+ * Which pipeline steps are finished, answered from the data rather than from a status column.
+ *
+ * This used to be a lookup from `country_cycles.status` through a table that mapped `in_progress`
+ * to step 4, so a country with no vendors at all rendered PO Upload, Scope and Requests ticked and
+ * Responses under way. A pipeline that claims work nobody did is worse than no pipeline: it is the
+ * first thing on the dashboard and it is read as a summary of where the country stands.
+ *
+ * Exported so the rules can be tested without building a whole view model.
+ */
+export function pipelineStage(
+  vendors: Vendor[],
+  extractTaken: boolean,
+  handedOff: boolean,
+  consolidating: boolean,
+) {
+  const total = vendors.length;
+  const awaitingCount = vendors.filter(
+    (v) => v.status === 'requested' || v.status === 'reminded',
+  ).length;
+  const notYetRequested = vendors.filter((v) => v.status === 'scoped').length;
+  const settledCount = vendors.filter(
+    (v) => v.status === 'received' || v.status === 'non_responder',
+  ).length;
+
+  const scopeDone = total > 0;
+  return {
+    awaitingCount,
+    notYetRequested,
+    settledCount,
+    extractTaken,
+    scopeDone,
+    /* "Requests sent" means every scoped vendor has been written to, not that the button was
+       pressed once: a partial send leaves the step unfinished, which is the honest reading. */
+    requestsDone: scopeDone && notYetRequested === 0,
+    responsesDone: scopeDone && settledCount === total,
+    consolidateDone: handedOff || consolidating,
+    handoffDone: handedOff,
+  };
+}
+
+/**
  * `payload` is the database's answer for this country and cycle; `state` is only what the screens
  * themselves own. Nothing about a vendor, a country or an evidence entry is held in client state
  * any more — a mutation calls its server action and refreshes, and this function re-runs over the
@@ -218,9 +250,14 @@ export function deriveViewModel(
     ? 'no-cycle'
     : !countryId
       ? 'no-country'
-      : !payload.scoped
-        ? 'not-scoped'
-        : 'none';
+      : /* A quarter can be open without its spend snapshot having been taken, and until it is
+           there is nothing to scope FROM. That is an admin's job, not the champion's, so it gets
+           its own state rather than looking like a country nobody has got round to. */
+        !cycle.extractedAt
+        ? 'no-extract'
+        : !payload.scoped
+          ? 'not-scoped'
+          : 'none';
 
   /* Vendor Scoping is where a champion fixes "not scoped", and the rollup does not depend on this
      country at all, so those two screens stay live when the country itself is empty. */
@@ -261,19 +298,60 @@ export function deriveViewModel(
   const contextLine = `${countryLabel} · ${cycleLabel}`;
 
   // Workflow pipeline (6 steps, derived from the active country's status)
-  const pStep = COUNTRY_PIPELINE_STAGE[countryStatus] ?? 1;
-  const pipeline: PipelineStepVM[] = [
-    { id: 'po', label: 'PO Upload', step: 1, sub: '' },
-    { id: 'scope', label: 'Scope', step: 2, sub: '' },
-    { id: 'req', label: 'Requests', step: 3, sub: '' },
-    { id: 'resp', label: 'Responses', step: 4, sub: `${receivedCount}/${totalCount}` },
-    { id: 'cons', label: 'Consolidate', step: 5, sub: '' },
-    { id: 'hand', label: 'Handoff', step: 6, sub: '' },
-  ].map((p) => {
-    const done = p.step < pStep;
-    const active = p.step === pStep;
-    return { ...p, done, active, nodeIcon: done ? '✓' : active ? '●' : '○' };
-  });
+  /* The pipeline is derived from what has actually happened, not from the country's status
+     column. It used to read a single enum through a lookup table, which mapped `in_progress` to
+     stage 4 — so a country with nothing in it at all showed PO Upload, Scope and Requests ticked
+     and Responses under way. A pipeline that claims work nobody did is worse than no pipeline.
+
+     Each step answers its own question from the data, and a step only reports done when the thing
+     it names is genuinely finished. */
+  const { awaitingCount, notYetRequested, settledCount, ...stage } = pipelineStage(
+    vendors,
+    !!cycle?.extractedAt,
+    payload.handedOff,
+    countryStatus === 'consolidating',
+  );
+  const { extractTaken, scopeDone, requestsDone, responsesDone, consolidateDone, handoffDone } =
+    stage;
+
+  const steps: { id: string; label: string; sub: string; done: boolean }[] = [
+    {
+      id: 'po',
+      label: 'PO Upload',
+      sub: extractTaken ? 'Snapshot taken' : 'Not taken',
+      done: extractTaken,
+    },
+    {
+      id: 'scope',
+      label: 'Scope',
+      sub: scopeDone ? `${totalCount} vendors` : 'None yet',
+      done: scopeDone,
+    },
+    {
+      id: 'req',
+      label: 'Requests',
+      sub: scopeDone ? `${totalCount - notYetRequested}/${totalCount} sent` : '',
+      done: requestsDone,
+    },
+    {
+      id: 'resp',
+      label: 'Responses',
+      sub: scopeDone ? `${receivedCount}/${totalCount}` : '',
+      done: responsesDone,
+    },
+    { id: 'cons', label: 'Consolidate', sub: '', done: consolidateDone },
+    { id: 'hand', label: 'Handoff', sub: '', done: handoffDone },
+  ];
+
+  /* Exactly one step is active: the first one not yet done. Once everything is done nothing is
+     active, rather than the last step blinking forever. */
+  const activeIdx = steps.findIndex((p) => !p.done);
+  const pipeline: PipelineStepVM[] = steps.map((p, i) => ({
+    ...p,
+    step: i + 1,
+    active: i === activeIdx,
+    nodeIcon: p.done ? '✓' : i === activeIdx ? '●' : '○',
+  }));
 
   const thresholdLabel = cycle ? fmtUsd(cycle.vendorThresholdUsd) : '—';
 
