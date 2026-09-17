@@ -35,27 +35,35 @@ export interface SeedTrack {
   description: string;
   icon: string;
   color: string;
+  /**
+   * Set this and the track's courses read as levels — the tab strip shows "<prefix> lvl 1",
+   * "<prefix> lvl 2" and so on, numbered off each course's order, while cards and pages keep the
+   * full course title. Leave it unset and a course is just its title.
+   */
+  tabLabelPrefix?: string;
   courses: SeedCourse[];
 }
 
 export const SEED_TRACKS: SeedTrack[] = [
-  /* ───────────────────────────── SAP MM Overview (Digital Studio video series) ──
-     Deliberately first: it is the orientation series, and the SAP track below assumes the
-     structure and master-data vocabulary these six videos introduce. The lessons are numbered
-     because they are a sequence, not a menu — the coding video means little before the structure
-     one. ── */
+  /* ───────────────────────────── SAP (real videos from the NESR SAP Training Hub) ──
+     Courses here are LEVELS, not topics, the way General Supply Chain's are: `tabLabelPrefix`
+     renders them as "SAP lvl 1", "SAP lvl 2" in the tab strip, numbered off each course's
+     order. Level 1 is the orientation series — the structure and vocabulary every later level
+     assumes — and the rest follow in the order somebody actually meets them: what the master
+     data is, then how to buy against it, then what happens to the stock afterwards. ── */
   {
-    key: 'sap_mm_overview',
-    name: 'SAP MM Overview',
+    key: 'sap',
+    name: 'SAP',
     description:
-      'A six-part introduction to SAP Materials Management at NESR: how SAP’s structure maps onto ours, how it is coded, the master data underneath it, and the procure-to-pay cycle that runs on top.',
-    icon: 'boxes',
-    color: '#0f766e',
+      'SAP training at NESR, in levels. Start at level 1 for the structure and vocabulary, then work through master data, procurement and inventory.',
+    icon: 'layout-grid',
+    color: '#1e6bb8',
+    tabLabelPrefix: 'SAP',
     courses: [
       {
         title: 'SAP MM Overview',
         description:
-          'Watch in order. Each video builds on the one before it, ending at the purchase requisition, which is where most people’s day-to-day use of SAP starts.',
+          'Start here. A six-part introduction from the Digital Studio: how SAP’s structure maps onto NESR’s, how it is coded, the master data underneath it, and the procure-to-pay cycle that runs on top. Watch in order — each one builds on the last.',
         status: 'published',
         modules: [
           {
@@ -101,21 +109,10 @@ export const SEED_TRACKS: SeedTrack[] = [
           },
         ],
       },
-    ],
-  },
-
-  /* ───────────────────────────── SAP (real videos from the NESR SAP Training Hub) ── */
-  {
-    key: 'sap',
-    name: 'SAP',
-    description: 'Real SAP training videos from the NESR SAP Training Hub, organized by topic.',
-    icon: 'layout-grid',
-    color: '#1e6bb8',
-    courses: [
       {
-        title: 'SAP Training Videos',
+        title: 'Master Data',
         description:
-          'Video walkthroughs pulled from the NESR SAP Training Hub, covering Master Data, Procurement & Logistics, and Inventory. Only topics with an available video are included, see the Training Hub itself for the full manual/topic list.',
+          'The records everything else depends on, and how to pull them out of SAP. A purchase order can only be as good as the master data behind it.',
         status: 'published',
         modules: [
           {
@@ -137,6 +134,14 @@ export const SEED_TRACKS: SeedTrack[] = [
               },
             ],
           },
+        ],
+      },
+      {
+        title: 'Procurement & Logistics',
+        description:
+          'Buying against that master data: requisitions and purchase orders for inventory, consumables, services and assets, then the reports and delegation steps that go with them.',
+        status: 'published',
+        modules: [
           {
             title: 'Procurement & Logistics',
             lessons: [
@@ -232,6 +237,14 @@ export const SEED_TRACKS: SeedTrack[] = [
               },
             ],
           },
+        ],
+      },
+      {
+        title: 'Inventory',
+        description:
+          'What happens to stock once it has arrived — goods issues against cost centres and maintenance orders.',
+        status: 'published',
+        modules: [
           {
             title: 'Inventory',
             lessons: [

@@ -270,10 +270,25 @@ export async function applySeedTrack(
       if (existing) {
         trackId = Number(existing.id);
         // seed_version deliberately NOT set here — see the final UPDATE below.
+        /* COALESCE, not a plain assignment: a seed track that does not set `tabLabelPrefix`
+           leaves whatever is there alone. General Supply Chain's 'SC' was set by a backfill and
+           that track is deliberately not in SEED_TRACKS — but if it is ever added without the
+           field, an unguarded write would silently turn its levels back into plain titles. */
         await execOn(
           client,
-          `UPDATE learning_tracks SET name = ?, description = ?, icon = ?, color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-          [track.name, track.description, track.icon, track.color, trackId],
+          `UPDATE learning_tracks
+              SET name = ?, description = ?, icon = ?, color = ?,
+                  tab_label_prefix = COALESCE(?, tab_label_prefix),
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?`,
+          [
+            track.name,
+            track.description,
+            track.icon,
+            track.color,
+            track.tabLabelPrefix ?? null,
+            trackId,
+          ],
         );
         /* Count what the cascade is about to take with it BEFORE deleting: this log is
          the only record that a learner's progress was wiped, and after the DELETE the
@@ -300,8 +315,17 @@ export async function applySeedTrack(
       } else {
         const inserted = await execOn(
           client,
-          `INSERT INTO learning_tracks (key, name, description, icon, color, order_index) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-          [track.key, track.name, track.description, track.icon, track.color, orderIndex],
+          `INSERT INTO learning_tracks (key, name, description, icon, color, order_index, tab_label_prefix)
+           VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+          [
+            track.key,
+            track.name,
+            track.description,
+            track.icon,
+            track.color,
+            orderIndex,
+            track.tabLabelPrefix ?? null,
+          ],
         );
         trackId = inserted.insertId;
       }
