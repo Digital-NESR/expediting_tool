@@ -31,6 +31,10 @@ WITH live AS (
     COALESCE(r.registry_id, 'Draft #' || r.rid) AS registry_id,
     r.classification,
     r.country,
+    -- The stable identity. Falls back to a name lookup for records raised
+    -- before country_code existed; the approver join keys on this, not on the
+    -- display name, so renaming a country cannot orphan its approver.
+    COALESCE(r.country_code, (SELECT c.code FROM sns_country c WHERE c.name = r.country)) AS country_code,
     r.supplier_id,
     r.supplier_name,
     r.expiry_date,
@@ -153,14 +157,16 @@ ORDER BY g.days_left;
 INSERT INTO sns_notification_log
   (record_rid, days_before_expiry, cycle_expiry, status, recipients)
 VALUES
-  ($1, $2, $3, 'sent', $4)
+  ($1, $2, $3, 'sent', string_to_array($4, ','))
 ON CONFLICT (record_rid, cycle_expiry, days_before_expiry) DO NOTHING;
 
--- In n8n's Postgres node the parameters come from the item, e.g.
---   $1 = {{ $json.rid }}
---   $2 = {{ $json.days_before_expiry }}
---   $3 = {{ $json.expiry_date }}
---   $4 = {{ JSON.stringify($json.recipients) }}  -- a text[] literal, e.g. {a@x,b@y}
+-- $4 is a plain comma-separated string, split server-side, rather than a
+-- Postgres array literal: building `{"a@x","b@y"}` by hand in a workflow is a
+-- quoting bug waiting to happen, and an address containing a comma would
+-- silently become two recipients either way.
+--
+-- In n8n's Postgres node, set Options > Query Parameters to:
+--   {{ $json.rid }}, {{ $json.days_before_expiry }}, {{ $json.cycle_expiry }}, {{ $json.recipients_csv }}
 --
 -- To log a failed send instead, pass 'failed' for status. The app's
 -- Notifications panel only treats 'sent' as sent, so a failed row shows the
