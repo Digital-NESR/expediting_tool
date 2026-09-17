@@ -305,14 +305,22 @@ export function deriveViewModel(
 
      Each step answers its own question from the data, and a step only reports done when the thing
      it names is genuinely finished. */
-  const { awaitingCount, notYetRequested, settledCount, ...stage } = pipelineStage(
+  /* `pipelineStage` also returns the outstanding counts it used to reach these verdicts; the KPI
+     row derives its own from the same vendors, so only the step flags are taken here. */
+  const {
+    notYetRequested,
+    extractTaken,
+    scopeDone,
+    requestsDone,
+    responsesDone,
+    consolidateDone,
+    handoffDone,
+  } = pipelineStage(
     vendors,
     !!cycle?.extractedAt,
     payload.handedOff,
     countryStatus === 'consolidating',
   );
-  const { extractTaken, scopeDone, requestsDone, responsesDone, consolidateDone, handoffDone } =
-    stage;
 
   const steps: { id: string; label: string; sub: string; done: boolean }[] = [
     {
