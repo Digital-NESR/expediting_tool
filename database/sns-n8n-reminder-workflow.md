@@ -317,14 +317,149 @@ renewal-restart and close-silences behaviour.
 
 ---
 
-## What the app still sends itself
+# The second workflow: "waiting for your approval"
 
-Workflow mail — submitted, Level 1 validated, published, rejected, renewed,
-closed — is sent by the app over `N8N_SNS_REGISTRY_WEBHOOK_URL`, because it
-fires inside a signed-in user action where there is a session and no scheduling
-involved. That is a separate, webhook-triggered workflow; only the *reminders*
-are scheduled. Payload shapes are in
-[`SNS_REGISTRY_BACKEND.md`](./SNS_REGISTRY_BACKEND.md).
+Everything above is the *scheduled* reminder workflow. There is a second,
+much simpler one for the approval chain — and the important thing about it is
+that **n8n decides nothing**. The app has already resolved who the approver is
+(from `sns_country_manager` / `sns_category_manager`, the same tables the
+reminder query joins) and has already rendered the subject and the HTML body.
+n8n only delivers.
 
-Until that env var is set, those emails log a warning and skip. The reminder
-workflow described here is unaffected — it never touches the app.
+That split is deliberate. Routing depends on registry state — who is assigned,
+which categories the record touches, whether anyone is assigned at all — and
+that decision belongs next to the data, in code that is reviewed and tested.
+Duplicating it in a workflow would give two answers to the same question.
+
+## Events
+
+The app POSTs to `N8N_SNS_REGISTRY_WEBHOOK_URL` on each of these:
+
+| `event` | Fires when | Addressed to |
+|---|---|---|
+| `record.submitted` | A record is raised, or resubmitted, or reopened | The country's Level 1 approver |
+| `record.level1_approved` | Level 1 validates | Every Level 2 approver — category managers for the record's categories, plus any Supply Chain Director |
+| `record.published` | Level 2 signs off and the Registry ID is issued | Everyone involved |
+| `record.rejected` | Rejected at either level | The requestor only — copying the validators on their own decision is noise |
+| `record.renewed` | A periodic review extends it 12 months | Everyone involved |
+| `record.closed` | The record is retired | Everyone involved |
+
+## Payload
+
+```jsonc
+{
+  "event": "record.level1_approved",
+  "source": "sns-registry",
+  "occurred_at": "2026-09-18T08:30:00.000Z",
+  "record": {
+    "rid": 41,
+    "registry_id": "SGL-KWT-0001102331-26-09-27-09-01",
+    "classification": "SGL",
+    "country": "Kuwait",
+    "country_code": "KWT",
+    "supplier_id": "0001102331",
+    "supplier_name": "HALLIBURTON ENERGY SERVICES",
+    "scope": "Completion fluids",
+    "categories": ["Chemicals"],
+    "url": "https://…/sns-registry?record=41"
+  },
+  "recipients": [
+    { "display_name": "…", "email": "…@nesr.com", "notification_role": "Category Manager — Chemicals" }
+  ],
+  "cc": ["…@nesr.com"],
+  "actor": "… — Country Supply Chain Manager, Kuwait",
+  "note": "",
+  "subject": "[S&S Registry] … — Awaiting your Level 2 sign-off — …",
+  "body_html": "<div …>"
+}
+```
+
+`subject` and `body_html` are ready to send as-is. `note` carries a rejection
+reason, a closure reason, or a warning that no approver is configured.
+
+> If nobody is assigned, `recipients` is **empty** and `note` says so. The app
+> logs it and sends the webhook anyway, so a missing assignment shows up rather
+> than vanishing. The workflow should skip sending on an empty list — see the If
+> node below.
+
+## Nodes
+
+### 1 — Webhook
+
+| Field | Value |
+|---|---|
+| HTTP Method | POST |
+| Path | e.g. `sns-registry` |
+| Respond | Immediately |
+
+Take the **production** URL and set it as `N8N_SNS_REGISTRY_WEBHOOK_URL` in
+Vercel. Until that variable is set the app logs a warning and skips — nothing
+breaks, nothing sends.
+
+If you also set `N8N_SNS_REGISTRY_WEBHOOK_SECRET`, the app sends it as the
+header **`x-sns-registry-secret`**. Check it in an If node and drop anything
+that does not match; the endpoint is otherwise open to anyone who finds the URL.
+
+### 2 — If: "Anyone to send to?"
+
+| Field | Value |
+|---|---|
+| Condition | Number · `{{ $json.body.recipients.length }}` · **larger than** · 0 |
+
+False means no approver is assigned for that country or category. Don't send —
+the `note` field explains it, and the right fix is the Approvers screen, not a
+mail to nobody.
+
+### 3 — Code: "One item per recipient"
+
+```js
+const b = $input.first().json.body;
+return b.recipients.map((r) => ({
+  json: {
+    to: r.email,
+    cc_csv: (b.cc || []).filter((e) => e.toLowerCase() !== r.email.toLowerCase()).join(','),
+    subject: b.subject,
+    html: b.body_html,
+    // Handy in the run history when something looks wrong.
+    event: b.event,
+    registry_id: b.record.registry_id,
+    notification_role: r.notification_role,
+  },
+}));
+```
+
+One email each rather than a single mail with everyone in `To`, so a Level 2
+request reads as addressed to the person rather than to a committee — and a bad
+address fails one send instead of all of them.
+
+### 4 — Microsoft Outlook: "Send a message"
+
+| Field | Value |
+|---|---|
+| To | `={{ $json.to }}` |
+| Subject | `={{ $json.subject }}` |
+| Message | `={{ $json.html }}` |
+| Options → Content Type | **HTML** |
+| Options → CC | `={{ $json.cc_csv }}` |
+
+That is the whole workflow — four nodes, no database, no schedule.
+
+## Testing it
+
+Set `N8N_SNS_REGISTRY_WEBHOOK_URL` to the n8n **test** URL, open the workflow's
+Listen step, and submit a record in the registry. The `record.submitted` payload
+should arrive with the country's Supply Chain Manager already in `recipients`.
+
+To check the resolution without sending anything, run this against
+`sns_registry_db` — it is what the app does internally:
+
+```sql
+SELECT c.name AS country, m.manager_name, m.manager_email
+  FROM sns_country_manager m
+  JOIN sns_country c ON c.code = m.country_code
+ WHERE m.active
+ ORDER BY c.name;
+```
+
+Thirteen rows, one per country. If a country is missing there, records for it
+fall back to the role grant and nobody is emailed by name.
