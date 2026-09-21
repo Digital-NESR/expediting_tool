@@ -148,14 +148,32 @@ const esc = (v) =>
     .replace(/"/g, '&quot;');
 
 // The requestor is the ask; everyone else is there to see it has been asked.
-const cc = [
+// They all go in To rather than the requestor in To and the rest in CC.
+//
+// The Outlook node has no guard for an empty CC: it splits the field on
+// commas, gets [''], and submits a blank recipient, which Graph rejects with
+// "Recipient '' is not resolved" — killing the whole send, not just the CC.
+// And CC empties out legitimately whenever the requestor is also the country
+// manager and the only category manager, which is exactly the HQ setup. One
+// deduplicated To list cannot hit that.
+const audience = [
+  r.requestor_email,
   ...(r.stakeholder_emails || []),
   r.level1_email,
   ...(r.level2_emails || []),
 ]
   .filter(Boolean)
   .map((e) => String(e).trim().toLowerCase())
-  .filter((e) => e && e !== String(r.requestor_email || '').toLowerCase());
+  .filter(Boolean);
+
+const to = [...new Set(audience)];
+
+if (!to.length) {
+  // Nobody to chase — a record predating `created_by` with no approver
+  // resolved. Throwing leaves the rung due instead of logging a send that
+  // never happened.
+  throw new Error(`No recipients for ${r.registry_id} at ${dbe} days before expiry`);
+}
 
 const docs = (r.review_documents || []).length
   ? `<ul style="margin:6px 0 0;padding-left:18px;font-size:13px;">${r.review_documents
@@ -227,10 +245,9 @@ return [
       days_before_expiry: dbe,
       cycle_expiry: String(r.expiry_date).slice(0, 10),
 
-      to: r.requestor_email,
-      cc_csv: cc.join(','),
-      // Everyone actually addressed, for the log.
-      recipients_csv: [r.requestor_email, ...cc].filter(Boolean).join(','),
+      to_csv: to.join(','),
+      // Everyone actually addressed, for the log. Same list, by construction.
+      recipients_csv: to.join(','),
 
       subject: `[S&S Registry] ${r.registry_id} — ${headline} — ${r.supplier_name}`,
       html,
@@ -252,15 +269,18 @@ suppressing every rung forever.
 |---|---|
 | Resource | Message |
 | Operation | Send |
-| To | `={{ $json.to }}` |
+| To | `={{ $json.to_csv }}` |
 | Subject | `={{ $json.subject }}` |
 | Message | `={{ $json.html }}` |
 | Options → Content Type | **HTML** |
-| Options → CC | `={{ $json.cc_csv }}` |
 
-If `requestor_email` is ever empty — a record created before `created_by`
-existed — Outlook will reject the send and the loop will surface it. That is
-the right outcome: nothing gets logged as sent, and the rung stays due.
+**Do not add a CC field.** Leaving it present but empty is what breaks the
+send: the node splits `''` on commas and submits a blank recipient, and Graph
+rejects the entire message with `Recipient '' is not resolved`. Everyone is in
+`to_csv` instead, so there is nothing to leave empty.
+
+If no address resolves at all, the Code node throws before this point. That is
+the right outcome: nothing is logged as sent, and the rung stays due.
 
 ---
 
@@ -421,10 +441,23 @@ to a single email and everyone after the first approver is never written to.
 
 ```js
 const b = $input.first().json.body;
-return b.recipients.map((r) => ({
+
+const norm = (e) => String(e || '').trim().toLowerCase();
+const approvers = (b.recipients ?? []).filter((r) => r.email);
+const cc = [...new Set((b.cc ?? []).map(norm))]
+  .filter((e) => e && !approvers.some((r) => norm(r.email) === e));
+
+// One mail per approver, personally addressed, plus a single informational
+// mail to everyone else who has touched the record.
+//
+// Nobody is put in a CC field. The Outlook node splits CC on commas, so an
+// empty one becomes a blank recipient and Graph rejects the whole message
+// with `Recipient '' is not resolved` — the approver's mail included. And CC
+// empties out legitimately whenever the approver also raised the record,
+// which every HQ record does today.
+const items = approvers.map((r) => ({
   json: {
-    to: r.email,
-    cc_csv: (b.cc || []).filter((e) => e.toLowerCase() !== r.email.toLowerCase()).join(','),
+    to_csv: r.email,
     subject: b.subject,
     html: b.body_html,
     // Handy in the run history when something looks wrong.
@@ -433,21 +466,44 @@ return b.recipients.map((r) => ({
     notification_role: r.notification_role,
   },
 }));
+
+if (cc.length) {
+  items.push({
+    json: {
+      to_csv: cc.join(','),
+      subject: b.subject,
+      html: b.body_html,
+      event: b.event,
+      registry_id: b.record.registry_id,
+      notification_role: 'FYI — stakeholder',
+    },
+  });
+}
+
+if (!items.length) {
+  throw new Error(`No recipients for ${b.event} on ${b.record.registry_id}`);
+}
+
+return items;
 ```
 
 One email each rather than a single mail with everyone in `To`, so a Level 2
 request reads as addressed to the person rather than to a committee — and a bad
-address fails one send instead of all of them.
+address fails one send instead of all of them. The stakeholders ride on their
+own item for the same reason: it keeps them off the approvers' `To` line
+without needing a CC field that can be empty.
 
 ### 4 — Microsoft Outlook: "Send a message"
 
 | Field | Value |
 |---|---|
-| To | `={{ $json.to }}` |
+| To | `={{ $json.to_csv }}` |
 | Subject | `={{ $json.subject }}` |
 | Message | `={{ $json.html }}` |
 | Options → Content Type | **HTML** |
-| Options → CC | `={{ $json.cc_csv }}` |
+
+**Do not add a CC field here either** — see the Code node above for why an
+empty one fails the whole send.
 
 That is the whole workflow — four nodes, no database, no schedule.
 
