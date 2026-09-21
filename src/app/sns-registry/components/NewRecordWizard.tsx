@@ -20,6 +20,12 @@ import type { RegistryApp } from '../lib/useRegistryApp';
 import type { ScopeNode } from '../lib/types';
 import { validateForSubmission } from '../lib/validate';
 
+/** Shared chrome, so the wizard reads as the same family as the rest. */
+const SECTION_TITLE = 'text-[14px] font-bold text-slate-900';
+const SECTION_NOTE = 'mt-1 text-[12.5px] leading-relaxed text-slate-500';
+const FIELD_LABEL = 'text-[10.5px] font-bold uppercase tracking-wider text-slate-400';
+const RULE = 'my-6 h-px bg-slate-200';
+
 function levelWord(level: 'Family' | 'Commodity', count: number): string {
   if (level === 'Family') return count > 1 ? 'families' : 'family';
   return count > 1 ? 'commodities' : 'commodity';
@@ -73,25 +79,25 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
   const missing = validateForSubmission(d);
 
   const reviewFields = [
-    { label: 'CLASSIFICATION', value: clsLabel(d.cls) },
-    { label: 'COUNTRY / ENTITY', value: d.country || 'Not set' },
-    { label: 'SCOPE LEVEL', value: d.level },
-    { label: 'SCOPE', value: d.nodes.map(leafOf).join(', ') || 'Not set' },
-    { label: 'SEGMENT TAGS', value: d.segments.join(', ') || 'Not set' },
+    { label: 'Classification', value: clsLabel(d.cls) },
+    { label: 'Country / entity', value: d.country || 'Not set' },
+    { label: 'Scope level', value: d.level },
+    { label: 'Scope', value: d.nodes.map(leafOf).join(', ') || 'Not set' },
+    { label: 'Segment tags', value: d.segments.join(', ') || 'Not set' },
     {
-      label: 'SUPPLIER',
+      label: 'Supplier',
       value: d.supplierName ? `${d.supplierId} — ${d.supplierName}` : 'Not set',
     },
-    { label: 'REASON CODE', value: d.reason || 'Not set' },
+    { label: 'Reason code', value: d.reason || 'Not set' },
     {
-      label: 'ESTIMATED ANNUAL SPEND',
+      label: 'Estimated annual spend',
       value: d.spend ? money(parseInt(String(d.spend).replace(/[^0-9]/g, ''), 10)) : 'Not set',
     },
-    { label: 'EXPIRY DATE', value: d.expiry ? formatDate(d.expiry) : 'Not set' },
+    { label: 'Expiry date', value: d.expiry ? formatDate(d.expiry) : 'Not set' },
   ];
 
   const cats = new Set(d.nodes.map((n) => n.cat));
-  const selectedScopeCount = `${d.nodes.length} ${famMode ? 'FAMILY' : 'COMMODITY'}${d.nodes.length === 1 ? '' : ' LINES'}${cats.size > 1 ? ` ACROSS ${cats.size} CATEGORIES` : ''}`;
+  const selectedScopeCount = `${d.nodes.length} ${famMode ? 'family' : 'commodity'}${d.nodes.length === 1 ? '' : ' lines'}${cats.size > 1 ? ` across ${cats.size} categories` : ''}`;
 
   /** Uploads the chosen evidence against the record once it exists. */
   const attachEvidence = async (rid: number): Promise<string | null> => {
@@ -115,85 +121,63 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
   };
 
   return (
-    <div>
-      <div style={{ borderLeft: '4px solid #2A7E4F', paddingLeft: 12, marginBottom: 18 }}>
-        <h1 style={{ margin: 0, fontSize: 21, fontWeight: 'bold' }}>New Registry Record</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#58595B' }}>
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-bold tracking-tight text-slate-900">New Registry Record</h2>
+        <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-slate-500">
           A record is scoped to one country and one supplier, at Family or Commodity level only.
         </p>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          marginBottom: 18,
-          background: '#fff',
-          border: '1px solid #E4E6E6',
-        }}
-      >
+      <div className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-2 xl:grid-cols-4">
         {stepsSummary.map((s, i) => {
           const n = i + 1;
           const active = step === n;
           const done = step > n;
           return (
-            <div
+            <button
               key={s.label}
+              type="button"
               onClick={() => app.setStep(n)}
-              style={{
-                flex: 1,
-                padding: '14px 18px',
-                borderRight: '1px solid #E4E6E6',
-                borderBottom: `3px solid ${active ? '#2A7E4F' : 'transparent'}`,
-                cursor: 'pointer',
-                background: active ? '#F2F8F5' : '#fff',
-              }}
+              className={`border-b-[3px] border-r border-r-slate-200 px-4 py-3.5 text-left transition-colors ${
+                active
+                  ? 'border-b-[#307c4c] bg-[#307c4c]/5'
+                  : 'border-b-transparent bg-white hover:bg-slate-50'
+              }`}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <div
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: '50%',
-                    background: done ? '#6AAF8E' : active ? '#2A7E4F' : '#D1D3D4',
-                    color: '#fff',
-                    fontSize: 11.5,
-                    fontWeight: 'bold',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[11.5px] font-bold text-white ${
+                    done ? 'bg-[#6AAF8E]' : active ? 'bg-[#307c4c]' : 'bg-slate-300'
+                  }`}
                 >
                   {n}
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 12.5,
-                      fontWeight: 'bold',
-                      color: active ? '#1D5B39' : '#1F1F1D',
-                    }}
+                </span>
+                <span className="min-w-0">
+                  <span
+                    className={`block truncate text-[12.5px] font-bold ${
+                      active ? 'text-[#1d4f31]' : 'text-slate-700'
+                    }`}
                   >
                     {s.label}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#58595B' }}>{s.sub}</div>
-                </div>
+                  </span>
+                  <span className="block truncate text-[11px] text-slate-400">{s.sub}</span>
+                </span>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
 
-      <div style={{ background: '#fff', border: '1px solid #E4E6E6', padding: '22px 24px' }}>
+      <div className="rounded-xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
         {step === 1 && (
           <div>
-            <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>Classification</div>
-            <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 14, maxWidth: 760 }}>
+            <h3 className={SECTION_TITLE}>Classification</h3>
+            <p className={`${SECTION_NOTE} max-w-3xl`}>
               These two record types are kept structurally separate: different reason codes,
               different evidence requirements.
-            </div>
-            <div
-              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, maxWidth: 900 }}
-            >
+            </p>
+            <div className="mt-3.5 grid max-w-4xl gap-3.5 lg:grid-cols-2">
               {[
                 {
                   code: 'SGL' as const,
@@ -214,69 +198,44 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
               ].map((c) => {
                 const sel = d.cls === c.code;
                 return (
-                  <div
+                  <button
                     key={c.code}
+                    type="button"
                     onClick={() => app.setDraft({ cls: c.code, reason: '' })}
-                    style={{
-                      border: `2px solid ${sel ? '#2A7E4F' : '#E4E6E6'}`,
-                      background: sel ? '#F5FAF7' : '#fff',
-                      padding: '16px 18px',
-                      cursor: 'pointer',
-                    }}
+                    className={`rounded-xl border-2 px-4 py-4 text-left transition-colors ${
+                      sel
+                        ? 'border-[#307c4c] bg-[#307c4c]/5'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div
-                        style={{
-                          width: 16,
-                          height: 16,
-                          borderRadius: '50%',
-                          border: `2px solid ${sel ? '#2A7E4F' : '#D1D3D4'}`,
-                          background: sel ? '#2A7E4F' : '#fff',
-                        }}
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={`h-4 w-4 shrink-0 rounded-full border-2 ${
+                          sel ? 'border-[#307c4c] bg-[#307c4c]' : 'border-slate-300 bg-white'
+                        }`}
                       />
-                      <div style={{ fontSize: 14, fontWeight: 'bold' }}>{c.title}</div>
-                      <div
-                        style={{
-                          fontFamily: 'Consolas,Menlo,monospace',
-                          fontSize: 11,
-                          fontWeight: 'bold',
-                          color: '#1D5B39',
-                          background: '#C5E0D2',
-                          padding: '2px 6px',
-                        }}
-                      >
+                      <span className="text-[14px] font-bold text-slate-900">{c.title}</span>
+                      <span className="rounded bg-[#307c4c]/15 px-1.5 py-px font-mono text-[11px] font-bold text-[#1d4f31]">
                         {c.code}
-                      </div>
+                      </span>
                     </div>
-                    <div
-                      style={{ fontSize: 12, fontWeight: 'bold', color: '#2A7E4F', marginTop: 10 }}
-                    >
-                      {c.kind}
-                    </div>
-                    <div
-                      style={{ fontSize: 12.5, color: '#1F1F1D', lineHeight: 1.55, marginTop: 4 }}
-                    >
-                      {c.body}
-                    </div>
-                    <div
-                      style={{ fontSize: 11.5, color: '#58595B', lineHeight: 1.5, marginTop: 8 }}
-                    >
+                    <p className="mt-2.5 text-[12px] font-bold text-[#307c4c]">{c.kind}</p>
+                    <p className="mt-1 text-[12.5px] leading-relaxed text-slate-800">{c.body}</p>
+                    <p className="mt-2 text-[11.5px] leading-relaxed text-slate-500">
                       {c.evidence}
-                    </div>
-                  </div>
+                    </p>
+                  </button>
                 );
               })}
             </div>
 
-            <div style={{ height: 1, background: '#E4E6E6', margin: '22px 0' }} />
-            <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>
-              Country / entity scope
-            </div>
-            <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 12 }}>
+            <div className={RULE} />
+            <h3 className={SECTION_TITLE}>Country / entity scope</h3>
+            <p className={SECTION_NOTE}>
               One country from the confirmed list, or Global for cases that apply across all
               entities.
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: 900 }}>
+            </p>
+            <div className="mt-3 flex max-w-4xl flex-wrap gap-2">
               {app.countries
                 .filter((c) => app.canActOn(c[1]))
                 .map((c) => {
@@ -284,19 +243,15 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                   return (
                     <button
                       key={c[0]}
+                      type="button"
                       onClick={() => app.setDraft({ country: c[0] })}
-                      style={{
-                        border: `1px solid ${sel ? '#2A7E4F' : '#D1D3D4'}`,
-                        background: sel ? '#2A7E4F' : '#fff',
-                        color: sel ? '#fff' : '#1F1F1D',
-                        fontSize: 12.5,
-                        fontWeight: 'bold',
-                        padding: '8px 13px',
-                        borderRadius: 2,
-                        cursor: 'pointer',
-                      }}
+                      className={`rounded-lg border px-3 py-2 text-[12.5px] font-semibold transition-colors ${
+                        sel
+                          ? 'border-[#307c4c] bg-[#307c4c] text-white'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-[#307c4c]/40'
+                      }`}
                     >
-                      {c[0]} &middot; {c[1]}
+                      {c[0]} · {c[1]}
                     </button>
                   );
                 })}
@@ -306,41 +261,26 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
 
         {step === 2 && (
           <div>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'flex-end',
-                justifyContent: 'space-between',
-                gap: 16,
-              }}
-            >
+            <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>
-                  Taxonomy scope
-                </div>
-                <div style={{ fontSize: 12.5, color: '#58595B', maxWidth: 720 }}>
-                  Spend Type &#8250; Category &#8250; Sub-Category &#8250; Family &#8250; Commodity.
-                  Records are raised at Family or Commodity level only. A selected group may span
-                  multiple Categories, provided Country and Supplier are the same.
-                </div>
+                <h3 className={SECTION_TITLE}>Taxonomy scope</h3>
+                <p className={`${SECTION_NOTE} max-w-3xl`}>
+                  Spend Type › Category › Sub-Category › Family › Commodity. Records are raised at
+                  Family or Commodity level only. A selected group may span multiple Categories,
+                  provided Country and Supplier are the same.
+                </p>
               </div>
-              <div style={{ display: 'flex', border: '1px solid #2A7E4F' }}>
+              <div className="flex shrink-0 overflow-hidden rounded-lg border border-[#307c4c]">
                 {(['Family', 'Commodity'] as const).map((l) => {
                   const sel = d.level === l;
                   return (
                     <button
                       key={l}
+                      type="button"
                       onClick={() => app.setLevel(l)}
-                      style={{
-                        border: 0,
-                        background: sel ? '#2A7E4F' : '#fff',
-                        color: sel ? '#fff' : '#2A7E4F',
-                        fontSize: 12,
-                        fontWeight: 'bold',
-                        padding: '9px 16px',
-                        cursor: 'pointer',
-                      }}
+                      className={`px-4 py-2 text-[12px] font-bold transition-colors ${
+                        sel ? 'bg-[#307c4c] text-white' : 'bg-white text-[#307c4c]'
+                      }`}
                     >
                       Raise at {l} level
                     </button>
@@ -349,15 +289,8 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
               </div>
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4,1fr)',
-                gap: 12,
-                marginTop: 16,
-              }}
-            >
-              <TaxColumn title="CATEGORY" hint="reference only" hintColor="#8A8C8E">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <TaxColumn title="Category" hint="reference only">
                 {taxCategories(app.tax).map((c) => (
                   <TaxItem
                     key={c.name}
@@ -374,7 +307,7 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                   />
                 ))}
               </TaxColumn>
-              <TaxColumn title="SUB-CATEGORY" hint="reference only" hintColor="#8A8C8E">
+              <TaxColumn title="Sub-category" hint="reference only">
                 {taxSubs(app.tax, b.cat).map((s) => (
                   <TaxItem
                     key={s}
@@ -384,11 +317,7 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                   />
                 ))}
               </TaxColumn>
-              <TaxColumn
-                title="FAMILY"
-                hint={famMode ? 'selectable' : 'drill down'}
-                hintColor={famMode ? '#2A7E4F' : '#8A8C8E'}
-              >
+              <TaxColumn title="Family" hint={famMode ? 'selectable' : 'drill down'} on={famMode}>
                 {taxFamilies(app.tax, b.cat, b.sub).map((f) => {
                   const node: ScopeNode = { cat: b.cat, sub: b.sub, fam: f, com: '' };
                   const on = selKeys.includes(nodeKey(node));
@@ -409,9 +338,9 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                 })}
               </TaxColumn>
               <TaxColumn
-                title="COMMODITY"
+                title="Commodity"
                 hint={famMode ? 'not selectable' : 'selectable'}
-                hintColor={famMode ? '#8A8C8E' : '#2A7E4F'}
+                on={!famMode}
               >
                 {taxCommodities(app.tax, b.cat, b.sub, b.fam).map((cm) => {
                   const node: ScopeNode = { cat: b.cat, sub: b.sub, fam: b.fam, com: cm };
@@ -431,100 +360,62 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
               </TaxColumn>
             </div>
 
-            <div
-              style={{
-                marginTop: 16,
-                border: '1px solid #E4E6E6',
-                background: '#FAFBFA',
-                padding: '14px 16px',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 'bold',
-                  color: '#58595B',
-                  letterSpacing: 0.6,
-                  marginBottom: 9,
-                }}
-              >
-                SELECTED SCOPE &#8212; {selectedScopeCount}
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5">
+              <p className={`${FIELD_LABEL} mb-2`}>Selected scope — {selectedScopeCount}</p>
+              <div className="flex flex-wrap gap-2">
                 {d.nodes.map((n) => (
                   <div
                     key={nodeKey(n)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      background: '#fff',
-                      border: '1px solid #6AAF8E',
-                      padding: '6px 8px 6px 11px',
-                      fontSize: 12,
-                    }}
+                    className="flex items-center gap-2 rounded-lg border border-[#6AAF8E] bg-white py-1.5 pl-3 pr-1.5 text-[12px]"
                   >
                     <div>
-                      <div style={{ fontWeight: 'bold' }}>{leafOf(n)}</div>
-                      <div style={{ fontSize: 10.5, color: '#58595B' }}>
+                      <div className="font-bold text-slate-800">{leafOf(n)}</div>
+                      <div className="text-[10.5px] text-slate-500">
                         {nodePath(n).replace(/ › $/, '')}
                       </div>
                     </div>
                     <button
+                      type="button"
                       onClick={() => app.removeNode(n)}
-                      style={{
-                        border: 0,
-                        background: '#F4F5F5',
-                        color: '#58595B',
-                        width: 20,
-                        height: 20,
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        borderRadius: 2,
-                      }}
+                      aria-label={`Remove ${leafOf(n)}`}
+                      className="h-5 w-5 shrink-0 rounded bg-slate-100 font-bold text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
                     >
-                      &#215;
+                      ×
                     </button>
                   </div>
                 ))}
               </div>
               {d.nodes.length === 0 && (
-                <div style={{ fontSize: 12, color: '#58595B' }}>
+                <p className="text-[12px] text-slate-500">
                   Nothing selected yet. Drill down and tick one or more{' '}
                   {famMode ? 'Families' : 'Commodities'}.
-                </div>
+                </p>
               )}
             </div>
 
-            <div style={{ height: 1, background: '#E4E6E6', margin: '22px 0' }} />
-            <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>
-              Business segment tags
-            </div>
-            <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 12 }}>
+            <div className={RULE} />
+            <h3 className={SECTION_TITLE}>Business segment tags</h3>
+            <p className={SECTION_NOTE}>
               Tagged in addition to the taxonomy path. One or more of the confirmed NESR business
               segments.
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
               {app.segments.map((s) => {
                 const on = d.segments.includes(s);
                 return (
                   <button
                     key={s}
+                    type="button"
                     onClick={() =>
                       app.setDraft({
                         segments: on ? d.segments.filter((x) => x !== s) : d.segments.concat([s]),
                       })
                     }
-                    style={{
-                      border: `1px solid ${on ? '#2A7E4F' : '#D1D3D4'}`,
-                      background: on ? '#C5E0D2' : '#fff',
-                      color: on ? '#1D5B39' : '#58595B',
-                      fontSize: 12,
-                      fontWeight: 'bold',
-                      padding: '7px 12px',
-                      borderRadius: 2,
-                      cursor: 'pointer',
-                    }}
+                    className={`rounded-lg border px-3 py-1.5 text-[12px] font-bold transition-colors ${
+                      on
+                        ? 'border-[#307c4c] bg-[#307c4c]/15 text-[#1d4f31]'
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-[#307c4c]/40'
+                    }`}
                   >
                     {s}
                   </button>
@@ -535,21 +426,14 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
         )}
 
         {step === 3 && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 26,
-              alignItems: 'start',
-            }}
-          >
+          <div className="grid items-start gap-6 lg:grid-cols-2">
             <div>
-              <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>Supplier</div>
-              <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 14 }}>
+              <h3 className={SECTION_TITLE}>Supplier</h3>
+              <p className={SECTION_NOTE}>
                 Chosen from the approved vendor list, so the SAP ID and name always agree with each
                 other. One supplier per record.
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 420 }}>
+              </p>
+              <div className="mt-3.5 flex max-w-[420px] flex-col gap-3.5">
                 <SupplierPicker
                   sapId={d.supplierId}
                   name={d.supplierName}
@@ -557,13 +441,13 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                   onClear={() => app.setDraft({ supplierId: '', supplierName: '' })}
                 />
                 <Field
-                  label="ESTIMATED ANNUAL SPEND (USD)"
+                  label="Estimated annual spend (USD)"
                   value={d.spend}
                   placeholder="e.g. 1250000"
                   onChange={(v) => app.setDraft({ spend: v })}
                 />
                 <Field
-                  label="EXPIRY DATE"
+                  label="Expiry date"
                   type="date"
                   min={todayISO()}
                   value={d.expiry}
@@ -573,97 +457,65 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                 />
               </div>
               {!!dup && (
-                <div
-                  style={{
-                    marginTop: 16,
-                    border: '1px solid #E8B96A',
-                    background: '#FEF6E7',
-                    padding: '12px 14px',
-                    maxWidth: 420,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 'bold',
-                      color: '#8A6100',
-                      letterSpacing: 0.5,
-                      marginBottom: 5,
-                    }}
-                  >
-                    POSSIBLE DUPLICATE
-                  </div>
-                  <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+                <div className="mt-4 max-w-[420px] rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+                  <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                    Possible duplicate
+                  </p>
+                  <p className="text-[12.5px] leading-relaxed text-amber-900">
                     An active record already exists for this supplier in {d.country} (
                     {dup.id || 'pending'}, {dup.nodes.map(leafOf).join(', ')}). Check whether the
                     existing ID already covers your requirement.
-                  </div>
+                  </p>
                 </div>
               )}
             </div>
+
             <div>
-              <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>Reason code</div>
-              <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 14 }}>
+              <h3 className={SECTION_TITLE}>Reason code</h3>
+              <p className={SECTION_NOTE}>
                 {d.cls === 'SGL'
                   ? 'Single-source reason codes describe why NESR has restricted sourcing to one vendor.'
                   : 'Sole-source reason codes describe why no alternative supplier exists.'}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 460 }}>
+              </p>
+              <div className="mt-3.5 flex max-w-[460px] flex-col gap-2">
                 {app.reasons[d.cls].map((r) => {
                   const sel = d.reason === r;
                   return (
-                    <div
+                    <button
                       key={r}
+                      type="button"
                       onClick={() => app.setDraft({ reason: r })}
-                      style={{
-                        border: `1px solid ${sel ? '#2A7E4F' : '#E4E6E6'}`,
-                        background: sel ? '#F5FAF7' : '#fff',
-                        padding: '11px 13px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                      }}
+                      className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                        sel
+                          ? 'border-[#307c4c] bg-[#307c4c]/5'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
                     >
-                      <div
-                        style={{
-                          width: 14,
-                          height: 14,
-                          borderRadius: '50%',
-                          border: `2px solid ${sel ? '#2A7E4F' : '#D1D3D4'}`,
-                          background: sel ? '#2A7E4F' : '#fff',
-                          flex: '0 0 auto',
-                        }}
+                      <span
+                        className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${
+                          sel ? 'border-[#307c4c] bg-[#307c4c]' : 'border-slate-300 bg-white'
+                        }`}
                       />
-                      <div style={{ fontSize: 12.5, fontWeight: 'bold' }}>{r}</div>
-                    </div>
+                      <span className="text-[12.5px] font-bold text-slate-800">{r}</span>
+                    </button>
                   );
                 })}
               </div>
             </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <div style={{ height: 1, background: '#E4E6E6', margin: '4px 0 20px' }} />
-              <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>
-                Justification narrative
-              </div>
-              <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 10 }}>
+
+            <div className="lg:col-span-2">
+              <div className="mb-5 mt-1 h-px bg-slate-200" />
+              <h3 className={SECTION_TITLE}>Justification narrative</h3>
+              <p className={SECTION_NOTE}>
                 {d.cls === 'SGL'
                   ? 'State the business rationale for restricting sourcing to this vendor.'
                   : 'State the market condition and how it was verified.'}
-              </div>
+              </p>
               <textarea
                 value={d.justification}
                 onChange={(e) => app.setDraft({ justification: e.target.value })}
                 placeholder="State the business case or technical rationale. Keep sentences to 25 words."
-                style={{
-                  width: '100%',
-                  maxWidth: 920,
-                  minHeight: 120,
-                  border: '1px solid #D1D3D4',
-                  padding: 11,
-                  resize: 'vertical',
-                  lineHeight: 1.55,
-                }}
+                className="mt-2.5 min-h-[120px] w-full max-w-[920px] resize-y rounded-lg border border-slate-200 p-3 text-[13px] leading-relaxed outline-none transition-colors focus:border-[#307c4c]"
               />
             </div>
           </div>
@@ -671,72 +523,40 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
 
         {step === 4 && (
           <div>
-            <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>
-              Evidence attachment
-            </div>
-            <div style={{ fontSize: 12.5, color: '#58595B', marginBottom: 12, maxWidth: 760 }}>
+            <h3 className={SECTION_TITLE}>Evidence attachment</h3>
+            <p className={`${SECTION_NOTE} max-w-3xl`}>
               {d.cls === 'SGL'
                 ? 'The contract clause, warranty terms, or equivalent support for the business rationale.'
                 : 'The market survey, OEM letter, or equivalent proof that no viable alternative exists.'}
-            </div>
-            <div
-              style={{
-                border: '2px dashed #6AAF8E',
-                background: '#F7FBF9',
-                padding: 20,
-                maxWidth: 560,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
-              }}
-            >
-              <div
-                style={{
-                  width: 34,
-                  height: 42,
-                  background: evidence ? '#2A7E4F' : '#D1D3D4',
-                  color: '#fff',
-                  fontSize: 9,
-                  fontWeight: 'bold',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flex: '0 0 auto',
-                }}
+            </p>
+            <div className="mt-3 flex max-w-[560px] flex-wrap items-center gap-4 rounded-xl border-2 border-dashed border-[#6AAF8E] bg-[#307c4c]/5 p-5">
+              <span
+                className={`flex h-[42px] w-[34px] shrink-0 items-center justify-center rounded text-[9px] font-bold text-white ${
+                  evidence ? 'bg-[#307c4c]' : 'bg-slate-300'
+                }`}
               >
                 DOC
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 'bold', wordBreak: 'break-word' }}>
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-[13px] font-bold text-slate-800">
                   {evidence ? evidence.name : 'No file attached'}
-                </div>
-                <div style={{ fontSize: 11.5, color: '#58595B', marginTop: 3 }}>
+                </p>
+                <p className="mt-0.5 text-[11.5px] text-slate-500">
                   {evidence
                     ? `${Math.max(1, Math.round(evidence.size / 1024))} KB — uploaded when the record is saved.`
                     : 'PDF, DOCX, XLSX or MSG, up to 1 MB. Kept on the record for audit.'}
-                </div>
+                </p>
               </div>
               {evidence && (
                 <button
+                  type="button"
                   onClick={() => setEvidence(null)}
-                  className="link-btn"
-                  style={{ fontSize: 11.5, flex: '0 0 auto' }}
+                  className="shrink-0 text-[11.5px] font-semibold text-[#307c4c] underline underline-offset-2 hover:no-underline"
                 >
                   Remove
                 </button>
               )}
-              <label
-                style={{
-                  background: '#2A7E4F',
-                  color: '#fff',
-                  fontWeight: 'bold',
-                  fontSize: 12,
-                  padding: '9px 14px',
-                  cursor: 'pointer',
-                  borderRadius: 2,
-                  flex: '0 0 auto',
-                }}
-              >
+              <label className="shrink-0 cursor-pointer rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-3.5 py-2 text-[12px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90">
                 <span>{evidence ? 'Replace' : 'Choose file'}</span>
                 <input
                   type="file"
@@ -756,169 +576,97 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                     setEvidenceError(null);
                     setEvidence(f);
                   }}
-                  style={{ display: 'none' }}
+                  className="hidden"
                 />
               </label>
             </div>
 
             {evidenceError && (
-              <div
-                style={{
-                  marginTop: 10,
-                  border: '1px solid #E4A0A0',
-                  background: '#FCF4F4',
-                  color: '#9B1C1C',
-                  fontSize: 12.5,
-                  padding: '10px 12px',
-                  maxWidth: 560,
-                }}
-              >
+              <p className="mt-2.5 max-w-[560px] rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12.5px] text-red-700">
                 {evidenceError}
-              </div>
+              </p>
             )}
 
-            <div style={{ height: 1, background: '#E4E6E6', margin: '24px 0' }} />
-            <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 12 }}>
-              Review before submission
-            </div>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3,1fr)',
-                border: '1px solid #E4E6E6',
-                maxWidth: 1000,
-              }}
-            >
+            <div className={RULE} />
+            <h3 className={`${SECTION_TITLE} mb-3`}>Review before submission</h3>
+            <div className="grid max-w-[1000px] overflow-hidden rounded-xl border border-slate-200 sm:grid-cols-2 xl:grid-cols-3">
               {reviewFields.map((f) => (
-                <div
-                  key={f.label}
-                  style={{
-                    padding: '12px 16px',
-                    borderBottom: '1px solid #F0F1F1',
-                    borderRight: '1px solid #F0F1F1',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10.5,
-                      fontWeight: 'bold',
-                      color: '#58595B',
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    {f.label}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12.5,
-                      marginTop: 4,
-                      color: /Not (set|attached)/.test(f.value) ? '#9B1C1C' : '#1F1F1D',
-                    }}
+                <div key={f.label} className="border-b border-r border-slate-100 px-4 py-3">
+                  <p className={FIELD_LABEL}>{f.label}</p>
+                  <p
+                    className={`mt-0.5 break-words text-[12.5px] ${
+                      /Not (set|attached)/.test(f.value) ? 'text-red-600' : 'text-slate-800'
+                    }`}
                   >
                     {f.value}
-                  </div>
+                  </p>
                 </div>
               ))}
             </div>
 
-            <div
-              style={{
-                marginTop: 18,
-                background: '#F7F9F8',
-                borderLeft: '4px solid #2A7E4F',
-                padding: '14px 16px',
-                maxWidth: 1000,
-              }}
-            >
-              <div style={{ fontSize: 12.5, lineHeight: 1.6 }}>
-                On submission this record is routed to the Country Supply Chain Manager for{' '}
-                {d.country || 'the selected country'} (Level 1), then to the Category Manager or
-                Supply Chain Director (Level 2). The Registry ID is generated only when the record
-                is published to Active, and is valid for a fixed 12 months from issue date.
-              </div>
+            <div className="mt-4 max-w-[1000px] rounded-r-xl border-l-4 border-[#307c4c] bg-slate-50 px-4 py-3.5 text-[12.5px] leading-relaxed text-slate-700">
+              On submission this record is routed to the Country Supply Chain Manager for{' '}
+              {d.country || 'the selected country'} (Level 1), then to the Category Manager or
+              Supply Chain Director (Level 2). The Registry ID is generated only when the record is
+              published to Active, and is valid for a fixed 12 months from issue date.
             </div>
 
             {missing.length > 0 && (
-              <div
-                style={{
-                  marginTop: 16,
-                  border: '1px solid #E4A0A0',
-                  background: '#FCF4F4',
-                  padding: '12px 14px',
-                  maxWidth: 1000,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 'bold',
-                    color: '#9B1C1C',
-                    letterSpacing: 0.5,
-                    marginBottom: 5,
-                  }}
-                >
-                  INCOMPLETE
-                </div>
-                <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+              <div className="mt-4 max-w-[1000px] rounded-xl border border-red-200 bg-red-50 px-3.5 py-3">
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-red-700">
+                  Incomplete
+                </p>
+                <p className="text-[12.5px] leading-relaxed text-red-900">
                   Still required before submission: {missing.join(', ')}.
-                </div>
+                </p>
               </div>
             )}
           </div>
         )}
 
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 12,
-            marginTop: 26,
-            paddingTop: 18,
-            borderTop: '1px solid #E4E6E6',
-          }}
-        >
+        <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-slate-200 pt-4">
           <button
+            type="button"
             onClick={app.cancelDraft}
-            className="btn-neutral"
-            style={{ padding: '10px 16px' }}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-600 shadow-sm transition-colors hover:border-red-200 hover:text-red-600"
           >
             Discard
           </button>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div className="flex flex-wrap gap-2.5">
             {step > 1 && (
               <button
+                type="button"
                 onClick={() => app.setStep(Math.max(1, step - 1))}
-                className="btn-outline"
-                style={{ padding: '10px 18px' }}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-600 shadow-sm transition-colors hover:border-[#307c4c]/30 hover:text-[#307c4c]"
               >
                 Back
               </button>
             )}
             {step < 4 && (
               <button
+                type="button"
                 onClick={() => app.setStep(Math.min(4, step + 1))}
-                className="btn-primary"
-                style={{ padding: '10px 22px' }}
+                className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90"
               >
                 Continue
               </button>
             )}
             {step === 4 && (
               <button
+                type="button"
                 onClick={() => app.commit('Draft', attachEvidence)}
                 disabled={app.busy}
-                className="btn-outline"
-                style={{ padding: '10px 18px' }}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-600 shadow-sm transition-colors hover:border-[#307c4c]/30 hover:text-[#307c4c] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Save as Draft
               </button>
             )}
             {step === 4 && (
               <button
+                type="button"
                 onClick={submit}
                 disabled={app.busy}
-                className="btn-primary"
-                style={{ padding: '10px 22px' }}
+                className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {app.busy ? 'Submitting…' : 'Submit for Level 1 Validation'}
               </button>
@@ -948,19 +696,17 @@ function Field({
   hint?: string;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <label style={{ fontSize: 10.5, fontWeight: 'bold', color: '#58595B', letterSpacing: 0.6 }}>
-        {label}
-      </label>
+    <div className="flex flex-col gap-1.5">
+      <label className={FIELD_LABEL}>{label}</label>
       <input
         type={type}
         min={min}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        style={{ border: '1px solid #D1D3D4', padding: '9px 10px', borderRadius: 2 }}
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] outline-none transition-colors focus:border-[#307c4c]"
       />
-      {hint && <span style={{ fontSize: 11, color: '#58595B', lineHeight: 1.45 }}>{hint}</span>}
+      {hint && <span className="text-[11px] leading-relaxed text-slate-400">{hint}</span>}
     </div>
   );
 }
@@ -968,41 +714,28 @@ function Field({
 function TaxColumn({
   title,
   hint,
-  hintColor,
+  on,
   children,
 }: {
   title: string;
   hint: string;
-  hintColor: string;
+  /** Whether this column is the one you can tick at the current level. */
+  on?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div
-      style={{
-        border: '1px solid #E4E6E6',
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 300,
-      }}
-    >
-      <div
-        style={{
-          background: '#F7F9F8',
-          borderBottom: '1px solid #E4E6E6',
-          padding: '8px 11px',
-          fontSize: 10.5,
-          fontWeight: 'bold',
-          color: '#58595B',
-          letterSpacing: 0.6,
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: 8,
-        }}
-      >
-        <span>{title}</span>
-        <span style={{ color: hintColor }}>{hint}</span>
+    <div className="flex min-h-[300px] flex-col overflow-hidden rounded-xl border border-slate-200">
+      <div className="flex justify-between gap-2 border-b border-slate-200 bg-slate-50/70 px-3 py-2">
+        <span className={FIELD_LABEL}>{title}</span>
+        <span
+          className={`text-[10.5px] font-bold uppercase tracking-wider ${
+            on ? 'text-[#307c4c]' : 'text-slate-400'
+          }`}
+        >
+          {hint}
+        </span>
       </div>
-      <div style={{ overflow: 'auto', maxHeight: 340 }}>{children}</div>
+      <div className="max-h-[340px] overflow-auto">{children}</div>
     </div>
   );
 }
@@ -1022,44 +755,26 @@ function TaxItem({
   dim?: boolean;
   onClick: () => void;
 }) {
-  const bg = active ? '#C5E0D2' : checked ? '#EDF5F0' : '#fff';
+  const bg = active ? 'bg-[#307c4c]/15' : checked ? 'bg-[#307c4c]/5' : 'bg-white hover:bg-slate-50';
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className="taxonomy-item"
-      style={{
-        padding: '8px 11px',
-        fontSize: 12,
-        cursor: 'pointer',
-        background: bg,
-        color: dim ? '#8A8C8E' : '#1F1F1D',
-        borderBottom: '1px solid #F2F3F3',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-      }}
+      className={`flex w-full items-center gap-2 border-b border-slate-100 px-3 py-2 text-left text-[12px] transition-colors ${bg} ${
+        dim ? 'text-slate-400' : 'text-slate-800'
+      }`}
     >
       {checked !== undefined && (
         <span
-          style={{
-            width: 13,
-            height: 13,
-            border: `1.5px solid ${checked ? '#2A7E4F' : '#D1D3D4'}`,
-            background: checked ? '#2A7E4F' : '#fff',
-            flex: '0 0 auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: 10,
-            fontWeight: 'bold',
-          }}
+          className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border-[1.5px] text-[10px] font-bold text-white ${
+            checked ? 'border-[#307c4c] bg-[#307c4c]' : 'border-slate-300 bg-white'
+          }`}
         >
           {checked ? '✓' : ''}
         </span>
       )}
-      <span style={{ flex: 1 }}>{label}</span>
-      {meta && <span style={{ color: '#8A8C8E', fontSize: 11 }}>{meta}</span>}
-    </div>
+      <span className="flex-1">{label}</span>
+      {meta && <span className="shrink-0 text-[11px] text-slate-400">{meta}</span>}
+    </button>
   );
 }
