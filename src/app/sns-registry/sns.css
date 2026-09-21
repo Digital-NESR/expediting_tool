@@ -5,16 +5,22 @@
    bare `body`, `input`, `a` and `table`. Everything here is scoped under
    `.sns-root` instead, so none of it reaches the Tailwind-styled tools
    that share this app's global stylesheet.
+
+   TRANSITIONAL. The shell is now the shared AppSidebar the rest of the
+   platform uses, and the screens inside it are being converted to Tailwind a
+   screen at a time. `.sns-root` sits on <main> and dresses only what has not
+   been converted yet; it shrinks as that work lands, and should eventually be
+   deleted outright.
+
+   The page-level rules it used to carry — min-height, the flex column, the
+   page background — are gone: the new shell owns the layout, and leaving them
+   here made the content box try to be the whole page.
    ───────────────────────────────────────────────────────────────── */
 
 .sns-root {
   font-family: Arial, Calibri, Helvetica, sans-serif;
   color: #1f1f1d;
-  background: #f4f5f5;
   -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
 .sns-root * {
