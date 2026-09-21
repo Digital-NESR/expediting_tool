@@ -170,6 +170,20 @@ export default function Header({ app }: { app: RegistryApp }) {
             </button>
           );
         })}
+
+        {/* Admins only. A link rather than a screen: it leaves the registry for
+            the platform admin console, so it should behave like one — middle
+            click, open in a new tab, the lot. Everyone else never sees it,
+            rather than seeing it and being refused. */}
+        {viewer.isAdmin && (
+          <Link
+            href="/admin/sns?section=access"
+            className="nav-tab"
+            style={{ marginLeft: 'auto', textDecoration: 'none' }}
+          >
+            <span style={{ whiteSpace: 'nowrap' }}>Admin</span>
+          </Link>
+        )}
       </div>
     </div>
   );

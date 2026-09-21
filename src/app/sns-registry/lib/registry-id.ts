@@ -7,8 +7,13 @@
  * and read back by people without the registry open, so every token has to be
  * unambiguous.
  *
- *   {SGL|SOL}-{COUNTRY}-{SAP ID}-{IY}-{IM}-{EY}-{EM}-{NN}
- *   SGL-IRQ-0001103296-26-09-27-09-01
+ *   {SGL|SOL}-{COUNTRY}-{SAP ID}-{IYIMEYEM}{NN}
+ *   SGL-IRQ-0001103296-2609270901
+ *
+ * The trailing block runs together on purpose: issue 26-09, expiry 27-09,
+ * sequence 01 reads as 2609 2709 01. Three hyphens, so the classification,
+ * country and supplier stay easy to pick out, and the dates read as one figure
+ * rather than four.
  *
  * SGL is single-source, SOL is sole-source. Years are two digits, months are
  * zero-padded, and the pair of year/month tokens is the validity window the ID
@@ -26,8 +31,8 @@ function mm(d: Date): string {
 }
 
 /**
- * Everything up to and including the final separator, so the sequence can be
- * appended and the same string can be used as a LIKE prefix.
+ * Everything up to the sequence, so it can be appended and the same string can
+ * be used as a LIKE prefix.
  *
  * The SAP ID keeps its leading zeros — that is how SAP prints supplier codes —
  * but anything non-alphanumeric is stripped, since a stray space or dash would
@@ -41,7 +46,8 @@ export function registryIdPrefix(
   expiry: Date,
 ): string {
   const supplierToken = supplierId.replace(/[^A-Za-z0-9]/g, '') || 'NOSAP';
-  return `${cls}-${countryCode}-${supplierToken}-${yy(issue)}-${mm(issue)}-${yy(expiry)}-${mm(expiry)}-`;
+  const window = `${yy(issue)}${mm(issue)}${yy(expiry)}${mm(expiry)}`;
+  return `${cls}-${countryCode}-${supplierToken}-${window}`;
 }
 
 /**
@@ -55,6 +61,9 @@ export function registryIdPrefix(
  * could not be published at all.
  */
 export function nextRegistryIdFrom(prefix: string, lastId: string | null): string {
+  // Whatever follows the eight date digits is the sequence. Positional rather
+  // than delimited now, which still reads unambiguously past 99 because the
+  // date block is always exactly eight characters.
   const last = lastId ? parseInt(lastId.slice(prefix.length), 10) : 0;
   return prefix + String((Number.isFinite(last) ? last : 0) + 1).padStart(2, '0');
 }

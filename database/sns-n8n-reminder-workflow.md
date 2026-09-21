@@ -66,7 +66,7 @@ Each item carries:
 | Field | What it is |
 |---|---|
 | `rid` | Internal record id — needed by the write-back |
-| `registry_id` | e.g. `SGL-KWT-0001102331-26-09-27-09-01` |
+| `registry_id` | e.g. `SGL-KWT-0001102331-2609270901` |
 | `classification` | `SGL` or `SOL` |
 | `classification_label` | `Single-Source` / `Sole-Source`, ready to print |
 | `country`, `country_code` | Display name and the stable code |
@@ -353,7 +353,7 @@ The app POSTs to `N8N_SNS_REGISTRY_WEBHOOK_URL` on each of these:
   "occurred_at": "2026-09-18T08:30:00.000Z",
   "record": {
     "rid": 41,
-    "registry_id": "SGL-KWT-0001102331-26-09-27-09-01",
+    "registry_id": "SGL-KWT-0001102331-2609270901",
     "classification": "SGL",
     "country": "Kuwait",
     "country_code": "KWT",

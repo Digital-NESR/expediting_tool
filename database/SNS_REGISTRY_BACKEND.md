@@ -242,8 +242,8 @@ have to be base64'd through the RSC payload.
 ## Registry ID format
 
 ```
-{SGL|SOL}-{COUNTRY}-{SAP ID}-{IY}-{IM}-{EY}-{EM}-{NN}
-SGL-IRQ-0001103296-26-09-27-09-01
+{SGL|SOL}-{COUNTRY}-{SAP ID}-{IYIMEYEM}{NN}
+SGL-IRQ-0001103296-2609270901
 ```
 
 Spelled by [`registry-id.ts`](../src/app/sns-registry/lib/registry-id.ts), which

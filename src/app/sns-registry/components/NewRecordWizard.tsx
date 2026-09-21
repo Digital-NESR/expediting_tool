@@ -33,6 +33,7 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
      Declared before the early return below — a hook has to run in the same
      order on every render. */
   const [evidence, setEvidence] = useState<File | null>(null);
+  const [evidenceError, setEvidenceError] = useState<string | null>(null);
 
   const d = app.draft;
   if (!d) return null;
@@ -712,7 +713,7 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                 <div style={{ fontSize: 11.5, color: '#58595B', marginTop: 3 }}>
                   {evidence
                     ? `${Math.max(1, Math.round(evidence.size / 1024))} KB — uploaded when the record is saved.`
-                    : 'PDF, DOCX, XLSX or MSG, up to 15 MB. Kept on the record for audit.'}
+                    : 'PDF, DOCX, XLSX or MSG, up to 1 MB. Kept on the record for audit.'}
                 </div>
               </div>
               {evidence && (
@@ -739,11 +740,42 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                 <span>{evidence ? 'Replace' : 'Choose file'}</span>
                 <input
                   type="file"
-                  onChange={(e) => setEvidence(e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    // Checked again on the server — this is only so an oversized
+                    // file is rejected before the record is submitted, rather
+                    // than after it has already been created.
+                    if (f && f.size > 1024 * 1024) {
+                      setEvidenceError(
+                        `That file is ${(f.size / (1024 * 1024)).toFixed(1)} MB. Attachments are limited to 1 MB.`,
+                      );
+                      setEvidence(null);
+                      e.target.value = '';
+                      return;
+                    }
+                    setEvidenceError(null);
+                    setEvidence(f);
+                  }}
                   style={{ display: 'none' }}
                 />
               </label>
             </div>
+
+            {evidenceError && (
+              <div
+                style={{
+                  marginTop: 10,
+                  border: '1px solid #E4A0A0',
+                  background: '#FCF4F4',
+                  color: '#9B1C1C',
+                  fontSize: 12.5,
+                  padding: '10px 12px',
+                  maxWidth: 560,
+                }}
+              >
+                {evidenceError}
+              </div>
+            )}
 
             <div style={{ height: 1, background: '#E4E6E6', margin: '24px 0' }} />
             <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 12 }}>

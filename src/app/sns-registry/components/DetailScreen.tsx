@@ -185,7 +185,7 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
             </div>
             <div style={{ fontSize: 12, color: '#58595B', marginTop: 6 }}>
               {published
-                ? 'Immutable once issued. Format {TYPE}-{COUNTRY}-{SAP ID}-{ISSUE YY-MM}-{EXPIRY YY-MM}-{SEQUENCE}.'
+                ? 'Immutable once issued. Format {TYPE}-{COUNTRY}-{SAP ID}-{ISSUE YYMM}{EXPIRY YYMM}{SEQUENCE}.'
                 : 'The Registry ID is generated only when the record is published to Active.'}
             </div>
           </div>
@@ -450,7 +450,7 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
                       wordBreak: 'break-all',
                     }}
                   >
-                    SGL|SOL - COUNTRY - SAP ID - ISSUE YY - ISSUE MM - EXPIRY YY - EXPIRY MM
+                    SGL|SOL - COUNTRY - SAP ID - IIYY MM EEYY MM NN
                   </div>
                   <div
                     style={{
@@ -470,10 +470,10 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
                     <span>Three-letter country code, e.g. IRQ</span>
                     <span style={{ color: '#9BD5B4', fontWeight: 'bold' }}>SAP ID</span>
                     <span>The supplier&rsquo;s SAP code, exactly as SAP prints it</span>
-                    <span style={{ color: '#9BD5B4', fontWeight: 'bold' }}>YY / MM</span>
+                    <span style={{ color: '#9BD5B4', fontWeight: 'bold' }}>YYMM YYMM</span>
                     <span>
-                      Two-digit year and month — 26-09 is September 2026. The first pair is the
-                      issue, the second the expiry.
+                      Issue and expiry, run together as one figure — 2609 2709 is September 2026 to
+                      September 2027. The two digits after it are the sequence.
                     </span>
                   </div>
                   <div style={{ marginTop: 10, fontSize: 11, color: '#8A8C8E', lineHeight: 1.5 }}>

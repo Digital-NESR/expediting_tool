@@ -683,8 +683,8 @@ async function notifyWorkflow(
 /**
  * Issues the next Registry ID.
  *
- * Format: {SGL|SOL}-{COUNTRY}-{SAP ID}-{IY}-{IM}-{EY}-{EM}-{NN}
- *   e.g.  SGL-IRQ-0001103296-26-09-27-09-01
+ * Format: {SGL|SOL}-{COUNTRY}-{SAP ID}-{IYIMEYEM}{NN}
+ *   e.g.  SGL-IRQ-0001103296-2609270901
  *
  * Years are two digits and months are zero-padded, so the supplier and the
  * whole validity window are legible from the ID itself — which is the point,

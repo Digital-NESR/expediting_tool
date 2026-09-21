@@ -32,8 +32,16 @@ export interface SnsDocument {
   uploadedAt: string;
 }
 
-/** 15 MB — comfortably above a scanned OEM letter, below anything that belongs in SharePoint. */
-const MAX_BYTES = 15 * 1024 * 1024;
+/**
+ * 1 MB.
+ *
+ * Attachments are stored as BYTEA inside the record's own row, so every one of
+ * them is carried in the registry's backups and read back through the same
+ * connection pool the app serves pages on. A signed OEM letter or a contract
+ * clause is comfortably under this; anything larger is a scan at needless
+ * resolution, and belongs in SharePoint with a reference here.
+ */
+const MAX_BYTES = 1024 * 1024;
 
 const ALLOWED_EXTENSIONS = new Set([
   'pdf',
@@ -157,7 +165,13 @@ export async function uploadSnsRecordDocument(
     return { success: false, error: 'Unknown attachment type.' };
   if (!(file instanceof File) || file.size === 0)
     return { success: false, error: 'Choose a file to attach.' };
-  if (file.size > MAX_BYTES) return { success: false, error: 'That file is larger than 15 MB.' };
+  if (file.size > MAX_BYTES) {
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
+    return {
+      success: false,
+      error: `That file is ${mb} MB. Attachments are limited to 1 MB — attach the signed page rather than the full scan, or keep the original in SharePoint and reference it in the justification.`,
+    };
+  }
 
   const extension = extensionOf(file.name);
   if (!ALLOWED_EXTENSIONS.has(extension)) {

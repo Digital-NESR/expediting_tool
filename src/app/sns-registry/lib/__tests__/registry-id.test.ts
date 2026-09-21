@@ -7,19 +7,19 @@ const d = (y: number, m: number, day = 1) => new Date(y, m - 1, day);
 describe('registryIdPrefix', () => {
   it('spells the agreed format', () => {
     expect(registryIdPrefix('SGL', 'IRQ', '0001103296', d(2026, 9), d(2027, 9))).toBe(
-      'SGL-IRQ-0001103296-26-09-27-09-',
+      'SGL-IRQ-0001103296-26092709',
     );
   });
 
   it('uses SOL for sole-source', () => {
     expect(registryIdPrefix('SOL', 'KWT', '1004521', d(2026, 1), d(2026, 12))).toBe(
-      'SOL-KWT-1004521-26-01-26-12-',
+      'SOL-KWT-1004521-26012612',
     );
   });
 
   it('zero-pads months and shortens years to two digits', () => {
     expect(registryIdPrefix('SGL', 'EGY', '99', d(2026, 3), d(2027, 11))).toBe(
-      'SGL-EGY-99-26-03-27-11-',
+      'SGL-EGY-99-26032711',
     );
   });
 
@@ -31,26 +31,34 @@ describe('registryIdPrefix', () => {
 
   it('strips characters that would make the ID impossible to split back apart', () => {
     expect(registryIdPrefix('SGL', 'BHR', '100 45-21', d(2026, 5), d(2027, 5))).toBe(
-      'SGL-BHR-1004521-26-05-27-05-',
+      'SGL-BHR-1004521-26052705',
     );
   });
 
   it('falls back to a marker rather than an empty token when there is no SAP ID', () => {
     // An empty token would produce '--' and a segment count nothing can parse.
     expect(registryIdPrefix('SGL', 'GLB', '', d(2026, 5), d(2027, 5))).toBe(
-      'SGL-GLB-NOSAP-26-05-27-05-',
+      'SGL-GLB-NOSAP-26052705',
     );
+  });
+
+  it('runs the two year-months together with no separator', () => {
+    // Three hyphens total: the date block is one figure, not four.
+    const p = registryIdPrefix('SGL', 'IRQ', '1234', d(2026, 9), d(2027, 9));
+    expect(p).toBe('SGL-IRQ-1234-26092709');
+    expect(p.split('-')).toHaveLength(4);
+    expect(nextRegistryIdFrom(p, null).split('-')).toHaveLength(4);
   });
 
   it('handles a validity window that crosses a century boundary', () => {
     expect(registryIdPrefix('SGL', 'IND', '7', d(2099, 12), d(2100, 12))).toBe(
-      'SGL-IND-7-99-12-00-12-',
+      'SGL-IND-7-99120012',
     );
   });
 });
 
 describe('nextRegistryIdFrom', () => {
-  const prefix = 'SGL-IRQ-0001103296-26-09-27-09-';
+  const prefix = 'SGL-IRQ-0001103296-26092709';
 
   it('starts at 01 when nothing has been issued under the prefix', () => {
     expect(nextRegistryIdFrom(prefix, null)).toBe(`${prefix}01`);
