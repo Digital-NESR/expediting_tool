@@ -412,6 +412,13 @@ mail to nobody.
 
 ### 3 — Code: "One item per recipient"
 
+Mode: **Run Once for All Items** — not optional here.
+
+The webhook delivers a single item, and this node has to emit one item per
+recipient. Only "Run Once for All Items" can return an array; "Run Once for Each
+Item" returns exactly one item per input item, so the fan-out silently collapses
+to a single email and everyone after the first approver is never written to.
+
 ```js
 const b = $input.first().json.body;
 return b.recipients.map((r) => ({
