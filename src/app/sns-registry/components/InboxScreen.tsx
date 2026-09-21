@@ -32,87 +32,57 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
   ];
 
   return (
-    <div>
-      <div style={{ borderLeft: '4px solid #2A7E4F', paddingLeft: 12, marginBottom: 18 }}>
-        <h1 style={{ margin: 0, fontSize: 21, fontWeight: 'bold' }}>Validation Inbox</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#58595B', maxWidth: 720 }}>
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-bold tracking-tight text-slate-900">Validation Inbox</h2>
+        <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-slate-500">
           A lightweight two-level check to publish the registry ID. This is not a parallel approval
-          chain for the transaction &#8212; PO/RFQ release stays in SAP.
+          chain for the transaction — PO/RFQ release stays in SAP.
         </p>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          border: '1px solid #E4E6E6',
-          background: '#fff',
-          marginBottom: 16,
-        }}
-      >
+      <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         {tabs.map((t) => {
           const active = tab === t.key;
           return (
             <button
               key={t.key}
+              type="button"
               onClick={() => app.setInboxTab(t.key)}
-              style={{
-                flex: '0 1 300px',
-                border: 0,
-                borderRight: '1px solid #E4E6E6',
-                borderBottom: `3px solid ${active ? '#2A7E4F' : 'transparent'}`,
-                background: active ? '#F2F8F5' : '#fff',
-                padding: '13px 18px',
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
+              className={`flex-1 border-b-[3px] border-r border-r-slate-200 px-4 py-3 text-left transition-colors last:border-r-0 sm:flex-[0_1_320px] ${
+                active
+                  ? 'border-b-[#307c4c] bg-[#307c4c]/5'
+                  : 'border-b-transparent bg-white hover:bg-slate-50'
+              }`}
             >
               <div
-                style={{
-                  fontSize: 12.5,
-                  fontWeight: 'bold',
-                  color: active ? '#1D5B39' : '#1F1F1D',
-                }}
+                className={`text-[12.5px] font-bold ${active ? 'text-[#1d4f31]' : 'text-slate-700'}`}
               >
                 {t.label}
               </div>
-              <div style={{ fontSize: 11, color: '#58595B', marginTop: 2 }}>{t.sub}</div>
+              <div className="mt-0.5 text-[11px] text-slate-400">{t.sub}</div>
             </button>
           );
         })}
       </div>
 
       {!hasStageRole && (
-        <div
-          style={{
-            background: '#FEF6E7',
-            border: '1px solid #E8B96A',
-            padding: '14px 16px',
-            marginBottom: 16,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 'bold',
-              color: '#8A6100',
-              letterSpacing: 0.5,
-              marginBottom: 5,
-            }}
-          >
-            READ-ONLY FOR YOUR ROLE
-          </div>
-          <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+            Read-only for your role
+          </p>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-amber-900">
             You are signed in as {app.viewer.role ?? 'an administrator'}. This level is validated by
             the{' '}
             {tab === 'l1'
               ? 'Country Supply Chain Manager (Validator L1)'
               : 'Category Manager / SC Director (Validator L2)'}
             .
-          </div>
+          </p>
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="space-y-3">
         {inboxRecs.map((r) => {
           const sh = shapeRow(r);
           const approveLabel =
@@ -122,133 +92,99 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
                 ? 'Confirm review — extend'
                 : 'Sign off — publish ID';
           const meta = [
-            { label: 'REASON CODE', value: r.reason },
-            { label: 'SEGMENT', value: r.segments.join(', ') || '—' },
-            { label: 'ANNUAL SPEND', value: money(r.spend) },
-            { label: 'REQUESTOR', value: r.requestor },
+            { label: 'Reason code', value: r.reason },
+            { label: 'Segment', value: r.segments.join(', ') || '—' },
+            { label: 'Annual spend', value: money(r.spend) },
+            { label: 'Requestor', value: r.requestor },
           ];
           const canAct = hasStageRole && app.canActOn(r.countryCode);
           return (
             <div
               key={r.rid}
-              style={{
-                background: '#fff',
-                border: '1px solid #E4E6E6',
-                borderLeft: `4px solid ${sh.accent}`,
-              }}
+              className="overflow-hidden rounded-xl border border-l-4 border-slate-200 bg-white shadow-sm"
+              // The left edge carries the record's status colour, computed per
+              // row by shapeRow.
+              style={{ borderLeftColor: sh.accent }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 20,
-                  justifyContent: 'space-between',
-                  padding: '16px 18px',
-                }}
-              >
-                <div style={{ flex: '1 1 480px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div className="flex flex-wrap justify-between gap-5 px-4 py-4">
+                <div className="min-w-0 flex-[1_1_480px]">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 'bold',
-                        letterSpacing: 0.4,
-                        padding: '3px 7px',
-                        borderRadius: 2,
-                        background: sh.clsBg,
-                        color: sh.clsFg,
-                      }}
+                      className="rounded px-1.5 py-0.5 text-[10.5px] font-bold tracking-wide"
+                      style={{ background: sh.clsBg, color: sh.clsFg }}
                     >
                       {sh.clsLabel}
                     </span>
-                    <span style={{ fontSize: 14, fontWeight: 'bold' }}>{sh.supplierName}</span>
-                    <span style={{ fontSize: 11.5, color: '#58595B' }}>SAP {sh.supplierId}</span>
-                    <span style={{ fontSize: 11.5, color: '#58595B' }}>&#183;</span>
-                    <span style={{ fontSize: 12.5, fontWeight: 'bold', color: '#2A7E4F' }}>
-                      {sh.country}
-                    </span>
+                    <span className="text-[14px] font-bold text-slate-900">{sh.supplierName}</span>
+                    <span className="text-[11.5px] text-slate-500">SAP {sh.supplierId}</span>
+                    <span className="text-[11.5px] text-slate-300">·</span>
+                    <span className="text-[12.5px] font-bold text-[#307c4c]">{sh.country}</span>
                   </div>
-                  <div style={{ fontSize: 12.5, color: '#1F1F1D', marginTop: 8 }}>
-                    {sh.scopeLabel} &#8212; {sh.scopeDetail}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12.5,
-                      color: '#58595B',
-                      marginTop: 6,
-                      lineHeight: 1.55,
-                      maxWidth: 720,
-                    }}
-                  >
+
+                  <p className="mt-2 text-[12.5px] text-slate-800">
+                    {sh.scopeLabel} — {sh.scopeDetail}
+                  </p>
+                  <p className="mt-1.5 max-w-3xl text-[12.5px] leading-relaxed text-slate-500">
                     {sh.justificationShort}
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 10 }}>
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
                     {meta.map((m) => (
                       <div key={m.label}>
-                        <div
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 'bold',
-                            color: '#58595B',
-                            letterSpacing: 0.5,
-                          }}
-                        >
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                           {m.label}
                         </div>
-                        <div style={{ fontSize: 12, marginTop: 2 }}>{m.value}</div>
+                        <div className="mt-0.5 text-[12px] text-slate-700">{m.value}</div>
                       </div>
                     ))}
                   </div>
                 </div>
-                <div
-                  style={{ flex: '0 0 210px', display: 'flex', flexDirection: 'column', gap: 8 }}
-                >
+
+                <div className="flex w-full flex-col gap-2 sm:w-[210px] sm:shrink-0">
                   <button
+                    type="button"
                     onClick={() => app.open(r.rid)}
-                    className="btn-neutral"
-                    style={{ padding: '9px 12px' }}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] font-semibold text-slate-600 shadow-sm transition-colors hover:border-[#307c4c]/30 hover:text-[#307c4c]"
                   >
                     Open full record
                   </button>
                   {canAct ? (
                     <>
                       <button
+                        type="button"
                         onClick={() => app.advance(r.rid)}
                         disabled={app.busy}
-                        className="btn-primary"
-                        style={{ padding: '9px 12px', fontSize: 12 }}
+                        className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-3 py-2 text-[12px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {approveLabel}
                       </button>
-                      <button onClick={() => app.open(r.rid)} className="btn-danger-outline">
+                      <button
+                        type="button"
+                        onClick={() => app.open(r.rid)}
+                        className="rounded-lg border border-red-200 bg-white px-3 py-2 text-[12.5px] font-semibold text-red-600 transition-colors hover:bg-red-50"
+                      >
                         Reject to Draft
                       </button>
                     </>
                   ) : hasStageRole ? (
-                    <div style={{ fontSize: 11.5, color: '#8A4B00', lineHeight: 1.45 }}>
+                    <p className="text-[11.5px] leading-relaxed text-amber-700">
                       Outside your approved countries.
-                    </div>
+                    </p>
                   ) : null}
                 </div>
               </div>
             </div>
           );
         })}
+
         {inboxRecs.length === 0 && (
-          <div
-            style={{
-              background: '#fff',
-              border: '1px solid #E4E6E6',
-              padding: 44,
-              textAlign: 'center',
-              color: '#58595B',
-              fontSize: 13,
-            }}
-          >
-            <div style={{ fontWeight: 'bold', color: '#1F1F1D', marginBottom: 6 }}>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-12 text-center shadow-sm">
+            <p className="text-[13px] font-semibold text-slate-800">
               Nothing waiting on this level
-            </div>
-            <div>Submitted cases appear here as soon as they reach this validation step.</div>
+            </p>
+            <p className="mt-1 text-[13px] text-slate-500">
+              Submitted cases appear here as soon as they reach this validation step.
+            </p>
           </div>
         )}
       </div>

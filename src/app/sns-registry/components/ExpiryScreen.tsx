@@ -5,6 +5,13 @@ import { displayStatus } from '../lib/helpers';
 import { shapeRow } from '../lib/shapeRow';
 import type { RegistryApp } from '../lib/useRegistryApp';
 
+/** KPI accents. Kept as a pair because the bar and the figure share a colour. */
+const ACCENT = {
+  amber: { bar: 'bg-amber-500', text: 'text-amber-600' },
+  red: { bar: 'bg-red-500', text: 'text-red-600' },
+  green: { bar: 'bg-[#307c4c]', text: 'text-[#307c4c]' },
+} as const;
+
 export default function ExpiryScreen({ app }: { app: RegistryApp }) {
   const counts = (status: string) => app.records.filter((r) => displayStatus(r) === status).length;
   const dated = app.records
@@ -15,32 +22,32 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
 
   const kpis = [
     {
-      label: 'EXPIRING IN 60 DAYS',
+      label: 'Expiring in 60 days',
       value: counts('Expiring soon'),
       sub: 'shown as Expiring soon in the registry',
-      color: '#E09A4E',
+      accent: ACCENT.amber,
     },
     {
-      label: 'EXPIRED',
+      label: 'Expired',
       value: counts('Expired'),
       sub: 'SAP reference is non-compliant',
-      color: '#B34141',
+      accent: ACCENT.red,
     },
     {
-      label: 'EXTENDED THIS PERIOD',
+      label: 'Extended this period',
       value: counts('Extended'),
       sub: 'original Registry ID retained',
-      color: '#2A7E4F',
+      accent: ACCENT.green,
     },
   ];
 
   return (
-    <div>
-      <div style={{ borderLeft: '4px solid #2A7E4F', paddingLeft: 12, marginBottom: 18 }}>
-        <h1 style={{ margin: 0, fontSize: 21, fontWeight: 'bold' }}>
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-bold tracking-tight text-slate-900">
           Expiry &amp; Periodic Review
-        </h1>
-        <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#58595B', maxWidth: 760 }}>
+        </h2>
+        <p className="mt-1 max-w-3xl text-[13px] leading-relaxed text-slate-500">
           Anything within 90 days of expiry is listed below, and from 60 days out it shows as
           &ldquo;Expiring soon&rdquo; across the registry. Reminders go to the requestor and both
           validators at 60, 30, 14, 7, 5, 3, 2 and 1 days before expiry, on the expiry date itself,
@@ -50,156 +57,102 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
         </p>
       </div>
 
-      <div
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 18 }}
-      >
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {kpis.map((k) => (
           <div
             key={k.label}
-            style={{
-              background: '#fff',
-              border: '1px solid #E4E6E6',
-              borderTop: `4px solid ${k.color}`,
-              padding: '14px 16px',
-            }}
+            className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
           >
-            <div
-              style={{ fontSize: 10.5, fontWeight: 'bold', color: '#58595B', letterSpacing: 0.7 }}
-            >
-              {k.label}
+            <div className={`h-1 ${k.accent.bar}`} />
+            <div className="px-4 py-3">
+              <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">
+                {k.label}
+              </p>
+              <p className={`mt-1 text-3xl font-bold leading-none ${k.accent.text}`}>{k.value}</p>
+              <p className="mt-1 text-[11.5px] text-slate-400">{k.sub}</p>
             </div>
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: 900,
-                color: k.color,
-                lineHeight: 1.15,
-                marginTop: 6,
-              }}
-            >
-              {k.value}
-            </div>
-            <div style={{ fontSize: 11.5, color: '#58595B' }}>{k.sub}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ background: '#fff', border: '1px solid #E4E6E6' }}>
-        <div
-          style={{
-            padding: '12px 18px',
-            borderBottom: '1px solid #E4E6E6',
-            fontSize: 13,
-            fontWeight: 'bold',
-            borderLeft: '4px solid #2A7E4F',
-          }}
-        >
-          Review Queue &#8212; Soonest Expiry First
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-3 text-[13px] font-bold text-slate-800">
+          Review queue — soonest expiry first
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {dated.map((x, i) => {
-            const sh = shapeRow(x.r);
-            const pct = Math.max(0, Math.min(100, Math.round((1 - Math.max(x.d, 0) / 90) * 100)));
-            const overdue = x.d < 0;
-            const barPct = (overdue ? 100 : pct) + '%';
-            const barColor = overdue ? '#B34141' : x.d <= 30 ? '#B34141' : '#E09A4E';
-            const reviewNote = overdue
-              ? 'Re-validation required before this ID can be referenced again'
-              : x.d <= 30
-                ? 'Under 30 days — start the review now'
-                : x.d <= 60
-                  ? 'Flagged Expiring soon in the registry'
-                  : 'Approaching the 60-day threshold';
-            const canReview =
-              (app.viewer.isAdmin || app.roleKind === 'req') &&
-              app.canActOn(x.r.countryCode) &&
-              x.r.base !== 'Pending Level 1' &&
-              x.r.base !== 'Pending Level 2';
-            const rowBg = i % 2 ? '#F7FAF8' : '#FFFFFF';
-            return (
-              <div
-                key={x.r.rid}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1.1fr 1.3fr 1fr 190px',
-                  gap: 18,
-                  alignItems: 'center',
-                  padding: '15px 18px',
-                  borderBottom: '1px solid #F0F1F1',
-                  background: rowBg,
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontFamily: 'Consolas,Menlo,monospace',
-                      fontWeight: 'bold',
-                      color: '#1D5B39',
-                      fontSize: 13.5,
-                    }}
-                  >
-                    {sh.idLabel}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: '#58595B', marginTop: 3 }}>
-                    {sh.clsLabel} &#183; {sh.country}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 'bold' }}>{sh.supplierName}</div>
-                  <div style={{ fontSize: 11.5, color: '#58595B', marginTop: 3 }}>
-                    {sh.scopeDetail}
-                  </div>
-                </div>
-                <div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontSize: 11.5,
-                      marginBottom: 5,
-                    }}
-                  >
-                    <span style={{ fontWeight: 'bold', color: sh.expiryNoteColor }}>
-                      {sh.expiryNote}
-                    </span>
-                    <span style={{ color: '#58595B' }}>{sh.expiryLabel}</span>
-                  </div>
-                  <div
-                    style={{
-                      height: 6,
-                      background: '#EDEFEF',
-                      borderRadius: 3,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div style={{ height: 6, width: barPct, background: barColor }} />
-                  </div>
-                  <div style={{ fontSize: 11, color: '#58595B', marginTop: 5 }}>{reviewNote}</div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                  <button
-                    onClick={() => app.open(x.r.rid)}
-                    className="btn-neutral"
-                    style={{ padding: '8px 12px', fontSize: 12 }}
-                  >
-                    Open record
-                  </button>
-                  {canReview && (
-                    <button
-                      onClick={() => app.startReview(x.r.rid)}
-                      className="btn-primary"
-                      style={{ padding: '8px 12px', fontSize: 12 }}
-                    >
-                      Start periodic review
-                    </button>
-                  )}
+
+        {dated.map((x) => {
+          const sh = shapeRow(x.r);
+          const pct = Math.max(0, Math.min(100, Math.round((1 - Math.max(x.d, 0) / 90) * 100)));
+          const overdue = x.d < 0;
+          const barPct = (overdue ? 100 : pct) + '%';
+          const barColor = overdue || x.d <= 30 ? 'bg-red-500' : 'bg-amber-500';
+          const reviewNote = overdue
+            ? 'Re-validation required before this ID can be referenced again'
+            : x.d <= 30
+              ? 'Under 30 days — start the review now'
+              : x.d <= 60
+                ? 'Flagged Expiring soon in the registry'
+                : 'Approaching the 60-day threshold';
+          const canReview =
+            (app.viewer.isAdmin || app.roleKind === 'req') &&
+            app.canActOn(x.r.countryCode) &&
+            x.r.base !== 'Pending Level 1' &&
+            x.r.base !== 'Pending Level 2';
+
+          return (
+            <div
+              key={x.r.rid}
+              className="grid items-center gap-4 border-b border-slate-100 px-4 py-4 odd:bg-white even:bg-slate-50/60 lg:grid-cols-[1.1fr_1.3fr_1fr_190px]"
+            >
+              <div>
+                <div className="font-mono text-[13.5px] font-bold text-[#1d4f31]">{sh.idLabel}</div>
+                <div className="mt-0.5 text-[11.5px] text-slate-500">
+                  {sh.clsLabel} · {sh.country}
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              <div>
+                <div className="text-[12.5px] font-bold text-slate-800">{sh.supplierName}</div>
+                <div className="mt-0.5 text-[11.5px] text-slate-500">{sh.scopeDetail}</div>
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex justify-between gap-2 text-[11.5px]">
+                  <span className="font-bold" style={{ color: sh.expiryNoteColor }}>
+                    {sh.expiryNote}
+                  </span>
+                  <span className="text-slate-500">{sh.expiryLabel}</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+                  <div className={`h-full ${barColor}`} style={{ width: barPct }} />
+                </div>
+                <div className="mt-1.5 text-[11px] text-slate-500">{reviewNote}</div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => app.open(x.r.rid)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-600 shadow-sm transition-colors hover:border-[#307c4c]/30 hover:text-[#307c4c]"
+                >
+                  Open record
+                </button>
+                {canReview && (
+                  <button
+                    type="button"
+                    onClick={() => app.startReview(x.r.rid)}
+                    className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-3 py-2 text-[12px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90"
+                  >
+                    Start periodic review
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
         {dated.length === 0 && (
-          <div style={{ padding: 44, textAlign: 'center', color: '#58595B', fontSize: 13 }}>
+          <div className="px-4 py-12 text-center text-[13px] text-slate-500">
             No record is within 90 days of expiry.
           </div>
         )}
