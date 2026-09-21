@@ -137,7 +137,11 @@ const headline = overdue
 const tone = overdue || onDay ? '#B34141' : dbe <= 7 ? '#E09A4E' : '#2A7E4F';
 
 // Set this to wherever the app is served.
-const BASE = 'https://expediting-tool.vercel.app';
+// The tool's public address. Hard-coded because this node runs in n8n, which
+// cannot read the app's NEXT_PUBLIC_APP_URL — so if the site ever moves, this
+// line moves with it. Approval emails do not need it: the app renders their
+// body itself and builds the link from its own environment.
+const BASE = 'https://scagents.nesr.com';
 const url = `${BASE}/sns-registry?record=${r.rid}`;
 
 const esc = (v) =>

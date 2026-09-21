@@ -25,12 +25,14 @@ export default function SnsRegistryClient({
   viewer,
   reference,
   initialRecords,
+  initialRecordId,
 }: {
   viewer: SnsViewer;
   reference: ReferenceData;
   initialRecords: RegistryRecord[];
+  initialRecordId: number | null;
 }) {
-  const app = useRegistryApp({ viewer, reference, initialRecords });
+  const app = useRegistryApp({ viewer, reference, initialRecords, initialRecordId });
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (

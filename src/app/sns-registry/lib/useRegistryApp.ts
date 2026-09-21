@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import {
   advanceSnsRecord,
   createSnsRecord,
@@ -45,12 +45,19 @@ export interface RegistryAppInit {
   viewer: SnsViewer;
   reference: ReferenceData;
   initialRecords: RegistryRecord[];
+  /** From `?record=`, the deep link every notification email carries. */
+  initialRecordId?: number | null;
 }
 
-export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAppInit) {
+export function useRegistryApp({
+  viewer,
+  reference,
+  initialRecords,
+  initialRecordId = null,
+}: RegistryAppInit) {
   const [records, setRecords] = useState<RegistryRecord[]>(initialRecords);
-  const [screen, setScreen] = useState<Screen>('registry');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [screen, setScreen] = useState<Screen>(initialRecordId ? 'detail' : 'registry');
+  const [selectedId, setSelectedId] = useState<number | null>(initialRecordId);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [step, setStep] = useState(1);
   const [draft, setDraftState] = useState<Draft | null>(null);
@@ -97,6 +104,29 @@ export function useRegistryApp({ viewer, reference, initialRecords }: RegistryAp
     },
     [],
   );
+
+  /**
+   * Keep `?record=` pointing at whatever is on screen.
+   *
+   * The registry is one page holding its own screen state, so without this the
+   * address bar says `/sns-registry` no matter which record you opened — you
+   * cannot link a colleague to a case, and the link in a reminder email has
+   * nothing to match on when it comes back.
+   *
+   * history.replaceState rather than the router: this is the same page either
+   * way, and router.replace would re-run the server component and refetch
+   * every record just to change the query string. Replace rather than push so
+   * walking through ten records does not bury the previous page under ten
+   * history entries.
+   */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const want = screen === 'detail' && selectedId ? String(selectedId) : null;
+    if (url.searchParams.get('record') === want) return;
+    if (want) url.searchParams.set('record', want);
+    else url.searchParams.delete('record');
+    window.history.replaceState(window.history.state, '', url);
+  }, [screen, selectedId]);
 
   const go = useCallback((next: Screen) => {
     setScreen(next);
