@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import './sns.css';
 
 export const metadata: Metadata = { title: 'NESR | S&S Registry' };
 export const dynamic = 'force-dynamic';

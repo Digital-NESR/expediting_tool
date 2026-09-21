@@ -89,9 +89,7 @@ export default function SnsRegistryClient({
         </div>
       )}
 
-      {/* `sns-root` is transitional: it dresses the screens that still carry
-          the ported stylesheet. It comes off once every screen is Tailwind. */}
-      <main className="sns-root mx-auto w-full max-w-[1460px] px-4 pb-16 pt-6 sm:px-6">
+      <main className="mx-auto w-full max-w-[1460px] px-4 pb-16 pt-6 sm:px-6">
         {app.screen === 'registry' && <RegistryScreen app={app} />}
         {app.screen === 'detail' && <DetailScreen app={app} />}
         {app.screen === 'new' && <NewRecordWizard app={app} />}
