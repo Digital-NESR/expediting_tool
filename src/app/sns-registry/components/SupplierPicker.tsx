@@ -94,37 +94,23 @@ export default function SupplierPicker({
 
   if (chosen) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <label style={{ fontSize: 10.5, fontWeight: 'bold', color: '#58595B', letterSpacing: 0.6 }}>
-          SUPPLIER
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">
+          Supplier
         </label>
-        <div
-          style={{
-            border: '1px solid #6AAF8E',
-            background: '#F5FAF7',
-            padding: '9px 10px',
-            borderRadius: 2,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-          }}
-        >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 'bold' }}>{name}</div>
-            <div
-              style={{ fontFamily: 'Consolas,Menlo,monospace', fontSize: 11.5, color: '#58595B' }}
-            >
-              SAP {sapId}
-            </div>
+        <div className="flex items-center gap-2.5 rounded-lg border border-[#6AAF8E] bg-[#307c4c]/5 px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[12.5px] font-bold text-slate-800">{name}</div>
+            <div className="font-mono text-[11.5px] text-slate-500">SAP {sapId}</div>
           </div>
           <button
+            type="button"
             onClick={() => {
               onClear();
               setQuery('');
               setOpen(true);
             }}
-            className="link-btn"
-            style={{ fontSize: 11.5, flex: '0 0 auto' }}
+            className="shrink-0 text-[11.5px] font-semibold text-[#307c4c] underline underline-offset-2 hover:no-underline"
           >
             Change
           </button>
@@ -134,12 +120,9 @@ export default function SupplierPicker({
   }
 
   return (
-    <div
-      ref={boxRef}
-      style={{ display: 'flex', flexDirection: 'column', gap: 5, position: 'relative' }}
-    >
-      <label style={{ fontSize: 10.5, fontWeight: 'bold', color: '#58595B', letterSpacing: 0.6 }}>
-        SUPPLIER
+    <div ref={boxRef} className="relative flex flex-col gap-1.5">
+      <label className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">
+        Supplier
       </label>
       <input
         value={query}
@@ -147,32 +130,17 @@ export default function SupplierPicker({
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
         placeholder="Search by name or SAP ID"
-        style={{ border: '1px solid #D1D3D4', padding: '9px 10px', borderRadius: 2 }}
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] outline-none transition-colors focus:border-[#307c4c]"
       />
-      <span style={{ fontSize: 11, color: '#58595B', lineHeight: 1.45 }}>
+      <span className="text-[11px] leading-relaxed text-slate-400">
         From the approved vendor list. Choosing sets the SAP ID and name together.
       </span>
 
       {open && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            zIndex: 20,
-            background: '#fff',
-            border: '1px solid #D1D3D4',
-            maxHeight: 280,
-            overflowY: 'auto',
-            boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
-          }}
-        >
-          {loading && (
-            <div style={{ padding: '10px 12px', fontSize: 12, color: '#8A8C8E' }}>Searching…</div>
-          )}
+        <div className="absolute left-0 right-0 top-full z-20 max-h-[280px] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+          {loading && <div className="px-3 py-2.5 text-[12px] text-slate-400">Searching…</div>}
           {!loading && options.length === 0 && (
-            <div style={{ padding: '10px 12px', fontSize: 12, color: '#8A8C8E' }}>
+            <div className="px-3 py-2.5 text-[12px] text-slate-400">
               {query.trim()
                 ? 'No approved supplier matches that.'
                 : 'Start typing a name or SAP ID.'}
@@ -184,39 +152,19 @@ export default function SupplierPicker({
                 key={o.sapId}
                 onMouseEnter={() => setHighlight(i)}
                 onClick={() => choose(o)}
-                style={{
-                  padding: '8px 12px',
-                  cursor: 'pointer',
-                  background: i === highlight ? '#EDF5F0' : '#fff',
-                  borderBottom: '1px solid #F2F3F3',
-                }}
+                className={`cursor-pointer border-b border-slate-100 px-3 py-2 ${
+                  i === highlight ? 'bg-[#307c4c]/5' : 'bg-white'
+                }`}
               >
-                <div style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontWeight: 'bold' }}>{o.name}</span>
+                <div className="flex items-center gap-2 text-[12.5px]">
+                  <span className="font-bold text-slate-800">{o.name}</span>
                   {o.blocked && (
-                    <span
-                      style={{
-                        background: '#F8DCDC',
-                        color: '#9B1C1C',
-                        fontSize: 10,
-                        fontWeight: 'bold',
-                        padding: '1px 6px',
-                        borderRadius: 8,
-                      }}
-                    >
+                    <span className="rounded-full bg-red-100 px-1.5 py-px text-[10px] font-bold text-red-700">
                       blocked in SAP
                     </span>
                   )}
                 </div>
-                <div
-                  style={{
-                    fontFamily: 'Consolas,Menlo,monospace',
-                    fontSize: 11.5,
-                    color: '#58595B',
-                  }}
-                >
-                  {o.sapId}
-                </div>
+                <div className="font-mono text-[11.5px] text-slate-500">{o.sapId}</div>
               </div>
             ))}
         </div>
