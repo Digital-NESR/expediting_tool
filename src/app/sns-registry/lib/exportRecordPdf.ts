@@ -14,10 +14,41 @@ import type { RegistryRecord } from './types';
  * together they are a large dependency and nobody should pay for them just by
  * opening a record.
  */
+/**
+ * The NESR mark as a data URI, fetched from /public at call time.
+ *
+ * Read at runtime rather than inlined as a base64 constant: it is ~27 KB, and
+ * embedding it in the bundle would charge that to everyone who opens a record,
+ * not just the few who export one. Cached after the first export.
+ *
+ * Returns null if it cannot be read — a missing logo must degrade to a
+ * text-only header, never fail the export. The PDF is the thing someone has to
+ * attach to a SAP transaction.
+ */
+let logoCache: string | null | undefined;
+async function nesrLogo(): Promise<string | null> {
+  if (logoCache !== undefined) return logoCache;
+  try {
+    const res = await fetch('/nesr-logo-green.png');
+    if (!res.ok) throw new Error(String(res.status));
+    const blob = await res.blob();
+    logoCache = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    logoCache = null;
+  }
+  return logoCache;
+}
+
 export async function exportRecordPdf(rec: RegistryRecord): Promise<void> {
-  const [{ jsPDF }, autoTableModule] = await Promise.all([
+  const [{ jsPDF }, autoTableModule, logo] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
+    nesrLogo(),
   ]);
   const autoTable = autoTableModule.default;
 
@@ -31,24 +62,36 @@ export async function exportRecordPdf(rec: RegistryRecord): Promise<void> {
 
   /* Header. The Registry ID is the whole point of the document, so it is set
      large and monospaced — it gets read off a printout and typed into SAP. */
+  const logoW = 46;
+  const logoH = logo ? Math.round((logoW * 270) / 353) : 0; // the mark is 353x270
+  const textX = logo ? margin + logoW + 14 : margin;
+
+  if (logo) {
+    // Drawn from the top margin so the mark and the text block share a
+    // baseline rather than the logo floating above the heading.
+    doc.addImage(logo, 'PNG', margin, cursorY - 12, logoW, logoH);
+  }
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(90, 90, 90);
-  doc.text('NESR — SINGLE & SOLE SOURCE REGISTRY', margin, cursorY);
+  doc.text('NESR — SINGLE & SOLE SOURCE REGISTRY', textX, cursorY);
   cursorY += 22;
 
   doc.setFont('courier', 'bold');
   doc.setFontSize(17);
   doc.setTextColor(29, 91, 57);
-  doc.text(idLabel, margin, cursorY);
+  doc.text(idLabel, textX, cursorY);
   cursorY += 16;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.5);
   doc.setTextColor(88, 89, 91);
-  doc.text(`${clsLabel(rec.cls)} · ${rec.country} · ${displayStatus(rec)}`, margin, cursorY);
+  doc.text(`${clsLabel(rec.cls)} · ${rec.country} · ${displayStatus(rec)}`, textX, cursorY);
   cursorY += 10;
 
+  // Clear the logo as well as the text, whichever runs lower.
+  cursorY = Math.max(cursorY, logo ? 44 - 12 + logoH + 8 : cursorY);
   doc.setDrawColor(42, 126, 79);
   doc.setLineWidth(2);
   doc.line(margin, cursorY, pageWidth - margin, cursorY);
