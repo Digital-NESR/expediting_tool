@@ -291,6 +291,23 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
   const viewer = await getSnsViewer();
   if (!viewer) return [];
 
+  /* You see the countries you were granted, and nothing else. A record carries
+     the supplier, the spend, the justification narrative and the full audit
+     trail, none of which is another country's business — and this gate used to
+     stop at "is this person in the registry at all", which let an HQ requestor
+     read every Algeria and India case.
+
+     Global is not special. It is a country grant like any other, so only
+     someone approved for Global sees Global records.
+
+     The rule is deliberately the same one `canActInCountry` applies, rather
+     than a second expression of it: reading and acting disagreeing about scope
+     is how a record becomes invisible but still approvable. Unrestricted means
+     admins — and, by the same convention, a grant with no countries on it,
+     which the request form does not allow anyone to create. A record whose
+     country will not resolve is in nobody's scope, so it fails closed. */
+  const unrestricted = viewer.isAdmin || viewer.countryCodes.length === 0;
+
   try {
     const [recs, nodes, segs, hist, docs] = await Promise.all([
       /* COALESCE covers records raised before `country_code` existed: fall back
@@ -304,7 +321,9 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
                 COALESCE(r.country_code, c.code) AS resolved_country_code
            FROM sns_record r
            LEFT JOIN sns_country c ON c.name = r.country
+          WHERE $1::boolean OR COALESCE(r.country_code, c.code) = ANY($2::text[])
           ORDER BY r.created_at DESC, r.rid DESC`,
+        [unrestricted, viewer.countryCodes],
       ),
       /* Only the columns the shaper below reads: these three child tables are
          fetched for the whole registry, so every unused column is dead payload. */

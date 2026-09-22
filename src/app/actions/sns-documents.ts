@@ -100,10 +100,41 @@ function mapDocument(r: Record<string, unknown>): SnsDocument {
   };
 }
 
+/**
+ * Whether this viewer's country grant covers the record.
+ *
+ * Both readers below take a bare `rid`, so without this a scoped viewer could
+ * ask for any record's attachment names, uploader identities and reminder
+ * history simply by changing the number — none of which their country grant
+ * covers. The download route has always enforced this; the metadata around it
+ * had not caught up.
+ *
+ * Same rule as `canActInCountry` in sns.ts: admins and a grant with no
+ * countries on it are unrestricted, and a record whose country will not
+ * resolve is in nobody's scope.
+ */
+async function viewerCoversRecord(
+  viewer: { isAdmin: boolean; countryCodes: string[] },
+  rid: number,
+): Promise<boolean> {
+  if (viewer.isAdmin || viewer.countryCodes.length === 0) return true;
+  const { rows } = await snsPool.query(
+    `SELECT COALESCE(r.country_code, c.code) AS code
+       FROM sns_record r
+       LEFT JOIN sns_country c ON c.name = r.country
+      WHERE r.rid = $1`,
+    [rid],
+  );
+  if (!rows.length) return false;
+  const code = rows[0].code ? String(rows[0].code) : '';
+  return !!code && viewer.countryCodes.includes(code);
+}
+
 /** Metadata only — never the bytes, which are served by the download route. */
 export async function getSnsRecordDocuments(rid: number): Promise<SnsDocument[]> {
   const viewer = await getSnsViewer();
   if (!viewer) return [];
+  if (!(await viewerCoversRecord(viewer, rid))) return [];
   try {
     const { rows } = await snsPool.query(
       `SELECT id, record_rid, kind, document_name, original_name, file_type, file_size,
@@ -305,6 +336,7 @@ export interface SnsNotificationLogRow {
 export async function getSnsRecordNotifications(rid: number): Promise<SnsNotificationLogRow[]> {
   const viewer = await getSnsViewer();
   if (!viewer) return [];
+  if (!(await viewerCoversRecord(viewer, rid))) return [];
   try {
     const { rows } = await snsPool.query(
       `SELECT days_before_expiry, cycle_expiry, status, sent_at
