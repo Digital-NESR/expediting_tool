@@ -207,44 +207,66 @@ export const authOptions: NextAuthOptions = {
           // Query each tool's access table in parallel. Every predicate is
           // LOWER(column) = $1 against the already-lowercased `email`, so rows
           // stored with mixed case still match their owner.
-          const [poResult, titeResult, sgChampResult, sgAccessResult, pgPermResult, snsResult] =
-            await Promise.all([
-              pool.query(
-                `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
+          const [
+            poResult,
+            titeResult,
+            sgChampResult,
+            sgAccessResult,
+            pgPermResult,
+            snsResult,
+            snsApproverResult,
+          ] = await Promise.all([
+            pool.query(
+              `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
+              [email],
+            ),
+            titePool.query(
+              `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
+              [email],
+            ),
+            sourceGuidePool
+              .query(
+                `SELECT country_code FROM sg_champions WHERE email IS NOT NULL AND LOWER(email) = $1`,
                 [email],
-              ),
-              titePool.query(
-                `SELECT status, approved_countries FROM access_requests WHERE LOWER(user_email) = $1`,
+              )
+              .catch(() => ({ rows: [] as { country_code: string }[] })),
+            sourceGuidePool
+              .query(`SELECT status FROM access_requests WHERE LOWER(user_email) = $1`, [email])
+              .catch(() => ({ rows: [] as { status: string }[] })),
+            procureGuardPool
+              .query(`SELECT role FROM procure_guard_permissions WHERE LOWER(email) = $1 LIMIT 1`, [
+                email,
+              ])
+              .catch(() => ({ rows: [] as { role: string }[] })),
+            snsPool
+              .query(
+                `SELECT status, approved_role, approved_countries FROM sns_access_requests WHERE LOWER(user_email) = $1`,
                 [email],
-              ),
-              sourceGuidePool
-                .query(
-                  `SELECT country_code FROM sg_champions WHERE email IS NOT NULL AND LOWER(email) = $1`,
-                  [email],
-                )
-                .catch(() => ({ rows: [] as { country_code: string }[] })),
-              sourceGuidePool
-                .query(`SELECT status FROM access_requests WHERE LOWER(user_email) = $1`, [email])
-                .catch(() => ({ rows: [] as { status: string }[] })),
-              procureGuardPool
-                .query(
-                  `SELECT role FROM procure_guard_permissions WHERE LOWER(email) = $1 LIMIT 1`,
-                  [email],
-                )
-                .catch(() => ({ rows: [] as { role: string }[] })),
-              snsPool
-                .query(
-                  `SELECT status, approved_role, approved_countries FROM sns_access_requests WHERE LOWER(user_email) = $1`,
-                  [email],
-                )
-                .catch(() => ({
-                  rows: [] as {
-                    status: string;
-                    approved_role: string | null;
-                    approved_countries: string[];
-                  }[],
-                })),
-            ]);
+              )
+              .catch(() => ({
+                rows: [] as {
+                  status: string;
+                  approved_role: string | null;
+                  approved_countries: string[];
+                }[],
+              })),
+            /* Being named on the S&S Approvers screen is itself the grant —
+                 a Country Supply Chain Manager does not request access to the
+                 registry they approve in. The registry's own getSnsViewer
+                 already resolves them; without the same check here the home
+                 card would still offer them a "Request access" button for a
+                 tool they can already open. */
+            snsPool
+              .query(
+                `SELECT country_code AS code, TRUE AS is_l1 FROM sns_country_manager
+                    WHERE active AND LOWER(manager_email) = $1
+                   UNION ALL
+                   SELECT NULL AS code, FALSE AS is_l1 FROM sns_category_manager
+                    WHERE active AND LOWER(manager_email) = $1`,
+                [email],
+              )
+              .catch(() => ({ rows: [] as { code: string | null; is_l1: boolean }[] })),
+          ]);
 
           // PO Expediting access
           let poStatus: string;
@@ -343,9 +365,10 @@ export const authOptions: NextAuthOptions = {
             sgCountries = [];
           }
 
-          // S&S Registry access: env admins bypass the queue entirely; everyone
-          // else needs an Approved row in sns_access_requests. `accessType` carries
-          // the granted role so the home card can label it.
+          // S&S Registry access: env admins bypass the queue entirely, an
+          // approver is admitted by being on the Approvers screen, and everyone
+          // else needs an Approved row in sns_access_requests. `accessType`
+          // carries the granted role so the home card can label it.
           let snsStatus: string;
           let snsCountries: string[];
           let snsRole: string | undefined;
@@ -353,6 +376,18 @@ export const authOptions: NextAuthOptions = {
             snsStatus = 'approved';
             snsCountries = [];
             snsRole = 'admin';
+          } else if (snsApproverResult.rows.length > 0) {
+            /* An approver is in, whatever the request queue says. Countries
+               come from the Level 1 rows only: Level 2 is scoped by category,
+               so an empty list — which the registry reads as unrestricted — is
+               the right answer for a Category Manager or a Director. */
+            const l1 = snsApproverResult.rows.filter((x) => x.is_l1 && x.code);
+            const anyL2 = snsApproverResult.rows.some((x) => !x.is_l1);
+            snsStatus = 'approved';
+            snsCountries = anyL2 ? [] : [...new Set(l1.map((x) => String(x.code)))];
+            snsRole = anyL2
+              ? 'Validator L2 — Category Manager / SC Director'
+              : 'Validator L1 — Country Supply Chain Manager';
           } else if (snsResult.rows.length > 0) {
             const sr = snsResult.rows[0];
             const st = String(sr.status).toLowerCase();
