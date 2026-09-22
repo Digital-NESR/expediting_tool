@@ -57,7 +57,12 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
   // countries their access request was approved for.
   const isAdmin = app.viewer.isAdmin;
   const inScope = app.canActOn(rec.countryCode);
-  const can = (k: 'req' | 'l1' | 'l2') => inScope && (isAdmin || kind === k);
+  /* l1/l2 come from the approver lists, req from the granted role. A country
+     manager who is also a category manager holds both. */
+  const can = (k: 'req' | 'l1' | 'l2') =>
+    inScope &&
+    (isAdmin ||
+      (k === 'req' ? kind === 'req' : k === 'l1' ? app.viewer.isLevel1 : app.viewer.isLevel2));
 
   const actions: { label: string; className: string; onClick: () => void }[] = [];
   const canReq = can('req');

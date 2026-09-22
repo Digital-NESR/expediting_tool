@@ -15,8 +15,8 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
   // per record rather than once for the whole tab.
   const hasStageRole =
     app.viewer.isAdmin ||
-    (tab === 'l1' && app.roleKind === 'l1') ||
-    (tab === 'l2' && app.roleKind === 'l2');
+    (tab === 'l1' && app.viewer.isLevel1) ||
+    (tab === 'l2' && app.viewer.isLevel2);
   const inboxRecs = app.records.filter((r) => displayStatus(r) === wantStatus);
 
   const tabs = [

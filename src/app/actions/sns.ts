@@ -14,6 +14,7 @@ import { nextRegistryIdFrom, registryIdPrefix } from '@/app/sns-registry/lib/reg
 import { fetchSnsTaxonomyTree } from '@/lib/sns-taxonomy';
 import { buildWorkflowEmail, snsRecordUrl, trySnsWebhook } from '@/lib/sns-notify';
 import {
+  getSnsApproverStanding,
   isSnsLevel1Approver,
   isSnsLevel2Approver,
   resolveSnsLevel1Approver,
@@ -67,27 +68,64 @@ export async function getSnsViewer(): Promise<SnsViewer | null> {
   const name = session.user.name ?? email;
 
   if (isPlatformAdminEmail(email)) {
-    return { email, name, isAdmin: true, role: null, roleKind: 'admin', countryCodes: [] };
+    return {
+      email,
+      name,
+      isAdmin: true,
+      role: null,
+      roleKind: 'admin',
+      isLevel1: true,
+      isLevel2: true,
+      countryCodes: [],
+    };
   }
 
   try {
-    const { rows } = await snsPool.query(
-      `SELECT status, approved_role, approved_countries
-         FROM sns_access_requests
-        WHERE LOWER(user_email) = LOWER($1)`,
-      [email],
-    );
-    if (rows.length === 0) return null;
-    const r = rows[0];
-    if (String(r.status) !== 'Approved' || !r.approved_role) return null;
+    /* Two ways in, and either is enough.
+       An approved access request is how a Requestor or a read-only viewer gets
+       here. Being named on the Approvers screen is how a validator does — they
+       do not request access to the registry they are the approver for, and
+       until this they were all locked out at the door, leaving the two-level
+       chain with nobody able to walk it. */
+    const [reqRows, standing] = await Promise.all([
+      snsPool.query(
+        `SELECT status, approved_role, approved_countries
+           FROM sns_access_requests
+          WHERE LOWER(user_email) = LOWER($1)`,
+        [email],
+      ),
+      getSnsApproverStanding(email),
+    ]);
+
+    const r = reqRows.rows[0];
+    const approved = r && String(r.status) === 'Approved' && !!r.approved_role;
+    if (!approved && !standing.isLevel1 && !standing.isLevel2) return null;
+
+    const grantedCountries = approved
+      ? await normaliseCountryCodes((r.approved_countries as string[]) ?? [])
+      : [];
+
+    /* Empty means unrestricted. A Level 2 approver is scoped by category, not
+       country, so pinning them to a country list would hide records they are
+       the named signatory for. An approved grant with no countries on it keeps
+       the same meaning it always had. */
+    const unrestricted = standing.isLevel2 || (approved && grantedCountries.length === 0);
+    const countryCodes = unrestricted
+      ? []
+      : Array.from(new Set([...grantedCountries, ...standing.countryCodes]));
 
     return {
       email,
       name,
       isAdmin: false,
-      role: r.approved_role as SnsRole,
-      roleKind: roleKind(r.approved_role),
-      countryCodes: await normaliseCountryCodes((r.approved_countries as string[]) ?? []),
+      role: approved ? (r.approved_role as SnsRole) : null,
+      /* The role string still decides req/ro/lead. An approver with no request
+         of their own has no role string, so name the stage they validate at —
+         it is what the sidebar shows them as. */
+      roleKind: approved ? roleKind(r.approved_role) : standing.isLevel2 ? 'l2' : 'l1',
+      isLevel1: standing.isLevel1,
+      isLevel2: standing.isLevel2,
+      countryCodes,
     };
   } catch (err) {
     log.error('viewer.load.failed', err);

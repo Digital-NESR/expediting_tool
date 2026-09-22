@@ -145,6 +145,13 @@ export interface SnsViewer {
   role: SnsRole | null;
   roleKind: RoleKind;
   /**
+   * Named on the Approvers screen, which is what confers validation authority
+   * — not the access request, which nobody makes about themselves. Level 1 is
+   * by country, Level 2 by category, and one person can be both.
+   */
+  isLevel1: boolean;
+  isLevel2: boolean;
+  /**
    * `sns_country.code` values the viewer may act in — codes, not names, so a
    * country rename cannot silently widen or break someone's scope. Empty means
    * unrestricted: admins, and read-only/leadership roles that see everything.

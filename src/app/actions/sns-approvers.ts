@@ -275,6 +275,53 @@ export async function isSnsLevel2Approver(
   return { allowed: approvers.some((a) => sameEmail(a.email, email)), unassigned: false };
 }
 
+/**
+ * Where this person stands on the approver lists.
+ *
+ * Being named on the Approvers screen IS the grant. A Country Supply Chain
+ * Manager or a Category Manager does not request access to the registry they
+ * are the approver for — they were put there by an admin, which is a stronger
+ * statement than a request they would then have to make about themselves. Every
+ * one of them was previously locked out at the door, so the two-level chain had
+ * nobody who could actually walk it.
+ *
+ * Countries come back only for Level 1, whose authority is by country. Level 2
+ * is scoped by CATEGORY — a Category Manager signs their categories off
+ * wherever the record was raised, and a Supply Chain Director signs anything —
+ * so a country list would be the wrong shape of fence entirely.
+ */
+export async function getSnsApproverStanding(email: string): Promise<{
+  isLevel1: boolean;
+  isLevel2: boolean;
+  countryCodes: string[];
+}> {
+  const trimmed = email.trim();
+  if (!trimmed) return { isLevel1: false, isLevel2: false, countryCodes: [] };
+  try {
+    const [l1, l2] = await Promise.all([
+      snsPool.query(
+        `SELECT country_code FROM sns_country_manager
+          WHERE active AND LOWER(manager_email) = LOWER($1)`,
+        [trimmed],
+      ),
+      snsPool.query(
+        `SELECT 1 FROM sns_category_manager
+          WHERE active AND LOWER(manager_email) = LOWER($1) LIMIT 1`,
+        [trimmed],
+      ),
+    ]);
+    return {
+      isLevel1: l1.rows.length > 0,
+      isLevel2: l2.rows.length > 0,
+      countryCodes: l1.rows.map((r) => String(r.country_code)).filter(Boolean),
+    };
+  } catch (err) {
+    // Fail closed: an unreadable approver table must not hand out access.
+    log.error('approvers.standing.failed', err, { email: trimmed });
+    return { isLevel1: false, isLevel2: false, countryCodes: [] };
+  }
+}
+
 /* ═══ Country manager mutations ══════════════════════════════════ */
 
 export async function upsertSnsCountryManager(

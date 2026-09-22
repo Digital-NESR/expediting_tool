@@ -380,17 +380,22 @@ export function useRegistryApp({
   const can = useMemo(() => {
     const kind = viewer.roleKind;
     const admin = viewer.isAdmin;
+    /* Validation authority comes from the Approvers screen, not from a role
+       someone asked for — so these read the approver flags rather than
+       roleKind, and a person who is both a country manager and a category
+       manager gets both. */
+    const validates = viewer.isLevel1 || viewer.isLevel2;
     return {
       /** Raise records, and start a periodic review. */
       create: admin || kind === 'req',
       /** The validation queues. Requestors do not validate, so they do not see them. */
-      inbox: admin || kind === 'l1' || kind === 'l2' || kind === 'ro' || kind === 'lead',
+      inbox: admin || validates || kind === 'ro' || kind === 'lead',
       /** Leadership reporting. Not part of raising a record. */
       dashboard: admin || kind !== 'req',
       /** Approve, reject, sign off. Read-only never acts. */
-      act: admin || kind === 'l1' || kind === 'l2' || kind === 'req',
+      act: admin || validates || kind === 'req',
     };
-  }, [viewer.roleKind, viewer.isAdmin]);
+  }, [viewer.roleKind, viewer.isAdmin, viewer.isLevel1, viewer.isLevel2]);
 
   /**
    * Countries this viewer may raise or validate records for, by display name.
