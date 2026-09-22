@@ -17,14 +17,11 @@ import { exportRecordPdf } from '../lib/exportRecordPdf';
 import { getSnsRecordNotifications } from '@/app/actions/sns-documents';
 import type { SnsNotificationLogRow } from '@/app/actions/sns-documents';
 import type { RegistryApp } from '../lib/useRegistryApp';
+import { CARD, CARD_HEAD, FIELD_LABEL } from '../lib/ui';
+import RecordDocuments from './RecordDocuments';
 
 const SHOW_SAP_PANEL = true;
 
-/** Shared chrome, so every panel on the page reads as one family. */
-const CARD = 'overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm';
-const CARD_HEAD =
-  'border-b border-slate-200 bg-slate-50/70 px-4 py-3 text-[13px] font-bold text-slate-800';
-const FIELD_LABEL = 'text-[10.5px] font-bold uppercase tracking-wider text-slate-400';
 const BTN_PRIMARY =
   'w-full rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-3 py-2.5 text-[12.5px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90';
 const BTN_DANGER =
@@ -275,6 +272,8 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
               </p>
             </div>
           </div>
+
+          <RecordDocuments app={app} rec={rec} />
 
           {SHOW_SAP_PANEL && (
             <div className="overflow-hidden rounded-xl bg-slate-900 text-white shadow-sm">
