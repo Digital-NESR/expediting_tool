@@ -6,7 +6,6 @@ import {
   createSnsRecord,
   getSnsRecords,
   rejectSnsRecord,
-  startSnsReview,
 } from '@/app/actions/sns';
 import { clsLabel, displayStatus, nodeKey, recordLabel } from './helpers';
 import type {
@@ -61,6 +60,8 @@ export function useRegistryApp({
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [step, setStep] = useState(1);
   const [draft, setDraftState] = useState<Draft | null>(null);
+  /** Set when the open draft is a periodic review, naming the record it replaces. */
+  const [renewalOf, setRenewalOf] = useState<number | null>(null);
   const [browse, setBrowse] = useState<Browse>({ cat: '', sub: '', fam: '' });
   const [copied, setCopied] = useState(false);
   const [rejectFor, setRejectFor] = useState<number | null>(null);
@@ -147,6 +148,7 @@ export function useRegistryApp({
     setScreen('new');
     setStep(1);
     setError(null);
+    setRenewalOf(null);
     setDraftState({
       cls: 'SGL',
       expiry: '',
@@ -172,6 +174,7 @@ export function useRegistryApp({
 
   const cancelDraft = useCallback(() => {
     setDraftState(null);
+    setRenewalOf(null);
     setScreen('registry');
     setError(null);
   }, []);
@@ -215,7 +218,7 @@ export function useRegistryApp({
       if (!draft) return;
       setError(null);
       startTransition(async () => {
-        const res = await createSnsRecord(draft, base);
+        const res = await createSnsRecord(draft, base, renewalOf);
         if (!res.success) {
           setError(res.error ?? 'Could not save the record.');
           return;
@@ -228,10 +231,11 @@ export function useRegistryApp({
         setScreen('detail');
         setSelectedId(res.rid ?? null);
         setDraftState(null);
+        setRenewalOf(null);
         setStep(1);
       });
     },
-    [draft],
+    [draft, renewalOf],
   );
 
   const advance = useCallback((rid: number) => run(() => advanceSnsRecord(rid)), [run]);
@@ -249,7 +253,46 @@ export function useRegistryApp({
     [run],
   );
 
-  const startReview = useCallback((rid: number) => run(() => startSnsReview(rid)), [run]);
+  /**
+   * Opens the wizard on a copy of an existing record, to be renewed.
+   *
+   * A periodic review raises a new record rather than editing the old one: the
+   * Registry ID encodes the validity window it was minted with, so a renewed
+   * period needs its own ID. Everything is carried over and everything stays
+   * editable — a year on, the supplier, the scope or the reason may genuinely
+   * have changed, and forcing a from-scratch re-entry is how details get
+   * retyped wrongly.
+   *
+   * The expiry deliberately does NOT carry over. It is the one field that must
+   * be reconsidered, and pre-filling last year's date is the easiest way to
+   * have it waved through unchanged.
+   */
+  const startRenewal = useCallback(
+    (rid: number) => {
+      const r = records.find((x) => x.rid === rid);
+      if (!r) return;
+      setRenewalOf(rid);
+      setScreen('new');
+      setStep(1);
+      setError(null);
+      setDraftState({
+        cls: r.cls,
+        country: r.country,
+        level: r.level,
+        nodes: r.nodes.map((n) => ({ ...n })),
+        segments: [...r.segments],
+        supplierId: r.supplierId,
+        supplierName: r.supplierName,
+        spend: r.spend ? String(r.spend) : '',
+        reason: r.reason,
+        justification: r.justification,
+        expiry: '',
+      });
+      const first = r.nodes[0];
+      setBrowse(first ? { cat: first.cat, sub: first.sub, fam: first.fam } : defaultBrowse());
+    },
+    [records, defaultBrowse],
+  );
 
   const filteredRecords = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
@@ -417,7 +460,8 @@ export function useRegistryApp({
     commit,
     advance,
     reject,
-    startReview,
+    startRenewal,
+    renewalOf,
     exportCsv,
     onCopyId,
   };

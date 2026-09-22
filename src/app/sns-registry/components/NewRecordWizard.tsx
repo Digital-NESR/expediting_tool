@@ -1,6 +1,7 @@
 'use client';
 
 import { STAGE1, STAGE2 } from '../lib/constants';
+import { recordLabel } from '../lib/helpers';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -44,6 +45,12 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
 
   const d = app.draft;
   if (!d) return null;
+
+  /* A periodic review opens this wizard on a copy of an existing record. It is
+     the same form and the same rules — the only differences are what the
+     headings say and that the Registry ID it mints will supersede the one it
+     was copied from. */
+  const renewing = app.renewalOf != null ? app.records.find((r) => r.rid === app.renewalOf) : null;
 
   const step = app.step;
   const selKeys = d.nodes.map(nodeKey);
@@ -124,11 +131,29 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-bold tracking-tight text-slate-900">New Registry Record</h2>
+        <h2 className="text-lg font-bold tracking-tight text-slate-900">
+          {renewing ? 'Update Existing Record' : 'New Registry Record'}
+        </h2>
         <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-slate-500">
-          A record is scoped to one country and one supplier, at Family or Commodity level only.
+          {renewing
+            ? 'Every field is carried over and every field can be changed. Set a new expiry date — it is the one thing not copied.'
+            : 'A record is scoped to one country and one supplier, at Family or Commodity level only.'}
         </p>
       </div>
+
+      {renewing && (
+        <div className="rounded-xl border border-[#6AAF8E] bg-[#307c4c]/5 px-4 py-3.5">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#1d4f31]">
+            Renewing {recordLabel(renewing)}
+          </p>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-slate-700">
+            Submitting raises a replacement record with its own Registry ID, built from the dates
+            you set here. {recordLabel(renewing)} stays active and usable until the replacement is
+            signed off, then it is closed and kept on file for audit — so anything already quoting
+            it in SAP keeps working in the meantime.
+          </p>
+        </div>
+      )}
 
       <div className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-2 xl:grid-cols-4">
         {stepsSummary.map((s, i) => {
@@ -610,6 +635,9 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
               {d.country || 'the selected country'}, then to the {STAGE2} for final sign-off. The
               Registry ID is generated only when the record is published to Active, and is valid for
               a fixed 12 months from issue date.
+              {renewing
+                ? ` Publishing it closes ${recordLabel(renewing)}, which stays on file for audit.`
+                : ''}
             </div>
 
             {missing.length > 0 && (
@@ -669,7 +697,9 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                 disabled={app.busy}
                 className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {app.busy ? 'Submitting…' : `Submit for ${STAGE1} validation`}
+                {app.busy
+                  ? 'Submitting…'
+                  : `Submit ${renewing ? 'replacement ' : ''}for ${STAGE1} validation`}
               </button>
             )}
           </div>

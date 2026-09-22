@@ -36,7 +36,7 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
     {
       label: 'Extended this period',
       value: counts('Extended'),
-      sub: 'original Registry ID retained',
+      sub: 'renewed into a replacement record',
       accent: ACCENT.green,
     },
   ];
@@ -51,9 +51,10 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
           Anything within 90 days of expiry is listed below, and from 60 days out it shows as
           &ldquo;Expiring soon&rdquo; across the registry. Reminders go to the requestor and both
           validators at 60, 30, 14, 7, 5, 3, 2 and 1 days before expiry, on the expiry date itself,
-          and weekly after that until the record is renewed or the supplier account is closed — see
-          the Expiry Reminders panel on any record for what has been sent. A successful review keeps
-          the original Registry ID and extends expiry by a further 12 months.
+          and weekly after that until the record is renewed — see the Expiry Reminders panel on any
+          record for what has been sent. A review raises a replacement record, which you can edit
+          before submitting; once it is signed off it takes over with a new Registry ID, and this
+          one is closed and kept on file for audit.
         </p>
       </div>
 
@@ -93,8 +94,11 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
               : x.d <= 60
                 ? 'Flagged Expiring soon in the registry'
                 : 'Approaching the 60-day threshold';
+          /* Opens the record rather than acting from here. A renewal is a new
+             record built from this one, and the requestor needs to see what
+             they are copying before they start editing it. */
           const canReview =
-            (app.viewer.isAdmin || app.roleKind === 'req') &&
+            app.can.create &&
             app.canActOn(x.r.countryCode) &&
             x.r.base !== 'Pending Level 1' &&
             x.r.base !== 'Pending Level 2';
@@ -130,17 +134,19 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
               </div>
 
               <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => app.open(x.r.rid)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-600 shadow-sm transition-colors hover:border-[#307c4c]/30 hover:text-[#307c4c]"
-                >
-                  Open record
-                </button>
+                {!canReview && (
+                  <button
+                    type="button"
+                    onClick={() => app.open(x.r.rid)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-600 shadow-sm transition-colors hover:border-[#307c4c]/30 hover:text-[#307c4c]"
+                  >
+                    Open record
+                  </button>
+                )}
                 {canReview && (
                   <button
                     type="button"
-                    onClick={() => app.startReview(x.r.rid)}
+                    onClick={() => app.open(x.r.rid)}
                     className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-3 py-2 text-[12px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90"
                   >
                     Start periodic review

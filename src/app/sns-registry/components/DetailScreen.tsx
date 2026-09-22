@@ -100,11 +100,18 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
       onClick: () => app.setRejectFor(rec.rid),
     });
   }
-  if ((status === 'Expiring soon' || status === 'Expired') && canReq) {
+  /* A renewal is offered on any published record, not only an expiring one —
+     a justification can change long before the ID is close to running out.
+     It opens the wizard on a copy; nothing happens to this record until the
+     replacement is signed off. */
+  if (canReq && (rec.base === 'Active' || rec.base === 'Extended' || rec.base === 'Expired')) {
     actions.push({
-      label: 'Start periodic review',
+      label:
+        status === 'Expiring soon' || status === 'Expired'
+          ? 'Start periodic review — update this record'
+          : 'Update this record',
       className: BTN_PRIMARY,
-      onClick: () => app.startReview(rec.rid),
+      onClick: () => app.startRenewal(rec.rid),
     });
   }
 

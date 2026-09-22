@@ -725,10 +725,19 @@ async function nextRegistryId(
   return nextRegistryIdFrom(prefix, rows[0]?.registry_id ? String(rows[0].registry_id) : null);
 }
 
-/** Creates a record as either a private Draft or a submission awaiting Level 1. */
+/**
+ * Creates a record as either a private Draft or a submission awaiting Level 1.
+ *
+ * `renewalOfRid` marks this as the replacement for an existing record — a
+ * periodic review. The parent is left completely alone here: it keeps its ID,
+ * its status and its place in the registry until the replacement is actually
+ * published, so an ID already quoted on a SAP PO does not stop working the
+ * moment somebody opens a review.
+ */
 export async function createSnsRecord(
   draft: Draft,
   base: 'Draft' | 'Pending Level 1',
+  renewalOfRid?: number | null,
 ): Promise<ActionResult & { rid?: number }> {
   const viewer = await getSnsViewer();
   if (!viewer) return { success: false, error: 'You do not have access to the S&S Registry.' };
@@ -748,6 +757,32 @@ export async function createSnsRecord(
     if (!draft.supplierId || !draft.supplierName)
       return { success: false, error: 'Supplier SAP ID and name are required.' };
     if (!draft.reason) return { success: false, error: 'Select a reason code.' };
+  }
+
+  /* A renewal must name a record that exists and has actually been published.
+     Renewing a Draft is meaningless — there is nothing to replace — and the
+     unique index refuses a second live replacement, so catch it here with a
+     sentence rather than a constraint violation. */
+  if (renewalOfRid != null) {
+    const { rows: parent } = await snsPool.query(
+      `SELECT r.base_status,
+              (SELECT count(*) FROM sns_record c
+                WHERE c.renewal_of_rid = r.rid
+                  AND c.base_status NOT IN ('Rejected', 'Closed')) AS live_replacements
+         FROM sns_record r WHERE r.rid = $1`,
+      [renewalOfRid],
+    );
+    if (!parent.length) return { success: false, error: 'The record being renewed was not found.' };
+    const pb = String(parent[0].base_status);
+    if (!['Active', 'Extended', 'Expired'].includes(pb)) {
+      return { success: false, error: `A ${pb} record has no published ID to renew.` };
+    }
+    if (Number(parent[0].live_replacements) > 0) {
+      return {
+        success: false,
+        error: 'A renewal for this record is already in progress.',
+      };
+    }
   }
 
   /* Resolving before the transaction keeps the access decision off a held
@@ -780,8 +815,8 @@ export async function createSnsRecord(
     const { rows } = await client.query(
       `INSERT INTO sns_record
          (classification, country, country_code, scope_level, supplier_id, supplier_name, reason,
-          justification, base_status, spend, requestor, created_by, expiry_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          justification, base_status, spend, requestor, created_by, expiry_date, renewal_of_rid)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING rid`,
       [
         draft.cls,
@@ -799,6 +834,7 @@ export async function createSnsRecord(
         // A Draft may legitimately have no expiry yet; a submission cannot get
         // past validateForSubmission without one.
         isExpiryDate(draft.expiry) ? draft.expiry.trim() : null,
+        renewalOfRid ?? null,
       ],
     );
     const rid = Number(rows[0].rid);
@@ -823,7 +859,11 @@ export async function createSnsRecord(
     await addHistory(
       client,
       rid,
-      base === 'Draft' ? 'Draft saved' : 'Draft submitted for Level 1 validation',
+      base === 'Draft'
+        ? 'Draft saved'
+        : renewalOfRid != null
+          ? 'Periodic review raised — submitted for Country Supply Chain Manager validation'
+          : 'Submitted for Country Supply Chain Manager validation',
       requestor,
       viewer.email,
     );
@@ -879,6 +919,7 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
     const { rows } = await client.query(
       `SELECT r.rid, r.classification, r.country, r.scope_level, r.supplier_id, r.supplier_name,
               r.reason, r.justification, r.base_status, r.registry_id, r.expiry_date,
+              r.renewal_of_rid,
               COALESCE(r.country_code, c.code) AS resolved_country_code
          FROM sns_record r
          LEFT JOIN sns_country c ON c.name = r.country
@@ -1056,6 +1097,52 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
           actorFor(viewer, 'l2', country),
           viewer.email,
         );
+
+        /* A periodic review replaces its parent, but only now — not when the
+           review was started. Until this moment the old ID was still the
+           current one and may have been quoted on a PO; closing it earlier
+           would have invalidated a reference that was legitimately in use.
+
+           The parent is closed, never deleted or rewritten: it keeps its own
+           ID, history and documents so the audit trail shows what was in force
+           during its window. Closed is also what stops its expiry reminders,
+           which is now the replacement's job. */
+        const parentRid = rec.renewal_of_rid == null ? null : Number(rec.renewal_of_rid);
+        if (parentRid != null) {
+          const { rows: parentRows } = await client.query(
+            `UPDATE sns_record
+                SET base_status = 'Closed',
+                    closed_at = CURRENT_TIMESTAMP,
+                    closed_by = $2,
+                    closed_reason = $3,
+                    renewal_count = renewal_count + 1,
+                    updated_at = CURRENT_TIMESTAMP
+              WHERE rid = $1
+                AND base_status <> 'Closed'
+              RETURNING registry_id`,
+            [parentRid, viewer.email, `Superseded by ${newId}`],
+          );
+          if (parentRows.length) {
+            await addHistory(
+              client,
+              parentRid,
+              `Superseded by ${newId} — replaced at periodic review`,
+              actorFor(viewer, 'l2', country),
+              viewer.email,
+              'This record stays on file for audit. Reference the replacement in SAP from now on.',
+            );
+            const previousId = parentRows[0].registry_id
+              ? String(parentRows[0].registry_id)
+              : `Draft #${parentRid}`;
+            await addHistory(
+              client,
+              rid,
+              `Replaces ${previousId}`,
+              actorFor(viewer, 'l2', country),
+              viewer.email,
+            );
+          }
+        }
         notify = async () => {
           if (!ctxForGate) return;
           const published = { ...ctxForGate, registryId: newId };
