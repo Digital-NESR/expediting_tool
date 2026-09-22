@@ -174,13 +174,18 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
               <span className="break-all font-mono text-2xl font-bold tracking-wide text-[#1d4f31] sm:text-[30px]">
                 {recordLabel(rec)}
               </span>
-              <button
-                type="button"
-                onClick={() => app.onCopyId(rec.id)}
-                className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-600 transition-colors hover:border-[#307c4c]/30 hover:text-[#307c4c]"
-              >
-                {copyLabel}
-              </button>
+              {/* Only once there is an ID. The heading reads "Draft #20" before
+                  then, which looks copyable but is a local handle, not
+                  something to put on a PO — and onCopyId would no-op anyway. */}
+              {published && (
+                <button
+                  type="button"
+                  onClick={() => app.onCopyId(rec.id)}
+                  className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-600 transition-colors hover:border-[#307c4c]/30 hover:text-[#307c4c]"
+                >
+                  {copyLabel}
+                </button>
+              )}
             </div>
             <p className="mt-1.5 max-w-xl text-[12px] text-slate-500">
               {published
