@@ -1,9 +1,12 @@
 import type { DisplayStatus, SnsRole } from './types';
 
 /**
- * The five S&S roles. These are permission levels, not reference data — they
- * are wired into the validation flow itself — so unlike the taxonomy they stay
- * in code rather than moving to the database.
+ * Every S&S role the system recognises. These are permission levels, not
+ * reference data — they are wired into the validation flow itself — so unlike
+ * the taxonomy they stay in code rather than moving to the database.
+ *
+ * This is the full set for *validating* a stored grant. What a person may ask
+ * for, or an admin hand out, is the shorter GRANTABLE_ROLES below.
  */
 export const ROLES: SnsRole[] = [
   'Requestor — Sourcing / Procurement',
@@ -35,6 +38,25 @@ export const STATUS_LABEL: Partial<Record<DisplayStatus, string>> = {
   'Pending Level 1': `Pending ${STAGE1_SHORT}`,
   'Pending Level 2': `Pending ${STAGE2_SHORT}`,
 };
+
+/**
+ * The roles anyone can actually ask for, or be granted.
+ *
+ * The two validator roles are deliberately absent. Who validates is not a
+ * matter of asking: Level 1 is whoever holds the country in
+ * `sns_country_manager`, Level 2 whoever holds the category in
+ * `sns_category_manager`, both maintained on the Approvers screen. Leaving
+ * them in the dropdown invited requests that the approver tables would then
+ * contradict. "Supply Chain Leadership" goes for the same reason — those are
+ * the same people.
+ *
+ * Existing grants of the removed roles keep working: ROLES above is what the
+ * server validates a stored grant against, and `roleKind` still reads them.
+ */
+export const GRANTABLE_ROLES: SnsRole[] = [
+  'Requestor — Sourcing / Procurement',
+  'Read-only — Procurement Officer / Auditor',
+];
 
 /** Short labels for the admin approvals queue, where the full role strings don't fit. */
 export const ROLE_SHORT: Record<string, string> = {

@@ -325,6 +325,31 @@ export function useRegistryApp({
   const resetFilters = useCallback(() => setFilters(DEFAULT_FILTERS), []);
 
   /**
+   * What this viewer may see and do, decided once.
+   *
+   * These were previously inferred separately by the sidebar and by each
+   * screen, which is how a Read-only viewer ended up with no "New Record" item
+   * in the sidebar but a working "New Registry Record" button on the registry:
+   * two places, one of them forgotten. The server gates every action anyway —
+   * `createSnsRecord` rejects a non-Requestor — but letting someone fill in a
+   * four-step wizard only to be refused at submit is its own kind of broken.
+   */
+  const can = useMemo(() => {
+    const kind = viewer.roleKind;
+    const admin = viewer.isAdmin;
+    return {
+      /** Raise records, and start a periodic review. */
+      create: admin || kind === 'req',
+      /** The validation queues. Requestors do not validate, so they do not see them. */
+      inbox: admin || kind === 'l1' || kind === 'l2' || kind === 'ro' || kind === 'lead',
+      /** Leadership reporting. Not part of raising a record. */
+      dashboard: admin || kind !== 'req',
+      /** Approve, reject, sign off. Read-only never acts. */
+      act: admin || kind === 'l1' || kind === 'l2' || kind === 'req',
+    };
+  }, [viewer.roleKind, viewer.isAdmin]);
+
+  /**
    * Countries this viewer may raise or validate records for, by display name.
    * An empty approved list means unrestricted, which is also how admins are
    * stored.
@@ -352,6 +377,7 @@ export function useRegistryApp({
     records,
     screen,
     roleKind: viewer.roleKind,
+    can,
     selectedId,
     filters,
     setFilters,

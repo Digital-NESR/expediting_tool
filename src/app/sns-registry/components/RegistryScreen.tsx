@@ -73,13 +73,15 @@ export default function RegistryScreen({ app }: { app: RegistryApp }) {
           >
             Export to Excel
           </button>
-          <button
-            type="button"
-            onClick={app.newDraft}
-            className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-3.5 py-2 text-[13px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90"
-          >
-            New Registry Record
-          </button>
+          {app.can.create && (
+            <button
+              type="button"
+              onClick={app.newDraft}
+              className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-3.5 py-2 text-[13px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90"
+            >
+              New Registry Record
+            </button>
+          )}
         </div>
       </div>
 
@@ -241,8 +243,10 @@ export default function RegistryScreen({ app }: { app: RegistryApp }) {
               No records match these filters
             </p>
             <p className="mx-auto mt-1 max-w-md text-[13px] text-slate-500">
-              No active ID exists for this combination. Raise a new registry record before
-              proceeding with a single quotation.
+              No active ID exists for this combination.{' '}
+              {app.can.create
+                ? 'Raise a new registry record before proceeding with a single quotation.'
+                : 'Ask a Requestor in that country to raise one before proceeding with a single quotation.'}
             </p>
           </div>
         )}

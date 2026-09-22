@@ -7,7 +7,7 @@ import { authOptions } from '@/lib/auth';
 import { isPlatformAdminEmail } from '@/lib/require-access';
 import snsPool from '@/lib/db-sns';
 import { logger } from '@/lib/logger';
-import { ROLES } from '@/app/sns-registry/lib/constants';
+import { GRANTABLE_ROLES, ROLES } from '@/app/sns-registry/lib/constants';
 import { addDays, parseISODate, toISODate, today, todayISO } from '@/app/sns-registry/lib/date';
 import { roleKind } from '@/app/sns-registry/lib/helpers';
 import { nextRegistryIdFrom, registryIdPrefix } from '@/app/sns-registry/lib/registry-id';
@@ -1534,7 +1534,11 @@ export async function submitSnsAccessRequest(
   const email = session?.user?.email;
   if (!email) return { success: false, error: 'You must be signed in to request access.' };
 
-  if (!ROLES.includes(requestedRole as SnsRole)) {
+  /* GRANTABLE_ROLES, not ROLES: the validator roles are no longer offered, and
+     the form is not the gate — a crafted call must not be able to request one
+     either. Approval below still validates against the full ROLES, so an
+     existing grant of a retired role can be re-saved. */
+  if (!GRANTABLE_ROLES.includes(requestedRole as SnsRole)) {
     return { success: false, error: 'Select a valid role.' };
   }
   if (!requestedCountries.length) {

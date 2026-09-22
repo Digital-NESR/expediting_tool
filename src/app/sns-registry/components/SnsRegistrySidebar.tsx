@@ -64,10 +64,14 @@ export default function SnsRegistrySidebar({
   }).length;
   const badges: Partial<Record<Screen, number>> = { inbox: pendingCount, expiry: expiryCount };
 
-  // Requestors create records; nobody else can, so the item is absent rather
-  // than present-and-rejected.
-  const canCreate = viewer.isAdmin || viewer.roleKind === 'req';
-  const nav = NAV.filter((n) => n.screen !== 'new' || canCreate);
+  // Absent rather than present-and-rejected. `app.can` is the single source
+  // for this — see useRegistryApp.
+  const nav = NAV.filter((n) => {
+    if (n.screen === 'new') return app.can.create;
+    if (n.screen === 'inbox') return app.can.inbox;
+    if (n.screen === 'dash') return app.can.dashboard;
+    return true;
+  });
 
   const goTo = (screen: Screen) => {
     if (screen === 'new') app.newDraft();

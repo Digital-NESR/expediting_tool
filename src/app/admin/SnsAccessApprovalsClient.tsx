@@ -10,7 +10,7 @@ import {
   rejectSnsAccess,
   revokeSnsAccess,
 } from '@/app/actions/sns';
-import { ROLES } from '@/app/sns-registry/lib/constants';
+import { GRANTABLE_ROLES } from '@/app/sns-registry/lib/constants';
 import type { Country, SnsAccessRequestRow, SnsRole } from '@/app/sns-registry/lib/types';
 
 const BRAND = '#2A7E4F';
@@ -34,7 +34,7 @@ export default function SnsAccessApprovalsClient({
   const [error, setError] = useState<string | null>(null);
   /** Which request is open in the approve editor, keyed by email. */
   const [editing, setEditing] = useState<string | null>(null);
-  const [editRole, setEditRole] = useState<SnsRole>(ROLES[0]);
+  const [editRole, setEditRole] = useState<SnsRole>(GRANTABLE_ROLES[0]);
   const [editCountries, setEditCountries] = useState<string[]>([]);
 
   const reload = useCallback(async () => {
@@ -233,7 +233,15 @@ export default function SnsAccessApprovalsClient({
                       Grant role
                     </div>
                     <div className="mt-2 space-y-1.5">
-                      {ROLES.map((role) => (
+                      {/* Only the grantable roles are offered. A person
+                          already holding a retired role (a validator, or
+                          Leadership) keeps it — it is listed so the admin can
+                          see what they hold and saving does not silently
+                          change it. */}
+                      {(GRANTABLE_ROLES.includes(editRole)
+                        ? GRANTABLE_ROLES
+                        : [...GRANTABLE_ROLES, editRole]
+                      ).map((role) => (
                         <label
                           key={role}
                           className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700"
@@ -245,6 +253,11 @@ export default function SnsAccessApprovalsClient({
                             onChange={() => setEditRole(role)}
                           />
                           {role}
+                          {!GRANTABLE_ROLES.includes(role) && (
+                            <span className="text-[11px] text-slate-400">
+                              (retired role — kept from an earlier grant)
+                            </span>
+                          )}
                         </label>
                       ))}
                     </div>

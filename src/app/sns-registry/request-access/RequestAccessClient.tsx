@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { submitSnsAccessRequest } from '@/app/actions/sns';
-import { ROLES } from '../lib/constants';
+import { GRANTABLE_ROLES } from '../lib/constants';
 import type { Country, SnsAccessRequestRow, SnsRole } from '../lib/types';
 
 const ROLE_HELP: Record<SnsRole, string> = {
@@ -28,7 +28,9 @@ export default function RequestAccessClient({
   countries: Country[];
 }) {
   const router = useRouter();
-  const [role, setRole] = useState<SnsRole>((myRequest?.requestedRole as SnsRole) ?? ROLES[0]);
+  const [role, setRole] = useState<SnsRole>(
+    (myRequest?.requestedRole as SnsRole) ?? GRANTABLE_ROLES[0],
+  );
   /* Held as `sns_country.code` — a request outlives any rename of the name. */
   const [selected, setSelected] = useState<string[]>(myRequest?.requestedCountries ?? []);
   const countryName = (code: string) => countries.find((c) => c[1] === code)?.[0] ?? code;
@@ -134,7 +136,7 @@ export default function RequestAccessClient({
                 Role
               </label>
               <div className="mt-2 space-y-2">
-                {ROLES.map((r) => (
+                {GRANTABLE_ROLES.map((r) => (
                   <button
                     key={r}
                     type="button"
