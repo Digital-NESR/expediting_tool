@@ -1,6 +1,15 @@
-import { clsLabel, clsStyle, displayStatus, leafOf, money, statusStyle } from './helpers';
+import {
+  clsLabel,
+  clsStyle,
+  displayStatus,
+  leafOf,
+  money,
+  recordLabel,
+  statusLabel,
+  statusStyle,
+} from './helpers';
 import { daysFromToday, formatDate } from './date';
-import type { DisplayStatus, RegistryRecord } from './types';
+import type { RegistryRecord } from './types';
 
 export interface ShapedRow {
   rid: number;
@@ -14,7 +23,8 @@ export interface ShapedRow {
   scopeLabel: string;
   scopeDetail: string;
   spendLabel: string;
-  status: DisplayStatus;
+  /** Already written for display — see STATUS_LABEL. */
+  status: string;
   statusBg: string;
   statusFg: string;
   accent: string;
@@ -33,7 +43,7 @@ export function shapeRow(r: RegistryRecord): ShapedRow {
   const ss = statusStyle(status);
   const cs = clsStyle(r.cls);
   const d = r.expiry ? daysFromToday(r.expiry) : null;
-  let note = 'Not issued yet';
+  let note = 'No expiry set yet';
   let noteColor = '#58595B';
   if (d !== null) {
     if (d < 0) {
@@ -50,7 +60,7 @@ export function shapeRow(r: RegistryRecord): ShapedRow {
   const leaves = r.nodes.map(leafOf);
   return {
     rid: r.rid,
-    idLabel: r.id || '— not issued —',
+    idLabel: recordLabel(r),
     clsLabel: clsLabel(r.cls),
     clsBg: cs[0],
     clsFg: cs[1],
@@ -61,7 +71,7 @@ export function shapeRow(r: RegistryRecord): ShapedRow {
     scopeDetail:
       leaves.slice(0, 2).join(', ') + (leaves.length > 2 ? ' +' + (leaves.length - 2) : ''),
     spendLabel: money(r.spend),
-    status,
+    status: statusLabel(status),
     statusBg: ss[0],
     statusFg: ss[1],
     accent: ss[2],

@@ -1,4 +1,4 @@
-import { STATUS_STYLE } from './constants';
+import { STATUS_LABEL, STATUS_STYLE } from './constants';
 import { daysFromToday } from './date';
 import type {
   Classification,
@@ -8,6 +8,19 @@ import type {
   ScopeNode,
   TaxCategory,
 } from './types';
+
+/**
+ * What to call a record that has no Registry ID yet.
+ *
+ * `Draft #17` rather than "not issued": a record in validation is discussed in
+ * mail, in the inbox and across screens before it ever has an ID, and everyone
+ * needs the same handle for it. The notification emails already use this
+ * spelling — `sns.ts` falls back to it when building their payload — so the
+ * screens must match, or the reader cannot tie the mail to the row.
+ */
+export function recordLabel(r: { id: string | null; rid: number }): string {
+  return r.id || `Draft #${r.rid}`;
+}
 
 export function money(n: number): string {
   if (!n) return '—';
@@ -23,6 +36,11 @@ export function displayStatus(r: RegistryRecord): DisplayStatus {
   if (d < 0) return 'Expired';
   if (d <= 60) return 'Expiring soon';
   return r.base;
+}
+
+/** How a status is written on screen — see STATUS_LABEL for why it differs. */
+export function statusLabel(s: DisplayStatus): string {
+  return STATUS_LABEL[s] ?? s;
 }
 
 export function statusStyle(s: DisplayStatus): [string, string, string] {

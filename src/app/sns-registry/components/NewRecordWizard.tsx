@@ -1,5 +1,6 @@
 'use client';
 
+import { STAGE1, STAGE2 } from '../lib/constants';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -605,10 +606,10 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
             </div>
 
             <div className="mt-4 max-w-[1000px] rounded-r-xl border-l-4 border-[#307c4c] bg-slate-50 px-4 py-3.5 text-[12.5px] leading-relaxed text-slate-700">
-              On submission this record is routed to the Country Supply Chain Manager for{' '}
-              {d.country || 'the selected country'} (Level 1), then to the Category Manager or
-              Supply Chain Director (Level 2). The Registry ID is generated only when the record is
-              published to Active, and is valid for a fixed 12 months from issue date.
+              On submission this record is routed to the {STAGE1} for{' '}
+              {d.country || 'the selected country'}, then to the {STAGE2} for final sign-off. The
+              Registry ID is generated only when the record is published to Active, and is valid for
+              a fixed 12 months from issue date.
             </div>
 
             {missing.length > 0 && (
@@ -668,7 +669,7 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                 disabled={app.busy}
                 className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {app.busy ? 'Submitting…' : 'Submit for Level 1 Validation'}
+                {app.busy ? 'Submitting…' : `Submit for ${STAGE1} validation`}
               </button>
             )}
           </div>

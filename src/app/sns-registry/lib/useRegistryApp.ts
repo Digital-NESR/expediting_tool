@@ -8,7 +8,7 @@ import {
   rejectSnsRecord,
   startSnsReview,
 } from '@/app/actions/sns';
-import { clsLabel, displayStatus, nodeKey } from './helpers';
+import { clsLabel, displayStatus, nodeKey, recordLabel } from './helpers';
 import type {
   Draft,
   ReferenceData,
@@ -287,7 +287,7 @@ export function useRegistryApp({
     const rows = [
       header,
       ...filteredRecords.map((r) => [
-        r.id || '(not issued)',
+        recordLabel(r),
         clsLabel(r.cls),
         r.country,
         r.countryCode,

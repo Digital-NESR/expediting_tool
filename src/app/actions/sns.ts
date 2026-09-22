@@ -155,7 +155,8 @@ async function requireLevel1(
   country: string,
 ): Promise<string | null> {
   if (viewer.isAdmin) return null;
-  if (viewer.roleKind !== 'l1') return 'Only a Level 1 validator can approve this record.';
+  if (viewer.roleKind !== 'l1')
+    return 'Only the Country Supply Chain Manager can approve this record.';
 
   const { allowed, unassigned } = await isSnsLevel1Approver(viewer.email, code);
   if (allowed) return null;
@@ -163,12 +164,13 @@ async function requireLevel1(
     log.warn('level1.unassigned', { countryCode: code, actor: viewer.email });
     return null;
   }
-  return `Level 1 validation for ${country} is assigned to that country's Supply Chain Manager.`;
+  return `First-stage validation for ${country} is assigned to that country's Supply Chain Manager.`;
 }
 
 async function requireLevel2(viewer: SnsViewer, categories: string[]): Promise<string | null> {
   if (viewer.isAdmin) return null;
-  if (viewer.roleKind !== 'l2') return 'Only a Level 2 validator can sign this record off.';
+  if (viewer.roleKind !== 'l2')
+    return 'Only the Supply Chain Director or Category Manager can sign this record off.';
 
   const { allowed, unassigned } = await isSnsLevel2Approver(viewer.email, categories);
   if (allowed) return null;
@@ -176,7 +178,7 @@ async function requireLevel2(viewer: SnsViewer, categories: string[]): Promise<s
     log.warn('level2.unassigned', { categories, actor: viewer.email });
     return null;
   }
-  return 'Level 2 sign-off is assigned to the Category Manager for this record, or to a Supply Chain Director.';
+  return 'Final sign-off is assigned to the Category Manager for this record, or to a Supply Chain Director.';
 }
 
 /** The actor string written into the audit trail for a given step. */
@@ -921,7 +923,13 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
         [rid],
       );
       const actor = actorFor(viewer, 'req', country);
-      await addHistory(client, rid, 'Submitted for Level 1 validation', actor, viewer.email);
+      await addHistory(
+        client,
+        rid,
+        'Submitted for Country Supply Chain Manager validation',
+        actor,
+        viewer.email,
+      );
       const ctx = await loadRecordContext(client, rid);
       notify = async () => {
         if (!ctx) return;
@@ -945,7 +953,13 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
         [rid],
       );
       const actor = actorFor(viewer, 'l1', country);
-      await addHistory(client, rid, 'Level 1 validated — routed to Level 2', actor, viewer.email);
+      await addHistory(
+        client,
+        rid,
+        'Validated by the Country Supply Chain Manager — sent for final sign-off',
+        actor,
+        viewer.email,
+      );
       const ctx = await loadRecordContext(client, rid);
       notify = async () => {
         if (!ctx) return;
@@ -1038,7 +1052,7 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
         await addHistory(
           client,
           rid,
-          `Level 2 sign-off — published to Active as ${newId}`,
+          `Final sign-off by the Supply Chain Director / Category Manager — published to Active as ${newId}`,
           actorFor(viewer, 'l2', country),
           viewer.email,
         );
@@ -1117,7 +1131,7 @@ export async function rejectSnsRecord(rid: number, note: string): Promise<Action
       client,
       rid,
       // The status written is 'Rejected', not 'Draft' — the trail says so.
-      `Rejected at ${base === 'Pending Level 1' ? 'Level 1' : 'Level 2'} — returned to the requestor as Rejected`,
+      `Rejected by the ${base === 'Pending Level 1' ? 'Country Supply Chain Manager' : 'Supply Chain Director / Category Manager'} — returned to the requestor as Rejected`,
       rejectActor,
       viewer.email,
       note || 'No reason recorded.',
@@ -1199,7 +1213,7 @@ export async function startSnsReview(rid: number): Promise<ActionResult> {
     await addHistory(
       client,
       rid,
-      'Periodic review started — routed to Level 1',
+      'Periodic review started — sent to the Country Supply Chain Manager',
       actorFor(viewer, 'req', country),
       viewer.email,
       'Re-validation ahead of the 12-month expiry.',
@@ -1413,7 +1427,7 @@ export async function reopenSnsRecord(rid: number): Promise<ActionResult> {
     await addHistory(
       client,
       rid,
-      'Reopened — routed to Level 1',
+      'Reopened — sent to the Country Supply Chain Manager',
       actor,
       viewer.email,
       'Record reopened after closure; revalidation required.',

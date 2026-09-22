@@ -105,17 +105,18 @@ query against the live schema inside a transaction it always rolls back. It
 walks a record from 70 days out to 60 days overdue and asserts the rung
 sequence, then checks renewal restarts the ladder and closing silences it.
 
-### The two ways out
+### The way out
 
-Every reminder asks for one of exactly two things:
+Every reminder asks for exactly one thing: **renew**. Attach the review
+documents (`kind = 'review'`) and resubmit for re-validation. Final sign-off
+issues a Registry ID for the new window and supersedes the old record, which
+stops the emails because query [1] only looks at live records.
 
-1. **Renew** — attach the review documents (`kind = 'review'`) and resubmit.
-   Level 2 sign-off keeps the original Registry ID and extends expiry by 12
-   months, incrementing `renewal_count`.
-2. **Close the supplier account** — sets `base_status = 'Closed'`. Query [1]
-   excludes closed records, so **this is what stops the emails**. Closing with
-   `alsoCloseSupplier` also closes every other live record for the same supplier
-   in the same country.
+> `closeSnsRecord` / `reopenSnsRecord` still exist in `src/app/actions/sns.ts`
+> and set `base_status = 'Closed'`, which query [1] also excludes. Neither is
+> reachable from any screen — closing an account is not a concept the registry
+> offers, and the reminder mail no longer mentions it. They are dead code kept
+> only because `Closed` is already in the status CHECK constraint.
 
 ### What the app still sends itself
 

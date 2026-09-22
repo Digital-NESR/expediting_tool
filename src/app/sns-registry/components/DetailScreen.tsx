@@ -1,7 +1,17 @@
 'use client';
 
+import { STAGE1, STAGE2 } from '../lib/constants';
 import { useEffect, useState } from 'react';
-import { clsLabel, displayStatus, leafOf, money, nodePath, statusStyle } from '../lib/helpers';
+import {
+  clsLabel,
+  displayStatus,
+  leafOf,
+  money,
+  nodePath,
+  recordLabel,
+  statusLabel,
+  statusStyle,
+} from '../lib/helpers';
 import { daysFromToday, formatDate } from '../lib/date';
 import { exportRecordPdf } from '../lib/exportRecordPdf';
 import { getSnsRecordNotifications } from '@/app/actions/sns-documents';
@@ -58,15 +68,15 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
     actions.push({
       label:
         rec.base === 'Rejected'
-          ? 'Resubmit for Level 1 validation'
-          : 'Submit for Level 1 validation',
+          ? `Resubmit for ${STAGE1} validation`
+          : `Submit for ${STAGE1} validation`,
       className: BTN_PRIMARY,
       onClick: () => app.advance(rec.rid),
     });
   }
   if (rec.base === 'Pending Level 1' && can('l1')) {
     actions.push({
-      label: 'Validate — route to Level 2',
+      label: `Validate — route to ${STAGE2}`,
       className: BTN_PRIMARY,
       onClick: () => app.advance(rec.rid),
     });
@@ -98,10 +108,10 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
     });
   }
 
-  let actionNote = `This record is at ${status}.`;
+  let actionNote = `This record is at ${statusLabel(status)}.`;
   if (!actions.length) {
     actionNote = inScope
-      ? `No action is available to you on this record at ${status}. It is routed to a different role.`
+      ? `No action is available to you on this record at ${statusLabel(status)}. It is routed to a different role.`
       : `This is a ${rec.country} record and your access does not cover that country.`;
   }
 
@@ -128,8 +138,8 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
     { label: 'Segment tags', value: rec.segments.join(', ') || '—' },
     { label: 'Requestor', value: rec.requestor },
     { label: 'Estimated annual spend', value: money(rec.spend) },
-    { label: 'Validator — Level 1', value: 'Country Supply Chain Manager, ' + rec.country },
-    { label: 'Validator — Level 2', value: 'Category Manager / Supply Chain Director' },
+    { label: 'Validator — first stage', value: `${STAGE1}, ${rec.country}` },
+    { label: 'Validator — final sign-off', value: STAGE2 },
     { label: 'Issue date', value: rec.issue ? formatDate(rec.issue) : 'Not issued' },
     { label: 'Expiry date', value: rec.expiry ? formatDate(rec.expiry) : 'Not issued' },
   ];
@@ -155,7 +165,7 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
             <p className={FIELD_LABEL}>Registry ID</p>
             <div className="mt-1.5 flex flex-wrap items-center gap-3">
               <span className="break-all font-mono text-2xl font-bold tracking-wide text-[#1d4f31] sm:text-[30px]">
-                {rec.id || 'Not issued'}
+                {recordLabel(rec)}
               </span>
               <button
                 type="button"
@@ -179,7 +189,7 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
                 className="mt-2 inline-block rounded-full px-3 py-1 text-[12.5px] font-bold"
                 style={{ background: ss[0], color: ss[1] }}
               >
-                {status}
+                {statusLabel(status)}
               </span>
             </div>
             <div className="max-w-[260px]">
@@ -188,7 +198,7 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
                 {rec.issue
                   ? `${formatDate(rec.issue)} → ${formatDate(rec.expiry)}`
                   : rec.expiry
-                    ? `Expires ${formatDate(rec.expiry)} — issued on Level 2 sign-off`
+                    ? `Expires ${formatDate(rec.expiry)} — issued on final sign-off`
                     : 'Set on the record before sign-off'}
               </p>
 

@@ -136,7 +136,6 @@ const headline = overdue
     : `Expires in ${dbe} day${dbe === 1 ? '' : 's'}`;
 const tone = overdue || onDay ? '#B34141' : dbe <= 7 ? '#E09A4E' : '#2A7E4F';
 
-// Set this to wherever the app is served.
 // The tool's public address. Hard-coded because this node runs in n8n, which
 // cannot read the app's NEXT_PUBLIC_APP_URL — so if the site ever moves, this
 // line moves with it. Approval emails do not need it: the app renders their
@@ -214,14 +213,12 @@ const html = `
   </table>
 
   <div style="background:#F7F9F8;border-left:4px solid ${tone};padding:14px 16px;font-size:13px;line-height:1.6;">
-    <strong>This record needs one of two things before it can stay in SAP.</strong>
-    <ol style="margin:8px 0 0;padding-left:18px;">
-      <li><strong>Renew it</strong> — attach the current review documents on the record and submit
-          it for re-validation. A successful review keeps the same Registry ID and extends it by
-          twelve months.</li>
-      <li><strong>Close the supplier account</strong> — if the arrangement has ended, close it on
-          the record. That retires the entry and stops these reminders.</li>
-    </ol>
+    <strong>Renew this record before it expires.</strong>
+    <div style="margin-top:8px;">
+      Attach the current review documents on the record and submit a fresh record for
+      re-validation. A successful review issues a new Registry ID covering the next twelve
+      months, and supersedes this one.
+    </div>
   </div>
 
   <div style="margin-top:16px;font-size:13px;">
@@ -237,7 +234,7 @@ const html = `
 
   <div style="border-top:1px solid #E4E6E6;margin-top:24px;padding-top:14px;font-size:12px;color:#58595B;">
     Automated reminder from the NESR S&amp;S Registry. You are receiving it because you raised or
-    validated this record. Reminders stop once it is renewed or the supplier account is closed.
+    validated this record. Reminders stop once it is renewed.
   </div>
 </div>`;
 

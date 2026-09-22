@@ -153,13 +153,13 @@ const WORKFLOW_COPY: Record<
   { headline: string; body: string; tone: string }
 > = {
   submitted: {
-    headline: 'Awaiting your Level 1 validation',
+    headline: 'Awaiting your Country Supply Chain Manager validation',
     body: 'A new registry record has been raised in your country and is waiting on the Country Supply Chain Manager.',
     tone: '#E09A4E',
   },
   level1_approved: {
-    headline: 'Awaiting your Level 2 sign-off',
-    body: 'Level 1 validation is complete. The record now needs the Category Manager or the Supply Chain Director.',
+    headline: 'Awaiting your Supply Chain Director / Category Manager sign-off',
+    body: 'Country Supply Chain Manager validation is complete. The record now needs the Supply Chain Director or the Category Manager.',
     tone: '#E09A4E',
   },
   published: {

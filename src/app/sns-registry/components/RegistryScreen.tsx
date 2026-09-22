@@ -1,8 +1,9 @@
 'use client';
 
-import { displayStatus } from '../lib/helpers';
+import { displayStatus, statusLabel } from '../lib/helpers';
 import { shapeRow } from '../lib/shapeRow';
 import type { RegistryApp } from '../lib/useRegistryApp';
+import type { DisplayStatus } from '../lib/types';
 
 const STATUSES = [
   'Draft',
@@ -49,7 +50,7 @@ export default function RegistryScreen({ app }: { app: RegistryApp }) {
     {
       label: 'In validation',
       value: counts('Pending Level 1') + counts('Pending Level 2'),
-      sub: 'awaiting L1 or L2',
+      sub: 'awaiting validation',
       accent: ACCENT.mint,
     },
   ];
@@ -129,6 +130,9 @@ export default function RegistryScreen({ app }: { app: RegistryApp }) {
             label="Status"
             value={app.filters.fStatus}
             options={['All statuses', ...STATUSES]}
+            // The value has to stay the stored spelling — it is compared
+            // against displayStatus — so only the visible label changes.
+            labelOf={(v) => (v === 'All statuses' ? v : statusLabel(v as DisplayStatus))}
             onChange={(v) => app.setFilters((f) => ({ ...f, fStatus: v }))}
           />
           <FilterSelect
@@ -252,11 +256,14 @@ function FilterSelect({
   value,
   options,
   onChange,
+  labelOf,
 }: {
   label: string;
   value: string;
   options: string[];
   onChange: (v: string) => void;
+  /** Lets an option read differently from the value it submits. */
+  labelOf?: (v: string) => string;
 }) {
   return (
     <div className="flex flex-[0_1_190px] flex-col gap-1.5">
@@ -270,7 +277,7 @@ function FilterSelect({
       >
         {options.map((o) => (
           <option key={o} value={o}>
-            {o}
+            {labelOf ? labelOf(o) : o}
           </option>
         ))}
       </select>

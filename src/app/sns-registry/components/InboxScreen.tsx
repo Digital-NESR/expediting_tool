@@ -1,5 +1,6 @@
 'use client';
 
+import { STAGE1, STAGE2 } from '../lib/constants';
 import { money } from '../lib/helpers';
 import { shapeRow } from '../lib/shapeRow';
 import type { RegistryApp } from '../lib/useRegistryApp';
@@ -21,12 +22,12 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
   const tabs = [
     {
       key: 'l1' as const,
-      label: 'Level 1 — Country Supply Chain Manager',
+      label: STAGE1,
       sub: `${counts('Pending Level 1')} awaiting first review`,
     },
     {
       key: 'l2' as const,
-      label: 'Level 2 — Category Manager / SC Director',
+      label: STAGE2,
       sub: `${counts('Pending Level 2')} awaiting final sign-off`,
     },
   ];
@@ -73,11 +74,7 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
           </p>
           <p className="mt-1 text-[12.5px] leading-relaxed text-amber-900">
             You are signed in as {app.viewer.role ?? 'an administrator'}. This level is validated by
-            the{' '}
-            {tab === 'l1'
-              ? 'Country Supply Chain Manager (Validator L1)'
-              : 'Category Manager / SC Director (Validator L2)'}
-            .
+            the {tab === 'l1' ? STAGE1 : STAGE2}.
           </p>
         </div>
       )}
@@ -87,7 +84,7 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
           const sh = shapeRow(r);
           const approveLabel =
             tab === 'l1'
-              ? 'Validate — route to L2'
+              ? 'Validate — send for final sign-off'
               : r.id
                 ? 'Confirm review — extend'
                 : 'Sign off — publish ID';

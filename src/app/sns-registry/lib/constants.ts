@@ -13,6 +13,29 @@ export const ROLES: SnsRole[] = [
   'Supply Chain Leadership',
 ];
 
+/**
+ * What the two validation stages are called on screen and in mail.
+ *
+ * "Level 1" / "Level 2" is internal vocabulary — it survives in the stored
+ * `base_status`, the column names and the approver gates, because that is the
+ * schema. Nobody outside the team reads a record and knows what Level 2 means,
+ * so every user-facing string names the role instead. One definition here, so
+ * the screens, the PDF and the notification emails cannot drift apart.
+ *
+ * SHORT is for the status pill in the registry table, where the full phrase
+ * would set the column width for every other row.
+ */
+export const STAGE1 = 'Country Supply Chain Manager';
+export const STAGE2 = 'Supply Chain Director / Category Manager';
+export const STAGE1_SHORT = 'Country SC Manager';
+export const STAGE2_SHORT = 'SC Director / Category Manager';
+
+/** Status as it is shown. The stored values keep the Level 1/2 spelling. */
+export const STATUS_LABEL: Partial<Record<DisplayStatus, string>> = {
+  'Pending Level 1': `Pending ${STAGE1_SHORT}`,
+  'Pending Level 2': `Pending ${STAGE2_SHORT}`,
+};
+
 /** Short labels for the admin approvals queue, where the full role strings don't fit. */
 export const ROLE_SHORT: Record<string, string> = {
   'Requestor — Sourcing / Procurement': 'Requestor',
