@@ -90,6 +90,12 @@ export interface RegistryRecord {
   history: HistoryEntry[];
   /** How many times the record has survived a periodic review. */
   renewalCount: number;
+  /**
+   * The record this one was raised to replace, or null for a first-time
+   * record. A periodic review raises a replacement rather than editing in
+   * place, so this is what ties the generations of one arrangement together.
+   */
+  renewalOfRid: number | null;
   /** Set only once the record has been retired; null while it is live. */
   closed: { at: string; by: string; reason: string } | null;
   /** Attachment counts, so the list can show what is on file without the bytes. */

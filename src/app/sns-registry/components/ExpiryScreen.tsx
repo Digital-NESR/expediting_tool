@@ -1,7 +1,8 @@
 'use client';
 
 import { daysFromToday } from '../lib/date';
-import { displayStatus } from '../lib/helpers';
+import { displayStatus, recordLabel } from '../lib/helpers';
+import type { RegistryRecord } from '../lib/types';
 import { shapeRow } from '../lib/shapeRow';
 import type { RegistryApp } from '../lib/useRegistryApp';
 
@@ -14,7 +15,26 @@ const ACCENT = {
 
 export default function ExpiryScreen({ app }: { app: RegistryApp }) {
   const counts = (status: string) => app.records.filter((r) => displayStatus(r) === status).length;
+
+  /* Which records have a replacement, and whether it has landed yet.
+     A periodic review raises a new record and leaves this one alone until the
+     replacement is signed off, so "has a renewal in flight" and "has been
+     renewed" are different states and the screen has to tell them apart. */
+  const replacementOf = new Map<number, RegistryRecord>();
+  for (const r of app.records) {
+    if (r.renewalOfRid == null) continue;
+    if (r.base === 'Rejected' || r.base === 'Closed') continue;
+    replacementOf.set(r.renewalOfRid, r);
+  }
+  const renewedCount = app.records.filter(
+    (r) => r.renewalOfRid != null && (r.base === 'Active' || r.base === 'Extended'),
+  ).length;
+
   const dated = app.records
+    /* Closed records are retired — superseded by a replacement, or shut. They
+       still carry an expiry date, so without this they sit in the queue being
+       chased for a review that has already happened. */
+    .filter((r) => r.base !== 'Closed')
     .filter((r) => r.expiry)
     .map((r) => ({ r, d: daysFromToday(r.expiry as string) }))
     .filter((x) => x.d <= 90)
@@ -34,9 +54,13 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
       accent: ACCENT.red,
     },
     {
-      label: 'Extended this period',
-      value: counts('Extended'),
-      sub: 'renewed into a replacement record',
+      label: 'Renewed',
+      /* Was counts('Extended'), which is dead: 'Extended' belonged to the old
+         model where a review extended a record in place. A renewal now
+         publishes a replacement as Active, so nothing writes that status and
+         the card could only ever read zero. */
+      value: renewedCount,
+      sub: 'replacement issued and in force',
       accent: ACCENT.green,
     },
   ];
@@ -97,7 +121,9 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
           /* Opens the record rather than acting from here. A renewal is a new
              record built from this one, and the requestor needs to see what
              they are copying before they start editing it. */
+          const replacement = replacementOf.get(x.r.rid) ?? null;
           const canReview =
+            !replacement &&
             app.can.create &&
             app.canActOn(x.r.countryCode) &&
             x.r.base !== 'Pending Level 1' &&
@@ -130,10 +156,27 @@ export default function ExpiryScreen({ app }: { app: RegistryApp }) {
                 <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
                   <div className={`h-full ${barColor}`} style={{ width: barPct }} />
                 </div>
-                <div className="mt-1.5 text-[11px] text-slate-500">{reviewNote}</div>
+                <div className="mt-1.5 text-[11px] text-slate-500">
+                  {replacement
+                    ? replacement.base === 'Active' || replacement.base === 'Extended'
+                      ? `Replaced by ${recordLabel(replacement)}`
+                      : `Replacement ${recordLabel(replacement)} is in validation — this ID stays valid until it is signed off`
+                    : reviewNote}
+                </div>
               </div>
 
               <div className="flex flex-col gap-2">
+                {replacement && (
+                  <button
+                    type="button"
+                    onClick={() => app.open(replacement.rid)}
+                    className="rounded-lg border border-[#6AAF8E] bg-[#307c4c]/5 px-3 py-2 text-[12px] font-semibold text-[#1d4f31] transition-colors hover:bg-[#307c4c]/10"
+                  >
+                    {replacement.base === 'Active' || replacement.base === 'Extended'
+                      ? 'Open the replacement'
+                      : 'Renewal in progress — open it'}
+                  </button>
+                )}
                 {!canReview && (
                   <button
                     type="button"

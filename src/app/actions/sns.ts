@@ -317,7 +317,7 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
         `SELECT r.rid, r.classification, r.country, r.scope_level, r.supplier_id, r.supplier_name,
                 r.reason, r.justification, r.base_status, r.spend, r.registry_id,
                 r.issue_date, r.expiry_date, r.requestor,
-                r.renewal_count, r.closed_at, r.closed_by, r.closed_reason,
+                r.renewal_count, r.closed_at, r.closed_by, r.closed_reason, r.renewal_of_rid,
                 COALESCE(r.country_code, c.code) AS resolved_country_code
            FROM sns_record r
            LEFT JOIN sns_country c ON c.name = r.country
@@ -405,6 +405,7 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       requestor: String(r.requestor ?? ''),
       history: histBy.get(Number(r.rid)) ?? [],
       renewalCount: Number(r.renewal_count ?? 0),
+      renewalOfRid: r.renewal_of_rid == null ? null : Number(r.renewal_of_rid),
       closed: r.closed_at
         ? {
             at: r.closed_at instanceof Date ? r.closed_at.toISOString() : String(r.closed_at),
