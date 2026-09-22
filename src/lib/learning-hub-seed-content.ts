@@ -105,6 +105,24 @@ export const SEED_TRACKS: SeedTrack[] = [
                   'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=56581a66-8f10-45e1-b4b7-1fe40fc15541&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
                 body: `The purchase requisition in detail — where the cycle actually begins for most people using SAP.`,
               },
+              {
+                title: '7. Purchase Order Types',
+                videoUrl:
+                  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=d2de351a-657b-475b-9fb7-806d87803769&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `The kinds of purchase order SAP distinguishes, and why the type chosen at the start changes how the rest of the cycle behaves.`,
+              },
+              {
+                title: '8. Inventory vs Consumable',
+                videoUrl:
+                  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=30890add-92e9-4279-a90f-fdf7cb2d7595&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `The difference between buying into stock and buying to consume, and how to tell which one a requirement is.`,
+              },
+              {
+                title: '9. Asset Purchase Order',
+                videoUrl:
+                  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=1471e46d-f400-4c82-bc30-e59d71b79c75&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
+                body: `Buying an asset rather than a material or a service, and what that changes about the order.`,
+              },
             ],
           },
         ],
