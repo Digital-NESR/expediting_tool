@@ -985,8 +985,13 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+    /* No `overflow-hidden` here, deliberately. It was clipping the country picker's dropdown at
+       the card's edge — the list is absolutely positioned inside this section, so anything that
+       hides overflow cuts it off at the boundary and the options below the fold become
+       unreachable. The rounded top corners it was protecting are handled by the header rounding
+       its own instead, which clips the only child with a background of its own. */
+    <section className="bg-white border border-slate-200 rounded-xl shadow-sm">
+      <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
         <h2 className="text-sm font-bold text-slate-800">{title}</h2>
         {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
       </div>
