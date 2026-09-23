@@ -123,107 +123,306 @@ async function backfillTrackDefaults(): Promise<void> {
   );
 }
 
-// Inserts a track's courses/modules/lessons one multi-row INSERT per level: three round trips for the
-// whole track instead of one per row. The previous breadth-first Promise.all fanned the inserts across
-// pool connections to stay inside the serverless execution timeout; every statement now shares the one
-// transaction client, where parallel calls would just queue, so batching is what keeps it fast (and the
-// transaction short). Each level is matched back to its parent through order_index — which is unique
-// within a parent here — rather than through the row order of RETURNING, which is not guaranteed.
-// Shared by the one-time empty-DB seed and the admin "reset track to defaults" action.
-async function insertTrackCourses(
-  client: PoolClient,
-  trackId: number,
-  track: SeedTrack,
-): Promise<void> {
-  if (track.courses.length === 0) return;
+export interface ReconcileCounts {
+  coursesAdded: number;
+  coursesUpdated: number;
+  coursesRemoved: number;
+  modulesAdded: number;
+  modulesUpdated: number;
+  modulesRemoved: number;
+  lessonsAdded: number;
+  lessonsUpdated: number;
+  lessonsRemoved: number;
+  /** Progress rows destroyed because their lesson is genuinely gone from the seed. */
+  progressLost: number;
+}
 
-  const courseParams: QueryParams = [];
-  const courseRowsSql = track.courses.map((course, courseIdx) => {
-    courseParams.push(trackId, course.title, course.description, courseIdx, course.status);
-    return `(?, ?, ?, ?, ?)`;
-  });
-  const insertedCourses = await sqlOn<QueryResultRow[]>(
-    client,
-    `INSERT INTO learning_courses (track_id, title, description, order_index, status)
-     VALUES ${courseRowsSql.join(', ')} RETURNING id, order_index`,
-    courseParams,
-  );
-  const courseIdByOrder = new Map(
-    insertedCourses.map((r) => [Number(r.order_index), Number(r.id)]),
-  );
+const ZERO_COUNTS: ReconcileCounts = {
+  coursesAdded: 0,
+  coursesUpdated: 0,
+  coursesRemoved: 0,
+  modulesAdded: 0,
+  modulesUpdated: 0,
+  modulesRemoved: 0,
+  lessonsAdded: 0,
+  lessonsUpdated: 0,
+  lessonsRemoved: 0,
+  progressLost: 0,
+};
 
-  const moduleParams: QueryParams = [];
-  const moduleRowsSql: string[] = [];
-  track.courses.forEach((course, courseIdx) => {
-    const courseId = courseIdByOrder.get(courseIdx)!;
-    course.modules.forEach((mod, moduleIdx) => {
-      moduleParams.push(
-        courseId,
-        mod.title,
-        moduleIdx,
-        mod.resourceLabel ?? null,
-        mod.resourceUrl ?? null,
+/**
+ * Two rows describe the same thing when they share a TITLE within the same parent.
+ *
+ * The seed has no ids, so the sync needs some other notion of identity, and that choice decides
+ * who keeps their progress. Position is the obvious candidate and the wrong one: insert a lesson
+ * in the middle and every lesson after it shifts, so each silently becomes "a different lesson"
+ * and a learner's completions re-attach to whatever now sits at that index. Wrong progress is
+ * worse than lost progress — it claims somebody finished something they never opened.
+ *
+ * Title is stable under insertion, removal and reordering, which are the edits that actually
+ * happen. Renaming does read as a new lesson and loses its completions; that is the honest
+ * reading of a rename, and it is rare and visible where a mis-attribution is neither.
+ */
+function titleKey(title: string): string {
+  return title.trim().toLowerCase();
+}
+
+/** A seed naming one title twice under one parent has no single answer for "which row is this". */
+function assertUniqueTitles(titles: string[], where: string): void {
+  const seen = new Set<string>();
+  for (const title of titles) {
+    const key = titleKey(title);
+    if (seen.has(key)) {
+      throw new Error(
+        `Seed content has two entries titled "${title}" under ${where}. Titles identify rows ` +
+          `across a sync, so a duplicate would make learner progress attach arbitrarily.`,
       );
-      moduleRowsSql.push(`(?, ?, ?, ?, ?)`);
-    });
-  });
-  if (moduleRowsSql.length === 0) return;
-  const insertedModules = await sqlOn<QueryResultRow[]>(
-    client,
-    `INSERT INTO learning_modules (course_id, title, order_index, resource_label, resource_url)
-     VALUES ${moduleRowsSql.join(', ')} RETURNING id, course_id, order_index`,
-    moduleParams,
-  );
-  const moduleIdByCourseAndOrder = new Map(
-    insertedModules.map((r) => [`${Number(r.course_id)}:${Number(r.order_index)}`, Number(r.id)]),
-  );
+    }
+    seen.add(key);
+  }
+}
 
-  const lessonParams: QueryParams = [];
-  const lessonRowsSql: string[] = [];
-  track.courses.forEach((course, courseIdx) => {
-    const courseId = courseIdByOrder.get(courseIdx)!;
-    course.modules.forEach((mod, moduleIdx) => {
-      const moduleId = moduleIdByCourseAndOrder.get(`${courseId}:${moduleIdx}`)!;
-      mod.lessons.forEach((lesson, lessonIdx) => {
-        lessonParams.push(
-          moduleId,
-          lesson.title,
-          lesson.body,
-          lesson.videoUrl ?? null,
-          lesson.duration_minutes ?? null,
-          lessonIdx,
-        );
-        lessonRowsSql.push(`(?, ?, ?, ?, ?, ?)`);
-      });
-    });
-  });
-  if (lessonRowsSql.length === 0) return;
-  await execOn(
+/* Counted BEFORE the delete. Afterwards the rows are gone and uncountable, and this is the only
+   record that somebody's completions were destroyed. */
+async function countProgressUnderCourses(client: PoolClient, courseIds: number[]): Promise<number> {
+  const rows = await sqlOn<QueryResultRow[]>(
     client,
-    `INSERT INTO learning_lessons (module_id, title, body, video_url, duration_minutes, order_index)
-     VALUES ${lessonRowsSql.join(', ')}`,
-    lessonParams,
+    `SELECT COUNT(*)::int AS n
+       FROM learning_lesson_progress p
+       JOIN learning_lessons l ON l.id = p.lesson_id
+       JOIN learning_modules m ON m.id = l.module_id
+      WHERE m.course_id = ANY(?)`,
+    [courseIds],
   );
+  return Number(rows[0]?.n ?? 0);
+}
+
+async function countProgressUnderModules(client: PoolClient, moduleIds: number[]): Promise<number> {
+  const rows = await sqlOn<QueryResultRow[]>(
+    client,
+    `SELECT COUNT(*)::int AS n
+       FROM learning_lesson_progress p
+       JOIN learning_lessons l ON l.id = p.lesson_id
+      WHERE l.module_id = ANY(?)`,
+    [moduleIds],
+  );
+  return Number(rows[0]?.n ?? 0);
 }
 
 /**
- * Rebuild one track from its code-defined seed content, atomically.
+ * Bring a track's courses, modules and lessons in line with the seed WITHOUT rebuilding them.
  *
- * Replacing a track's content deletes its courses, which cascades all the way down to
- * `learning_lesson_progress` — so a half-finished run is not a cosmetic problem, it is a
- * track left permanently empty with every learner's progress already gone. Three things
- * make that unreachable:
+ * This replaced a delete-and-reinsert. That was simple, and it cost every learner their progress
+ * on every content change: deleting a course cascades to its lessons, and lessons own
+ * `learning_lesson_progress`. Adding three videos to a track seven people were part-way through
+ * would have wiped fifty-six completions — so in practice the seed file became unsafe to edit,
+ * which is the opposite of what a seed file is for.
  *
- *  - the whole replacement runs in ONE transaction, so a crash mid-rebuild rolls the delete
- *    back and the old content stays live;
- *  - an advisory lock on the track key serialises it, so two serverless cold starts landing
- *    on the same deploy cannot both delete-and-reinsert the same track and interleave into
- *    duplicated courses;
- *  - `seed_version` is written LAST. If anything fails the stamp is never applied, so the
- *    track still looks un-synced and the next request retries — the opposite of the old
- *    order, which stamped "done" before the content it claimed was there existed.
+ * Rows that survive keep their ids, so progress, quizzes and quiz results hanging off them survive
+ * too. Only a row the seed no longer mentions is deleted, and the progress that goes with it is
+ * counted and reported rather than vanishing quietly.
+ */
+async function reconcileTrackCourses(
+  client: PoolClient,
+  trackId: number,
+  track: SeedTrack,
+): Promise<ReconcileCounts> {
+  const counts: ReconcileCounts = { ...ZERO_COUNTS };
+  assertUniqueTitles(
+    track.courses.map((c) => c.title),
+    `track "${track.key}"`,
+  );
+
+  /* ── Courses ───────────────────────────────────────────────────────────── */
+  const existingCourses = await sqlOn<QueryResultRow[]>(
+    client,
+    `SELECT id, title FROM learning_courses WHERE track_id = ?`,
+    [trackId],
+  );
+  const courseIdByKey = new Map(
+    existingCourses.map((r) => [titleKey(String(r.title)), Number(r.id)]),
+  );
+  const seenCourses = new Set<string>();
+
+  for (const [idx, course] of track.courses.entries()) {
+    const key = titleKey(course.title);
+    seenCourses.add(key);
+    const id = courseIdByKey.get(key);
+    if (id) {
+      await execOn(
+        client,
+        `UPDATE learning_courses SET title = ?, description = ?, order_index = ?, status = ?
+          WHERE id = ?`,
+        [course.title, course.description, idx, course.status, id],
+      );
+      counts.coursesUpdated += 1;
+    } else {
+      const inserted = await sqlOn<QueryResultRow[]>(
+        client,
+        `INSERT INTO learning_courses (track_id, title, description, order_index, status)
+         VALUES (?, ?, ?, ?, ?) RETURNING id`,
+        [trackId, course.title, course.description, idx, course.status],
+      );
+      courseIdByKey.set(key, Number(inserted[0].id));
+      counts.coursesAdded += 1;
+    }
+  }
+
+  const staleCourses = existingCourses
+    .filter((r) => !seenCourses.has(titleKey(String(r.title))))
+    .map((r) => Number(r.id));
+  if (staleCourses.length) {
+    counts.progressLost += await countProgressUnderCourses(client, staleCourses);
+    await execOn(client, `DELETE FROM learning_courses WHERE id = ANY(?)`, [staleCourses]);
+    counts.coursesRemoved = staleCourses.length;
+  }
+
+  /* ── Modules, then lessons, the same way under each surviving parent ───── */
+  for (const course of track.courses) {
+    const courseId = courseIdByKey.get(titleKey(course.title))!;
+    assertUniqueTitles(
+      course.modules.map((m) => m.title),
+      `course "${course.title}"`,
+    );
+
+    const existingModules = await sqlOn<QueryResultRow[]>(
+      client,
+      `SELECT id, title FROM learning_modules WHERE course_id = ?`,
+      [courseId],
+    );
+    const moduleIdByKey = new Map(
+      existingModules.map((r) => [titleKey(String(r.title)), Number(r.id)]),
+    );
+    const seenModules = new Set<string>();
+
+    for (const [idx, mod] of course.modules.entries()) {
+      const key = titleKey(mod.title);
+      seenModules.add(key);
+      const id = moduleIdByKey.get(key);
+      if (id) {
+        await execOn(
+          client,
+          `UPDATE learning_modules
+              SET title = ?, order_index = ?, resource_label = ?, resource_url = ?
+            WHERE id = ?`,
+          [mod.title, idx, mod.resourceLabel ?? null, mod.resourceUrl ?? null, id],
+        );
+        counts.modulesUpdated += 1;
+      } else {
+        const inserted = await sqlOn<QueryResultRow[]>(
+          client,
+          `INSERT INTO learning_modules (course_id, title, order_index, resource_label, resource_url)
+           VALUES (?, ?, ?, ?, ?) RETURNING id`,
+          [courseId, mod.title, idx, mod.resourceLabel ?? null, mod.resourceUrl ?? null],
+        );
+        moduleIdByKey.set(key, Number(inserted[0].id));
+        counts.modulesAdded += 1;
+      }
+    }
+
+    const staleModules = existingModules
+      .filter((r) => !seenModules.has(titleKey(String(r.title))))
+      .map((r) => Number(r.id));
+    if (staleModules.length) {
+      counts.progressLost += await countProgressUnderModules(client, staleModules);
+      await execOn(client, `DELETE FROM learning_modules WHERE id = ANY(?)`, [staleModules]);
+      counts.modulesRemoved += staleModules.length;
+    }
+
+    for (const mod of course.modules) {
+      const moduleId = moduleIdByKey.get(titleKey(mod.title))!;
+      assertUniqueTitles(
+        mod.lessons.map((l) => l.title),
+        `module "${mod.title}"`,
+      );
+
+      const existingLessons = await sqlOn<QueryResultRow[]>(
+        client,
+        `SELECT id, title FROM learning_lessons WHERE module_id = ?`,
+        [moduleId],
+      );
+      const lessonIdByKey = new Map(
+        existingLessons.map((r) => [titleKey(String(r.title)), Number(r.id)]),
+      );
+      const seenLessons = new Set<string>();
+
+      for (const [idx, lesson] of mod.lessons.entries()) {
+        const key = titleKey(lesson.title);
+        seenLessons.add(key);
+        const id = lessonIdByKey.get(key);
+        if (id) {
+          await execOn(
+            client,
+            `UPDATE learning_lessons
+                SET title = ?, body = ?, video_url = ?, duration_minutes = ?, order_index = ?
+              WHERE id = ?`,
+            [
+              lesson.title,
+              lesson.body,
+              lesson.videoUrl ?? null,
+              lesson.duration_minutes ?? null,
+              idx,
+              id,
+            ],
+          );
+          counts.lessonsUpdated += 1;
+        } else {
+          await execOn(
+            client,
+            `INSERT INTO learning_lessons
+               (module_id, title, body, video_url, duration_minutes, order_index)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              moduleId,
+              lesson.title,
+              lesson.body,
+              lesson.videoUrl ?? null,
+              lesson.duration_minutes ?? null,
+              idx,
+            ],
+          );
+          counts.lessonsAdded += 1;
+        }
+      }
+
+      const staleLessons = existingLessons
+        .filter((r) => !seenLessons.has(titleKey(String(r.title))))
+        .map((r) => Number(r.id));
+      if (staleLessons.length) {
+        const doomed = await sqlOn<QueryResultRow[]>(
+          client,
+          `SELECT COUNT(*)::int AS n FROM learning_lesson_progress WHERE lesson_id = ANY(?)`,
+          [staleLessons],
+        );
+        counts.progressLost += Number(doomed[0]?.n ?? 0);
+        await execOn(client, `DELETE FROM learning_lessons WHERE id = ANY(?)`, [staleLessons]);
+        counts.lessonsRemoved += staleLessons.length;
+      }
+    }
+  }
+
+  return counts;
+}
+
+/**
+ * Bring one track in line with its code-defined seed content, atomically.
  *
- * `force` is the admin "reset to defaults" path: rebuild even when the stamp already matches.
+ * This used to REPLACE a track: delete its courses, which cascades through modules and lessons to
+ * `learning_lesson_progress`, then insert the seed again. Simple, and it meant every content
+ * change cost every learner their progress — so the seed file quietly became something nobody
+ * could safely edit. It now reconciles instead; see `reconcileTrackCourses` for how rows are
+ * matched and why by title.
+ *
+ * Two things still make a half-finished run unreachable: it all happens in one transaction, and
+ * `seed_version` is written LAST, so a failure leaves the track looking un-synced and the next
+ * request retries — rather than stamping "done" over content that was never written.
+ *
+ * `force` is the admin "reset to defaults" path: reconcile even when the stamp already matches.
+ * Note what that now means — a reset restores the seed's titles, bodies and ordering and removes
+ * anything the CMS added, but a learner who completed a lesson that still exists keeps that
+ * completion. Under the old behaviour a reset wiped the track's progress as a side effect nobody
+ * asked for.
+ *
  * Returns false when an up-to-date track was left alone.
  */
 export async function applySeedTrack(
@@ -234,20 +433,11 @@ export async function applySeedTrack(
   const version = hashSeedTrack(track);
 
   /* The transaction reports what it destroyed rather than logging it: a rollback must
-     not leave a log claiming that content which still exists was wiped, so the line is
+     not leave a log claiming that content which still exists was changed, so the line is
      emitted below, once the commit has actually happened. */
-  const { replaced, destroyed } = await withTransaction(
+  const { replaced, counts } = await withTransaction(
     learningHubPool,
-    async (
-      client,
-    ): Promise<{
-      replaced: boolean;
-      destroyed: {
-        trackId: number;
-        coursesDeleted: number;
-        learnerProgressRowsWiped: number;
-      } | null;
-    }> => {
+    async (client): Promise<{ replaced: boolean; counts: ReconcileCounts | null }> => {
       await lockForTransaction(client, `learning-hub:seed-track:${track.key}`);
 
       // Re-read under the lock: a concurrent cold start may have finished the rebuild while we
@@ -259,17 +449,11 @@ export async function applySeedTrack(
       );
       const existing = existingRows[0];
       if (existing && !force && String(existing.seed_version ?? '') === version)
-        return { replaced: false, destroyed: null };
+        return { replaced: false, counts: null };
 
       let trackId: number;
-      let wiped: {
-        trackId: number;
-        coursesDeleted: number;
-        learnerProgressRowsWiped: number;
-      } | null = null;
       if (existing) {
         trackId = Number(existing.id);
-        // seed_version deliberately NOT set here — see the final UPDATE below.
         /* COALESCE, not a plain assignment: a seed track that does not set `tabLabelPrefix`
            leaves whatever is there alone. General Supply Chain's 'SC' was set by a backfill and
            that track is deliberately not in SEED_TRACKS — but if it is ever added without the
@@ -290,28 +474,6 @@ export async function applySeedTrack(
             trackId,
           ],
         );
-        /* Count what the cascade is about to take with it BEFORE deleting: this log is
-         the only record that a learner's progress was wiped, and after the DELETE the
-         rows are gone and uncountable. Both queries run on the transaction client, so
-         they are inside the same locked transaction as the rebuild. */
-        const doomed = await sqlOn<QueryResultRow[]>(
-          client,
-          `SELECT (SELECT COUNT(*) FROM learning_courses WHERE track_id = ?)                       AS courses,
-                (SELECT COUNT(*) FROM learning_lesson_progress p
-                   JOIN learning_lessons l  ON l.id = p.lesson_id
-                   JOIN learning_modules m  ON m.id = l.module_id
-                   JOIN learning_courses c  ON c.id = m.course_id
-                  WHERE c.track_id = ?)                                                          AS progress_rows`,
-          [trackId, trackId],
-        );
-        const deleted = await execOn(client, `DELETE FROM learning_courses WHERE track_id = ?`, [
-          trackId,
-        ]);
-        wiped = {
-          trackId,
-          coursesDeleted: deleted.rowCount,
-          learnerProgressRowsWiped: Number(doomed[0]?.progress_rows ?? 0),
-        };
       } else {
         const inserted = await execOn(
           client,
@@ -330,23 +492,26 @@ export async function applySeedTrack(
         trackId = inserted.insertId;
       }
 
-      await insertTrackCourses(client, trackId, track);
+      const counts = await reconcileTrackCourses(client, trackId, track);
 
-      // Last statement: the stamp only exists if everything above it does.
       await execOn(client, `UPDATE learning_tracks SET seed_version = ? WHERE id = ?`, [
         version,
         trackId,
       ]);
-      return { replaced: true, destroyed: wiped };
+      return { replaced: true, counts };
     },
   );
 
-  if (destroyed) {
-    log.info('seed.track.replaced', {
+  /* Reported after the commit, never before: a rollback must not leave a log claiming that
+     content which still exists was changed. `progressLost` is the line that matters — it is the
+     only record that somebody's completions were destroyed, and it should be zero for anything
+     but a genuine removal from the seed. */
+  if (counts) {
+    log.info('seed.track.reconciled', {
       track: track.key,
       force,
       seedVersion: version.slice(0, 12),
-      ...destroyed,
+      ...counts,
     });
   }
   return replaced;
@@ -355,8 +520,9 @@ export async function applySeedTrack(
 // Runs on every cold start (cheap once synced, just one SELECT + hash comparison per track).
 // A track whose code content hasn't changed since the last sync (seed_version matches) is left
 // completely alone, so admin edits made through the CMS survive unrelated deploys. A track whose
-// code content DID change (this is how a content push like the SAP video rebuild reaches production)
-// gets its courses replaced with what's now in SEED_TRACKS automatically, no manual "reset" needed.
+// code content DID change (this is how a content push reaches production) is reconciled against
+// SEED_TRACKS automatically, no manual "reset" needed — rows that still exist keep their ids, and
+// with them every learner's progress.
 // The batch SELECT here is only a fast path that keeps the steady state to a single query; the
 // authoritative comparison happens again inside applySeedTrack(), under the lock.
 async function syncSeedTracks(): Promise<void> {
@@ -370,8 +536,9 @@ async function syncSeedTracks(): Promise<void> {
   for (let trackIdx = 0; trackIdx < SEED_TRACKS.length; trackIdx++) {
     const track = SEED_TRACKS[trackIdx];
     if (versionByKey.get(track.key) === hashSeedTrack(track)) continue;
-    /* A track whose code content changed is about to have its courses replaced, which
-       cascades to learner progress. Nothing else records that a cold start did this. */
+    /* A track whose code content changed is about to be reconciled. Only rows the seed no longer
+       mentions are removed, so this is no longer the progress-destroying event it once was — but
+       it is still the only record that a cold start changed published content. */
     log.info('seed.sync.trackStale', { track: track.key, known: versionByKey.has(track.key) });
     await applySeedTrack(track, trackIdx);
   }
