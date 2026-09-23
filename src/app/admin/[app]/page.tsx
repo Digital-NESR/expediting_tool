@@ -9,7 +9,7 @@ import {
   getProcureGuardAnalyticsData,
   getProcureGuardAdminAnalyticsData,
 } from '@/app/actions/procureGuard';
-import { getLaptopAdminData, getLaptopAnalyticsData } from '@/app/actions/laptopProcurement';
+import { getLaptopAdminAnalyticsData, getLaptopAdminData } from '@/app/actions/laptopProcurement';
 import { getLearningHubAdminData, getLearningHubAnalytics } from '@/app/actions/learning-hub';
 
 /* Server actions invoked from this page inherit its budget, and one of them is genuinely slow:
@@ -80,7 +80,7 @@ export default async function AdminAppPage({
       base.laptopAdminData = await getLaptopAdminData();
       break;
     case 'laptop/analytics':
-      base.laptopAnalyticsData = await getLaptopAnalyticsData();
+      base.laptopAnalyticsData = await getLaptopAdminAnalyticsData();
       break;
     case 'learning-hub/admin':
       base.learningHubAdminData = await getLearningHubAdminData();

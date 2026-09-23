@@ -13,15 +13,23 @@ const NO_CAPS: LaptopApproverCapabilities = {
 describe('a platform console admin with no laptop_permissions row', () => {
   const p = buildEffectivePermissions('Requester', NO_CAPS, true);
 
-  it('reaches Analytics — it could already read every request behind it', () => {
+  it('gains unscoped READ of every request, so the console can link into them', () => {
     expect(p.canViewAll).toBe(true);
     expect(p.canViewEveryCountry).toBe(true);
-    expect(canUseLaptopAnalytics(p.accessView)).toBe(true);
   });
 
-  it('does not become an operational Admin', () => {
-    expect(p.accessView).toBe('viewer');
+  /* The flag must not raise accessView. That value gates the main
+     /laptop-procurement app's own nav and pages, so lifting it would hand
+     every platform admin an Analytics tab on the app itself — the coupling
+     157c829 removed on purpose. Console analytics is reached through
+     requireAdminActor() instead, per call. */
+  it('stays a Requester on the app itself', () => {
+    expect(p.accessView).toBe('requester');
+    expect(canUseLaptopAnalytics(p.accessView)).toBe(false);
     expect(canUseLaptopAdmin(p.accessView)).toBe(false);
+  });
+
+  it('gains no write or review capability', () => {
     expect(p.canReject).toBe(false);
     expect(p.canReviewItManager).toBe(false);
     expect(p.canReviewScmDirector).toBe(false);

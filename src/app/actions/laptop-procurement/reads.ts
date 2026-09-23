@@ -12,6 +12,7 @@ import {
 import { logger } from '@/lib/logger';
 import type {
   LaptopActivityRow,
+  LaptopActor,
   LaptopAdminData,
   LaptopAnalyticsData,
   LaptopDashboardData,
@@ -273,12 +274,11 @@ export async function getLaptopAdminData(
 // reads as "global" there), and what the laptop-procurement Analytics page's Personal
 // tab shows for everyone else.
 export async function getLaptopAnalyticsData(): Promise<LaptopAnalyticsData | null> {
-  /* Resolved outside the try. A refusal is not a fault, and folding the two
-     together is what made a permission denial render as "Check the Laptop
-     Procurement database connection" — a message that sent people looking at
-     the database while the actual answer was their access tier. Returning null
-     for both is still right for the caller; the difference belongs in the log,
-     so whoever reads it is told which of the two happened. */
+  /* The access check sits outside the try. A refusal is not a fault, and
+     folding the two together is what made a permission denial render as
+     "Check the Laptop Procurement database connection" — a message that sent
+     people looking at a database that was fine. Null is still the right answer
+     to the caller either way; the difference belongs in the log. */
   const actor = await getActor().catch((err) => {
     log.error('getLaptopAnalyticsData.actorFailed', err);
     return null;
@@ -291,7 +291,38 @@ export async function getLaptopAnalyticsData(): Promise<LaptopAnalyticsData | nu
     });
     return null;
   }
+  return analyticsFor(actor);
+}
 
+/**
+ * Analytics for the /admin console.
+ *
+ * Separate from the function above because the two answer to different gates.
+ * The app's own page asks what this person may do on /laptop-procurement;
+ * the console asks whether they may be in /admin at all, which is
+ * ADMIN_EMAILS plus LAPTOP_PROCUREMENT_ADMIN_EMAILS.
+ *
+ * Before 157c829 those were the same question — ADMIN_EMAILS made you a laptop
+ * Admin outright — so one loader served both. That commit scoped ADMIN_EMAILS
+ * to the console on purpose, and `requireAdminActor` is the per-call elevation
+ * it introduced to replace it: admin rights on the object it returns only,
+ * never on what getActor() hands the main app. Analytics was the one console
+ * section still calling getActor() directly, so it alone stopped working.
+ *
+ * Deliberately not a flag on the function above. A boolean saying "skip the
+ * permission check" is the kind of parameter that eventually gets passed true
+ * from somewhere that should not.
+ */
+export async function getLaptopAdminAnalyticsData(): Promise<LaptopAnalyticsData | null> {
+  const actor = await requireAdminActor().catch((err) => {
+    log.warn('getLaptopAdminAnalyticsData.forbidden', { error: String(err) });
+    return null;
+  });
+  if (!actor) return null;
+  return analyticsFor(actor);
+}
+
+async function analyticsFor(actor: LaptopActor): Promise<LaptopAnalyticsData | null> {
   try {
     const scope = scopedWhere(actor);
     return await computeLaptopAnalytics(actor, scope.where, scope.params);
