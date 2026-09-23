@@ -196,7 +196,7 @@ export default function AdhocPaymentsStatusClient({
                 onChange={(e) => setStatus(e.target.value)}
                 className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"
               >
-                <option>All</option>
+                <option value="All">All</option>
                 {ADHOC_STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s}>
                     {formatProcureGuardStatusLabel(s)}
@@ -208,9 +208,11 @@ export default function AdhocPaymentsStatusClient({
                 onChange={(e) => setPriority(e.target.value)}
                 className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"
               >
-                <option>All</option>
+                <option value="All">All</option>
                 {['Low', 'Normal', 'High', 'Critical'].map((p) => (
-                  <option key={p}>{p}</option>
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
                 ))}
               </select>
             </div>

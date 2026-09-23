@@ -495,7 +495,9 @@ export default function AdhocPaymentFormClient(_props: {
               >
                 <option value="">Find Country</option>
                 {COUNTRY_OPTIONS.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
                 ))}
               </select>
             </Field>

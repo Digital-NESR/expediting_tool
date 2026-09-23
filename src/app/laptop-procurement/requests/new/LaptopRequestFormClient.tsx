@@ -469,8 +469,16 @@ export default function LaptopRequestFormClient({
                 onChange={(e) => handleCountryChange(e.target.value)}
               >
                 <option value="">Find Country</option>
+                {/* `value` is not optional here. Without it the browser submits
+                    the option's TEXT, and a browser page-translation rewrites
+                    that text in the DOM — so a requester reading the form in
+                    Arabic submitted "المملكة العربية السعودية" as the country,
+                    which matches no row in laptop_approver_matrix and left the
+                    request unroutable. */}
                 {COUNTRY_OPTIONS.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -646,7 +654,9 @@ export default function LaptopRequestFormClient({
               >
                 <option value="">Select device type</option>
                 {DEVICE_TYPE_OPTIONS.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
                 ))}
               </select>
             </Field>

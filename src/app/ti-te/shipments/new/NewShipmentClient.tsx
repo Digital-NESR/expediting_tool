@@ -587,7 +587,9 @@ export default function NewShipmentClient({
                 <select className={INP} value={mot} onChange={(e) => setMot(e.target.value)}>
                   <option value="">Select MOT…</option>
                   {MOT_OPTIONS.map((m) => (
-                    <option key={m}>{m}</option>
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
                   ))}
                 </select>
               </div>

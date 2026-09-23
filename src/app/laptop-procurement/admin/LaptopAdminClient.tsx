@@ -565,7 +565,9 @@ function DevicesPanel({
               onChange={(e) => setTypeOfDevice(e.target.value)}
             >
               {DEVICE_TYPE_OPTIONS.map((t) => (
-                <option key={t}>{t}</option>
+                <option key={t} value={t}>
+                  {t}
+                </option>
               ))}
             </select>
           </div>
@@ -612,7 +614,9 @@ function DevicesPanel({
                       onChange={(e) => setEditType(e.target.value)}
                     >
                       {DEVICE_TYPE_OPTIONS.map((t) => (
-                        <option key={t}>{t}</option>
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1060,7 +1064,9 @@ export default function LaptopAdminClient({
                   }}
                 >
                   {ROLE_SELECT_OPTIONS.map((r) => (
-                    <option key={r}>{r}</option>
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -1103,7 +1109,9 @@ export default function LaptopAdminClient({
                     >
                       <option value="">All countries</option>
                       {COUNTRY_OPTIONS.map((c) => (
-                        <option key={c}>{c}</option>
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1118,7 +1126,9 @@ export default function LaptopAdminClient({
                     >
                       <option value="">All segments</option>
                       {SEGMENT_OPTIONS.map((s) => (
-                        <option key={s}>{s}</option>
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
                       ))}
                     </select>
                   </div>

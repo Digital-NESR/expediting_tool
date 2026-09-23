@@ -26,6 +26,34 @@ export function requireText(value: unknown, label: string): string {
   return value.trim();
 }
 
+/**
+ * Like requireText, but the value has to be one the form could legitimately
+ * have offered.
+ *
+ * A `<select>` submits whatever the browser decides the option's value is, and
+ * that is not always what the app put there: an option carrying no `value`
+ * attribute submits its TEXT, which a browser page-translation rewrites in the
+ * DOM. Two requests reached the database with "المملكة العربية السعودية" as
+ * their country — no row in laptop_approver_matrix matches that, so neither
+ * could be routed to an approver.
+ *
+ * The markup is fixed, but the form was never the gate: this action is a POST
+ * endpoint and takes whatever it is sent. Matching case-insensitively and
+ * returning the canonical spelling also stops a stray case variant creating a
+ * second country that looks identical in a list.
+ */
+export function requireOneOf(value: unknown, allowed: readonly string[], label: string): string {
+  const text = requireText(value, label);
+  const match = allowed.find((a) => a.toLowerCase() === text.toLowerCase());
+  if (!match) {
+    throw new Error(
+      `${label} must be one of the listed options. Received "${text}" — if the page was open ` +
+        `in a translated view, switch it back to English and choose again.`,
+    );
+  }
+  return match;
+}
+
 // laptop_requests was emptied and restarted, so PLP00001–PLP00034 have been issued twice:
 // once to the requests that were cleared out, and again to the current ones. Those older
 // numbers are already quoted in sent emails and IT tickets, so rather than renumber live

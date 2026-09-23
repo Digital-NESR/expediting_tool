@@ -79,7 +79,9 @@ function RoleSelector({
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[#307c4c]"
           >
             {PERMISSION_ROLE_OPTIONS.map((item) => (
-              <option key={item}>{item}</option>
+              <option key={item} value={item}>
+                {item}
+              </option>
             ))}
           </select>
         </label>
@@ -94,7 +96,9 @@ function RoleSelector({
           >
             <option value="">All countries</option>
             {COUNTRY_OPTIONS.map((item) => (
-              <option key={item}>{item}</option>
+              <option key={item} value={item}>
+                {item}
+              </option>
             ))}
           </select>
         </label>
@@ -109,7 +113,9 @@ function RoleSelector({
           >
             <option value="">All segments</option>
             {SEGMENT_OPTIONS.map((item) => (
-              <option key={item}>{item}</option>
+              <option key={item} value={item}>
+                {item}
+              </option>
             ))}
           </select>
         </label>

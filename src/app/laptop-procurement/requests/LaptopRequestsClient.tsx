@@ -185,9 +185,11 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
                 }}
                 className={INPUT}
               >
-                <option>All</option>
+                <option value="All">All</option>
                 {STATUS_OPTIONS.map((s) => (
-                  <option key={s}>{s}</option>
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
                 ))}
               </select>
               <select
@@ -198,9 +200,11 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
                 }}
                 className={INPUT}
               >
-                <option>All</option>
+                <option value="All">All</option>
                 {requestTypes.map((t) => (
-                  <option key={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
                 ))}
               </select>
             </div>

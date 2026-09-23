@@ -8,19 +8,29 @@ import type {
 } from '@/types/laptopProcurement';
 import type { PoolClient } from 'pg';
 import { execTx } from '@/lib/laptop-procurement/db';
-import { blankToNull, getPendingWithLabel, requireText } from '@/lib/laptop-procurement/internals';
+import {
+  blankToNull,
+  getPendingWithLabel,
+  requireOneOf,
+  requireText,
+} from '@/lib/laptop-procurement/internals';
+import {
+  COUNTRY_OPTIONS,
+  DEVICE_TYPE_OPTIONS,
+  REQUEST_TYPE_OPTIONS,
+} from '@/lib/laptopProcurement-utils';
 
 export function validateCreateInput(input: CreateLaptopRequestInput) {
   return {
-    requestType: requireText(input.request_type, 'Type of request'),
-    country: requireText(input.country, 'Country'),
+    requestType: requireOneOf(input.request_type, REQUEST_TYPE_OPTIONS, 'Type of request'),
+    country: requireOneOf(input.country, COUNTRY_OPTIONS, 'Country'),
     companyCode: requireText(input.company_code, 'Company Code'),
     // Optional: the static company-code reference table doesn't cover every real company
     // code an employee's directory record can report, which used to leave requesters with
     // this locked field permanently blank and no way to submit at all.
     companyName: blankToNull(input.company_name),
     costCenter: requireText(input.cost_center, 'Cost Center'),
-    typeOfDevice: requireText(input.type_of_device, 'Type of device'),
+    typeOfDevice: requireOneOf(input.type_of_device, DEVICE_TYPE_OPTIONS, 'Type of device'),
     // No longer collected from the requester — the IT Team fills this in later, only if
     // the request is actually flagged for new-device procurement (see submitProcureNewDetails).
     requestedModel: blankToNull(input.requested_model),

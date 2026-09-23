@@ -421,7 +421,9 @@ function ExistingDeviceFields({
         <select className={INP} value={age} onChange={(e) => setAge(e.target.value)}>
           <option value="">Select age</option>
           {DEVICE_AGE_OPTIONS.map((o) => (
-            <option key={o}>{o}</option>
+            <option key={o} value={o}>
+              {o}
+            </option>
           ))}
         </select>
       </div>
@@ -510,7 +512,9 @@ function ProcureNewDetailsSection({
               >
                 <option value="">Select device type</option>
                 {DEVICE_TYPE_OPTIONS.map((o) => (
-                  <option key={o}>{o}</option>
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
                 ))}
               </select>
             </div>
@@ -528,7 +532,9 @@ function ProcureNewDetailsSection({
                   {typeOfDevice ? 'Select a model' : 'Select a device type first'}
                 </option>
                 {modelOptions.map((o) => (
-                  <option key={o}>{o}</option>
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
                 ))}
               </select>
             </div>
@@ -906,7 +912,9 @@ export default function LaptopRequestDetailClient({
                     >
                       <option value="">Select device type</option>
                       {DEVICE_TYPE_OPTIONS.map((o) => (
-                        <option key={o}>{o}</option>
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -934,7 +942,9 @@ export default function LaptopRequestDetailClient({
                         {assignType ? 'Select model' : 'Select a device type first'}
                       </option>
                       {assignModelOptions.map((o) => (
-                        <option key={o}>{o}</option>
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -949,7 +959,9 @@ export default function LaptopRequestDetailClient({
                     >
                       <option value="">Select age</option>
                       {DEVICE_AGE_OPTIONS.map((o) => (
-                        <option key={o}>{o}</option>
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1099,7 +1111,9 @@ export default function LaptopRequestDetailClient({
                     >
                       <option value="">Select device type</option>
                       {DEVICE_TYPE_OPTIONS.map((o) => (
-                        <option key={o}>{o}</option>
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1123,7 +1137,9 @@ export default function LaptopRequestDetailClient({
                             .map((d) => d.model),
                         ),
                       ].map((o) => (
-                        <option key={o}>{o}</option>
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
                       ))}
                     </select>
                   </div>

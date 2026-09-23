@@ -241,7 +241,9 @@ function AdhocForm({
             onChange={(e) => update('country', e.target.value)}
           >
             {COUNTRY_OPTIONS.map((item) => (
-              <option key={item}>{item}</option>
+              <option key={item} value={item}>
+                {item}
+              </option>
             ))}
           </select>
         </Field>
@@ -293,7 +295,9 @@ function AdhocForm({
             onChange={(e) => update('priority', e.target.value as ProcureGuardPriority)}
           >
             {PRIORITY_OPTIONS.map((item) => (
-              <option key={item}>{item}</option>
+              <option key={item} value={item}>
+                {item}
+              </option>
             ))}
           </select>
         </Field>
@@ -468,7 +472,9 @@ function AdvanceForm({
             onChange={(e) => update('country', e.target.value)}
           >
             {COUNTRY_OPTIONS.map((item) => (
-              <option key={item}>{item}</option>
+              <option key={item} value={item}>
+                {item}
+              </option>
             ))}
           </select>
         </Field>
@@ -520,7 +526,9 @@ function AdvanceForm({
             onChange={(e) => update('priority', e.target.value as ProcureGuardPriority)}
           >
             {PRIORITY_OPTIONS.map((item) => (
-              <option key={item}>{item}</option>
+              <option key={item} value={item}>
+                {item}
+              </option>
             ))}
           </select>
         </Field>
@@ -1010,7 +1018,9 @@ function NotificationRecipientsPanel({
                 onChange={(e) => setCountry(e.target.value)}
               >
                 {countries.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -1020,16 +1030,18 @@ function NotificationRecipientsPanel({
                 value={requestType}
                 onChange={(e) => setRequestType(e.target.value)}
               >
-                <option>All</option>
-                <option>adhoc</option>
-                <option>advance</option>
-                <option>both</option>
+                <option value="All">All</option>
+                <option value="adhoc">adhoc</option>
+                <option value="advance">advance</option>
+                <option value="both">both</option>
               </select>
             </Field>
             <Field label="Role">
               <select className={inputClass} value={role} onChange={(e) => setRole(e.target.value)}>
                 {roles.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
                 ))}
               </select>
             </Field>
