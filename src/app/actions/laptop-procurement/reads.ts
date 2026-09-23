@@ -7,6 +7,7 @@ import {
   ADMIN_REQUESTS_PAGE_SIZE,
   APPROVAL_ACTIVE_STATUSES,
   IT_MANAGER_STATUSES,
+  canUseLaptopAnalytics,
 } from '@/lib/laptopProcurement-utils';
 import { logger } from '@/lib/logger';
 import type {
@@ -28,7 +29,6 @@ import {
   getScopedActions,
   laptopActingIdentities,
   requireAdminActor,
-  requireAnalyticsAccess,
   requireReviewerQueueAccess,
   scopedWhere,
 } from '@/lib/laptop-procurement/access';
@@ -273,9 +273,26 @@ export async function getLaptopAdminData(
 // reads as "global" there), and what the laptop-procurement Analytics page's Personal
 // tab shows for everyone else.
 export async function getLaptopAnalyticsData(): Promise<LaptopAnalyticsData | null> {
+  /* Resolved outside the try. A refusal is not a fault, and folding the two
+     together is what made a permission denial render as "Check the Laptop
+     Procurement database connection" — a message that sent people looking at
+     the database while the actual answer was their access tier. Returning null
+     for both is still right for the caller; the difference belongs in the log,
+     so whoever reads it is told which of the two happened. */
+  const actor = await getActor().catch((err) => {
+    log.error('getLaptopAnalyticsData.actorFailed', err);
+    return null;
+  });
+  if (!actor) return null;
+  if (!canUseLaptopAnalytics(actor.effectiveAccessView)) {
+    log.warn('getLaptopAnalyticsData.forbidden', {
+      actor: actor.email,
+      accessView: actor.effectiveAccessView,
+    });
+    return null;
+  }
+
   try {
-    const actor = await getActor();
-    requireAnalyticsAccess(actor);
     const scope = scopedWhere(actor);
     return await computeLaptopAnalytics(actor, scope.where, scope.params);
   } catch (err) {

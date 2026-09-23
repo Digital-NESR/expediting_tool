@@ -182,7 +182,20 @@ export function buildEffectivePermissions(
     canReviewCountryManager: isAdmin || capabilities['Country Manager'].length > 0,
     canReviewItDirector: isAdmin || capabilities['IT Director'].length > 0,
     canReviewScmDirector: isAdmin || capabilities['Supply Chain Director'].length > 0,
-    accessView: isAdmin ? 'admin' : isViewer ? 'viewer' : hasCapability ? 'reviewer' : 'requester',
+    /* platformConsoleAdmin lands on 'viewer', the read-only tier, and not on
+       'admin'. It was previously the one input this line ignored, which left a
+       platform admin able to read every request in every country (canViewAll
+       above) while Analytics — an aggregate of those same requests — refused
+       them and reported it as a database fault. Read-only oversight is exactly
+       what this flag is already trusted with; becoming an operational Admin
+       still needs LAPTOP_PROCUREMENT_ADMIN_EMAILS or a permissions row. */
+    accessView: isAdmin
+      ? 'admin'
+      : isViewer || platformConsoleAdmin
+        ? 'viewer'
+        : hasCapability
+          ? 'reviewer'
+          : 'requester',
   };
 }
 
