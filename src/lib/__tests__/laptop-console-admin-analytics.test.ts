@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { buildEffectivePermissions } from '@/lib/laptop-procurement/actor';
 import { canUseLaptopAdmin, canUseLaptopAnalytics } from '@/lib/laptopProcurement-utils';
-import type { LaptopApprovalStage } from '@/types/laptopProcurement';
+import type { LaptopApproverCapabilities } from '@/types/laptopProcurement';
 
-const NO_CAPS = {
+const NO_CAPS: LaptopApproverCapabilities = {
   'IT Manager': [],
   'Country Manager': [],
   'IT Director': [],
   'Supply Chain Director': [],
-} as Record<LaptopApprovalStage, string[]>;
+};
 
 describe('a platform console admin with no laptop_permissions row', () => {
   const p = buildEffectivePermissions('Requester', NO_CAPS, true);
@@ -40,9 +40,7 @@ describe('the other tiers are unchanged', () => {
   it('Admin stays admin, Viewer stays viewer, a matrix approver stays reviewer', () => {
     expect(buildEffectivePermissions('Admin', NO_CAPS, false).accessView).toBe('admin');
     expect(buildEffectivePermissions('Viewer', NO_CAPS, false).accessView).toBe('viewer');
-    expect(
-      buildEffectivePermissions('Requester', { ...NO_CAPS, 'IT Manager': ['Kuwait'] }, false)
-        .accessView,
-    ).toBe('reviewer');
+    const approver: LaptopApproverCapabilities = { ...NO_CAPS, 'IT Manager': ['Kuwait'] };
+    expect(buildEffectivePermissions('Requester', approver, false).accessView).toBe('reviewer');
   });
 });
