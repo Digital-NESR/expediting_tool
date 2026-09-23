@@ -12,7 +12,7 @@ export const ROLES: SnsRole[] = [
   'Requestor — Sourcing / Procurement',
   'Validator L1 — Country Supply Chain Manager',
   'Validator L2 — Category Manager / SC Director',
-  'Read-only — Procurement Officer / Auditor',
+  'Read-only — Supply Chain Management / Auditor',
   'Supply Chain Leadership',
 ];
 
@@ -55,7 +55,7 @@ export const STATUS_LABEL: Partial<Record<DisplayStatus, string>> = {
  */
 export const GRANTABLE_ROLES: SnsRole[] = [
   'Requestor — Sourcing / Procurement',
-  'Read-only — Procurement Officer / Auditor',
+  'Read-only — Supply Chain Management / Auditor',
 ];
 
 /** Short labels for the admin approvals queue, where the full role strings don't fit. */
@@ -63,7 +63,7 @@ export const ROLE_SHORT: Record<string, string> = {
   'Requestor — Sourcing / Procurement': 'Requestor',
   'Validator L1 — Country Supply Chain Manager': 'Validator L1',
   'Validator L2 — Category Manager / SC Director': 'Validator L2',
-  'Read-only — Procurement Officer / Auditor': 'Read-only',
+  'Read-only — Supply Chain Management / Auditor': 'Read-only',
   'Supply Chain Leadership': 'Leadership',
 };
 

@@ -131,7 +131,7 @@ export type SnsRole =
   | 'Requestor — Sourcing / Procurement'
   | 'Validator L1 — Country Supply Chain Manager'
   | 'Validator L2 — Category Manager / SC Director'
-  | 'Read-only — Procurement Officer / Auditor'
+  | 'Read-only — Supply Chain Management / Auditor'
   | 'Supply Chain Leadership';
 
 export type SnsAccessStatus = 'new' | 'pending' | 'approved' | 'rejected' | 'revoked';

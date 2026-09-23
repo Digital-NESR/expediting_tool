@@ -14,7 +14,7 @@ const ROLE_HELP: Record<SnsRole, string> = {
     'First-level validation for your countries — approve to Level 2, or reject to draft.',
   'Validator L2 — Category Manager / SC Director':
     'Final sign-off that publishes the Registry ID, and confirms periodic reviews.',
-  'Read-only — Procurement Officer / Auditor':
+  'Read-only — Supply Chain Management / Auditor':
     'Search and export the registry. No submissions, no validations.',
   'Supply Chain Leadership':
     'Registry plus the leadership dashboard. No submissions, no validations.',
