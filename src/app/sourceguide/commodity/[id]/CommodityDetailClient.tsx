@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, User, Mail } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from '../../constants';
-import { TierBadge, CountryFlag, SupAvatar, PathTrail } from '../../ui';
+import { TierBadge, CountryFlag, SupAvatar, PathTrail, BlockedBadge } from '../../ui';
 import { recordView, BookmarkButton } from '../../pins';
 import type { SgCommodityDetail, SgCountry, SgMapping } from '@/types/sourceguide';
 
@@ -262,6 +262,7 @@ function SupplierCard({
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-[15.5px] font-bold tracking-tight">{mapping.supplierName}</span>
             <TierBadge tier={mapping.tier} />
+            {mapping.supplierBlocked && <BlockedBadge />}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[12.5px] text-slate-500">
             {mapping.supplierCode && (

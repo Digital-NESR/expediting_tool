@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, X, Zap, Clock, Lock, ChevronDown, Check } from 'lucide-react';
 import { SG_BRAND } from '../constants';
-import { PathTrail } from '../ui';
+import { PathTrail, BlockedBadge } from '../ui';
 import {
   getMappingEditList,
   getCountryMappingSummary,
@@ -386,6 +386,7 @@ function Chip({ m, onChange }: { m: SgMapping; onChange: (msg?: string) => void 
         style={{ background: isPref ? SG_BRAND : '#7c7d80' }}
       />
       <span className="max-w-[220px] truncate text-[12.5px] font-medium">{m.supplierName}</span>
+      {m.supplierBlocked && <BlockedBadge compact />}
       <button
         disabled={busy}
         onClick={flip}

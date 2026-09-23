@@ -1,8 +1,32 @@
 'use client';
 
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Ban } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT, supplierTone, initials } from './constants';
 import type { Tier, SgCountry } from '@/types/sourceguide';
+
+/* ─── Central purchasing block ───────────────────────────────── */
+/**
+ * Marks a vendor SAP has centrally blocked for purchasing. Deliberately louder
+ * than the tier badge: a blocked vendor can still be mapped and still be
+ * Preferred, so the guide has to say so at the point someone would act on it.
+ */
+export function BlockedBadge({ compact }: { compact?: boolean }) {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded-full font-semibold"
+      style={{
+        background: '#fbe9e7',
+        color: '#a1342a',
+        padding: compact ? '1px 6px' : '2px 8px',
+        fontSize: compact ? 10 : 11,
+      }}
+      title="SAP has this vendor centrally blocked for purchasing"
+    >
+      <Ban className={compact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+      Blocked
+    </span>
+  );
+}
 
 /* ─── Tier badge ─────────────────────────────────────────────── */
 export function TierBadge({ tier }: { tier: Tier }) {

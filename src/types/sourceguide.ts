@@ -40,6 +40,8 @@ export interface SgMapping {
   supplierName: string;
   /** AVL email(s); may be a comma/semicolon-separated list. Populated where surfaced. */
   supplierEmail?: string | null;
+  /** SAP has the vendor centrally blocked for purchasing. Populated where surfaced. */
+  supplierBlocked?: boolean;
   country: string;
   tier: Tier;
   status: string;
@@ -65,12 +67,19 @@ export interface SgStats {
 /** A commodity row enriched with the preferred/backup summary for a country. */
 export interface SgCommodityResult extends SgCommodity {
   countries: string[];
-  preferred: { supplierCode: string | null; supplierName: string; country: string } | null;
+  preferred: {
+    supplierCode: string | null;
+    supplierName: string;
+    country: string;
+    blocked: boolean;
+  } | null;
   backupCount: number;
 }
 
 export interface SgSupplierProfile extends SgSupplier {
   email: string | null;
+  /** SAP has the vendor centrally blocked for purchasing. */
+  blocked: boolean;
   totalCommodities: number;
   preferredCount: number;
   champions: string[];

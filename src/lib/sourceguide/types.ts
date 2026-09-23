@@ -90,6 +90,7 @@ export interface SgGuideRow {
   supplierCode: string;
   supplierName: string;
   supplierEmail: string;
+  supplierBlocked: boolean;
 }
 
 /* ─── per-country dashboard ──────────────────────────────────── */
