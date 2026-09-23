@@ -60,14 +60,29 @@ export async function uploadLaptopDocument(
       [requestId],
     );
     if (!requestRows[0]) return { success: false, error: 'Request not found.' };
-    const canView = laptopActingIdentities(actor).some((id) =>
-      id.permissions.canViewAll
-        ? id.permissions.canViewEveryCountry ||
-          anyMatrixCapabilityForCountry(id.matrixCapabilities, requestRows[0].country)
-        : id.email.toLowerCase() === requestRows[0].requested_by_email?.toLowerCase(),
+    /* Owning the request and approving for its country are independent reasons to
+       be allowed here, so they are separate ORs rather than branches of one
+       ternary.
+
+       As a ternary, holding any approver stage sent evaluation down the country
+       branch and the ownership test was never reached — so an IT Manager for Qatar
+       and Chad who raised their own HQ Dubai request was refused an attachment on
+       it, while a plain Requester with no matrix rows uploaded fine. Being an
+       approver somewhere took away a right everyone else has. */
+    const request = requestRows[0];
+    const requesterEmail = String(request.requested_by_email ?? '').toLowerCase();
+    const canAttach = laptopActingIdentities(actor).some(
+      (id) =>
+        id.email.toLowerCase() === requesterEmail ||
+        (id.permissions.canViewAll &&
+          (id.permissions.canViewEveryCountry ||
+            anyMatrixCapabilityForCountry(id.matrixCapabilities, request.country))),
     );
-    if (!canView) {
-      return { success: false, error: 'You can only upload files to your own requests.' };
+    if (!canAttach) {
+      return {
+        success: false,
+        error: 'You can only upload files to your own requests, or to ones you approve.',
+      };
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
