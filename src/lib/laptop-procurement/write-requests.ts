@@ -115,8 +115,9 @@ export const STAGE_DECISION_COLUMN: Partial<Record<LaptopRequestStatus, string>>
 // Human-readable name of whoever is rejecting, for the activity log — only stages with
 // a reject option appear here (see getRejectStatusForStage).
 export const REJECTING_STAGE_LABEL: Partial<Record<LaptopRequestStatus, string>> = {
+  Submitted: 'IT Manager',
+  'IT Approval': 'IT Manager',
   'CM Approval': 'Country Manager',
-  'CM Confirm Device': 'Country Manager',
   'IT Director Approval': 'IT Director',
   'Supply Chain Director Approval': 'Supply Chain Director',
 };

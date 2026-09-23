@@ -203,8 +203,6 @@ export const APPROVAL_ACTIVE_STATUSES: LaptopRequestStatus[] = [
   'Submitted',
   'IT Approval',
   'CM Approval',
-  'Procure New Details',
-  'CM Confirm Device',
   'IT Director Approval',
   'Supply Chain Director Approval',
 ];
@@ -226,8 +224,6 @@ export const STATUS_OPTIONS: LaptopRequestStatus[] = [
   'Submitted',
   'IT Approval',
   'CM Approval',
-  'Procure New Details',
-  'CM Confirm Device',
   'IT Director Approval',
   'Supply Chain Director Approval',
   'Procure New',
@@ -365,9 +361,6 @@ export function getNextApprovalStatus(
       : hasAssignedUnit
         ? 'Assign from Inventory'
         : 'Approved',
-    // The CM confirming the exact new device IT Manager picked — always continues to
-    // IT Director.
-    'CM Confirm Device': 'IT Director Approval',
     'IT Director Approval': 'Supply Chain Director Approval',
     // Final sign-off: a genuine new-device procurement lands on 'Procure New' — checked
     // first since it's sticky and wins even if an earlier IT-Manager-assigned unit is
@@ -384,15 +377,24 @@ export function getNextApprovalStatus(
   return transitions[currentStatus] ?? null;
 }
 
-// Every rejection bounces the request back to the IT Manager to fix and resend, rather
-// than ending it — only the IT Manager themselves has no reject option (nothing to
-// bounce it back further to).
+/**
+ * Where a rejection sends the request.
+ *
+ * Every approver downstream of IT bounces it back to the IT Manager to fix and
+ * resend. The IT Manager has nobody to bounce it back to, so theirs is a real
+ * refusal: the request ends at 'Rejected' rather than looping. They are the first
+ * reviewer and the only one who sees the physical device, so a request that should
+ * never have been raised is theirs to stop — until now they could only approve it
+ * onward and let someone else say no.
+ */
 export function getRejectStatusForStage(
   currentStatus: LaptopRequestStatus,
 ): LaptopRequestStatus | null {
   switch (currentStatus) {
+    case 'Submitted':
+    case 'IT Approval':
+      return 'Rejected';
     case 'CM Approval':
-    case 'CM Confirm Device':
     case 'IT Director Approval':
     case 'Supply Chain Director Approval':
       return 'IT Approval';
@@ -413,10 +415,8 @@ export function getLaptopApprovalStage(status: LaptopRequestStatus): LaptopAppro
   switch (status) {
     case 'Submitted':
     case 'IT Approval':
-    case 'Procure New Details':
       return 'IT Manager';
     case 'CM Approval':
-    case 'CM Confirm Device':
       return 'Country Manager';
     case 'IT Director Approval':
       return 'IT Director';
@@ -435,14 +435,6 @@ export function getRequiredPermissionForStage(
     case 'IT Approval':
       return 'canReviewItManager';
     case 'CM Approval':
-      return 'canReviewCountryManager';
-    // Back with the IT Team to specify the new device before the request continues —
-    // same identity that owns the initial intake stage.
-    case 'Procure New Details':
-      return 'canReviewItManager';
-    // Same Country Manager identity confirming the device IT Manager picked, before
-    // it continues to IT Director.
-    case 'CM Confirm Device':
       return 'canReviewCountryManager';
     case 'IT Director Approval':
       return 'canReviewItDirector';
@@ -468,7 +460,11 @@ export function getLaptopAvailableActions(
   const requiredPermission = getRequiredPermissionForStage(currentStatus);
   const isItManagerStage = IT_MANAGER_STATUSES.includes(currentStatus);
   const isCmStage = currentStatus === 'CM Approval';
-  const isProcureDetailsStage = currentStatus === 'Procure New Details';
+  /* Specifying the new device happens on the IT Manager's own stage now. It used to
+     be a waypoint of its own ('Procure New Details'), which put the same person at
+     step 1 and again at step 3 — the CM sending a request back for the device to be
+     specified now returns it to step 1, where IT already works. */
+  const isProcureDetailsStage = isItManagerStage && isProcureNewFlow;
   return {
     nextStatus,
     canApprove: Boolean(nextStatus && ownsCurrentStep),
@@ -509,26 +505,14 @@ export const WORKFLOW_STEPS: LaptopWorkflowStep[] = [
     label: 'IT Review',
     owner: 'IT Manager',
     description:
-      'IT checks the device condition and inventory, then repairs, assigns from stock, or sends for approval.',
+      'IT checks the device condition and inventory, then repairs, assigns from stock, or specifies a new device and sends it for approval.',
   },
   {
     status: 'CM Approval',
     label: 'Country Manager Approval',
     owner: 'Country Manager',
     description:
-      'Country Manager approves the request outright, or flags it for new-device procurement.',
-  },
-  {
-    status: 'Procure New Details',
-    label: 'Device Details',
-    owner: 'IT Manager',
-    description: 'IT Team specifies the new device to be procured before the remaining approvals.',
-  },
-  {
-    status: 'CM Confirm Device',
-    label: 'Country Manager Confirmation',
-    owner: 'Country Manager',
-    description: 'Country Manager confirms the specific device before it goes to IT Director.',
+      'Country Manager approves the request, or sends it back to IT for the device to be specified or changed.',
   },
   {
     status: 'IT Director Approval',
@@ -551,6 +535,9 @@ export const WORKFLOW_STEPS: LaptopWorkflowStep[] = [
 ];
 
 export function getWorkflowStepIndex(status: LaptopRequestStatus): number {
+  // 'IT Approval' is the same step as 'Submitted' — a request bounced back to IT,
+  // whether by a rejection or because the device needs specifying, returns to step 1
+  // rather than to a waypoint of its own.
   if (status === 'IT Approval') return 0;
   return WORKFLOW_STEPS.findIndex((step) => step.status === status);
 }
@@ -598,16 +585,6 @@ export function getStatusBadge(status: string): { label: string; className: stri
     },
     'CM Approval': {
       label: 'Country Manager',
-      className: 'bg-cyan-50 text-cyan-800 border-cyan-200',
-      dot: 'bg-cyan-500',
-    },
-    'Procure New Details': {
-      label: 'New Device Details',
-      className: 'bg-orange-50 text-orange-700 border-orange-200',
-      dot: 'bg-orange-500',
-    },
-    'CM Confirm Device': {
-      label: 'Country Manager (Confirm Device)',
       className: 'bg-cyan-50 text-cyan-800 border-cyan-200',
       dot: 'bg-cyan-500',
     },

@@ -63,16 +63,6 @@ describe('approval state machine (getNextApprovalStatus)', () => {
     expect(getNextApprovalStatus('CM Approval', true, true)).toBe('IT Director Approval');
   });
 
-  it('always continues from CM Confirm Device to the IT Director', () => {
-    for (const assigned of [false, true]) {
-      for (const procureNew of [false, true]) {
-        expect(getNextApprovalStatus('CM Confirm Device', assigned, procureNew)).toBe(
-          'IT Director Approval',
-        );
-      }
-    }
-  });
-
   it('always continues from the IT Director to the SC Director', () => {
     expect(getNextApprovalStatus('IT Director Approval', false, false)).toBe(
       'Supply Chain Director Approval',
@@ -95,10 +85,6 @@ describe('approval state machine (getNextApprovalStatus)', () => {
       ).toBe(expected);
     },
   );
-
-  it('has no forward transition out of Procure New Details (IT fills in the device instead)', () => {
-    expect(getNextApprovalStatus('Procure New Details', false, true)).toBeNull();
-  });
 
   it.each(TERMINAL_STATUSES)('leaves the terminal status %s with nowhere to go', (status) => {
     expect(getNextApprovalStatus(status, false, false)).toBeNull();
@@ -156,17 +142,19 @@ describe('request flags', () => {
 describe('rejection routing (getRejectStatusForStage)', () => {
   it.each<LaptopRequestStatus>([
     'CM Approval',
-    'CM Confirm Device',
     'IT Director Approval',
     'Supply Chain Director Approval',
   ])('bounces %s back to the IT Manager', (status) => {
     expect(getRejectStatusForStage(status)).toBe('IT Approval');
   });
 
-  it.each<LaptopRequestStatus>(['Submitted', 'IT Approval', 'Procure New Details'])(
-    'gives the IT Manager nothing to bounce back to at %s',
+  /* The IT Manager has nobody to bounce a request back to, so theirs is a real
+     refusal rather than a loop. Returning 'IT Approval' here would send their own
+     rejection straight back to them. */
+  it.each<LaptopRequestStatus>(['Submitted', 'IT Approval'])(
+    'ends the request outright when the IT Manager rejects at %s',
     (status) => {
-      expect(getRejectStatusForStage(status)).toBeNull();
+      expect(getRejectStatusForStage(status)).toBe('Rejected');
     },
   );
 
@@ -179,9 +167,7 @@ describe('stage and permission resolvers', () => {
   it.each<[LaptopRequestStatus, string]>([
     ['Submitted', 'IT Manager'],
     ['IT Approval', 'IT Manager'],
-    ['Procure New Details', 'IT Manager'],
     ['CM Approval', 'Country Manager'],
-    ['CM Confirm Device', 'Country Manager'],
     ['IT Director Approval', 'IT Director'],
     ['Supply Chain Director Approval', 'Supply Chain Director'],
   ])('%s is owned by the %s', (status, stage) => {
@@ -195,9 +181,7 @@ describe('stage and permission resolvers', () => {
   it.each<[LaptopRequestStatus, string]>([
     ['Submitted', 'canReviewItManager'],
     ['IT Approval', 'canReviewItManager'],
-    ['Procure New Details', 'canReviewItManager'],
     ['CM Approval', 'canReviewCountryManager'],
-    ['CM Confirm Device', 'canReviewCountryManager'],
     ['IT Director Approval', 'canReviewItDirector'],
     ['Supply Chain Director Approval', 'canReviewScmDirector'],
   ])('%s requires %s', (status, permission) => {
@@ -259,27 +243,27 @@ describe('available actions (getLaptopAvailableActions)', () => {
     expect(getLaptopAvailableActions(true, 'CM Approval', true, false).canProcureNew).toBe(true);
     // Already flagged — nothing left to flag.
     expect(getLaptopAvailableActions(true, 'CM Approval', false, true).canProcureNew).toBe(false);
-    expect(getLaptopAvailableActions(true, 'CM Confirm Device', false, false).canProcureNew).toBe(
-      false,
-    );
+    expect(
+      getLaptopAvailableActions(true, 'Supply Chain Director Approval', false, false).canProcureNew,
+    ).toBe(false);
     expect(
       getLaptopAvailableActions(true, 'IT Director Approval', false, false).canProcureNew,
     ).toBe(false);
   });
 
-  it('gives the IT Manager only the device-details action at Procure New Details', () => {
-    const actions = getLaptopAvailableActions(
-      true,
-      'Procure New Details',
-      false,
-      true,
-      'Upgrade/Replacement',
-    );
+  /* The device is specified on the IT Manager's own stage, not on a waypoint of its
+     own — so at step 1 on a procure-new request they can both fill the device in and
+     approve it forward. */
+  it('offers the device-details action on the IT Manager stage of a procure-new request', () => {
+    const actions = getLaptopAvailableActions(true, 'IT Approval', false, true, 'Unit');
     expect(actions.canSubmitProcureDetails).toBe(true);
-    expect(actions.nextStatus).toBeNull();
-    expect(actions.canApprove).toBe(false);
-    expect(actions.canReject).toBe(false);
-    expect(actions.canAssignInventory).toBe(false);
+    expect(actions.nextStatus).toBe('CM Approval');
+  });
+
+  it('does not offer device details when nothing is being procured', () => {
+    expect(
+      getLaptopAvailableActions(true, 'IT Approval', false, false).canSubmitProcureDetails,
+    ).toBe(false);
   });
 
   it('exposes the reject target alongside canReject', () => {
@@ -287,9 +271,10 @@ describe('available actions (getLaptopAvailableActions)', () => {
     expect(cm.canReject).toBe(true);
     expect(cm.rejectStatus).toBe('IT Approval');
 
+    // The IT Manager can now refuse a request outright — it ends rather than looping.
     const it = getLaptopAvailableActions(true, 'IT Approval', false, false);
-    expect(it.canReject).toBe(false);
-    expect(it.rejectStatus).toBeNull();
+    expect(it.canReject).toBe(true);
+    expect(it.rejectStatus).toBe('Rejected');
   });
 
   it('names the owning role for the current stage', () => {

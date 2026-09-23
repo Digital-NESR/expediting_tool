@@ -205,8 +205,7 @@ function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'
   // Ground truth per stage: each approval date is only stamped once that stage is actually
   // signed off, regardless of how the chain later ends — so "complete" reflects what really
   // happened, not just where the status string currently points. Keyed by status rather
-  // than raw array index since 'Procure New Details' has no approval-date column of its
-  // own (it's a data-entry waypoint, not a sign-off).
+  // than raw array index, so it survives the steps being renumbered.
   const approvedDateByStatus: Partial<Record<LaptopRequestStatus, string | null | undefined>> = {
     Submitted: request.it_team_approved_date,
     'CM Approval': request.cm_approved_date,
@@ -215,12 +214,6 @@ function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'
   };
 
   function stepState(step: LaptopWorkflowStep, index: number): StepState {
-    const isProcureNewOnlyStep =
-      step.status === 'Procure New Details' || step.status === 'CM Confirm Device';
-    // These two waypoints only ever apply to a request the Country Manager flagged for
-    // a brand new device — a plain approval or an assigned-inventory continuation skips
-    // them entirely, regardless of where the chain currently stands or ends up.
-    if (isProcureNewOnlyStep && !request.procure_new_requested) return 'skipped';
     // Assign-from-inventory / plain-approved requests never reach IT Director or SC
     // Director now — they end right at Country Manager.
     if (
@@ -230,9 +223,6 @@ function WorkflowChain({ request }: { request: LaptopRequestDetailData['request'
       return 'skipped';
     if (terminalApproved) return 'complete';
     if (approvedDateByStatus[step.status]) return 'complete';
-    // 'Procure New Details' and 'CM Confirm Device' have no date of their own — infer
-    // completion once the chain has moved past them (IT Director has since signed off).
-    if (isProcureNewOnlyStep && request.itd_approved_date) return 'complete';
     if (!isStopped && index === currentIndex) return 'current';
     if (isStopped) return 'skipped';
     return 'upcoming';
@@ -438,10 +428,10 @@ function ExistingDeviceFields({
 }
 
 /**
- * Country Manager flagged this request as needing a brand new device — the IT Team
- * lands here to specify exactly what to procure (the requester never picks a model
- * upfront) before it continues to IT Director. Only shown while status is actually
- * 'Procure New Details'; only the IT Manager identity that owns the stage can submit.
+ * The device to be procured — the requester never picks a model upfront, so the IT
+ * Team specifies it here. Shown on the IT Manager's own stage of any procure-new
+ * request, whether they flagged it themselves or the Country Manager sent it back
+ * for it; only the IT Manager identity that owns the stage can submit.
  */
 function ProcureNewDetailsSection({
   request,
@@ -605,8 +595,15 @@ export default function LaptopRequestDetailClient({
   // asset) — Upgrade/Replacement is a person's own device, which may not have one.
   const isUnitIdRequired = request.request_type === 'Unit';
 
+  /* A Unit request is for a shared or company asset, and the one being replaced is
+     often unidentified — no serial to hand, no SAP number on file, sometimes no
+     device at all yet. Requiring the full history blocked those requests outright,
+     so for Unit it is all optional. Upgrade/Replacement is a named person's own
+     device and still has to be described. */
+  const existingDeviceOptional = request.request_type === 'Unit';
+
   function existingDeviceFieldsMissing(): boolean {
-    if (!appliesToExistingDevice) return false;
+    if (!appliesToExistingDevice || existingDeviceOptional) return false;
     return (
       (isUnitIdRequired && !existingUnitId.trim()) ||
       !existingBrand.trim() ||
@@ -649,11 +646,40 @@ export default function LaptopRequestDetailClient({
   const appliesToExistingDevice = request.request_type !== 'New Employee';
   // Only ever filled in by the IT Manager — hide it from everyone else, including
   // the requester.
+  /* Every approver in the chain, not just the IT Manager who filled it in. The
+     Country Manager, IT Director and Supply Chain Director are being asked to
+     approve replacing a device; the age, model and condition of the one being
+     replaced is the substance of that decision, and hiding it left them signing
+     off blind. Still hidden from the requester, and from a New Employee request
+     where there is no prior device. */
+  const holdsAnyApprovalStage = (p: {
+    canReviewItManager: boolean;
+    canReviewCountryManager: boolean;
+    canReviewItDirector: boolean;
+    canReviewScmDirector: boolean;
+  }) =>
+    p.canReviewItManager ||
+    p.canReviewCountryManager ||
+    p.canReviewItDirector ||
+    p.canReviewScmDirector;
+
   const canSeeExistingDevice =
     appliesToExistingDevice &&
-    (actor.permissions.canReviewItManager ||
-      (actor.delegatedFrom ?? []).some((d) => d.permissions.canReviewItManager));
-  const isProcureDetailsStage = request.status === 'Procure New Details';
+    (actor.permissions.canViewAll ||
+      holdsAnyApprovalStage(actor.permissions) ||
+      (actor.delegatedFrom ?? []).some((d) => holdsAnyApprovalStage(d.permissions)));
+  /* The device is specified on the IT Manager's own stage now. It used to be a
+     waypoint of its own, which put the same person at step 1 and again at step 3. */
+  const isProcureDetailsStage = isItManagerStage && Boolean(request.procure_new_requested);
+
+  /* Once the Supply Chain Director has signed off there is no approver left to name,
+     so "No active owner" was the honest-but-useless answer. The requester's next step
+     is with IT, who hand over the device — say that instead. */
+  const isFullyApproved =
+    request.status === 'Procure New' ||
+    request.status === 'Assign from Inventory' ||
+    request.status === 'Approved';
+  const ownerLabel = isFullyApproved ? 'Approved — Liaise with IT PoC' : actions.ownerLabel;
 
   function jumpToDecision() {
     decisionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1219,7 +1245,7 @@ export default function LaptopRequestDetailClient({
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#307c4c]">
                 Current Owner
               </p>
-              <p className="mt-2 text-sm font-bold text-slate-900">{actions.ownerLabel}</p>
+              <p className="mt-2 text-sm font-bold text-slate-900">{ownerLabel}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -1467,10 +1493,10 @@ export default function LaptopRequestDetailClient({
                       {actions.canProcureNew && (
                         <button
                           disabled={decisionDisabled}
-                          onClick={() => submitStatus('Procure New Details')}
+                          onClick={() => submitStatus('IT Approval')}
                           className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-900 transition hover:bg-emerald-100 disabled:opacity-60"
                         >
-                          Procure New
+                          Procure New — send back to IT
                         </button>
                       )}
                       {actions.canReject && (

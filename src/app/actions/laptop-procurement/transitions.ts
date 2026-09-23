@@ -9,6 +9,7 @@ import {
   IT_MANAGER_STATUSES,
   getLaptopApprovalStage,
   getNextApprovalStatus,
+  getRejectStatusForStage,
   getRequiredPermissionForStage,
   laptopHasAssignedUnit,
   laptopIsProcureNewFlow,
@@ -92,7 +93,15 @@ export async function rejectLaptopRequest(id: number, reason: string): Promise<A
     }
 
     const trimmedReason = requireText(reason, 'Rejection reason');
-    const nextStatus: LaptopRequestStatus = 'IT Approval';
+    /* Where a rejection lands depends on who rejected. Everyone downstream bounces
+       it back to the IT Manager to fix and resend; the IT Manager has nobody to
+       bounce it to, so theirs ends the request at 'Rejected'. Hardcoding
+       'IT Approval' here would have sent an IT Manager's own rejection straight
+       back to themselves, looping forever. */
+    const nextStatus = getRejectStatusForStage(currentStatus);
+    if (!nextStatus) {
+      return { success: false, error: 'This request cannot be rejected at its current stage.' };
+    }
     const stageColumn = STAGE_COMMENT_COLUMN[currentStatus];
     const stageDecisionColumn = STAGE_DECISION_COLUMN[currentStatus];
 
@@ -217,7 +226,11 @@ export async function updateLaptopRequestStatus(
       // Country Manager can flag a request as needing a brand new device procured instead
       // of approving it outright — routes to the IT Team for device details. Also how a CM
       // overrides an IT Manager's "Assign existing laptop" pick (see clearsAssignedUnit below).
-      isCmProcureNewMove = currentStatus === 'CM Approval' && status === 'Procure New Details';
+      /* The Country Manager sending a request back to IT to specify (or change) the
+         device. It returns to step 1, the IT Manager's own stage, rather than to a
+         waypoint of its own — the same two people were otherwise walking steps 1 and
+         2 twice over. */
+      isCmProcureNewMove = currentStatus === 'CM Approval' && status === 'IT Approval';
       // Repair & Closed stays an IT-Manager-only outcome (only they assess the physical device).
       isRepairMove = IT_MANAGER_STATUSES.includes(currentStatus) && status === 'Repaired & Closed';
 
@@ -314,7 +327,7 @@ export async function updateLaptopRequestStatus(
     // resends — so Supply Chain Director's final sign-off still lands on 'Procure New',
     // not 'Approved'.
     const flagsProcureNew =
-      (currentStatus === 'CM Approval' && status === 'Procure New Details') ||
+      (currentStatus === 'CM Approval' && status === 'IT Approval') ||
       Boolean(procureNewTypeOfDevice);
     // IT Manager assigning an existing unit is a fresh, definitive "no new device
     // needed" decision — it has to clear any procure_new_requested left over from an
@@ -330,8 +343,8 @@ export async function updateLaptopRequestStatus(
       : clearsProcureNewFlag
         ? `, procure_new_requested = FALSE`
         : '';
-    // The IT Manager's up-front device specification — same columns the CM-triggered
-    // "Procure New Details" step fills in later, just set immediately here instead.
+    // The IT Manager's device specification, whether given up front or after the
+    // Country Manager sent the request back for it.
     const procureNewDetailsAssignment = procureNewTypeOfDevice
       ? `, type_of_device = ?, requested_model = ?`
       : '';
@@ -447,7 +460,7 @@ export async function submitProcureNewDetails(
     const row = rows[0];
     if (!row) return { success: false, error: 'Request not found.' };
 
-    if (row.status !== 'Procure New Details' && !actor.permissions.canManageData) {
+    if (!IT_MANAGER_STATUSES.includes(row.status) && !actor.permissions.canManageData) {
       return {
         success: false,
         error: 'Device details can only be submitted while the request is with the IT Team.',
@@ -467,7 +480,9 @@ export async function submitProcureNewDetails(
 
     const typeOfDevice = requireText(input.type_of_device, 'Type of device');
     const model = requireText(input.model, 'Model');
-    const nextStatus: LaptopRequestStatus = 'CM Confirm Device';
+    /* Forward to the Country Manager, step 2 — not to a confirmation waypoint of
+       their own. The CM reviews the device as part of their normal approval. */
+    const nextStatus: LaptopRequestStatus = 'CM Approval';
 
     const updatedRow = await withTransaction(laptopProcurementPool, async (client) => {
       const updated = await sqlTx<QueryResultRow[]>(

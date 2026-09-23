@@ -201,10 +201,6 @@ export function getPendingWithLabel(status: LaptopRequestStatus): string {
       return 'IT Team';
     case 'CM Approval':
       return 'Country Manager';
-    case 'Procure New Details':
-      return 'IT Team';
-    case 'CM Confirm Device':
-      return 'Country Manager';
     case 'IT Director Approval':
       return 'IT Director';
     case 'Supply Chain Director Approval':
