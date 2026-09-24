@@ -224,21 +224,49 @@ export async function resolveSnsLevel2Approvers(categories: string[]): Promise<R
       [categories],
     );
 
-    const seen = new Set<string>();
-    const out: ResolvedApprover[] = [];
+    /* One entry per person, not per row. Somebody can hold several categories
+       and the Director slot at once, and the old loop kept whichever row the
+       database happened to return first — so Nader Galal was announced as
+       "Supply Chain Director" on one record and "Category Manager" on the next,
+       from the same unordered query. Both are true; the title now says so. */
+    const byEmail = new Map<
+      string,
+      { name: string; email: string; title: string; categories: string[]; director: boolean }
+    >();
     for (const raw of rows) {
       const m = mapCategoryManager(raw);
       const key = m.email.trim().toLowerCase();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      out.push({
+      if (!key) continue;
+      const entry = byEmail.get(key) ?? {
         name: m.name || m.email,
         email: m.email,
         title: m.title,
-        basis: m.category ? `Category Manager — ${m.category}` : 'Supply Chain Director',
-      });
+        categories: [],
+        director: false,
+      };
+      if (m.category) entry.categories.push(m.category);
+      else entry.director = true;
+      // A stored name beats a fallback-to-email from another row.
+      if (m.name) entry.name = m.name;
+      byEmail.set(key, entry);
     }
-    return out;
+
+    return [...byEmail.values()].map((e) => {
+      const isCategoryManager = e.categories.length > 0;
+      const title =
+        isCategoryManager && e.director
+          ? 'Category Manager / SC Director'
+          : e.director
+            ? 'Supply Chain Director'
+            : e.title;
+      const basis =
+        isCategoryManager && e.director
+          ? `Supply Chain Director, and Category Manager — ${e.categories.sort().join(', ')}`
+          : e.director
+            ? 'Supply Chain Director'
+            : `Category Manager — ${e.categories.sort().join(', ')}`;
+      return { name: e.name, email: e.email, title, basis };
+    });
   } catch (err) {
     log.error('resolveLevel2.failed', err);
     return [];
