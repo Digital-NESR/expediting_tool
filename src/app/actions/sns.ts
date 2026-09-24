@@ -596,6 +596,11 @@ interface RecordContext {
   requestorEmail: string;
   /** Everyone who has touched the record: the requestor and each validator. */
   stakeholders: string[];
+  /**
+   * Display name per stakeholder email, taken from the audit trail's actor
+   * string. Without it the emails greeted people by their address.
+   */
+  stakeholderNames: Record<string, string>;
 }
 
 /**
@@ -623,17 +628,33 @@ async function loadRecordContext(client: PoolClient, rid: number): Promise<Recor
         WHERE record_rid = $1 ORDER BY sort_order, id`,
       [rid],
     ),
+    /* The actor string comes back too — "Mazen Sarem — Country Supply Chain
+       Manager, Iraq" — because it is the only place a stakeholder's name is
+       recorded. DISTINCT ON keeps the most recent one per person, so a name
+       corrected on a later action wins. */
     client.query(
-      `SELECT DISTINCT actor_email FROM sns_record_history
-        WHERE record_rid = $1 AND COALESCE(actor_email, '') <> ''`,
+      `SELECT DISTINCT ON (LOWER(actor_email)) LOWER(actor_email) AS actor_email, actor
+         FROM sns_record_history
+        WHERE record_rid = $1 AND COALESCE(actor_email, '') <> ''
+        ORDER BY LOWER(actor_email), id DESC`,
       [rid],
     ),
   ]);
 
   const requestorEmail = r.created_by ? String(r.created_by).toLowerCase() : '';
   const stakeholders = new Set<string>();
+  const stakeholderNames: Record<string, string> = {};
   if (requestorEmail) stakeholders.add(requestorEmail);
-  for (const h of history.rows) stakeholders.add(String(h.actor_email).toLowerCase());
+  for (const h of history.rows) {
+    const email = String(h.actor_email).toLowerCase();
+    stakeholders.add(email);
+    // "Name — Role, Country" per actorFor; the name is everything before the
+    // em dash. A row without one is used whole rather than dropped.
+    const name = String(h.actor ?? '')
+      .split('—')[0]
+      .trim();
+    if (name) stakeholderNames[email] = name;
+  }
 
   return {
     rid: Number(r.rid),
@@ -648,6 +669,7 @@ async function loadRecordContext(client: PoolClient, rid: number): Promise<Recor
     categories: [...new Set(nodes.rows.map((n) => String(n.category)))],
     requestorEmail,
     stakeholders: [...stakeholders],
+    stakeholderNames,
   };
 }
 
@@ -672,9 +694,16 @@ async function stakeholderRecipients(
     out.push({ name: name || email, email, title });
   };
 
-  for (const email of ctx.stakeholders) add(email, email, 'Record stakeholder');
+  /* Approvers first. `add` keeps the first entry per address, so listing
+     stakeholders first meant anyone who had already acted — the Country Supply
+     Chain Manager who validated it, say — was announced as "Record stakeholder"
+     under their own email address, while their name and title sat unused in the
+     approver tables. */
   if (l1) add(l1.name, l1.email, l1.title);
   for (const a of l2) add(a.name, a.email, a.title);
+  for (const email of ctx.stakeholders) {
+    add(ctx.stakeholderNames[email] ?? email, email, 'Record stakeholder');
+  }
   return out;
 }
 
