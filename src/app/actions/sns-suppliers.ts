@@ -1,6 +1,7 @@
 'use server';
 
 import sourceGuidePool from '@/lib/db-sourceguide';
+import { isCentrallyBlocked } from '@/lib/sourceguide/blocked';
 import { logger } from '@/lib/logger';
 import { getSnsViewer } from './sns';
 
@@ -28,13 +29,10 @@ export interface SupplierOption {
 const LIMIT = 25;
 
 function mapRow(r: Record<string, unknown>): SupplierOption {
-  const block = String(r.central_block_status ?? '').trim();
   return {
     sapId: String(r.supplier_code),
     name: String(r.name ?? ''),
-    // Anything other than an empty/none marker counts as blocked — the column
-    // is free text, so treat "not obviously clear" as worth flagging.
-    blocked: block !== '' && !/^(none|no|active|not blocked)$/i.test(block),
+    blocked: isCentrallyBlocked(r.central_block_status),
   };
 }
 

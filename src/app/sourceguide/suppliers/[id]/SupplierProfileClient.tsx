@@ -4,7 +4,7 @@ import { useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, User, ChevronRight, Mail } from 'lucide-react';
 import { SG_BRAND } from '../../constants';
-import { TierBadge, CountryFlag, SupAvatar } from '../../ui';
+import { TierBadge, CountryFlag, SupAvatar, BlockedBadge } from '../../ui';
 import { recordView, BookmarkButton } from '../../pins';
 import type { SgSupplierProfile, SgCommodity, SgCountry, SgMapping } from '@/types/sourceguide';
 
@@ -63,7 +63,16 @@ export default function SupplierProfileClient({
         <div className="flex flex-wrap items-start gap-4">
           <SupAvatar name={profile.name} size={64} />
           <div className="min-w-[240px] flex-1">
-            <h1 className="text-[24px] font-bold tracking-tight">{profile.name}</h1>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-[24px] font-bold tracking-tight">{profile.name}</h1>
+              {profile.blocked && <BlockedBadge />}
+            </div>
+            {profile.blocked && (
+              <p className="mt-1.5 text-[12.5px] font-medium" style={{ color: '#a1342a' }}>
+                SAP has this vendor centrally blocked for purchasing. Check with your
+                buyer before sourcing against the mappings below.
+              </p>
+            )}
             <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-[13.5px] text-slate-500">
               {profile.code && <span className="font-mono">Vendor {profile.code}</span>}
               {profile.email &&

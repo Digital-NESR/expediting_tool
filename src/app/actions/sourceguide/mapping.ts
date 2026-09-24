@@ -12,6 +12,7 @@ import type {
   Tier,
 } from '@/types/sourceguide';
 import { canEdit, canRead, getSgUser, readUser } from '@/lib/sourceguide/access';
+import { isCentrallyBlocked } from '@/lib/sourceguide/blocked';
 import { logActivity, logUsage } from '@/lib/sourceguide/activity';
 import { getAvlIndex, invalidateMappingCaches } from '@/lib/sourceguide/indexes';
 import { isoOf, log, rowToCommodity } from '@/lib/sourceguide/internals';
@@ -96,7 +97,7 @@ export async function getMappingEditList(
 
     const mapRes = await sourceGuidePool.query(
       `SELECT m.id, m.commodity_id, m.supplier_code, m.country_code, m.tier, m.status,
-              a.name AS supplier_name
+              a.name AS supplier_name, a.central_block_status
        FROM sg_mappings m
        JOIN supplier_avl a ON a.supplier_code = m.supplier_code
        WHERE m.status='Active' AND m.country_code = $1 AND m.commodity_id = ANY($2)`,
@@ -109,6 +110,7 @@ export async function getMappingEditList(
         commodityId: m.commodity_id,
         supplierName: m.supplier_name ?? '',
         supplierCode: m.supplier_code,
+        supplierBlocked: isCentrallyBlocked(m.central_block_status),
         country: m.country_code,
         tier: m.tier,
         status: m.status,
@@ -172,7 +174,8 @@ export async function getCountryGuideRows(code: string): Promise<SgGuideRow[]> {
     const { rows } = await sourceGuidePool.query(
       `SELECT c.spend_type, c.category, COALESCE(c.sub_category,'') AS sub_category,
               COALESCE(c.family,'') AS family, c.name AS commodity, c.code AS unspsc,
-              m.tier, m.supplier_code, a.name AS supplier_name, COALESCE(a.email,'') AS supplier_email
+              m.tier, m.supplier_code, a.name AS supplier_name, COALESCE(a.email,'') AS supplier_email,
+              a.central_block_status
        FROM sg_mappings m
        JOIN sg_commodities c ON c.id = m.commodity_id
        JOIN supplier_avl a ON a.supplier_code = m.supplier_code
@@ -192,6 +195,7 @@ export async function getCountryGuideRows(code: string): Promise<SgGuideRow[]> {
       supplierCode: r.supplier_code,
       supplierName: r.supplier_name,
       supplierEmail: r.supplier_email,
+      supplierBlocked: isCentrallyBlocked(r.central_block_status),
     }));
   } catch (err) {
     log.error('getCountryGuideRows.failed', err, { code });

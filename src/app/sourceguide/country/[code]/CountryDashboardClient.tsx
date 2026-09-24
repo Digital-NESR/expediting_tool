@@ -42,6 +42,7 @@ export default function CountryDashboardClient({ data }: { data: SgCountryDashbo
           'Supplier Code': r.supplierCode,
           'Supplier Name': r.supplierName,
           'Supplier Email': r.supplierEmail,
+          'Central Block': r.supplierBlocked ? 'Blocked' : 'Active',
         })),
         `${data.name} guide`,
       );

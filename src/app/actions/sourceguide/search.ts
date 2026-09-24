@@ -15,6 +15,7 @@ import type {
   Tier,
 } from '@/types/sourceguide';
 import { canRead, readUser } from '@/lib/sourceguide/access';
+import { isCentrallyBlocked } from '@/lib/sourceguide/blocked';
 import { logUsage } from '@/lib/sourceguide/activity';
 import {
   CommodityIndexRow,
@@ -70,7 +71,8 @@ export async function searchCommodities(
 
     const ids = rows.map((r) => r.id);
     const mapRes = await sourceGuidePool.query(
-      `SELECT m.commodity_id, m.country_code, m.tier, m.supplier_code, a.name AS supplier_name
+      `SELECT m.commodity_id, m.country_code, m.tier, m.supplier_code, a.name AS supplier_name,
+              a.central_block_status
        FROM sg_mappings m
        JOIN supplier_avl a ON a.supplier_code = m.supplier_code
        WHERE m.status = 'Active' AND m.commodity_id = ANY($1)`,
@@ -82,6 +84,7 @@ export async function searchCommodities(
       tier: Tier;
       supplierCode: string | null;
       supplierName: string;
+      blocked: boolean;
     }
     const byCom = new Map<number, MiniMap[]>();
     for (const m of mapRes.rows) {
@@ -91,6 +94,7 @@ export async function searchCommodities(
         tier: m.tier,
         supplierCode: m.supplier_code,
         supplierName: m.supplier_name,
+        blocked: isCentrallyBlocked(m.central_block_status),
       });
       byCom.set(m.commodity_id, arr);
     }
@@ -125,6 +129,7 @@ export async function searchCommodities(
               supplierCode: pref.supplierCode,
               supplierName: pref.supplierName,
               country: displayCountry!,
+              blocked: pref.blocked,
             }
           : null,
         backupCount,
@@ -234,7 +239,7 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
 
     const mapRes = await sourceGuidePool.query(
       `SELECT m.id, m.commodity_id, m.supplier_code, m.country_code, m.tier, m.status,
-              a.name AS supplier_name, a.email AS supplier_email
+              a.name AS supplier_name, a.email AS supplier_email, a.central_block_status
        FROM sg_mappings m
        JOIN supplier_avl a ON a.supplier_code = m.supplier_code
        WHERE m.status = 'Active' AND m.commodity_id = $1
@@ -250,6 +255,7 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
         supplierName: m.supplier_name ?? '',
         supplierCode: m.supplier_code,
         supplierEmail: m.supplier_email ?? null,
+        supplierBlocked: isCentrallyBlocked(m.central_block_status),
         country: m.country_code,
         tier: m.tier,
         status: m.status,
@@ -272,7 +278,8 @@ export async function getSupplierProfile(supplierCode: string): Promise<SgSuppli
   if (!viewer) return null;
   try {
     const sRes = await sourceGuidePool.query(
-      `SELECT supplier_code, name, email FROM supplier_avl WHERE supplier_code = $1`,
+      `SELECT supplier_code, name, email, central_block_status
+         FROM supplier_avl WHERE supplier_code = $1`,
       [supplierCode],
     );
     if (!sRes.rows.length) return null;
@@ -306,6 +313,7 @@ export async function getSupplierProfile(supplierCode: string): Promise<SgSuppli
       code: s.supplier_code,
       name: s.name,
       email: s.email ?? null,
+      blocked: isCentrallyBlocked(s.central_block_status),
       countries,
       totalCommodities: new Set(mappings.map((m) => m.commodityId)).size,
       preferredCount: mappings.filter((m) => m.tier === 'Preferred').length,

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, X, Check, Layers, ChevronRight, Download } from 'lucide-react';
 import { SG_BRAND } from '../constants';
-import { CountryFlag, SupAvatar } from '../ui';
+import { CountryFlag, SupAvatar, BlockedBadge } from '../ui';
 import { searchCommodities, searchSuppliers, recordSearch } from '@/app/actions/sourceguide';
 import { downloadXlsx } from '../exportXlsx';
 import type {
@@ -371,8 +371,9 @@ export default function SearchClient({
                         <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-400">
                           Preferred · {pref.country}
                         </div>
-                        <div className="mt-0.5 text-[13.5px] font-semibold">
+                        <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[13.5px] font-semibold">
                           {pref.supplierName}
+                          {pref.blocked && <BlockedBadge compact />}
                         </div>
                       </div>
                     )}
