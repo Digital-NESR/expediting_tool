@@ -19,6 +19,21 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
     (tab === 'l2' && app.viewer.isLevel2);
   const inboxRecs = app.records.filter((r) => displayStatus(r) === wantStatus);
 
+  /* What this person actually is, for the read-only notice. Admins aside, a
+     validator has no access-request role to name — their standing comes from the
+     Approvers screen. */
+  const standing = app.viewer.isAdmin
+    ? 'an administrator'
+    : app.viewer.isLevel1 && app.viewer.isLevel2
+      ? `both the ${STAGE1} and the ${STAGE2}`
+      : app.viewer.isLevel1
+        ? `the ${STAGE1}`
+        : app.viewer.isLevel2
+          ? `the ${STAGE2}`
+          : (app.viewer.role ?? null);
+  const otherTabIsYours =
+    (tab === 'l1' && app.viewer.isLevel2) || (tab === 'l2' && app.viewer.isLevel1);
+
   const tabs = [
     {
       key: 'l1' as const,
@@ -70,11 +85,16 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
       {!hasStageRole && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
           <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
-            Read-only for your role
+            Read-only on this tab
           </p>
           <p className="mt-1 text-[12.5px] leading-relaxed text-amber-900">
-            You are signed in as {app.viewer.role ?? 'an administrator'}. This level is validated by
-            the {tab === 'l1' ? STAGE1 : STAGE2}.
+            {/* `viewer.role` is null for anyone admitted by the Approvers screen
+                rather than an access request, which is every validator — so the
+                old `?? 'an administrator'` fallback told a Category Manager they
+                were an admin, and that this was as far as they could go. */}
+            This tab is validated by the {tab === 'l1' ? STAGE1 : STAGE2}
+            {standing ? `; you are the ${standing}` : ''}.
+            {otherTabIsYours && ' Your queue is on the other tab.'}
           </p>
         </div>
       )}

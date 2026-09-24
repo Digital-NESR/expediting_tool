@@ -66,7 +66,13 @@ export function useRegistryApp({
   const [copied, setCopied] = useState(false);
   const [rejectFor, setRejectFor] = useState<number | null>(null);
   const [rejectText, setRejectText] = useState('');
-  const [inboxTab, setInboxTab] = useState<'l1' | 'l2'>('l1');
+  /* Open on the stage this person validates, not always at Level 1. A Category
+     Manager or Supply Chain Director landing on the Level 1 tab was told the
+     stage is validated by someone else — which reads as "you cannot do anything
+     here" when their own queue was one click away. */
+  const [inboxTab, setInboxTab] = useState<'l1' | 'l2'>(
+    !viewer.isLevel1 && viewer.isLevel2 ? 'l2' : 'l1',
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
 
