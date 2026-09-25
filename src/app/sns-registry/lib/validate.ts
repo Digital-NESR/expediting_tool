@@ -64,6 +64,16 @@ export function expiryCapError(): string {
   return `an expiry no later than ${maxExpiryISO()} (twelve months)`;
 }
 
+/**
+ * Why an approval was refused for having no comment.
+ *
+ * Lives here rather than in the server action because a `'use server'` module
+ * may only export async functions — exporting a plain constant from one breaks
+ * every import of that module, and `tsc` does not catch it.
+ */
+export const APPROVAL_COMMENT_REQUIRED =
+  'Add a comment explaining your decision before approving — it is recorded on the audit trail.';
+
 /** The same rules phrased as a single sentence, for a server-side error. */
 export function submissionError(missing: string[]): string {
   return `This record cannot be submitted yet — still required: ${missing.join(', ')}.`;

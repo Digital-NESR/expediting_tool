@@ -32,6 +32,8 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
   const [pdfError, setPdfError] = useState<string | null>(null);
   const rec = app.records.find((r) => r.rid === app.selectedId);
   const [localRejectText, setLocalRejectText] = useState('');
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [approveText, setApproveText] = useState('');
 
   if (!rec) {
     return (
@@ -80,7 +82,9 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
     actions.push({
       label: `Validate — route to ${STAGE2}`,
       className: BTN_PRIMARY,
-      onClick: () => app.advance(rec.rid),
+      // Opens the comment box rather than approving outright: a validator's
+      // decision has to carry a reason, the same way a rejection does.
+      onClick: () => setApproveOpen(true),
     });
     actions.push({
       label: 'Reject to Draft with a reason',
@@ -94,7 +98,7 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
         ? 'Confirm review — extend expiry 12 months'
         : 'Sign off — publish Registry ID',
       className: BTN_PRIMARY,
-      onClick: () => app.advance(rec.rid),
+      onClick: () => setApproveOpen(true),
     });
     actions.push({
       label: 'Reject to Draft with a reason',
@@ -147,8 +151,20 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
     { label: 'Segment tags', value: rec.segments.join(', ') || '—' },
     { label: 'Requestor', value: rec.requestor },
     { label: 'Estimated annual spend', value: money(rec.spend) },
-    { label: 'Validator — first stage', value: `${STAGE1}, ${rec.country}` },
-    { label: 'Validator — final sign-off', value: STAGE2 },
+    {
+      label: 'Validator — first stage',
+      // The role alone did not tell the requestor who to chase. Nobody
+      // assigned is said plainly rather than left to read as a name.
+      value: rec.level1Name
+        ? `${rec.level1Name} — ${STAGE1}, ${rec.country}`
+        : `${STAGE1}, ${rec.country} — nobody assigned yet`,
+    },
+    {
+      label: 'Validator — final sign-off',
+      value: rec.level2Names.length
+        ? `${rec.level2Names.join(', ')} — ${STAGE2}`
+        : `${STAGE2} — nobody assigned yet`,
+    },
     { label: 'Issue date', value: rec.issue ? formatDate(rec.issue) : 'Not issued' },
     { label: 'Expiry date', value: rec.expiry ? formatDate(rec.expiry) : 'Not issued' },
   ];
@@ -361,6 +377,47 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
                   {a.label}
                 </button>
               ))}
+              {approveOpen && (
+                <div className="rounded-lg border border-[#6AAF8E] bg-[#307c4c]/5 p-3">
+                  <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[#1d4f31]">
+                    Your decision — recorded on the record
+                  </p>
+                  <textarea
+                    value={approveText}
+                    onChange={(e) => setApproveText(e.target.value)}
+                    placeholder="What did you check, and why does this case hold? This is the audit trail for the exception."
+                    className="min-h-[76px] w-full resize-y rounded-lg border border-slate-200 bg-white p-2 text-[12.5px] outline-none transition-colors focus:border-[#307c4c]"
+                  />
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={app.busy || !approveText.trim()}
+                      onClick={() => {
+                        app.advance(rec.rid, approveText);
+                        setApproveOpen(false);
+                        setApproveText('');
+                      }}
+                      className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-3.5 py-2 text-[12px] font-bold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {app.busy ? 'Working…' : 'Confirm'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setApproveOpen(false);
+                        setApproveText('');
+                      }}
+                      className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[12px] font-bold text-slate-500 transition-colors hover:text-slate-800"
+                    >
+                      Cancel
+                    </button>
+                    {!approveText.trim() && (
+                      <span className="text-[11px] text-slate-500">A comment is required.</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {rejectOpen && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3">
                   <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-red-700">

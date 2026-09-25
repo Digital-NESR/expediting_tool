@@ -104,10 +104,10 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
           const sh = shapeRow(r);
           const approveLabel =
             tab === 'l1'
-              ? 'Validate — send for final sign-off'
+              ? 'Review and validate'
               : r.id
-                ? 'Confirm review — extend'
-                : 'Sign off — publish ID';
+                ? 'Review and confirm'
+                : 'Review and sign off';
           const meta = [
             { label: 'Reason code', value: r.reason },
             { label: 'Segment', value: r.segments.join(', ') || '—' },
@@ -167,9 +167,13 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
                   </button>
                   {canAct ? (
                     <>
+                      {/* Opens the record rather than approving from the list:
+                          a decision now carries a mandatory comment, and the
+                          box for it lives on the record beside the evidence
+                          the comment is supposed to be about. */}
                       <button
                         type="button"
-                        onClick={() => app.advance(r.rid)}
+                        onClick={() => app.open(r.rid)}
                         disabled={app.busy}
                         className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-3 py-2 text-[12px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                       >

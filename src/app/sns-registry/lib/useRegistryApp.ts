@@ -244,7 +244,12 @@ export function useRegistryApp({
     [draft, renewalOf],
   );
 
-  const advance = useCallback((rid: number) => run(() => advanceSnsRecord(rid)), [run]);
+  /* `comment` is required by the server on both validator steps, and ignored on
+     the requestor's own submission. */
+  const advance = useCallback(
+    (rid: number, comment = '') => run(() => advanceSnsRecord(rid, comment)),
+    [run],
+  );
 
   const reject = useCallback(
     (rid: number, text: string) => {

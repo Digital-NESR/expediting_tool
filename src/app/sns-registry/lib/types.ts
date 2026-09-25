@@ -89,6 +89,13 @@ export interface RegistryRecord {
   requestor: string;
   history: HistoryEntry[];
   /** How many times the record has survived a periodic review. */
+  /**
+   * Who validates this record, by name, resolved from the approver lists.
+   * Null / empty when nobody is assigned yet — the screens say so rather than
+   * naming a role with no person behind it.
+   */
+  level1Name: string | null;
+  level2Names: string[];
   renewalCount: number;
   /**
    * The record this one was raised to replace, or null for a first-time

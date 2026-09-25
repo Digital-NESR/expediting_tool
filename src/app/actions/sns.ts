@@ -21,6 +21,7 @@ import {
   resolveSnsLevel2Approvers,
 } from './sns-approvers';
 import {
+  APPROVAL_COMMENT_REQUIRED,
   expiryCapError,
   isExpiryDate,
   isExpiryWithinCap,
@@ -349,7 +350,7 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
   const unrestricted = viewer.isAdmin || viewer.countryCodes.length === 0;
 
   try {
-    const [recs, nodes, segs, hist, docs] = await Promise.all([
+    const [recs, nodes, segs, l1Rows, l2Rows, hist, docs] = await Promise.all([
       /* COALESCE covers records raised before `country_code` existed: fall back
          to matching the stored display name, with no `active` filter, so a
          deactivated country still resolves. Unresolvable stays NULL. */
@@ -374,6 +375,11 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       snsPool.query(
         `SELECT record_rid, segment FROM sns_record_segment ORDER BY record_rid, segment`,
       ),
+      /* Who validates each record, by name. Both lists are small — a dozen
+         country managers, a couple of dozen category rows — so they are read
+         once and matched in memory rather than joined per record. */
+      snsPool.query(`SELECT country_code, manager_name FROM sns_country_manager WHERE active`),
+      snsPool.query(`SELECT category, manager_name FROM sns_category_manager WHERE active`),
       snsPool.query(
         `SELECT record_rid, step, actor, entry_date, note
            FROM sns_record_history ORDER BY record_rid, id`,
@@ -416,6 +422,32 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       histBy.set(h.record_rid, list);
     }
 
+    /* Level 1 is one named person per country. Level 2 is whoever manages any
+       of the record's categories, plus every Supply Chain Director — a Director
+       row carries a NULL category and signs anything, so they are always in the
+       list. Names are de-duplicated: one person holding several of a record's
+       categories should be named once. */
+    const l1ByCode = new Map<string, string>();
+    for (const r of l1Rows.rows) {
+      const name = String(r.manager_name ?? '').trim();
+      if (name) l1ByCode.set(String(r.country_code), name);
+    }
+    const l2ByCategory = new Map<string, string[]>();
+    const directors: string[] = [];
+    for (const r of l2Rows.rows) {
+      const name = String(r.manager_name ?? '').trim();
+      if (!name) continue;
+      if (r.category == null) directors.push(name);
+      else
+        l2ByCategory.set(String(r.category), [
+          ...(l2ByCategory.get(String(r.category)) ?? []),
+          name,
+        ]);
+    }
+    const level2For = (cats: string[]): string[] => [
+      ...new Set([...cats.flatMap((c) => l2ByCategory.get(c) ?? []), ...directors]),
+    ];
+
     const docsBy = new Map<number, { evidence: number; review: number }>();
     for (const d of docs.rows) {
       const rid = Number(d.record_rid);
@@ -433,6 +465,8 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       level: r.scope_level as ScopeLevel,
       nodes: nodesBy.get(Number(r.rid)) ?? [],
       segments: segsBy.get(Number(r.rid)) ?? [],
+      level1Name: l1ByCode.get(String(r.resolved_country_code ?? '')) ?? null,
+      level2Names: level2For([...new Set((nodesBy.get(Number(r.rid)) ?? []).map((n) => n.cat))]),
       supplierId: String(r.supplier_id ?? ''),
       supplierName: String(r.supplier_name ?? ''),
       reason: String(r.reason ?? ''),
@@ -1006,9 +1040,16 @@ export async function createSnsRecord(
  * "Extended" is the periodic-review path: a record that already holds a
  * Registry ID keeps it and gains another 12 months.
  */
-export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
+export async function advanceSnsRecord(rid: number, comment = ''): Promise<ActionResult> {
   const viewer = await getSnsViewer();
   if (!viewer) return { success: false, error: 'You do not have access to the S&S Registry.' };
+
+  /* A validator has to say why. A rejection already carried a reason, so the
+     trail explained every refusal and none of the approvals — which is the
+     wrong way round for the record that exists to justify an exception. The
+     requestor's own submission is exempt: the justification narrative is
+     their account, and asking for it twice is noise. */
+  const note = comment.trim();
 
   const client = await snsPool.connect();
   try {
@@ -1086,6 +1127,10 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
         await client.query('ROLLBACK');
         return { success: false, error: gate };
       }
+      if (!note) {
+        await client.query('ROLLBACK');
+        return { success: false, error: APPROVAL_COMMENT_REQUIRED };
+      }
       await client.query(
         `UPDATE sns_record SET base_status = 'Pending Level 2', updated_at = CURRENT_TIMESTAMP WHERE rid = $1`,
         [rid],
@@ -1097,6 +1142,7 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
         'Validated by the Country Supply Chain Manager — sent for final sign-off',
         actor,
         viewer.email,
+        note,
       );
       const ctx = await loadRecordContext(client, rid);
       notify = async () => {
@@ -1119,6 +1165,10 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
         await client.query('ROLLBACK');
         return { success: false, error: gate };
       }
+      if (!note) {
+        await client.query('ROLLBACK');
+        return { success: false, error: APPROVAL_COMMENT_REQUIRED };
+      }
       if (rec.registry_id) {
         // Periodic review: keep the existing Registry ID, extend 12 months.
         const from = rec.expiry_date ? parseISODate(isoOrNull(rec.expiry_date) as string) : now;
@@ -1132,12 +1182,13 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
           'Periodic review complete — expiry extended 12 months',
           actorFor(viewer, 'l2', country),
           viewer.email,
-          // The ID embeds the validity window it was minted with, and it is
-          // immutable once quoted into SAP — so after a renewal it states the
-          // original window, not the current one. The record's own expiry date
-          // is the live figure; say so here rather than let someone read the ID
-          // as authoritative.
-          'Original Registry ID retained — it still reads with the validity window it was issued under. The expiry date on this record is the current one.',
+          note ||
+            // The ID embeds the validity window it was minted with, and it is
+            // immutable once quoted into SAP — so after a renewal it states the
+            // original window, not the current one. The record's own expiry date
+            // is the live figure; say so here rather than let someone read the ID
+            // as authoritative.
+            'Original Registry ID retained — it still reads with the validity window it was issued under. The expiry date on this record is the current one.',
         );
         notify = async () => {
           if (!ctxForGate) return;
@@ -1193,6 +1244,7 @@ export async function advanceSnsRecord(rid: number): Promise<ActionResult> {
           `Final sign-off by the Supply Chain Director / Category Manager — published to Active as ${newId}`,
           actorFor(viewer, 'l2', country),
           viewer.email,
+          note,
         );
 
         /* A periodic review replaces its parent, but only now — not when the
