@@ -98,7 +98,7 @@ export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] })
                   </span>
                   {val && (
                     <span
-                      className="block max-w-[180px] truncate text-[11.5px] leading-tight"
+                      className="block max-w-[240px] truncate text-[11.5px] leading-tight"
                       style={{ color: SG_BRAND }}
                     >
                       {val}
@@ -111,7 +111,10 @@ export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] })
         })}
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-3">
+      <div
+        className="grid gap-3 overflow-x-auto pb-3"
+        style={{ gridTemplateColumns: `repeat(${HIER.length}, minmax(248px, 1fr))` }}
+      >
         {cols.map((col) => (
           <Column key={col.level} col={col} onPick={(v) => pickNode(col.level, v)} />
         ))}
@@ -147,7 +150,7 @@ function Column({
   const shown = col.entries.slice(0, MAX_NODES);
   const isLeaf = col.level === HIER.length - 1;
   return (
-    <div className="flex max-h-[72vh] shrink-0 flex-col self-start rounded-xl border border-slate-200 bg-white">
+    <div className="flex max-h-[72vh] min-w-0 flex-col self-start rounded-xl border border-slate-200 bg-white">
       <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-1.5">
         <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
           <span className="mr-1 text-slate-300">{col.level + 1}</span>
@@ -155,7 +158,7 @@ function Column({
         </span>
         <span className="font-mono text-[10px] text-slate-300">{col.entries.length}</span>
       </div>
-      <div className="w-[248px] overflow-y-auto py-1">
+      <div className="overflow-y-auto py-1">
         {shown.map((e) => {
           const on = col.selected === e.value;
           return (
