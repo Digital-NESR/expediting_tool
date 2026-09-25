@@ -21,7 +21,9 @@ import {
   resolveSnsLevel2Approvers,
 } from './sns-approvers';
 import {
+  expiryCapError,
   isExpiryDate,
+  isExpiryWithinCap,
   submissionError,
   validateForSubmission,
 } from '@/app/sns-registry/lib/validate';
@@ -844,6 +846,12 @@ export async function createSnsRecord(
     if (!draft.supplierId || !draft.supplierName)
       return { success: false, error: 'Supplier SAP ID and name are required.' };
     if (!draft.reason) return { success: false, error: 'Select a reason code.' };
+    /* A Draft may have no expiry yet — it is the one field a draft is allowed
+       to be missing. One that IS set still has to be a date inside the cap,
+       rather than being stored now and refused at submission. */
+    if (draft.expiry?.trim() && !isExpiryWithinCap(draft.expiry)) {
+      return { success: false, error: `This record needs ${expiryCapError()}.` };
+    }
   }
 
   /* A renewal must name a record that exists and has actually been published.
@@ -920,7 +928,9 @@ export async function createSnsRecord(
         viewer.email,
         // A Draft may legitimately have no expiry yet; a submission cannot get
         // past validateForSubmission without one.
-        isExpiryDate(draft.expiry) ? draft.expiry.trim() : null,
+        // Validated above; the cap is re-read rather than trusted from the
+        // client, since this action is a public POST endpoint.
+        isExpiryDate(draft.expiry) && isExpiryWithinCap(draft.expiry) ? draft.expiry.trim() : null,
         renewalOfRid ?? null,
       ],
     );

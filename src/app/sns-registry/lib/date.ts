@@ -38,6 +38,28 @@ export function today(): Date {
   return parseISODate(todayISO());
 }
 
+/**
+ * The furthest expiry a record may be given: twelve months from today.
+ *
+ * A registry entry is a standing exception to the three-quote policy, and the
+ * whole point of the ladder is that it comes back for review — a two- or
+ * five-year expiry is the exception never being looked at again. Twelve months
+ * is the published validity, so it is also the ceiling.
+ *
+ * Measured from today rather than from the issue date because the issue date
+ * does not exist yet: it is stamped at final sign-off. That makes this slightly
+ * conservative — a record signed off two weeks after submission gets eleven and
+ * a half months — and it can only ever err toward a shorter window, never a
+ * longer one.
+ *
+ * Calendar months, not 365 days, so a leap year cannot push it a day over.
+ */
+export function maxExpiryISO(): string {
+  const d = today();
+  d.setMonth(d.getMonth() + 12);
+  return toISODate(d);
+}
+
 export function addDays(base: Date, n: number): Date {
   const d = new Date(base.getTime());
   d.setDate(d.getDate() + n);

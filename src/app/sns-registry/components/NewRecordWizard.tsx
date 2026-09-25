@@ -15,7 +15,7 @@ import {
   taxFamilies,
   taxSubs,
 } from '../lib/helpers';
-import { formatDate, todayISO } from '../lib/date';
+import { formatDate, maxExpiryISO, todayISO } from '../lib/date';
 import SupplierPicker from './SupplierPicker';
 import { uploadSnsRecordDocument } from '@/app/actions/sns-documents';
 import type { RegistryApp } from '../lib/useRegistryApp';
@@ -476,10 +476,11 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                   label="Expiry date"
                   type="date"
                   min={todayISO()}
+                  max={maxExpiryISO()}
                   value={d.expiry}
                   placeholder="YYYY-MM-DD"
                   onChange={(v) => app.setDraft({ expiry: v })}
-                  hint="The Registry ID is built from this date, so it cannot be issued without one."
+                  hint={`A record is valid for a maximum of twelve months, so this cannot be later than ${formatDate(maxExpiryISO())}. The Registry ID is built from it, and cannot be issued without one.`}
                 />
               </div>
               {!!dup && (
@@ -716,6 +717,7 @@ function Field({
   onChange,
   type = 'text',
   min,
+  max,
   hint,
 }: {
   label: string;
@@ -724,6 +726,7 @@ function Field({
   onChange: (v: string) => void;
   type?: string;
   min?: string;
+  max?: string;
   hint?: string;
 }) {
   return (
@@ -732,6 +735,7 @@ function Field({
       <input
         type={type}
         min={min}
+        max={max}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

@@ -1,3 +1,4 @@
+import { maxExpiryISO, todayISO } from './date';
 import type { Draft } from './types';
 
 /**
@@ -40,7 +41,27 @@ export function validateForSubmission(draft: Draft): string[] {
   // Not merely a required field: Level 2 cannot mint a Registry ID without it,
   // because the expiry year and month are part of the ID itself.
   if (!isExpiryDate(draft.expiry)) missing.push('expiry date');
+  else if (!isExpiryWithinCap(draft.expiry)) missing.push(expiryCapError());
   return missing;
+}
+
+/**
+ * Whether an expiry sits inside the twelve-month ceiling, and is not in the
+ * past.
+ *
+ * Kept beside validateForSubmission so the wizard's `max` attribute, the
+ * submit gate and the server action all read one rule. The date input's `max`
+ * is a convenience — a typed date, a pasted one, or a POST straight to the
+ * action bypasses it entirely.
+ */
+export function isExpiryWithinCap(value: string | null | undefined): boolean {
+  const v = (value ?? '').trim();
+  if (!isExpiryDate(v)) return false;
+  return v >= todayISO() && v <= maxExpiryISO();
+}
+
+export function expiryCapError(): string {
+  return `an expiry no later than ${maxExpiryISO()} (twelve months)`;
 }
 
 /** The same rules phrased as a single sentence, for a server-side error. */
