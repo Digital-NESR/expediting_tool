@@ -338,6 +338,8 @@ export interface ViewModel {
   roleLabel: string;
   roleCountry: string;
   viewerName: string;
+  /** The signed-in person's address — CC'd on every message they send. */
+  viewerEmail: string;
   viewerInitials: string;
   /** Manager or admin. Gates the corporate rollup — both the nav item and the screen. */
   canSeeRollup: boolean;
@@ -398,8 +400,9 @@ export interface ViewModel {
   unrequestedCount: number;
   hasUnrequested: boolean;
   unreachableCount: number;
-  onSendReminders: () => void;
-  onSendRequests: () => void;
+  /** `cc` is the extra NESR addresses chosen on the Recipients step; this send only. */
+  onSendReminders: (cc?: string[]) => void;
+  onSendRequests: (cc?: string[]) => void;
   onGoToConsolidation: () => void;
 
   /* Vendor Scoping */
@@ -501,8 +504,8 @@ export interface Handlers {
   setScopeSearch: (value: string) => void;
   setScopePage: (page: number) => void;
   selectCountry: (countryId: string) => void;
-  sendReminders: () => void;
-  sendRequests: () => void;
+  sendReminders: (cc?: string[]) => void;
+  sendRequests: (cc?: string[]) => void;
   /** Read the country's candidate list. Called by the scoping screen when it first renders. */
   loadCandidates: () => void;
   /** Tick or untick one supplier in the draft. Refused for locked and excluded rows. */

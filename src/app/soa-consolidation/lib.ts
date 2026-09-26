@@ -853,6 +853,7 @@ export function deriveViewModel(
     roleLabel: ROLE_LABEL[role] ?? role,
     roleCountry: scopeLabel(payload.available, viewer.countries),
     viewerName: viewer.name,
+    viewerEmail: viewer.email,
     viewerInitials: initials(viewer.name),
     canSeeRollup,
     canAct,

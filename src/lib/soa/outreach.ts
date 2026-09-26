@@ -25,8 +25,17 @@ export interface OutreachPayload {
   amountUsd: number;
   currency: string;
   recipients: string[];
+  /** Copied on every message: the sender, the country AP mailbox, and anyone they added for
+   *  this send only. Distinct from `recipients`, which is the vendor. */
+  cc: string[];
   submissionDeadline: string;
   sentBy: string;
+  /** The letter itself, already rendered for this vendor. n8n delivers it rather than composing
+   *  it — the wording is the champion's, and it is approved in the portal where they can read it. */
+  subject: string;
+  bodyHtml: string;
+  /** Plain-text alternative, so the message is not HTML-only. */
+  bodyText: string;
 }
 
 export class OutreachNotConfiguredError extends Error {

@@ -1,3 +1,8 @@
+'use client';
+
+import { useCallback, useState } from 'react';
+import EmailTemplateCard from '../EmailTemplateCard';
+import RecipientList from '../RecipientList';
 import type { ScreenProps } from '../../types';
 
 /**
@@ -8,6 +13,19 @@ import type { ScreenProps } from '../../types';
  * sends are here now, and each reports what actually happened rather than assuming it worked.
  */
 export default function OutreachScreen({ vm }: ScreenProps) {
+  /* Three steps rather than three screens: approving the letter, checking who it reaches and
+     sending it are one task done in order, and splitting them across sidebar entries invites
+     sending before anybody has read what is going out. */
+  const [step, setStep] = useState<'letter' | 'recipients' | 'send'>('letter');
+  const [extraCc, setExtraCc] = useState<string[]>([]);
+  const onCcChange = useCallback((emails: string[]) => setExtraCc(emails), []);
+
+  const steps = [
+    { id: 'letter', n: 1, label: 'Letter' },
+    { id: 'recipients', n: 2, label: 'Recipients' },
+    { id: 'send', n: 3, label: 'Send' },
+  ] as const;
+
   return (
     <div className="animate-[fadeIn_0.2s_ease]">
       <div className="flex items-start justify-between mb-4">
@@ -18,20 +36,20 @@ export default function OutreachScreen({ vm }: ScreenProps) {
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
-          {vm.hasUnrequested && (
+          {step === 'send' && vm.hasUnrequested && (
             <button
               type="button"
-              onClick={vm.onSendRequests}
+              onClick={() => vm.onSendRequests(extraCc)}
               disabled={vm.busy}
               className="bg-sns-green text-white border-none px-4 py-[9px] rounded-[7px] text-[13px] font-bold disabled:opacity-50"
             >
               Send Initial Requests to {vm.unrequestedCount} Vendors
             </button>
           )}
-          {vm.canSendReminders && (
+          {step === 'send' && vm.canSendReminders && (
             <button
               type="button"
-              onClick={vm.onSendReminders}
+              onClick={() => vm.onSendReminders(extraCc)}
               disabled={vm.busy}
               className="bg-[#E65100] text-white border-none px-4 py-[9px] rounded-[7px] text-[13px] font-bold disabled:opacity-50"
             >
@@ -41,6 +59,62 @@ export default function OutreachScreen({ vm }: ScreenProps) {
         </div>
       </div>
 
+      <div className="flex items-center gap-1 mb-4">
+        {steps.map((s, i) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setStep(s.id)}
+            className={`flex items-center gap-1.5 px-3 py-[7px] rounded-[7px] text-[12px] font-bold border ${
+              step === s.id
+                ? 'bg-sns-green text-white border-sns-green'
+                : 'bg-white text-sns-ink border-sns-line'
+            }`}
+          >
+            <span
+              className={`grid place-items-center w-[17px] h-[17px] rounded-full text-[10px] ${
+                step === s.id ? 'bg-[rgba(255,255,255,0.25)]' : 'bg-[#ECEFEC] text-sns-grey'
+              }`}
+            >
+              {s.n}
+            </span>
+            {s.label}
+            {i < steps.length - 1 && <span className="text-[10px] opacity-50 ml-1">›</span>}
+          </button>
+        ))}
+      </div>
+
+      {step === 'letter' && (
+        <EmailTemplateCard
+          countryId={vm.activeCountryId}
+          canEdit={vm.canScope}
+          onNext={() => setStep('recipients')}
+        />
+      )}
+
+      {step === 'recipients' && (
+        <>
+          <RecipientList
+            countryId={vm.activeCountryId}
+            canEdit={vm.canScope}
+            senderEmail={vm.viewerEmail}
+            onBack={() => setStep('letter')}
+            onCcChange={onCcChange}
+          />
+          <div className="flex justify-end mt-4">
+            <button
+              type="button"
+              onClick={() => setStep('send')}
+              className="bg-sns-green text-white border-none px-4 py-[9px] rounded-[7px] text-[13px] font-bold"
+            >
+              Next: send →
+            </button>
+          </div>
+        </>
+      )}
+
+      {step === 'send' && (
+      <>
       <div className="grid grid-cols-[repeat(4,1fr)] gap-2.5 mb-4">
         <div className="bg-white rounded-lg p-3.5 border-t-[3px] border-t-sns-green shadow-[0_1px_3px_rgba(0,0,0,0.07)] text-center">
           <div className="text-[10px] text-sns-grey uppercase tracking-[0.5px] font-bold mb-1">
@@ -125,55 +199,8 @@ export default function OutreachScreen({ vm }: ScreenProps) {
         )}
       </div>
 
-      <div className="bg-white rounded-[10px] p-[18px] shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
-        <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey mb-3">
-          Approved Email Template (Ref: SOP Appendix 6.3)
-        </div>
-        <div className="border border-sns-line rounded-lg overflow-hidden max-w-[680px]">
-          <div className="bg-sns-green px-[18px] py-3.5 flex items-center justify-between">
-            <div className="text-white font-bold text-[13px] tracking-[2px]">NESR</div>
-            <div className="text-[rgba(255,255,255,0.7)] text-[11px]">
-              National Energy Services Reunited Corp.
-            </div>
-          </div>
-          <div className="p-[18px]">
-            <div className="text-[11px] text-sns-grey mb-[3px]">
-              <strong>From:</strong> noreply-soa@nesr.com
-            </div>
-            <div className="text-[11px] text-sns-grey mb-[3px]">
-              <strong>To:</strong> [vendor contact addresses on file]
-            </div>
-            <div className="text-[11px] text-sns-grey mb-3">
-              <strong>Subject:</strong> NESR Statement of Account Request — {vm.cycleLabel} |{' '}
-              {vm.entityName}
-            </div>
-            <div className="border-t border-t-[#E0E0E0] pt-3">
-              <p className="text-[12px] mb-2.5">Dear [Vendor Name],</p>
-              <p className="text-[12px] mb-2.5 leading-[1.5]">
-                As part of NESR&apos;s quarterly reconciliation process, we kindly request your
-                Statement of Account for <strong>{vm.periodLabel}</strong> for transactions with our
-                legal entity in <strong>{vm.countryLabel}</strong>.
-              </p>
-              <p className="text-[12px] mb-2.5 leading-[1.5]">
-                Please submit your SOA in the standard NESR format (template attached) by{' '}
-                <strong>{vm.deadlineLabel}</strong> using the secure upload link below. No account
-                creation is required.
-              </p>
-              <div className="bg-[#F5F5F5] rounded-md p-3 my-3 text-center">
-                <div className="text-[11px] text-sns-grey mb-1.5">
-                  Secure Upload Link (expires: {vm.deadlineLabel})
-                </div>
-                <div className="bg-sns-green text-white inline-block px-5 py-2 rounded-[5px] text-[12px] font-bold">
-                  Submit Your SOA →
-                </div>
-              </div>
-              <p className="text-[11px] text-sns-grey leading-[1.5]">
-                For queries, contact your NESR Supply Chain SOA Champion: {vm.championContact}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+      </>
+      )}
     </div>
   );
 }

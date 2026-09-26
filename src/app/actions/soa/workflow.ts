@@ -22,6 +22,9 @@ import { logger } from '@/lib/logger';
 import { validateUploadSignature, uploadMimeTypeFor } from '@/lib/documents';
 import { ensureSoaSchema, soaPool, sql } from '@/lib/soa/db';
 import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
+import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
+import { htmlToText, renderTemplate, type TemplateVars } from '@/lib/soa/email-template';
+import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import {
   dispatchOutreach,
   OutreachNotConfiguredError,
@@ -114,6 +117,7 @@ function payloadFor(
   context: EntryContext,
   kind: 'request' | 'reminder',
   sentBy: string,
+  letter: RenderedLetter,
 ): OutreachPayload {
   return {
     kind,
@@ -125,8 +129,67 @@ function payloadFor(
     amountUsd: context.amount,
     currency: context.currency,
     recipients: context.contacts,
+    cc: letter.cc,
     submissionDeadline: context.submissionDeadline,
     sentBy,
+    subject: renderTemplate(letter.subject, { ...letter.vars, vendorName: context.vendorName, vendorNo: context.vendorNo }),
+    bodyHtml: renderTemplate(letter.bodyHtml, { ...letter.vars, vendorName: context.vendorName, vendorNo: context.vendorNo }),
+    bodyText: htmlToText(
+      renderTemplate(letter.bodyHtml, { ...letter.vars, vendorName: context.vendorName, vendorNo: context.vendorNo }),
+    ),
+  };
+}
+
+/**
+ * The country's letter, resolved once and reused for every vendor in a batch.
+ *
+ * Only the vendor's name and number differ between the 61 messages a country sends, so the
+ * template, the cycle dates, the AP mailbox and the sender's details are looked up once. Passing
+ * this in also means a single send and a batch send compose the identical letter.
+ */
+interface RenderedLetter {
+  subject: string;
+  bodyHtml: string;
+  vars: TemplateVars;
+  cc: string[];
+}
+
+async function prepareLetter(
+  countryId: string,
+  actor: { email: string; name: string },
+  extraCc: string[],
+): Promise<RenderedLetter> {
+  const [stored, ctx, directory] = await Promise.all([
+    loadTemplate(countryId),
+    letterContext(countryId),
+    getEmployeeDirectoryDefaults(actor.email).catch(() => null),
+  ]);
+
+  // The sender always sees what went out, and AP owns the mailbox the vendor is told to reply to.
+  // Anything else is a one-off the champion chose for this send and is not stored.
+  const cc = [...new Set([actor.email, ...(ctx.apEmail ? [ctx.apEmail] : []), ...extraCc])]
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  return {
+    subject: stored.subject,
+    bodyHtml: stored.bodyHtml,
+    cc,
+    vars: {
+      date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+      vendorName: '',
+      vendorNo: '',
+      countryName: ctx.countryName,
+      cycleLabel: ctx.cycleLabel,
+      statementPeriodEnd: ctx.statementPeriodEnd,
+      replyBy: ctx.replyBy,
+      apEmail: ctx.apEmail,
+      championName: ctx.championName || actor.name,
+      senderName: actor.name,
+      senderTitle: directory?.position ?? '',
+      senderMobile: '',
+      senderEmail: actor.email,
+    },
   };
 }
 
@@ -143,14 +206,20 @@ function payloadFor(
 export async function sendSoaOutreach(input: {
   entryId: number;
   kind: 'request' | 'reminder';
+  /** Extra NESR addresses to copy on this send only; never stored. */
+  cc?: string[];
+  /** Supplied by a batch so the letter is composed once rather than per vendor. */
+  letter?: RenderedLetter;
 }): Promise<SoaResult> {
   let context: EntryContext | null = null;
   try {
     const loaded = await loadEntry(input.entryId);
     context = loaded.context;
     const actor = loaded.actor;
+    const letter =
+      input.letter ?? (await prepareLetter(context.countryId, actor, input.cc ?? []));
 
-    await dispatchOutreach(payloadFor(context, input.kind, actor.email));
+    await dispatchOutreach(payloadFor(context, input.kind, actor.email, letter));
 
     const isRequest = input.kind === 'request';
     await withTransaction(soaPool, async (client) => {
@@ -232,9 +301,12 @@ export async function sendSoaOutreach(input: {
 export async function sendSoaOutreachBatch(input: {
   countryId: string;
   kind: 'request' | 'reminder';
+  /** Extra NESR addresses to copy on this send only; never stored. */
+  cc?: string[];
 }): Promise<SoaResult<{ sent: number; failed: number; firstError: string | null }>> {
   try {
-    await requireSoaCountry(input.countryId, 'champion');
+    const actor = await requireSoaCountry(input.countryId, 'champion');
+    const letter = await prepareLetter(input.countryId, actor, input.cc ?? []);
     const due = await sql<QueryResultRow[]>(
       `SELECT vce.id
          FROM vendor_cycle_entries vce
@@ -249,7 +321,7 @@ export async function sendSoaOutreachBatch(input: {
     let failed = 0;
     let firstError: string | null = null;
     for (const row of due) {
-      const result = await sendSoaOutreach({ entryId: Number(row.id), kind: input.kind });
+      const result = await sendSoaOutreach({ entryId: Number(row.id), kind: input.kind, letter });
       if (result.success) sent += 1;
       else {
         failed += 1;

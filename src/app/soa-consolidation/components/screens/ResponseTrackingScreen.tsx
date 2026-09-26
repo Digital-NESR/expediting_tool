@@ -158,7 +158,7 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
           {vm.hasUnrequested && (
             <button
               type="button"
-              onClick={vm.onSendRequests}
+              onClick={() => vm.onSendRequests()}
               disabled={vm.busy}
               className="bg-sns-green text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
             >
@@ -168,7 +168,7 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
           {vm.hasRemindable && (
             <button
               type="button"
-              onClick={vm.onSendReminders}
+              onClick={() => vm.onSendReminders()}
               disabled={vm.busy}
               className="bg-[#E65100] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
             >

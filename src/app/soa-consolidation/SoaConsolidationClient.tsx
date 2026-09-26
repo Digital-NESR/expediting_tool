@@ -215,10 +215,10 @@ export default function SoaConsolidationClient({
       patch({ modal: null });
     },
 
-    sendRequests() {
+    sendRequests(cc) {
       if (!countryId) return;
       void run(
-        () => sendSoaOutreachBatch({ countryId, kind: 'request' }),
+        () => sendSoaOutreachBatch({ countryId, kind: 'request', cc }),
         (data) => {
           const sent = data?.sent ?? 0;
           const failed = data?.failed ?? 0;
@@ -241,10 +241,10 @@ export default function SoaConsolidationClient({
         'Requests not sent',
       );
     },
-    sendReminders() {
+    sendReminders(cc) {
       if (!countryId) return;
       void run(
-        () => sendSoaOutreachBatch({ countryId, kind: 'reminder' }),
+        () => sendSoaOutreachBatch({ countryId, kind: 'reminder', cc }),
         (data) => {
           const sent = data?.sent ?? 0;
           const failed = data?.failed ?? 0;
