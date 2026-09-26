@@ -1,6 +1,13 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  /* The SOA statement-request attachment is a fixed workbook read from disk at request time and
+     stamped per vendor. Nothing imports it, so tracing cannot infer it, and without this the file
+     is absent from the deployed bundle and every send fails at the point of attaching it. */
+  outputFileTracingIncludes: {
+    '/api/**': ['./assets/soa/**'],
+    '/soa-consolidation/**': ['./assets/soa/**'],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '52mb',

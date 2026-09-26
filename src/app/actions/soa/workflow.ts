@@ -23,6 +23,7 @@ import { validateUploadSignature, uploadMimeTypeFor } from '@/lib/documents';
 import { ensureSoaSchema, soaPool, sql } from '@/lib/soa/db';
 import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
 import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
+import { attachmentFileName, buildVendorWorkbook } from '@/lib/soa/attachment';
 import { htmlToText, renderTemplate, type TemplateVars } from '@/lib/soa/email-template';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import {
@@ -113,12 +114,20 @@ async function writeEvidence(
   );
 }
 
-function payloadFor(
+async function payloadFor(
   context: EntryContext,
   kind: 'request' | 'reminder',
   sentBy: string,
   letter: RenderedLetter,
-): OutreachPayload {
+): Promise<OutreachPayload> {
+  const vars = { ...letter.vars, vendorName: context.vendorName, vendorNo: context.vendorNo };
+  const workbook = await buildVendorWorkbook({
+    countryId: context.countryId,
+    vendorName: context.vendorName,
+    vendorNo: context.vendorNo,
+    monthYear: letter.monthYear,
+  });
+
   return {
     kind,
     cycleLabel: context.cycleLabel,
@@ -132,11 +141,14 @@ function payloadFor(
     cc: letter.cc,
     submissionDeadline: context.submissionDeadline,
     sentBy,
-    subject: renderTemplate(letter.subject, { ...letter.vars, vendorName: context.vendorName, vendorNo: context.vendorNo }),
-    bodyHtml: renderTemplate(letter.bodyHtml, { ...letter.vars, vendorName: context.vendorName, vendorNo: context.vendorNo }),
-    bodyText: htmlToText(
-      renderTemplate(letter.bodyHtml, { ...letter.vars, vendorName: context.vendorName, vendorNo: context.vendorNo }),
-    ),
+    subject: renderTemplate(letter.subject, vars),
+    bodyHtml: renderTemplate(letter.bodyHtml, vars),
+    bodyText: htmlToText(renderTemplate(letter.bodyHtml, vars)),
+    attachment: {
+      fileName: attachmentFileName(context.vendorNo, context.cycleLabel),
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      contentBase64: workbook.toString('base64'),
+    },
   };
 }
 
@@ -152,6 +164,8 @@ interface RenderedLetter {
   bodyHtml: string;
   vars: TemplateVars;
   cc: string[];
+  /** Stamped into the workbook's Month/Year column. */
+  monthYear: string;
 }
 
 async function prepareLetter(
@@ -175,6 +189,7 @@ async function prepareLetter(
     subject: stored.subject,
     bodyHtml: stored.bodyHtml,
     cc,
+    monthYear: ctx.statementMonthYear,
     vars: {
       date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
       vendorName: '',
@@ -219,7 +234,7 @@ export async function sendSoaOutreach(input: {
     const letter =
       input.letter ?? (await prepareLetter(context.countryId, actor, input.cc ?? []));
 
-    await dispatchOutreach(payloadFor(context, input.kind, actor.email, letter));
+    await dispatchOutreach(await payloadFor(context, input.kind, actor.email, letter));
 
     const isRequest = input.kind === 'request';
     await withTransaction(soaPool, async (client) => {

@@ -105,6 +105,8 @@ export interface LetterContext {
   countryName: string;
   cycleLabel: string;
   statementPeriodEnd: string;
+  /** The same period as the workbook's Month/Year column wants it — "September 2026". */
+  statementMonthYear: string;
   replyBy: string;
   apEmail: string;
   championName: string;
@@ -138,6 +140,12 @@ export async function letterContext(countryId: string): Promise<LetterContext> {
     countryName: (r.country_name as string) ?? countryId,
     cycleLabel: (r.cycle_label as string) ?? '',
     statementPeriodEnd: formatDay(r.period_end),
+    statementMonthYear: r.period_end
+      ? new Date(r.period_end as string).toLocaleDateString('en-GB', {
+          month: 'long',
+          year: 'numeric',
+        })
+      : '',
     replyBy: formatDay(r.submission_deadline),
     apEmail: (r.ap_email as string) ?? '',
     championName: (r.champion as string) ?? '',

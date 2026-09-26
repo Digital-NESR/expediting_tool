@@ -15,5 +15,5 @@ export { soaPool };
 
 /** Assert that soa_consolidation has had its migrations applied. */
 export function ensureSoaSchema(): Promise<void> {
-  return requireSchema(soaPool, 'soa', '006_email_templates');
+  return requireSchema(soaPool, 'soa', '007_drop_attachment_store');
 }

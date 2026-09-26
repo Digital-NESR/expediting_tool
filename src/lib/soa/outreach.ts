@@ -36,6 +36,14 @@ export interface OutreachPayload {
   bodyHtml: string;
   /** Plain-text alternative, so the message is not HTML-only. */
   bodyText: string;
+  /** The SOA Format workbook, stamped for this vendor. Carried in the payload rather than behind
+   *  a link: the recipient is an external supplier with no way to authenticate to us, and a
+   *  public download URL for a per-vendor file is a worse answer than 37 KB of base64. */
+  attachment: {
+    fileName: string;
+    contentType: string;
+    contentBase64: string;
+  };
 }
 
 export class OutreachNotConfiguredError extends Error {
