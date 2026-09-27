@@ -22,6 +22,11 @@ const PUBLIC_PATHS = [
   '/pending-approval',
   '/access-denied',
   '/supplier-update',
+  /* The SOA statement upload. Public by necessity: the person using it is a supplier with no NESR
+     account. What stands in for a login is the per-vendor token in the path plus a one-time code
+     sent to an address the request itself went to -- both checked inside the page's own actions,
+     which is where the enforcement has to live for a route this gate lets through. */
+  '/soa-upload',
   '/help',
 ];
 

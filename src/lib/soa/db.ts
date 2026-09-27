@@ -15,5 +15,5 @@ export { soaPool };
 
 /** Assert that soa_consolidation has had its migrations applied. */
 export function ensureSoaSchema(): Promise<void> {
-  return requireSchema(soaPool, 'soa', '012_upload_token');
+  return requireSchema(soaPool, 'soa', '013_upload_verification');
 }

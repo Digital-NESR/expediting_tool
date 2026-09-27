@@ -26,6 +26,12 @@ const nextConfig: NextConfig = {
         source: '/supplier-update',
         headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
       },
+      {
+        // The SOA upload link carries its token in the path, so any outbound request from the
+        // page would otherwise leak it in the Referer header.
+        source: '/soa-upload/:path*',
+        headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
+      },
     ];
   },
 };

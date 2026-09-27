@@ -24,23 +24,18 @@ import { ensureSoaSchema, soaPool, sql } from '@/lib/soa/db';
 import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
 import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import { attachmentFileName, buildSupplierWorkbook } from '@/lib/soa/attachment';
-import {
-  UnreadableStatementError,
-  parseSupplierWorkbook,
-  type ParsedLine,
-} from '@/lib/soa/submission-lines';
 import { htmlToText, renderTemplate, type TemplateVars } from '@/lib/soa/email-template';
 import { AppUrlNotConfiguredError, soaPortalUrl, uploadLinkFor } from '@/lib/soa/links';
 import { notifySoaHandoff } from '@/lib/soa/notify';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import { MailNotConfiguredError, sendMail, type MailMessage } from '@/lib/soa/mail';
+import { MAX_SOA_BYTES, StatementRejected, storeStatement } from '@/lib/soa/submission-store';
 
 const log = logger('soa-workflow');
 
 export type SoaResult<T = undefined> = { success: boolean; error?: string; data?: T };
 
 /** Max statement size. Statements are PDFs and spreadsheets; 10 MB is generous for both. */
-const MAX_SOA_BYTES = 10 * 1024 * 1024;
 
 interface EntryContext {
   entryId: number;
@@ -445,133 +440,33 @@ export async function acceptSoaSubmission(entryId: number, formData: FormData): 
     const verdict = validateUploadSignature(file.name, content, file.type);
     if (!verdict.ok) return { success: false, error: verdict.reason };
 
-    /* The invoice count is no longer asked for. It is whatever the statement actually contains,
-       which is the only version of that number anybody can check. */
-
-    /* The statement is the filled-in template and nothing else, so it has to be readable.
-     *
-     * An unreadable file is refused rather than filed. Recording it would move the vendor to
-     * `received` and assert a statement was collected while leaving nothing behind that anyone
-     * could reconcile against, and the message the parser gives back names the actual problem --
-     * which is what the champion needs to put to the supplier. */
-    if (!/\.(xlsx|xlsm|xls)$/i.test(file.name)) {
-      return {
-        success: false,
-        error: 'Statements must be the filled-in Excel template. Ask the supplier to return the attached workbook.',
-      };
-    }
-
-    let lines: ParsedLine[] = [];
-    try {
-      lines = (await parseSupplierWorkbook(content)).lines;
-    } catch (err) {
-      const reason =
-        err instanceof UnreadableStatementError ? err.message : 'That workbook could not be read.';
-      log.warn('submission.unparsed', { entryId, file: file.name, reason });
-      return { success: false, error: reason };
-    }
-    if (!lines.length) {
-      return {
-        success: false,
-        error: 'That workbook has no invoice rows in it. Check the supplier filled in the sheet before sending it.',
-      };
-    }
-    const invoiceCount = lines.length;
-
-    await withTransaction(soaPool, async (client) => {
-      const inserted = await client.query<{ id: number }>(
-        `INSERT INTO soa_submissions
-           (vendor_cycle_entry_id, file_name, content, content_type, uploaded_by,
-            validated, detected_invoice_count, accepted_at, accepted_by,
-            parsed_line_count, parse_error)
-         VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW(), $5, $7, $8)
-         RETURNING id`,
-        [
-          entryId,
-          file.name,
-          content,
-          uploadMimeTypeFor(file.name, file.type),
-          actor.email,
-          invoiceCount || null,
-          lines.length,
-          null,
-        ],
-      );
-      const submissionId = inserted.rows[0].id;
-
-      /* The supplier is never asked to retype their own name and number, so they are stamped on
-         here from the record that says who returned the file. One statement at a time, so a
-         batched insert would only save a few milliseconds on a couple of dozen rows. */
-      for (const line of lines) {
-        await client.query(
-          `INSERT INTO soa_submission_lines
-             (submission_id, line_no, vendor_no, vendor_name, country_id, month_year,
-              legal_entity, invoice_number, invoice_date, invoice_date_raw, po_number,
-              service_type, currency, tax_amount, total_amount, outstanding_amount,
-              outstanding_days, remarks, issues)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
-          [
-            submissionId,
-            line.lineNo,
-            context.vendorNo,
-            context.vendorName,
-            context.countryId,
-            context.cycleLabel,
-            line.legalEntity,
-            line.invoiceNumber,
-            line.invoiceDate,
-            line.invoiceDateRaw,
-            line.poNumber,
-            line.serviceType,
-            line.currency,
-            line.taxAmount,
-            line.totalAmount,
-            line.outstandingAmount,
-            line.outstandingDays,
-            line.remarks,
-            line.issues,
-          ],
-        );
-      }
-      await client.query(
-        `UPDATE vendor_cycle_entries
-            SET status = 'received', responded_at = NOW(), invoice_count = $2, updated_at = NOW()
-          WHERE id = $1`,
-        [entryId, invoiceCount],
-      );
-      await writeEvidence(
-        client,
-        context.countryCycleId,
-        entryId,
-        'upload',
-        'SOA received',
-        actor.email,
-        `${context.vendorName} (${context.vendorNo}) — statement accepted, ` +
-          `${lines.length} invoice ${lines.length === 1 ? 'line' : 'lines'} read` +
-          (lines.some((l) => l.issues.length)
-            ? `, ${lines.filter((l) => l.issues.length).length} needing review.`
-            : '.'),
-      );
+    await storeStatement({
+      entryId,
+      countryCycleId: context.countryCycleId,
+      vendorNo: context.vendorNo,
+      vendorName: context.vendorName,
+      countryId: context.countryId,
+      cycleLabel: context.cycleLabel,
+      fileName: file.name,
+      contentType: uploadMimeTypeFor(file.name, file.type),
+      content,
+      uploadedBy: actor.email,
+      actorLabel: actor.email,
+      selfService: false,
     });
 
     revalidatePath('/soa-consolidation');
     return { success: true };
   } catch (err) {
-    log.error('acceptSoaSubmission.failed', err);
+    if (err instanceof StatementRejected) return { success: false, error: err.message };
+    log.error('acceptSoaSubmission.failed', err, { entryId });
     return {
       success: false,
-      error: err instanceof AccessError ? err.message : 'Could not accept the statement.',
+      error: err instanceof AccessError ? err.message : 'Could not record that statement.',
     };
   }
 }
 
-/**
- * Hand a country's cycle to Finance.
- *
- * Refuses below the cycle's own coverage target. The control exists precisely so that a quarter
- * cannot be signed off short, and a tool that let a champion click past it would be worse than no
- * tool — it would put a tick beside a control that was never met.
- */
 export async function handOffSoaCountry(
   countryId: string,
 ): Promise<SoaResult<{ notified: boolean; apContacts: number }>> {
