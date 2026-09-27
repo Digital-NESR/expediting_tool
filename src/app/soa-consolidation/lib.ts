@@ -556,7 +556,6 @@ export function deriveViewModel(
       label: 'Response Tracking',
       badge: pendingResponseCount > 0 ? String(pendingResponseCount) : null,
     },
-    { id: 'intake', label: 'SOA Intake', badge: null },
     { id: 'consolidation', label: 'Consolidation', badge: null },
     { id: 'evidence', label: 'Evidence Repository', badge: null },
     ...(canSeeRollup ? [{ id: 'rollup' as ScreenId, label: 'Corporate Rollup', badge: null }] : []),
@@ -879,7 +878,6 @@ export function deriveViewModel(
 
   const modalVendor =
     modal && modal.type === 'upload' ? vendors.find((v) => v.id === modal.vendorId) : undefined;
-  const sampleVendor = vendors[0];
 
   const cycleSlug = cycleLabel.replace(/\s+/g, '-');
   const scopeSavedLine = scopeSaved
@@ -928,7 +926,6 @@ export function deriveViewModel(
     showScoping: activeScreen === 'scoping',
     showOutreach: activeScreen === 'outreach',
     showTracking: activeScreen === 'tracking',
-    showIntake: activeScreen === 'intake',
     showConsolidation: activeScreen === 'consolidation',
     showEvidence: activeScreen === 'evidence',
     showRollup: activeScreen === 'rollup' && canSeeRollup,
@@ -1027,10 +1024,6 @@ export function deriveViewModel(
     onAcceptSOA: handlers.acceptSOA,
     onConfirmHandoff: handlers.confirmHandoff,
 
-    sampleVendorName: sampleVendor?.name ?? '—',
-    sampleVendorNo: sampleVendor?.no ?? '—',
-    sampleVendorCurrency: sampleVendor?.currency ?? '—',
-    hasSampleVendor: !!sampleVendor,
     entityName: countryName ?? '—',
     championContact: `${viewer.name} · ${viewer.email}`,
 

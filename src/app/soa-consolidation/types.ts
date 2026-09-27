@@ -45,7 +45,6 @@ export type ScreenId =
   | 'scoping'
   | 'outreach'
   | 'tracking'
-  | 'intake'
   | 'consolidation'
   | 'evidence'
   | 'rollup';
@@ -391,7 +390,6 @@ export interface ViewModel {
   showScoping: boolean;
   showOutreach: boolean;
   showTracking: boolean;
-  showIntake: boolean;
   showConsolidation: boolean;
   showEvidence: boolean;
   showRollup: boolean;
@@ -496,11 +494,6 @@ export interface ViewModel {
   onAcceptSOA: (file: File, invoiceCount: number) => void;
   onConfirmHandoff: () => void;
 
-  /* SOA Intake is a preview of the vendor-facing form; it shows a real vendor from this cycle. */
-  sampleVendorName: string;
-  sampleVendorNo: string;
-  sampleVendorCurrency: string;
-  hasSampleVendor: boolean;
   entityName: string;
   championContact: string;
 

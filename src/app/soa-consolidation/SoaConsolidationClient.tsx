@@ -32,7 +32,6 @@ import DashboardScreen from './components/screens/DashboardScreen';
 import VendorScopingScreen from './components/screens/VendorScopingScreen';
 import OutreachScreen from './components/screens/OutreachScreen';
 import ResponseTrackingScreen from './components/screens/ResponseTrackingScreen';
-import SoaIntakeScreen from './components/screens/SoaIntakeScreen';
 import ConsolidationScreen from './components/screens/ConsolidationScreen';
 import EvidenceScreen from './components/screens/EvidenceScreen';
 import CorporateRollupScreen from './components/screens/CorporateRollupScreen';
@@ -516,7 +515,6 @@ export default function SoaConsolidationClient({
               {vm.showScoping && <VendorScopingScreen vm={vm} />}
               {vm.showOutreach && <OutreachScreen vm={vm} />}
               {vm.showTracking && <ResponseTrackingScreen vm={vm} />}
-              {vm.showIntake && <SoaIntakeScreen vm={vm} />}
               {vm.showConsolidation && <ConsolidationScreen vm={vm} />}
               {vm.showEvidence && <EvidenceScreen vm={vm} />}
               {vm.showRollup && <CorporateRollupScreen vm={vm} />}
