@@ -23,7 +23,7 @@ import { validateUploadSignature, uploadMimeTypeFor } from '@/lib/documents';
 import { ensureSoaSchema, soaPool, sql } from '@/lib/soa/db';
 import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
 import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
-import { attachmentFileName, buildVendorWorkbook } from '@/lib/soa/attachment';
+import { attachmentFileName, buildSupplierWorkbook } from '@/lib/soa/attachment';
 import { htmlToText, renderTemplate, type TemplateVars } from '@/lib/soa/email-template';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import {
@@ -121,12 +121,9 @@ async function payloadFor(
   letter: RenderedLetter,
 ): Promise<OutreachPayload> {
   const vars = { ...letter.vars, vendorName: context.vendorName, vendorNo: context.vendorNo };
-  const workbook = await buildVendorWorkbook({
-    countryId: context.countryId,
-    vendorName: context.vendorName,
-    vendorNo: context.vendorNo,
-    monthYear: letter.monthYear,
-  });
+  // Lean and identical for everyone in the country; the vendor's identity is stamped onto the
+  // rows when the file comes back, not printed into the blank they are sent.
+  const workbook = await buildSupplierWorkbook(context.countryId);
 
   return {
     kind,
@@ -145,7 +142,7 @@ async function payloadFor(
     bodyHtml: renderTemplate(letter.bodyHtml, vars),
     bodyText: htmlToText(renderTemplate(letter.bodyHtml, vars)),
     attachment: {
-      fileName: attachmentFileName(context.vendorNo, context.cycleLabel),
+      fileName: attachmentFileName(context.cycleLabel),
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       contentBase64: workbook.toString('base64'),
     },
