@@ -87,6 +87,7 @@ const ROLE_LABEL: Record<Role, string> = {
   admin: 'SOA Administrator',
   manager: 'Supply Chain Manager',
   champion: 'SC SOA Champion',
+  ap: 'Accounts Payable',
   viewer: 'Read-only Viewer',
 };
 
@@ -308,9 +309,17 @@ export function emptyKindFor(state: {
   extracted: boolean;
   enrolled: boolean;
   scoped: boolean;
+  /** Reads this country only as Accounts Payable. */
+  apOnly: boolean;
+  /** The champion has closed the cycle and handed it over. */
+  handedOff: boolean;
 }): EmptyKind {
   if (!state.hasCycle) return 'no-cycle';
   if (!state.hasCountry) return 'no-country';
+  /* Accounts Payable picks a cycle up once it is closed. Before that, whether the extract has run
+     or the country has scoped is somebody else's business, and telling an AP user to go and scope
+     would point them at work that is not theirs. */
+  if (state.apOnly && !state.handedOff) return 'ap-waiting';
   if (!state.extracted) return 'no-extract';
   // Joining is its own act. A country that has not joined has not decided against taking part, it
   // simply has not started, and "nothing scoped" would send the champion looking for a list that
@@ -363,6 +372,8 @@ export function deriveViewModel(
     extracted: Boolean(cycle?.extractedAt),
     enrolled: payload.enrolled,
     scoped: payload.scoped,
+    apOnly: viewer.apOnly,
+    handedOff: payload.handedOff,
   });
 
   /* Vendor Scoping is where a champion fixes "not scoped", and the rollup does not depend on this
@@ -370,6 +381,7 @@ export function deriveViewModel(
   const emptyBlocks = (id: ScreenId) =>
     emptyKind === 'no-cycle' ||
     emptyKind === 'no-country' ||
+    emptyKind === 'ap-waiting' ||
     emptyKind === 'not-enrolled' ||
     (emptyKind === 'not-scoped' && id !== 'scoping' && id !== 'rollup');
 
@@ -521,18 +533,24 @@ export function deriveViewModel(
     ] as StatusBarSegVM[]
   ).filter((s) => s.count > 0);
 
+  /* Scoping and Outreach are the champion's work. An AP reader cannot act on either -- every
+     button on them is already disabled -- so listing them would only offer two dead ends. */
   const NAV: { id: ScreenId; label: string; badge: string | null }[] = [
     { id: 'dashboard', label: 'Dashboard', badge: null },
-    {
-      id: 'scoping',
-      label: 'Vendor Scoping',
-      badge: emptyKind === 'not-scoped' ? '!' : null,
-    },
-    {
-      id: 'outreach',
-      label: 'Outreach',
-      badge: unrequestedCount > 0 ? String(unrequestedCount) : null,
-    },
+    ...(viewer.apOnly
+      ? []
+      : [
+          {
+            id: 'scoping' as ScreenId,
+            label: 'Vendor Scoping',
+            badge: emptyKind === 'not-scoped' ? '!' : null,
+          },
+          {
+            id: 'outreach' as ScreenId,
+            label: 'Outreach',
+            badge: unrequestedCount > 0 ? String(unrequestedCount) : null,
+          },
+        ]),
     {
       id: 'tracking',
       label: 'Response Tracking',

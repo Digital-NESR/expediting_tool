@@ -11,6 +11,8 @@ const READY = {
   extracted: true,
   enrolled: true,
   scoped: true,
+  apOnly: false,
+  handedOff: false,
 };
 
 describe('emptyKindFor', () => {
@@ -22,6 +24,7 @@ describe('emptyKindFor', () => {
     // Every other flag is false too; none of them is the thing to tell an admin about first.
     expect(
       emptyKindFor({
+        ...READY,
         hasCycle: false,
         hasCountry: false,
         extracted: false,
@@ -55,5 +58,28 @@ describe('emptyKindFor', () => {
 
   it('puts a missing country ahead of anything about the cycle contents', () => {
     expect(emptyKindFor({ ...READY, hasCountry: false, extracted: false })).toBe('no-country');
+  });
+
+  it('holds Accounts Payable back until the champion has closed the cycle', () => {
+    expect(emptyKindFor({ ...READY, apOnly: true })).toBe('ap-waiting');
+  });
+
+  it('lets Accounts Payable in once it is closed', () => {
+    expect(emptyKindFor({ ...READY, apOnly: true, handedOff: true })).toBe('none');
+  });
+
+  it('does not send an AP reader off to scope a country', () => {
+    // Scoping is the champion's work. Telling AP the country is unscoped points them at a job
+    // that is not theirs and a screen where every button is disabled.
+    expect(emptyKindFor({ ...READY, apOnly: true, enrolled: false, scoped: false })).toBe(
+      'ap-waiting',
+    );
+  });
+
+  it('still asks a champion to join even when the cycle is closed elsewhere', () => {
+    // handedOff only short-circuits the AP path; it is not a general "everything is fine".
+    expect(emptyKindFor({ ...READY, enrolled: false, scoped: false, handedOff: true })).toBe(
+      'not-enrolled',
+    );
   });
 });

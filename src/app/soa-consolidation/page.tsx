@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { countriesFor, getSoaActor } from '@/lib/soa/access';
+import { countriesFor, isApOnlyFor, getSoaActor } from '@/lib/soa/access';
 import { loadSoa } from '@/lib/soa/read';
 import SoaConsolidationClient from './SoaConsolidationClient';
 import type { Viewer } from './types';
@@ -35,6 +35,8 @@ export default async function SoaConsolidationPage({
     role: actor.role,
     countries: countriesFor(actor, 'viewer'),
     champion: countriesFor(actor, 'champion'),
+    // Asked about the country actually being shown, not about the person in general.
+    apOnly: payload.countryId ? isApOnlyFor(actor, payload.countryId) : false,
   };
 
   return <SoaConsolidationClient viewer={viewer} payload={payload} />;

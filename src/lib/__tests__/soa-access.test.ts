@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { canAccessCountry, countriesFor, holdsRole, type SoaActor } from '@/lib/soa/access';
+import {
+  canAccessCountry,
+  countriesFor,
+  holdsRole,
+  isApOnlyFor,
+  type SoaActor,
+} from '@/lib/soa/access';
 import { parseAvlEmails, windowFor } from '@/lib/soa/extract';
 
 /**
@@ -180,5 +186,67 @@ describe('windowFor', () => {
   it('honours a lookback other than eighteen months', () => {
     const w = windowFor({ id: 2, period_end: '2026-12-31', lookback_months: 12 });
     expect(w.from.toISOString().slice(0, 10)).toBe('2026-01-01');
+  });
+});
+
+describe('Accounts Payable', () => {
+  it('reads a country without being able to act on it', () => {
+    const ap = actor({ role: 'ap', grants: [{ role: 'ap', countryId: 'KW' }] });
+    // Level with a viewer for reading...
+    expect(canAccessCountry(ap, 'KW', 'viewer')).toBe(true);
+    // ...and nowhere near a champion for doing.
+    expect(canAccessCountry(ap, 'KW', 'champion')).toBe(false);
+    expect(holdsRole(ap, 'champion')).toBe(false);
+  });
+
+  it('does not reach into another country', () => {
+    const ap = actor({ role: 'ap', grants: [{ role: 'ap', countryId: 'KW' }] });
+    expect(canAccessCountry(ap, 'OM', 'viewer')).toBe(false);
+    expect(isApOnlyFor(ap, 'OM')).toBe(false);
+  });
+
+  it('is AP-only where AP is all they hold', () => {
+    const ap = actor({ role: 'ap', grants: [{ role: 'ap', countryId: 'KW' }] });
+    expect(isApOnlyFor(ap, 'KW')).toBe(true);
+  });
+
+  it('is not AP-only where they are also the champion', () => {
+    // Losing the fuller view would be a strange consequence of also being copied on the letters.
+    const both = actor({
+      role: 'champion',
+      grants: [
+        { role: 'ap', countryId: 'KW' },
+        { role: 'champion', countryId: 'KW' },
+      ],
+    });
+    expect(isApOnlyFor(both, 'KW')).toBe(false);
+  });
+
+  it('is not AP-only where an all-countries grant already covers them', () => {
+    const regional = actor({
+      role: 'manager',
+      grants: [
+        { role: 'ap', countryId: 'KW' },
+        { role: 'manager', countryId: null },
+      ],
+    });
+    expect(isApOnlyFor(regional, 'KW')).toBe(false);
+  });
+
+  it('never treats an administrator as AP-only', () => {
+    expect(isApOnlyFor(actor({ isAdmin: true, role: 'admin' }), 'KW')).toBe(false);
+  });
+
+  it('gives a stable label to somebody who is both AP and viewer', () => {
+    // The two share a rank, so without a tie-break the label would follow row order.
+    const both = actor({
+      role: 'ap',
+      grants: [
+        { role: 'viewer', countryId: 'KW' },
+        { role: 'ap', countryId: 'KW' },
+      ],
+    });
+    // A viewer sees the cycle as it runs, so holding both is strictly more than AP alone.
+    expect(isApOnlyFor(both, 'KW')).toBe(false);
   });
 });

@@ -25,10 +25,21 @@ import { ensureSoaSchema, sql } from './db';
  * that would have to lie about one of them.
  */
 
-export type SoaRole = 'admin' | 'manager' | 'champion' | 'viewer';
+export type SoaRole = 'admin' | 'manager' | 'champion' | 'ap' | 'viewer';
 
-/** Ranked so a caller can ask for "champion or better" without enumerating. */
-const RANK: Record<SoaRole, number> = { viewer: 0, champion: 1, manager: 2, admin: 3 };
+/**
+ * Ranked so a caller can ask for "champion or better" without enumerating.
+ *
+ * `ap` sits level with `viewer` rather than above or below it. Accounts Payable reads and changes
+ * nothing, so it grants no more than a viewer does; but it is not a lesser champion either, and
+ * ranking it anywhere on that ladder would either let an AP user scope a country or stop them
+ * reading one. What actually differs is WHICH cycles they see, and that is a separate question
+ * asked by `isApOnlyFor` rather than a rung on this ladder.
+ */
+const RANK: Record<SoaRole, number> = { viewer: 0, ap: 0, champion: 1, manager: 2, admin: 3 };
+
+/** Tie-break for `actor.role`, which is a single label for a person who may hold several. */
+const PREFERENCE: SoaRole[] = ['admin', 'manager', 'champion', 'ap', 'viewer'];
 
 export interface SoaGrant {
   role: Exclude<SoaRole, 'admin'>;
@@ -103,10 +114,14 @@ export const getSoaActor = cache(async (): Promise<SoaActor | null> => {
     countryId: r.country_id === null ? null : String(r.country_id),
   }));
 
-  const best = grants.reduce<SoaRole | null>(
-    (acc, g) => (acc === null || RANK[g.role] > RANK[acc] ? g.role : acc),
-    null,
-  );
+  /* `ap` and `viewer` share a rank, so a strict `>` comparison would pick whichever the database
+     happened to return first. Ties resolve by PREFERENCE instead, which keeps the label a person
+     sees stable between page loads. */
+  const best = grants.reduce<SoaRole | null>((acc, g) => {
+    if (acc === null) return g.role;
+    if (RANK[g.role] !== RANK[acc]) return RANK[g.role] > RANK[acc] ? g.role : acc;
+    return PREFERENCE.indexOf(g.role) < PREFERENCE.indexOf(acc) ? g.role : acc;
+  }, null);
 
   return {
     email,
@@ -145,4 +160,21 @@ export async function requireSoaCountry(
     throw new AccessError(`You do not have ${min} access to that country.`);
   }
   return actor;
+}
+
+/**
+ * True when this actor reads a country only as Accounts Payable.
+ *
+ * AP picks a cycle up once the champion has closed it; before that there is nothing they are being
+ * asked to review, and a half-finished chase is not something to hand them. Somebody who is also a
+ * champion, manager, admin or viewer of the same country is not AP-only -- they keep the fuller
+ * view they already had, because losing it would be a strange consequence of also being copied on
+ * the letters.
+ */
+export function isApOnlyFor(actor: SoaActor, countryId: string): boolean {
+  if (actor.isAdmin) return false;
+  const covers = (g: SoaGrant) => g.countryId === null || g.countryId === countryId;
+  if (actor.grants.some((g) => covers(g) && RANK[g.role] > RANK.ap)) return false;
+  if (actor.grants.some((g) => covers(g) && g.role === 'viewer')) return false;
+  return actor.grants.some((g) => covers(g) && g.role === 'ap');
 }

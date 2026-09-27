@@ -10,7 +10,7 @@ import type { CountryOption, SoaPayload } from '@/lib/soa/read';
  * a picker, so the database's spelling wins. `admin` is here because ADMIN_EMAILS can put someone
  * in the tool without any grant at all.
  */
-export type Role = 'admin' | 'manager' | 'champion' | 'viewer';
+export type Role = 'admin' | 'manager' | 'champion' | 'ap' | 'viewer';
 
 /**
  * The signed-in person, resolved on the server from `getSoaActor()` and handed to the client.
@@ -30,6 +30,14 @@ export interface Viewer {
   role: Role;
   countries: string[] | 'all';
   champion: string[] | 'all';
+  /**
+   * True when this person reads the CURRENT country only as Accounts Payable.
+   *
+   * AP picks a cycle up after the champion closes it, so before that there is nothing for them to
+   * review. Asked per country rather than per person: being AP for Kuwait says nothing about what
+   * they may see in Oman.
+   */
+  apOnly: boolean;
 }
 
 export type ScreenId =
@@ -337,7 +345,8 @@ export type EmptyKind =
   | 'no-extract'
   | 'no-country'
   | 'not-enrolled'
-  | 'not-scoped';
+  | 'not-scoped'
+  | 'ap-waiting';
 
 export interface ViewModel {
   role: Role;
