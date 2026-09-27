@@ -126,6 +126,7 @@ export const ADMIN_APPS: AdminApp[] = [
       { id: 'cycles', label: 'Cycles' },
       { id: 'excluded-vendors', label: 'Excluded Vendors' },
       { id: 'access-approvals', label: 'Access Approvals', countKey: 'soa' },
+      { id: 'country-team', label: 'Country Team' },
       { id: 'managers', label: 'Managers' },
     ],
   },

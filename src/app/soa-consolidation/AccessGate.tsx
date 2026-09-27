@@ -13,16 +13,25 @@ import { submitSoaAccessRequest } from '@/app/actions/soa/access';
  * the form is what a rejected user needs (they are allowed to ask again), and hiding it behind a
  * second click would only make them hunt for it.
  *
- * Only Champion and Viewer are offerable. A manager is appointed in the matrix on /admin and an
- * admin comes from ADMIN_EMAILS; `submitSoaAccessRequest` rejects anything else outright, so
- * offering them here would just produce an error the requester cannot act on.
+ * Champion, Accounts Payable and Viewer are offerable. A manager is appointed in the matrix on
+ * /admin and an admin comes from ADMIN_EMAILS; `submitSoaAccessRequest` rejects anything else
+ * outright, so offering them here would just produce an error the requester cannot act on.
+ *
+ * An approved request lands in the same `country_users` list the Country Team screen maintains, so
+ * somebody approved here is thereafter managed there — and an AP contact added there needs no
+ * request at all, which matters because half of them are shared mailboxes nobody can sign in as.
  */
 
-const ROLES: { id: 'champion' | 'viewer'; label: string; help: string }[] = [
+const ROLES: { id: 'champion' | 'ap' | 'viewer'; label: string; help: string }[] = [
   {
     id: 'champion',
     label: 'SC SOA Champion',
     help: 'Runs your country’s vendor chase — scopes vendors, sends requests, accepts statements and hands the consolidated file to Finance.',
+  },
+  {
+    id: 'ap',
+    label: 'Accounts Payable',
+    help: 'Copied on every vendor letter for your country, and reviews the returned statements once the champion closes the cycle.',
   },
   {
     id: 'viewer',
@@ -49,7 +58,7 @@ export default function AccessGate({
   existing?: { role: string; country: string } | null;
 }) {
   const router = useRouter();
-  const [role, setRole] = useState<'champion' | 'viewer'>('champion');
+  const [role, setRole] = useState<'champion' | 'ap' | 'viewer'>('champion');
   const [country, setCountry] = useState<string>(ALL_COUNTRIES);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);

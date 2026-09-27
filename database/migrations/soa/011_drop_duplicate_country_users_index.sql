@@ -1,0 +1,11 @@
+-- Drop the unique index 010 added; country_users_email_role_country_uniq already existed.
+--
+-- The new one was not merely redundant. It indexed country_id directly rather than
+-- COALESCE(country_id, '*'), and a btree treats NULLs as distinct, so it would have permitted two
+-- "all countries" rows for the same person and role that the original correctly refuses. It also
+-- keyed on LOWER(email) while every upsert in the code targets ON CONFLICT (email, role,
+-- COALESCE(country_id, '*')) -- so a mixed-case address would have missed the conflict target and
+-- hit this index as a plain violation instead of updating.
+--
+-- Nothing depends on it. The guarantee 010 wanted was already there.
+DROP INDEX IF EXISTS country_users_unique;

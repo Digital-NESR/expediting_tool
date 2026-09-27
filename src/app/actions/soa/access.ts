@@ -49,7 +49,19 @@ export interface SoaGrantRow {
 
 export type SoaActionResult = { success: boolean; error?: string };
 
-const REQUESTABLE = new Set(['champion', 'viewer']);
+/**
+ * Roles a person may ask for.
+ *
+ * `ap` is here because Accounts Payable staff review a closed cycle for their own country, which
+ * is exactly the kind of access it is reasonable to request and have approved. `manager` is not:
+ * it sees the corporate rollup across every country and stays an appointment.
+ */
+const REQUESTABLE = new Set(['champion', 'viewer', 'ap']);
+
+/** Roles an administrator appoints directly on the country team screen. */
+const APPOINTABLE = new Set(['champion', 'ap', 'manager']);
+
+export type AppointableRole = 'champion' | 'ap' | 'manager';
 
 function serialiseDate(value: unknown): string {
   return value instanceof Date ? value.toISOString() : String(value ?? '');
@@ -85,7 +97,7 @@ export async function submitSoaAccessRequest(input: {
     await ensureSoaSchema();
 
     if (!REQUESTABLE.has(input.role)) {
-      return { success: false, error: 'Choose either Champion or Viewer.' };
+      return { success: false, error: 'Choose Champion, Accounts Payable or Viewer.' };
     }
     if (input.countryId) {
       const known = await sql<QueryResultRow[]>(`SELECT 1 FROM countries WHERE id = ? AND active`, [
@@ -248,7 +260,7 @@ export async function approveSoaAccessRequest(input: {
   try {
     const admin = await requireSoaActor('admin');
     if (!REQUESTABLE.has(input.role)) {
-      return { success: false, error: 'A request can only be approved as Champion or Viewer.' };
+      return { success: false, error: 'A request can only be approved as Champion, Accounts Payable or Viewer.' };
     }
     const email = normalizeEmail(input.email);
     if (!email) return { success: false, error: 'Email is required.' };
@@ -414,5 +426,102 @@ export async function removeSoaManager(input: {
   } catch (err) {
     log.error('removeSoaManager.failed', err);
     return { success: false, error: 'Could not remove the manager.' };
+  }
+}
+
+/* ─── Country team: champions and AP contacts ──────────────── */
+
+/**
+ * Everyone appointed to a country, champions and AP together.
+ *
+ * One list rather than two screens because they are read together: a champion chases the vendors
+ * and the AP contacts are copied on every letter and pick the cycle up when it closes. Seeing a
+ * country with three champions and no AP contact is the point.
+ */
+export async function getSoaCountryTeam(): Promise<SoaGrantRow[]> {
+  try {
+    await requireSoaActor('admin');
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT cu.email, cu.name, cu.role::text AS role, cu.country_id
+         FROM country_users cu
+        WHERE cu.role IN ('champion', 'ap')
+        ORDER BY cu.country_id, cu.role, cu.name`,
+    );
+    return rows.map((r) => ({
+      email: String(r.email),
+      name: String(r.name),
+      role: String(r.role),
+      country_id: r.country_id === null ? null : String(r.country_id),
+    }));
+  } catch (err) {
+    log.error('getSoaCountryTeam.failed', err);
+    return [];
+  }
+}
+
+/**
+ * Appoint somebody to a country.
+ *
+ * The address is not required to be in the employee directory. Half the AP contacts are shared
+ * mailboxes -- invoices.ksa@nesr.com, financeteam.kuwait@nesr.com -- which no person owns and
+ * which nobody could ever request access on behalf of. They still need to be copied on the
+ * letters, so an administrator can type one in.
+ */
+export async function setSoaCountryUser(input: {
+  email: string;
+  name: string;
+  countryId: string;
+  role: AppointableRole;
+}): Promise<SoaActionResult> {
+  try {
+    await requireSoaActor('admin');
+    if (!APPOINTABLE.has(input.role)) return { success: false, error: 'Unknown role.' };
+
+    const email = normalizeEmail(input.email);
+    const name = input.name.trim();
+    if (!email || !email.includes('@')) return { success: false, error: 'That is not an email address.' };
+    if (!name) return { success: false, error: 'A name is required — it appears in the letter and the audit trail.' };
+
+    const known = await sql<QueryResultRow[]>(`SELECT 1 FROM countries WHERE id = ? AND active`, [
+      input.countryId,
+    ]);
+    if (!known.length) return { success: false, error: 'Unknown country.' };
+
+    await exec(
+      `INSERT INTO country_users (email, name, country_id, role)
+       VALUES (?, ?, ?, ?::soa_user_role)
+       ON CONFLICT (email, role, COALESCE(country_id, '*')) DO UPDATE SET name = EXCLUDED.name`,
+      [email, name, input.countryId, input.role],
+    );
+    log.info('countryTeam.appointed', { email, countryId: input.countryId, role: input.role });
+    revalidatePath('/admin/soa');
+    revalidatePath('/soa-consolidation');
+    return { success: true };
+  } catch (err) {
+    log.error('setSoaCountryUser.failed', err);
+    return { success: false, error: 'Could not save that appointment.' };
+  }
+}
+
+/** Remove one appointment. Leaves any access request they hold alone. */
+export async function removeSoaCountryUser(input: {
+  email: string;
+  countryId: string;
+  role: AppointableRole;
+}): Promise<SoaActionResult> {
+  try {
+    await requireSoaActor('admin');
+    if (!APPOINTABLE.has(input.role)) return { success: false, error: 'Unknown role.' };
+    await exec(
+      `DELETE FROM country_users
+        WHERE LOWER(email) = ? AND role = ?::soa_user_role AND country_id = ?`,
+      [normalizeEmail(input.email), input.role, input.countryId],
+    );
+    revalidatePath('/admin/soa');
+    revalidatePath('/soa-consolidation');
+    return { success: true };
+  } catch (err) {
+    log.error('removeSoaCountryUser.failed', err);
+    return { success: false, error: 'Could not remove that appointment.' };
   }
 }
