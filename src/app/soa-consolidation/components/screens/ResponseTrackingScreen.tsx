@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useState } from 'react';
+import SubmissionLines from '../SubmissionLines';
 import type { ScreenProps, VendorEnrichedVM } from '../../types';
 import TableToolbar from '../TableToolbar';
 import { FILTER_TAB_SELECTED, VENDOR_STATUS_BADGE } from '../tones';
@@ -105,6 +106,9 @@ function VendorDetail({
           ))}
         </div>
       )}
+      {/* The rows the coverage figure is actually computed from. The file above is the evidence;
+          these are what it was read to mean, and a champion should be able to see both. */}
+      {v.submissions.length > 0 && <SubmissionLines entryId={v.id} vendorName={v.name} />}
       {editing && (
         <div className="flex gap-2 items-center mt-2.5">
           <input
