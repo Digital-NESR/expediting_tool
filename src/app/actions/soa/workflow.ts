@@ -30,7 +30,8 @@ import {
   type ParsedLine,
 } from '@/lib/soa/submission-lines';
 import { htmlToText, renderTemplate, type TemplateVars } from '@/lib/soa/email-template';
-import { AppUrlNotConfiguredError, uploadLinkFor } from '@/lib/soa/links';
+import { AppUrlNotConfiguredError, soaPortalUrl, uploadLinkFor } from '@/lib/soa/links';
+import { notifySoaHandoff } from '@/lib/soa/notify';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import { MailNotConfiguredError, sendMail, type MailMessage } from '@/lib/soa/mail';
 
@@ -571,11 +572,15 @@ export async function acceptSoaSubmission(entryId: number, formData: FormData): 
  * cannot be signed off short, and a tool that let a champion click past it would be worse than no
  * tool — it would put a tick beside a control that was never met.
  */
-export async function handOffSoaCountry(countryId: string): Promise<SoaResult> {
+export async function handOffSoaCountry(
+  countryId: string,
+): Promise<SoaResult<{ notified: boolean; apContacts: number }>> {
   try {
     const actor = await requireSoaCountry(countryId, 'champion');
     const rows = await sql<QueryResultRow[]>(
       `SELECT cc.id, cy.coverage_target_pct, cy.label,
+              COUNT(vce.id)::int AS vendor_count,
+              COUNT(vce.id) FILTER (WHERE vce.status = 'received')::int AS received_count,
               COALESCE(SUM(vce.open_po_amount) FILTER (WHERE vce.status = 'received'), 0) AS received,
               (SELECT COALESCE(SUM(e.pos_value), 0)
                  FROM supplier_po_extract e
@@ -619,8 +624,28 @@ export async function handOffSoaCountry(countryId: string): Promise<SoaResult> {
       );
     });
 
+    /* After the commit, and never allowed to undo it. A cycle closed but not announced is a
+       delay somebody can fix by looking at the portal; a close refused because a webhook was down
+       is work that has to be done again. The champion is told which happened rather than left to
+       assume the notice went. */
+    const ctx = await letterContext(countryId);
+    const notified = await notifySoaHandoff({
+      countryName: ctx.countryName,
+      cycleLabel: String(rows[0].label),
+      apEmails: ctx.apEmails,
+      championEmails: [...new Set([...ctx.championEmails, actor.email])],
+      closedBy: actor.name,
+      vendors: Number(rows[0].vendor_count),
+      statementsReceived: Number(rows[0].received_count),
+      coveragePct: pct,
+      portalUrl: soaPortalUrl(),
+    });
+
     revalidatePath('/soa-consolidation');
-    return { success: true };
+    return {
+      success: true,
+      data: { notified, apContacts: ctx.apEmails.length },
+    };
   } catch (err) {
     log.error('handOffSoaCountry.failed', err);
     return {

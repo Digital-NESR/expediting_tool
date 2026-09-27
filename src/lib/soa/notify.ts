@@ -22,6 +22,7 @@ const log = logger('soa-notify');
 
 const ROLE_LABEL: Record<string, string> = {
   champion: 'SC SOA Champion',
+  ap: 'Accounts Payable',
   viewer: 'Read-only Viewer',
 };
 
@@ -108,5 +109,79 @@ export async function notifySoaAccessRequest(input: {
     log.warn('accessRequest.notifyFailed', {
       error: err instanceof Error ? err.message : String(err),
     });
+  }
+}
+
+/**
+ * Tell Accounts Payable that a country's cycle has been closed.
+ *
+ * The tool promises this on the AP waiting screen -- "you will be emailed when they do" -- so it
+ * is the one piece of the handoff that is visible from outside. It goes through the same single
+ * mail webhook as everything else the tool sends.
+ *
+ * Best-effort, and deliberately so. The close is already committed by the time this is called: a
+ * cycle that was closed but not announced is a delay somebody can fix by looking at the portal,
+ * while a close refused because a webhook was down is work that has to be done again. Returns
+ * whether the notice went, so the champion is told which of the two happened rather than being
+ * left to assume.
+ */
+export async function notifySoaHandoff(input: {
+  countryName: string;
+  cycleLabel: string;
+  apEmails: string[];
+  championEmails: string[];
+  closedBy: string;
+  vendors: number;
+  statementsReceived: number;
+  coveragePct: number;
+  portalUrl: string | null;
+}): Promise<boolean> {
+  if (!input.apEmails.length) {
+    log.warn('handoff.noApContacts', { countryName: input.countryName });
+    return false;
+  }
+
+  const rows: [string, string][] = [
+    ['Country', input.countryName],
+    ['Cycle', input.cycleLabel],
+    ['Vendors in scope', String(input.vendors)],
+    ['Statements received', String(input.statementsReceived)],
+    ['Coverage', `${input.coveragePct}%`],
+    ['Closed by', input.closedBy],
+  ];
+
+  const bodyHtml = [
+    `<p>The Statement of Account cycle for <strong>${esc(input.countryName)}</strong> has been closed and is ready for your review.</p>`,
+    '<table cellpadding="4" style="border-collapse:collapse">',
+    ...rows.map(
+      ([k, v]) =>
+        `<tr><td style="color:#58595B">${esc(k)}</td><td><strong>${esc(v)}</strong></td></tr>`,
+    ),
+    '</table>',
+    input.portalUrl
+      ? `<p>Open it in the portal: <a href="${esc(input.portalUrl)}">${esc(input.portalUrl)}</a></p>`
+      : '<p>Open SOA Consolidation in the SC Agents portal to review it.</p>',
+    '<p>You can see every statement returned, the invoice lines read from each one, and the full evidence trail.</p>',
+  ].join('');
+
+  try {
+    const { sendMail } = await import('./mail');
+    await sendMail({
+      kind: 'soa.handoff',
+      to: input.apEmails,
+      cc: input.championEmails,
+      subject: `SOA ${input.cycleLabel} closed — ${input.countryName}`,
+      bodyHtml,
+      bodyText: rows.map(([k, v]) => k + ": " + v).join('\n'),
+      attachments: [],
+      meta: { countryName: input.countryName, cycleLabel: input.cycleLabel },
+    });
+    return true;
+  } catch (err) {
+    log.warn('handoff.notifyFailed', {
+      countryName: input.countryName,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
   }
 }

@@ -39,6 +39,21 @@ function appBase(): string {
   return raw;
 }
 
+/**
+ * The tool's own front door, or null when the base is not configured.
+ *
+ * Null rather than throwing, because this is only ever a convenience link inside a notification.
+ * A handoff notice that reaches AP without a clickable link still tells them the thing they need
+ * to know; one that fails to send because an environment variable is missing does not.
+ */
+export function soaPortalUrl(): string | null {
+  try {
+    return `${appBase()}/soa-consolidation`;
+  } catch {
+    return null;
+  }
+}
+
 /** Where a vendor uploads the statement for one cycle. */
 export function uploadLinkFor(uploadToken: string): string {
   return `${appBase()}/soa-upload/${uploadToken}`;

@@ -467,13 +467,26 @@ export default function SoaConsolidationClient({
       if (!countryId) return;
       void run(
         () => handOffSoaCountry(countryId),
-        () => {
+        (data) => {
           patch({ modal: null });
-          addToast(
-            'success',
-            'Handed off to Finance',
-            `${payload.countryName} ${payload.cycle?.label ?? ''} delivered to the AP Country Group inbox.`,
-          );
+          const where = `${payload.countryName} ${payload.cycle?.label ?? ''}`.trim();
+          /* Say which of the two actually happened. The close is committed either way, and a
+             champion who is told "AP notified" when no mail went will not chase it. */
+          if (data?.notified) {
+            addToast(
+              'success',
+              'Closed and Accounts Payable notified',
+              `${where} is closed. ${data.apContacts === 1 ? 'The AP contact has' : `All ${data.apContacts} AP contacts have`} been emailed and can now review it.`,
+            );
+          } else {
+            addToast(
+              'warning',
+              'Closed, but Accounts Payable was not emailed',
+              data?.apContacts === 0
+                ? `${where} is closed. No AP contact is set for this country, so nobody was told — add one in /admin.`
+                : `${where} is closed and is readable by Accounts Payable in the portal, but the notification could not be sent.`,
+            );
+          }
         },
         // handOffSoaCountry refuses below the coverage target and says by how much; that message
         // is the whole point of the refusal, so it is surfaced rather than swallowed.
