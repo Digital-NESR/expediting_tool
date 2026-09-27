@@ -18,6 +18,8 @@ async function open(buf: Buffer): Promise<ExcelJS.Workbook> {
   return wb;
 }
 
+const AP = ['financeteam.kuwait@nesr.com', 'financeteam.kuwait@cpvenkuwait.com'];
+
 function text(cell: ExcelJS.CellValue): string {
   if (cell === null || cell === undefined) return '';
   if (typeof cell === 'object' && 'text' in cell) return String(cell.text ?? '');
@@ -47,7 +49,7 @@ describe('workbookCountryName', () => {
 
 describe('buildSupplierWorkbook', () => {
   it('keeps only the columns the supplier fills', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW'));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
     const sheet = wb.getWorksheet('SOA')!;
     const header: string[] = [];
     sheet.getRow(1).eachCell({ includeEmpty: true }, (c, n) => (header[n] = text(c.value).trim()));
@@ -55,7 +57,7 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('drops the four columns we stamp ourselves', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW'));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
     const sheet = wb.getWorksheet('SOA')!;
     const header: string[] = [];
     sheet.getRow(1).eachCell({ includeEmpty: true }, (c, n) => (header[n] = text(c.value).trim()));
@@ -65,7 +67,7 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('ships empty — nothing is pre-filled', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW'));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
     const sheet = wb.getWorksheet('SOA')!;
     for (let r = 2; r <= sheet.rowCount; r++)
       for (let c = 1; c <= SUPPLIER_COLUMNS.length; c++)
@@ -73,7 +75,7 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('points Legal Entity at that country’s entity list', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW'));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
     const col = SUPPLIER_COLUMNS.indexOf('Legal Entity') + 1;
     const v = wb.getWorksheet('SOA')!.getRow(2).getCell(col).dataValidation;
     expect(v?.type).toBe('list');
@@ -82,13 +84,13 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('gives Saudi Arabia the workbook’s spelling, not the tool’s', async () => {
-    const wb = await open(await buildSupplierWorkbook('SA'));
+    const wb = await open(await buildSupplierWorkbook('SA', 'Saudi Arabia', AP));
     const col = SUPPLIER_COLUMNS.indexOf('Legal Entity') + 1;
     expect(wb.getWorksheet('SOA')!.getRow(2).getCell(col).dataValidation?.formulae).toEqual(['=KSA']);
   });
 
   it('keeps the defined names the dropdown resolves through, but hides the lookup sheet', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW'));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
     const names = (wb.definedNames.model ?? []).map((d: { name: string }) => d.name);
     expect(names).toContain('Kuwait');
     // The dropdown needs the sheet; the supplier has no reason to read every NESR entity.
@@ -96,12 +98,51 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('keeps the instructions the supplier needs', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW'));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
     expect(wb.worksheets.map((w) => w.name)).toContain('Instruction');
   });
 
+  it('removes the AP mailbox sheet', async () => {
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
+    // That list belongs to NESR, not to the supplier; the one address that concerns them is on
+    // the instructions.
+    expect(wb.worksheets.map((w) => w.name)).not.toContain('AP Group Emails');
+  });
+
+  it('prints every AP address for the country on the instructions', async () => {
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
+    const sheet = wb.getWorksheet('Instruction')!;
+    const body: string[] = [];
+    sheet.eachRow({ includeEmpty: false }, (row) => {
+      row.eachCell({ includeEmpty: false }, (c) => body.push(text(c.value)));
+    });
+    for (const email of AP) expect(body).toContain(email);
+    expect(body.join(' ')).toContain('Kuwait');
+    // The template's own closing line pointed at a sheet by a name it never had.
+    expect(body.join(' ')).not.toContain('Email Notification Tab');
+  });
+
+  it('says something useful when a country has no AP address', async () => {
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', []));
+    const sheet = wb.getWorksheet('Instruction')!;
+    const body: string[] = [];
+    sheet.eachRow({ includeEmpty: false }, (row) => {
+      row.eachCell({ includeEmpty: false }, (c) => body.push(text(c.value)));
+    });
+    // Sending is blocked in that state, so this should never ship — but a blank where an address
+    // belongs would be worse than saying so.
+    expect(body.join(' ')).toContain('NESR contact who sent you this request');
+  });
+
+  it('does not serve one country the instructions built for another', async () => {
+    // The AP addresses are printed into the sheet, so they are part of the cache key.
+    const kw = await buildSupplierWorkbook('KW', 'Kuwait', AP);
+    const sa = await buildSupplierWorkbook('SA', 'Saudi Arabia', ['invoices.ksa@nesr.com']);
+    expect(kw.equals(sa)).toBe(false);
+  });
+
   it('stays small enough to travel inside the webhook payload', async () => {
-    const buf = await buildSupplierWorkbook('KW');
+    const buf = await buildSupplierWorkbook('KW', 'Kuwait', AP);
     expect(buf.byteLength).toBeLessThan(120_000);
   });
 });

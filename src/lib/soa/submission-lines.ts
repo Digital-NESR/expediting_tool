@@ -233,7 +233,12 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
 
     const issues: string[] = [];
     const invoiceNumber = str(get(row, 'invoiceNumber'));
-    if (!invoiceNumber) issues.push('No invoice number');
+    const poNumber = str(get(row, 'poNumber'));
+    /* A missing invoice number is only a problem when there is no purchase order either. The
+       instructions explicitly ask for a PO with a blank invoice number where goods were received
+       but not yet billed, so flagging that would put an issue on every correctly-filled row of an
+       unbilled delivery. */
+    if (!invoiceNumber && !poNumber) issues.push('No invoice or purchase order number');
 
     const dateCell = get(row, 'invoiceDate');
     const invoiceDate = parseDate(dateCell);
@@ -260,7 +265,7 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
       invoiceNumber,
       invoiceDate,
       invoiceDateRaw: invoiceDate ? null : (dateText ?? null) || null,
-      poNumber: str(get(row, 'poNumber')),
+      poNumber,
       serviceType: str(get(row, 'serviceType')),
       currency: str(get(row, 'currency'))?.toUpperCase() ?? null,
       taxAmount: parseAmount(get(row, 'taxAmount')),

@@ -127,6 +127,19 @@ export default function RecipientList({
               No AP contact set for this country — add one in /admin
             </span>
           )}
+          {(data?.championEmails ?? [])
+            .filter((c) => c.toLowerCase() !== senderEmail.toLowerCase())
+            .map((champ) => (
+              <span
+                key={champ}
+                className="inline-flex items-center gap-1 rounded-full bg-[#ECEFEC] px-2.5 py-1 text-[11px]"
+              >
+                {champ}
+                <span className="text-[9.5px] uppercase tracking-[0.4px] text-sns-grey">
+                  champion
+                </span>
+              </span>
+            ))}
           {extraCc.map((e) => (
             <span
               key={e.mail}
@@ -148,7 +161,12 @@ export default function RecipientList({
           <div className="max-w-[420px]">
             <EmployeeSearchInput
               placeholder="Add a NESR colleague to CC…"
-              excludeEmails={[senderEmail, ...(data?.apEmails ?? []), ...extraCc.map((e) => e.mail)]}
+              excludeEmails={[
+                senderEmail,
+                ...(data?.apEmails ?? []),
+                ...(data?.championEmails ?? []),
+                ...extraCc.map((e) => e.mail),
+              ]}
               onSelect={(emp) =>
                 setExtraCc((list) => (list.some((x) => x.mail === emp.mail) ? list : [...list, emp]))
               }

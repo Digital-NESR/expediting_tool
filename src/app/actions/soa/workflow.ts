@@ -123,8 +123,13 @@ async function mailFor(
 ): Promise<MailMessage> {
   const vars = { ...letter.vars, vendorName: context.vendorName, vendorNo: context.vendorNo };
   // Lean and identical for everyone in the country; the vendor's identity is stamped onto the
-  // rows when the file comes back, not printed into the blank they are sent.
-  const workbook = await buildSupplierWorkbook(context.countryId);
+  // rows when the file comes back, not printed into the blank they are sent. The AP addresses go
+  // on its instructions, which is why they are passed in rather than read there.
+  const workbook = await buildSupplierWorkbook(
+    context.countryId,
+    context.countryName,
+    letter.apEmails,
+  );
 
   const html = renderTemplate(letter.bodyHtml, vars);
   return {
@@ -170,6 +175,8 @@ interface RenderedLetter {
   cc: string[];
   /** Stamped into the workbook's Month/Year column. */
   monthYear: string;
+  /** Printed on the workbook's instructions as the address to return it to. */
+  apEmails: string[];
 }
 
 async function prepareLetter(
@@ -183,9 +190,11 @@ async function prepareLetter(
     getEmployeeDirectoryDefaults(actor.email).catch(() => null),
   ]);
 
-  // The sender always sees what went out, and AP owns the mailbox the vendor is told to reply to.
-  // Anything else is a one-off the champion chose for this send and is not stored.
-  const cc = [...new Set([actor.email, ...ctx.apEmails, ...extraCc])]
+  /* The sender always sees what went out; AP owns the mailbox the vendor is told to reply to; and
+     the country's champions are copied because the letter names them as the contact for questions
+     and a vendor will reply to whoever wrote. A country can have several of each. Anything beyond
+     that is a one-off the sender chose for this send and is not stored. */
+  const cc = [...new Set([actor.email, ...ctx.apEmails, ...ctx.championEmails, ...extraCc])]
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 
@@ -194,6 +203,7 @@ async function prepareLetter(
     bodyHtml: stored.bodyHtml,
     cc,
     monthYear: ctx.statementMonthYear,
+    apEmails: ctx.apEmails,
     vars: {
       date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
       vendorName: '',
@@ -203,7 +213,7 @@ async function prepareLetter(
       statementPeriodEnd: ctx.statementPeriodEnd,
       replyBy: ctx.replyBy,
       apEmail: ctx.apEmails.join(', '),
-      championName: ctx.championName || actor.name,
+      championName: ctx.championNames.join(' or ') || actor.name,
       senderName: actor.name,
       senderTitle: directory?.position ?? '',
       senderMobile: '',

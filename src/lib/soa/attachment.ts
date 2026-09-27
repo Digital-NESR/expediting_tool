@@ -86,6 +86,122 @@ export function workbookCountryName(countryId: string): string | null {
 let templateCache: Buffer | null = null;
 const built = new Map<string, Buffer>();
 
+/**
+ * Rewrite the Instruction sheet.
+ *
+ * The template's version is a column of numbered fragments left over from however it was first
+ * assembled, and it ends by telling the supplier to reply to an "Email Notification Tab" that is
+ * not what the sheet holding the addresses is called. It is replaced wholesale rather than edited:
+ * this is the only page a supplier reads before filling the file in, and the addresses it now
+ * carries come from the country team, which changes without a deployment.
+ */
+function writeInstructions(sheet: ExcelJS.Worksheet, countryName: string, apEmails: string[]): void {
+  /* Cleared cell by cell rather than with spliceRows, which leaves the original content in place
+     here -- the template's sheet carries merges, and the new rows then land underneath the old
+     ones instead of replacing them. */
+  const previous = sheet.rowCount;
+  const merges = (sheet as unknown as { model?: { merges?: string[] } }).model?.merges ?? [];
+  for (const range of [...merges]) {
+    try {
+      sheet.unMergeCells(range);
+    } catch {
+      // Already gone, or never a real range. Nothing to undo.
+    }
+  }
+  for (let r = 1; r <= previous; r++) {
+    const row = sheet.getRow(r);
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.value = null;
+      cell.style = {};
+    });
+  }
+
+  sheet.columns = [{ width: 4 }, { width: 104 }];
+
+  let at = 1;
+  const put = (marker: string | number | null, text: string | null): ExcelJS.Row => {
+    const row = sheet.getRow(at++);
+    row.getCell(1).value = marker;
+    row.getCell(2).value = text;
+    return row;
+  };
+
+  const title = (text: string) => {
+    const row = put(null, text);
+    row.getCell(2).font = { bold: true, size: 14, color: { argb: 'FF1D4F31' } };
+    row.height = 22;
+  };
+  const heading = (text: string) => {
+    const row = put(null, text);
+    row.getCell(2).font = { bold: true, size: 11 };
+    row.height = 18;
+  };
+  const step = (n: number, text: string) => {
+    const row = put(n, text);
+    row.getCell(1).font = { bold: true, color: { argb: 'FF2A7E4F' } };
+    row.getCell(1).alignment = { horizontal: 'right' };
+    row.getCell(2).alignment = { wrapText: true, vertical: 'top' };
+  };
+  const bullet = (text: string) => {
+    const row = put('•', text);
+    row.getCell(1).alignment = { horizontal: 'right' };
+    row.getCell(2).alignment = { wrapText: true, vertical: 'top' };
+  };
+  const blank = () => put(null, null);
+
+  title('NESR — Statement of Account');
+  const sub = put(null, `How to complete this workbook — ${countryName}`);
+  sub.getCell(2).font = { size: 11, color: { argb: 'FF58595B' } };
+  blank();
+
+  heading('Filling it in');
+  step(1, 'Open the "SOA" sheet and enter one row for each outstanding invoice.');
+  step(2, 'Choose your NESR legal entity from the dropdown in the Legal Entity column.');
+  step(3, 'Complete every column. Only "Type of service / Product Delivered" is optional.');
+  step(
+    4,
+    'Do not rename, reorder or remove the columns, and do not add sheets. The file is read automatically when you return it.',
+  );
+  step(
+    5,
+    'Send the completed workbook to the address below. Return the Excel file itself, not a printout or a scan.',
+  );
+  blank();
+
+  heading('Please note');
+  bullet(
+    'Invoices listed as at the closing date are taken as the final outstanding statement for that month.',
+  );
+  bullet(
+    'If a purchase order has been received and the goods delivered but no invoice has been raised yet, enter the purchase order number and leave the invoice number blank.',
+  );
+  bullet(
+    'For a credit note, write "Credit Note" in the Type of service / Product Delivered column.',
+  );
+  bullet('Amounts should be entered as numbers, in the currency named on the same row.');
+  blank();
+
+  heading('Send the completed workbook to');
+  if (apEmails.length) {
+    for (const email of apEmails) {
+      const row = put(null, email);
+      row.getCell(2).font = { bold: true, color: { argb: 'FF2A7E4F' } };
+    }
+  } else {
+    // Sending is blocked for a country with no AP contact, so this should never ship; if it
+    // somehow does, say so rather than leaving a blank where an address belongs.
+    const row = put(null, 'Reply to the NESR contact who sent you this request.');
+    row.getCell(2).font = { italic: true };
+  }
+
+  for (let r = at; r <= previous; r++) {
+    sheet.getRow(r).eachCell({ includeEmpty: true }, (cell) => {
+      cell.value = null;
+      cell.style = {};
+    });
+  }
+}
+
 async function templateBytes(): Promise<Buffer> {
   templateCache ??= await readFile(TEMPLATE);
   return templateCache;
@@ -105,8 +221,14 @@ async function templateBytes(): Promise<Buffer> {
  *
  * Cached per country. Nothing about it varies per vendor or per cycle.
  */
-export async function buildSupplierWorkbook(countryId: string): Promise<Buffer> {
-  const cached = built.get(countryId);
+export async function buildSupplierWorkbook(
+  countryId: string,
+  countryName: string,
+  apEmails: string[],
+): Promise<Buffer> {
+  // The AP addresses are printed into the sheet, so they are part of what makes a build distinct.
+  const key = `${countryId}|${countryName}|${apEmails.join(',')}`;
+  const cached = built.get(key);
   if (cached) return cached;
 
   const wb = new ExcelJS.Workbook();
@@ -171,8 +293,16 @@ export async function buildSupplierWorkbook(countryId: string): Promise<Buffer> 
   const entities = wb.getWorksheet('Legal Entities');
   if (entities) entities.state = 'veryHidden';
 
+  const instructions = wb.getWorksheet('Instruction');
+  if (instructions) writeInstructions(instructions, countryName, apEmails);
+
+  // The AP mailbox list belongs to NESR, not to the supplier, and the one address that concerns
+  // them is now printed on the instructions.
+  const apSheet = wb.getWorksheet('AP Group Emails');
+  if (apSheet) wb.removeWorksheet(apSheet.id);
+
   const out = Buffer.from(await wb.xlsx.writeBuffer());
-  built.set(countryId, out);
+  built.set(key, out);
   return out;
 }
 

@@ -127,12 +127,29 @@ describe('parseSupplierWorkbook', () => {
     expect(res.lines).toHaveLength(1);
     expect(res.lines[0].issues).toEqual(
       expect.arrayContaining([
-        'No invoice number',
         'Invoice date "shortly" could not be read',
         'No amount on this row',
       ]),
     );
+    // A PO number is present, so the blank invoice number is the documented unbilled case.
+    expect(res.lines[0].issues).not.toContain('No invoice or purchase order number');
     expect(res.lines[0].invoiceDateRaw).toBe('shortly');
+  });
+
+  it('accepts a purchase order with no invoice, which the instructions ask for', async () => {
+    const buf = await sheetOf([
+      HEAD,
+      [1, 'E', '', '01/09/2026', 'PO-44', 'Delivered, not yet billed', 'USD', 0, 900, 900, 3, ''],
+    ]);
+    const res = await parseSupplierWorkbook(buf);
+    expect(res.lines[0].poNumber).toBe('PO-44');
+    expect(res.lines[0].issues).toEqual([]);
+  });
+
+  it('flags a row with neither an invoice nor a purchase order', async () => {
+    const buf = await sheetOf([HEAD, [1, 'E', '', '01/09/2026', '', '', 'USD', 0, 10, 10, 1, '']]);
+    const res = await parseSupplierWorkbook(buf);
+    expect(res.lines[0].issues).toContain('No invoice or purchase order number');
   });
 
   it('skips blank rows without renumbering around them', async () => {
@@ -151,7 +168,9 @@ describe('parseSupplierWorkbook', () => {
 
   it('reads back the very workbook we send out', async () => {
     // The blank we hand suppliers must itself be parseable, or the first real return will fail.
-    const res = await parseSupplierWorkbook(await buildSupplierWorkbook('KW'));
+    const res = await parseSupplierWorkbook(
+      await buildSupplierWorkbook('KW', 'Kuwait', ['financeteam.kuwait@nesr.com']),
+    );
     expect(res.lines).toHaveLength(0);
     expect(res.headerRow).toBe(1);
   });

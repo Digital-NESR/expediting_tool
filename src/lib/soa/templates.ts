@@ -110,7 +110,9 @@ export interface LetterContext {
   replyBy: string;
   /** Every AP mailbox for the country. More than one is normal: Kuwait has two. */
   apEmails: string[];
-  championName: string;
+  /** Every champion for the country. A country can be run by more than one person. */
+  championNames: string[];
+  championEmails: string[];
 }
 
 function formatDay(value: unknown): string {
@@ -133,8 +135,12 @@ export async function letterContext(countryId: string): Promise<LetterContext> {
             (SELECT ARRAY_AGG(cu.email ORDER BY cu.name)
                FROM country_users cu
               WHERE cu.country_id = co.id AND cu.role = 'ap') AS ap_emails,
-            (SELECT cu.name FROM country_users cu
-              WHERE cu.country_id = co.id AND cu.role = 'champion' ORDER BY cu.name LIMIT 1) AS champion
+            (SELECT ARRAY_AGG(cu.name ORDER BY cu.name)
+               FROM country_users cu
+              WHERE cu.country_id = co.id AND cu.role = 'champion') AS champion_names,
+            (SELECT ARRAY_AGG(cu.email ORDER BY cu.name)
+               FROM country_users cu
+              WHERE cu.country_id = co.id AND cu.role = 'champion') AS champion_emails
        FROM countries co JOIN cycles cy ON cy.is_active
       WHERE co.id = ?`,
     [countryId],
@@ -152,6 +158,7 @@ export async function letterContext(countryId: string): Promise<LetterContext> {
       : '',
     replyBy: formatDay(r.submission_deadline),
     apEmails: (r.ap_emails as string[] | null) ?? [],
-    championName: (r.champion as string) ?? '',
+    championNames: (r.champion_names as string[] | null) ?? [],
+    championEmails: (r.champion_emails as string[] | null) ?? [],
   };
 }

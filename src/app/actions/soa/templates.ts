@@ -84,7 +84,7 @@ async function varsFor(
     statementPeriodEnd: ctx.statementPeriodEnd,
     replyBy: ctx.replyBy,
     apEmail: ctx.apEmails.join(', '),
-    championName: ctx.championName || actor.name,
+    championName: ctx.championNames.join(' or ') || actor.name,
     senderName: actor.name,
     senderTitle: directory?.position ?? '',
     // The directory carries no phone number; a champion who wants one types it into the letter.
