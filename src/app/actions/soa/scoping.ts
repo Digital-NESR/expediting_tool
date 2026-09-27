@@ -186,3 +186,59 @@ export async function applySoaScopeSelection(input: {
     };
   }
 }
+
+/**
+ * Join a country to the open cycle.
+ *
+ * Joining used to be a side effect of scoping: the first time a champion saved a vendor list, the
+ * country_cycles row appeared. That left no way to tell a country that had decided not to take
+ * part from one nobody had opened yet, and no moment at which a champion saw the quarter's
+ * deadline and threshold before committing to them. It is now its own act, and it is recorded as
+ * one — the evidence trail should show who signed this country up and when.
+ */
+export async function enrolSoaCountry(countryId: string): Promise<SoaResult> {
+  try {
+    const actor = await requireSoaCountry(countryId, 'champion');
+    await ensureSoaSchema();
+
+    const cycles = await sql<QueryResultRow[]>(
+      `SELECT id, label, extracted_at FROM cycles WHERE is_active LIMIT 1`,
+    );
+    if (!cycles.length) return { success: false, error: 'No cycle is open.' };
+    const cycle = cycles[0];
+
+    /* Without the snapshot there is nothing to scope from, so joining would drop the champion on
+       an empty screen with no way forward. That is an admin's job, and the message should say so
+       rather than leaving them to guess. */
+    if (!cycle.extracted_at) {
+      return {
+        success: false,
+        error: 'The PO snapshot for this cycle has not been taken yet. An administrator runs it from /admin.',
+      };
+    }
+
+    const countryCycleId = await ensureCountryCycle(Number(cycle.id), countryId);
+
+    await withTransaction(soaPool, async (client) => {
+      await client.query(
+        `INSERT INTO evidence_log (country_cycle_id, type, action, actor, detail)
+         VALUES ($1, 'info', 'Joined the cycle', $2, $3)`,
+        [
+          countryCycleId,
+          actor.email,
+          `${actor.name} joined this country to ${String(cycle.label)}.`,
+        ],
+      );
+    });
+
+    log.info('cycle.enrolled', { countryId, cycleId: Number(cycle.id), by: actor.email });
+    revalidatePath('/soa-consolidation');
+    return { success: true };
+  } catch (err) {
+    log.error('enrolSoaCountry.failed', err, { countryId });
+    return {
+      success: false,
+      error: err instanceof AccessError ? err.message : 'Could not join the cycle.',
+    };
+  }
+}

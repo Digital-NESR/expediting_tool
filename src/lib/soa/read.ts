@@ -97,6 +97,14 @@ export interface SoaPayload {
   handedOff: boolean;
   /** False when nobody has scoped this country yet, which is a different empty from "no vendors". */
   scoped: boolean;
+  /**
+   * False until a champion joins this country to the open cycle.
+   *
+   * Distinct from `scoped`: joining says the country is taking part this quarter, scoping says
+   * which vendors it will chase. They used to be the same act, which left no way to tell a country
+   * that had decided not to start from one that simply had not been opened yet.
+   */
+  enrolled: boolean;
 }
 
 const EMPTY: SoaPayload = {
@@ -110,6 +118,7 @@ const EMPTY: SoaPayload = {
   evidence: [],
   handedOff: false,
   scoped: false,
+  enrolled: false,
 };
 
 const asIso = (v: unknown): string => (v instanceof Date ? v.toISOString() : v ? String(v) : '');
@@ -330,6 +339,7 @@ export async function loadSoa(
     totalBalance,
     handedOff: String(ccRows[0].status) === 'handed_off',
     scoped: true,
+    enrolled: true,
     vendors: vendorRows.map((r) => ({
       id: String(r.id),
       name: String(r.name),

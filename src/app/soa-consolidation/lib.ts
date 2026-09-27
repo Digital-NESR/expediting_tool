@@ -292,6 +292,34 @@ export function scopeTotals(
  * any more — a mutation calls its server action and refreshes, and this function re-runs over the
  * new payload.
  */
+/**
+ * Which "nothing here" a screen is looking at, in the order the obstacles actually appear.
+ *
+ * Pure and exported because the ORDER is the whole rule and it is invisible once inlined. Each
+ * state has a different person who fixes it — an administrator opens the cycle and runs the
+ * extract, a champion joins and then scopes — so reporting the wrong one sends somebody to wait on
+ * the wrong colleague. The one that caused real confusion was `no-extract`: opening a quarter and
+ * taking its snapshot are two admin steps, and between them the tool looked open for business with
+ * nothing in it.
+ */
+export function emptyKindFor(state: {
+  hasCycle: boolean;
+  hasCountry: boolean;
+  extracted: boolean;
+  enrolled: boolean;
+  scoped: boolean;
+}): EmptyKind {
+  if (!state.hasCycle) return 'no-cycle';
+  if (!state.hasCountry) return 'no-country';
+  if (!state.extracted) return 'no-extract';
+  // Joining is its own act. A country that has not joined has not decided against taking part, it
+  // simply has not started, and "nothing scoped" would send the champion looking for a list that
+  // does not exist yet.
+  if (!state.enrolled) return 'not-enrolled';
+  if (!state.scoped) return 'not-scoped';
+  return 'none';
+}
+
 export function deriveViewModel(
   payload: SoaPayload,
   state: AppState,
@@ -329,24 +357,20 @@ export function deriveViewModel(
 
   /* Which "nothing to show, and here is why". These are all reachable on any given morning: a
      quarter nobody has opened, a grant naming no active country, a country nobody has scoped. */
-  const emptyKind: EmptyKind = !cycle
-    ? 'no-cycle'
-    : !countryId
-      ? 'no-country'
-      : /* A quarter can be open without its spend snapshot having been taken, and until it is
-           there is nothing to scope FROM. That is an admin's job, not the champion's, so it gets
-           its own state rather than looking like a country nobody has got round to. */
-        !cycle.extractedAt
-        ? 'no-extract'
-        : !payload.scoped
-          ? 'not-scoped'
-          : 'none';
+  const emptyKind: EmptyKind = emptyKindFor({
+    hasCycle: Boolean(cycle),
+    hasCountry: Boolean(countryId),
+    extracted: Boolean(cycle?.extractedAt),
+    enrolled: payload.enrolled,
+    scoped: payload.scoped,
+  });
 
   /* Vendor Scoping is where a champion fixes "not scoped", and the rollup does not depend on this
      country at all, so those two screens stay live when the country itself is empty. */
   const emptyBlocks = (id: ScreenId) =>
     emptyKind === 'no-cycle' ||
     emptyKind === 'no-country' ||
+    emptyKind === 'not-enrolled' ||
     (emptyKind === 'not-scoped' && id !== 'scoping' && id !== 'rollup');
 
   const activeScreen: ScreenId = screen === 'rollup' && !canSeeRollup ? 'dashboard' : screen;
@@ -909,6 +933,7 @@ export function deriveViewModel(
     unrequestedCount,
     hasUnrequested: canAct && unrequestedCount > 0,
     unreachableCount,
+    onEnrol: handlers.enrol,
     onSendReminders: handlers.sendReminders,
     onSendRequests: handlers.sendRequests,
     onGoToConsolidation: handlers.goToConsolidation,

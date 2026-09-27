@@ -4,7 +4,11 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { csvSafe } from '@/lib/catalog-manager-utils';
-import { applySoaScopeSelection, getSoaScopeCandidates } from '@/app/actions/soa/scoping';
+import {
+  applySoaScopeSelection,
+  enrolSoaCountry,
+  getSoaScopeCandidates,
+} from '@/app/actions/soa/scoping';
 import {
   acceptSoaSubmission,
   getSoaExportRows,
@@ -215,6 +219,19 @@ export default function SoaConsolidationClient({
       patch({ modal: null });
     },
 
+    enrol() {
+      if (!countryId) return;
+      void run(
+        () => enrolSoaCountry(countryId),
+        () =>
+          addToast(
+            'success',
+            'Joined the cycle',
+            'Next, open Vendor Scoping and choose which suppliers to chase.',
+          ),
+        'Could not join the cycle',
+      );
+    },
     sendRequests(cc) {
       if (!countryId) return;
       void run(

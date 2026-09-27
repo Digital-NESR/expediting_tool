@@ -331,7 +331,13 @@ export interface TableControlsVM {
 }
 
 /** Which "there is nothing to show yet, and here is why" the tool is in. */
-export type EmptyKind = 'none' | 'no-cycle' | 'no-extract' | 'no-country' | 'not-scoped';
+export type EmptyKind =
+  | 'none'
+  | 'no-cycle'
+  | 'no-extract'
+  | 'no-country'
+  | 'not-enrolled'
+  | 'not-scoped';
 
 export interface ViewModel {
   role: Role;
@@ -400,6 +406,8 @@ export interface ViewModel {
   unrequestedCount: number;
   hasUnrequested: boolean;
   unreachableCount: number;
+  /** Joins this country to the open cycle. Champion-only, like scoping. */
+  onEnrol: () => void;
   /** `cc` is the extra NESR addresses chosen on the Recipients step; this send only. */
   onSendReminders: (cc?: string[]) => void;
   onSendRequests: (cc?: string[]) => void;
@@ -504,6 +512,7 @@ export interface Handlers {
   setScopeSearch: (value: string) => void;
   setScopePage: (page: number) => void;
   selectCountry: (countryId: string) => void;
+  enrol: () => void;
   sendReminders: (cc?: string[]) => void;
   sendRequests: (cc?: string[]) => void;
   /** Read the country's candidate list. Called by the scoping screen when it first renders. */
