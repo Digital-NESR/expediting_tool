@@ -31,11 +31,7 @@ import {
 } from '@/lib/soa/submission-lines';
 import { htmlToText, renderTemplate, type TemplateVars } from '@/lib/soa/email-template';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
-import {
-  dispatchOutreach,
-  OutreachNotConfiguredError,
-  type OutreachPayload,
-} from '@/lib/soa/outreach';
+import { MailNotConfiguredError, sendMail, type MailMessage } from '@/lib/soa/mail';
 
 const log = logger('soa-workflow');
 
@@ -119,37 +115,43 @@ async function writeEvidence(
   );
 }
 
-async function payloadFor(
+async function mailFor(
   context: EntryContext,
   kind: 'request' | 'reminder',
   sentBy: string,
   letter: RenderedLetter,
-): Promise<OutreachPayload> {
+): Promise<MailMessage> {
   const vars = { ...letter.vars, vendorName: context.vendorName, vendorNo: context.vendorNo };
   // Lean and identical for everyone in the country; the vendor's identity is stamped onto the
   // rows when the file comes back, not printed into the blank they are sent.
   const workbook = await buildSupplierWorkbook(context.countryId);
 
+  const html = renderTemplate(letter.bodyHtml, vars);
   return {
-    kind,
-    cycleLabel: context.cycleLabel,
-    countryId: context.countryId,
-    countryName: context.countryName,
-    vendorName: context.vendorName,
-    vendorNo: context.vendorNo,
-    amountUsd: context.amount,
-    currency: context.currency,
-    recipients: context.contacts,
+    kind: kind === 'request' ? 'soa.request' : 'soa.reminder',
+    to: context.contacts,
     cc: letter.cc,
-    submissionDeadline: context.submissionDeadline,
-    sentBy,
     subject: renderTemplate(letter.subject, vars),
-    bodyHtml: renderTemplate(letter.bodyHtml, vars),
-    bodyText: htmlToText(renderTemplate(letter.bodyHtml, vars)),
-    attachment: {
-      fileName: attachmentFileName(context.cycleLabel),
-      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      contentBase64: workbook.toString('base64'),
+    bodyHtml: html,
+    bodyText: htmlToText(html),
+    attachments: [
+      {
+        fileName: attachmentFileName(context.cycleLabel),
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        contentBase64: workbook.toString('base64'),
+      },
+    ],
+    // Context for the audit trail, not something the automation should branch on.
+    meta: {
+      cycleLabel: context.cycleLabel,
+      countryId: context.countryId,
+      countryName: context.countryName,
+      vendorName: context.vendorName,
+      vendorNo: context.vendorNo,
+      amountUsd: context.amount,
+      currency: context.currency,
+      submissionDeadline: context.submissionDeadline,
+      sentBy,
     },
   };
 }
@@ -236,7 +238,7 @@ export async function sendSoaOutreach(input: {
     const letter =
       input.letter ?? (await prepareLetter(context.countryId, actor, input.cc ?? []));
 
-    await dispatchOutreach(await payloadFor(context, input.kind, actor.email, letter));
+    await sendMail(await mailFor(context, input.kind, actor.email, letter));
 
     const isRequest = input.kind === 'request';
     await withTransaction(soaPool, async (client) => {
@@ -299,7 +301,7 @@ export async function sendSoaOutreach(input: {
     return {
       success: false,
       error:
-        err instanceof OutreachNotConfiguredError || err instanceof AccessError
+        err instanceof MailNotConfiguredError || err instanceof AccessError
           ? err.message
           : err instanceof Error
             ? err.message
