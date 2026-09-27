@@ -24,6 +24,11 @@ import { ensureSoaSchema, soaPool, sql } from '@/lib/soa/db';
 import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
 import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import { attachmentFileName, buildSupplierWorkbook } from '@/lib/soa/attachment';
+import {
+  UnreadableStatementError,
+  parseSupplierWorkbook,
+  type ParsedLine,
+} from '@/lib/soa/submission-lines';
 import { htmlToText, renderTemplate, type TemplateVars } from '@/lib/soa/email-template';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import {
@@ -410,17 +415,42 @@ export async function acceptSoaSubmission(entryId: number, formData: FormData): 
     if (!verdict.ok) return { success: false, error: verdict.reason };
 
     const invoiceCountRaw = String(formData.get('invoiceCount') ?? '').trim();
-    const invoiceCount = invoiceCountRaw ? Number(invoiceCountRaw) : 0;
-    if (!Number.isFinite(invoiceCount) || invoiceCount < 0) {
+    const typedCount = invoiceCountRaw ? Number(invoiceCountRaw) : 0;
+    if (!Number.isFinite(typedCount) || typedCount < 0) {
       return { success: false, error: 'Invoice count must be a number.' };
     }
 
+    /* Read the statement if it is a workbook.
+     *
+     * It legitimately might not be: the letter asks for the Excel AND a signed stamped PDF, so a
+     * submission can be a scan with no rows in it. A workbook that cannot be read is still
+     * recorded, with the reason kept against it -- refusing the upload would mean a statement that
+     * genuinely arrived could not be logged, and the champion is the one who should decide what to
+     * do about a malformed file. Where rows are read they replace the hand-typed count, because a
+     * number somebody typed is the weakest thing on this screen. */
+    const isWorkbook = /\.(xlsx|xlsm|xls)$/i.test(file.name);
+    let lines: ParsedLine[] = [];
+    let parseError: string | null = null;
+    if (isWorkbook) {
+      try {
+        const parsed = await parseSupplierWorkbook(content);
+        lines = parsed.lines;
+      } catch (err) {
+        parseError =
+          err instanceof UnreadableStatementError ? err.message : 'The workbook could not be read.';
+        log.warn('submission.unparsed', { entryId, file: file.name, reason: parseError });
+      }
+    }
+    const invoiceCount = lines.length || typedCount;
+
     await withTransaction(soaPool, async (client) => {
-      await client.query(
+      const inserted = await client.query<{ id: number }>(
         `INSERT INTO soa_submissions
            (vendor_cycle_entry_id, file_name, content, content_type, uploaded_by,
-            validated, detected_invoice_count, accepted_at, accepted_by)
-         VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW(), $5)`,
+            validated, detected_invoice_count, accepted_at, accepted_by,
+            parsed_line_count, parse_error)
+         VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW(), $5, $7, $8)
+         RETURNING id`,
         [
           entryId,
           file.name,
@@ -428,8 +458,46 @@ export async function acceptSoaSubmission(entryId: number, formData: FormData): 
           uploadMimeTypeFor(file.name, file.type),
           actor.email,
           invoiceCount || null,
+          isWorkbook && !parseError ? lines.length : null,
+          parseError,
         ],
       );
+      const submissionId = inserted.rows[0].id;
+
+      /* The supplier is never asked to retype their own name and number, so they are stamped on
+         here from the record that says who returned the file. One statement at a time, so a
+         batched insert would only save a few milliseconds on a couple of dozen rows. */
+      for (const line of lines) {
+        await client.query(
+          `INSERT INTO soa_submission_lines
+             (submission_id, line_no, vendor_no, vendor_name, country_id, month_year,
+              legal_entity, invoice_number, invoice_date, invoice_date_raw, po_number,
+              service_type, currency, tax_amount, total_amount, outstanding_amount,
+              outstanding_days, remarks, issues)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+          [
+            submissionId,
+            line.lineNo,
+            context.vendorNo,
+            context.vendorName,
+            context.countryId,
+            context.cycleLabel,
+            line.legalEntity,
+            line.invoiceNumber,
+            line.invoiceDate,
+            line.invoiceDateRaw,
+            line.poNumber,
+            line.serviceType,
+            line.currency,
+            line.taxAmount,
+            line.totalAmount,
+            line.outstandingAmount,
+            line.outstandingDays,
+            line.remarks,
+            line.issues,
+          ],
+        );
+      }
       await client.query(
         `UPDATE vendor_cycle_entries
             SET status = 'received', responded_at = NOW(), invoice_count = $2, updated_at = NOW()
@@ -444,7 +512,16 @@ export async function acceptSoaSubmission(entryId: number, formData: FormData): 
         'SOA received',
         actor.email,
         `${context.vendorName} (${context.vendorNo}) — statement accepted` +
-          (invoiceCount ? `, ${invoiceCount} invoices.` : '.'),
+          (lines.length
+            ? `, ${lines.length} invoice ${lines.length === 1 ? 'line' : 'lines'} read` +
+              (lines.some((l) => l.issues.length)
+                ? `, ${lines.filter((l) => l.issues.length).length} needing review.`
+                : '.')
+            : parseError
+              ? ` — the workbook could not be read: ${parseError}`
+              : invoiceCount
+                ? `, ${invoiceCount} invoices.`
+                : '.'),
       );
     });
 
