@@ -414,34 +414,38 @@ export async function acceptSoaSubmission(entryId: number, formData: FormData): 
     const verdict = validateUploadSignature(file.name, content, file.type);
     if (!verdict.ok) return { success: false, error: verdict.reason };
 
-    const invoiceCountRaw = String(formData.get('invoiceCount') ?? '').trim();
-    const typedCount = invoiceCountRaw ? Number(invoiceCountRaw) : 0;
-    if (!Number.isFinite(typedCount) || typedCount < 0) {
-      return { success: false, error: 'Invoice count must be a number.' };
+    /* The invoice count is no longer asked for. It is whatever the statement actually contains,
+       which is the only version of that number anybody can check. */
+
+    /* The statement is the filled-in template and nothing else, so it has to be readable.
+     *
+     * An unreadable file is refused rather than filed. Recording it would move the vendor to
+     * `received` and assert a statement was collected while leaving nothing behind that anyone
+     * could reconcile against, and the message the parser gives back names the actual problem --
+     * which is what the champion needs to put to the supplier. */
+    if (!/\.(xlsx|xlsm|xls)$/i.test(file.name)) {
+      return {
+        success: false,
+        error: 'Statements must be the filled-in Excel template. Ask the supplier to return the attached workbook.',
+      };
     }
 
-    /* Read the statement if it is a workbook.
-     *
-     * It legitimately might not be: the letter asks for the Excel AND a signed stamped PDF, so a
-     * submission can be a scan with no rows in it. A workbook that cannot be read is still
-     * recorded, with the reason kept against it -- refusing the upload would mean a statement that
-     * genuinely arrived could not be logged, and the champion is the one who should decide what to
-     * do about a malformed file. Where rows are read they replace the hand-typed count, because a
-     * number somebody typed is the weakest thing on this screen. */
-    const isWorkbook = /\.(xlsx|xlsm|xls)$/i.test(file.name);
     let lines: ParsedLine[] = [];
-    let parseError: string | null = null;
-    if (isWorkbook) {
-      try {
-        const parsed = await parseSupplierWorkbook(content);
-        lines = parsed.lines;
-      } catch (err) {
-        parseError =
-          err instanceof UnreadableStatementError ? err.message : 'The workbook could not be read.';
-        log.warn('submission.unparsed', { entryId, file: file.name, reason: parseError });
-      }
+    try {
+      lines = (await parseSupplierWorkbook(content)).lines;
+    } catch (err) {
+      const reason =
+        err instanceof UnreadableStatementError ? err.message : 'That workbook could not be read.';
+      log.warn('submission.unparsed', { entryId, file: file.name, reason });
+      return { success: false, error: reason };
     }
-    const invoiceCount = lines.length || typedCount;
+    if (!lines.length) {
+      return {
+        success: false,
+        error: 'That workbook has no invoice rows in it. Check the supplier filled in the sheet before sending it.',
+      };
+    }
+    const invoiceCount = lines.length;
 
     await withTransaction(soaPool, async (client) => {
       const inserted = await client.query<{ id: number }>(
@@ -458,8 +462,8 @@ export async function acceptSoaSubmission(entryId: number, formData: FormData): 
           uploadMimeTypeFor(file.name, file.type),
           actor.email,
           invoiceCount || null,
-          isWorkbook && !parseError ? lines.length : null,
-          parseError,
+          lines.length,
+          null,
         ],
       );
       const submissionId = inserted.rows[0].id;
@@ -511,17 +515,11 @@ export async function acceptSoaSubmission(entryId: number, formData: FormData): 
         'upload',
         'SOA received',
         actor.email,
-        `${context.vendorName} (${context.vendorNo}) — statement accepted` +
-          (lines.length
-            ? `, ${lines.length} invoice ${lines.length === 1 ? 'line' : 'lines'} read` +
-              (lines.some((l) => l.issues.length)
-                ? `, ${lines.filter((l) => l.issues.length).length} needing review.`
-                : '.')
-            : parseError
-              ? ` — the workbook could not be read: ${parseError}`
-              : invoiceCount
-                ? `, ${invoiceCount} invoices.`
-                : '.'),
+        `${context.vendorName} (${context.vendorNo}) — statement accepted, ` +
+          `${lines.length} invoice ${lines.length === 1 ? 'line' : 'lines'} read` +
+          (lines.some((l) => l.issues.length)
+            ? `, ${lines.filter((l) => l.issues.length).length} needing review.`
+            : '.'),
       );
     });
 

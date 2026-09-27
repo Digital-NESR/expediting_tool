@@ -64,7 +64,7 @@ export const DEFAULT_BODY_HTML = `<p>Date: {{date}}</p>
 </ul>
 <p><strong>Take Note</strong></p>
 <ul>
-<li>The statement period should cover till <strong>{{statement_period_end}}</strong> and must be provided in attached format [Excel &amp; Signed Stamped PDF]</li>
+<li>The statement period should cover till <strong>{{statement_period_end}}</strong> and must be returned in the attached Excel template</li>
 <li>Kindly send the statement by <strong>{{reply_by}}</strong> to <a href="mailto:{{ap_email}}">{{ap_email}}</a>.</li>
 <li>Failing to provide the required SOA in the attached format before the stipulated date will be considered Accounts Reconciled.</li>
 <li>Any outstanding balance prior to {{statement_period_end}} not highlighted in SOA will not be processed for payment in the future.</li>
@@ -93,7 +93,7 @@ Email: <a href="mailto:{{sender_email}}">{{sender_email}}</a></p>
 </ul>
 <p><strong>ملاحظات:</strong></p>
 <ul>
-<li>يجب أن يغطي كشف الحساب الفترة حتى <strong>{{statement_period_end}}</strong> وأن يتم تقديمه في تنسيق مرفق اكسل (Excel) وموقع ومختوم بي دي اف (PDF).</li>
+<li>يجب أن يغطي كشف الحساب الفترة حتى <strong>{{statement_period_end}}</strong> وأن يتم تقديمه في نموذج الاكسل (Excel) المرفق.</li>
 <li>يرجى ارسال التقرير بحلول <strong>{{reply_by}}</strong> الى البريد الالكتروني <a href="mailto:{{ap_email}}">{{ap_email}}</a>.</li>
 <li>في حال عدم تقديم كشف الحساب المطلوب في التنسيق والمرفقات المذكورة قبل الموعد المحدد، سيتم اعتبار الحسابات مطابقة.</li>
 <li>أي رصيد متبقي قبل {{statement_period_end}} ولم يتم ذكره في تقرير الحساب لن يتم معالجته للدفع في المستقبل.</li>
