@@ -85,6 +85,10 @@ async function varsFor(
     replyBy: ctx.replyBy,
     apEmail: ctx.apEmails.join(', '),
     championName: ctx.championNames.join(' or ') || actor.name,
+    championEmail: ctx.championEmails.join(', ') || actor.email,
+    /* The preview belongs to no vendor, so it shows the shape of the link rather than a working
+       one. A real token here would be a live upload page pasted into an editable letter. */
+    uploadLink: 'https://…/soa-upload/<each vendor gets their own>',
     senderName: actor.name,
     senderTitle: directory?.position ?? '',
     // The directory carries no phone number; a champion who wants one types it into the letter.

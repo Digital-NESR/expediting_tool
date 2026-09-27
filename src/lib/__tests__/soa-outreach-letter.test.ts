@@ -20,6 +20,8 @@ const VARS: TemplateVars = {
   replyBy: '30 October 2026',
   apEmail: 'financeteam.kuwait@nesr.com, financeteam.kuwait@cpvenkuwait.com',
   championName: 'A Champion',
+  championEmail: 'champion@nesr.com',
+  uploadLink: 'https://portal.example/soa-upload/abc-123',
   senderName: 'M Farhan',
   senderTitle: 'Supply Chain Manager',
   senderMobile: '',
@@ -49,6 +51,27 @@ describe('renderTemplate', () => {
 
   it('tolerates whitespace inside the braces', () => {
     expect(renderTemplate('{{ reply_by }}', VARS)).toBe('30 October 2026');
+  });
+
+  it('sends the supplier to their own upload link, not to a mailbox', () => {
+    const out = renderTemplate(DEFAULT_BODY_HTML, VARS);
+    expect(out).toContain('https://portal.example/soa-upload/abc-123');
+    // The statement comes back through the link so every file arrives already tied to a vendor
+    // and a cycle; a workbook emailed in has to be matched up by hand.
+    expect(out).not.toMatch(/send the statement by .* to/i);
+  });
+
+  it('gives both the champion and AP addresses for questions', () => {
+    const out = renderTemplate(DEFAULT_BODY_HTML, VARS);
+    expect(out).toContain('champion@nesr.com');
+    expect(out).toContain('financeteam.kuwait@nesr.com');
+  });
+
+  it('carries the link and both contacts in the Arabic half as well', () => {
+    const out = renderTemplate(DEFAULT_BODY_HTML, VARS);
+    const arabic = out.slice(out.indexOf('dir="rtl"'));
+    expect(arabic).toContain('https://portal.example/soa-upload/abc-123');
+    expect(arabic).toContain('champion@nesr.com');
   });
 
   it('renders the subject too', () => {

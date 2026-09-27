@@ -23,6 +23,10 @@ export interface TemplateVars {
   replyBy: string;
   apEmail: string;
   championName: string;
+  /** Every champion address for the country, for questions. */
+  championEmail: string;
+  /** Where this vendor uploads their statement. Unique to them and to this cycle. */
+  uploadLink: string;
   senderName: string;
   senderTitle: string;
   senderMobile: string;
@@ -38,7 +42,9 @@ export const PLACEHOLDERS: { token: string; label: string; from: string }[] = [
   { token: 'cycle_label', label: 'Cycle', from: 'e.g. Q3 2026' },
   { token: 'statement_period_end', label: 'Statement period end', from: "the cycle's period end" },
   { token: 'reply_by', label: 'Reply-by date', from: "the cycle's submission deadline" },
-  { token: 'ap_email', label: 'Country AP mailbox', from: 'the AP group address for the country' },
+  { token: 'ap_email', label: 'AP mailbox', from: 'the AP contacts for the country' },
+  { token: 'champion_email', label: 'Champion email', from: 'the champions for the country' },
+  { token: 'upload_link', label: 'Upload link', from: "this vendor's own upload page" },
   { token: 'champion_name', label: 'SOA champion', from: 'the champion for the country' },
   { token: 'sender_name', label: 'Sender name', from: 'the signed-in user' },
   { token: 'sender_title', label: 'Sender job title', from: 'the employee directory' },
@@ -65,11 +71,11 @@ export const DEFAULT_BODY_HTML = `<p>Date: {{date}}</p>
 <p><strong>Take Note</strong></p>
 <ul>
 <li>The statement period should cover till <strong>{{statement_period_end}}</strong> and must be returned in the attached Excel template</li>
-<li>Kindly send the statement by <strong>{{reply_by}}</strong> to <a href="mailto:{{ap_email}}">{{ap_email}}</a>.</li>
+<li>Please upload the completed statement by <strong>{{reply_by}}</strong> using your own secure link: <a href="{{upload_link}}">{{upload_link}}</a></li>
 <li>Failing to provide the required SOA in the attached format before the stipulated date will be considered Accounts Reconciled.</li>
 <li>Any outstanding balance prior to {{statement_period_end}} not highlighted in SOA will not be processed for payment in the future.</li>
 </ul>
-<p>Should you need more information or clarification, please contact {{champion_name}} directly.</p>
+<p>The link above is the only way to return the statement. For any questions or clarification, please contact {{champion_name}} at <a href="mailto:{{champion_email}}">{{champion_email}}</a>, or our Accounts Payable team at <a href="mailto:{{ap_email}}">{{ap_email}}</a>.</p>
 <p>Thank you for your prompt attention to this matter. We value our partnership with your company and look forward to your swift response.</p>
 <p>Best regards,<br />
 {{sender_name}}<br />
@@ -94,11 +100,11 @@ Email: <a href="mailto:{{sender_email}}">{{sender_email}}</a></p>
 <p><strong>ملاحظات:</strong></p>
 <ul>
 <li>يجب أن يغطي كشف الحساب الفترة حتى <strong>{{statement_period_end}}</strong> وأن يتم تقديمه في نموذج الاكسل (Excel) المرفق.</li>
-<li>يرجى ارسال التقرير بحلول <strong>{{reply_by}}</strong> الى البريد الالكتروني <a href="mailto:{{ap_email}}">{{ap_email}}</a>.</li>
+<li>يرجى رفع كشف الحساب بحلول <strong>{{reply_by}}</strong> عبر الرابط الخاص بكم: <a href="{{upload_link}}">{{upload_link}}</a></li>
 <li>في حال عدم تقديم كشف الحساب المطلوب في التنسيق والمرفقات المذكورة قبل الموعد المحدد، سيتم اعتبار الحسابات مطابقة.</li>
 <li>أي رصيد متبقي قبل {{statement_period_end}} ولم يتم ذكره في تقرير الحساب لن يتم معالجته للدفع في المستقبل.</li>
 </ul>
-<p>إذ كنتم بحاجة إلى مزيد من المعلومات أو التوضيح، يرجى التواصل مباشرة مع {{champion_name}}.</p>
+<p>الرابط أعلاه هو الطريقة الوحيدة لإرسال كشف الحساب. لأي استفسار أو توضيح، يرجى التواصل مع {{champion_name}} على <a href="mailto:{{champion_email}}">{{champion_email}}</a>، أو مع قسم الحسابات الدائنة على <a href="mailto:{{ap_email}}">{{ap_email}}</a>.</p>
 <p>شكرأ لاهتمامكم السريع بهذه المسألة. نحن نقدر شراكتنا مع شركتكم ونتطلع إلى استجابتكم السريعة.</p>
 <p>مع خالص التحية.<br />
 {{sender_name}}<br />
@@ -164,6 +170,8 @@ function valueFor(name: string, vars: TemplateVars): string | undefined {
     statement_period_end: vars.statementPeriodEnd,
     reply_by: vars.replyBy,
     ap_email: vars.apEmail,
+    champion_email: vars.championEmail,
+    upload_link: vars.uploadLink,
     champion_name: vars.championName,
     sender_name: vars.senderName,
     sender_title: vars.senderTitle,

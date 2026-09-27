@@ -95,7 +95,12 @@ const built = new Map<string, Buffer>();
  * this is the only page a supplier reads before filling the file in, and the addresses it now
  * carries come from the country team, which changes without a deployment.
  */
-function writeInstructions(sheet: ExcelJS.Worksheet, countryName: string, apEmails: string[]): void {
+function writeInstructions(
+  sheet: ExcelJS.Worksheet,
+  countryName: string,
+  apEmails: string[],
+  championEmails: string[],
+): void {
   /* Cleared cell by cell rather than with spliceRows, which leaves the original content in place
      here -- the template's sheet carries merges, and the new rows then land underneath the old
      ones instead of replacing them. */
@@ -164,7 +169,7 @@ function writeInstructions(sheet: ExcelJS.Worksheet, countryName: string, apEmai
   );
   step(
     5,
-    'Send the completed workbook to the address below. Return the Excel file itself, not a printout or a scan.',
+    'Upload the completed workbook using the secure link in the email we sent you. The link is unique to your company. Return the Excel file itself, not a printout or a scan.',
   );
   blank();
 
@@ -181,15 +186,25 @@ function writeInstructions(sheet: ExcelJS.Worksheet, countryName: string, apEmai
   bullet('Amounts should be entered as numbers, in the currency named on the same row.');
   blank();
 
-  heading('Send the completed workbook to');
-  if (apEmails.length) {
-    for (const email of apEmails) {
-      const row = put(null, email);
+  /* Addresses are for questions only. The statement itself comes back through the link, so that
+     every returned file is already tied to the vendor and the cycle it belongs to -- a workbook
+     arriving by email has to be matched up by hand, which is the step this replaces. */
+  heading('Questions about this request');
+  const contacts: [string, string[]][] = [
+    ['SOA Champion', championEmails],
+    ['Accounts Payable', apEmails],
+  ];
+  let any = false;
+  for (const [label, emails] of contacts) {
+    for (const email of emails) {
+      any = true;
+      const row = put(null, `${label} — ${email}`);
       row.getCell(2).font = { bold: true, color: { argb: 'FF2A7E4F' } };
     }
-  } else {
-    // Sending is blocked for a country with no AP contact, so this should never ship; if it
-    // somehow does, say so rather than leaving a blank where an address belongs.
+  }
+  if (!any) {
+    // Sending is blocked for a country with no contacts at all, so this should not ship; saying
+    // so beats leaving a blank where an address belongs.
     const row = put(null, 'Reply to the NESR contact who sent you this request.');
     row.getCell(2).font = { italic: true };
   }
@@ -225,9 +240,11 @@ export async function buildSupplierWorkbook(
   countryId: string,
   countryName: string,
   apEmails: string[],
+  championEmails: string[] = [],
 ): Promise<Buffer> {
-  // The AP addresses are printed into the sheet, so they are part of what makes a build distinct.
-  const key = `${countryId}|${countryName}|${apEmails.join(',')}`;
+  // The contact addresses are printed into the sheet, so they are part of what makes a build
+  // distinct. The upload link is not: it is per vendor, and this file is per country.
+  const key = `${countryId}|${countryName}|${apEmails.join(',')}|${championEmails.join(',')}`;
   const cached = built.get(key);
   if (cached) return cached;
 
@@ -294,7 +311,7 @@ export async function buildSupplierWorkbook(
   if (entities) entities.state = 'veryHidden';
 
   const instructions = wb.getWorksheet('Instruction');
-  if (instructions) writeInstructions(instructions, countryName, apEmails);
+  if (instructions) writeInstructions(instructions, countryName, apEmails, championEmails);
 
   // The AP mailbox list belongs to NESR, not to the supplier, and the one address that concerns
   // them is now printed on the instructions.

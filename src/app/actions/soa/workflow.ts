@@ -30,6 +30,7 @@ import {
   type ParsedLine,
 } from '@/lib/soa/submission-lines';
 import { htmlToText, renderTemplate, type TemplateVars } from '@/lib/soa/email-template';
+import { AppUrlNotConfiguredError, uploadLinkFor } from '@/lib/soa/links';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import { MailNotConfiguredError, sendMail, type MailMessage } from '@/lib/soa/mail';
 
@@ -50,6 +51,8 @@ interface EntryContext {
   amount: number;
   currency: string;
   contacts: string[];
+  /** This vendor's own upload address for this cycle. */
+  uploadToken: string;
   status: string;
   cycleLabel: string;
   submissionDeadline: string;
@@ -66,6 +69,7 @@ async function loadEntry(entryId: number, min: 'champion' | 'viewer' = 'champion
   const rows = await sql<QueryResultRow[]>(
     `SELECT vce.id, vce.country_cycle_id, vce.open_po_amount, vce.currency, vce.status::text AS status,
             v.name AS vendor_name, v.vendor_no, v.contact_emails,
+            vce.upload_token,
             cc.country_id, c.name AS country_name, cy.label, cy.submission_deadline
        FROM vendor_cycle_entries vce
        JOIN vendors v        ON v.id = vce.vendor_id
@@ -89,6 +93,7 @@ async function loadEntry(entryId: number, min: 'champion' | 'viewer' = 'champion
     amount: Number(r.open_po_amount),
     currency: String(r.currency),
     contacts: ((r.contact_emails ?? []) as string[]).filter(Boolean),
+    uploadToken: String(r.upload_token),
     status: String(r.status),
     cycleLabel: String(r.label),
     submissionDeadline:
@@ -121,7 +126,12 @@ async function mailFor(
   sentBy: string,
   letter: RenderedLetter,
 ): Promise<MailMessage> {
-  const vars = { ...letter.vars, vendorName: context.vendorName, vendorNo: context.vendorNo };
+  const vars = {
+    ...letter.vars,
+    vendorName: context.vendorName,
+    vendorNo: context.vendorNo,
+    uploadLink: uploadLinkFor(context.uploadToken),
+  };
   // Lean and identical for everyone in the country; the vendor's identity is stamped onto the
   // rows when the file comes back, not printed into the blank they are sent. The AP addresses go
   // on its instructions, which is why they are passed in rather than read there.
@@ -129,6 +139,7 @@ async function mailFor(
     context.countryId,
     context.countryName,
     letter.apEmails,
+    letter.championEmails,
   );
 
   const html = renderTemplate(letter.bodyHtml, vars);
@@ -175,8 +186,9 @@ interface RenderedLetter {
   cc: string[];
   /** Stamped into the workbook's Month/Year column. */
   monthYear: string;
-  /** Printed on the workbook's instructions as the address to return it to. */
+  /** Printed on the workbook's instructions as the contacts for questions. */
   apEmails: string[];
+  championEmails: string[];
 }
 
 async function prepareLetter(
@@ -204,6 +216,7 @@ async function prepareLetter(
     cc,
     monthYear: ctx.statementMonthYear,
     apEmails: ctx.apEmails,
+    championEmails: ctx.championEmails,
     vars: {
       date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
       vendorName: '',
@@ -214,6 +227,9 @@ async function prepareLetter(
       replyBy: ctx.replyBy,
       apEmail: ctx.apEmails.join(', '),
       championName: ctx.championNames.join(' or ') || actor.name,
+      championEmail: ctx.championEmails.join(', ') || actor.email,
+      // Filled per vendor in mailFor; a letter-wide value would send everyone the same link.
+      uploadLink: '',
       senderName: actor.name,
       senderTitle: directory?.position ?? '',
       senderMobile: '',
@@ -311,7 +327,9 @@ export async function sendSoaOutreach(input: {
     return {
       success: false,
       error:
-        err instanceof MailNotConfiguredError || err instanceof AccessError
+        err instanceof MailNotConfiguredError ||
+        err instanceof AppUrlNotConfiguredError ||
+        err instanceof AccessError
           ? err.message
           : err instanceof Error
             ? err.message

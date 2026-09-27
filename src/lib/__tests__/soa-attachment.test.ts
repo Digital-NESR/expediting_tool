@@ -19,6 +19,15 @@ async function open(buf: Buffer): Promise<ExcelJS.Workbook> {
 }
 
 const AP = ['financeteam.kuwait@nesr.com', 'financeteam.kuwait@cpvenkuwait.com'];
+const CHAMPS = ['anair1@nesr.com'];
+
+function sheetText(sheet: ExcelJS.Worksheet): string {
+  const out: string[] = [];
+  sheet.eachRow({ includeEmpty: false }, (row) => {
+    row.eachCell({ includeEmpty: false }, (c) => out.push(text(c.value)));
+  });
+  return out.join(' ');
+}
 
 function text(cell: ExcelJS.CellValue): string {
   if (cell === null || cell === undefined) return '';
@@ -49,7 +58,7 @@ describe('workbookCountryName', () => {
 
 describe('buildSupplierWorkbook', () => {
   it('keeps only the columns the supplier fills', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
     const sheet = wb.getWorksheet('SOA')!;
     const header: string[] = [];
     sheet.getRow(1).eachCell({ includeEmpty: true }, (c, n) => (header[n] = text(c.value).trim()));
@@ -57,7 +66,7 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('drops the four columns we stamp ourselves', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
     const sheet = wb.getWorksheet('SOA')!;
     const header: string[] = [];
     sheet.getRow(1).eachCell({ includeEmpty: true }, (c, n) => (header[n] = text(c.value).trim()));
@@ -67,7 +76,7 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('ships empty — nothing is pre-filled', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
     const sheet = wb.getWorksheet('SOA')!;
     for (let r = 2; r <= sheet.rowCount; r++)
       for (let c = 1; c <= SUPPLIER_COLUMNS.length; c++)
@@ -75,7 +84,7 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('points Legal Entity at that country’s entity list', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
     const col = SUPPLIER_COLUMNS.indexOf('Legal Entity') + 1;
     const v = wb.getWorksheet('SOA')!.getRow(2).getCell(col).dataValidation;
     expect(v?.type).toBe('list');
@@ -90,7 +99,7 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('keeps the defined names the dropdown resolves through, but hides the lookup sheet', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
     const names = (wb.definedNames.model ?? []).map((d: { name: string }) => d.name);
     expect(names).toContain('Kuwait');
     // The dropdown needs the sheet; the supplier has no reason to read every NESR entity.
@@ -98,51 +107,54 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('keeps the instructions the supplier needs', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
     expect(wb.worksheets.map((w) => w.name)).toContain('Instruction');
   });
 
   it('removes the AP mailbox sheet', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
     // That list belongs to NESR, not to the supplier; the one address that concerns them is on
     // the instructions.
     expect(wb.worksheets.map((w) => w.name)).not.toContain('AP Group Emails');
   });
 
-  it('prints every AP address for the country on the instructions', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP));
-    const sheet = wb.getWorksheet('Instruction')!;
-    const body: string[] = [];
-    sheet.eachRow({ includeEmpty: false }, (row) => {
-      row.eachCell({ includeEmpty: false }, (c) => body.push(text(c.value)));
-    });
-    for (const email of AP) expect(body).toContain(email);
-    expect(body.join(' ')).toContain('Kuwait');
+  it('tells the supplier to upload rather than reply by email', async () => {
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
+    const body = sheetText(wb.getWorksheet('Instruction')!);
+    // The link is per vendor and this workbook is per country, so it points back at the email.
+    expect(body).toContain('secure link in the email');
+    expect(body).not.toContain('Send the completed workbook to');
+  });
+
+  it('prints both the champion and AP addresses, for questions', async () => {
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
+    const body = sheetText(wb.getWorksheet('Instruction')!);
+    for (const email of [...AP, ...CHAMPS]) expect(body).toContain(email);
+    expect(body).toContain('SOA Champion');
+    expect(body).toContain('Accounts Payable');
+    expect(body).toContain('Kuwait');
     // The template's own closing line pointed at a sheet by a name it never had.
-    expect(body.join(' ')).not.toContain('Email Notification Tab');
+    expect(body).not.toContain('Email Notification Tab');
   });
 
   it('says something useful when a country has no AP address', async () => {
-    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', []));
-    const sheet = wb.getWorksheet('Instruction')!;
-    const body: string[] = [];
-    sheet.eachRow({ includeEmpty: false }, (row) => {
-      row.eachCell({ includeEmpty: false }, (c) => body.push(text(c.value)));
-    });
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', [], []));
     // Sending is blocked in that state, so this should never ship — but a blank where an address
     // belongs would be worse than saying so.
-    expect(body.join(' ')).toContain('NESR contact who sent you this request');
+    expect(sheetText(wb.getWorksheet('Instruction')!)).toContain(
+      'NESR contact who sent you this request',
+    );
   });
 
   it('does not serve one country the instructions built for another', async () => {
     // The AP addresses are printed into the sheet, so they are part of the cache key.
-    const kw = await buildSupplierWorkbook('KW', 'Kuwait', AP);
-    const sa = await buildSupplierWorkbook('SA', 'Saudi Arabia', ['invoices.ksa@nesr.com']);
+    const kw = await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS);
+    const sa = await buildSupplierWorkbook('SA', 'Saudi Arabia', ['invoices.ksa@nesr.com'], CHAMPS);
     expect(kw.equals(sa)).toBe(false);
   });
 
   it('stays small enough to travel inside the webhook payload', async () => {
-    const buf = await buildSupplierWorkbook('KW', 'Kuwait', AP);
+    const buf = await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS);
     expect(buf.byteLength).toBeLessThan(120_000);
   });
 });

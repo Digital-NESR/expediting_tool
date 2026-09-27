@@ -169,7 +169,7 @@ describe('parseSupplierWorkbook', () => {
   it('reads back the very workbook we send out', async () => {
     // The blank we hand suppliers must itself be parseable, or the first real return will fail.
     const res = await parseSupplierWorkbook(
-      await buildSupplierWorkbook('KW', 'Kuwait', ['financeteam.kuwait@nesr.com']),
+      await buildSupplierWorkbook('KW', 'Kuwait', ['financeteam.kuwait@nesr.com'], []),
     );
     expect(res.lines).toHaveLength(0);
     expect(res.headerRow).toBe(1);
