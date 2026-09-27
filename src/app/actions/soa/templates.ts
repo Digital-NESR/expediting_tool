@@ -83,7 +83,7 @@ async function varsFor(
     cycleLabel: ctx.cycleLabel,
     statementPeriodEnd: ctx.statementPeriodEnd,
     replyBy: ctx.replyBy,
-    apEmail: ctx.apEmail,
+    apEmail: ctx.apEmails.join(', '),
     championName: ctx.championName || actor.name,
     senderName: actor.name,
     senderTitle: directory?.position ?? '',

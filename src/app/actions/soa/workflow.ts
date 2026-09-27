@@ -183,7 +183,7 @@ async function prepareLetter(
 
   // The sender always sees what went out, and AP owns the mailbox the vendor is told to reply to.
   // Anything else is a one-off the champion chose for this send and is not stored.
-  const cc = [...new Set([actor.email, ...(ctx.apEmail ? [ctx.apEmail] : []), ...extraCc])]
+  const cc = [...new Set([actor.email, ...ctx.apEmails, ...extraCc])]
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 
@@ -200,7 +200,7 @@ async function prepareLetter(
       cycleLabel: ctx.cycleLabel,
       statementPeriodEnd: ctx.statementPeriodEnd,
       replyBy: ctx.replyBy,
-      apEmail: ctx.apEmail,
+      apEmail: ctx.apEmails.join(', '),
       championName: ctx.championName || actor.name,
       senderName: actor.name,
       senderTitle: directory?.position ?? '',

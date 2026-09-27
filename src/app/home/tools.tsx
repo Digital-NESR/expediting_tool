@@ -325,25 +325,23 @@ export const TOOLS: ToolDef[] = [
 
   {
     id: 'soa-consolidation',
-    group: 'development',
+    group: 'online',
     keywords:
       'soa consolidation statement of account reconciliation vendor balance confirmation finance champion corporate rollup',
     name: 'SOA Consolidation',
     subtitle: 'Vendor Statement Reconciliation',
     description:
       'Coordinate country finance champions through vendor outreach, SOA collection, and consolidated handoff to corporate finance for quarterly account reconciliation.',
-    icon: <Receipt className="w-6 h-6 text-gray-400" />,
-    logoClass: 'bg-gray-100',
+    icon: <Receipt className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
     hoverClass: HOVER_GREEN,
-    accent: PREVIEW_GREY,
-    tone: 'preview',
+    accent: NESR_GREEN,
+    tone: 'live',
     route: '/soa-consolidation',
-    /* Not `adminPreview` any more: the tool has a real access-request flow, and an
-       adminPreview card is inert for everyone else — an approved champion would pass the
-       tool's own gate and still have no way in from here short of typing the URL. `always`
-       is the right kind because the gate in the tool's layout does the enforcing, showing
-       the request page to anyone without a grant. It stays in the development group while
-       the screens still render fixtures. */
+    /* `always` rather than `adminPreview`: the tool has a real access-request flow, and the
+       gate in its own layout does the enforcing — anyone without a grant is shown the request
+       page. An adminPreview card would be inert for everyone else, so an approved champion
+       would pass the tool's gate and still have no way in short of typing the URL. */
     access: { kind: 'always' },
     badge: { kind: 'lock', label: 'Access Required' },
     openLabel: 'Open →',

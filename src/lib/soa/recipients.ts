@@ -55,9 +55,9 @@ export interface VendorRecipient {
 export interface CountryRecipients {
   countryId: string;
   countryName: string;
-  /** The country AP group mailbox, CC'd on every message. Null for the three countries
-   *  with no row in the AP Group Emails sheet — a send is blocked until one is set. */
-  apEmail: string | null;
+  /** Every AP mailbox for the country, CC'd on each message. Empty blocks a send: the letter
+   *  tells the vendor where to reply, and there would be nothing to put there. */
+  apEmails: string[];
   cycleLabel: string;
   vendors: VendorRecipient[];
 }
@@ -150,7 +150,10 @@ export async function loadCountryRecipients(countryId: string): Promise<CountryR
   await ensureSoaSchema();
 
   const meta = await sql<QueryResultRow[]>(
-    `SELECT co.id, co.name, co.ap_email, cy.label AS cycle_label, cc.id AS country_cycle_id
+    `SELECT co.id, co.name, cy.label AS cycle_label, cc.id AS country_cycle_id,
+            (SELECT ARRAY_AGG(cu.email ORDER BY cu.name)
+               FROM country_users cu
+              WHERE cu.country_id = co.id AND cu.role = 'ap') AS ap_emails
        FROM countries co
        JOIN cycles cy ON cy.is_active
        LEFT JOIN country_cycles cc ON cc.country_id = co.id AND cc.cycle_id = cy.id
@@ -217,7 +220,7 @@ export async function loadCountryRecipients(countryId: string): Promise<CountryR
   return {
     countryId: String(m.id),
     countryName: String(m.name),
-    apEmail: (m.ap_email as string | null) ?? null,
+    apEmails: (m.ap_emails as string[] | null) ?? [],
     cycleLabel: String(m.cycle_label),
     vendors,
   };

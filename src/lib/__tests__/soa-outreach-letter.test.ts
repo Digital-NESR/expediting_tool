@@ -18,7 +18,7 @@ const VARS: TemplateVars = {
   cycleLabel: 'Q3 2026',
   statementPeriodEnd: '30 September 2026',
   replyBy: '30 October 2026',
-  apEmail: 'financeteam.kuwait@nesr.com',
+  apEmail: 'financeteam.kuwait@nesr.com, financeteam.kuwait@cpvenkuwait.com',
   championName: 'A Champion',
   senderName: 'M Farhan',
   senderTitle: 'Supply Chain Manager',

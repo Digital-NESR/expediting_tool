@@ -112,14 +112,19 @@ export default function RecipientList({
             {senderEmail}
             <span className="text-[9.5px] uppercase tracking-[0.4px] text-sns-grey">you</span>
           </span>
-          {data?.apEmail ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#ECEFEC] px-2.5 py-1 text-[11px]">
-              {data.apEmail}
-              <span className="text-[9.5px] uppercase tracking-[0.4px] text-sns-grey">AP</span>
-            </span>
+          {data?.apEmails.length ? (
+            data.apEmails.map((ap) => (
+              <span
+                key={ap}
+                className="inline-flex items-center gap-1 rounded-full bg-[#ECEFEC] px-2.5 py-1 text-[11px]"
+              >
+                {ap}
+                <span className="text-[9.5px] uppercase tracking-[0.4px] text-sns-grey">AP</span>
+              </span>
+            ))
           ) : (
             <span className="rounded-full bg-[#FDECEA] px-2.5 py-1 text-[11px] text-[#B71C1C] font-bold">
-              No AP mailbox set for this country
+              No AP contact set for this country — add one in /admin
             </span>
           )}
           {extraCc.map((e) => (
@@ -143,7 +148,7 @@ export default function RecipientList({
           <div className="max-w-[420px]">
             <EmployeeSearchInput
               placeholder="Add a NESR colleague to CC…"
-              excludeEmails={[senderEmail, ...(data?.apEmail ? [data.apEmail] : []), ...extraCc.map((e) => e.mail)]}
+              excludeEmails={[senderEmail, ...(data?.apEmails ?? []), ...extraCc.map((e) => e.mail)]}
               onSelect={(emp) =>
                 setExtraCc((list) => (list.some((x) => x.mail === emp.mail) ? list : [...list, emp]))
               }

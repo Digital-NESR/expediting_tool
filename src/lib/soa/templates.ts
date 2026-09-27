@@ -108,7 +108,8 @@ export interface LetterContext {
   /** The same period as the workbook's Month/Year column wants it — "September 2026". */
   statementMonthYear: string;
   replyBy: string;
-  apEmail: string;
+  /** Every AP mailbox for the country. More than one is normal: Kuwait has two. */
+  apEmails: string[];
   championName: string;
 }
 
@@ -127,8 +128,11 @@ function formatDay(value: unknown): string {
 export async function letterContext(countryId: string): Promise<LetterContext> {
   await ensureSoaSchema();
   const rows = await sql<QueryResultRow[]>(
-    `SELECT co.name AS country_name, co.ap_email, cy.label AS cycle_label,
+    `SELECT co.name AS country_name, cy.label AS cycle_label,
             cy.period_end, cy.submission_deadline,
+            (SELECT ARRAY_AGG(cu.email ORDER BY cu.name)
+               FROM country_users cu
+              WHERE cu.country_id = co.id AND cu.role = 'ap') AS ap_emails,
             (SELECT cu.name FROM country_users cu
               WHERE cu.country_id = co.id AND cu.role = 'champion' ORDER BY cu.name LIMIT 1) AS champion
        FROM countries co JOIN cycles cy ON cy.is_active
@@ -147,7 +151,7 @@ export async function letterContext(countryId: string): Promise<LetterContext> {
         })
       : '',
     replyBy: formatDay(r.submission_deadline),
-    apEmail: (r.ap_email as string) ?? '',
+    apEmails: (r.ap_emails as string[] | null) ?? [],
     championName: (r.champion as string) ?? '',
   };
 }
