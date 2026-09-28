@@ -510,7 +510,7 @@ export interface ViewModel {
   modalVendorAmt: string;
   modalVendorCurrency: string;
   onCloseModal: () => void;
-  onAcceptSOA: (file: File, invoiceCount: number) => void;
+  onAcceptSOA: (file: File) => void;
   onConfirmHandoff: () => void;
 
   entityName: string;
@@ -559,6 +559,6 @@ export interface Handlers {
   generateExport: () => void;
   openHandoffModal: () => void;
   closeModal: () => void;
-  acceptSOA: (file: File, invoiceCount: number) => void;
+  acceptSOA: (file: File) => void;
   confirmHandoff: () => void;
 }

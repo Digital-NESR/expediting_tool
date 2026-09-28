@@ -453,7 +453,10 @@ export async function markSoaNonResponder(entryId: number): Promise<SoaResult> {
  * every other document in this app is, a statement of account lists a vendor's invoice numbers
  * and balances and is not something to leave on an unguessable URL.
  */
-export async function acceptSoaSubmission(entryId: number, formData: FormData): Promise<SoaResult> {
+export async function acceptSoaSubmission(
+  entryId: number,
+  formData: FormData,
+): Promise<SoaResult<{ lines: number; needingReview: number }>> {
   try {
     const { actor, context } = await loadEntry(entryId);
 
@@ -473,7 +476,7 @@ export async function acceptSoaSubmission(entryId: number, formData: FormData): 
     const verdict = validateUploadSignature(file.name, content, file.type);
     if (!verdict.ok) return { success: false, error: verdict.reason };
 
-    await storeStatement({
+    const stored = await storeStatement({
       entryId,
       countryCycleId: context.countryCycleId,
       vendorNo: context.vendorNo,
@@ -489,7 +492,7 @@ export async function acceptSoaSubmission(entryId: number, formData: FormData): 
     });
 
     revalidatePath('/soa-consolidation');
-    return { success: true };
+    return { success: true, data: { lines: stored.lines, needingReview: stored.needingReview } };
   } catch (err) {
     if (err instanceof StatementRejected) return { success: false, error: err.message };
     log.error('acceptSoaSubmission.failed', err, { entryId });

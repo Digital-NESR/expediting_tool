@@ -364,17 +364,26 @@ export default function SoaConsolidationClient({
         'Contacts not saved',
       );
     },
-    acceptSOA(file, invoiceCount) {
+    acceptSOA(file) {
       const modal = state.modal;
       if (!modal || modal.type !== 'upload') return;
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('invoiceCount', String(invoiceCount));
       void run(
         () => acceptSoaSubmission(Number(modal.vendorId), formData),
-        () => {
+        (data) => {
           patch({ modal: null, expandedVendor: null });
-          addToast('success', 'SOA accepted', `${file.name} validated and stored.`);
+          const lines = data?.lines ?? 0;
+          const flagged = data?.needingReview ?? 0;
+          // The count comes from the file. It used to be typed in beside the picker and then
+          // thrown away unread, so the figure on the row was whatever somebody had counted by eye
+          // while the tool had already read the rows and knew.
+          addToast(
+            'success',
+            'SOA accepted',
+            `${lines} invoice ${lines === 1 ? 'line' : 'lines'} read from ${file.name}` +
+              (flagged > 0 ? `, ${flagged} needing review.` : '.'),
+          );
         },
         'SOA not accepted',
       );
