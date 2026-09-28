@@ -4,7 +4,7 @@ import type { ViewModel } from '../types';
 /**
  * The tool's header bar.
  *
- * It used to carry a "Viewing as:" dropdown that switched between champion, manager and director.
+ * It used to carry a "Viewing as:" dropdown that switched between champion and director.
  * That was a prototype affordance — the role is a grant now, so the bar states what the signed-in
  * person actually is rather than offering to change it. The menu button is what opens the
  * sidebar, which is a slide-over drawer like every other NESR tool's.

@@ -3,9 +3,10 @@
 /* ─────────────────────────────────────────────────────────────
    SOA Consolidation · Access Approvals.
 
-   Champion and viewer access is REQUESTED here and granted by an
-   admin; manager is appointed in SoaManagersClient and admin comes
-   from ADMIN_EMAILS, so neither of those ever appears in this queue.
+   Champion, Accounts Payable and viewer access is REQUESTED here and
+   granted by an admin. Admin itself comes from ADMIN_EMAILS, so it
+   never appears in this queue. An approval writes the same
+   country_users row the Country Team screen maintains.
 
    The request is a proposal, not an instruction: the approve editor
    opens pre-filled with what the person asked for, and the admin can
@@ -436,8 +437,8 @@ export default function SoaAccessApprovalsClient() {
       <p className="text-[12px] text-slate-400">
         Champions run a country&apos;s vendor chase; viewers read its progress and evidence and
         change nothing. What someone asked for is a proposal — change the role or the country in the
-        approve editor before confirming. Managers are appointed under Managers, never requested,
-        and emails listed in{' '}
+        approve editor before confirming. Shared AP mailboxes are added under Country Team rather
+        than requested, and emails listed in{' '}
         <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">ADMIN_EMAILS</code> already
         have full access and never appear here.
       </p>

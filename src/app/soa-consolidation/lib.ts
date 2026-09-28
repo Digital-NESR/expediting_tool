@@ -85,7 +85,6 @@ const EVIDENCE_TYPE_LABEL: Record<EvidenceType, string> = {
 
 const ROLE_LABEL: Record<Role, string> = {
   admin: 'SOA Administrator',
-  manager: 'Supply Chain Manager',
   champion: 'SC SOA Champion',
   ap: 'Accounts Payable',
   viewer: 'Read-only Viewer',
@@ -356,9 +355,11 @@ export function deriveViewModel(
   const { cycle, vendors, countries, evidence, countryId, countryName, totalBalance } = payload;
   const role = viewer.role;
 
-  /* The corporate rollup is a manager's screen; the guard is applied twice — the nav item is not
-     offered, and a screen id that somehow says 'rollup' falls back to the dashboard. */
-  const canSeeRollup = role === 'admin' || role === 'manager';
+  /* The cross-country view, for an administrator or a champion granted every country — which is
+     what the removed `manager` role existed to describe, so the scope answers it rather than a
+     separate rank. Guarded twice: the nav item is not offered, and a screen id that somehow says
+     'rollup' falls back to the dashboard. */
+  const canSeeRollup = role === 'admin' || viewer.champion === 'all';
   const canAct =
     !!countryId &&
     !payload.handedOff &&

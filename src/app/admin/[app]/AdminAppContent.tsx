@@ -139,7 +139,6 @@ const LaptopCostCentersClient = dynamic(() => import('../LaptopCostCentersClient
 const SoaCyclesClient = dynamic(() => import('../SoaCyclesClient'), { loading });
 const SoaExcludedVendorsClient = dynamic(() => import('../SoaExcludedVendorsClient'), { loading });
 const SoaAccessApprovalsClient = dynamic(() => import('../SoaAccessApprovalsClient'), { loading });
-const SoaManagersClient = dynamic(() => import('../SoaManagersClient'), { loading });
 const SoaCountryTeamClient = dynamic(() => import('../SoaCountryTeamClient'), { loading });
 
 /* ── Learning Hub ── */
@@ -251,8 +250,6 @@ export default function AdminAppContent(props: AdminAppContentProps) {
       return <SoaAccessApprovalsClient />;
     case 'soa/country-team':
       return <SoaCountryTeamClient />;
-    case 'soa/managers':
-      return <SoaManagersClient />;
 
     /* ── Learning Hub ── */
     case 'learning-hub/admin':

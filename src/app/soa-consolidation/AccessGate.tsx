@@ -13,9 +13,9 @@ import { submitSoaAccessRequest } from '@/app/actions/soa/access';
  * the form is what a rejected user needs (they are allowed to ask again), and hiding it behind a
  * second click would only make them hunt for it.
  *
- * Champion, Accounts Payable and Viewer are offerable. A manager is appointed in the matrix on
- * /admin and an admin comes from ADMIN_EMAILS; `submitSoaAccessRequest` rejects anything else
- * outright, so offering them here would just produce an error the requester cannot act on.
+ * Champion, Accounts Payable and Viewer are offerable. An admin comes from ADMIN_EMAILS, and
+ * `submitSoaAccessRequest` rejects anything else outright, so offering it here would just produce
+ * an error the requester cannot act on.
  *
  * An approved request lands in the same `country_users` list the Country Team screen maintains, so
  * somebody approved here is thereafter managed there — and an AP contact added there needs no

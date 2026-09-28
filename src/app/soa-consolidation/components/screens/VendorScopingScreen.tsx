@@ -108,7 +108,7 @@ export default function VendorScopingScreen({ vm }: ScreenProps) {
       {!vm.canScope && (
         <div className="bg-white rounded-lg border-l-4 border-l-[#E65100] px-3.5 py-2.5 mb-3 text-[12px] text-sns-ink shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
           You have read-only access to {vm.countryLabel}, so the selection below cannot be changed.
-          A champion or a manager for this country can change it.
+          A champion for this country can change it.
         </div>
       )}
 

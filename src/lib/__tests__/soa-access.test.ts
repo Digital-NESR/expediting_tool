@@ -42,9 +42,9 @@ describe('holdsRole', () => {
     expect(holdsRole(actor(), 'viewer')).toBe(false);
   });
 
-  it('puts an admin above a manager', () => {
-    expect(holdsRole(actor({ role: 'admin', isAdmin: true }), 'manager')).toBe(true);
-    expect(holdsRole(actor({ role: 'manager' }), 'admin')).toBe(false);
+  it('puts an admin above a champion', () => {
+    expect(holdsRole(actor({ role: 'admin', isAdmin: true }), 'champion')).toBe(true);
+    expect(holdsRole(actor({ role: 'champion' }), 'admin')).toBe(false);
   });
 });
 
@@ -88,7 +88,7 @@ describe('countriesFor', () => {
       role: 'champion',
       grants: [
         { role: 'champion', countryId: 'SA' },
-        { role: 'manager', countryId: 'SA' },
+        { role: 'champion', countryId: 'SA' },
       ],
     });
     expect(countriesFor(a, 'champion')).toEqual(['SA']);
@@ -224,10 +224,10 @@ describe('Accounts Payable', () => {
 
   it('is not AP-only where an all-countries grant already covers them', () => {
     const regional = actor({
-      role: 'manager',
+      role: 'champion',
       grants: [
         { role: 'ap', countryId: 'KW' },
-        { role: 'manager', countryId: null },
+        { role: 'champion', countryId: null },
       ],
     });
     expect(isApOnlyFor(regional, 'KW')).toBe(false);
@@ -248,5 +248,23 @@ describe('Accounts Payable', () => {
     });
     // A viewer sees the cycle as it runs, so holding both is strictly more than AP alone.
     expect(isApOnlyFor(both, 'KW')).toBe(false);
+  });
+});
+
+describe('no role sits between champion and admin', () => {
+  it('does not let a read-only grant act on a country', () => {
+    // The removed `manager` role ranked above champion, and every guard asks for "champion or
+    // better" -- so that single line of ordering let it scope vendors, send requests and close a
+    // country. Nothing anywhere said it may. Only champion and admin clear that bar now.
+    for (const role of ['viewer', 'ap'] as const) {
+      const a = actor({ role, grants: [{ role, countryId: 'SA' }] });
+      expect(canAccessCountry(a, 'SA', 'champion'), role).toBe(false);
+      expect(canAccessCountry(a, 'SA', 'viewer'), role).toBe(true);
+    }
+  });
+
+  it('gives an all-countries champion the oversight the manager role existed for', () => {
+    const regional = actor({ role: 'champion', grants: [{ role: 'champion', countryId: null }] });
+    expect(countriesFor(regional, 'champion')).toBe('all');
   });
 });

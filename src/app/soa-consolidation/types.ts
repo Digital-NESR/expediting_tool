@@ -5,12 +5,11 @@ import type { CountryOption, SoaPayload } from '@/lib/soa/read';
 /**
  * Roles exactly as `country_users` names them.
  *
- * The prototype's third role was called "director" and was picked from a dropdown in the navbar.
- * The grant table calls the same thing `manager`, and the role now comes from a grant rather than
- * a picker, so the database's spelling wins. `admin` is here because ADMIN_EMAILS can put someone
- * in the tool without any grant at all.
+ * The role comes from a grant rather than the dropdown the prototype had in its navbar, so the
+ * database's spelling wins. `admin` is here because ADMIN_EMAILS can put somebody in the tool
+ * without any grant at all.
  */
-export type Role = 'admin' | 'manager' | 'champion' | 'ap' | 'viewer';
+export type Role = 'admin' | 'champion' | 'ap' | 'viewer';
 
 /**
  * The signed-in person, resolved on the server from `getSoaActor()` and handed to the client.
@@ -355,7 +354,7 @@ export interface ViewModel {
   /** The signed-in person's address — CC'd on every message they send. */
   viewerEmail: string;
   viewerInitials: string;
-  /** Manager or admin. Gates the corporate rollup — both the nav item and the screen. */
+  /** An admin, or a champion granted every country. Gates the rollup: nav item and screen. */
   canSeeRollup: boolean;
   /** Champion or better on the country on screen. Gates every mutating button. */
   canAct: boolean;
