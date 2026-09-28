@@ -3,6 +3,7 @@ import { shortDayMonth } from '@/lib/format';
 import { countriesFor, type SoaActor } from './access';
 import { ensureSoaSchema, sql } from './db';
 import { resolvedContactsForMany } from './recipients';
+import { COVERED_STATUS_SQL, type VendorCycleStatus } from './status';
 
 /**
  * Everything a page load of SOA Consolidation needs, read from the database.
@@ -47,7 +48,9 @@ export interface VendorRow {
   name: string;
   no: string;
   openPO: number;
-  status: 'scoped' | 'requested' | 'reminded' | 'received' | 'non_responder';
+  status: VendorCycleStatus;
+  /** Why this vendor was closed without a statement. Empty unless a champion closed it. */
+  resolutionNote: string;
   reqDate: string;
   remDate: string | null;
   respDate: string | null;
@@ -203,9 +206,11 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
      progress AS (
        SELECT cc.id, cc.country_id, cc.status::text AS status,
               COUNT(vce.id)                                          AS total,
-              COUNT(vce.id) FILTER (WHERE vce.status = 'received')    AS responded,
+              COUNT(vce.id)
+                FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL}))  AS responded,
               COALESCE(SUM(vce.open_po_amount)
-                       FILTER (WHERE vce.status = 'received'), 0)     AS received_balance
+                       FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL})), 0)
+                                                                            AS received_balance
          FROM country_cycles cc
          LEFT JOIN vendor_cycle_entries vce ON vce.country_cycle_id = cc.id
         WHERE cc.cycle_id = ?
@@ -297,6 +302,7 @@ export async function loadSoa(
     sql<QueryResultRow[]>(
       `SELECT vce.id, vce.open_po_amount, vce.currency, vce.status::text AS status,
               vce.requested_at, vce.reminded_at, vce.responded_at, vce.invoice_count,
+              vce.resolution_note,
               v.id AS vendor_id, v.name, v.vendor_no
          FROM vendor_cycle_entries vce
          JOIN vendors v ON v.id = vce.vendor_id
@@ -361,7 +367,7 @@ export async function loadSoa(
       name: String(r.name),
       no: String(r.vendor_no),
       openPO: Number(r.open_po_amount),
-      status: String(r.status) as VendorRow['status'],
+      status: String(r.status) as VendorCycleStatus,
       // The screens show a request date as a bare string; an unsent request has none.
       reqDate: asShortDate(r.requested_at) ?? ', ',
       remDate: asShortDate(r.reminded_at),
@@ -371,6 +377,7 @@ export async function loadSoa(
       respondedAt: r.responded_at ? asIso(r.responded_at) : null,
       currency: String(r.currency),
       invCount: Number(r.invoice_count),
+      resolutionNote: (r.resolution_note as string | null) ?? '',
       contactEmails: resolvedContacts.get(String(r.vendor_no)) ?? [],
       submissions: submissionsByEntry.get(String(r.id)) ?? [],
     })),

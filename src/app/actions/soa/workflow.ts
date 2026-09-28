@@ -34,6 +34,7 @@ import {
 import { AppUrlNotConfiguredError, soaPortalUrl, uploadLinkFor } from '@/lib/soa/links';
 import { notifySoaHandoff } from '@/lib/soa/notify';
 import { resolvedContactsFor, setVendorContactList } from '@/lib/soa/recipients';
+import { COVERED_STATUS_SQL } from '@/lib/soa/status';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import { MailNotConfiguredError, sendMail, type MailMessage } from '@/lib/soa/mail';
 import { MAX_SOA_BYTES, StatementRejected, storeStatement } from '@/lib/soa/submission-store';
@@ -416,32 +417,68 @@ export async function sendSoaOutreachBatch(input: {
   }
 }
 
-/** Flag a vendor that never answered. The correspondence stays as the evidence it is. */
-export async function markSoaNonResponder(entryId: number): Promise<SoaResult> {
+/**
+ * Close a vendor that never sent a statement, saying which kind of silence it was.
+ *
+ * One button used to cover both, and they are not the same fact. A supplier who never answered
+ * leaves their balance unconfirmed, which is exactly the gap this exercise exists to find. A
+ * supplier the champion has established has nothing outstanding is a reconciliation that came out
+ * at nil: there was never a statement to collect, and the account is settled.
+ *
+ * Only the second counts towards coverage, and because it moves the figure the quarter is judged
+ * on, it cannot be recorded without the champion saying why. That is enforced here rather than in
+ * the modal: every export of a `'use server'` module is a public POST endpoint, and a disabled
+ * button is not a control.
+ */
+export async function resolveSoaVendor(input: {
+  entryId: number;
+  outcome: 'nil_balance' | 'non_responder';
+  note: string;
+}): Promise<SoaResult> {
   try {
-    const { actor, context } = await loadEntry(entryId);
+    const { actor, context } = await loadEntry(input.entryId);
+    const note = (input.note ?? '').trim().slice(0, 2000);
+
+    if (input.outcome !== 'nil_balance' && input.outcome !== 'non_responder') {
+      return { success: false, error: 'Choose one of the two outcomes.' };
+    }
+    if (input.outcome === 'nil_balance' && note.length < 3) {
+      return {
+        success: false,
+        error:
+          'Say how you established there are no pending invoices. This vendor will count towards the coverage figure, so the reason goes on the audit trail.',
+      };
+    }
+
+    const isNil = input.outcome === 'nil_balance';
     await withTransaction(soaPool, async (client) => {
       await client.query(
-        `UPDATE vendor_cycle_entries SET status = 'non_responder', updated_at = NOW() WHERE id = $1`,
-        [entryId],
+        `UPDATE vendor_cycle_entries
+            SET status = $2::vendor_cycle_status, resolution_note = $3, updated_at = NOW()
+          WHERE id = $1`,
+        [input.entryId, input.outcome, note || null],
       );
       await writeEvidence(
         client,
         context.countryCycleId,
-        entryId,
+        input.entryId,
         'info',
-        'Non-responder flagged',
+        isNil ? 'Closed, no pending invoices' : 'Non-responder flagged',
         actor.email,
-        `${context.vendorName} (${context.vendorNo}) did not respond. Correspondence retained.`,
+        isNil
+          ? `${context.vendorName} (${context.vendorNo}) has no pending invoices and counts towards coverage. Reason given: ${note}`
+          : `${context.vendorName} (${context.vendorNo}) did not respond; balance unconfirmed and not counted. Correspondence retained.` +
+            (note ? ` Note: ${note}` : ''),
       );
     });
+
     revalidatePath('/soa-consolidation');
     return { success: true };
   } catch (err) {
-    log.error('markSoaNonResponder.failed', err);
+    log.error('resolveSoaVendor.failed', err, { entryId: input.entryId });
     return {
       success: false,
-      error: err instanceof AccessError ? err.message : 'Could not flag the vendor.',
+      error: err instanceof AccessError ? err.message : 'Could not close that vendor.',
     };
   }
 }
@@ -511,8 +548,10 @@ export async function handOffSoaCountry(
     const rows = await sql<QueryResultRow[]>(
       `SELECT cc.id, cy.coverage_target_pct, cy.label,
               COUNT(vce.id)::int AS vendor_count,
-              COUNT(vce.id) FILTER (WHERE vce.status = 'received')::int AS received_count,
-              COALESCE(SUM(vce.open_po_amount) FILTER (WHERE vce.status = 'received'), 0) AS received,
+              COUNT(vce.id)
+                FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL}))::int AS received_count,
+              COALESCE(SUM(vce.open_po_amount)
+                       FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL})), 0) AS received,
               (SELECT COALESCE(SUM(e.pos_value), 0)
                  FROM supplier_po_extract e
                  JOIN countries c ON e.po_country = ANY (c.spend_names)

@@ -1,5 +1,6 @@
 import type { ApplyScopeSummary } from '@/app/actions/soa/scoping';
 import type { DeliveryFailure } from '@/lib/soa/delivery';
+import type { VendorCycleStatus } from '@/lib/soa/status';
 import type { ScopeCandidate, ScopeCandidates } from '@/lib/soa/candidates';
 import type { CountryOption, SoaPayload } from '@/lib/soa/read';
 
@@ -54,7 +55,7 @@ export type ScreenId =
  * such state because every fixture vendor arrived already requested; a freshly scoped country is
  * 270 rows of exactly this, and it is the state the "send initial requests" action clears.
  */
-export type VendorStatus = 'scoped' | 'received' | 'requested' | 'reminded' | 'non_responder';
+export type VendorStatus = VendorCycleStatus;
 
 export type CountryStatus =
   | 'not_started'
@@ -92,7 +93,14 @@ export interface Toast {
   msg: string;
 }
 
-export type ModalState = { type: 'upload'; vendorId: string } | { type: 'handoff' } | null;
+export type ModalState =
+  | { type: 'upload'; vendorId: string }
+  | { type: 'resolve'; vendorId: string }
+  | { type: 'handoff' }
+  | null;
+
+/** The two ways a champion can close a vendor that never sent a statement. */
+export type ResolveOutcome = 'nil_balance' | 'non_responder';
 
 /**
  * An outreach attempt n8n or the mailer refused, from `getSoaOutreachFailures`.
@@ -200,7 +208,12 @@ export interface VendorEnrichedVM extends VendorRowVM {
   canChase: boolean;
   /** What that press would send: the first letter for a vendor never written to, else a reminder. */
   chaseLabel: string;
-  canNR: boolean;
+  /** Asked and still silent, so a champion can close it one way or the other. */
+  canResolve: boolean;
+  /** Past the date suppliers were given and still silent. Derived, never written. */
+  awaitingVerification: boolean;
+  /** The champion's own words on why this vendor was closed without a statement. */
+  resolutionNote: string;
   /** No address on file, so this vendor cannot be chased until someone supplies one. */
   isUnreachable: boolean;
   /** The last send to this vendor was refused and it is still owed that letter. */
@@ -211,7 +224,7 @@ export interface VendorEnrichedVM extends VendorRowVM {
   onToggle: () => void;
   onAccept: () => void;
   onChase: () => void;
-  onNR: () => void;
+  onResolve: () => void;
   onSaveContacts: (emails: string[]) => void;
 }
 
@@ -478,6 +491,10 @@ export interface ViewModel {
   filterTabs: FilterTabVM[];
   vendorsEnriched: VendorEnrichedVM[];
   trackingTable: TableControlsVM;
+  /** The collection deadline has passed, so silence is now a finding rather than a wait. */
+  pastCollectionDeadline: boolean;
+  /** Vendors past that deadline still awaiting a champion's verdict on why they are silent. */
+  awaitingVerificationCount: number;
 
   canSendReminders: boolean;
 
@@ -504,6 +521,7 @@ export interface ViewModel {
 
   hasModal: boolean;
   isUploadModal: boolean;
+  isResolveModal: boolean;
   isHandoffModal: boolean;
   modalVendorName: string;
   modalVendorNo: string;
@@ -511,6 +529,8 @@ export interface ViewModel {
   modalVendorCurrency: string;
   onCloseModal: () => void;
   onAcceptSOA: (file: File) => void;
+  /** Close a vendor that never sent a statement, saying which kind of silence it was. */
+  onResolveVendor: (outcome: ResolveOutcome, note: string) => void;
   onConfirmHandoff: () => void;
 
   entityName: string;
@@ -550,11 +570,12 @@ export interface Handlers {
   goToConsolidation: () => void;
   toggleExpand: (id: string) => void;
   openUploadModal: (vendorId: string) => void;
+  openResolveModal: (vendorId: string) => void;
   /** Chase one vendor from its row. The kind is decided by what that vendor is still owed. */
   sendOne: (id: string, kind: 'request' | 'reminder') => void;
   /** Send again to every vendor whose last attempt was refused, and to nobody else. */
   retryFailed: () => void;
-  markNR: (id: string) => void;
+  resolveVendor: (outcome: ResolveOutcome, note: string) => void;
   saveContacts: (id: string, emails: string[]) => void;
   generateExport: () => void;
   openHandoffModal: () => void;

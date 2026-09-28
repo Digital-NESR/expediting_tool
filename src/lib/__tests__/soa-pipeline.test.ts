@@ -26,6 +26,7 @@ function vendor(status: Vendor['status']): Vendor {
     respondedAt: null,
     currency: 'USD',
     invCount: 0,
+  resolutionNote: '',
     contactEmails: [],
     submissions: [],
   };

@@ -11,6 +11,8 @@
  * `unknown` rather than passing, a control that cannot fail proves nothing.
  */
 
+import { countsTowardCoverage } from './status';
+
 export type CriterionState = 'pass' | 'fail' | 'unknown';
 
 /** The minimum a vendor row has to carry to be judged. `VendorRow` satisfies this structurally. */
@@ -61,7 +63,10 @@ export function complianceCriteria(
   targetPct: number,
   yearEndPct: number,
 ): Criterion[] {
-  const outstanding = vendors.filter((v) => v.status !== 'received');
+  /* Not outstanding: a statement in hand, or a balance the champion established is nil. The
+     two-request test asks whether a vendor still owing us a statement was chased twice, and a
+     vendor with nothing to send was never owing one. */
+  const outstanding = vendors.filter((v) => !countsTowardCoverage(v.status));
   const missingSecond = outstanding.filter((v) => v.reqDate === ', ' || !v.remDate);
   const twoRequest: CriterionState = !vendors.length
     ? 'unknown'

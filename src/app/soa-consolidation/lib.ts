@@ -1,5 +1,10 @@
 import { shortDateTime, shortDateUTC } from '@/lib/format';
 import { complianceCriteria } from '@/lib/soa/compliance';
+import {
+  countsTowardCoverage,
+  isAwaitingVerification,
+  isResolved,
+} from '@/lib/soa/status';
 import type {
   AppState,
   Country,
@@ -60,6 +65,7 @@ function coverageStanding(pct: number, target: number): Standing {
 const VENDOR_STATUS_LABEL: Record<VendorStatus, string> = {
   scoped: 'Not Requested',
   received: 'Received',
+  nil_balance: 'No Pending Invoices',
   requested: 'Requested',
   reminded: 'Reminded',
   non_responder: 'Non-Responder',
@@ -195,9 +201,7 @@ export function pipelineStage(
     (v) => v.status === 'requested' || v.status === 'reminded',
   ).length;
   const notYetRequested = vendors.filter((v) => v.status === 'scoped').length;
-  const settledCount = vendors.filter(
-    (v) => v.status === 'received' || v.status === 'non_responder',
-  ).length;
+  const settledCount = vendors.filter((v) => isResolved(v.status)).length;
 
   const scopeDone = total > 0;
   return {
@@ -395,14 +399,19 @@ export function deriveViewModel(
 
   const totalCount = vendors.length;
   const receivedCount = vendors.filter((v) => v.status === 'received').length;
+  const nilBalanceCount = vendors.filter((v) => v.status === 'nil_balance').length;
   const requestedCount = vendors.filter((v) => v.status === 'requested').length;
   const remindedCount = vendors.filter((v) => v.status === 'reminded').length;
   const nonResponderCount = vendors.filter((v) => v.status === 'non_responder').length;
   const unrequestedCount = vendors.filter((v) => v.status === 'scoped').length;
   const unreachableCount = vendors.filter((v) => v.contactEmails.length === 0).length;
   const pendingResponseCount = requestedCount + remindedCount;
+  /* Both settled outcomes count. A statement in hand and a balance the champion has established
+     is nil are the same answer to "is this account reconciled"; a supplier with nothing
+     outstanding never had a statement to send, and withholding the credit would measure our
+     paperwork rather than the account. Silence still counts for nothing. */
   const receivedBalance = vendors
-    .filter((v) => v.status === 'received')
+    .filter((v) => countsTowardCoverage(v.status))
     .reduce((s, v) => s + v.openPO, 0);
   const coveragePct = totalBalance > 0 ? Math.round((receivedBalance / totalBalance) * 100) : 0;
   const coverageMet = coveragePct >= coverageTargetPct && totalBalance > 0;
@@ -420,6 +429,15 @@ export function deriveViewModel(
     ? `${cycleLabel} (${dateOnlyLabel(cycle.periodStart)} – ${dateOnlyLabel(cycle.periodEnd)})`
     : ', ';
   const contextLine = `${countryLabel} · ${cycleLabel}`;
+
+  /* The collection deadline as a date, and one reading of "now" for the whole render, so two rows
+     on the same screen cannot land either side of midnight and disagree about it. */
+  const submissionDeadline = cycle ? new Date(cycle.submissionDeadline) : null;
+  const now = new Date();
+  const pastCollectionDeadline =
+    !!submissionDeadline &&
+    !Number.isNaN(submissionDeadline.getTime()) &&
+    now.getTime() > submissionDeadline.getTime();
 
   // Workflow pipeline (6 steps, derived from the active country's status)
   /* The pipeline is derived from what has actually happened, not from the country's status
@@ -531,6 +549,7 @@ export function deriveViewModel(
   const statusBarSegs: StatusBarSegVM[] = (
     [
       { status: 'received', count: receivedCount, label: 'Received' },
+      { status: 'nil_balance', count: nilBalanceCount, label: 'No Pending Invoices' },
       { status: 'requested', count: requestedCount, label: 'Requested' },
       { status: 'reminded', count: remindedCount, label: 'Reminded' },
       { status: 'non_responder', count: nonResponderCount, label: 'Non-Responder' },
@@ -576,6 +595,7 @@ export function deriveViewModel(
     [
       { label: 'All', status: 'all', count: totalCount },
       { label: 'Received', status: 'received', count: receivedCount },
+      { label: 'No Pending Invoices', status: 'nil_balance', count: nilBalanceCount },
       { label: 'Requested', status: 'requested', count: requestedCount },
       { label: 'Reminded', status: 'reminded', count: remindedCount },
       { label: 'Non-Responder', status: 'non_responder', count: nonResponderCount },
@@ -617,6 +637,11 @@ export function deriveViewModel(
        can only be mailed once somebody supplies one. */
     const isUnreachable = v.contactEmails.length === 0;
     const chaseKind: 'request' | 'reminder' = v.status === 'scoped' ? 'request' : 'reminder';
+    /* Past the date suppliers were given and still silent. Derived here rather than written by a
+       job: a statement arriving a day late still lands normally, because nothing overwrote the
+       status to say the supplier had gone quiet. The champion still decides which kind of
+       silence it was. */
+    const awaitingVerification = isAwaitingVerification(v.status, submissionDeadline, now);
     const canChase =
       canAct &&
       !isUnreachable &&
@@ -628,7 +653,9 @@ export function deriveViewModel(
       canAccept: canAct && v.status !== 'received',
       canChase,
       chaseLabel: chaseKind === 'request' ? 'Send request' : 'Send reminder',
-      canNR: canAct && (v.status === 'reminded' || v.status === 'requested'),
+      canResolve: canAct && (v.status === 'reminded' || v.status === 'requested'),
+      awaitingVerification,
+      resolutionNote: v.resolutionNote,
       isUnreachable,
       sendFailed: failedByVendor.has(v.no),
       sendFailedReason: failedByVendor.get(v.no) ?? '',
@@ -636,7 +663,7 @@ export function deriveViewModel(
       onToggle: () => handlers.toggleExpand(v.id),
       onAccept: () => handlers.openUploadModal(v.id),
       onChase: () => handlers.sendOne(v.id, chaseKind),
-      onNR: () => handlers.markNR(v.id),
+      onResolve: () => handlers.openResolveModal(v.id),
       onSaveContacts: (emails: string[]) => handlers.saveContacts(v.id, emails),
     };
   });
@@ -847,6 +874,8 @@ export function deriveViewModel(
       ? '⚠ Some criteria not met'
       : '? Some criteria unverified';
 
+  /* Statements only. A nil-balance vendor is counted in the coverage figure and has no invoice
+     rows to list, so including it would put an empty line in the file AP works from. */
   const consolidatedRows = vendors
     .filter((v) => v.status === 'received')
     .map((v, i) => ({ ...v, num: i + 1, fmtOpenPO: fmtM(v.openPO) }));
@@ -916,7 +945,9 @@ export function deriveViewModel(
   ];
 
   const modalVendor =
-    modal && modal.type === 'upload' ? vendors.find((v) => v.id === modal.vendorId) : undefined;
+    modal && (modal.type === 'upload' || modal.type === 'resolve')
+      ? vendors.find((v) => v.id === modal.vendorId)
+      : undefined;
 
   const cycleSlug = cycleLabel.replace(/\s+/g, '-');
   const scopeSavedLine = scopeSaved
@@ -1036,6 +1067,10 @@ export function deriveViewModel(
     filterTabs,
     vendorsEnriched,
     trackingTable,
+    pastCollectionDeadline,
+    awaitingVerificationCount: vendors.filter((v) =>
+      isAwaitingVerification(v.status, submissionDeadline, now),
+    ).length,
 
     canSendReminders: canAct && pendingResponseCount > 0,
 
@@ -1062,6 +1097,7 @@ export function deriveViewModel(
 
     hasModal: !!modal,
     isUploadModal: modal?.type === 'upload',
+    isResolveModal: modal?.type === 'resolve',
     isHandoffModal: modal?.type === 'handoff',
     modalVendorName: modalVendor?.name ?? '',
     modalVendorNo: modalVendor?.no ?? '',
@@ -1069,6 +1105,7 @@ export function deriveViewModel(
     modalVendorCurrency: modalVendor?.currency ?? '',
     onCloseModal: handlers.closeModal,
     onAcceptSOA: handlers.acceptSOA,
+    onResolveVendor: handlers.resolveVendor,
     onConfirmHandoff: handlers.confirmHandoff,
 
     entityName: countryName ?? ', ',

@@ -6,6 +6,7 @@ import { canAccessCountry, getSoaActor } from '@/lib/soa/access';
 import { complianceCriteria, reminderGapDays, reminderInWindow } from '@/lib/soa/compliance';
 import { ensureSoaSchema, soaPool } from '@/lib/soa/db';
 import { resolvedContactsForMany } from '@/lib/soa/recipients';
+import { countsTowardCoverage } from '@/lib/soa/status';
 
 /**
  * The evidence pack: one workbook that answers an audit of a country's quarter.
@@ -78,7 +79,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
       soaPool.query<QueryResultRow>(
         `SELECT v.id AS vendor_id, v.vendor_no, v.name, vce.open_po_amount, vce.currency,
                 vce.status::text AS status, vce.requested_at, vce.reminded_at, vce.responded_at,
-                vce.invoice_count
+                vce.invoice_count, vce.resolution_note
            FROM vendor_cycle_entries vce JOIN vendors v ON v.id = vce.vendor_id
           WHERE vce.country_cycle_id = $1
           ORDER BY vce.open_po_amount DESC`,
@@ -116,7 +117,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     );
     const totalBalance = Number(denomRes.rows[0]?.total ?? 0);
     const receivedBalance = vendors
-      .filter((v) => String(v.status) === 'received')
+      .filter((v) => countsTowardCoverage(String(v.status)))
       .reduce((sum, v) => sum + Number(v.open_po_amount), 0);
     const coveragePct = totalBalance > 0 ? Math.round((receivedBalance / totalBalance) * 100) : 0;
     const targetPct = Number(cycle.coverage_target_pct);
@@ -181,7 +182,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     summary.addRow(['Vendors in scope', vendors.length]);
     summary.addRow([
       'Statements received',
-      vendors.filter((v) => String(v.status) === 'received').length,
+      vendors.filter((v) => countsTowardCoverage(String(v.status))).length,
     ]);
     summary.getColumn(2).numFmt = '#,##0';
 
@@ -216,6 +217,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
       'Reminder gap (days)',
       'Inside 10-14 day window',
       'Invoices on statement',
+      'Counts towards coverage',
+      // A nil-balance vendor adds its whole balance to the coverage figure without a statement
+      // behind it, so the pack has to carry the champion's stated reason beside the number.
+      'Reason given for closing',
       'Contact addresses used',
     ]);
     for (const v of vendors) {
@@ -240,12 +245,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
         gap ?? '',
         inWindow === null ? 'n/a' : inWindow ? 'Yes' : 'No',
         Number(v.invoice_count),
+        countsTowardCoverage(String(v.status)) ? 'Yes' : 'No',
+        v.resolution_note ? String(v.resolution_note) : '',
         (resolvedContacts.get(String(v.vendor_no)) ?? []).join(', ') || 'None on file',
       ]);
     }
     vs.getColumn(3).numFmt = '#,##0.00';
     vs.columns.forEach((c, i) => {
-      c.width = i === 1 ? 40 : i === 11 ? 40 : 20;
+      c.width = i === 1 ? 40 : i === 12 || i === 13 ? 40 : 20;
     });
 
     /* ── 3. The append-only trail ────────────────────────────────────────── */

@@ -14,7 +14,7 @@ import {
   getSoaExportRows,
   getSoaOutreachFailures,
   handOffSoaCountry,
-  markSoaNonResponder,
+  resolveSoaVendor,
   recordSoaExport,
   sendSoaOutreach,
   sendSoaOutreachBatch,
@@ -29,6 +29,7 @@ import ToastStack from './components/ToastStack';
 import EmptyState from './components/EmptyState';
 import UploadModal from './components/modals/UploadModal';
 import HandoffModal from './components/modals/HandoffModal';
+import ResolveModal from './components/modals/ResolveModal';
 import DashboardScreen from './components/screens/DashboardScreen';
 import VendorScopingScreen from './components/screens/VendorScopingScreen';
 import OutreachScreen from './components/screens/OutreachScreen';
@@ -347,14 +348,25 @@ export default function SoaConsolidationClient({
         'Could not retry',
       );
     },
-    markNR(id) {
+    openResolveModal(vendorId) {
+      patch({ modal: { type: 'resolve', vendorId } });
+    },
+    resolveVendor(outcome, note) {
+      const modal = state.modal;
+      if (!modal || modal.type !== 'resolve') return;
       void run(
-        () => markSoaNonResponder(Number(id)),
+        () => resolveSoaVendor({ entryId: Number(modal.vendorId), outcome, note }),
         () => {
-          patch({ expandedVendor: null });
-          addToast('warning', 'Non-responder flagged', 'Correspondence retained as evidence.');
+          patch({ modal: null, expandedVendor: null });
+          addToast(
+            outcome === 'nil_balance' ? 'success' : 'warning',
+            outcome === 'nil_balance' ? 'Closed, no pending invoices' : 'Non-responder flagged',
+            outcome === 'nil_balance'
+              ? 'This vendor now counts towards coverage. Your reason is on the evidence trail.'
+              : 'The balance stays unconfirmed and does not count towards coverage. Correspondence retained as evidence.',
+          );
         },
-        'Could not flag the vendor',
+        'Could not close that vendor',
       );
     },
     saveContacts(id, emails) {
@@ -592,6 +604,7 @@ export default function SoaConsolidationClient({
           >
             <div className="bg-white rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.2)] w-[480px] overflow-x-hidden max-h-[90vh] overflow-y-auto">
               {vm.isUploadModal && <UploadModal vm={vm} />}
+              {vm.isResolveModal && <ResolveModal vm={vm} />}
               {vm.isHandoffModal && <HandoffModal vm={vm} />}
             </div>
           </div>,

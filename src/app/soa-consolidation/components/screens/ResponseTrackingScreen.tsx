@@ -4,7 +4,12 @@ import { Fragment, useEffect, useState } from 'react';
 import SubmissionLines from '../SubmissionLines';
 import type { ScreenProps, VendorEnrichedVM } from '../../types';
 import TableToolbar from '../TableToolbar';
-import { FILTER_TAB_SELECTED, VENDOR_SEND_FAILED_BADGE, VENDOR_STATUS_BADGE } from '../tones';
+import {
+  FILTER_TAB_SELECTED,
+  VENDOR_AWAITING_VERIFICATION_BADGE,
+  VENDOR_SEND_FAILED_BADGE,
+  VENDOR_STATUS_BADGE,
+} from '../tones';
 
 const COLUMNS = 'grid-cols-[1fr_100px_90px_80px_80px_80px_150px]';
 
@@ -31,7 +36,11 @@ function VendorDetail({
     <div className="bg-[#F5FAF7] border-b border-b-sns-line px-3.5 py-3">
       <div className="flex gap-2.5 items-center flex-wrap">
         <div className="flex-1 min-w-[260px] text-[11px] text-sns-grey">
-          {v.sendFailed ? (
+          {v.resolutionNote ? (
+            /* The champion's own words on why this vendor was closed. Shown to whoever opens the
+               row, not only to whoever downloads the evidence pack. */
+            <span>Closed: {v.resolutionNote}</span>
+          ) : v.sendFailed ? (
             /* The sentence the mailer gave, in full. The badge has room for two words. */
             <span className="text-[#B71C1C] font-bold">{v.sendFailedReason}</span>
           ) : v.isReceived ? (
@@ -68,14 +77,17 @@ function VendorDetail({
             Accept SOA Upload
           </button>
         )}
-        {v.canNR && (
+        {v.canResolve && (
+          /* One button used to say "Mark Non-Responder" whatever the truth was. It opens the
+             choice instead, because a supplier with nothing outstanding and a supplier who never
+             answered are different findings and only one of them counts. */
           <button
             type="button"
-            onClick={v.onNR}
+            onClick={v.onResolve}
             disabled={busy}
             className="bg-[#B71C1C] text-white border-none px-3 py-[7px] rounded-md text-[11px] font-bold disabled:opacity-50"
           >
-            Mark Non-Responder
+            Close without a statement
           </button>
         )}
       </div>
@@ -206,6 +218,26 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
         </div>
       </div>
 
+      {/* The deadline passing does not change a status. It changes what silence means: up to this
+          date a vendor was still being waited on, and after it each one needs a champion to say
+          which kind of silence it is. Said once, at the top, rather than repeated per row. */}
+      {vm.pastCollectionDeadline && vm.awaitingVerificationCount > 0 && (
+        <div className="bg-white rounded-[10px] px-3.5 py-3 mb-3 shadow-[0_1px_3px_rgba(0,0,0,0.07)] border-l-[3px] border-l-[#E65100]">
+          <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey">
+            Past the collection deadline
+          </div>
+          <div className="text-[12px] text-sns-ink mt-0.5">
+            <span className="font-bold text-[#8A4B00]">
+              {vm.awaitingVerificationCount}{' '}
+              {vm.awaitingVerificationCount === 1 ? 'vendor is' : 'vendors are'} still silent and
+              await your verification.
+            </span>{' '}
+            Open a row and close it either as having no pending invoices, which counts towards
+            coverage, or as a non-responder, which does not.
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-1.5 mb-3 flex-wrap">
         {vm.filterTabs.map((tab) => (
           <button
@@ -264,9 +296,19 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
                   as a failure, so the row says which it is. */}
               <div
                 title={v.sendFailed ? v.sendFailedReason : undefined}
-                className={`${v.sendFailed ? VENDOR_SEND_FAILED_BADGE : VENDOR_STATUS_BADGE[v.status]} rounded-xl px-[9px] py-0.5 text-[10px] font-bold inline-block`}
+                className={`${
+                  v.sendFailed
+                    ? VENDOR_SEND_FAILED_BADGE
+                    : v.awaitingVerification
+                      ? VENDOR_AWAITING_VERIFICATION_BADGE
+                      : VENDOR_STATUS_BADGE[v.status]
+                } rounded-xl px-[9px] py-0.5 text-[10px] font-bold inline-block`}
               >
-                {v.sendFailed ? 'Send failed' : v.statusLabel}
+                {v.sendFailed
+                  ? 'Send failed'
+                  : v.awaitingVerification
+                    ? 'Awaiting verification'
+                    : v.statusLabel}
               </div>
               <div className="font-bold">{v.fmtOpenPO}</div>
               <div className="text-[11px] text-sns-grey">{v.reqDate}</div>
