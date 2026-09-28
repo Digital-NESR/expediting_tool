@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { TiteMark } from '@/components/ToolMarks';
 import dynamic from 'next/dynamic';
 import TiteSidebar from '@/components/TiteSidebar';
 import {
@@ -181,7 +182,7 @@ export default function MapClient({ shipments }: { shipments: Shipment[] | null 
           className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
           style={{ background: '#006B0C' }}
         >
-          <span className="text-white font-extrabold text-[10px] tracking-tight">TI·TE</span>
+          <TiteMark className="h-4 w-4 text-white" />
         </div>
         <span className="font-semibold text-slate-900 text-sm">Map View</span>
       </header>

@@ -6,6 +6,7 @@
 'use client';
 
 import { useState } from 'react';
+import { TiteMark } from '@/components/ToolMarks';
 import HelpTabBar from '../HelpTabBar';
 import { TITE_BRAND } from '../brand';
 import { TITE_TRAINING_DOC_URL, TITE_TRAINING_VIDEO_EMBED_URL } from '../media';
@@ -27,7 +28,7 @@ export default function TITEHelpPublicPage() {
             className="flex h-6 w-6 items-center justify-center rounded-md shrink-0"
             style={{ background: TITE_BRAND }}
           >
-            <span className="text-white font-extrabold text-[9px] tracking-tight">TI·TE</span>
+            <TiteMark className="h-4 w-4 text-white" />
           </div>
           <p className="text-xs text-slate-400">TI-TE / Help</p>
         </div>

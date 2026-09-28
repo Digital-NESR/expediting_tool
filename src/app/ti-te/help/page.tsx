@@ -9,6 +9,7 @@
 'use client';
 
 import { useState } from 'react';
+import { TiteMark } from '@/components/ToolMarks';
 import TiteSidebar from '@/components/TiteSidebar';
 import HelpTabBar from '@/app/help/HelpTabBar';
 import { TITE_BRAND } from '@/app/help/brand';
@@ -48,7 +49,7 @@ export default function HelpPage() {
           className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
           style={{ background: TITE_BRAND }}
         >
-          <span className="text-white font-extrabold text-[10px] tracking-tight">TI·TE</span>
+          <TiteMark className="h-4 w-4 text-white" />
         </div>
         <span className="font-semibold text-slate-900 text-sm">Help &amp; Documentation</span>
         <div className="flex-1" />

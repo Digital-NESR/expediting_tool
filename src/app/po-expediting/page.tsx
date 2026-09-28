@@ -13,6 +13,7 @@
    ───────────────────────────────────────────────────────────────────────── */
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { PoExpeditingMark } from '@/components/ToolMarks';
 import Link from 'next/link';
 import LineItemDrawer from '@/components/LineItemDrawer';
 import Sidebar from '@/components/Sidebar';
@@ -383,19 +384,7 @@ export default function Dashboard() {
               </svg>
             </button>
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#307c4c]">
-              <svg
-                className="w-4 h-4 text-white"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <path d="M15 3h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
-                <line x1="12" y1="3" x2="12" y2="21" />
-              </svg>
+              <PoExpeditingMark className="h-4 w-4 text-white" />
             </span>
             <span className="text-lg font-bold text-gray-900 tracking-tight">NESR</span>
             <span className="hidden sm:inline text-gray-300 select-none">·</span>

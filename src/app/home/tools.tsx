@@ -7,9 +7,9 @@
    classes are spelled out as literals below. */
 
 import type { CSSProperties, ReactNode } from 'react';
+import { PoExpeditingMark, RfxOfficerMark, TiteMark } from '@/components/ToolMarks';
 import {
   Laptop,
-  Gavel,
   Building2,
   GraduationCap,
   Receipt,
@@ -117,21 +117,7 @@ export const TOOLS: ToolDef[] = [
     name: 'PO Expediting',
     description:
       'Monitor open purchase orders, expedite delayed lines, and collect supplier delivery updates.',
-    icon: (
-      <svg
-        className="w-6 h-6 text-[#307c4c]"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.75}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11"
-        />
-      </svg>
-    ),
+    icon: <PoExpeditingMark className="h-6 w-6 text-[#307c4c]" />,
     logoClass: 'bg-[#307c4c]/10',
     hoverClass: HOVER_GREEN,
     accent: NESR_GREEN,
@@ -183,7 +169,7 @@ export const TOOLS: ToolDef[] = [
     name: 'RFx Officer',
     description:
       'AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.',
-    icon: <Gavel className="w-6 h-6 text-[#307c4c]" />,
+    icon: <RfxOfficerMark className="h-6 w-6" />,
     logoClass: 'bg-[#f0f9f4]',
     hoverClass: HOVER_GREEN,
     accent: NESR_GREEN,
@@ -245,22 +231,7 @@ export const TOOLS: ToolDef[] = [
     subtitle: 'Temporary Import / Export',
     description:
       'Track temporary import and export shipments, manage customs deadlines, deposits, and re-export compliance.',
-    icon: (
-      <svg
-        className="w-6 h-6"
-        style={{ color: TITE_GREEN }}
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.75}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-        />
-      </svg>
-    ),
+    icon: <TiteMark className="h-6 w-6" style={{ color: TITE_GREEN }} />,
     logoClass: '',
     logoStyle: { background: '#006B0C18' },
     hoverClass: HOVER_TITE,
