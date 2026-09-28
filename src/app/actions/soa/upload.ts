@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
 import { validateUploadSignature, uploadMimeTypeFor } from '@/lib/documents';
 import { canAccessCountry, getSoaActor } from '@/lib/soa/access';
+import { verificationCodeEmail } from '@/lib/soa/email-template';
 import { sendMail } from '@/lib/soa/mail';
 import { MAX_SOA_BYTES, StatementRejected, storeStatement } from '@/lib/soa/submission-store';
 import {
@@ -124,12 +125,13 @@ export async function requestSoaUploadCode(
         kind: 'soa.otp',
         to: [issued.email],
         subject: `Your NESR verification code: ${issued.code}`,
-        bodyHtml:
-          `<p>Your verification code for the ${target.cycleLabel} statement of account upload is:</p>` +
-          `<p style="font-size:28px;font-weight:bold;letter-spacing:4px">${issued.code}</p>` +
-          `<p>It expires in two minutes. If you did not request it, you can ignore this message. ` +
-          `nobody can upload anything without it.</p>`,
-        bodyText: `Your NESR verification code is ${issued.code}. It expires in two minutes.`,
+        bodyHtml: verificationCodeEmail({
+          code: issued.code,
+          vendorName: target.vendorName,
+          cycleLabel: target.cycleLabel,
+          minutes: Math.round(CODE_TTL_SECONDS / 60),
+        }),
+        bodyText: `Your NESR verification code is ${issued.code}. It expires in ${Math.round(CODE_TTL_SECONDS / 60)} minutes.`,
         attachments: [],
         meta: { vendorNo: target.vendorNo, countryName: target.countryName },
       });

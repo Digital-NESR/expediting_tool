@@ -141,6 +141,49 @@ export const DEFAULT_BODY_HTML = `<table role="presentation" width="100%" cellpa
 </td></tr></table>`;
 
 /**
+ * The branded shell every message from this tool sits in.
+ *
+ * Extracted so the verification code and the handoff notice look like the statement request rather
+ * than like three different systems wrote them. A supplier who has just read a carefully laid-out
+ * letter and then receives a bare line of text has reason to wonder which one is genuine, and a
+ * verification code is exactly the message people are taught to be suspicious of.
+ */
+export function emailShell(subtitle: string, inner: string): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F6F4;padding:24px 0">
+<tr><td align="center">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background-color:#FFFFFF;border:1px solid #E2E6E2;border-radius:8px;font-family:Segoe UI, Arial, sans-serif;color:#2B2B2B">
+<tr><td style="background-color:#307c4c;padding:20px 28px;border-radius:8px">
+<div style="color:#FFFFFF;font-size:16px;font-weight:bold;letter-spacing:2px">NESR</div>
+<div style="color:#CFE3D6;font-size:12px">${subtitle}</div>
+</td></tr>
+<tr><td style="padding:28px">${inner}</td></tr>
+</table>
+</td></tr></table>`;
+}
+
+/** The one-time code sent to a supplier proving they can read one of the vendor's addresses. */
+export function verificationCodeEmail(input: {
+  code: string;
+  vendorName: string;
+  cycleLabel: string;
+  minutes: number;
+}): string {
+  return emailShell(
+    'Statement of Account',
+    `<h2 style="font-size:20px;color:#1D4F31;margin:0">Your verification code</h2>
+<p style="font-size:14px;line-height:1.6">Use this code to confirm it is you, and the upload page for <strong>${input.vendorName}</strong> will open.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:8px 0">
+<tr><td align="center" style="background-color:#F1F6F2;border:1px solid #CFE3D6;border-radius:8px;padding:22px">
+<div style="font-size:36px;font-weight:bold;color:#1D4F31;letter-spacing:8px">${input.code}</div>
+<div style="font-size:12px;color:#8A8A8A;padding-top:8px">Expires in ${input.minutes} minutes</div>
+</td></tr></table>
+<p style="font-size:14px;line-height:1.6">This is for the ${input.cycleLabel} statement of account request. The code can be used once.</p>
+<p style="font-size:13px;line-height:1.6;color:#8A8A8A">If you did not ask for this code, you can ignore this message. Nobody can upload anything without it, and we will not ask you for it by phone or email.</p>
+<p style="font-size:14px;line-height:1.6">Thank you!<br /><strong>Supply Chain and Accounts Payable team</strong><br />NESR</p>`,
+  );
+}
+
+/**
  * What a champion is allowed to save.
  *
  * The stored HTML is rendered back into the portal as well as mailed out, so it is untrusted input

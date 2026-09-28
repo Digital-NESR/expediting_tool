@@ -305,20 +305,111 @@ export async function buildSupplierWorkbook(
     for (const address of Object.keys(validations.model)) delete validations.model[address];
   }
 
-  const entityCol = SUPPLIER_COLUMNS.indexOf('Legal Entity') + 1;
+  const col = (name: (typeof SUPPLIER_COLUMNS)[number]) => SUPPLIER_COLUMNS.indexOf(name) + 1;
   const named = workbookCountryName(countryId);
+
+  /* Validation on the columns the parser has to interpret.
+   *
+   * Cheaper to stop a bad value being typed than to guess at it afterwards. A date Excel accepts
+   * arrives as a real date rather than as text, so the reader never has to decide whether 05/09
+   * means May or September; an amount Excel accepts is a number, so it never arrives as
+   * "KWD 1,234.50" or "(500)". Each one carries a prompt saying what is wanted, because a rule
+   * that only speaks up after the fact reads as the file being broken.
+   */
+  const rules: { column: number; rule: ExcelJS.DataValidation }[] = [
+    {
+      column: col('Invoice Date'),
+      rule: {
+        type: 'date',
+        operator: 'between',
+        allowBlank: true,
+        formulae: [new Date(Date.UTC(2000, 0, 1)), new Date(Date.UTC(2100, 0, 1))],
+        showInputMessage: true,
+        promptTitle: 'Invoice date',
+        prompt:
+          'Enter a real date, not text. Type it the way your Excel expects (for example 05/09/2026) and it will be read correctly whatever your regional settings are.',
+        showErrorMessage: true,
+        errorStyle: 'warning',
+        errorTitle: 'That is not a date',
+        error:
+          'Excel did not recognise that as a date. Check the day and month are the right way round for your regional settings.',
+      },
+    },
+    ...(['TAX / VAT (Amount)', 'Total Amount (Including TAX or VAT)', 'Total Amount Outstanding'] as const).map(
+      (name) => ({
+        column: col(name),
+        rule: {
+          type: 'decimal',
+          operator: 'between',
+          allowBlank: true,
+          formulae: [-1000000000000, 1000000000000],
+          showInputMessage: true,
+          promptTitle: 'Amount',
+          prompt:
+            'Numbers only. Do not type a currency symbol or code here, that goes in the Currency column. Use a minus sign for a credit note.',
+          showErrorMessage: true,
+          errorStyle: 'warning',
+          errorTitle: 'That is not a number',
+          error:
+            'Enter the amount as a plain number, without a currency symbol, and without thousands separators typed by hand.',
+        } as ExcelJS.DataValidation,
+      }),
+    ),
+    {
+      column: col('Invoice Outstanding Days'),
+      rule: {
+        type: 'whole',
+        operator: 'between',
+        allowBlank: true,
+        formulae: [0, 100000],
+        showInputMessage: true,
+        promptTitle: 'Days outstanding',
+        prompt: 'A whole number of days. Leave blank if it does not apply.',
+        showErrorMessage: true,
+        errorStyle: 'warning',
+        errorTitle: 'Whole number needed',
+        error: 'Enter the number of days as a whole number.',
+      },
+    },
+    {
+      column: col('Currency'),
+      rule: {
+        type: 'textLength',
+        operator: 'equal',
+        allowBlank: true,
+        formulae: [3],
+        showInputMessage: true,
+        promptTitle: 'Currency',
+        prompt:
+          'The three-letter code for the currency this invoice is in, for example USD, SAR, KWD or AED. One currency per row.',
+        showErrorMessage: true,
+        errorStyle: 'warning',
+        errorTitle: 'Use a three-letter code',
+        error: 'Enter the ISO currency code, for example USD rather than "US Dollars" or "$".',
+      },
+    },
+  ];
+
   if (named) {
     // Straight at the country's named range, since the Country cell the original INDIRECT read is
     // no longer on the sheet.
-    for (let r = 2; r <= 200; r++) {
-      sheet.getRow(r).getCell(entityCol).dataValidation = {
+    rules.push({
+      column: col('Legal Entity'),
+      rule: {
         type: 'list',
         allowBlank: true,
         formulae: [`=${named}`],
         showErrorMessage: true,
         showInputMessage: true,
-      };
-    }
+        promptTitle: 'NESR legal entity',
+        prompt: 'Choose the NESR entity this invoice was raised against, from the list.',
+      },
+    });
+  }
+
+  for (let r = 2; r <= 200; r++) {
+    const row = sheet.getRow(r);
+    for (const { column, rule } of rules) row.getCell(column).dataValidation = rule;
   }
   // An unknown country id leaves the column as free text rather than offering somebody else's
   // entities; every id the tool actually has does resolve.

@@ -368,3 +368,45 @@ export async function setVendorContactList(input: {
   );
   return resolved;
 }
+
+/**
+ * The resolved address list for many vendors at once.
+ *
+ * Same answer as {@link resolvedContactsFor}, in two queries rather than two per vendor, for the
+ * screens that render a whole country. Keyed by vendor number, which is what the callers already
+ * hold.
+ */
+export async function resolvedContactsForMany(
+  vendors: { id: number; vendorNo: string }[],
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (!vendors.length) return out;
+  await ensureSoaSchema();
+
+  const [directory, overrides] = await Promise.all([
+    directoryEmails(vendors.map((v) => v.vendorNo)),
+    sql<QueryResultRow[]>(
+      `SELECT vendor_id, email, kind FROM vendor_contact_overrides WHERE vendor_id = ANY(?)`,
+      [vendors.map((v) => v.id)],
+    ),
+  ]);
+
+  const added = new Map<number, string[]>();
+  const suppressed = new Map<number, Set<string>>();
+  for (const o of overrides) {
+    const id = Number(o.vendor_id);
+    const email = String(o.email).toLowerCase();
+    if (o.kind === 'added') added.set(id, [...(added.get(id) ?? []), email]);
+    else suppressed.set(id, (suppressed.get(id) ?? new Set()).add(email));
+  }
+
+  for (const v of vendors) {
+    const { to } = resolveAddresses(
+      directory.get(v.vendorNo) ?? [],
+      added.get(v.id) ?? [],
+      suppressed.get(v.id) ?? new Set(),
+    );
+    out.set(v.vendorNo, to.map((a) => a.email));
+  }
+  return out;
+}

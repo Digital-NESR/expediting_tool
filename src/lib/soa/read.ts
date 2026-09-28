@@ -2,6 +2,7 @@ import type { QueryResultRow } from 'pg';
 import { shortDayMonth } from '@/lib/format';
 import { countriesFor, type SoaActor } from './access';
 import { ensureSoaSchema, sql } from './db';
+import { resolvedContactsForMany } from './recipients';
 
 /**
  * Everything a page load of SOA Consolidation needs, read from the database.
@@ -296,7 +297,7 @@ export async function loadSoa(
     sql<QueryResultRow[]>(
       `SELECT vce.id, vce.open_po_amount, vce.currency, vce.status::text AS status,
               vce.requested_at, vce.reminded_at, vce.responded_at, vce.invoice_count,
-              v.name, v.vendor_no, v.contact_emails
+              v.id AS vendor_id, v.name, v.vendor_no
          FROM vendor_cycle_entries vce
          JOIN vendors v ON v.id = vce.vendor_id
         WHERE vce.country_cycle_id = ?
@@ -324,6 +325,12 @@ export async function loadSoa(
     ),
     rollup(cycle.id, new Date(cycle.submissionDeadline)),
   ]);
+
+  /* One resolution for the country rather than the stored column, so what the tracking screen
+     shows is what a letter would actually go to. */
+  const resolvedContacts = await resolvedContactsForMany(
+    vendorRows.map((r) => ({ id: Number(r.vendor_id), vendorNo: String(r.vendor_no) })),
+  );
 
   const submissionsByEntry = new Map<string, SoaPayload['vendors'][number]['submissions']>();
   for (const r of submissionRows) {
@@ -361,7 +368,7 @@ export async function loadSoa(
       respondedAt: r.responded_at ? asIso(r.responded_at) : null,
       currency: String(r.currency),
       invCount: Number(r.invoice_count),
-      contactEmails: ((r.contact_emails ?? []) as string[]).filter(Boolean),
+      contactEmails: resolvedContacts.get(String(r.vendor_no)) ?? [],
       submissions: submissionsByEntry.get(String(r.id)) ?? [],
     })),
     countries,

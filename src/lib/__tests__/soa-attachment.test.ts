@@ -92,16 +92,48 @@ describe('buildSupplierWorkbook', () => {
     expect(v?.formulae).toEqual(['=Kuwait']);
   });
 
+  it('makes Excel enforce a real date rather than leaving the parser to guess', async () => {
+    const sheet = (await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS))).getWorksheet('SOA')!;
+    const v = sheet.getRow(2).getCell(SUPPLIER_COLUMNS.indexOf('Invoice Date') + 1).dataValidation;
+    // A date Excel accepts arrives as a real date, so nothing downstream has to decide whether
+    // 05/09 means May or September.
+    expect(v?.type).toBe('date');
+    expect(v?.showInputMessage).toBe(true);
+    expect(v?.prompt).toContain('real date');
+  });
+
+  it('tells the supplier what each awkward column wants, before they type', async () => {
+    const sheet = (await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS))).getWorksheet('SOA')!;
+    const promptFor = (name: (typeof SUPPLIER_COLUMNS)[number]) =>
+      sheet.getRow(2).getCell(SUPPLIER_COLUMNS.indexOf(name) + 1).dataValidation?.prompt ?? '';
+    // Every one of these is a column the parser previously had to interpret after the fact.
+    expect(promptFor('Total Amount Outstanding')).toContain('Numbers only');
+    expect(promptFor('Currency')).toContain('three-letter code');
+    expect(promptFor('Invoice Outstanding Days')).toContain('whole number');
+    expect(promptFor('Legal Entity')).toContain('Choose the NESR entity');
+  });
+
+  it('warns rather than blocks, so a supplier is never stuck', async () => {
+    const sheet = (await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS))).getWorksheet('SOA')!;
+    for (const name of ['Invoice Date', 'Total Amount Outstanding', 'Currency'] as const) {
+      const v = sheet.getRow(2).getCell(SUPPLIER_COLUMNS.indexOf(name) + 1).dataValidation;
+      // A hard stop on a statement somebody is trying to return is worse than a flagged row we
+      // can query: allowBlank, and a warning they can override.
+      expect(v?.allowBlank, name).toBe(true);
+      expect(v?.errorStyle, name).toBe('warning');
+    }
+  });
+
   it('leaves a dropdown on Legal Entity and nowhere else', async () => {
     const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
     const sheet = wb.getWorksheet('SOA')!;
     const entity = SUPPLIER_COLUMNS.indexOf('Legal Entity') + 1;
     for (let c = 1; c <= SUPPLIER_COLUMNS.length; c++) {
       const v = sheet.getRow(2).getCell(c).dataValidation;
-      // spliceColumns moves cells but leaves validations on their original column numbers, which
-      // put the template's entity dropdown onto Invoice Date.
+      // A dropdown belongs on the entity column only. The template's one sat on column D of the
+      // sixteen-column layout, and stripping four columns made D the Invoice Date.
       if (c === entity) expect(v?.type, SUPPLIER_COLUMNS[c - 1]).toBe('list');
-      else expect(v, SUPPLIER_COLUMNS[c - 1]).toBeFalsy();
+      else expect(v?.type, SUPPLIER_COLUMNS[c - 1]).not.toBe('list');
     }
   });
 

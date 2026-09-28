@@ -5,6 +5,7 @@ import { attachmentContentDisposition } from '@/lib/contentDisposition';
 import { canAccessCountry, getSoaActor } from '@/lib/soa/access';
 import { complianceCriteria, reminderGapDays, reminderInWindow } from '@/lib/soa/compliance';
 import { ensureSoaSchema, soaPool } from '@/lib/soa/db';
+import { resolvedContactsForMany } from '@/lib/soa/recipients';
 
 /**
  * The evidence pack: one workbook that answers an audit of a country's quarter.
@@ -75,7 +76,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
 
     const [vendorRes, evidenceRes, submissionRes, denomRes] = await Promise.all([
       soaPool.query<QueryResultRow>(
-        `SELECT v.vendor_no, v.name, v.contact_emails, vce.open_po_amount, vce.currency,
+        `SELECT v.id AS vendor_id, v.vendor_no, v.name, vce.open_po_amount, vce.currency,
                 vce.status::text AS status, vce.requested_at, vce.reminded_at, vce.responded_at,
                 vce.invoice_count
            FROM vendor_cycle_entries vce JOIN vendors v ON v.id = vce.vendor_id
@@ -107,6 +108,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     ]);
 
     const vendors = vendorRes.rows;
+    /* The addresses a letter would actually go to, not the stored column, so the pack an auditor
+       reads agrees with what was sent. */
+    const resolvedContacts = await resolvedContactsForMany(
+      vendors.map((v) => ({ id: Number(v.vendor_id), vendorNo: String(v.vendor_no) })),
+    );
     const totalBalance = Number(denomRes.rows[0]?.total ?? 0);
     const receivedBalance = vendors
       .filter((v) => String(v.status) === 'received')
@@ -233,7 +239,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
         gap ?? '',
         inWindow === null ? 'n/a' : inWindow ? 'Yes' : 'No',
         Number(v.invoice_count),
-        ((v.contact_emails ?? []) as string[]).join(', ') || 'None on file',
+        (resolvedContacts.get(String(v.vendor_no)) ?? []).join(', ') || 'None on file',
       ]);
     }
     vs.getColumn(3).numFmt = '#,##0.00';

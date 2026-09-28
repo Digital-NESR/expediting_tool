@@ -1,6 +1,7 @@
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { QueryResultRow } from 'pg';
 import { ensureSoaSchema, sql } from './db';
+import { resolvedContactsFor } from './recipients';
 
 /**
  * Letting a supplier prove they are entitled to upload.
@@ -72,7 +73,7 @@ export async function targetForToken(token: string): Promise<UploadTarget | null
 
   const rows = await sql<QueryResultRow[]>(
     `SELECT vce.id, vce.status::text AS status, v.name AS vendor_name, v.vendor_no,
-            v.contact_emails, cc.country_id, cc.status::text AS country_status,
+            v.id AS vendor_id, cc.country_id, cc.status::text AS country_status,
             c.name AS country_name, cy.label, cy.submission_deadline, cy.is_active
        FROM vendor_cycle_entries vce
        JOIN vendors v         ON v.id = vce.vendor_id
@@ -99,7 +100,10 @@ export async function targetForToken(token: string): Promise<UploadTarget | null
     // A handed-off country has already been reported to Finance; accepting a late statement then
     // would change a figure somebody has signed off.
     acceptingUploads: Boolean(r.is_active) && String(r.country_status) !== 'handed_off',
-    contacts: ((r.contact_emails ?? []) as string[]).filter(Boolean),
+    /* Resolved rather than read from vendors.contact_emails, which no edit touches and which
+       still holds the @nesr.com addresses the letter filters out. A supplier was being offered a
+       colleague's address as one of their own to verify against. */
+    contacts: await resolvedContactsFor(Number(r.vendor_id), String(r.vendor_no)),
   };
 }
 
