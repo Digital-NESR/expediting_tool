@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_BODY_HTML,
   DEFAULT_SUBJECT,
+  highlightPlaceholders,
   htmlToText,
   renderTemplate,
   sanitizeTemplateHtml,
@@ -155,5 +156,34 @@ describe('resolveAddresses', () => {
 
   it('reports a vendor with nothing to write to as empty rather than throwing', () => {
     expect(resolveAddresses([], [], none)).toEqual({ to: [], droppedInternal: [] });
+  });
+});
+
+describe('highlightPlaceholders', () => {
+  it('leaves the token visible rather than filling it', () => {
+    // The preview used to render a real vendor's name, which read as though that vendor were part
+    // of the standard letter.
+    const out = highlightPlaceholders('<p>Dear {{vendor_name}},</p>');
+    expect(out).toContain('{{vendor_name}}');
+    expect(out).toContain('<span');
+  });
+
+  it('marks an unknown token differently, because it will go out as written', () => {
+    const known = highlightPlaceholders('{{vendor_name}}');
+    const unknown = highlightPlaceholders('{{vendor_nme}}');
+    expect(known).not.toBe(unknown);
+    expect(unknown).toContain('{{vendor_nme}}');
+  });
+
+  it('marks every field the letter actually uses', () => {
+    const out = highlightPlaceholders(DEFAULT_BODY_HTML);
+    // Nothing in the approved letter should come out looking like a mistake.
+    expect(out).not.toContain('#FDECEA');
+  });
+
+  it('leaves text with no placeholders untouched', () => {
+    expect(highlightPlaceholders('<p>Dear Valued Business Partner,</p>')).toBe(
+      '<p>Dear Valued Business Partner,</p>',
+    );
   });
 });

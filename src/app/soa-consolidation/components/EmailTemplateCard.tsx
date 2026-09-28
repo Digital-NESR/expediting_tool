@@ -202,10 +202,38 @@ export default function EmailTemplateCard({ countryId, canEdit, onNext }: Props)
           />
         )}
 
+        {/* The legend. Without it the highlighted tokens say that something varies but not what,
+            and a champion editing the letter has no way to know what is available. */}
+        <div className="mt-4 rounded-lg border border-sns-line bg-[#FAFBFA] px-3.5 py-3">
+          <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey">
+            Fields, replaced for each vendor when the letter is sent
+          </div>
+          <div className="mt-2 grid gap-x-5 gap-y-1.5 sm:grid-cols-2">
+            {(view?.placeholders ?? []).map((p) => (
+              <div key={p.token} className="flex items-baseline gap-2 text-[11.5px]">
+                <span
+                  className="shrink-0 rounded font-[family-name:monospace] text-[10.5px]"
+                  style={{ background: '#E3F0E8', color: '#1D4F31', padding: '1px 4px' }}
+                >
+                  {`{{${p.token}}}`}
+                </span>
+                <span className="text-sns-ink">
+                  {p.label}
+                  <span className="text-sns-grey"> — {p.from}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2.5 border-t border-t-[#EDEDED] pt-2 text-[11px] text-sns-grey">
+            Anything in <span style={{ background: '#FDECEA', color: '#B71C1C', padding: '0 3px', borderRadius: 3 }}>red</span>{' '}
+            is not a field the tool knows, and will reach the supplier exactly as written.
+          </div>
+        </div>
+
         <div className="flex justify-between items-center mt-4">
           <div className="text-[11px] text-sns-grey">
             {mode === 'preview'
-              ? 'Shown with this country’s largest vendor and the real cycle dates.'
+              ? 'The standard letter. Fields below are filled in per vendor at send time.'
               : 'Use “Insert field” for anything that changes per vendor.'}
           </div>
           <button

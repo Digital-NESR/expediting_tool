@@ -1,16 +1,12 @@
 'use server';
 
-import type { QueryResultRow } from 'pg';
-import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import { logger } from '@/lib/logger';
 import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
-import { sql } from '@/lib/soa/db';
 import {
   PLACEHOLDERS,
-  renderTemplate,
+  highlightPlaceholders,
   sanitizeTemplateHtml,
   unknownTokens,
-  type TemplateVars,
 } from '@/lib/soa/email-template';
 import {
   letterContext,
@@ -49,68 +45,19 @@ export interface TemplateView extends StoredTemplate {
   placeholders: typeof PLACEHOLDERS;
 }
 
-/**
- * Everything the letter needs, resolved for one country.
- *
- * The preview uses the country's largest vendor rather than invented text: a champion approving a
- * letter should be looking at the letter that will actually go out, and a placeholder that fails
- * to resolve is only obvious when the rest of it is real.
- */
-async function varsFor(
-  countryId: string,
-  actor: { email: string; name: string },
-): Promise<TemplateVars> {
-  const [ctx, top, directory] = await Promise.all([
-    letterContext(countryId),
-    sql<QueryResultRow[]>(
-      `SELECT v.name, v.vendor_no
-         FROM country_cycles cc
-         JOIN cycles cy ON cy.id = cc.cycle_id AND cy.is_active
-         JOIN vendor_cycle_entries e ON e.country_cycle_id = cc.id
-         JOIN vendors v ON v.id = e.vendor_id
-        WHERE cc.country_id = ?
-        ORDER BY e.open_po_amount DESC NULLS LAST LIMIT 1`,
-      [countryId],
-    ),
-    getEmployeeDirectoryDefaults(actor.email).catch(() => null),
-  ]);
-
-  return {
-    date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
-    vendorName: (top[0]?.name as string) ?? 'the vendor',
-    vendorNo: (top[0]?.vendor_no as string) ?? '',
-    countryName: ctx.countryName,
-    cycleLabel: ctx.cycleLabel,
-    statementPeriodEnd: ctx.statementPeriodEnd,
-    replyBy: ctx.replyBy,
-    apEmail: ctx.apEmails.join(', '),
-    championName: ctx.championNames.join(' or ') || actor.name,
-    championEmail: ctx.championEmails.join(', ') || actor.email,
-    /* The preview belongs to no vendor, so it shows the shape of the link rather than a working
-       one. A real token here would be a live upload page pasted into an editable letter. */
-    uploadLink: 'https://…/soa-upload/<each vendor gets their own>',
-    senderName: actor.name,
-    senderTitle: directory?.position ?? '',
-    // The directory carries no phone number; a champion who wants one types it into the letter.
-    senderMobile: '',
-    senderEmail: actor.email,
-  };
-}
-
-/** The letter for a country, with a preview rendered against its largest vendor. */
+/** The letter for a country, shown with its placeholders marked rather than filled. */
 export async function getSoaTemplate(countryId: string): Promise<SoaResult<TemplateView>> {
   try {
-    const actor = await requireSoaCountry(countryId, 'champion');
-    const stored = await loadTemplate(countryId);
-    const vars = await varsFor(countryId, actor);
+    await requireSoaCountry(countryId, 'champion');
+    const [stored, ctx] = await Promise.all([loadTemplate(countryId), letterContext(countryId)]);
     return {
       success: true,
       data: {
         ...stored,
-        previewHtml: renderTemplate(stored.bodyHtml, vars),
-        previewSubject: renderTemplate(stored.subject, vars),
+        previewHtml: highlightPlaceholders(stored.bodyHtml),
+        previewSubject: stored.subject,
         unknown: [...unknownTokens(stored.bodyHtml), ...unknownTokens(stored.subject)],
-        apEmailMissing: !vars.apEmail,
+        apEmailMissing: !ctx.apEmails.length,
         placeholders: PLACEHOLDERS,
       },
     };
@@ -126,14 +73,13 @@ export async function previewSoaTemplate(input: {
   bodyHtml: string;
 }): Promise<SoaResult<{ subject: string; html: string; unknown: string[] }>> {
   try {
-    const actor = await requireSoaCountry(input.countryId, 'champion');
-    const vars = await varsFor(input.countryId, actor);
+    await requireSoaCountry(input.countryId, 'champion');
     const clean = sanitizeTemplateHtml(input.bodyHtml);
     return {
       success: true,
       data: {
-        subject: renderTemplate(input.subject, vars),
-        html: renderTemplate(clean, vars),
+        subject: input.subject,
+        html: highlightPlaceholders(clean),
         unknown: [...unknownTokens(input.bodyHtml), ...unknownTokens(input.subject)],
       },
     };

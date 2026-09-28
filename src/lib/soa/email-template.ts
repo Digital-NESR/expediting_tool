@@ -204,6 +204,26 @@ export function renderTemplate(html: string, vars: TemplateVars): string {
   });
 }
 
+/**
+ * Mark up the placeholders instead of filling them.
+ *
+ * The preview used to render against the country's largest vendor, which read as though that
+ * vendor were part of the standard letter — a champion editing it would reasonably wonder why
+ * somebody else's name was in their template. Showing the tokens themselves says plainly which
+ * parts are written once and which are resolved per vendor at send time.
+ *
+ * An unknown token is marked differently rather than left to blend in: it will go out to the
+ * supplier exactly as written, so it needs to look wrong here.
+ */
+export function highlightPlaceholders(html: string): string {
+  const known = new Set(PLACEHOLDERS.map((p) => p.token));
+  return (html ?? '').replace(TOKEN, (whole, name: string) =>
+    known.has(name)
+      ? `<span style="background:#E3F0E8;color:#1D4F31;border-radius:3px;padding:0 3px">${whole}</span>`
+      : `<span style="background:#FDECEA;color:#B71C1C;border-radius:3px;padding:0 3px">${whole}</span>`,
+  );
+}
+
 /** Tokens present in the text that nothing can fill — surfaced before a send, not after. */
 export function unknownTokens(html: string): string[] {
   const known = new Set(PLACEHOLDERS.map((p) => p.token));
