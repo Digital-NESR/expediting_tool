@@ -279,3 +279,92 @@ export async function setVendorContact(input: {
     [input.vendorId, email, input.actor],
   );
 }
+
+/**
+ * The addresses one vendor will actually be written to.
+ *
+ * The same resolution the Recipients screen shows, exported so the send can use it too. It used to
+ * read `vendors.contact_emails` straight from the column, which no edit ever touches: a champion
+ * could remove an address, watch it disappear, and have the letter go to it anyway. Worse, the
+ * column still holds the `@nesr.com` addresses the screen filters out, so colleagues were being
+ * sent letters addressed to "Dear Valued Business Partner".
+ *
+ * Two answers to "who do we write to" is one too many. This is the answer.
+ */
+export async function resolvedContactsFor(vendorId: number, vendorNo: string): Promise<string[]> {
+  await ensureSoaSchema();
+  const [directory, overrides] = await Promise.all([
+    directoryEmails([vendorNo]),
+    sql<QueryResultRow[]>(
+      `SELECT email, kind FROM vendor_contact_overrides WHERE vendor_id = ?`,
+      [vendorId],
+    ),
+  ]);
+
+  const added = overrides.filter((o) => o.kind === 'added').map((o) => String(o.email));
+  const suppressed = new Set(
+    overrides.filter((o) => o.kind === 'suppressed').map((o) => String(o.email).toLowerCase()),
+  );
+
+  return resolveAddresses(directory.get(vendorNo) ?? [], added, suppressed).to.map((a) => a.email);
+}
+
+/**
+ * Set a vendor's whole recipient list at once.
+ *
+ * The Response Tracking screen edits contacts as a list rather than one address at a time, and it
+ * used to write `vendors.contact_emails` directly, which is a different store from the one the
+ * Recipients screen writes. Two stores meant whichever the send happened to read won, and the
+ * other screen's edits quietly did nothing.
+ *
+ * Expressed as overrides instead, so both screens write the same place: anything in the directory
+ * the caller left out becomes a suppression, anything they added that the directory does not have
+ * becomes an addition, and the rest needs no row at all. `contact_emails` is then refreshed as a
+ * derived copy, because the vendor list and its unreachable count still read it for display.
+ */
+export async function setVendorContactList(input: {
+  vendorId: number;
+  vendorNo: string;
+  desired: string[];
+  actor: string;
+}): Promise<string[]> {
+  await ensureSoaSchema();
+  const desired = new Set(
+    input.desired.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@') && e.length > 3),
+  );
+  const directory = (await directoryEmails([input.vendorNo])).get(input.vendorNo) ?? [];
+
+  await sql(`DELETE FROM vendor_contact_overrides WHERE vendor_id = ?`, [input.vendorId]);
+
+  for (const email of directory) {
+    // An internal address is filtered out of the letter anyway, so leaving it out of the desired
+    // list is not the champion suppressing anything.
+    if (!desired.has(email) && !INTERNAL.test(email)) {
+      await sql(
+        `INSERT INTO vendor_contact_overrides (vendor_id, email, kind, created_by)
+         VALUES (?, ?, 'suppressed', ?) ON CONFLICT (vendor_id, email) DO UPDATE SET kind = 'suppressed'`,
+        [input.vendorId, email, input.actor],
+      );
+    }
+  }
+
+  const fromDirectory = new Set(directory);
+  for (const email of desired) {
+    if (!fromDirectory.has(email)) {
+      await sql(
+        `INSERT INTO vendor_contact_overrides (vendor_id, email, kind, created_by)
+         VALUES (?, ?, 'added', ?) ON CONFLICT (vendor_id, email) DO UPDATE SET kind = 'added'`,
+        [input.vendorId, email, input.actor],
+      );
+    }
+  }
+
+  const resolved = await resolvedContactsFor(input.vendorId, input.vendorNo);
+  await sql(
+    `UPDATE vendors SET contact_emails = ?, contact_source = 'manual',
+            contact_updated_at = NOW(), contact_updated_by = ?
+      WHERE id = ?`,
+    [resolved, input.actor, input.vendorId],
+  );
+  return resolved;
+}

@@ -288,6 +288,23 @@ export async function buildSupplierWorkbook(
     for (let c = 1; c <= SUPPLIER_COLUMNS.length; c++) row.getCell(c).value = null;
   }
 
+  /* Clear every validation before setting ours.
+   *
+   * They are stored against cell ADDRESSES (D2, D3, ...), not against columns, so `spliceColumns`
+   * moves the cells and leaves the validations where they were. The template's Legal Entity
+   * dropdown lives on column D of the sixteen-column layout; strip four columns and D becomes
+   * Invoice Date, which is where it turned up. Assigning `undefined` to `cell.dataValidation` does
+   * not remove the entry, so the sheet's own collection is emptied instead.
+   */
+  const validations = (sheet as unknown as {
+    dataValidations?: { model?: Record<string, unknown> };
+  }).dataValidations;
+  if (validations?.model) {
+    // Deleted rather than `remove`d: that method leaves a `{ type: 'any' }` placeholder behind,
+    // which is one more thing in the file for a supplier's Excel to interpret.
+    for (const address of Object.keys(validations.model)) delete validations.model[address];
+  }
+
   const entityCol = SUPPLIER_COLUMNS.indexOf('Legal Entity') + 1;
   const named = workbookCountryName(countryId);
   if (named) {

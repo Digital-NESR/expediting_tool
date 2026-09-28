@@ -92,6 +92,19 @@ describe('buildSupplierWorkbook', () => {
     expect(v?.formulae).toEqual(['=Kuwait']);
   });
 
+  it('leaves a dropdown on Legal Entity and nowhere else', async () => {
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
+    const sheet = wb.getWorksheet('SOA')!;
+    const entity = SUPPLIER_COLUMNS.indexOf('Legal Entity') + 1;
+    for (let c = 1; c <= SUPPLIER_COLUMNS.length; c++) {
+      const v = sheet.getRow(2).getCell(c).dataValidation;
+      // spliceColumns moves cells but leaves validations on their original column numbers, which
+      // put the template's entity dropdown onto Invoice Date.
+      if (c === entity) expect(v?.type, SUPPLIER_COLUMNS[c - 1]).toBe('list');
+      else expect(v, SUPPLIER_COLUMNS[c - 1]).toBeFalsy();
+    }
+  });
+
   it('gives Saudi Arabia the workbook’s spelling, not the tool’s', async () => {
     const wb = await open(await buildSupplierWorkbook('SA', 'Saudi Arabia', AP));
     const col = SUPPLIER_COLUMNS.indexOf('Legal Entity') + 1;

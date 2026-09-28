@@ -27,6 +27,7 @@ import { attachmentFileName, buildSupplierWorkbook } from '@/lib/soa/attachment'
 import { htmlToText, renderTemplate, type TemplateVars } from '@/lib/soa/email-template';
 import { AppUrlNotConfiguredError, soaPortalUrl, uploadLinkFor } from '@/lib/soa/links';
 import { notifySoaHandoff } from '@/lib/soa/notify';
+import { resolvedContactsFor, setVendorContactList } from '@/lib/soa/recipients';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import { MailNotConfiguredError, sendMail, type MailMessage } from '@/lib/soa/mail';
 import { MAX_SOA_BYTES, StatementRejected, storeStatement } from '@/lib/soa/submission-store';
@@ -47,6 +48,8 @@ interface EntryContext {
   amount: number;
   currency: string;
   contacts: string[];
+  /** Needed to write contact edits, which are stored against the vendor rather than the entry. */
+  vendorId: number;
   /** This vendor's own upload address for this cycle. */
   uploadToken: string;
   status: string;
@@ -64,7 +67,7 @@ async function loadEntry(entryId: number, min: 'champion' | 'viewer' = 'champion
   await ensureSoaSchema();
   const rows = await sql<QueryResultRow[]>(
     `SELECT vce.id, vce.country_cycle_id, vce.open_po_amount, vce.currency, vce.status::text AS status,
-            v.name AS vendor_name, v.vendor_no, v.contact_emails,
+            v.id AS vendor_id, v.name AS vendor_name, v.vendor_no,
             vce.upload_token,
             cc.country_id, c.name AS country_name, cy.label, cy.submission_deadline
        FROM vendor_cycle_entries vce
@@ -88,7 +91,10 @@ async function loadEntry(entryId: number, min: 'champion' | 'viewer' = 'champion
     vendorNo: String(r.vendor_no),
     amount: Number(r.open_po_amount),
     currency: String(r.currency),
-    contacts: ((r.contact_emails ?? []) as string[]).filter(Boolean),
+    /* Resolved the same way the Recipients screen resolves it, rather than read from
+       vendors.contact_emails, which no edit ever touches. */
+    contacts: await resolvedContactsFor(Number(r.vendor_id), String(r.vendor_no)),
+    vendorId: Number(r.vendor_id),
     uploadToken: String(r.upload_token),
     status: String(r.status),
     cycleLabel: String(r.label),
@@ -661,15 +667,13 @@ export async function setSoaVendorContacts(input: {
           .filter((e) => e.includes('@') && e.length > 3),
       ),
     ];
+    const resolved = await setVendorContactList({
+      vendorId: context.vendorId,
+      vendorNo: context.vendorNo,
+      desired: cleaned,
+      actor: actor.email,
+    });
     await withTransaction(soaPool, async (client) => {
-      await client.query(
-        `UPDATE vendors v
-            SET contact_emails = $2, contact_source = 'manual',
-                contact_updated_at = NOW(), contact_updated_by = $3
-           FROM vendor_cycle_entries vce
-          WHERE vce.id = $1 AND v.id = vce.vendor_id`,
-        [input.entryId, cleaned, actor.email],
-      );
       await writeEvidence(
         client,
         context.countryCycleId,
@@ -677,7 +681,7 @@ export async function setSoaVendorContacts(input: {
         'info',
         'Vendor contacts updated',
         actor.email,
-        `${context.vendorName} (${context.vendorNo}), ${cleaned.length ? cleaned.join(', ') : 'all addresses removed'}.`,
+        `${context.vendorName} (${context.vendorNo}), ${resolved.length ? resolved.join(', ') : 'all addresses removed'}.`,
       );
     });
     revalidatePath('/soa-consolidation');
