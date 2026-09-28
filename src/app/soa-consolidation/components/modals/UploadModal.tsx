@@ -20,13 +20,24 @@ import type { ScreenProps } from '../../types';
  */
 
 const MAX_BYTES = 10 * 1024 * 1024;
-const ACCEPTED = /\.(xlsx|xlsm|xls)$/i;
+const CORRESPONDENCE = /\.(eml|msg)$/i;
+const ACCEPTED = /\.(xlsx|xlsm|xls|eml|msg)$/i;
+
+/* Saving a mail out of Outlook is not something most people have had reason to do, and the
+   alternative is a champion pasting the supplier's figures in by hand. */
+const OUTLOOK_STEPS = [
+  'Open the supplier’s reply in Outlook, in its own window rather than the reading pane.',
+  'File, then Save As.',
+  'Set "Save as type" to Outlook Message Format (*.msg), or HTML if you want it readable anywhere.',
+  'Save it somewhere you can find, then drag it onto this box.',
+];
 
 export default function UploadModal({ vm }: ScreenProps) {
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const isCorrespondence = !!file && CORRESPONDENCE.test(file.name);
 
   /** Shared by the picker and the drop zone, so a dropped file is judged exactly like a chosen one. */
   const accept = useCallback((chosen: File | null) => {
@@ -34,7 +45,7 @@ export default function UploadModal({ vm }: ScreenProps) {
     if (!ACCEPTED.test(chosen.name)) {
       setFile(null);
       return setError(
-        'Statements have to be the Excel template the supplier was sent. A PDF cannot be read into invoice lines.',
+        'Upload either the Excel template the supplier filled in, or their reply saved as a .msg or .eml file. A PDF is neither.',
       );
     }
     if (chosen.size > MAX_BYTES) {
@@ -118,9 +129,9 @@ export default function UploadModal({ vm }: ScreenProps) {
             </div>
           ) : (
             <>
-              <div className="text-[13px] font-bold mb-1">Drag the completed statement here</div>
+              <div className="text-[13px] font-bold mb-1">Drag the supplier&apos;s reply here</div>
               <div className="text-[11px] text-sns-grey mb-2">
-                The Excel template the supplier was sent · Max 10 MB
+                The filled-in Excel template, or their email saved as .msg or .eml · Max 10 MB
               </div>
               <label
                 htmlFor="soa-file"
@@ -135,7 +146,7 @@ export default function UploadModal({ vm }: ScreenProps) {
             id="soa-file"
             ref={fileRef}
             type="file"
-            accept=".xlsx,.xlsm,.xls"
+            accept=".xlsx,.xlsm,.xls,.eml,.msg"
             className="sr-only"
             onChange={(e) => accept(e.target.files?.[0] ?? null)}
           />
@@ -147,12 +158,43 @@ export default function UploadModal({ vm }: ScreenProps) {
           </div>
         )}
 
-        <div className="text-[11px] text-sns-grey leading-[1.4] mb-3.5">
-          The invoice rows are read from the workbook and shown for review on the vendor&apos;s row.
-          The file itself is checked against its declared type, stored in the database, and served
-          only through an authenticated route, a statement lists a vendor&apos;s invoice numbers
-          and balances.
+        {/* Which of the two this is, said before it is uploaded rather than discovered after. */}
+        <div
+          className={`rounded-md px-3 py-2 text-[11px] leading-[1.45] mb-3.5 ${
+            isCorrespondence ? 'bg-[#FFF8E1] text-[#8A4B00]' : 'bg-[#F5F5F5] text-sns-grey'
+          }`}
+        >
+          {isCorrespondence ? (
+            <>
+              <strong>This will be filed as correspondence.</strong> Nothing in an email is read
+              into invoice lines, so the vendor counts towards coverage and the consolidated
+              workbook carries one line telling AP to refer to this attachment. Upload the filled-in
+              template instead if you have it.
+            </>
+          ) : (
+            <>
+              The invoice rows are read from the workbook and shown for review on the vendor&apos;s
+              row. The file is checked against its declared type, stored in the database, and served
+              only through an authenticated route, a statement lists a vendor&apos;s invoice numbers
+              and balances.
+            </>
+          )}
         </div>
+
+        <details className="mb-3.5 rounded-md border border-sns-line px-3 py-2">
+          <summary className="cursor-pointer text-[11px] font-bold text-sns-ink">
+            How to save a reply out of Outlook
+          </summary>
+          <ol className="mt-2 list-decimal space-y-1 pl-4 text-[11px] leading-[1.45] text-sns-grey">
+            {OUTLOOK_STEPS.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          <div className="mt-2 text-[11px] text-sns-grey leading-[1.45]">
+            Dragging the mail straight from the message list onto this box works too, and saves the
+            four steps. On Outlook for the web, use the three dots on the message and Download.
+          </div>
+        </details>
 
         <div className="flex gap-2">
           <button

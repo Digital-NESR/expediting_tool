@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
 import { validateUploadSignature, uploadMimeTypeFor } from '@/lib/documents';
-import { canAccessCountry, getSoaActor } from '@/lib/soa/access';
 import { verificationCodeEmail } from '@/lib/soa/email-template';
 import { sendMail } from '@/lib/soa/mail';
 import { MAX_SOA_BYTES, StatementRejected, storeStatement } from '@/lib/soa/submission-store';
@@ -14,7 +13,6 @@ import {
   sessionEmailFor,
   targetForToken,
   verifyUploadCode,
-  type UploadTarget,
 } from '@/lib/soa/upload-access';
 
 /**
@@ -24,6 +22,12 @@ import {
  * resolves the link token itself and derives everything else from it. Nothing the browser sends, 
  * no vendor id, no country, no email address. Is trusted; the token is the only input, and a
  * caller who has one can act on exactly the vendor it names and no other.
+ *
+ * The code is the only key. A signed-in champion used to skip it here and upload on the vendor's
+ * behalf, which made this link a second and weaker door into the same act: the code proves control
+ * of the mailbox the request went to, while a champion holding a forwarded link proved only that
+ * somebody had forwarded it to them. A champion files a reply through Accept SOA Upload, where it
+ * is recorded as their act rather than as the supplier's.
  *
  * Addresses are chosen by position in the list this produced, never typed. Accepting a typed
  * address would turn the page into an oracle: a stranger holding a forwarded link could test
@@ -59,28 +63,9 @@ export interface UploadPageState {
   maskedContacts: string[];
   /** The address already verified in THIS TAB, masked. Null until the tab verifies one. */
   verifiedAs: string | null;
-  /** A signed-in champion for this country skips verification entirely. */
-  signedInAs: string | null;
   codeTtlSeconds: number;
 }
 
-/**
- * Is this caller a champion for the country that owns the link?
- *
- * The code proves someone can read the vendor's mailbox. A champion signed in through the
- * company's own SSO has already proved more than that, and uploading on a supplier's behalf is a
- * normal part of their job, a supplier who replies with the file attached still has to get it
- * into the system somehow.
- */
-async function championFor(target: UploadTarget): Promise<string | null> {
-  try {
-    const actor = await getSoaActor();
-    if (!actor) return null;
-    return canAccessCountry(actor, target.countryId, 'champion') ? actor.email : null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Everything the upload page renders, resolved from the link alone.
@@ -109,7 +94,6 @@ export async function getSoaUploadState(
         acceptingUploads: target.acceptingUploads,
         maskedContacts: target.contacts.map(maskEmail),
         verifiedAs: verifiedEmail ? maskEmail(verifiedEmail) : null,
-        signedInAs: await championFor(target),
         codeTtlSeconds: CODE_TTL_SECONDS,
       },
     };
@@ -214,9 +198,10 @@ export async function submitSoaUploadFile(
       return { success: false, error: 'This cycle has closed and is no longer accepting statements.' };
     }
 
+    /* The code is the only key to this page. A champion signing in does not open it: uploading on
+       a supplier's behalf is a champion's act, recorded as theirs, through Accept SOA Upload. */
     const verifiedEmail = await sessionEmailFor(target.entryId, sessionToken);
-    const champion = verifiedEmail ? null : await championFor(target);
-    if (!verifiedEmail && !champion) {
+    if (!verifiedEmail) {
       return { success: false, error: 'Verify your email address before uploading.' };
     }
 
@@ -245,16 +230,12 @@ export async function submitSoaUploadFile(
       fileName: file.name,
       contentType: uploadMimeTypeFor(file.name, file.type),
       content,
-      uploadedBy: verifiedEmail ?? champion ?? 'unknown',
-      actorLabel: verifiedEmail ?? champion ?? 'unknown',
-      selfService: Boolean(verifiedEmail),
+      uploadedBy: verifiedEmail,
+      actorLabel: verifiedEmail,
+      selfService: true,
     });
 
-    log.info('upload.stored', {
-      vendorNo: target.vendorNo,
-      lines: stored.lines,
-      selfService: Boolean(verifiedEmail),
-    });
+    log.info('upload.stored', { vendorNo: target.vendorNo, lines: stored.lines });
     revalidatePath('/soa-consolidation');
     return { success: true, data: { lines: stored.lines, needingReview: stored.needingReview } };
   } catch (err) {

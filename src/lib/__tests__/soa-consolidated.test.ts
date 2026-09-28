@@ -28,6 +28,7 @@ const row = (over: Partial<ConsolidatedRow> = {}): ConsolidatedRow => ({
   outstanding_days: 30,
   remarks: '',
   issues: [],
+  marker: null,
   country_name: 'Kuwait',
   cycle_label: 'Q3 2026',
   ...over,
@@ -135,5 +136,46 @@ describe('writeConsolidated', () => {
 describe('consolidatedFileName', () => {
   it('names the file for the country and cycle', () => {
     expect(consolidatedFileName('KW', 'Q3 2026')).toBe('NESR-SOA-Consolidated-KW-Q3-2026.xlsx');
+  });
+});
+
+describe('placeholder rows', () => {
+  it('keeps a vendor with no invoice lines in the file, saying why', async () => {
+    // Omitting them would be worse: a vendor missing from the workbook looks exactly like a
+    // vendor nobody chased, and AP cannot tell that from one whose answer is in an email.
+    const { file } = await writeConsolidated([
+      row({ vendor_no: '1', vendor_name: 'HAS LINES' }),
+      row({
+        vendor_no: '2',
+        vendor_name: 'REPLIED BY EMAIL',
+        invoice_number: null,
+        outstanding_amount: null,
+        currency: null,
+        marker: 'Supplier replied by email. Refer to the email attachment filed against this vendor.',
+      }),
+    ]);
+    const sheet = await open(file);
+    expect(text(sheet.getRow(3).getCell(5).value)).toBe('REPLIED BY EMAIL');
+    expect(text(sheet.getRow(3).getCell(16).value)).toContain('Refer to the email attachment');
+    // No invented figures in the amount columns.
+    expect(text(sheet.getRow(3).getCell(14).value)).toBe('');
+  });
+
+  it('does not count a placeholder as an invoice line', async () => {
+    const { summary } = await writeConsolidated([
+      row({ vendor_no: '1' }),
+      row({ vendor_no: '2', marker: 'No pending invoices confirmed by NESR.' }),
+    ]);
+    // The figure a champion quotes when handing the cycle over has to mean invoices read.
+    expect(summary.lines).toBe(1);
+    expect(summary.vendors).toBe(2);
+  });
+
+  it('leaves a placeholder out of the currency totals', async () => {
+    const { summary } = await writeConsolidated([
+      row({ vendor_no: '1', currency: 'SAR', outstanding_amount: 100 }),
+      row({ vendor_no: '2', currency: 'SAR', outstanding_amount: 999, marker: 'No pending invoices.' }),
+    ]);
+    expect(summary.totalsByCurrency).toEqual([{ currency: 'SAR', outstanding: 100 }]);
   });
 });

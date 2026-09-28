@@ -62,8 +62,7 @@ export default function SoaUploadClient({
   token: string;
   state: UploadPageState;
 }) {
-  // A signed-in champion for this country has already proved more than the code does.
-  const [verifiedAs, setVerifiedAs] = useState<string | null>(state.signedInAs ?? null);
+  const [verifiedAs, setVerifiedAs] = useState<string | null>(null);
   const [session, setSession] = useState<string | null>(null);
   const [resuming, setResuming] = useState(true);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -205,11 +204,7 @@ export default function SoaUploadClient({
             <Panel tone="info">Checking this session, one moment.</Panel>
           ) : verifiedAs ? (
             <>
-              <Panel tone="ok">
-                {state.signedInAs && !session
-                  ? `Signed in as ${state.signedInAs}. You are uploading on the vendor's behalf.`
-                  : `Verified as ${verifiedAs}.`}
-              </Panel>
+              <Panel tone="ok">Verified as {verifiedAs}.</Panel>
 
               <div className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 Completed statement

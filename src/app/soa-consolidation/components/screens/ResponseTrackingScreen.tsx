@@ -43,6 +43,13 @@ function VendorDetail({
           ) : v.sendFailed ? (
             /* The sentence the mailer gave, in full. The badge has room for two words. */
             <span className="text-[#B71C1C] font-bold">{v.sendFailedReason}</span>
+          ) : v.isReceived && v.repliedByEmail ? (
+            /* "0 invoices on file" beside a vendor who plainly answered reads as a parsing
+               failure. Nothing was parsed because nothing was meant to be. */
+            <span className="text-sns-green font-bold">
+              ✓ Reply filed as correspondence. No invoice lines were read; the consolidated
+              workbook refers AP to the attachment.
+            </span>
           ) : v.isReceived ? (
             <span className="text-sns-green font-bold">
               ✓ SOA received · {v.invCount} invoices on file · Currency: {v.currency}

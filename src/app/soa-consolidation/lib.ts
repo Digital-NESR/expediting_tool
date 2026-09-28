@@ -656,6 +656,7 @@ export function deriveViewModel(
       canResolve: canAct && (v.status === 'reminded' || v.status === 'requested'),
       awaitingVerification,
       resolutionNote: v.resolutionNote,
+      repliedByEmail: v.submissions.some((f) => !f.superseded && f.kind === 'email'),
       isUnreachable,
       sendFailed: failedByVendor.has(v.no),
       sendFailedReason: failedByVendor.get(v.no) ?? '',

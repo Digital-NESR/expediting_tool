@@ -513,7 +513,13 @@ export async function acceptSoaSubmission(
     const verdict = validateUploadSignature(file.name, content, file.type);
     if (!verdict.ok) return { success: false, error: verdict.reason };
 
+    /* Two things a champion can file, told apart by the file itself rather than by a toggle they
+       would have to remember to set: the template, which is read into invoice rows, and a saved
+       reply, which is filed as evidence and read by nobody. */
+    const isCorrespondence = /\.(eml|msg)$/i.test(file.name);
+
     const stored = await storeStatement({
+      kind: isCorrespondence ? 'email' : 'workbook',
       entryId,
       countryCycleId: context.countryCycleId,
       vendorNo: context.vendorNo,

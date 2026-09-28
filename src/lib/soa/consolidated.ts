@@ -3,6 +3,7 @@ import path from 'node:path';
 import ExcelJS from 'exceljs';
 import type { QueryResultRow } from 'pg';
 import { ensureSoaSchema, sql } from './db';
+import { COVERED_STATUS_SQL } from './status';
 
 /**
  * The consolidated workbook Finance and Accounts Payable receive.
@@ -112,13 +113,90 @@ export interface ConsolidatedRow {
   issues: string[];
   country_name: string;
   cycle_label: string;
+  /**
+   * Set when this is not an invoice line but a placeholder for a vendor that counts towards
+   * coverage and has no rows to show: a reply filed as correspondence, or a balance established
+   * as nil. The text is what AP reads in the Remarks column.
+   *
+   * Left in the file rather than omitted. A vendor missing from the workbook looks like a vendor
+   * nobody chased, and AP has no way to tell that apart from one whose answer is in an email.
+   */
+  marker: string | null;
+}
+
+/**
+ * Vendors that count towards coverage and have no invoice rows behind them.
+ *
+ * Two ways that happens: the champion filed the supplier's reply as correspondence, which is
+ * evidence of an answer that parses into nothing, or the champion established there are no
+ * pending invoices. Both belong in the file AP works from, saying which they are, so that a
+ * vendor's absence never has to be interpreted.
+ */
+async function markersFor(countryId: string) {
+  await ensureSoaSchema();
+  return sql<QueryResultRow[]>(
+    `SELECT v.vendor_no, v.name AS vendor_name, vce.status::text AS status,
+            vce.resolution_note, co.name AS country_name, cy.label AS cycle_label,
+            EXISTS (
+              SELECT 1 FROM soa_submissions s
+               WHERE s.vendor_cycle_entry_id = vce.id
+                 AND s.superseded_at IS NULL AND s.kind = 'email'
+            ) AS has_email
+       FROM vendor_cycle_entries vce
+       JOIN vendors v          ON v.id = vce.vendor_id
+       JOIN country_cycles cc  ON cc.id = vce.country_cycle_id
+       JOIN countries co       ON co.id = cc.country_id
+       JOIN cycles cy          ON cy.id = cc.cycle_id AND cy.is_active
+      WHERE cc.country_id = ?
+        AND vce.status::text IN (${COVERED_STATUS_SQL})
+        AND NOT EXISTS (
+          SELECT 1
+            FROM soa_submission_lines l
+            JOIN soa_submissions s ON s.id = l.submission_id
+           WHERE s.vendor_cycle_entry_id = vce.id AND s.superseded_at IS NULL
+        )
+      ORDER BY vce.open_po_amount DESC`,
+    [countryId],
+  );
+}
+
+function markerRow(r: QueryResultRow): ConsolidatedRow {
+  const note = String(r.resolution_note ?? '').trim();
+  const marker = r.has_email
+    ? 'Supplier replied by email. Refer to the email attachment filed against this vendor; no invoice lines were read.'
+    : `No pending invoices confirmed by NESR.${note ? ` ${note}` : ''}`;
+  return {
+    vendor_no: String(r.vendor_no),
+    vendor_name: String(r.vendor_name),
+    month_year: null,
+    legal_entity: null,
+    invoice_number: null,
+    invoice_date: null,
+    invoice_date_raw: null,
+    po_number: null,
+    service_type: null,
+    currency: null,
+    tax_amount: null,
+    total_amount: null,
+    outstanding_amount: null,
+    outstanding_days: null,
+    remarks: null,
+    issues: [],
+    country_name: String(r.country_name),
+    cycle_label: String(r.cycle_label),
+    marker,
+  };
 }
 
 /** Build the workbook for a country's active cycle. */
 export async function buildConsolidatedWorkbook(
   countryId: string,
 ): Promise<{ file: Buffer; summary: ConsolidatedSummary }> {
-  const rows = (await linesFor(countryId)) as unknown as ConsolidatedRow[];
+  const [lines, markers] = await Promise.all([linesFor(countryId), markersFor(countryId)]);
+  const rows = [
+    ...(lines as unknown as ConsolidatedRow[]).map((r) => ({ ...r, marker: null })),
+    ...markers.map(markerRow),
+  ];
   if (!rows.length) {
     throw new NothingToConsolidate(
       'No statements have been read for this country yet, so there is nothing to consolidate.',
@@ -178,26 +256,27 @@ export async function writeConsolidated(
        than dropped. AP is the last person who can query it with the vendor, and a row that looks
        clean but is missing an amount is worse than one that says so. */
     const issues = (r.issues ?? []).filter(Boolean);
-    const remark = [r.remarks ?? '', issues.length ? `[${issues.join('; ')}]` : '']
-      .filter(Boolean)
-      .join(' ');
+    const remark = r.marker
+      ? r.marker
+      : [r.remarks ?? '', issues.length ? `[${issues.join('; ')}]` : ''].filter(Boolean).join(' ');
     put(16, remark);
 
-    if (issues.length) {
+    /* A placeholder is tinted, and greyed rather than amber: it is not a line that needs querying
+       with the vendor, it is a vendor whose answer is not in this file. Reading down the amount
+       columns, the blanks then have a visible reason beside them. */
+    const tint = r.marker ? 'FFEFEFEF' : issues.length ? 'FFFFF4E5' : null;
+    if (tint) {
       for (let c = 1; c <= COLUMNS.length; c++) {
-        row.getCell(c).fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFFFF4E5' },
-        };
+        row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: tint } };
       }
+      if (r.marker) row.getCell(16).font = { italic: true };
     }
     row.commit();
   });
 
   const totals = new Map<string, number>();
   for (const r of rows) {
-    if (r.outstanding_amount === null) continue;
+    if (r.marker || r.outstanding_amount === null) continue;
     const ccy = String(r.currency ?? 'UNKNOWN').toUpperCase();
     totals.set(ccy, (totals.get(ccy) ?? 0) + Number(r.outstanding_amount));
   }
@@ -209,8 +288,10 @@ export async function writeConsolidated(
       countryName: rows[0].country_name,
       cycleLabel: rows[0].cycle_label,
       vendors: new Set(rows.map((r) => r.vendor_no)).size,
-      lines: rows.length,
-      needingReview: rows.filter((r) => (r.issues ?? []).length > 0).length,
+      /* Placeholders are rows in the file and not invoices. Counting them would overstate what
+         was actually read, in the one figure a champion quotes when handing the cycle over. */
+      lines: rows.filter((r) => !r.marker).length,
+      needingReview: rows.filter((r) => !r.marker && (r.issues ?? []).length > 0).length,
       totalsByCurrency: [...totals.entries()]
         .map(([currency, outstanding]) => ({ currency, outstanding }))
         .sort((a, b) => b.outstanding - a.outstanding),

@@ -36,7 +36,14 @@ export interface StoreInput {
   actorLabel: string;
   /** True when the supplier uploaded it themselves, which the evidence trail should say. */
   selfService: boolean;
+  /**
+   * `workbook` is the template, read into invoice rows. `email` is filed correspondence: a saved
+   * reply carrying whatever the supplier sent, which counts as an answer and parses into nothing.
+   */
+  kind?: SubmissionKind;
 }
+
+export type SubmissionKind = 'workbook' | 'email';
 
 export interface StoreResult {
   submissionId: number;
@@ -52,6 +59,62 @@ export class StatementRejected extends Error {
 }
 
 /**
+ * File a supplier's reply as evidence, without reading it.
+ *
+ * Supersedes the same way a workbook does, so a champion who files the correspondence and then
+ * receives the template properly has one current statement rather than two counted at once.
+ *
+ * `invoice_count` goes to zero on purpose. The vendor has answered and counts towards coverage,
+ * and nobody has read their invoices, so a figure here would be invented. The consolidated
+ * workbook carries a line pointing AP at the attachment instead.
+ */
+async function storeCorrespondence(input: StoreInput): Promise<StoreResult> {
+  const submissionId = await withTransaction(soaPool, async (client: PoolClient) => {
+    await client.query(
+      `UPDATE soa_submissions
+          SET superseded_at = NOW()
+        WHERE vendor_cycle_entry_id = $1 AND superseded_at IS NULL`,
+      [input.entryId],
+    );
+    const inserted = await client.query<{ id: number }>(
+      `INSERT INTO soa_submissions
+         (vendor_cycle_entry_id, file_name, content, content_type, uploaded_by,
+          validated, detected_invoice_count, accepted_at, accepted_by,
+          parsed_line_count, parse_error, kind)
+       VALUES ($1, $2, $3, $4, $5, TRUE, 0, NOW(), $5, 0, NULL, 'email')
+       RETURNING id`,
+      [input.entryId, input.fileName, input.content, input.contentType, input.uploadedBy],
+    );
+
+    await client.query(
+      `UPDATE vendor_cycle_entries
+          SET status = 'received', responded_at = NOW(), invoice_count = 0, updated_at = NOW()
+        WHERE id = $1`,
+      [input.entryId],
+    );
+
+    await client.query(
+      `INSERT INTO evidence_log (country_cycle_id, vendor_cycle_entry_id, type, action, actor, detail)
+       VALUES ($1, $2, 'upload', 'Reply filed as evidence', $3, $4)`,
+      [
+        input.countryCycleId,
+        input.entryId,
+        input.actorLabel,
+        `${input.vendorName} (${input.vendorNo}) replied by email. ${input.fileName} filed as evidence; no invoice rows were read, so the consolidated workbook refers AP to the attachment.`,
+      ],
+    );
+
+    return inserted.rows[0].id;
+  });
+
+  log.info('statement.correspondenceFiled', {
+    entryId: input.entryId,
+    file: input.fileName,
+  });
+  return { submissionId, lines: 0, needingReview: 0 };
+}
+
+/**
  * Read the workbook and record it.
  *
  * Throws {@link StatementRejected} with a message meant for whoever is holding the file. Nothing
@@ -59,11 +122,17 @@ export class StatementRejected extends Error {
  * collected while leaving nothing behind that anyone could reconcile against.
  */
 export async function storeStatement(input: StoreInput): Promise<StoreResult> {
-  if (!/\.(xlsx|xlsm|xls)$/i.test(input.fileName)) {
+  if (input.kind !== 'email' && !/\.(xlsx|xlsm|xls)$/i.test(input.fileName)) {
     throw new StatementRejected(
       'Statements must be the filled-in Excel template that came with the request.',
     );
   }
+
+  /* Correspondence is filed, not read. There is no format to hold it to and nothing to extract:
+     the supplier's figures may be in an attachment, in the body, or in a PDF inside the
+     attachment, and guessing at any of those would put numbers in the consolidated workbook that
+     nobody checked. It is evidence that they replied, and AP reads it themselves. */
+  if (input.kind === 'email') return storeCorrespondence(input);
 
   let lines: ParsedLine[];
   try {
@@ -98,8 +167,8 @@ export async function storeStatement(input: StoreInput): Promise<StoreResult> {
       `INSERT INTO soa_submissions
          (vendor_cycle_entry_id, file_name, content, content_type, uploaded_by,
           validated, detected_invoice_count, accepted_at, accepted_by,
-          parsed_line_count, parse_error)
-       VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW(), $5, $6, NULL)
+          parsed_line_count, parse_error, kind)
+       VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW(), $5, $6, NULL, 'workbook')
        RETURNING id`,
       [
         input.entryId,

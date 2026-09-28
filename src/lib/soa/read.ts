@@ -65,7 +65,14 @@ export interface VendorRow {
   invCount: number;
   contactEmails: string[];
   /** Statements received from this vendor, newest first. Downloadable from /api/soa/submissions. */
-  submissions: { id: string; fileName: string; uploadedAt: string; superseded: boolean }[];
+  submissions: {
+    id: string;
+    fileName: string;
+    uploadedAt: string;
+    superseded: boolean;
+    /** `email` is filed correspondence: an answer on record that parses into no invoice rows. */
+    kind: 'workbook' | 'email';
+  }[];
 }
 
 export interface CountryRow {
@@ -314,7 +321,7 @@ export async function loadSoa(
        hundred vendors, and a per-row lookup would be a few hundred round trips for a list that is
        usually almost empty. */
     sql<QueryResultRow[]>(
-      `SELECT s.id, s.vendor_cycle_entry_id, s.file_name, s.uploaded_at, s.superseded_at
+      `SELECT s.id, s.vendor_cycle_entry_id, s.file_name, s.uploaded_at, s.superseded_at, s.kind
          FROM soa_submissions s
          JOIN vendor_cycle_entries vce ON vce.id = s.vendor_cycle_entry_id
         WHERE vce.country_cycle_id = ?
@@ -349,6 +356,7 @@ export async function loadSoa(
       // Kept and shown, but no figure is computed from it. A champion looking at two files needs
       // to know which one the coverage number came from.
       superseded: r.superseded_at !== null,
+      kind: String(r.kind) === 'email' ? 'email' : 'workbook',
     });
     submissionsByEntry.set(key, list);
   }

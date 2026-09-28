@@ -214,6 +214,8 @@ export interface VendorEnrichedVM extends VendorRowVM {
   awaitingVerification: boolean;
   /** The champion's own words on why this vendor was closed without a statement. */
   resolutionNote: string;
+  /** Their current statement is filed correspondence, so no invoice lines were read. */
+  repliedByEmail: boolean;
   /** No address on file, so this vendor cannot be chased until someone supplies one. */
   isUnreachable: boolean;
   /** The last send to this vendor was refused and it is still owed that letter. */
