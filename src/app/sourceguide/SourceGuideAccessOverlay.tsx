@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Building2 } from 'lucide-react';
 import Image from 'next/image';
 import { signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -59,7 +60,7 @@ export default function SourceGuideAccessOverlay({
           className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
           style={{ background: BRAND }}
         >
-          <span className="text-white font-extrabold text-[9px] tracking-tight">SG</span>
+          <Building2 className="h-4 w-4 text-white" />
         </div>
         <span className="font-semibold text-slate-900 text-sm">SourceGuide Portal</span>
         <div className="ml-auto flex items-center gap-4">

@@ -1,17 +1,23 @@
-import Image from 'next/image';
+'use client';
+
+import { Menu, Receipt } from 'lucide-react';
 import type { ViewModel } from '../types';
 
 /**
  * The tool's header bar.
  *
- * It used to carry a "Viewing as:" dropdown that switched between champion and director.
- * That was a prototype affordance — the role is a grant now, so the bar states what the signed-in
- * person actually is rather than offering to change it. The menu button is what opens the
- * sidebar, which is a slide-over drawer like every other NESR tool's.
+ * White and slim, like SourceGuide's and the rest of the platform's, rather than the solid green
+ * band it used to be — a tool whose chrome looks nothing like its neighbours reads as a different
+ * product, and this one already sits behind the same sign-in.
  *
- * The signed-in person's name and avatar used to sit at the right of this bar as well as in the
- * sidebar footer. Saying it twice told the reader nothing the second time, so the bar now carries
- * only the tool and the cycle it is showing.
+ * The mark is the same `Receipt` icon the home page card carries. It used to be the letters "SOA"
+ * in a coloured square, which is a placeholder for an icon rather than one: somebody arriving from
+ * the home page should see the thing they clicked.
+ *
+ * It used to carry a "Viewing as:" dropdown that switched between champion and director. That was
+ * a prototype affordance — the role is a grant now, so the bar states what the signed-in person
+ * actually is rather than offering to change it. The signed-in name sits in the sidebar footer;
+ * saying it twice told the reader nothing the second time.
  */
 export default function Navbar({
   vm,
@@ -21,35 +27,30 @@ export default function Navbar({
   onOpenSidebar: () => void;
 }) {
   return (
-    <nav className="bg-sns-green h-[54px] flex items-center px-[18px] gap-3 shrink-0 shadow-[0_2px_8px_rgba(0,0,0,0.2)] z-10">
+    <nav className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur lg:px-6">
       <button
         type="button"
         onClick={onOpenSidebar}
         aria-label="Open menu"
         title="Menu"
-        className="shrink-0 rounded-md p-1.5 text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100"
       >
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
+        <Menu className="h-5 w-5" />
       </button>
-      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 overflow-hidden">
-        <Image src="/nesr-logo-circle.png" alt="NESR" width={26} height={26} />
+
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-sns-green/10">
+          <Receipt className="h-[18px] w-[18px] text-sns-green" />
+        </span>
+        <span className="text-[15px] font-semibold tracking-tight text-slate-900">
+          SOA Consolidation
+        </span>
       </div>
-      <div className="border-l border-l-[rgba(255,255,255,0.3)] pl-3">
-        <div className="text-[rgba(255,255,255,0.65)] text-[10px] tracking-[0.3px]">
-          SOA Consolidation Portal
-        </div>
-      </div>
-      <div className="bg-[rgba(0,0,0,0.18)] rounded-[20px] px-2.5 py-[3px] text-[11px] text-[rgba(255,255,255,0.9)] font-bold tracking-[0.5px]">
+
+      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-[3px] text-[11px] font-semibold tracking-[0.3px] text-slate-500">
         {vm.cycleChip}
-      </div>
+      </span>
+
       <div className="flex-1" />
     </nav>
   );

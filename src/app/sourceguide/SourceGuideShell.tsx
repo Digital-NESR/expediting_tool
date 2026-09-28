@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, Menu } from 'lucide-react';
+import { Building2, Menu, Search } from 'lucide-react';
 import { SG_BRAND, SG_PIN_KEY } from './constants';
 import { useSourceGuideAccess } from './SourceGuideAccessContext';
 import { initials } from './constants';
@@ -83,11 +83,14 @@ export default function SourceGuideShell({
             </button>
 
             <Link href="/sourceguide" className="flex items-center gap-2.5">
+              {/* The same mark the home page card carries. Letters in a coloured square are a
+                  placeholder for an icon rather than one, and somebody arriving from the home
+                  page should see the thing they clicked. */}
               <span
                 className="grid h-8 w-8 place-items-center rounded-[9px]"
-                style={{ background: SG_BRAND }}
+                style={{ background: `${SG_BRAND}1a` }}
               >
-                <span className="text-[10px] font-extrabold tracking-tight text-white">SG</span>
+                <Building2 className="h-[18px] w-[18px]" style={{ color: SG_BRAND }} />
               </span>
               <span className="text-[15px] font-semibold tracking-tight text-slate-900">
                 SourceGuide
