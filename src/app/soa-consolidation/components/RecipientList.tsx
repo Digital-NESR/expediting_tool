@@ -29,6 +29,8 @@ interface Props {
   onBack: () => void;
   /** Extra NESR addresses to CC on this send; held by the parent so a send can read them. */
   onCcChange: (emails: string[]) => void;
+  /** Default copies the sender dropped for this send. Also the parent's to pass on. */
+  onCcRemovedChange: (emails: string[]) => void;
 }
 
 function money(n: number): string {
@@ -86,12 +88,16 @@ export default function RecipientList({
   senderEmail,
   onBack,
   onCcChange,
+  onCcRemovedChange,
 }: Props) {
   const [data, setData] = useState<CountryRecipients | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<number, string>>({});
   const [extraCc, setExtraCc] = useState<Employee[]>([]);
+  // Defaults the sender took off. Held here rather than filtered out of `data`, so putting one
+  // back is a click and not a page reload.
+  const [ccRemoved, setCcRemoved] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
   const load = useCallback(async () => {
@@ -109,6 +115,13 @@ export default function RecipientList({
   useEffect(() => {
     onCcChange(extraCc.map((e) => e.mail));
   }, [extraCc, onCcChange]);
+
+  useEffect(() => {
+    onCcRemovedChange(ccRemoved);
+  }, [ccRemoved, onCcRemovedChange]);
+
+  const dropCc = (email: string) => setCcRemoved((list) => [...new Set([...list, email])]);
+  const isDropped = (email: string) => ccRemoved.includes(email);
 
   async function change(vendorId: number, email: string, action: 'add' | 'remove' | 'restore') {
     setBusy(true);
@@ -166,18 +179,32 @@ export default function RecipientList({
           {/* The sender is always copied and cannot be dropped: they are accountable for the send. */}
           <Chip label={senderEmail} system locked title="You — always copied" />
           {data?.apEmails.length ? (
-            data.apEmails.map((ap) => (
-              <Chip key={ap} label={ap} system title="Accounts Payable for this country" />
-            ))
+            data.apEmails
+              .filter((ap) => !isDropped(ap))
+              .map((ap) => (
+                <Chip
+                  key={ap}
+                  label={ap}
+                  system
+                  title="Accounts Payable for this country"
+                  onRemove={() => dropCc(ap)}
+                />
+              ))
           ) : (
             <span className="rounded-md bg-[#FDECEA] px-2.5 py-[5px] text-[11.5px] font-bold text-[#B71C1C]">
               No AP contact set for this country — add one in /admin
             </span>
           )}
           {(data?.championEmails ?? [])
-            .filter((c) => c.toLowerCase() !== senderEmail.toLowerCase())
+            .filter((c) => c.toLowerCase() !== senderEmail.toLowerCase() && !isDropped(c))
             .map((champ) => (
-              <Chip key={champ} label={champ} system title="Champion for this country" />
+              <Chip
+                key={champ}
+                label={champ}
+                system
+                title="Champion for this country"
+                onRemove={() => dropCc(champ)}
+              />
             ))}
           {extraCc.map((e) => (
             <Chip
@@ -189,6 +216,23 @@ export default function RecipientList({
             />
           ))}
         </div>
+        {ccRemoved.length > 0 && (
+          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px] text-sns-grey">
+            <span>Not copied:</span>
+            {ccRemoved.map((email) => (
+              <span key={email} className="inline-flex items-center gap-1.5">
+                <span className="line-through">{email}</span>
+                <button
+                  type="button"
+                  onClick={() => setCcRemoved((list) => list.filter((e) => e !== email))}
+                  className="font-semibold text-sns-green hover:underline"
+                >
+                  undo
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         {canEdit && (
           <div className="max-w-[420px]">
             <EmployeeSearchInput

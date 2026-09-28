@@ -191,6 +191,7 @@ async function prepareLetter(
   countryId: string,
   actor: { email: string; name: string },
   extraCc: string[],
+  ccRemoved: string[] = [],
 ): Promise<RenderedLetter> {
   const [stored, ctx, directory] = await Promise.all([
     loadTemplate(countryId),
@@ -198,13 +199,23 @@ async function prepareLetter(
     getEmployeeDirectoryDefaults(actor.email).catch(() => null),
   ]);
 
-  /* The sender always sees what went out; AP owns the mailbox the vendor is told to reply to; and
-     the country's champions are copied because the letter names them as the contact for questions
-     and a vendor will reply to whoever wrote. A country can have several of each. Anything beyond
-     that is a one-off the sender chose for this send and is not stored. */
-  const cc = [...new Set([actor.email, ...ctx.apEmails, ...ctx.championEmails, ...extraCc])]
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
+  /* AP owns the mailbox the vendor is told to reply to, and the country's champions are copied
+     because the letter names them as the contact for questions. Both are defaults rather than
+     rules: a champion sending a one-off correction has a reason to drop them, so both can be
+     taken off on the Recipients step.
+     *
+     * The sender cannot be. They are accountable for what went out, and a send nobody can be
+     asked about afterwards is the gap the evidence trail exists to close. */
+  const dropped = new Set(ccRemoved.map((e) => e.trim().toLowerCase()).filter(Boolean));
+  const cc = [
+    ...new Set(
+      [...ctx.apEmails, ...ctx.championEmails, ...extraCc]
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e && !dropped.has(e)),
+    ),
+  ];
+  const sender = actor.email.trim().toLowerCase();
+  if (!cc.includes(sender)) cc.unshift(sender);
 
   return {
     subject: stored.subject,
@@ -248,6 +259,8 @@ export async function sendSoaOutreach(input: {
   kind: 'request' | 'reminder';
   /** Extra NESR addresses to copy on this send only; never stored. */
   cc?: string[];
+  /** Default copies the sender chose to drop for this send only; never stored. */
+  ccRemoved?: string[];
   /** Supplied by a batch so the letter is composed once rather than per vendor. */
   letter?: RenderedLetter;
 }): Promise<SoaResult> {
@@ -257,7 +270,8 @@ export async function sendSoaOutreach(input: {
     context = loaded.context;
     const actor = loaded.actor;
     const letter =
-      input.letter ?? (await prepareLetter(context.countryId, actor, input.cc ?? []));
+      input.letter ??
+      (await prepareLetter(context.countryId, actor, input.cc ?? [], input.ccRemoved ?? []));
 
     await sendMail(await mailFor(context, input.kind, actor.email, letter));
 
@@ -345,10 +359,12 @@ export async function sendSoaOutreachBatch(input: {
   kind: 'request' | 'reminder';
   /** Extra NESR addresses to copy on this send only; never stored. */
   cc?: string[];
+  /** Default copies the sender chose to drop for this send only; never stored. */
+  ccRemoved?: string[];
 }): Promise<SoaResult<{ sent: number; failed: number; firstError: string | null }>> {
   try {
     const actor = await requireSoaCountry(input.countryId, 'champion');
-    const letter = await prepareLetter(input.countryId, actor, input.cc ?? []);
+    const letter = await prepareLetter(input.countryId, actor, input.cc ?? [], input.ccRemoved ?? []);
     const due = await sql<QueryResultRow[]>(
       `SELECT vce.id
          FROM vendor_cycle_entries vce

@@ -418,9 +418,9 @@ export interface ViewModel {
   unreachableCount: number;
   /** Joins this country to the open cycle. Champion-only, like scoping. */
   onEnrol: () => void;
-  /** `cc` is the extra NESR addresses chosen on the Recipients step; this send only. */
-  onSendReminders: (cc?: string[]) => void;
-  onSendRequests: (cc?: string[]) => void;
+  /** `cc` adds and `ccRemoved` drops, both chosen on the Recipients step and both this send only. */
+  onSendReminders: (cc?: string[], ccRemoved?: string[]) => void;
+  onSendRequests: (cc?: string[], ccRemoved?: string[]) => void;
   onGoToConsolidation: () => void;
 
   /* Vendor Scoping */
@@ -518,8 +518,8 @@ export interface Handlers {
   setScopePage: (page: number) => void;
   selectCountry: (countryId: string) => void;
   enrol: () => void;
-  sendReminders: (cc?: string[]) => void;
-  sendRequests: (cc?: string[]) => void;
+  sendReminders: (cc?: string[], ccRemoved?: string[]) => void;
+  sendRequests: (cc?: string[], ccRemoved?: string[]) => void;
   /** Read the country's candidate list. Called by the scoping screen when it first renders. */
   loadCandidates: () => void;
   /** Tick or untick one supplier in the draft. Refused for locked and excluded rows. */

@@ -18,7 +18,9 @@ export default function OutreachScreen({ vm }: ScreenProps) {
      sending before anybody has read what is going out. */
   const [step, setStep] = useState<'letter' | 'recipients' | 'send'>('letter');
   const [extraCc, setExtraCc] = useState<string[]>([]);
+  const [ccRemoved, setCcRemoved] = useState<string[]>([]);
   const onCcChange = useCallback((emails: string[]) => setExtraCc(emails), []);
+  const onCcRemovedChange = useCallback((emails: string[]) => setCcRemoved(emails), []);
 
   const steps = [
     { id: 'letter', n: 1, label: 'Letter' },
@@ -39,7 +41,7 @@ export default function OutreachScreen({ vm }: ScreenProps) {
           {step === 'send' && vm.hasUnrequested && (
             <button
               type="button"
-              onClick={() => vm.onSendRequests(extraCc)}
+              onClick={() => vm.onSendRequests(extraCc, ccRemoved)}
               disabled={vm.busy}
               className="bg-sns-green text-white border-none px-4 py-[9px] rounded-[7px] text-[13px] font-bold disabled:opacity-50"
             >
@@ -49,7 +51,7 @@ export default function OutreachScreen({ vm }: ScreenProps) {
           {step === 'send' && vm.canSendReminders && (
             <button
               type="button"
-              onClick={() => vm.onSendReminders(extraCc)}
+              onClick={() => vm.onSendReminders(extraCc, ccRemoved)}
               disabled={vm.busy}
               className="bg-[#E65100] text-white border-none px-4 py-[9px] rounded-[7px] text-[13px] font-bold disabled:opacity-50"
             >
@@ -100,6 +102,7 @@ export default function OutreachScreen({ vm }: ScreenProps) {
             senderEmail={vm.viewerEmail}
             onBack={() => setStep('letter')}
             onCcChange={onCcChange}
+            onCcRemovedChange={onCcRemovedChange}
           />
           <div className="flex justify-end mt-4">
             <button
