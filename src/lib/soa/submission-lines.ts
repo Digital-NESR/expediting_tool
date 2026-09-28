@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 /**
  * Reading a supplier's returned statement.
  *
- * A plain module, not `'use server'` — see the note in `./db`.
+ * A plain module, not `'use server'`, see the note in `./db`.
  *
  * Suppliers do not return the file they were sent. They insert rows above the header, rename a
  * column, paste from their own ledger, send the consolidated format instead of the lean one, or
@@ -183,7 +183,7 @@ function findHeaderRow(sheet: ExcelJS.Worksheet): number {
 export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult> {
   const wb = new ExcelJS.Workbook();
   try {
-    /* exceljs ships its own, older `Buffer` declaration — take the parameter type from the method
+    /* exceljs ships its own, older `Buffer` declaration. Take the parameter type from the method
        rather than asserting a type that only happens to match today. */
     await wb.xlsx.load(bytes as unknown as Parameters<typeof wb.xlsx.load>[0]);
   } catch {

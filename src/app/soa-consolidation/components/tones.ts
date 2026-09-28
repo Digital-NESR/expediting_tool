@@ -25,7 +25,7 @@ export const STANDING_BORDER_TOP: Record<Standing, string> = {
   neutral: 'border-t-sns-grey',
 };
 
-/** Text colour for a figure — a KPI value, a cumulative percentage. */
+/** Text colour for a figure, a KPI value, a cumulative percentage. */
 export const STANDING_TEXT: Record<Standing, string> = {
   'on-track': 'text-sns-green',
   behind: 'text-[#E65100]',
@@ -61,7 +61,7 @@ export const VENDOR_STATUS_FILL: Record<VendorStatus, string> = {
   non_responder: 'bg-[#B71C1C]',
 };
 
-/* The filter tabs tint themselves with their own status colour when selected — the same hue at
+/* The filter tabs tint themselves with their own status colour when selected. The same hue at
    ~9% for the fill (the trailing `18` is the alpha byte) and full strength for the rule and
    text. "All" has no status of its own, so it borrows the portal green. */
 export const FILTER_TAB_SELECTED: Record<'all' | VendorStatus, string> = {

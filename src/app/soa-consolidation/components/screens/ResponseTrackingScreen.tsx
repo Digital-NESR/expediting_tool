@@ -37,7 +37,7 @@ function VendorDetail({
             </span>
           ) : v.isUnreachable ? (
             <span className="text-[#B71C1C] font-bold">
-              No contact address on file — this vendor cannot be sent a request.
+              No contact address on file. This vendor cannot be sent a request.
             </span>
           ) : (
             <span>Sends to: {v.contactLabel}</span>
@@ -155,7 +155,7 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
         <div>
           <h1 className="text-[20px] font-bold mb-[3px]">Response Tracking</h1>
           <p className="text-[12px] text-sns-grey">
-            Live vendor response status — {vm.contextLine}
+            Live vendor response status, {vm.contextLine}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -240,8 +240,8 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
               </div>
               <div className="font-bold">{v.fmtOpenPO}</div>
               <div className="text-[11px] text-sns-grey">{v.reqDate}</div>
-              <div className="text-[11px] text-sns-grey">{v.remDate ?? '—'}</div>
-              <div className="text-[11px] text-sns-grey">{v.respDate ?? '—'}</div>
+              <div className="text-[11px] text-sns-grey">{v.remDate ?? ', '}</div>
+              <div className="text-[11px] text-sns-grey">{v.respDate ?? ', '}</div>
               <div className="text-[11px] text-sns-grey text-right">{v.isExpanded ? '▲' : '▼'}</div>
             </div>
             {v.isExpanded && <VendorDetail v={v} busy={vm.busy} canEdit={vm.canAct} />}

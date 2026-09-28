@@ -27,14 +27,14 @@ import {
 } from '@/app/actions/soa/access';
 import { formatDate } from '@/lib/format';
 
-/** Only champion and viewer are grantable from a request — see the action's guard. */
+/** Only champion and viewer are grantable from a request, see the action's guard. */
 const GRANTABLE_ROLES: { value: 'champion' | 'viewer'; label: string }[] = [
   { value: 'champion', label: 'Champion' },
   { value: 'viewer', label: 'Viewer' },
 ];
 
 function roleLabel(role: string | null): string {
-  if (!role) return '—';
+  if (!role) return ', ';
   return GRANTABLE_ROLES.find((r) => r.value === role)?.label ?? role;
 }
 
@@ -83,7 +83,7 @@ function GrantEditor({
   onCancel: () => void;
   onConfirm: (role: 'champion' | 'viewer', countryId: string | null) => void;
 }) {
-  // Pre-filled with what was asked for (or last granted) — a starting point the admin may override.
+  // Pre-filled with what was asked for (or last granted), a starting point the admin may override.
   const [role, setRole] = useState<'champion' | 'viewer'>(
     (row.approved_role ?? row.requested_role) === 'champion' ? 'champion' : 'viewer',
   );
@@ -92,7 +92,7 @@ function GrantEditor({
   return (
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left">
       <p className="mb-3 text-xs font-semibold text-slate-600">
-        Grant role and country — you can change what was asked for
+        Grant role and country. You can change what was asked for
       </p>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label>
@@ -308,11 +308,11 @@ export default function SoaAccessApprovalsClient() {
                           </div>
                         </>
                       ) : (
-                        <span className="text-xs text-slate-400">—</span>
+                        <span className="text-xs text-slate-400">, </span>
                       )}
                     </td>
                     <td className="max-w-[240px] px-4 py-3 text-xs leading-relaxed text-slate-600">
-                      {row.reason || <span className="text-slate-400">—</span>}
+                      {row.reason || <span className="text-slate-400">, </span>}
                     </td>
                     <td className="px-4 py-3 text-slate-500">
                       <p>{formatDate(row.requested_at)}</p>
@@ -436,7 +436,7 @@ export default function SoaAccessApprovalsClient() {
 
       <p className="text-[12px] text-slate-400">
         Champions run a country&apos;s vendor chase; viewers read its progress and evidence and
-        change nothing. What someone asked for is a proposal — change the role or the country in the
+        change nothing. What someone asked for is a proposal, change the role or the country in the
         approve editor before confirming. Shared AP mailboxes are added under Country Team rather
         than requested, and emails listed in{' '}
         <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">ADMIN_EMAILS</code> already

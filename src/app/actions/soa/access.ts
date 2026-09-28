@@ -5,7 +5,7 @@
  *
  * EVERY export of a `'use server'` module is a public POST endpoint reachable by any signed-in
  * employee, so each one below starts with its own guard. The /admin page's UI gate is not a
- * security control — an admin-only screen that calls an ungated action is an admin-only screen in
+ * security control, an admin-only screen that calls an ungated action is an admin-only screen in
  * appearance only.
  */
 
@@ -82,7 +82,7 @@ export async function getSoaCountries(): Promise<SoaCountryOption[]> {
  * which is what lets someone correct a country they picked wrongly without an admin's help.
  *
  * `countryId` null means every country. Champion, Accounts Payable and viewer are offerable: an admin is
- * appointed in the /admin matrix, and admin comes from ADMIN_EMAILS — neither is self-servable,
+ * appointed in the /admin matrix, and admin comes from ADMIN_EMAILS. Neither is self-servable,
  * and this action rejects an attempt to request one rather than silently downgrading it.
  */
 export async function submitSoaAccessRequest(input: {
@@ -157,8 +157,8 @@ export async function submitSoaAccessRequest(input: {
 /**
  * The caller's own access request, so the waiting-for-approval screen can say what they asked for.
  *
- * Guarded on being signed in rather than on having access — the whole point is that the person
- * asking has none yet — and it reads only their own row, keyed on their session email. It cannot
+ * Guarded on being signed in rather than on having access. The whole point is that the person
+ * asking has none yet, and it reads only their own row, keyed on their session email. It cannot
  * be pointed at somebody else's.
  */
 export async function getMySoaAccessRequest(): Promise<{
@@ -244,7 +244,7 @@ export async function getSoaAccessRequests(): Promise<SoaAccessRequestRow[]> {
 }
 
 /**
- * Approve a request, granting the role and country the ADMIN chose — not the ones the requester
+ * Approve a request, granting the role and country the ADMIN chose, not the ones the requester
  * asked for. The request is a proposal; an admin routinely approves a champion request as a viewer,
  * and reading the grant back off `requested_role` would quietly ignore that decision.
  *
@@ -317,7 +317,7 @@ export async function rejectSoaAccessRequest(email: string): Promise<SoaActionRe
 }
 
 /**
- * Take access away. Champion, AP and viewer grants all go — every one of them can arrive through
+ * Take access away. Champion, AP and viewer grants all go, every one of them can arrive through
  * a request, so every one of them can be taken back the same way.
  */
 export async function revokeSoaAccess(email: string): Promise<SoaActionResult> {
@@ -395,7 +395,7 @@ export async function setSoaCountryUser(input: {
     const email = normalizeEmail(input.email);
     const name = input.name.trim();
     if (!email || !email.includes('@')) return { success: false, error: 'That is not an email address.' };
-    if (!name) return { success: false, error: 'A name is required — it appears in the letter and the audit trail.' };
+    if (!name) return { success: false, error: 'A name is required. It appears in the letter and the audit trail.' };
 
     const known = await sql<QueryResultRow[]>(`SELECT 1 FROM countries WHERE id = ? AND active`, [
       input.countryId,

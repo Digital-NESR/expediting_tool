@@ -5,11 +5,11 @@ import { ensureSoaSchema, sql } from './db';
 /**
  * Letting a supplier prove they are entitled to upload.
  *
- * A plain module, not `'use server'` — see the note in `./db`.
+ * A plain module, not `'use server'`, see the note in `./db`.
  *
  * The link in the letter says which vendor is uploading. It does not say who is holding it: the
  * same URL reaches anyone the email was forwarded to. So before a file is accepted the uploader
- * shows they can read one of the addresses the letter actually went to — they pick one from a
+ * shows they can read one of the addresses the letter actually went to. They pick one from a
  * masked list, a code goes to it, and only that code opens the upload.
  *
  * Four things make a six-digit code safe over a two-minute window, and all four are enforced here

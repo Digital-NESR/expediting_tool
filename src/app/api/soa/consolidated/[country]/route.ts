@@ -19,7 +19,7 @@ import {
  *
  * A viewer of the country is enough, for the same reason the evidence pack is: it contains nothing
  * they cannot already read on the screens, and withholding it would only mean somebody rebuilds it
- * in a spreadsheet — which is how a consolidated file stops matching what it consolidates.
+ * in a spreadsheet. Which is how a consolidated file stops matching what it consolidates.
  */
 
 const log = logger('soa-consolidated');

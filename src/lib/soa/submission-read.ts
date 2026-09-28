@@ -4,7 +4,7 @@ import { ensureSoaSchema, sql } from './db';
 /**
  * Reading back what a supplier sent.
  *
- * A plain module, not `'use server'` — see the note in `./db`. Kept apart from
+ * A plain module, not `'use server'`, see the note in `./db`. Kept apart from
  * `./submission-lines`, which parses and stays free of database imports so it can be tested
  * against real workbooks without a connection.
  *
@@ -49,7 +49,7 @@ const num = (v: unknown): number | null => (v === null || v === undefined ? null
 /**
  * Every statement on file for one vendor entry, newest first, with its parsed rows.
  *
- * Returns the country alongside so the caller can check the reader is entitled to it — the entry
+ * Returns the country alongside so the caller can check the reader is entitled to it. The entry
  * id arrives from the browser and is not a capability.
  */
 export async function loadSubmissionsFor(

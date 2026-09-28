@@ -60,7 +60,7 @@ export default function DashboardScreen({ vm }: ScreenProps) {
       <div className="grid grid-cols-[3fr_1fr] gap-3 mb-3">
         <div className="bg-white rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
           <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey mb-3">
-            Workflow Pipeline — {vm.contextLine}
+            Workflow Pipeline, {vm.contextLine}
           </div>
           <div className="flex rounded-[7px] overflow-hidden">
             {vm.pipeline.map((step) => (
@@ -115,7 +115,7 @@ export default function DashboardScreen({ vm }: ScreenProps) {
 
       <div className="bg-white rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
         <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey mb-2.5">
-          Vendor Response Status — {vm.totalCount} In-Scope Vendors
+          Vendor Response Status, {vm.totalCount} In-Scope Vendors
         </div>
         <div className="flex rounded-sm overflow-hidden h-[18px] mb-2.5 bg-[#E0E8E3]">
           {vm.statusBarSegs.map((seg) => (

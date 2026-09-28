@@ -13,7 +13,7 @@ import type { ViewModel } from '../types';
 /**
  * The tool's navigation, as the slide-over drawer every other NESR tool ships.
  *
- * This was a bespoke dark fixed panel — the only one of its kind in the app — so it is rebuilt on
+ * This was a bespoke dark fixed panel. The only one of its kind in the app, so it is rebuilt on
  * `AppSidebar`, which owns the backdrop, the pin mechanism and the escape/scroll behaviour.
  * ProcureGuard's and SourceGuide's are the same component wearing their own accent; this one
  * keeps SOA's green, `sns-green`, rather than borrowing either of theirs.

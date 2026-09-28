@@ -4,7 +4,7 @@
  * Choosing which suppliers a country will chase.
  *
  * EVERY export of a `'use server'` module is a public POST endpoint, so each one below starts with
- * `requireSoaCountry` — a champion of Oman must not be able to rewrite Saudi Arabia's list.
+ * `requireSoaCountry`, a champion of Oman must not be able to rewrite Saudi Arabia's list.
  */
 
 import { revalidatePath } from 'next/cache';
@@ -47,7 +47,7 @@ export async function getSoaScopeCandidates(input: {
       error:
         err instanceof AccessError
           ? err.message
-          : 'The supplier list could not be read. This is a fault, not an empty country — try again, and tell an administrator if it persists.',
+          : 'The supplier list could not be read. This is a fault, not an empty country, try again, and tell an administrator if it persists.',
     };
   }
 }
@@ -56,7 +56,7 @@ export async function getSoaScopeCandidates(input: {
  * Make the country's chase list match the champion's selection.
  *
  * Takes the WHOLE desired set rather than a diff, so the screen does not have to track what it has
- * already sent and cannot drift out of step with the database — the last save wins and says so.
+ * already sent and cannot drift out of step with the database. The last save wins and says so.
  *
  * Two things it will not do, both because the evidence trail outranks the tick box:
  *
@@ -194,7 +194,7 @@ export async function applySoaScopeSelection(input: {
  * country_cycles row appeared. That left no way to tell a country that had decided not to take
  * part from one nobody had opened yet, and no moment at which a champion saw the quarter's
  * deadline and threshold before committing to them. It is now its own act, and it is recorded as
- * one — the evidence trail should show who signed this country up and when.
+ * one. The evidence trail should show who signed this country up and when.
  */
 export async function enrolSoaCountry(countryId: string): Promise<SoaResult> {
   try {

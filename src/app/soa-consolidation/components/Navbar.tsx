@@ -7,7 +7,7 @@ import type { ViewModel } from '../types';
  * The tool's header bar.
  *
  * White and slim, like SourceGuide's and the rest of the platform's, rather than the solid green
- * band it used to be — a tool whose chrome looks nothing like its neighbours reads as a different
+ * band it used to be, a tool whose chrome looks nothing like its neighbours reads as a different
  * product, and this one already sits behind the same sign-in.
  *
  * The mark is the same `Receipt` icon the home page card carries. It used to be the letters "SOA"
@@ -15,7 +15,7 @@ import type { ViewModel } from '../types';
  * the home page should see the thing they clicked.
  *
  * It used to carry a "Viewing as:" dropdown that switched between champion and director. That was
- * a prototype affordance — the role is a grant now, so the bar states what the signed-in person
+ * a prototype affordance. The role is a grant now, so the bar states what the signed-in person
  * actually is rather than offering to change it. The signed-in name sits in the sidebar footer;
  * saying it twice told the reader nothing the second time.
  */

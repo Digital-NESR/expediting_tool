@@ -102,7 +102,7 @@ describe('complianceCriteria', () => {
   });
 
   it('fails non-responder documentation when one was flagged without a full trail', () => {
-    const v = [vendor({ status: 'non_responder', reqDate: '—', requestedAt: null })];
+    const v = [vendor({ status: 'non_responder', reqDate: ', ', requestedAt: null })];
     expect(state(v)['Non-Responder Documentation']).toBe('fail');
   });
 

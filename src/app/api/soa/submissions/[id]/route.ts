@@ -13,7 +13,7 @@ import { ensureSoaSchema, soaPool } from '@/lib/soa/db';
  * whole reason the file is kept at all.
  *
  * A statement lists a vendor's invoice numbers and balances, so it is served the way every other
- * document in this app is — bytes from the database through an authenticated route — rather than
+ * document in this app is. Bytes from the database through an authenticated route, rather than
  * from a URL that only has to be guessed. Authorisation is per COUNTRY and resolved from the
  * submission id, because the id is the only thing the caller controls: a champion of Oman must not
  * be able to walk ids into Saudi Arabia's statements.
@@ -32,7 +32,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     await ensureSoaSchema();
 
     /* Metadata first, and the country with it, so an unauthorised caller is turned away before a
-       10 MB blob is dragged out of Postgres — the same order the Laptop Procurement route uses. */
+       10 MB blob is dragged out of Postgres, the same order the Laptop Procurement route uses. */
     const { rows } = await soaPool.query<QueryResultRow>(
       `SELECT s.file_name, s.content_type, (s.content IS NOT NULL) AS has_content,
               cc.country_id

@@ -75,7 +75,7 @@ describe('buildSupplierWorkbook', () => {
       expect(header).not.toContain(gone);
   });
 
-  it('ships empty — nothing is pre-filled', async () => {
+  it('ships empty, nothing is pre-filled', async () => {
     const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
     const sheet = wb.getWorksheet('SOA')!;
     for (let r = 2; r <= sheet.rowCount; r++)
@@ -139,7 +139,7 @@ describe('buildSupplierWorkbook', () => {
 
   it('says something useful when a country has no AP address', async () => {
     const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', [], []));
-    // Sending is blocked in that state, so this should never ship — but a blank where an address
+    // Sending is blocked in that state, so this should never ship, but a blank where an address
     // belongs would be worse than saying so.
     expect(sheetText(wb.getWorksheet('Instruction')!)).toContain(
       'NESR contact who sent you this request',
@@ -160,7 +160,7 @@ describe('buildSupplierWorkbook', () => {
 });
 
 describe('attachmentFileName', () => {
-  it('is named for the cycle, not the vendor — the file is the same for everyone', () => {
+  it('is named for the cycle, not the vendor. The file is the same for everyone', () => {
     expect(attachmentFileName('Q3 2026')).toBe('NESR-Statement-of-Account-Q3-2026.xlsx');
   });
 });

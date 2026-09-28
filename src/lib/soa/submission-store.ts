@@ -7,7 +7,7 @@ import { UnreadableStatementError, parseSupplierWorkbook, type ParsedLine } from
 /**
  * Recording a returned statement.
  *
- * A plain module, not `'use server'` — see the note in `./db`.
+ * A plain module, not `'use server'`, see the note in `./db`.
  *
  * Two paths reach this: a champion uploading on a supplier's behalf, and the supplier uploading
  * through their own link. They must record the same thing, so the reading, the row, the stamped
@@ -151,7 +151,7 @@ export async function storeStatement(input: StoreInput): Promise<StoreResult> {
         input.entryId,
         input.selfService ? 'SOA uploaded by supplier' : 'SOA received',
         input.actorLabel,
-        `${input.vendorName} (${input.vendorNo}) — ${lines.length} invoice ${
+        `${input.vendorName} (${input.vendorNo}), ${lines.length} invoice ${
           lines.length === 1 ? 'line' : 'lines'
         } read` +
           (needingReview ? `, ${needingReview} needing review.` : '.') +

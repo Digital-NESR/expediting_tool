@@ -11,7 +11,7 @@ import { ensureSoaSchema, soaPool } from '@/lib/soa/db';
  *
  * The consolidation export already produced a vendor list, which is what Finance needs to post the
  * numbers. It is not what an auditor needs. The question there is not "what were the balances" but
- * "prove you did what the SOP says" — that every in-scope vendor was written to, that a reminder
+ * "prove you did what the SOP says". That every in-scope vendor was written to, that a reminder
  * followed inside the 10-14 day window, that non-responders were documented rather than quietly
  * dropped, and that the coverage figure was measured against the target in force at the time.
  *
@@ -117,7 +117,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     const criteria = complianceCriteria(
       vendors.map((v) => ({
         status: String(v.status),
-        reqDate: v.requested_at ? asDate(v.requested_at) : '—',
+        reqDate: v.requested_at ? asDate(v.requested_at) : ', ',
         remDate: v.reminded_at ? asDate(v.reminded_at) : null,
         requestedAt: v.requested_at ? asIso(v.requested_at) : null,
         remindedAt: v.reminded_at ? asIso(v.reminded_at) : null,
@@ -135,7 +135,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     /* ── 1. Summary: the policy, the outcome, and the verdicts ───────────── */
     const summary = wb.addWorksheet('Summary');
     summary.columns = [{ width: 34 }, { width: 62 }];
-    summary.addRow(['SOA Consolidation — evidence pack']).font = { bold: true, size: 14 };
+    summary.addRow(['SOA Consolidation, evidence pack']).font = { bold: true, size: 14 };
     summary.addRow([]);
     for (const [k, v] of [
       ['Country', `${countryName} (${countryId})`],
@@ -179,7 +179,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     summary.getColumn(2).numFmt = '#,##0';
 
     summary.addRow([]);
-    summary.addRow([`Control criteria — SOP NESR-SC-01-GR2PAY`]).font = { bold: true };
+    summary.addRow([`Control criteria, SOP NESR-SC-01-GR2PAY`]).font = { bold: true };
     headerRow(summary, ['Criterion', 'Verdict']);
     for (const c of criteria) {
       summary.addRow([c.label, c.state.toUpperCase()]);
@@ -214,7 +214,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     for (const v of vendors) {
       const shaped = {
         status: String(v.status),
-        reqDate: v.requested_at ? asDate(v.requested_at) : '—',
+        reqDate: v.requested_at ? asDate(v.requested_at) : ', ',
         remDate: v.reminded_at ? asDate(v.reminded_at) : null,
         requestedAt: v.requested_at ? asIso(v.requested_at) : null,
         remindedAt: v.reminded_at ? asIso(v.reminded_at) : null,

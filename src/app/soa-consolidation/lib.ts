@@ -39,7 +39,7 @@ export function fmtM(n: number): string {
   return n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
 }
 
-/** `$250,000` — the vendor threshold and the coverage targets read better unrounded. */
+/** `$250,000`, the vendor threshold and the coverage targets read better unrounded. */
 export function fmtUsd(n: number): string {
   return `$${Math.round(n).toLocaleString('en-US')}`;
 }
@@ -126,7 +126,7 @@ function matchesSearch(v: Vendor, needle: string): boolean {
 
 /** A date-only column out of the database, rendered without letting the viewer's zone shift it. */
 function dateOnlyLabel(iso: string): string {
-  return iso ? shortDateUTC(new Date(`${iso}T00:00:00Z`)) : '—';
+  return iso ? shortDateUTC(new Date(`${iso}T00:00:00Z`)) : ', ';
 }
 
 function tableControls(
@@ -226,7 +226,7 @@ export interface ScopeTotals {
    *  an excluded supplier is never added, and a locked one is never removed. */
   addCount: number;
   removeCount: number;
-  /** Ticked and removable — what "Clear selection" would actually clear. */
+  /** Ticked and removable. What "Clear selection" would actually clear. */
   clearableCount: number;
   /** The balance reachable if every supplier that *can* be ticked were: the ceiling on coverage. */
   reachableUsd: number;
@@ -234,7 +234,7 @@ export interface ScopeTotals {
   lockedCount: number;
   overThresholdCount: number;
   overThresholdUnticked: number;
-  /** Ticked suppliers with no address on file — selected, but impossible to chase. */
+  /** Ticked suppliers with no address on file, selected, but impossible to chase. */
   unreachableSelected: number;
 }
 
@@ -273,7 +273,7 @@ export function scopeTotals(
     } else if (c.selected && !c.locked) {
       t.removeCount += 1;
     }
-    /* An excluded supplier cannot be added, so it is not part of the ceiling — unless it is
+    /* An excluded supplier cannot be added, so it is not part of the ceiling. Unless it is
        already in the cycle, in which case its balance is genuinely being chased. */
     if (!c.excluded || c.selected) t.reachableUsd += c.valueUsd;
     if (c.excluded) t.excludedCount += 1;
@@ -289,15 +289,15 @@ export function scopeTotals(
 /**
  * `payload` is the database's answer for this country and cycle; `state` is only what the screens
  * themselves own. Nothing about a vendor, a country or an evidence entry is held in client state
- * any more — a mutation calls its server action and refreshes, and this function re-runs over the
+ * any more, a mutation calls its server action and refreshes, and this function re-runs over the
  * new payload.
  */
 /**
  * Which "nothing here" a screen is looking at, in the order the obstacles actually appear.
  *
  * Pure and exported because the ORDER is the whole rule and it is invisible once inlined. Each
- * state has a different person who fixes it — an administrator opens the cycle and runs the
- * extract, a champion joins and then scopes — so reporting the wrong one sends somebody to wait on
+ * state has a different person who fixes it, an administrator opens the cycle and runs the
+ * extract, a champion joins and then scopes, so reporting the wrong one sends somebody to wait on
  * the wrong colleague. The one that caused real confusion was `no-extract`: opening a quarter and
  * taking its snapshot are two admin steps, and between them the tool looked open for business with
  * nothing in it.
@@ -355,7 +355,7 @@ export function deriveViewModel(
   const { cycle, vendors, countries, evidence, countryId, countryName, totalBalance } = payload;
   const role = viewer.role;
 
-  /* The cross-country view, for an administrator or a champion granted every country — which is
+  /* The cross-country view, for an administrator or a champion granted every country. Which is
      what the removed `manager` role existed to describe, so the scope answers it rather than a
      separate rank. Guarded twice: the nav item is not offered, and a screen id that somehow says
      'rollup' falls back to the dashboard. */
@@ -413,17 +413,17 @@ export function deriveViewModel(
   const countryLabel = countryName ? `${countryName} (${countryId})` : 'No country in scope';
   /* Two dates for two audiences: `deadlineLabel` is what suppliers were told, and is what the
      chase is measured against; `cycleDeadlineLabel` is when this country has to be closed. */
-  const deadlineLabel = cycle ? dateOnlyLabel(cycle.submissionDeadline) : '—';
-  const cycleDeadlineLabel = cycle ? dateOnlyLabel(cycle.cycleDeadline) : '—';
+  const deadlineLabel = cycle ? dateOnlyLabel(cycle.submissionDeadline) : ', ';
+  const cycleDeadlineLabel = cycle ? dateOnlyLabel(cycle.cycleDeadline) : ', ';
   const periodLabel = cycle
     ? `${cycleLabel} (${dateOnlyLabel(cycle.periodStart)} – ${dateOnlyLabel(cycle.periodEnd)})`
-    : '—';
+    : ', ';
   const contextLine = `${countryLabel} · ${cycleLabel}`;
 
   // Workflow pipeline (6 steps, derived from the active country's status)
   /* The pipeline is derived from what has actually happened, not from the country's status
      column. It used to read a single enum through a lookup table, which mapped `in_progress` to
-     stage 4 — so a country with nothing in it at all showed PO Upload, Scope and Requests ticked
+     stage 4, so a country with nothing in it at all showed PO Upload, Scope and Requests ticked
      and Responses under way. A pipeline that claims work nobody did is worse than no pipeline.
 
      Each step answers its own question from the data, and a step only reports done when the thing
@@ -484,7 +484,7 @@ export function deriveViewModel(
     nodeIcon: p.done ? '✓' : i === activeIdx ? '●' : '○',
   }));
 
-  const thresholdLabel = cycle ? fmtUsd(cycle.vendorThresholdUsd) : '—';
+  const thresholdLabel = cycle ? fmtUsd(cycle.vendorThresholdUsd) : ', ';
 
   const kpiCards: KpiCardVM[] = [
     {
@@ -515,13 +515,13 @@ export function deriveViewModel(
     },
     {
       label: 'Days Remaining',
-      value: cycle ? String(cycle.daysRemaining) : '—',
+      value: cycle ? String(cycle.daysRemaining) : ', ',
       sub: `Until ${deadlineLabel}`,
       accent: cycle && cycle.daysRemaining <= 5 ? 'breach' : 'in-flight',
     },
   ];
 
-  const coverageCheckLabel = `${coverageMet ? '✓ ' : '⚠ '}${coveragePct}% — ${
+  const coverageCheckLabel = `${coverageMet ? '✓ ' : '⚠ '}${coveragePct}%, ${
     coverageMet
       ? `Meets ${coverageTargetPct}% ${cycleLabel} threshold`
       : `Below ${coverageTargetPct}% target`
@@ -592,7 +592,7 @@ export function deriveViewModel(
     fmtOpenPO: fmtM(v.openPO),
   });
 
-  // Response Tracking — status filter, then text filter, then one page of rows.
+  // Response Tracking, status filter, then text filter, then one page of rows.
   const trackingMatched = vendors
     .filter((v) => filterStatus === 'all' || v.status === filterStatus)
     .filter((v) => matchesSearch(v, search));
@@ -634,7 +634,7 @@ export function deriveViewModel(
   /* The screen asks for its list itself the first time it renders; this is the flag it asks on. */
   const scopeNeedsLoad = !!countryId && !!cycle && !scopeLoaded && !scopeLoading && !scopeError;
 
-  /* The country's whole balance, which is the coverage denominator — excluded suppliers included,
+  /* The country's whole balance, which is the coverage denominator, excluded suppliers included,
      because excluding one does not reduce what the country owes. */
   const scopeDenominator = scope.totalBalance || totalBalance;
   const scopeThresholdLabel = fmtUsd(scope.thresholdUsd || (cycle?.vendorThresholdUsd ?? 0));
@@ -665,8 +665,8 @@ export function deriveViewModel(
     verdictLabel: scopeMeetsTarget
       ? `✓ Meets the ${coverageTargetPct}% ${cycleLabel} target`
       : scopeTargetUnreachable
-        ? `⚠ Ticking every selectable supplier reaches only ${reachablePct}% — the ${coverageTargetPct}% target cannot be met from this snapshot`
-        : `⚠ ${Math.max(0, coverageTargetPct - scopePct)} points short — another ${fmtM(Math.max(0, scopeTargetUsd - totals.selectedUsd))} needs selecting`,
+        ? `⚠ Ticking every selectable supplier reaches only ${reachablePct}%. The ${coverageTargetPct}% target cannot be met from this snapshot`
+        : `⚠ ${Math.max(0, coverageTargetPct - scopePct)} points short, another ${fmtM(Math.max(0, scopeTargetUsd - totals.selectedUsd))} needs selecting`,
   };
 
   const scopeCards: KpiCardVM[] = [
@@ -758,10 +758,10 @@ export function deriveViewModel(
       disabled: !canTick || c.excluded || c.locked,
       noteLabel: c.excluded
         ? c.selected
-          ? 'Intercompany — excluded by an administrator, but already in this cycle'
-          : 'Intercompany — excluded by an administrator'
+          ? 'Intercompany, excluded by an administrator, but already in this cycle'
+          : 'Intercompany, excluded by an administrator'
         : c.locked
-          ? 'Already contacted — removing it would delete the correspondence on file'
+          ? 'Already contacted. Removing it would delete the correspondence on file'
           : '',
       isDirty: ticked !== c.selected && !c.excluded && !(c.selected && c.locked),
       overThreshold: c.overThreshold,
@@ -788,8 +788,8 @@ export function deriveViewModel(
   const scopeSaveLabel = busy
     ? 'Saving…'
     : scopeDirty
-      ? `Save selection — ${changeParts.join(', ')}`
-      : 'Save selection — no changes';
+      ? `Save selection, ${changeParts.join(', ')}`
+      : 'Save selection, no changes';
 
   const scopeEmptyReason =
     !scopeLoaded || scope.candidates.length > 0
@@ -822,7 +822,7 @@ export function deriveViewModel(
       ...e,
       typeKey,
       typeLabel: EVIDENCE_TYPE_LABEL[typeKey],
-      tsLabel: e.ts ? shortDateTime(new Date(e.ts)) : '—',
+      tsLabel: e.ts ? shortDateTime(new Date(e.ts)) : ', ',
     };
   });
 
@@ -1030,7 +1030,7 @@ export function deriveViewModel(
     onAcceptSOA: handlers.acceptSOA,
     onConfirmHandoff: handlers.confirmHandoff,
 
-    entityName: countryName ?? '—',
+    entityName: countryName ?? ', ',
     championContact: `${viewer.name} · ${viewer.email}`,
 
     toasts,

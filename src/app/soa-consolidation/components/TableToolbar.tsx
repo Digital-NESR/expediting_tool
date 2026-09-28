@@ -6,8 +6,8 @@ import type { TableControlsVM } from '../types';
  * Search box and pager for the two vendor tables.
  *
  * Saudi Arabia has 270 in-scope vendors; the prototype's 24 fixtures let both tables render every
- * row with no way to find one. Deliberately plain — a controlled input and two buttons, no
- * dependency, no virtualiser — because a page of 50 rows is cheap and a champion looking for one
+ * row with no way to find one. Deliberately plain, a controlled input and two buttons, no
+ * dependency, no virtualiser, because a page of 50 rows is cheap and a champion looking for one
  * vendor types its name.
  */
 export default function TableToolbar({

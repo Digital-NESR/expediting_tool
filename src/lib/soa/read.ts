@@ -8,7 +8,7 @@ import { ensureSoaSchema, sql } from './db';
  *
  * This replaces `data.ts`, which held 594 lines of invented vendors and a "today" pinned to
  * 21 July 2026. The shapes below are deliberately the ones the eight screens already consume, so
- * the screens did not have to be rewritten to stop being a prototype — only the source of truth
+ * the screens did not have to be rewritten to stop being a prototype, only the source of truth
  * changed.
  *
  * One thing to hold on to while reading: a vendor's amount is what they are being asked to
@@ -30,7 +30,7 @@ export interface ActiveCycle {
   yearEndTargetPct: number;
   vendorThresholdUsd: number;
   daysRemaining: number;
-  /** Days until the cycle deadline — the champion's date, not the supplier's. */
+  /** Days until the cycle deadline, the champion's date, not the supplier's. */
   daysToClose: number;
   extractedAt: string | null;
 }
@@ -92,7 +92,7 @@ export interface SoaPayload {
   countryName: string | null;
   /** Every country this actor may switch to. One entry means no picker is needed. */
   available: CountryOption[];
-  /** The country's whole PO balance for the cycle — the coverage denominator. */
+  /** The country's whole PO balance for the cycle, the coverage denominator. */
   totalBalance: number;
   vendors: VendorRow[];
   countries: CountryRow[];
@@ -139,7 +139,7 @@ function daysBetween(from: Date, to: Date): number {
  *
  * A champion of one country has no choice to make. Someone with an all-countries grant, or several
  * countries, gets a picker, and `requested` is what they chose. An unrecognised or out-of-scope
- * request falls back to the first country in scope rather than erroring — a stale bookmark should
+ * request falls back to the first country in scope rather than erroring, a stale bookmark should
  * land somewhere sensible, not on a wall.
  */
 export async function resolveCountry(
@@ -186,7 +186,7 @@ async function activeCycle(): Promise<ActiveCycle | null> {
  *
  * Coverage is the confirmed balance over the country's whole PO balance for the cycle, which
  * is why the denominator comes from `supplier_po_extract` rather than from the vendors being
- * chased — chasing only the large vendors does not make the small ones stop being money owed.
+ * chased. Chasing only the large vendors does not make the small ones stop being money owed.
  * A country nobody has scoped yet is absent rather than present at 0%: it has not failed, it has
  * not started, and eighteen rows of 0% would read as a wall of failure on day one.
  */
@@ -353,7 +353,7 @@ export async function loadSoa(
       openPO: Number(r.open_po_amount),
       status: String(r.status) as VendorRow['status'],
       // The screens show a request date as a bare string; an unsent request has none.
-      reqDate: asShortDate(r.requested_at) ?? '—',
+      reqDate: asShortDate(r.requested_at) ?? ', ',
       remDate: asShortDate(r.reminded_at),
       respDate: asShortDate(r.responded_at),
       requestedAt: r.requested_at ? asIso(r.requested_at) : null,

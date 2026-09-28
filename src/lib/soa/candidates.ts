@@ -16,7 +16,7 @@ import { ensureSoaSchema, sql } from './db';
  *              recorded against it. The evidence trail is the point of this tool; a tick box must
  *              not be able to erase one.
  *   `excluded` an intercompany entity on the exclusion list. It stays visible, and stays in the
- *              coverage denominator, but cannot be selected — nobody emails a colleague for a
+ *              coverage denominator, but cannot be selected. Nobody emails a colleague for a
  *              statement of account.
  */
 
@@ -31,7 +31,7 @@ export interface ScopeCandidate {
   locked: boolean;
   /** On the exclusion list, so it cannot be put in. */
   excluded: boolean;
-  /** Above the cycle's threshold — the default suggestion, not the rule. */
+  /** Above the cycle's threshold, the default suggestion, not the rule. */
   overThreshold: boolean;
   /** 1 = largest by value. */
   rank: number;

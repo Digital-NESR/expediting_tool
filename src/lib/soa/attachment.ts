@@ -5,12 +5,12 @@ import ExcelJS from 'exceljs';
 /**
  * The workbook a supplier is asked to fill in.
  *
- * A plain module, not `'use server'` — see the note in `./db`.
+ * A plain module, not `'use server'`, see the note in `./db`.
  *
  * This is a stripped version of the consolidated format that goes to AP. The supplier is asked for
  * invoices and nothing else: their own name and vendor number are not columns, because we know who
  * returned the file and asking them to repeat it on every row only creates a way for it to
- * disagree with what we have. Those are stamped onto the parsed rows on the way back in — see
+ * disagree with what we have. Those are stamped onto the parsed rows on the way back in, see
  * `./submission-lines`.
  *
  * One file per country rather than per vendor. Nothing about it varies by supplier, but the Legal
@@ -25,7 +25,7 @@ const TEMPLATE = path.join(process.cwd(), 'assets', 'soa', 'soa-format.xlsx');
  * them so the two line up without a translation table.
  *
  * Legal Entity stays. It varies per invoice, only the supplier knows which NESR entity they billed,
- * and nothing in our data can reconstruct it — `historic_spend` does not carry an entity.
+ * and nothing in our data can reconstruct it. `historic_spend` does not carry an entity.
  */
 export const SUPPLIER_COLUMNS = [
   'Ser#',
@@ -154,8 +154,8 @@ function writeInstructions(
   };
   const blank = () => put(null, null);
 
-  title('NESR — Statement of Account');
-  const sub = put(null, `How to complete this workbook — ${countryName}`);
+  title('NESR, Statement of Account');
+  const sub = put(null, `How to complete this workbook, ${countryName}`);
   sub.getCell(2).font = { size: 11, color: { argb: 'FF58595B' } };
   blank();
 
@@ -198,7 +198,7 @@ function writeInstructions(
   for (const [label, emails] of contacts) {
     for (const email of emails) {
       any = true;
-      const row = put(null, `${label} — ${email}`);
+      const row = put(null, `${label}, ${email}`);
       row.getCell(2).font = { bold: true, color: { argb: 'FF2A7E4F' } };
     }
   }
@@ -228,7 +228,7 @@ async function templateBytes(): Promise<Buffer> {
  * The consolidated template is loaded and reduced: the four columns we stamp ourselves are
  * removed, the 38 rows of leftover sample data the template ships with are cleared, and the Legal
  * Entity dropdown is repointed. It has to be repointed because the original is `INDIRECT($C2)`,
- * which reads the Country cell — and Country is one of the columns being removed. Pointing it
+ * which reads the Country cell, and Country is one of the columns being removed. Pointing it
  * straight at the country's named range gives the supplier the same list without the column.
  *
  * The Legal Entities sheet is kept but hidden: the dropdown resolves through it, and a supplier

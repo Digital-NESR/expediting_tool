@@ -61,7 +61,7 @@ function serialiseCycle(r: QueryResultRow): SoaCycle {
   };
 }
 
-/** Every cycle, newest period first. Any approved user — a champion needs to know the deadline. */
+/** Every cycle, newest period first. Any approved user, a champion needs to know the deadline. */
 export async function getSoaCycles(): Promise<SoaCycle[]> {
   try {
     await requireSoaActor('viewer');
@@ -166,7 +166,7 @@ export async function createSoaCycle(input: {
       return {
         success: false,
         error:
-          'The cycle deadline cannot fall before the collection deadline — statements have to be in before a country can be closed.',
+          'The cycle deadline cannot fall before the collection deadline. Statements have to be in before a country can be closed.',
       };
     }
 
@@ -239,7 +239,7 @@ export async function activateSoaCycle(cycleId: number): Promise<SoaResult> {
  * Teach a country to recognise another spelling of itself.
  *
  * `runSoaExtract` reports `spendCountriesUnmapped` when SAP produces a country string no country
- * claims — and that country's spend is then missing from every coverage denominator, which makes
+ * claims, and that country's spend is then missing from every coverage denominator, which makes
  * every percentage it should have contributed to look better than it is. Without this the warning
  * could name the problem but not fix it, and the only remedy was editing the database by hand.
  *
@@ -290,7 +290,7 @@ export async function addSoaSpendCountryAlias(input: {
 /**
  * Take the cycle's spend snapshot from historic_spend.
  *
- * Slow by the standards of a server action — it aggregates every PO transaction in the window — so
+ * Slow by the standards of a server action. It aggregates every PO transaction in the window, so
  * it is deliberately a thing an admin triggers once per cycle rather than something that happens
  * on a page load.
  */

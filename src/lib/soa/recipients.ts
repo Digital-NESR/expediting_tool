@@ -8,7 +8,7 @@ import { parseAvlEmails } from './extract';
 /**
  * Who a statement request actually goes to.
  *
- * A plain module, not `'use server'` — see the note in `./db`.
+ * A plain module, not `'use server'`, see the note in `./db`.
  *
  * Addresses are resolved fresh on every read rather than frozen onto the vendor, so a supplier who
  * updates their AP mailbox upstream is picked up without an import. Only the champion's own edits
@@ -17,7 +17,7 @@ import { parseAvlEmails } from './extract';
  *     TO = (directory ∪ added) − suppressed − @nesr.com
  *
  * The directory is the Approved Vendor List union the SAP supplier master. Neither covers
- * everyone — of the vendors in scope for Q3 the AVL had 112 and SAP 111, but together 113 — and
+ * everyone, of the vendors in scope for Q3 the AVL had 112 and SAP 111, but together 113, and
  * they disagree on 25, each holding addresses the other lacks. Using both is the only reading that
  * does not silently drop a working mailbox.
  *
@@ -46,7 +46,7 @@ export interface VendorRecipient {
   status: string;
   /** Resolved TO, largest-spend vendor first. */
   to: RecipientAddress[];
-  /** Removed by a champion — kept visible so the removal can be undone. */
+  /** Removed by a champion. Kept visible so the removal can be undone. */
   suppressed: string[];
   /** `@nesr.com` addresses filtered out of TO; shown so the filtering is not invisible. */
   droppedInternal: string[];
@@ -58,7 +58,7 @@ export interface CountryRecipients {
   /** Every AP mailbox for the country, CC'd on each message. Empty blocks a send: the letter
    *  tells the vendor where to reply, and there would be nothing to put there. */
   apEmails: string[];
-  /** The country's champions, also copied — the letter names them as the contact for questions. */
+  /** The country's champions, also copied, the letter names them as the contact for questions. */
   championEmails: string[];
   cycleLabel: string;
   vendors: VendorRecipient[];
@@ -145,7 +145,7 @@ export function resolveAddresses(
 
 /**
  * Every in-scope vendor for a country in the active cycle, with its resolved recipients,
- * largest amount first — the order a champion reviews them in, because that is the order in
+ * largest amount first, the order a champion reviews them in, because that is the order in
  * which a missing address costs the most.
  */
 export async function loadCountryRecipients(countryId: string): Promise<CountryRecipients | null> {
@@ -232,7 +232,7 @@ export async function loadCountryRecipients(countryId: string): Promise<CountryR
   };
 }
 
-/** A bare sanity check, matching `parseAvlEmails` — not RFC 5322 adjudication. */
+/** A bare sanity check, matching `parseAvlEmails`, not RFC 5322 adjudication. */
 export function looksLikeEmail(value: string): boolean {
   const v = value.trim().toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) && v.length > 3;
@@ -242,7 +242,7 @@ export function looksLikeEmail(value: string): boolean {
  * Record a champion's edit to a vendor's recipients.
  *
  * Adding an address the directory already carries clears a suppression rather than writing an
- * `added` row — otherwise unticking and reticking a directory address would quietly promote it to
+ * `added` row. Otherwise unticking and reticking a directory address would quietly promote it to
  * a manual entry and it would survive being removed upstream.
  */
 export async function setVendorContact(input: {

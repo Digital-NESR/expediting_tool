@@ -44,7 +44,7 @@ export default function UploadModal({ vm }: ScreenProps) {
   return (
     <>
       <div className="bg-sns-green px-5 py-4 flex items-center justify-between">
-        <div className="text-white font-bold text-[14px]">Accept SOA — {vm.modalVendorName}</div>
+        <div className="text-white font-bold text-[14px]">Accept SOA, {vm.modalVendorName}</div>
         <button
           type="button"
           onClick={vm.onCloseModal}
@@ -123,7 +123,7 @@ export default function UploadModal({ vm }: ScreenProps) {
 
         <div className="text-[11px] text-sns-grey leading-[1.4] mb-3.5">
           The file is checked against its declared type and stored in the database, and is served
-          only through an authenticated route — a statement lists a vendor&apos;s invoice numbers
+          only through an authenticated route, a statement lists a vendor&apos;s invoice numbers
           and balances.
         </div>
 

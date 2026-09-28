@@ -21,7 +21,7 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
           >
             Download Consolidated SOA
           </a>
-          {/* The vendor list is a progress report — who was chased, when, and whether they
+          {/* The vendor list is a progress report. Who was chased, when, and whether they
               answered. It says nothing about what any of them owe. */}
           <button
             type="button"
@@ -101,7 +101,7 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
       <div className="bg-white rounded-[10px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
         <div className="px-3.5 py-3 border-b border-b-[#F0F0F0] flex items-center justify-between">
           <div className="text-[12px] font-bold text-sns-ink">
-            Consolidated SOA — {vm.receivedCount} Vendors · {vm.exportFileName}
+            Consolidated SOA, {vm.receivedCount} Vendors · {vm.exportFileName}
           </div>
           <div className="text-[11px] text-sns-grey">Auto-compiled · No manual re-keying</div>
         </div>

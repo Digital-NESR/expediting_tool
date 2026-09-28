@@ -7,12 +7,12 @@ import { ensureSoaSchema, sql } from './db';
 /**
  * The consolidated workbook Finance and Accounts Payable receive.
  *
- * A plain module, not `'use server'` — see the note in `./db`.
+ * A plain module, not `'use server'`, see the note in `./db`.
  *
  * This is the file the whole parsing pipeline exists to produce. Every supplier returns a stripped
  * version of the same template carrying only the invoice columns; those rows are read on upload,
  * stamped with the vendor and country we already know, and land here as one workbook in the
- * original sixteen-column format — the shape AP already works in.
+ * original sixteen-column format, the shape AP already works in.
  *
  * Built from the parsed rows rather than by stitching the attachments together. The attachments
  * are the evidence and stay downloadable one by one; assembling them by hand is exactly the work
@@ -126,7 +126,7 @@ export async function buildConsolidatedWorkbook(
 /**
  * Write the rows into the template.
  *
- * Separated from the query so the format can be exercised against fixture rows — the ordering,
+ * Separated from the query so the format can be exercised against fixture rows, the ordering,
  * the flagged lines and the way an unreadable cell is carried through are the parts worth pinning,
  * and none of them needs a database.
  */
@@ -135,7 +135,7 @@ export async function writeConsolidated(
 ): Promise<{ file: Buffer; summary: ConsolidatedSummary }> {
   templateCache ??= await readFile(TEMPLATE);
   const wb = new ExcelJS.Workbook();
-  /* exceljs ships its own, older `Buffer` declaration — take the parameter type from the method
+  /* exceljs ships its own, older `Buffer` declaration. Take the parameter type from the method
      rather than asserting a type that only happens to match today. */
   await wb.xlsx.load(templateCache as unknown as Parameters<typeof wb.xlsx.load>[0]);
 

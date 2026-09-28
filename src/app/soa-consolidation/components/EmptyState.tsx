@@ -26,17 +26,17 @@ const COPY: Record<string, { title: string; lead: string; next: string }> = {
   },
   'no-extract': {
     title: 'The quarter is open, but its PO snapshot has not been taken',
-    lead: 'Opening a cycle and extracting the PO transactions behind it are two steps. Until the second one runs there are no suppliers to scope from, so every figure on these screens reads zero — not because the country is empty, but because nothing has been read yet.',
+    lead: 'Opening a cycle and extracting the PO transactions behind it are two steps. Until the second one runs there are no suppliers to scope from, so every figure on these screens reads zero, not because the country is empty, but because nothing has been read yet.',
     next: 'An administrator runs the extract on /admin, under SOA Consolidation → Cycles. It aggregates all PO transactions in the cycle’s window and takes a few seconds.',
   },
   'ap-waiting': {
     title: 'Nothing to review yet',
-    lead: 'This country’s cycle is still being worked. Accounts Payable picks it up once the champion has closed it and handed it over — at that point the statements, the invoice lines behind them and the evidence trail all become readable here.',
+    lead: 'This country’s cycle is still being worked. Accounts Payable picks it up once the champion has closed it and handed it over. At that point the statements, the invoice lines behind them and the evidence trail all become readable here.',
     next: 'The champion for this country closes the cycle from Consolidation. You will be emailed when they do.',
   },
   'not-enrolled': {
     title: 'Join this country to the cycle',
-    lead: 'The quarter is open and its PO snapshot has been taken. Joining says this country is taking part — it is recorded against your name, and it is what creates the evidence trail an auditor reads later.',
+    lead: 'The quarter is open and its PO snapshot has been taken. Joining says this country is taking part. It is recorded against your name, and it is what creates the evidence trail an auditor reads later.',
     next: 'Check the deadline and threshold below, then join. You pick which vendors to chase in the next step.',
   },
   'not-scoped': {

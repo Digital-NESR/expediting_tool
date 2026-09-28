@@ -14,13 +14,13 @@ export type Role = 'admin' | 'champion' | 'ap' | 'viewer';
 /**
  * The signed-in person, resolved on the server from `getSoaActor()` and handed to the client.
  *
- * `countries` is the scope from `countriesFor(actor, 'viewer')` — a list of country ids, or the
+ * `countries` is the scope from `countriesFor(actor, 'viewer')`, a list of country ids, or the
  * literal `'all'`, which is not the same as listing every country today: it keeps covering a
  * country added next quarter.
  *
  * `champion` is the same question asked at champion level, and it is a different answer: someone
  * can be champion of Saudi Arabia and viewer of Oman, and on Oman every mutating button must be
- * gone. `role` alone is the highest role held ANYWHERE, so it cannot answer that on its own — the
+ * gone. `role` alone is the highest role held ANYWHERE, so it cannot answer that on its own. The
  * server actions guard per country and the buttons have to agree with them.
  */
 export interface Viewer {
@@ -102,7 +102,7 @@ export interface OutreachFailure {
 }
 
 /**
- * Client state is now only what the screens themselves own — which screen, which filter, which
+ * Client state is now only what the screens themselves own. Which screen, which filter, which
  * page, which modal. Vendors, countries and evidence are NOT in here: every mutation goes to a
  * server action and then `router.refresh()`, so the payload is the single copy of the truth and
  * there is no local mirror of it to drift.
@@ -110,7 +110,7 @@ export interface OutreachFailure {
  * Vendor Scoping is the one deliberate exception, and only while a champion is deciding. Its 525
  * candidates are fetched on demand rather than carried in the page payload, and the tick boxes are
  * a *draft* held in `scopeSelected` until "Save selection" writes the whole set in one call. That
- * draft is not a mirror of the database — it is the edit in progress, which is exactly the thing
+ * draft is not a mirror of the database. It is the edit in progress, which is exactly the thing
  * that must not be written on every click.
  */
 export interface AppState {
@@ -217,7 +217,7 @@ export type ScopeRowKind = 'free' | 'locked' | 'excluded';
 export interface ScopeRowVM {
   vendorNo: string;
   name: string;
-  /** Position by value in the WHOLE country, from the server — never the position on this page. */
+  /** Position by value in the WHOLE country, from the server. Never the position on this page. */
   rank: number;
   valueLabel: string;
   /** Running share of the country's balance at this row, also computed across the whole country. */
@@ -229,7 +229,7 @@ export interface ScopeRowVM {
   disabled: boolean;
   /** Why the box cannot be changed; empty for a free row. */
   noteLabel: string;
-  /** Ticked or unticked since the last save — the rows this save will actually change. */
+  /** Ticked or unticked since the last save. The rows this save will actually change. */
   isDirty: boolean;
   /** Above the cycle's threshold, which is now a suggestion rather than the rule. */
   overThreshold: boolean;
@@ -241,7 +241,7 @@ export interface ScopeRowVM {
 }
 
 /**
- * The selected share of the country's balance — the figure the quarter is judged on.
+ * The selected share of the country's balance. The figure the quarter is judged on.
  *
  * `reachablePct` is the same figure if every supplier that *could* be ticked were, so the screen
  * can say "the target cannot be met from this snapshot" rather than letting a champion tick their
@@ -275,7 +275,7 @@ export interface ScopeBulkVM {
 }
 
 /**
- * A control criterion is pass, fail, or — when the payload does not carry what the test needs —
+ * A control criterion is pass, fail, or, when the payload does not carry what the test needs, 
  * `unknown`. The prototype hard-coded three of the four to pass, which is the one outcome a
  * control check must never be able to produce without measuring something.
  */
@@ -351,7 +351,7 @@ export interface ViewModel {
   roleLabel: string;
   roleCountry: string;
   viewerName: string;
-  /** The signed-in person's address — CC'd on every message they send. */
+  /** The signed-in person's address. CC'd on every message they send. */
   viewerEmail: string;
   viewerInitials: string;
   /** An admin, or a champion granted every country. Gates the rollup: nav item and screen. */
@@ -366,9 +366,9 @@ export interface ViewModel {
   countryLabel: string;
   contextLine: string;
   periodLabel: string;
-  /** The collection deadline — what suppliers were given in the letter. */
+  /** The collection deadline. What suppliers were given in the letter. */
   deadlineLabel: string;
-  /** The cycle deadline — when this country must be reconciled, closed and handed off. */
+  /** The cycle deadline, when this country must be reconciled, closed and handed off. */
   cycleDeadlineLabel: string;
   daysToClose: number;
   daysRemaining: number;
@@ -412,7 +412,7 @@ export interface ViewModel {
   receivedCount: number;
   remindedCount: number;
   requestedCount: number;
-  /** Scoped but never written to — the vendors an initial request is still owed. */
+  /** Scoped but never written to. The vendors an initial request is still owed. */
   unrequestedCount: number;
   hasUnrequested: boolean;
   unreachableCount: number;
@@ -442,7 +442,7 @@ export interface ViewModel {
   scopeRows: ScopeRowVM[];
   scopeTable: TableControlsVM;
 
-  /** Rows this save would add and remove — the same arithmetic the server action will redo. */
+  /** Rows this save would add and remove. The same arithmetic the server action will redo. */
   scopeAddCount: number;
   scopeRemoveCount: number;
   scopeDirty: boolean;

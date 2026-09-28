@@ -6,8 +6,8 @@
    A cycle is a reporting quarter, and it carries its own policy:
    the coverage target, the year-end target, the vendor threshold
    and the lookback are stored ON the cycle rather than read from a
-   constant. That is the whole point of this screen — changing next
-   quarter's target must not rewrite how last quarter was judged —
+   constant. That is the whole point of this screen. Changing next
+   quarter's target must not rewrite how last quarter was judged, 
    so the create form offers the defaults as editable values and the
    list shows what each cycle actually used, not today's numbers.
 
@@ -17,8 +17,8 @@
      · Making a cycle active stands the previous one down. Exactly
        one cycle is active, and every champion's screen follows it.
      · Running the extract REPLACES that cycle's spend snapshot. It
-       leaves chase lists alone — no champion's correspondence is
-       lost — and it is slow, because it aggregates every PO
+       leaves chase lists alone. No champion's correspondence is
+       lost, and it is slow, because it aggregates every PO
        line in the window.
    ───────────────────────────────────────────────────────────── */
 
@@ -47,7 +47,7 @@ const DEFAULTS = {
   lookbackMonths: '18',
 };
 
-/** `$250.6M` — the totals here run to hundreds of millions and read badly in full. */
+/** `$250.6M`, the totals here run to hundreds of millions and read badly in full. */
 function fmtCompactUsd(n: number): string {
   const abs = Math.abs(n);
   if (abs >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
@@ -56,14 +56,14 @@ function fmtCompactUsd(n: number): string {
   return `$${Math.round(n)}`;
 }
 
-/** `$250,000` — the threshold is a policy number and reads better unrounded. */
+/** `$250,000`. The threshold is a policy number and reads better unrounded. */
 function fmtUsd(n: number): string {
   return `$${Math.round(n).toLocaleString('en-US')}`;
 }
 
 /** A DATE column, rendered without letting the viewer's time zone shift it a day. */
 function dateOnly(iso: string | null): string {
-  return iso ? shortDateUTC(new Date(`${iso.slice(0, 10)}T00:00:00Z`)) : '—';
+  return iso ? shortDateUTC(new Date(`${iso.slice(0, 10)}T00:00:00Z`)) : ', ';
 }
 
 function Spinner({ className = 'h-5 w-5' }: { className?: string }) {
@@ -128,7 +128,7 @@ export default function SoaCyclesClient() {
   const [lookback, setLookback] = useState(DEFAULTS.lookbackMonths);
   const [makeActive, setMakeActive] = useState(false);
 
-  // Activation asks first — it stands the current active cycle down.
+  // Activation asks first. It stands the current active cycle down.
   const [confirmActivateId, setConfirmActivateId] = useState<number | null>(null);
   const [activating, setActivating] = useState(false);
 
@@ -323,7 +323,7 @@ export default function SoaCyclesClient() {
       <p className="text-[12px] text-slate-400">
         A cycle is one reporting quarter, and it carries its own policy. The coverage target, the
         year-end target, the vendor threshold and the lookback are stored{' '}
-        <span className="font-semibold text-slate-600">on the cycle</span> — changing next
+        <span className="font-semibold text-slate-600">on the cycle</span>, changing next
         quarter&apos;s target leaves last quarter&apos;s evidence describing the rule it was
         actually judged against. Exactly one cycle is active at a time, and every champion&apos;s
         screen follows it.
@@ -446,7 +446,7 @@ export default function SoaCyclesClient() {
               {activeCycle ? (
                 <>
                   <span className="font-semibold text-slate-800">{activeCycle.label}</span> is
-                  active now and would be stood down — every champion&apos;s screen switches to the
+                  active now and would be stood down, every champion&apos;s screen switches to the
                   new cycle.
                 </>
               ) : (
@@ -611,7 +611,7 @@ export default function SoaCyclesClient() {
                                 <>
                                   {' '}
                                   <span className="font-bold">{activeCycle.label}</span> is stood
-                                  down in the same move — only one cycle is ever active, and every
+                                  down in the same move. Only one cycle is ever active, and every
                                   champion&apos;s dashboard, scoping screen and deadline switches to{' '}
                                   {c.label} the moment this lands.
                                 </>
@@ -654,7 +654,7 @@ export default function SoaCyclesClient() {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-sm font-bold text-slate-900">
-              Spend snapshot — {selected.label}
+              Spend snapshot, {selected.label}
               {selected.is_active && (
                 <span className="ml-2 rounded-full bg-[#2A7E4F]/10 px-2 py-0.5 text-[10px] font-bold text-[#2A7E4F]">
                   Active
@@ -667,27 +667,27 @@ export default function SoaCyclesClient() {
           <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Tile
               label="Suppliers"
-              value={summary ? summary.rows.toLocaleString('en-US') : '—'}
+              value={summary ? summary.rows.toLocaleString('en-US') : ', '}
               sub="supplier-country rows"
             />
             <Tile
               label="All PO Transactions"
-              value={summary ? fmtCompactUsd(summary.totalUsd) : '—'}
+              value={summary ? fmtCompactUsd(summary.totalUsd) : ', '}
               sub="the coverage denominator"
             />
             <Tile
               label="Countries"
-              value={summary ? String(summary.countries) : '—'}
+              value={summary ? String(summary.countries) : ', '}
               sub="present in the snapshot"
             />
             <Tile
               label="Scoped"
-              value={summary ? String(summary.scopedCountries) : '—'}
+              value={summary ? String(summary.scopedCountries) : '. '}
               sub="countries a champion has scoped"
             />
             <Tile
               label="In chase"
-              value={summary ? summary.vendorsInChase.toLocaleString('en-US') : '—'}
+              value={summary ? summary.vendorsInChase.toLocaleString('en-US') : ', '}
               sub="vendors on a chase list"
             />
           </div>
@@ -704,7 +704,7 @@ export default function SoaCyclesClient() {
             <p className="text-sm font-semibold text-slate-800">Run the extract</p>
             <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
               Reads all PO transactions in the {selected.lookback_months}-month window ending{' '}
-              {dateOnly(selected.period_end)} and writes this cycle&apos;s snapshot — roughly
+              {dateOnly(selected.period_end)} and writes this cycle&apos;s snapshot, roughly
               413,000 rows aggregated down to about 2,800 written, so it takes several seconds.
             </p>
             <p className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] leading-relaxed text-slate-600">
@@ -713,7 +713,7 @@ export default function SoaCyclesClient() {
               <span className="font-semibold text-slate-800">
                 Chase lists already drawn are left exactly as they are
               </span>{' '}
-              — no champion&apos;s correspondence, request or reminder is touched.
+ no champion&apos;s correspondence, request or reminder is touched.
             </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -732,13 +732,13 @@ export default function SoaCyclesClient() {
               </button>
               {extracting && (
                 <span className="text-[12px] font-medium text-slate-500">
-                  Aggregating PO transactions — this takes several seconds. Leave this page open.
+                  Aggregating PO transactions. This takes several seconds. Leave this page open.
                 </span>
               )}
             </div>
 
             {/* Indeterminate: the extract is one server call, so there is no honest
-                percentage to show — only proof that it is still moving. */}
+                percentage to show. Only proof that it is still moving. */}
             {extracting && (
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
                 <div className="h-full w-full animate-pulse rounded-full bg-[#2A7E4F]" />
@@ -778,7 +778,7 @@ export default function SoaCyclesClient() {
                       <span className="font-bold">
                         their spend is missing from every coverage denominator
                       </span>{' '}
-                      — every percentage this cycle produces is measured against a total that does
+ every percentage this cycle produces is measured against a total that does
                       not include them. Add each spelling to the matching country&apos;s spend names
                       and re-run the extract.
                     </p>

@@ -1,7 +1,7 @@
 /**
  * The address a supplier is sent to upload their statement.
  *
- * A plain module, not `'use server'` — see the note in `./db`.
+ * A plain module, not `'use server'`, see the note in `./db`.
  *
  * Kept in one place because the letter and the upload route have to agree on it exactly: a link
  * that renders one way in the email and is parsed another way on arrival is a supplier who cannot

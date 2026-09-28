@@ -13,8 +13,8 @@ import RichTextEditor from './RichTextEditor';
 /**
  * Step one of outreach: the letter itself.
  *
- * The wording is the champion's responsibility — it carries their name, their AP mailbox and the
- * date after which a silent vendor is treated as reconciled — so it is shown in full and editable
+ * The wording is the champion's responsibility. It carries their name, their AP mailbox and the
+ * date after which a silent vendor is treated as reconciled, so it is shown in full and editable
  * rather than hidden inside the automation. The preview renders against the country's largest
  * vendor with the real cycle dates, because a placeholder that fails to resolve is only obvious
  * when everything around it is real.
@@ -154,7 +154,7 @@ export default function EmailTemplateCard({ countryId, canEdit, onNext }: Props)
           <span className="font-[family-name:monospace]">
             {view.unknown.map((t) => `{{${t}}}`).join(', ')}
           </span>{' '}
-          — these will go out to the vendor exactly as written.
+ these will go out to the vendor exactly as written.
         </div>
       )}
       {note && (
@@ -219,7 +219,7 @@ export default function EmailTemplateCard({ countryId, canEdit, onNext }: Props)
                 </span>
                 <span className="text-sns-ink">
                   {p.label}
-                  <span className="text-sns-grey"> — {p.from}</span>
+                  <span className="text-sns-grey">, {p.from}</span>
                 </span>
               </div>
             ))}

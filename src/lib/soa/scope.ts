@@ -5,8 +5,8 @@ import { sql } from './db';
  * A country's participation in a cycle.
  *
  * This module used to hold `scopeCountry`, which swept in every supplier above the cycle's
- * threshold in one go. Selection is a champion's judgement now — see
- * `src/app/actions/soa/scoping.ts` — and that function was removed rather than left exported,
+ * threshold in one go. Selection is a champion's judgement now, see
+ * `src/app/actions/soa/scoping.ts`, and that function was removed rather than left exported,
  * because an unused server action is still a public POST endpoint, and this one would have
  * silently re-added every above-threshold supplier to a list somebody had just curated by hand.
  *

@@ -5,7 +5,7 @@
  * non-responder, and handing a country's cycle to Finance.
  *
  * EVERY export of a `'use server'` module is a public POST endpoint, so each one starts with its
- * own guard, and each guard is scoped to the COUNTRY the row belongs to — a champion of Oman
+ * own guard, and each guard is scoped to the COUNTRY the row belongs to, a champion of Oman
  * invoking these with a Saudi entry id must be refused, and the id is the only thing the caller
  * controls.
  *
@@ -249,7 +249,7 @@ async function prepareLetter(
  *
  * The dispatch is attempted BEFORE the status moves, and the status only moves if it succeeded.
  * Recording a send that did not happen would put a false entry in the evidence trail, which is
- * worse than not sending at all — the SOP's two-request test is read off exactly these rows.
+ * worse than not sending at all. The SOP's two-request test is read off exactly these rows.
  *
  * A failed attempt is still recorded, as a failure. A champion needs to see that n8n rejected
  * something rather than wonder why a vendor never replied.
@@ -310,7 +310,7 @@ export async function sendSoaOutreach(input: {
         input.kind === 'request' ? 'email' : 'reminder',
         isRequest ? 'Statement request sent' : 'Reminder sent',
         actor.email,
-        `${context!.vendorName} (${context!.vendorNo}) — sent to ${context!.contacts.join(', ')}.`,
+        `${context!.vendorName} (${context!.vendorNo}), sent to ${context!.contacts.join(', ')}.`,
       );
     });
 
@@ -432,7 +432,7 @@ export async function markSoaNonResponder(entryId: number): Promise<SoaResult> {
  * Accept a vendor's statement.
  *
  * The file is stored as bytes in this database and served from an authenticated route, the way
- * every other document in this app is — a statement of account lists a vendor's invoice numbers
+ * every other document in this app is, a statement of account lists a vendor's invoice numbers
  * and balances and is not something to leave on an unguessable URL.
  */
 export async function acceptSoaSubmission(entryId: number, formData: FormData): Promise<SoaResult> {
@@ -677,7 +677,7 @@ export async function setSoaVendorContacts(input: {
         'info',
         'Vendor contacts updated',
         actor.email,
-        `${context.vendorName} (${context.vendorNo}) — ${cleaned.length ? cleaned.join(', ') : 'all addresses removed'}.`,
+        `${context.vendorName} (${context.vendorNo}), ${cleaned.length ? cleaned.join(', ') : 'all addresses removed'}.`,
       );
     });
     revalidatePath('/soa-consolidation');
@@ -691,7 +691,7 @@ export async function setSoaVendorContacts(input: {
   }
 }
 
-/** Anyone who can see the country can see who is unreachable — it explains a stalled coverage figure. */
+/** Anyone who can see the country can see who is unreachable. It explains a stalled coverage figure. */
 export async function getSoaOutreachFailures(
   countryId: string,
 ): Promise<{ vendorNo: string; vendorName: string; error: string; sentAt: string }[]> {

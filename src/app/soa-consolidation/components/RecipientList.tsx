@@ -14,8 +14,8 @@ import type { CountryRecipients, VendorRecipient } from '@/lib/soa/recipients';
  * Vendors are ordered by amount because that is the order in which a missing address costs the
  * most. Addresses come from the supplier directory on every load rather than being frozen onto the
  * vendor, so an upstream correction is picked up without an import; what persists is only what a
- * champion changed. Both halves of that persist — an address they found stays found, and one they
- * removed stays removed — which is why a removal is shown struck through with an undo rather than
+ * champion changed. Both halves of that persist, an address they found stays found, and one they
+ * removed stays removed. Which is why a removal is shown struck through with an undo rather than
  * simply vanishing.
  *
  * CC is different and deliberately not saved: the sender and the country AP mailbox are implied by
@@ -177,7 +177,7 @@ export default function RecipientList({
         </div>
         <div className="flex flex-wrap gap-1.5 items-center mb-2">
           {/* The sender is always copied and cannot be dropped: they are accountable for the send. */}
-          <Chip label={senderEmail} system locked title="You — always copied" />
+          <Chip label={senderEmail} system locked title="You, always copied" />
           {data?.apEmails.length ? (
             data.apEmails
               .filter((ap) => !isDropped(ap))
@@ -192,7 +192,7 @@ export default function RecipientList({
               ))
           ) : (
             <span className="rounded-md bg-[#FDECEA] px-2.5 py-[5px] text-[11.5px] font-bold text-[#B71C1C]">
-              No AP contact set for this country — add one in /admin
+              No AP contact set for this country, add one in /admin
             </span>
           )}
           {(data?.championEmails ?? [])
@@ -211,7 +211,7 @@ export default function RecipientList({
               key={e.mail}
               label={e.display_name}
               system={false}
-              title={`${e.mail} — added for this send only`}
+              title={`${e.mail}. Added for this send only`}
               onRemove={() => setExtraCc((list) => list.filter((x) => x.mail !== e.mail))}
             />
           ))}
@@ -283,7 +283,7 @@ export default function RecipientList({
         ))}
         {!vendors.length && !busy && (
           <div className="px-4 py-6 text-[12px] text-sns-grey">
-            Nothing is in scope for this country yet — scope some vendors first.
+            Nothing is in scope for this country yet, scope some vendors first.
           </div>
         )}
       </div>
@@ -373,7 +373,7 @@ function VendorRow({
       )}
       {none && (
         <div className="mt-2 text-[11.5px] font-bold text-[#B71C1C]">
-          Nobody to write to — add an address, or this vendor cannot be chased.
+          Nobody to write to, add an address, or this vendor cannot be chased.
         </div>
       )}
 
@@ -414,7 +414,7 @@ function VendorRow({
           {vendor.suppressed.length > 0 && (
             <div className={canEdit ? 'mt-3 border-t border-t-[#EDEDED] pt-2.5' : ''}>
               <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey">
-                Removed — will not be written to
+                Removed. Will not be written to
               </div>
               <div className="mt-1 space-y-0.5">
                 {vendor.suppressed.map((email) => (

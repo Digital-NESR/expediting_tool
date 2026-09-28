@@ -10,7 +10,7 @@ import { loadSubmissionsFor, type SubmissionView } from '@/lib/soa/submission-re
  *
  * Every export of a `'use server'` module is a public POST endpoint. An entry id arrives from the
  * browser and is not a capability, so the country that owns it is looked up first and the caller
- * is checked against that country — otherwise a viewer of Oman could read Saudi Arabia's supplier
+ * is checked against that country. Otherwise a viewer of Oman could read Saudi Arabia's supplier
  * invoice numbers and balances by guessing an integer.
  */
 

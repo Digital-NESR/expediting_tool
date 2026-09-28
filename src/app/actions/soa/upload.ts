@@ -21,8 +21,8 @@ import {
  * The supplier-facing upload flow.
  *
  * This is the only part of SOA Consolidation reachable without signing in, so every export here
- * resolves the link token itself and derives everything else from it. Nothing the browser sends —
- * no vendor id, no country, no email address — is trusted; the token is the only input, and a
+ * resolves the link token itself and derives everything else from it. Nothing the browser sends, 
+ * no vendor id, no country, no email address. Is trusted; the token is the only input, and a
  * caller who has one can act on exactly the vendor it names and no other.
  *
  * Addresses are chosen by position in the list this produced, never typed. Accepting a typed
@@ -58,7 +58,7 @@ export interface UploadPageState {
  *
  * The code proves someone can read the vendor's mailbox. A champion signed in through the
  * company's own SSO has already proved more than that, and uploading on a supplier's behalf is a
- * normal part of their job — a supplier who replies with the file attached still has to get it
+ * normal part of their job, a supplier who replies with the file attached still has to get it
  * into the system somehow.
  */
 async function championFor(target: UploadTarget): Promise<string | null> {
@@ -127,7 +127,7 @@ export async function requestSoaUploadCode(
         bodyHtml:
           `<p>Your verification code for the ${target.cycleLabel} statement of account upload is:</p>` +
           `<p style="font-size:28px;font-weight:bold;letter-spacing:4px">${issued.code}</p>` +
-          `<p>It expires in two minutes. If you did not request it, you can ignore this message — ` +
+          `<p>It expires in two minutes. If you did not request it, you can ignore this message. ` +
           `nobody can upload anything without it.</p>`,
         bodyText: `Your NESR verification code is ${issued.code}. It expires in two minutes.`,
         attachments: [],

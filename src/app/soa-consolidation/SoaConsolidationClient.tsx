@@ -62,7 +62,7 @@ const INITIAL: AppState = {
   scopeSaved: null,
 };
 
-/** The vendor numbers a country is already chasing — where a fresh draft starts from. */
+/** The vendor numbers a country is already chasing, where a fresh draft starts from. */
 function seedSelection(candidates: { vendorNo: string; selected: boolean }[]): ReadonlySet<string> {
   return new Set(candidates.filter((c) => c.selected).map((c) => c.vendorNo));
 }
@@ -115,7 +115,7 @@ export default function SoaConsolidationClient({
    * Run one server action.
    *
    * A failed action's `error` is written to be read by the person who clicked, so it is shown
-   * verbatim rather than replaced with a generic apology — `handOffSoaCountry` in particular
+   * verbatim rather than replaced with a generic apology. `handOffSoaCountry` in particular
    * refuses below the coverage target and explains exactly how short the country is.
    */
   async function run<T>(
@@ -145,7 +145,7 @@ export default function SoaConsolidationClient({
    * Fetched here rather than in the page payload: it is 525 rows for Saudi Arabia, it is wanted on
    * exactly one of the eight screens, and it would otherwise be serialised into every page load.
    * A successful read also reseeds the draft, so what is ticked always starts from what the
-   * database actually holds — including after a save.
+   * database actually holds, including after a save.
    */
   function loadScopeCandidates() {
     const cycle = payload.cycle;
@@ -482,7 +482,7 @@ export default function SoaConsolidationClient({
               'warning',
               'Closed, but Accounts Payable was not emailed',
               data?.apContacts === 0
-                ? `${where} is closed. No AP contact is set for this country, so nobody was told — add one in /admin.`
+                ? `${where} is closed. No AP contact is set for this country, so nobody was told, add one in /admin.`
                 : `${where} is closed and is readable by Accounts Payable in the portal, but the notification could not be sent.`,
             );
           }

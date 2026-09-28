@@ -3,7 +3,7 @@ import sanitizeHtml from 'sanitize-html';
 /**
  * The statement-request letter, its placeholders, and the rules for storing champion-edited HTML.
  *
- * A plain module, not `'use server'` — see the note in `./db`.
+ * A plain module, not `'use server'`, see the note in `./db`.
  *
  * The wording below is the approved bilingual text and is the seed every country starts from. It
  * is not merely cosmetic: it is the notice that tells a vendor their account will be treated as
@@ -51,7 +51,7 @@ export const PLACEHOLDERS: { token: string; label: string; from: string }[] = [
 ];
 
 export const DEFAULT_SUBJECT =
-  'Request for Statement of Account — {{vendor_name}} — as at {{statement_period_end}}';
+  'Request for Statement of Account, {{vendor_name}}, as at {{statement_period_end}}';
 
 export const DEFAULT_BODY_HTML = `<p>Date: {{date}}</p>
 <h3>Attention!</h3>
@@ -110,7 +110,7 @@ NESR</p>
  * What a champion is allowed to save.
  *
  * The stored HTML is rendered back into the portal as well as mailed out, so it is untrusted input
- * to our own pages and is sanitised on the way in rather than on the way out — sanitising at render
+ * to our own pages and is sanitised on the way in rather than on the way out. Sanitising at render
  * time means every future render site has to remember to do it. The allow-list is what the letter
  * actually needs: text, emphasis, lists, tables, links, and the `dir`/`lang` pair that makes the
  * Arabic half read right to left.
@@ -143,7 +143,7 @@ export function sanitizeTemplateHtml(html: string): string {
   return sanitizeHtml(html ?? '', ALLOWED).trim();
 }
 
-/** Strip every tag — used for the plain-text alternative part of the email. */
+/** Strip every tag, used for the plain-text alternative part of the email. */
 export function htmlToText(html: string): string {
   return sanitizeHtml(html ?? '', { allowedTags: [], allowedAttributes: {} })
     .replace(/\n{3,}/g, '\n\n')
@@ -199,7 +199,7 @@ export function renderTemplate(html: string, vars: TemplateVars): string {
  * Mark up the placeholders instead of filling them.
  *
  * The preview used to render against the country's largest vendor, which read as though that
- * vendor were part of the standard letter — a champion editing it would reasonably wonder why
+ * vendor were part of the standard letter, a champion editing it would reasonably wonder why
  * somebody else's name was in their template. Showing the tokens themselves says plainly which
  * parts are written once and which are resolved per vendor at send time.
  *
@@ -215,7 +215,7 @@ export function highlightPlaceholders(html: string): string {
   );
 }
 
-/** Tokens present in the text that nothing can fill — surfaced before a send, not after. */
+/** Tokens present in the text that nothing can fill, surfaced before a send, not after. */
 export function unknownTokens(html: string): string[] {
   const known = new Set(PLACEHOLDERS.map((p) => p.token));
   const found = new Set<string>();

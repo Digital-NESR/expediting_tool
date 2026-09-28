@@ -6,7 +6,7 @@ import { platformAdminEmails } from '@/lib/require-access';
  *
  * Without this a request lands in `soa_access_requests` and nothing happens until an admin
  * happens to open /admin/soa and notice the badge. During a soft test that reads as the tool
- * being broken — somebody asks, waits, and concludes nobody is there.
+ * being broken, somebody asks, waits, and concludes nobody is there.
  *
  * Reuses `N8N_ACCESS_NOTIFICATION_WEBHOOK_URL`, the same workflow the platform access request
  * already posts to, and the same Microsoft Graph sendMail payload shape it expects. A second
@@ -91,7 +91,7 @@ export async function notifySoaAccessRequest(input: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: {
-          subject: `SOA Consolidation — access requested: ${input.name}`,
+          subject: `SOA Consolidation, access requested: ${input.name}`,
           body: { contentType: 'HTML', content: body },
           toRecipients: admins.map((address) => ({ emailAddress: { address } })),
         },
@@ -170,7 +170,7 @@ export async function notifySoaHandoff(input: {
       kind: 'soa.handoff',
       to: input.apEmails,
       cc: input.championEmails,
-      subject: `SOA ${input.cycleLabel} closed — ${input.countryName}`,
+      subject: `SOA ${input.cycleLabel} closed, ${input.countryName}`,
       bodyHtml,
       bodyText: rows.map(([k, v]) => k + ": " + v).join('\n'),
       attachments: [],

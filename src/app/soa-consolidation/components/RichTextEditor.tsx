@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * and has no replacement; every browser still implements it, and the alternative here is a much
  * larger dependency for a letter that is edited a handful of times a quarter.
  *
- * Whatever this produces is sanitised on the server before it is stored — see
+ * Whatever this produces is sanitised on the server before it is stored, see
  * `sanitizeTemplateHtml`. Nothing here is a security boundary.
  */
 
@@ -30,7 +30,7 @@ const COMMANDS: { icon: string; title: string; command: string }[] = [
   { icon: 'B', title: 'Bold', command: 'bold' },
   { icon: 'I', title: 'Italic', command: 'italic' },
   { icon: 'U', title: 'Underline', command: 'underline' },
-  { icon: '• —', title: 'Bulleted list', command: 'insertUnorderedList' },
+  { icon: '•, ', title: 'Bulleted list', command: 'insertUnorderedList' },
   { icon: '1.', title: 'Numbered list', command: 'insertOrderedList' },
 ];
 

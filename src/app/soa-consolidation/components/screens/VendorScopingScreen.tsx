@@ -42,7 +42,7 @@ function stateLabel(kind: ScopeRowKind, checked: boolean): string {
 }
 
 /**
- * Vendor Scoping — the champion's own list of who this country will chase.
+ * Vendor Scoping. The champion's own list of who this country will chase.
  *
  * It used to be one button. `scopeSoaCountry` swept in every supplier above the cycle's threshold
  * and that was the whole decision, which is a reasonable default and a poor rule: a champion knows
@@ -231,7 +231,7 @@ export default function VendorScopingScreen({ vm }: ScreenProps) {
           {!vm.isScoped && !vm.scopeDirty && (
             <div className="bg-white rounded-lg border-l-4 border-l-sns-grey px-3.5 py-2.5 mb-3 text-[12px] text-sns-grey leading-[1.5] shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
               Nothing has been selected for {vm.countryLabel} yet. Tick the suppliers this country
-              will chase and save — everything above the threshold is a sensible starting point, and
+              will chase and save, everything above the threshold is a sensible starting point, and
               the first shortcut below ticks exactly those.
             </div>
           )}

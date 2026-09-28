@@ -22,7 +22,7 @@ interface Props {
 }
 
 function money(value: number | null, currency: string | null): string {
-  if (value === null) return '—';
+  if (value === null) return ', ';
   return `${currency ?? ''} ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
 }
 
@@ -140,17 +140,17 @@ function LineRow({ line }: { line: SubmissionLineView }) {
         style={flagged ? { boxShadow: 'inset 3px 0 0 #E65100' } : undefined}
       >
         <td className="px-2 py-1.5 text-sns-grey tabular-nums">{line.lineNo}</td>
-        <td className="px-2 py-1.5 font-medium">{line.invoiceNumber ?? '—'}</td>
+        <td className="px-2 py-1.5 font-medium">{line.invoiceNumber ?? '. '}</td>
         {/* The raw cell where it would not parse, so a reviewer sees what the supplier wrote
             rather than a blank that looks like nothing was entered. */}
         <td className="px-2 py-1.5">
           {line.invoiceDate ?? (
-            <span className="text-[#B71C1C]">{line.invoiceDateRaw ?? '—'}</span>
+            <span className="text-[#B71C1C]">{line.invoiceDateRaw ?? ', '}</span>
           )}
         </td>
-        <td className="px-2 py-1.5">{line.poNumber ?? '—'}</td>
+        <td className="px-2 py-1.5">{line.poNumber ?? ', '}</td>
         <td className="max-w-[190px] truncate px-2 py-1.5" title={line.legalEntity ?? ''}>
-          {line.legalEntity ?? '—'}
+          {line.legalEntity ?? ', '}
         </td>
         <td className="px-2 py-1.5 text-right tabular-nums">
           {money(line.totalAmount, line.currency)}
@@ -158,7 +158,7 @@ function LineRow({ line }: { line: SubmissionLineView }) {
         <td className="px-2 py-1.5 text-right font-bold tabular-nums">
           {money(line.outstandingAmount, line.currency)}
         </td>
-        <td className="px-2 py-1.5 text-right tabular-nums">{line.outstandingDays ?? '—'}</td>
+        <td className="px-2 py-1.5 text-right tabular-nums">{line.outstandingDays ?? ', '}</td>
       </tr>
       {flagged && (
         <tr className="bg-[#FFFBF5]">

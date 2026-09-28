@@ -6,7 +6,7 @@ import { ensureSoaSchema, sql } from './db';
 /**
  * Who may do what in SOA Consolidation.
  *
- * Four roles, and they do not all come from the same place — which is the thing to understand
+ * Four roles, and they do not all come from the same place. Which is the thing to understand
  * before changing anything here:
  *
  *   admin     ADMIN_EMAILS (or SOA_ADMIN_EMAILS). A property of the platform, not of this tool,
@@ -20,7 +20,7 @@ import { ensureSoaSchema, sql } from './db';
  *   viewer    Reads a country's progress and its evidence trail, and changes nothing. Requested
  *             and approved.
  *
- * A grant is (role, country), and `country` may be NULL, meaning every country — one grant for a
+ * A grant is (role, country), and `country` may be NULL, meaning every country, one grant for a
  * regional lead rather than a row per country that a newly added country would silently fall out
  * of. One person may hold several grants: champion of Saudi Arabia and viewer of Oman is a real
  * arrangement, so this module returns the whole set rather than collapsing it to a single "role"
@@ -96,7 +96,7 @@ export function canAccessCountry(actor: SoaActor, countryId: string, role: SoaRo
  * components that each need it share one pair of queries.
  *
  * Returns null only when nobody is signed in. A signed-in employee with no access still gets an
- * actor — with no grants — because the layout needs to tell them how to ask for some.
+ * actor, with no grants, because the layout needs to tell them how to ask for some.
  */
 export const getSoaActor = cache(async (): Promise<SoaActor | null> => {
   const actor = await currentActor();
@@ -142,7 +142,7 @@ export const getSoaActor = cache(async (): Promise<SoaActor | null> => {
 
 /**
  * Guard for mutations. Throws rather than returning null, so a denied call cannot fall through to
- * a write — every exported server action in this tool starts with one of these.
+ * a write, every exported server action in this tool starts with one of these.
  */
 export async function requireSoaActor(min: SoaRole = 'viewer'): Promise<SoaActor> {
   const actor = await getSoaActor();

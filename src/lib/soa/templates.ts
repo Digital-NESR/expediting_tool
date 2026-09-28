@@ -5,7 +5,7 @@ import { DEFAULT_BODY_HTML, DEFAULT_SUBJECT, sanitizeTemplateHtml } from './emai
 /**
  * Storage for the outreach letter.
  *
- * A plain module, not `'use server'` — see the note in `./db`.
+ * A plain module, not `'use server'`, see the note in `./db`.
  *
  * Two levels: one row with a NULL country is the global default, and a row per country overrides
  * it. A country with no row of its own inherits, so a wording change made once in /admin reaches
@@ -45,7 +45,7 @@ function toTemplate(row: QueryResultRow, source: 'country' | 'global'): StoredTe
  * otherwise the approved text compiled into the build.
  *
  * The built-in fallback means a fresh database still sends the right letter rather than an empty
- * one — the seed is code, not a migration, so correcting the wording ships with a deploy.
+ * one. The seed is code, not a migration, so correcting the wording ships with a deploy.
  */
 export async function loadTemplate(countryId: string | null): Promise<StoredTemplate> {
   await ensureSoaSchema();
@@ -105,7 +105,7 @@ export interface LetterContext {
   countryName: string;
   cycleLabel: string;
   statementPeriodEnd: string;
-  /** The same period as the workbook's Month/Year column wants it — "September 2026". */
+  /** The same period as the workbook's Month/Year column wants it, "September 2026". */
   statementMonthYear: string;
   replyBy: string;
   /** Every AP mailbox for the country. More than one is normal: Kuwait has two. */

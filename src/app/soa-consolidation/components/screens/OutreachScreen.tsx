@@ -34,7 +34,7 @@ export default function OutreachScreen({ vm }: ScreenProps) {
         <div>
           <h1 className="text-[20px] font-bold mb-[3px]">Outreach</h1>
           <p className="text-[12px] text-sns-grey">
-            Automated vendor outreach — {vm.contextLine} · Statements due {vm.deadlineLabel}
+            Automated vendor outreach, {vm.contextLine} · Statements due {vm.deadlineLabel}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">

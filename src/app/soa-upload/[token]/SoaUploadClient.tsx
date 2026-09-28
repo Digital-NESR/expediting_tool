@@ -101,7 +101,7 @@ export default function SoaUploadClient({
             </Panel>
           ) : done ? (
             <Panel tone="ok">
-              <strong>Thank you — your statement has been received.</strong>
+              <strong>Thank you. Your statement has been received.</strong>
               <div className="mt-1">
                 {done.lines} invoice {done.lines === 1 ? 'line was' : 'lines were'} read from your
                 file

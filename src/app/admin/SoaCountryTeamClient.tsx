@@ -14,7 +14,7 @@
    today and can be removed here too.
 
    An AP contact is often not a person. Half of them are shared
-   mailboxes — invoices.ksa@nesr.com, financeteam.kuwait@nesr.com —
+   mailboxes, invoices.ksa@nesr.com, financeteam.kuwait@nesr.com. 
    which nobody owns and nobody could ever request access for, so the
    form takes a typed address as well as a directory pick.
    ───────────────────────────────────────────────────────────── */
@@ -98,7 +98,7 @@ export default function SoaCountryTeamClient() {
     const name = manual ? manualName.trim() : (person?.name ?? '');
     if (!country) return setError('Choose a country.');
     if (!email) return setError(manual ? 'Enter the mailbox address.' : 'Choose a person.');
-    if (manual && !name) return setError('Give the mailbox a name — it appears in the audit trail.');
+    if (manual && !name) return setError('Give the mailbox a name. It appears in the audit trail.');
 
     setSaving(true);
     const res = await setSoaCountryUser({ email, name, countryId: country, role });
@@ -135,7 +135,7 @@ export default function SoaCountryTeamClient() {
         <p className="mt-1 text-sm text-slate-500">
           Champions run a country&rsquo;s cycle. Accounts Payable contacts are copied on every
           vendor letter and review the cycle once it closes. Both can also be granted through
-          Access Approvals — this is the same list.
+          Access Approvals. This is the same list.
         </p>
       </div>
 
@@ -144,7 +144,7 @@ export default function SoaCountryTeamClient() {
           <strong>
             {gaps.length} {gaps.length === 1 ? 'country is' : 'countries are'} incomplete.
           </strong>{' '}
-          A country with no AP contact cannot send — the letter tells the vendor where to reply and
+          A country with no AP contact cannot send. The letter tells the vendor where to reply and
           there would be nothing to put there. A country with no champion has nobody to run it.
         </div>
       )}
@@ -272,14 +272,14 @@ export default function SoaCountryTeamClient() {
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
               <TeamColumn
                 label="Champions"
-                empty="No champion — nobody can run this country's cycle."
+                empty="No champion. Nobody can run this country's cycle."
                 rows={t.champions}
                 removing={removing}
                 onRemove={remove}
               />
               <TeamColumn
                 label="Accounts Payable"
-                empty="No AP contact — sending is blocked for this country."
+                empty="No AP contact. Sending is blocked for this country."
                 rows={t.aps}
                 removing={removing}
                 onRemove={remove}

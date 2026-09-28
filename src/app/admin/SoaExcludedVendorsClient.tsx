@@ -3,8 +3,8 @@
 /* ─────────────────────────────────────────────────────────────
    SOA Consolidation · Excluded vendors.
 
-   NESR's own entities appear in the PO transactions like any supplier —
-   EOS JAFZA is $250M across ten countries in the current cycle — and
+   NESR's own entities appear in the PO transactions like any supplier. 
+   EOS JAFZA is $250M across ten countries in the current cycle, and
    nobody emails a colleague to ask them to confirm a statement of
    account. So these vendors are never chased.
 
@@ -32,10 +32,10 @@ import {
 } from '@/app/actions/soa/excluded';
 import { formatSessionDate } from '@/lib/format';
 
-/** NESR's group entities share this SAP supplier-code block — eight suppliers, one big one. */
+/** NESR's group entities share this SAP supplier-code block, eight suppliers, one big one. */
 const NESR_GROUP_PREFIX = '00013';
 
-/** `$250.6M` — these run to hundreds of millions and read badly in full. */
+/** `$250.6M`, these run to hundreds of millions and read badly in full. */
 function fmtCompactUsd(n: number): string {
   const abs = Math.abs(n);
   if (abs >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
@@ -75,7 +75,7 @@ export default function SoaExcludedVendorsClient() {
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
 
-  /** What the last exclusion did — including how many drawn entries it did NOT touch. */
+  /** What the last exclusion did. Including how many drawn entries it did NOT touch. */
   const [outcome, setOutcome] = useState<{ name: string; liveEntries: number } | null>(null);
 
   const reload = useCallback(async () => {
@@ -131,7 +131,7 @@ export default function SoaExcludedVendorsClient() {
   async function exclude(candidate: SupplierCandidate) {
     setError('');
     if (!reason.trim()) {
-      setError('A reason is required — it is what explains the gap to whoever audits this later.');
+      setError('A reason is required. It is what explains the gap to whoever audits this later.');
       return;
     }
     setAdding(true);
@@ -205,7 +205,7 @@ export default function SoaExcludedVendorsClient() {
 
       {/* The one thing that gets misread. Stated as its own block, not as a footnote. */}
       <div className="rounded-2xl border border-[#2A7E4F]/20 bg-[#2A7E4F]/[0.06] p-4">
-        <p className="text-sm font-bold text-[#2A7E4F]">Not chased — but still counted</p>
+        <p className="text-sm font-bold text-[#2A7E4F]">Not chased, but still counted</p>
         <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
           NESR&apos;s own entities turn up in the PO transactions like any supplier, and nobody
           emails a colleague to ask them to confirm a statement of account. An excluded vendor is{' '}
@@ -214,7 +214,7 @@ export default function SoaExcludedVendorsClient() {
         <p className="mt-1.5 text-[12px] leading-relaxed text-slate-600">
           It stays in the <span className="font-semibold text-slate-800">coverage denominator</span>
           , because the money did move. Removing it from the total as well would inflate every
-          percentage and make the SOP&apos;s threshold easier to hit than it is meant to be — so
+          percentage and make the SOP&apos;s threshold easier to hit than it is meant to be, so
           excluding a vendor never improves a country&apos;s coverage figure.
         </p>
       </div>
@@ -250,7 +250,7 @@ export default function SoaExcludedVendorsClient() {
               </span>{' '}
               on chase lists already drawn in the active cycle, and{' '}
               {outcome.liveEntries === 1 ? 'it is' : 'they are'} left exactly as{' '}
-              {outcome.liveEntries === 1 ? 'it is' : 'they are'} — removing{' '}
+              {outcome.liveEntries === 1 ? 'it is' : 'they are'}, removing{' '}
               {outcome.liveEntries === 1 ? 'it' : 'them'} would delete the requests, reminders and
               correspondence already recorded against {outcome.liveEntries === 1 ? 'it' : 'them'}. A
               champion can still close {outcome.liveEntries === 1 ? 'that entry' : 'those entries'}{' '}
@@ -270,7 +270,7 @@ export default function SoaExcludedVendorsClient() {
         <h3 className="text-sm font-bold text-slate-900">Find a supplier</h3>
         <p className="mt-1 text-[12px] text-slate-400">
           Searches the active cycle&apos;s spend snapshot by name{' '}
-          <span className="font-semibold text-slate-600">or</span> supplier code — at least two
+          <span className="font-semibold text-slate-600">or</span> supplier code, at least two
           characters. Most candidates have never been scoped; the point is to catch them before they
           are.
         </p>
@@ -364,12 +364,12 @@ export default function SoaExcludedVendorsClient() {
                                   value={reason}
                                   autoFocus
                                   onChange={(e) => setReason(e.target.value)}
-                                  placeholder="e.g. NESR group entity — intercompany balance, not chased"
+                                  placeholder="e.g. NESR group entity, intercompany balance, not chased"
                                   className={INPUT}
                                 />
                               </label>
                               <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-                                The reason is what explains the gap to whoever audits this later —
+                                The reason is what explains the gap to whoever audits this later. 
                                 it is stored against the exclusion with your name and the date. An
                                 exclusion without one is refused.
                               </p>
@@ -452,7 +452,7 @@ export default function SoaExcludedVendorsClient() {
                         </p>
                       </td>
                       <td className="max-w-[280px] px-4 py-3 text-xs leading-relaxed text-slate-600">
-                        {r.reason || <span className="text-slate-400">—</span>}
+                        {r.reason || <span className="text-slate-400">, </span>}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">
                         <p className="font-medium text-slate-700">{r.excludedBy}</p>
@@ -492,7 +492,7 @@ export default function SoaExcludedVendorsClient() {
         )}
 
         <p className="mt-2 text-[11px] text-slate-400">
-          Putting a vendor back in scope does not redraw anything on its own — it reappears the next
+          Putting a vendor back in scope does not redraw anything on its own. It reappears the next
           time a champion scopes their country.
         </p>
       </div>

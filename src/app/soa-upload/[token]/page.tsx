@@ -7,7 +7,7 @@ import SoaUploadClient from './SoaUploadClient';
  * Public: there is no NESR account behind it and there should not be. What stands in for one is
  * the link, which names the vendor, plus a code sent to an address the request itself went to.
  *
- * Dynamic, and deliberately never cached — the state includes whether this browser has verified,
+ * Dynamic, and deliberately never cached. The state includes whether this browser has verified,
  * which is per visitor.
  */
 export const dynamic = 'force-dynamic';

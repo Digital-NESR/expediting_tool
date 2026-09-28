@@ -22,7 +22,7 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
         >
           {vm.hasAtRisk && (
             <>
-              ⚠ {vm.atRiskCount} countries at risk — below {vm.coverageTargetPct}% coverage with
+              ⚠ {vm.atRiskCount} countries at risk, below {vm.coverageTargetPct}% coverage with
               &lt;10 days remaining
             </>
           )}
@@ -62,7 +62,7 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
         {vm.entityCount === 0 && (
           <div className="px-3.5 py-6 text-center text-[12px] text-sns-grey">
             No country has started this cycle yet. A country appears here once its vendor list has
-            been scoped — it has not failed, it has not begun.
+            been scoped. It has not failed, it has not begun.
           </div>
         )}
         {vm.countriesEnriched.map((c, i) => (
