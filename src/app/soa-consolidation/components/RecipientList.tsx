@@ -267,109 +267,151 @@ function VendorRow({
   onChange: (vendorId: number, email: string, action: 'add' | 'remove' | 'restore') => void;
 }) {
   const none = vendor.to.length === 0;
+  const hidden = vendor.suppressed.length + vendor.droppedInternal.length;
+
   return (
-    <div className="px-4 py-2.5">
-      <div className="flex items-start gap-3">
-        <div className="w-[230px] shrink-0">
-          <div className="text-[12.5px] font-bold text-sns-ink truncate" title={vendor.vendorName}>
+    <div className="px-4 py-3">
+      {/* One line for who and how much, with the amount and the row's controls on the right so
+          the eye can run down each column instead of hunting through wrapped chips. */}
+      <div className="flex items-baseline gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[12.5px] font-bold text-sns-ink" title={vendor.vendorName}>
             {vendor.vendorName}
           </div>
           <div className="text-[10.5px] text-sns-grey font-[family-name:monospace]">
             {vendor.vendorNo}
           </div>
         </div>
-        <div className="w-[110px] shrink-0 text-[12px] font-bold text-sns-ink tabular-nums text-right">
+
+        <div className="shrink-0 text-[12.5px] font-bold text-sns-ink tabular-nums">
           {money(vendor.amountUsd)}
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap gap-1.5">
-            {vendor.to.map((a) => (
-              <Chip
-                key={a.email}
-                label={a.email}
-                system={a.origin === 'directory'}
-                title={
-                  a.origin === 'added'
-                    ? 'Added here and kept for next time'
-                    : 'From the supplier directory'
-                }
-                onRemove={
-                  canEdit && !busy ? () => onChange(vendor.vendorId, a.email, 'remove') : undefined
-                }
-              />
-            ))}
-            {none && (
-              <span className="text-[11px] font-bold text-[#B71C1C]">
-                No address on file — this vendor cannot be written to.
-              </span>
-            )}
-            {(vendor.suppressed.length > 0 || vendor.droppedInternal.length > 0 || canEdit) && (
-              <button
-                type="button"
-                onClick={onToggle}
-                className="text-[10.5px] text-sns-grey underline underline-offset-2"
-              >
-                {open ? 'hide' : 'add or restore'}
-                {vendor.suppressed.length > 0 && ` · ${vendor.suppressed.length} removed`}
-                {vendor.droppedInternal.length > 0 && ` · ${vendor.droppedInternal.length} internal`}
-              </button>
-            )}
-          </div>
+        <div className="w-[120px] shrink-0 text-right">
+          {none ? (
+            <span className="text-[11px] font-bold text-[#B71C1C]">No address</span>
+          ) : (
+            <span className="text-[11px] text-sns-grey tabular-nums">
+              {vendor.to.length} {vendor.to.length === 1 ? 'address' : 'addresses'}
+            </span>
+          )}
+        </div>
 
-          {open && (
-            <div className="mt-2 pl-0.5">
-              {canEdit && (
-                <div className="flex gap-1.5 items-center mb-2">
-                  <input
-                    value={draft}
-                    onChange={(e) => onDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && draft.trim()) {
-                        e.preventDefault();
-                        onChange(vendor.vendorId, draft.trim(), 'add');
-                      }
-                    }}
-                    placeholder="name@supplier.com"
-                    className="w-[260px] border border-sns-line rounded-md px-2.5 py-1.5 text-[11.5px]"
-                  />
-                  <button
-                    type="button"
-                    disabled={busy || !draft.trim()}
-                    onClick={() => onChange(vendor.vendorId, draft.trim(), 'add')}
-                    className="bg-sns-green text-white border-none px-3 py-[6px] rounded-md text-[11px] font-bold disabled:opacity-50"
-                  >
-                    Add
-                  </button>
-                  <span className="text-[10.5px] text-sns-grey">kept for the next cycle too</span>
-                </div>
-              )}
+        <button
+          type="button"
+          onClick={onToggle}
+          className="w-[76px] shrink-0 text-right text-[11px] font-semibold text-sns-green hover:underline"
+        >
+          {open ? 'Done' : canEdit ? 'Edit' : 'Details'}
+          {!open && hidden > 0 && <span className="text-sns-grey"> · {hidden}</span>}
+        </button>
+      </div>
 
-              {vendor.suppressed.map((email) => (
-                <div key={email} className="flex items-center gap-2 text-[11px] py-0.5">
-                  <span className="line-through text-sns-grey">{email}</span>
-                  {canEdit && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => onChange(vendor.vendorId, email, 'restore')}
-                      className="text-sns-green font-bold underline underline-offset-2 disabled:opacity-40"
-                    >
-                      undo
-                    </button>
-                  )}
-                </div>
-              ))}
+      {/* The addresses themselves get the full width rather than sharing a line with the name. */}
+      {!none && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {vendor.to.map((a) => (
+            <Chip
+              key={a.email}
+              label={a.email}
+              system={a.origin === 'directory'}
+              title={
+                a.origin === 'added'
+                  ? 'Added here and kept for next time'
+                  : 'From the supplier directory'
+              }
+              onRemove={
+                canEdit && !busy ? () => onChange(vendor.vendorId, a.email, 'remove') : undefined
+              }
+            />
+          ))}
+        </div>
+      )}
+      {none && (
+        <div className="mt-2 text-[11.5px] font-bold text-[#B71C1C]">
+          Nobody to write to — add an address, or this vendor cannot be chased.
+        </div>
+      )}
 
-              {vendor.droppedInternal.map((email) => (
-                <div key={email} className="text-[11px] text-sns-grey py-0.5">
-                  {email} — NESR address, left out of the vendor letter
-                </div>
-              ))}
+      {open && (
+        <div className="mt-2.5 rounded-lg border border-sns-line bg-[#FAFBFA] px-3 py-2.5">
+          {canEdit && (
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey">
+                Add an address
+              </div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <input
+                  value={draft}
+                  onChange={(e) => onDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && draft.trim()) {
+                      e.preventDefault();
+                      onChange(vendor.vendorId, draft.trim(), 'add');
+                    }
+                  }}
+                  placeholder="name@supplier.com"
+                  aria-label={`Add an address for ${vendor.vendorName}`}
+                  className="w-[280px] rounded-md border border-sns-line bg-white px-2.5 py-1.5 text-[11.5px]"
+                />
+                <button
+                  type="button"
+                  disabled={busy || !draft.trim()}
+                  onClick={() => onChange(vendor.vendorId, draft.trim(), 'add')}
+                  className="rounded-md bg-sns-green px-3 py-[6px] text-[11px] font-bold text-white disabled:opacity-40"
+                >
+                  Add
+                </button>
+                <span className="text-[10.5px] text-sns-grey">kept for the next cycle too</span>
+              </div>
+            </div>
+          )}
+
+          {vendor.suppressed.length > 0 && (
+            <div className={canEdit ? 'mt-3 border-t border-t-[#EDEDED] pt-2.5' : ''}>
+              <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey">
+                Removed — will not be written to
+              </div>
+              <div className="mt-1 space-y-0.5">
+                {vendor.suppressed.map((email) => (
+                  <div key={email} className="flex items-center gap-2 text-[11.5px]">
+                    <span className="line-through text-sns-grey">{email}</span>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onChange(vendor.vendorId, email, 'restore')}
+                        className="font-semibold text-sns-green hover:underline disabled:opacity-40"
+                      >
+                        undo
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {vendor.droppedInternal.length > 0 && (
+            <div className="mt-3 border-t border-t-[#EDEDED] pt-2.5">
+              <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey">
+                NESR addresses, left out of the vendor letter
+              </div>
+              <div className="mt-1 space-y-0.5 text-[11.5px] text-sns-grey">
+                {vendor.droppedInternal.map((email) => (
+                  <div key={email}>{email}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!canEdit && hidden === 0 && (
+            <div className="text-[11.5px] text-sns-grey">
+              Nothing has been changed for this vendor.
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

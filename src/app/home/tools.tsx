@@ -7,7 +7,12 @@
    classes are spelled out as literals below. */
 
 import type { CSSProperties, ReactNode } from 'react';
-import { PoExpeditingMark, RfxOfficerMark, TiteMark } from '@/components/ToolMarks';
+import {
+  PoExpeditingMark,
+  ProcureGuardMark,
+  RfxOfficerMark,
+  TiteMark,
+} from '@/components/ToolMarks';
 import {
   Laptop,
   Building2,
@@ -136,22 +141,8 @@ export const TOOLS: ToolDef[] = [
     subtitle: 'Payment Request Approvals',
     description:
       'Submit adhoc PO and advance payment requests and route them through multi-stage approvals, keeping approvers and requesters notified at each step.',
-    icon: (
-      <svg
-        className="w-6 h-6 text-[#307c4c]"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.75}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"
-        />
-      </svg>
-    ),
-    logoClass: 'bg-[#307c4c]/10',
+    icon: <ProcureGuardMark className="h-6 w-6" />,
+    logoClass: 'bg-white border border-[#307c4c]/15',
     hoverClass: HOVER_GREEN,
     accent: NESR_GREEN,
     tone: 'live',

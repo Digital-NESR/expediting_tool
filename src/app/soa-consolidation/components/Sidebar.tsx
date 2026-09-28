@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Receipt } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import AppSidebar, {
   PinIcon,
@@ -47,10 +48,9 @@ export default function Sidebar({
           {/* Header */}
           <div className="h-14 px-4 flex items-center justify-between shrink-0 bg-sns-green">
             <div className="flex items-center gap-2.5 min-w-0">
+              {/* The mark from the home page card, not its initials. */}
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 shrink-0">
-                <span className="text-white font-extrabold text-[11px] tracking-tight leading-none">
-                  SOA
-                </span>
+                <Receipt className="h-4 w-4 text-white" />
               </div>
               <div className="min-w-0">
                 <p className="text-white font-semibold text-[13px] tracking-tight leading-tight truncate">

@@ -81,3 +81,24 @@ export function RfxOfficerMark({
     />
   );
 }
+
+/**
+ * ProcureGuard — its own artwork, which the tool has always used in-app while the home card drew a
+ * generic document glyph instead. The asset is a JPEG on white, so it wants a white ground rather
+ * than the tinted square the other marks sit on.
+ */
+export function ProcureGuardMark({
+  className = 'h-6 w-6',
+  size = 96,
+}: MarkProps & { size?: number }) {
+  return (
+    <Image
+      src="/procureguard-logo.jpg"
+      alt=""
+      width={size}
+      height={size}
+      className={`${className} object-contain`}
+      aria-hidden
+    />
+  );
+}
