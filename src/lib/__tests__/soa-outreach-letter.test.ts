@@ -107,6 +107,58 @@ describe('sanitizeTemplateHtml', () => {
   });
 });
 
+describe('the default letter survives being saved', () => {
+  // A champion who opens the editor and presses Save runs the whole letter through the sanitiser.
+  // If that strips the layout, the design is lost the first time anybody touches it.
+  const saved = sanitizeTemplateHtml(DEFAULT_BODY_HTML);
+
+  it('keeps the upload button, not just its link', () => {
+    expect(saved).toContain('Upload your completed statement');
+    expect(saved).toMatch(/background-color:#307c4c/);
+    expect(saved).toMatch(/border-radius:6px/);
+    expect(saved).toContain('{{upload_link}}');
+  });
+
+  it('keeps the layout tables mail clients need', () => {
+    // Outlook ignores most of a style attribute and obeys the old presentational ones.
+    expect(saved).toContain('cellpadding="0"');
+    expect(saved).toContain('role="presentation"');
+    expect(saved).toMatch(/width="640"/);
+  });
+
+  it('keeps the attachment callout', () => {
+    expect(saved).toContain('An Excel template is attached to this email');
+    expect(saved).toMatch(/border-left:4px solid #307c4c/);
+  });
+
+  it('keeps the Arabic half right to left', () => {
+    expect(saved).toContain('dir="rtl"');
+    expect(saved).toContain('lang="ar"');
+    expect(saved).toContain('رفع كشف الحساب');
+  });
+
+  it('still refuses script in the middle of all that', () => {
+    const hostile = DEFAULT_BODY_HTML + '<script>alert(1)</script><img src=x onerror=alert(1)>';
+    const out = sanitizeTemplateHtml(hostile);
+    expect(out).not.toContain('<script');
+    expect(out).not.toContain('onerror');
+    expect(out).not.toContain('<img');
+  });
+
+  it('keeps dates left-to-right inside the Arabic text', () => {
+    // Bidi reordering turns "30 September 2026" into "September 2026 30" in an RTL block.
+    const arabic = saved.slice(saved.indexOf('dir="rtl"'));
+    expect(arabic).toContain('<span dir="ltr">{{statement_period_end}}</span>');
+    expect(arabic).toContain('<span dir="ltr">{{reply_by}}</span>');
+  });
+
+  it('renders with every placeholder filled', () => {
+    const out = renderTemplate(saved, VARS);
+    expect(out).not.toMatch(/\{\{/);
+    expect(out).toContain('https://portal.example/soa-upload/abc-123');
+  });
+});
+
 describe('htmlToText', () => {
   it('produces a plain-text alternative', () => {
     expect(htmlToText('<h2>Request</h2><p>Dear <strong>Partner</strong></p>')).toContain('Dear Partner');

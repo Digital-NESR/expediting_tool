@@ -53,58 +53,92 @@ export const PLACEHOLDERS: { token: string; label: string; from: string }[] = [
 export const DEFAULT_SUBJECT =
   'Request for Statement of Account, {{vendor_name}}, as at {{statement_period_end}}';
 
-export const DEFAULT_BODY_HTML = `<p>Date: {{date}}</p>
-<h3>Attention!</h3>
-<h2>Request for Statement of Account</h2>
-<p>Dear Valued Business Partner,</p>
-<p>As part of our periodic governance to ensure accounting alignment, we are reconciling our accounts and would appreciate it if you could provide us with an updated statement of account for our transactions with your company.</p>
-<p>We require this information to ensure that our records are accurate, up to date and any anomaly addressed.</p>
-<p>Please include the following details in the statement:</p>
-<ul>
-<li>All Unpaid invoices issued to us</li>
+export const DEFAULT_BODY_HTML = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F6F4;padding:24px 0">
+<tr><td align="center">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background-color:#FFFFFF;border:1px solid #E2E6E2;border-radius:8px;font-family:Segoe UI, Arial, sans-serif;color:#2B2B2B">
+
+<tr><td style="background-color:#307c4c;padding:20px 28px;border-radius:8px">
+<div style="color:#FFFFFF;font-size:16px;font-weight:bold;letter-spacing:2px">NESR</div>
+<div style="color:#CFE3D6;font-size:12px">Statement of Account</div>
+</td></tr>
+
+<tr><td style="padding:28px">
+<div style="font-size:12px;color:#8A8A8A;padding-bottom:12px">{{date}}</div>
+<h2 style="font-size:20px;color:#1D4F31;margin:0">Request for Statement of Account</h2>
+<p style="font-size:14px;line-height:1.6">Dear Valued Business Partner,</p>
+<p style="font-size:14px;line-height:1.6">As part of our periodic governance to ensure accounting alignment, we are reconciling our accounts and would appreciate it if you could provide us with an updated statement of account for our transactions with your company.</p>
+<p style="font-size:14px;line-height:1.6">We require this information to ensure that our records are accurate, up to date and any anomaly addressed.</p>
+<p style="font-size:14px;line-height:1.6"><strong>Please include the following in your statement:</strong></p>
+<ul style="font-size:14px;line-height:1.7">
+<li>All unpaid invoices issued to us</li>
 <li>Any outstanding balances</li>
 <li>Credit notes or adjustments, if any</li>
 <li>Any unbilled amount</li>
 </ul>
-<p><strong>Take Note</strong></p>
-<ul>
-<li>The statement period should cover till <strong>{{statement_period_end}}</strong> and must be returned in the attached Excel template</li>
-<li>Please upload the completed statement by <strong>{{reply_by}}</strong> using your own secure link: <a href="{{upload_link}}">{{upload_link}}</a></li>
-<li>Failing to provide the required SOA in the attached format before the stipulated date will be considered Accounts Reconciled.</li>
-<li>Any outstanding balance prior to {{statement_period_end}} not highlighted in SOA will not be processed for payment in the future.</li>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F1F6F2;border-left:4px solid #307c4c;border-radius:4px;margin:8px 0">
+<tr><td style="padding:16px 18px">
+<div style="font-size:14px;font-weight:bold;color:#1D4F31;padding-bottom:6px">An Excel template is attached to this email</div>
+<div style="font-size:13px;line-height:1.6">Please complete it and return it using the button below. Your statement should cover the period up to <strong>{{statement_period_end}}</strong>. Use the attached template rather than your own format, so that the figures can be reconciled automatically.</div>
+</td></tr></table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:20px 0">
+<tr><td align="center">
+<a href="{{upload_link}}" style="display:inline-block;background-color:#307c4c;color:#FFFFFF;font-size:15px;font-weight:bold;padding:14px 32px;border-radius:6px;text-decoration:none">Upload your completed statement</a>
+<div style="font-size:12px;color:#8A8A8A;padding-top:10px">This link is unique to your company. Please do not forward it.</div>
+</td></tr></table>
+
+<p style="font-size:14px;line-height:1.6"><strong>Please note</strong></p>
+<ul style="font-size:14px;line-height:1.7">
+<li>The completed statement is due by <strong>{{reply_by}}</strong>.</li>
+<li>The button above is the only way to return it. Statements sent by any other route cannot be processed.</li>
+<li>If the required statement is not provided in the attached format before that date, the account will be considered reconciled.</li>
+<li>Any outstanding balance prior to {{statement_period_end}} not highlighted in the statement will not be processed for payment in the future.</li>
 </ul>
-<p>The link above is the only way to return the statement. For any questions or clarification, please contact {{champion_name}} at <a href="mailto:{{champion_email}}">{{champion_email}}</a>, or our Accounts Payable team at <a href="mailto:{{ap_email}}">{{ap_email}}</a>.</p>
-<p>Thank you for your prompt attention to this matter. We value our partnership with your company and look forward to your swift response.</p>
-<p>Thank you!</p>
-<p><strong>Supply Chain and Accounts Payable team</strong><br />
-NESR</p>
-<hr />
-<div dir="rtl" lang="ar">
-<h3>تنبيه !</h3>
-<h2>طلب كشف حساب</h2>
-<p>عزيزي الشريك التجاري</p>
-<p>نظرا للتحقق الدوري الذي نقوم به لضمان توافق الحسابات، نحن نقوم بمراجعة حساباتنا وسنكون ممتنين لو تمكنتم من تقديم تقرير كشف حساب محدث للمعاملات بين شركتكم وبيننا.</p>
-<p>إننا نحتاج الى هذه المعلومات للتأكد من أن سجلاتنا دقيقة ومحدثة، وللتعامل مع أي تباينات.</p>
-<p>يرجى ارفاق التفاصيل التالية في الكشف:</p>
-<ul>
+<p style="font-size:14px;line-height:1.6">For any questions or clarification, please contact {{champion_name}} at <a href="mailto:{{champion_email}}" style="color:#307c4c">{{champion_email}}</a>, or our Accounts Payable team at <a href="mailto:{{ap_email}}" style="color:#307c4c">{{ap_email}}</a>.</p>
+<p style="font-size:14px;line-height:1.6">Thank you for your prompt attention to this matter. We value our partnership with your company and look forward to your swift response.</p>
+<p style="font-size:14px;line-height:1.6">Thank you!<br /><strong>Supply Chain and Accounts Payable team</strong><br />NESR</p>
+<div style="font-size:11px;color:#9A9A9A;padding-top:14px">If the button does not work, copy this address into your browser: {{upload_link}}</div>
+</td></tr>
+
+<tr><td style="border-top:1px solid #E2E6E2;padding:28px" dir="rtl" lang="ar">
+<h2 style="font-size:20px;color:#1D4F31;margin:0">طلب كشف حساب</h2>
+<p style="font-size:14px;line-height:1.7">عزيزي الشريك التجاري</p>
+<p style="font-size:14px;line-height:1.7">نظرا للتحقق الدوري الذي نقوم به لضمان توافق الحسابات، نحن نقوم بمراجعة حساباتنا وسنكون ممتنين لو تمكنتم من تقديم تقرير كشف حساب محدث للمعاملات بين شركتكم وبيننا.</p>
+<p style="font-size:14px;line-height:1.7">إننا نحتاج الى هذه المعلومات للتأكد من أن سجلاتنا دقيقة ومحدثة، وللتعامل مع أي تباينات.</p>
+<p style="font-size:14px;line-height:1.7"><strong>يرجى ارفاق التفاصيل التالية في الكشف:</strong></p>
+<ul style="font-size:14px;line-height:1.8">
 <li>جميع الفواتير الغير مدفوعة التي أصدرت لنا</li>
 <li>أي ارصدة متبقية</li>
 <li>ملاحظات اشعار الإتمان (Credit Note) او التعديل، إن وجد</li>
 <li>أي مبلغ غير مفوتر</li>
 </ul>
-<p><strong>ملاحظات:</strong></p>
-<ul>
-<li>يجب أن يغطي كشف الحساب الفترة حتى <strong>{{statement_period_end}}</strong> وأن يتم تقديمه في نموذج الاكسل (Excel) المرفق.</li>
-<li>يرجى رفع كشف الحساب بحلول <strong>{{reply_by}}</strong> عبر الرابط الخاص بكم: <a href="{{upload_link}}">{{upload_link}}</a></li>
-<li>في حال عدم تقديم كشف الحساب المطلوب في التنسيق والمرفقات المذكورة قبل الموعد المحدد، سيتم اعتبار الحسابات مطابقة.</li>
-<li>أي رصيد متبقي قبل {{statement_period_end}} ولم يتم ذكره في تقرير الحساب لن يتم معالجته للدفع في المستقبل.</li>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F1F6F2;border-right:4px solid #307c4c;border-radius:4px;margin:8px 0">
+<tr><td style="padding:16px 18px">
+<div style="font-size:14px;font-weight:bold;color:#1D4F31;padding-bottom:6px">نموذج اكسل مرفق بهذه الرسالة</div>
+<div style="font-size:13px;line-height:1.7">يرجى تعبئته وإرساله عبر الزر أدناه. يجب أن يغطي كشف الحساب الفترة حتى <strong><span dir="ltr">{{statement_period_end}}</span></strong>. نرجو استخدام النموذج المرفق وليس نموذجكم الخاص، حتى تتم مطابقة الأرقام آليا.</div>
+</td></tr></table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:20px 0">
+<tr><td align="center">
+<a href="{{upload_link}}" style="display:inline-block;background-color:#307c4c;color:#FFFFFF;font-size:15px;font-weight:bold;padding:14px 32px;border-radius:6px;text-decoration:none">رفع كشف الحساب</a>
+<div style="font-size:12px;color:#8A8A8A;padding-top:10px">هذا الرابط خاص بشركتكم، يرجى عدم إعادة توجيهه.</div>
+</td></tr></table>
+
+<p style="font-size:14px;line-height:1.7"><strong>ملاحظات:</strong></p>
+<ul style="font-size:14px;line-height:1.8">
+<li>الموعد النهائي لتقديم كشف الحساب هو <strong><span dir="ltr">{{reply_by}}</span></strong>.</li>
+<li>الزر أعلاه هو الطريقة الوحيدة لإرسال الكشف.</li>
+<li>في حال عدم تقديم كشف الحساب المطلوب في التنسيق المذكور قبل الموعد المحدد، سيتم اعتبار الحسابات مطابقة.</li>
+<li>أي رصيد متبقي قبل <span dir="ltr">{{statement_period_end}}</span> ولم يتم ذكره في تقرير الحساب لن يتم معالجته للدفع في المستقبل.</li>
 </ul>
-<p>الرابط أعلاه هو الطريقة الوحيدة لإرسال كشف الحساب. لأي استفسار أو توضيح، يرجى التواصل مع {{champion_name}} على <a href="mailto:{{champion_email}}">{{champion_email}}</a>، أو مع قسم الحسابات الدائنة على <a href="mailto:{{ap_email}}">{{ap_email}}</a>.</p>
-<p>شكرأ لاهتمامكم السريع بهذه المسألة. نحن نقدر شراكتنا مع شركتكم ونتطلع إلى استجابتكم السريعة.</p>
-<p>شكراً لكم!</p>
-<p><strong>فريق سلسلة التوريد والحسابات الدائنة</strong><br />
-شركة نسر</p>
-</div>`;
+<p style="font-size:14px;line-height:1.7">لأي استفسار أو توضيح، يرجى التواصل مع {{champion_name}} على <a href="mailto:{{champion_email}}" style="color:#307c4c">{{champion_email}}</a>، أو مع قسم الحسابات الدائنة على <a href="mailto:{{ap_email}}" style="color:#307c4c">{{ap_email}}</a>.</p>
+<p style="font-size:14px;line-height:1.7">شكراً لكم!<br /><strong>فريق سلسلة التوريد والحسابات الدائنة</strong><br />شركة نسر</p>
+</td></tr>
+
+</table>
+</td></tr></table>`;
 
 /**
  * What a champion is allowed to save.
@@ -121,8 +155,16 @@ const ALLOWED: sanitizeHtml.IOptions = {
     'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'a',
     'table', 'thead', 'tbody', 'tr', 'th', 'td',
   ],
+  /* Mail clients are a decade behind browsers: Outlook ignores most of a `style` attribute and
+     obeys the old presentational attributes, so a letter that holds its shape needs both. None of
+     these carries script, and the stored HTML is sanitised on the way in rather than at each
+     render, so widening them here is a layout decision rather than a security one. */
   allowedAttributes: {
-    a: ['href', 'title'],
+    a: ['href', 'title', 'target', 'rel'],
+    table: ['width', 'align', 'border', 'cellpadding', 'cellspacing', 'role', 'bgcolor'],
+    td: ['width', 'align', 'valign', 'colspan', 'rowspan', 'bgcolor', 'height'],
+    th: ['width', 'align', 'valign', 'colspan', 'rowspan', 'bgcolor'],
+    tr: ['align', 'valign', 'bgcolor', 'height'],
     '*': ['dir', 'lang', 'style'],
   },
   // mailto and tel matter here; everything else that can carry script does not.
@@ -132,7 +174,30 @@ const ALLOWED: sanitizeHtml.IOptions = {
       'text-align': [/^left$|^right$|^center$|^justify$/],
       'font-weight': [/^bold$|^normal$|^\d{3}$/],
       'text-decoration': [/^underline$|^line-through$|^none$/],
-      color: [/^#[0-9a-fA-F]{3,6}$/],
+      'font-family': [/^[-a-zA-Z0-9,'" ]+$/],
+      'font-size': [/^\d{1,3}(px|pt|%|em)$/],
+      'font-style': [/^italic$|^normal$/],
+      'line-height': [/^[\d.]{1,5}(px|pt|%|em)?$/],
+      'background-color': [/^#[0-9a-fA-F]{3,8}$/],
+      background: [/^#[0-9a-fA-F]{3,8}$/],
+      color: [/^#[0-9a-fA-F]{3,8}$/],
+      padding: [/^[\dpxemt% ]{1,40}$/],
+      'padding-top': [/^\d{1,3}(px|pt|em|%)$/],
+      'padding-bottom': [/^\d{1,3}(px|pt|em|%)$/],
+      'padding-left': [/^\d{1,3}(px|pt|em|%)$/],
+      'padding-right': [/^\d{1,3}(px|pt|em|%)$/],
+      margin: [/^[\dpxemtau% ]{1,40}$/],
+      border: [/^[\dpxa-z# ]{1,40}$/],
+      'border-top': [/^[\dpxa-z# ]{1,40}$/],
+      'border-left': [/^[\dpxa-z# ]{1,40}$/],
+      'border-radius': [/^\d{1,3}(px|%)$/],
+      'border-collapse': [/^collapse$|^separate$/],
+      width: [/^\d{1,4}(px|%)$/],
+      'max-width': [/^\d{1,4}(px|%)$/],
+      display: [/^block$|^inline-block$|^inline$|^none$/],
+      'vertical-align': [/^top$|^middle$|^bottom$/],
+      'letter-spacing': [/^[\d.]{1,4}(px|em)$/],
+      'white-space': [/^nowrap$|^normal$/],
     },
   },
   disallowedTagsMode: 'discard',
