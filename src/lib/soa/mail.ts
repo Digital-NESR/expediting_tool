@@ -1,3 +1,4 @@
+import { request as httpsRequest } from 'node:https';
 import { logger } from '@/lib/logger';
 
 /**
@@ -101,6 +102,64 @@ export function describeFetchFailure(err: unknown, url: string): string {
     : `Could not reach the mail workflow at ${host}${detail ? `: ${detail}` : '.'}`;
 }
 
+/**
+ * Post without checking the certificate. Off unless `N8N_SOA_INSECURE_TLS` says otherwise.
+ *
+ * n8n.nesr.com serves its own certificate and not the Sectigo intermediate that signed it, so
+ * nothing can build a path from it to a trusted root. Browsers hide this by caching intermediates
+ * and fetching missing ones; Node, curl and most server-side clients do not, which is why the site
+ * looks healthy in Chrome and is unreachable from here.
+ *
+ * The certificate is valid and the fix is a one-line server change: serve the full chain rather
+ * than the leaf alone. Until that happens this exists so outreach is not blocked, and it is
+ * deliberately shaped so it cannot be forgotten:
+ *
+ *   - It is off by default. Turning it on is an environment variable, so turning it off again is
+ *     too, with no deploy and no code change.
+ *   - It is scoped to this one call. `NODE_TLS_REJECT_UNAUTHORIZED=0` would have been one line and
+ *     would have stopped verifying the database, Azure and every other outbound connection.
+ *   - It warns on every message it sends, so it shows up in the logs rather than going quiet.
+ *
+ * What it costs: this webhook carries vendor addresses and a shared secret, and with verification
+ * off nothing proves the host on the other end is the one we meant.
+ */
+function postWithoutVerifying(
+  endpoint: string,
+  headers: Record<string, string>,
+  body: string,
+): Promise<{ ok: boolean; status: number; statusText: string }> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(endpoint);
+    const req = httpsRequest(
+      {
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: `${url.pathname}${url.search}`,
+        method: 'POST',
+        headers: { ...headers, 'Content-Length': Buffer.byteLength(body) },
+        rejectUnauthorized: false,
+        timeout: 15_000,
+      },
+      (res) => {
+        // Drained rather than read: nothing here needs the body, and an unread response keeps the
+        // socket open until it times out.
+        res.resume();
+        res.on('end', () =>
+          resolve({
+            ok: (res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300,
+            status: res.statusCode ?? 0,
+            statusText: res.statusMessage ?? '',
+          }),
+        );
+      },
+    );
+    req.on('timeout', () => req.destroy(Object.assign(new Error('timed out'), { name: 'TimeoutError' })));
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 function stripQuotes(value: string): string {
   const t = value.trim();
   return (t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))
@@ -125,19 +184,32 @@ export async function sendMail(message: MailMessage): Promise<void> {
 
   const secret = process.env.N8N_SOA_WEBHOOK_SECRET;
   const endpoint = stripQuotes(url);
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(secret ? { 'X-Webhook-Secret': stripQuotes(secret) } : {}),
+  };
+  const body = JSON.stringify(message);
+  const insecure = /^(1|true|yes)$/i.test((process.env.N8N_SOA_INSECURE_TLS ?? '').trim());
 
-  let response: Response;
+  let response: { ok: boolean; status: number; statusText: string };
   try {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(secret ? { 'X-Webhook-Secret': stripQuotes(secret) } : {}),
-      },
-      body: JSON.stringify(message),
-      // A single message is not worth hanging a server action on indefinitely.
-      signal: AbortSignal.timeout(15_000),
-    });
+    if (insecure) {
+      // Warned every time on purpose: a temporary measure that stops being visible stops being
+      // temporary.
+      log.warn('mail.tlsVerificationDisabled', {
+        host: new URL(endpoint).host,
+        note: 'N8N_SOA_INSECURE_TLS is set. Serve the full certificate chain and unset it.',
+      });
+      response = await postWithoutVerifying(endpoint, headers, body);
+    } else {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body,
+        // A single message is not worth hanging a server action on indefinitely.
+        signal: AbortSignal.timeout(15_000),
+      });
+    }
   } catch (err) {
     if (err instanceof Error && err.name === 'TimeoutError') {
       log.warn('mail.timedOut', { kind: message.kind, ...message.meta });
