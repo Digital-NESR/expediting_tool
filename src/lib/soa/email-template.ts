@@ -20,6 +20,8 @@ export interface TemplateVars {
   countryName: string;
   cycleLabel: string;
   statementPeriodEnd: string;
+  /** The same date short enough for a subject line, "30 Sep 2026". */
+  statementPeriodEndShort: string;
   replyBy: string;
   apEmail: string;
   championName: string;
@@ -40,6 +42,11 @@ export const PLACEHOLDERS: { token: string; label: string; from: string }[] = [
   { token: 'country_name', label: 'Country', from: 'the country running the cycle' },
   { token: 'cycle_label', label: 'Cycle', from: 'e.g. Q3 2026' },
   { token: 'statement_period_end', label: 'Statement period end', from: "the cycle's period end" },
+  {
+    token: 'statement_period_end_short',
+    label: 'Statement period end, short',
+    from: "the cycle's period end, as 30 Sep 2026",
+  },
   { token: 'reply_by', label: 'Reply-by date', from: "the cycle's submission deadline" },
   { token: 'ap_email', label: 'AP mailbox', from: 'the AP contacts for the country' },
   { token: 'champion_email', label: 'Champion email', from: 'the champions for the country' },
@@ -50,8 +57,11 @@ export const PLACEHOLDERS: { token: string; label: string; from: string }[] = [
   { token: 'sender_email', label: 'Sender email', from: 'the signed-in user' },
 ];
 
+/* Leaner than "Request for Statement of Account, {{vendor_name}}, as at 30 September 2026",
+   which spent eighty-four characters before the vendor's name had been read. Nothing is dropped:
+   the same three facts in fewer words, with the date in the short form a subject line wants. */
 export const DEFAULT_SUBJECT =
-  'Request for Statement of Account, {{vendor_name}}, as at {{statement_period_end}}';
+  'Statement of Account request, {{vendor_name}}, as of {{statement_period_end_short}}';
 
 export const DEFAULT_BODY_HTML = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F6F4;padding:24px 0">
 <tr><td align="center">
@@ -268,6 +278,7 @@ function valueFor(name: string, vars: TemplateVars): string | undefined {
     country_name: vars.countryName,
     cycle_label: vars.cycleLabel,
     statement_period_end: vars.statementPeriodEnd,
+    statement_period_end_short: vars.statementPeriodEndShort,
     reply_by: vars.replyBy,
     ap_email: vars.apEmail,
     champion_email: vars.championEmail,
@@ -300,6 +311,20 @@ export function renderTemplate(html: string, vars: TemplateVars): string {
   return (html ?? '').replace(TOKEN, (whole, name: string) => {
     const value = valueFor(name, vars);
     return value === undefined ? whole : escapeHtml(value);
+  });
+}
+
+/**
+ * The same substitution for somewhere that is not HTML. The subject line, in practice.
+ *
+ * A subject rendered through `renderTemplate` is escaped for a document it will never be part of,
+ * and the supplier reads the markup: "Khashman O. Al-Dossary &amp; Sons" went out in the subject
+ * of every letter to a vendor with an ampersand in its name.
+ */
+export function renderTemplateText(template: string, vars: TemplateVars): string {
+  return (template ?? '').replace(TOKEN, (whole, name: string) => {
+    const value = valueFor(name, vars);
+    return value === undefined ? whole : value;
   });
 }
 

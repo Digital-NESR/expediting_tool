@@ -105,6 +105,8 @@ export interface LetterContext {
   countryName: string;
   cycleLabel: string;
   statementPeriodEnd: string;
+  /** The same date in the short form the subject line uses, "30 Sep 2026". */
+  statementPeriodEndShort: string;
   /** The same period as the workbook's Month/Year column wants it, "September 2026". */
   statementMonthYear: string;
   replyBy: string;
@@ -121,6 +123,22 @@ function formatDay(value: unknown): string {
   return Number.isNaN(d.getTime())
     ? ''
     : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/**
+ * The same date at subject-line length: "30 Sep 2026".
+ *
+ * The body keeps the long form, where "30 September 2026" reads as the formal date it is. A
+ * subject line is read in a list, truncated, next to a vendor name that can run to forty
+ * characters, and six of those characters spent on spelling out a month are six the vendor's own
+ * name does not get.
+ */
+function formatDayShort(value: unknown): string {
+  if (!value) return '';
+  const d = new Date(value as string);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 /**
@@ -150,6 +168,7 @@ export async function letterContext(countryId: string): Promise<LetterContext> {
     countryName: (r.country_name as string) ?? countryId,
     cycleLabel: (r.cycle_label as string) ?? '',
     statementPeriodEnd: formatDay(r.period_end),
+    statementPeriodEndShort: formatDayShort(r.period_end),
     statementMonthYear: r.period_end
       ? new Date(r.period_end as string).toLocaleDateString('en-GB', {
           month: 'long',

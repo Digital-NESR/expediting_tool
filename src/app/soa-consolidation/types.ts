@@ -203,6 +203,10 @@ export interface VendorEnrichedVM extends VendorRowVM {
   canNR: boolean;
   /** No address on file, so this vendor cannot be chased until someone supplies one. */
   isUnreachable: boolean;
+  /** The last send to this vendor was refused and it is still owed that letter. */
+  sendFailed: boolean;
+  /** Why it was refused, for the row's tooltip and the opened detail. Empty when it was not. */
+  sendFailedReason: string;
   contactLabel: string;
   onToggle: () => void;
   onAccept: () => void;

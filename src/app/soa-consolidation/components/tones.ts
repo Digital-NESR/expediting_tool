@@ -44,6 +44,12 @@ export const STANDING_BG: Record<Standing, string> = {
 };
 
 /** Pill badge (wash background, matching text) for a vendor's response status. */
+/* The badge a vendor wears when its last send was refused and it is still owed that letter.
+   Not a `vendor_cycle_status`: the database is right that nothing has changed about the vendor,
+   and the screen still has to say that the request never left, because "Not Requested" beside a
+   country whose requests were all sent reads as an oversight rather than as a failure. */
+export const VENDOR_SEND_FAILED_BADGE = 'bg-[#FFEBEE] text-[#B71C1C]';
+
 export const VENDOR_STATUS_BADGE: Record<VendorStatus, string> = {
   scoped: 'bg-[#F0F0F0] text-sns-grey',
   received: 'bg-sns-green-wash text-sns-green',

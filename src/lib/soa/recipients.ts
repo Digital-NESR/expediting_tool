@@ -1,6 +1,7 @@
 import type { QueryResultRow } from 'pg';
 import expeditingPool from '@/lib/db-expediting';
 import sourceGuidePool from '@/lib/db-sourceguide';
+import { describeDbError } from '@/lib/db/describe-error';
 import { logger } from '@/lib/logger';
 import { ensureSoaSchema, sql } from './db';
 import { parseAvlEmails } from './extract';
@@ -64,7 +65,62 @@ export interface CountryRecipients {
   vendors: VendorRecipient[];
 }
 
-/** Directory addresses for a batch of supplier codes: the AVL union the SAP supplier master. */
+/**
+ * How long either directory lookup may take before it is treated as unavailable.
+ *
+ * Both are enrichment. The tool's own database already says which vendors are in the cycle; these
+ * two only add addresses to them, and a supplier waiting on the page that takes their statement
+ * should not be held while an unreachable server is given every chance. `connectionTimeoutMillis`
+ * bounds the connect, not the wait as a whole, so the wait is bounded here.
+ */
+const DIRECTORY_TIMEOUT_MS = 5000;
+
+/**
+ * Resolve to a fallback rather than wait, and never reject.
+ *
+ * The timer is cleared on both paths: a pending timer would hold the event loop open, which on a
+ * serverless instance is a request that has answered and will not finish.
+ */
+async function boundedRows(
+  work: Promise<{ rows: QueryResultRow[] }>,
+  onFailure: (reason: string) => void,
+): Promise<QueryResultRow[]> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expiry = new Promise<QueryResultRow[]>((resolve) => {
+    timer = setTimeout(() => {
+      onFailure(`no answer within ${DIRECTORY_TIMEOUT_MS}ms`);
+      resolve([]);
+    }, DIRECTORY_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([
+      work.then(
+        (result) => result.rows,
+        (err) => {
+          onFailure(describeDbError(err));
+          return [];
+        },
+      ),
+      expiry,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Directory addresses for a batch of supplier codes: the AVL union the SAP supplier master.
+ *
+ * Neither source is allowed to fail the caller. Either can be unavailable without the other being
+ * wrong, and a vendor with no directory address is an ordinary outcome that the Recipients screen
+ * is built to show: barely a third of suppliers have one at all. What must not happen is the
+ * enrichment taking the page down with it.
+ *
+ * A failure is described rather than having its `message` logged. A connection that failed on
+ * every address a host resolved to arrives as an AggregateError with an empty message, so this
+ * used to write `recipients.supplierMasterUnavailable error: ""`, which named the source and
+ * then said nothing whatever about what went wrong with it.
+ */
 async function directoryEmails(codes: string[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   if (!codes.length) return out;
@@ -74,33 +130,28 @@ async function directoryEmails(codes: string[]): Promise<Map<string, string[]>> 
     out.set(code, [...new Set([...existing, ...emails])]);
   };
 
-  // Either source can be unavailable without the other being wrong, so they fail independently.
-  try {
-    const { rows } = await sourceGuidePool.query<QueryResultRow>(
+  const avl = await boundedRows(
+    sourceGuidePool.query<QueryResultRow>(
       `SELECT supplier_code, email FROM supplier_avl WHERE supplier_code = ANY($1)`,
       [codes],
-    );
-    for (const r of rows) add(String(r.supplier_code), parseAvlEmails(r.email as string | null));
-  } catch (err) {
-    log.warn('recipients.avlUnavailable', { error: err instanceof Error ? err.message : String(err) });
-  }
+    ),
+    (reason) => log.warn('recipients.avlUnavailable', { error: reason }),
+  );
+  for (const r of avl) add(String(r.supplier_code), parseAvlEmails(r.email as string | null));
 
-  try {
-    const { rows } = await expeditingPool.query<QueryResultRow>(
+  const master = await boundedRows(
+    expeditingPool.query<QueryResultRow>(
       `SELECT supplier_id, supplier_emails, additional_supplier_email
          FROM supplier_contacts WHERE supplier_id = ANY($1)`,
       [codes],
-    );
-    for (const r of rows)
-      add(String(r.supplier_id), [
-        ...parseAvlEmails(r.supplier_emails as string | null),
-        ...parseAvlEmails(r.additional_supplier_email as string | null),
-      ]);
-  } catch (err) {
-    log.warn('recipients.supplierMasterUnavailable', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
+    ),
+    (reason) => log.warn('recipients.supplierMasterUnavailable', { error: reason }),
+  );
+  for (const r of master)
+    add(String(r.supplier_id), [
+      ...parseAvlEmails(r.supplier_emails as string | null),
+      ...parseAvlEmails(r.additional_supplier_email as string | null),
+    ]);
 
   return out;
 }

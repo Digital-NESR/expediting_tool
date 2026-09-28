@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState } from 'react';
 import SubmissionLines from '../SubmissionLines';
 import type { ScreenProps, VendorEnrichedVM } from '../../types';
 import TableToolbar from '../TableToolbar';
-import { FILTER_TAB_SELECTED, VENDOR_STATUS_BADGE } from '../tones';
+import { FILTER_TAB_SELECTED, VENDOR_SEND_FAILED_BADGE, VENDOR_STATUS_BADGE } from '../tones';
 
 const COLUMNS = 'grid-cols-[1fr_100px_90px_80px_80px_80px_150px]';
 
@@ -31,7 +31,10 @@ function VendorDetail({
     <div className="bg-[#F5FAF7] border-b border-b-sns-line px-3.5 py-3">
       <div className="flex gap-2.5 items-center flex-wrap">
         <div className="flex-1 min-w-[260px] text-[11px] text-sns-grey">
-          {v.isReceived ? (
+          {v.sendFailed ? (
+            /* The sentence the mailer gave, in full. The badge has room for two words. */
+            <span className="text-[#B71C1C] font-bold">{v.sendFailedReason}</span>
+          ) : v.isReceived ? (
             <span className="text-sns-green font-bold">
               ✓ SOA received · {v.invCount} invoices on file · Currency: {v.currency}
             </span>
@@ -147,75 +150,6 @@ function VendorDetail({
   );
 }
 
-/**
- * What the mailer refused, and the offer to try again.
- *
- * Only the latest attempt per vendor per kind reaches here, so a country tried five times against
- * a misconfigured webhook reads as the number of suppliers affected rather than the number of
- * presses somebody made. A failure the next attempt already made good is shown but not counted:
- * it is history, and re-sending on it would write to a supplier who is owed nothing.
- */
-function DeliveryPanel({ vm }: ScreenProps) {
-  if (!vm.hasFailures) return null;
-  return (
-    <div className="bg-white rounded-[10px] p-3.5 mb-3 shadow-[0_1px_3px_rgba(0,0,0,0.07)] border-l-[3px] border-l-[#B71C1C]">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey">
-            Refused sends
-          </div>
-          <div className="text-[12px] text-sns-ink mt-0.5">
-            {vm.retryFailedCount > 0 ? (
-              <span className="text-[#B71C1C] font-bold">
-                {vm.retryFailedCount} {vm.retryFailedCount === 1 ? 'vendor is' : 'vendors are'}{' '}
-                still waiting on a letter that was refused.
-              </span>
-            ) : (
-              <span>Every refused send has since been made good.</span>
-            )}
-            {vm.unreachableCount > 0 && (
-              <span className="text-[#B71C1C]">
-                {' '}
-                {vm.unreachableCount} in scope {vm.unreachableCount === 1 ? 'has' : 'have'} no
-                address on file and cannot be sent anything.
-              </span>
-            )}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={vm.onLoadFailures}
-          className="bg-white text-sns-ink border border-sns-line px-3 py-[7px] rounded-md text-[11px] font-bold"
-        >
-          Refresh
-        </button>
-      </div>
-      <div className="mt-2.5 border-t border-t-[#F0F0F0] pt-2.5">
-        {vm.failures?.map((f) => (
-          <div
-            key={`${f.entryId}-${f.kind}`}
-            className="flex gap-3 py-1.5 text-[11px] border-b border-b-[#F5F5F5] items-start last:border-b-0"
-          >
-            <div className="w-[190px] shrink-0">
-              <div className="font-bold text-sns-ink">{f.vendorName}</div>
-              <div className="text-sns-grey font-[family-name:monospace] text-[10px]">
-                {f.vendorNo}
-              </div>
-            </div>
-            <div className="w-[74px] shrink-0 text-sns-grey">
-              {f.kind === 'request' ? 'Request' : 'Reminder'}
-            </div>
-            <div className={`flex-1 leading-[1.4] ${f.retryable ? 'text-[#B71C1C]' : 'text-sns-grey'}`}>
-              {f.error}
-              {!f.retryable && <span className="font-bold"> · sent since</span>}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function ResponseTrackingScreen({ vm }: ScreenProps) {
   /* The screen reads the delivery log itself the first time it opens, the way Vendor Scoping reads
      its candidates. It used to sit behind a "Show failed dispatches" button on a screen that has
@@ -272,8 +206,6 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
         </div>
       </div>
 
-      <DeliveryPanel vm={vm} />
-
       <div className="flex gap-1.5 mb-3 flex-wrap">
         {vm.filterTabs.map((tab) => (
           <button
@@ -325,10 +257,16 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
                   {v.isUnreachable && <span className="text-[#B71C1C]"> · no email</span>}
                 </div>
               </div>
+              {/* A refused send is shown here rather than in a panel above the table, which
+                  listed the same vendors a second time to say something about one of them. The
+                  database is right that nothing changed about this vendor, and "Not Requested"
+                  beside a country whose requests all went out reads as an oversight rather than
+                  as a failure, so the row says which it is. */}
               <div
-                className={`${VENDOR_STATUS_BADGE[v.status]} rounded-xl px-[9px] py-0.5 text-[10px] font-bold inline-block`}
+                title={v.sendFailed ? v.sendFailedReason : undefined}
+                className={`${v.sendFailed ? VENDOR_SEND_FAILED_BADGE : VENDOR_STATUS_BADGE[v.status]} rounded-xl px-[9px] py-0.5 text-[10px] font-bold inline-block`}
               >
-                {v.statusLabel}
+                {v.sendFailed ? 'Send failed' : v.statusLabel}
               </div>
               <div className="font-bold">{v.fmtOpenPO}</div>
               <div className="text-[11px] text-sns-grey">{v.reqDate}</div>

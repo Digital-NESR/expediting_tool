@@ -597,6 +597,15 @@ export function deriveViewModel(
   const trackingMatched = vendors
     .filter((v) => filterStatus === 'all' || v.status === filterStatus)
     .filter((v) => matchesSearch(v, search));
+  /* The refused sends, by vendor, so a failure shows on the row it belongs to rather than in a
+     panel above the table listing the same vendors a second time. Retryable ones only: a refusal
+     a later attempt made good is history, and a red badge for it would be a standing alarm about
+     something that is no longer true. */
+  const failedByVendor = new Map<string, string>();
+  for (const f of failures ?? []) {
+    if (f.retryable && !failedByVendor.has(f.vendorNo)) failedByVendor.set(f.vendorNo, f.error);
+  }
+
   const vendorsEnriched: VendorEnrichedVM[] = pageSlice(trackingMatched, page).map((v) => {
     /* Chasing one vendor from its row. A supplier who has already been reminded can be reminded
        again: the SOP's two-request test is a floor, not a ceiling, and a quarter often runs to a
@@ -621,6 +630,8 @@ export function deriveViewModel(
       chaseLabel: chaseKind === 'request' ? 'Send request' : 'Send reminder',
       canNR: canAct && (v.status === 'reminded' || v.status === 'requested'),
       isUnreachable,
+      sendFailed: failedByVendor.has(v.no),
+      sendFailedReason: failedByVendor.get(v.no) ?? '',
       contactLabel: v.contactEmails.join(', '),
       onToggle: () => handlers.toggleExpand(v.id),
       onAccept: () => handlers.openUploadModal(v.id),

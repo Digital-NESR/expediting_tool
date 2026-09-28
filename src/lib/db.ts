@@ -7,9 +7,10 @@ import { createPool } from './db/pool';
 // (EXPEDITING_DB_NAME='nesr_expediting_db'). DB_NAME is not set locally so it could
 // not be verified; they are deliberately kept as two separate pools until it is.
 //
-// NOTE: this pool has never had an 'error' handler, unlike the others. Preserved as-is
-// (an unhandled idle-client error still takes the process down) — adding one would be
-// a behaviour change and belongs in its own commit.
-const pool = createPool(process.env.DB_NAME, { key: 'default', label: null });
+// This pool alone had no 'error' handler. `pg` emits 'error' on an idle client whose connection
+// the server or the network dropped, and an 'error' event with no listener is how Node is told to
+// terminate the process: one closed idle connection could take the whole app down, which is not a
+// behaviour worth preserving for its own sake. It now logs like the other eleven.
+const pool = createPool(process.env.DB_NAME, { key: 'default', label: 'pool' });
 
 export default pool;

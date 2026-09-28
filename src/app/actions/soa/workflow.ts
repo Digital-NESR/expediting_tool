@@ -25,7 +25,12 @@ import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
 import { loadDeliveryFailures, type DeliveryFailure } from '@/lib/soa/delivery';
 import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import { attachmentFileName, buildSupplierWorkbook } from '@/lib/soa/attachment';
-import { htmlToText, renderTemplate, type TemplateVars } from '@/lib/soa/email-template';
+import {
+  htmlToText,
+  renderTemplate,
+  renderTemplateText,
+  type TemplateVars,
+} from '@/lib/soa/email-template';
 import { AppUrlNotConfiguredError, soaPortalUrl, uploadLinkFor } from '@/lib/soa/links';
 import { notifySoaHandoff } from '@/lib/soa/notify';
 import { resolvedContactsFor, setVendorContactList } from '@/lib/soa/recipients';
@@ -150,7 +155,7 @@ async function mailFor(
     kind: kind === 'request' ? 'soa.request' : 'soa.reminder',
     to: context.contacts,
     cc: letter.cc,
-    subject: renderTemplate(letter.subject, vars),
+    subject: renderTemplateText(letter.subject, vars),
     bodyHtml: html,
     bodyText: htmlToText(html),
     attachments: [
@@ -238,6 +243,7 @@ async function prepareLetter(
       countryName: ctx.countryName,
       cycleLabel: ctx.cycleLabel,
       statementPeriodEnd: ctx.statementPeriodEnd,
+      statementPeriodEndShort: ctx.statementPeriodEndShort,
       replyBy: ctx.replyBy,
       apEmail: ctx.apEmails.join(', '),
       championName: ctx.championNames.join(' or ') || actor.name,

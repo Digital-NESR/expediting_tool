@@ -5,6 +5,7 @@ import {
   highlightPlaceholders,
   htmlToText,
   renderTemplate,
+  renderTemplateText,
   sanitizeTemplateHtml,
   unknownTokens,
   type TemplateVars,
@@ -18,6 +19,7 @@ const VARS: TemplateVars = {
   countryName: 'Kuwait',
   cycleLabel: 'Q3 2026',
   statementPeriodEnd: '30 September 2026',
+  statementPeriodEndShort: '30 Sep 2026',
   replyBy: '30 October 2026',
   apEmail: 'financeteam.kuwait@nesr.com, financeteam.kuwait@cpvenkuwait.com',
   championName: 'A Champion',
@@ -27,6 +29,34 @@ const VARS: TemplateVars = {
   senderTitle: 'Supply Chain Manager',
   senderEmail: 'mfarhan1@nesr.com',
 };
+
+describe('DEFAULT_SUBJECT', () => {
+  it('names the vendor and the date it is asking about, and stops there', () => {
+    const subject = renderTemplateText(DEFAULT_SUBJECT, VARS);
+    expect(subject).toBe('Statement of Account request, Smith & Sons, as of 30 Sep 2026');
+  });
+
+  it('is not escaped for a document it is not part of', () => {
+    // Khashman O. Al-Dossary & Sons is a real vendor in a live cycle, and read its own name as
+    // "Al-Dossary &amp; Sons" in the subject of every letter it was sent.
+    expect(renderTemplateText(DEFAULT_SUBJECT, VARS)).not.toContain('&amp;');
+    // The body is HTML and must still be escaped.
+    expect(renderTemplate('<p>{{vendor_name}}</p>', VARS)).toContain('&amp;');
+  });
+
+  it('leaves room for the vendor name, which is the part that identifies the mail', () => {
+    // A subject is read truncated, in a list. The old one spent 84 characters on a 12-character
+    // vendor name, and the long-form month alone cost six of them.
+    expect(renderTemplateText(DEFAULT_SUBJECT, VARS).length).toBeLessThan(
+      'Request for Statement of Account, Smith & Sons, as at 30 September 2026'.length,
+    );
+  });
+
+  it('renders every token it uses', () => {
+    expect(unknownTokens(DEFAULT_SUBJECT)).toEqual([]);
+    expect(renderTemplateText(DEFAULT_SUBJECT, VARS)).not.toContain('{{');
+  });
+});
 
 describe('renderTemplate', () => {
   it('fills every placeholder the approved letter uses', () => {
