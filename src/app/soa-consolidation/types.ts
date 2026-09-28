@@ -1,4 +1,5 @@
 import type { ApplyScopeSummary } from '@/app/actions/soa/scoping';
+import type { DeliveryFailure } from '@/lib/soa/delivery';
 import type { ScopeCandidate, ScopeCandidates } from '@/lib/soa/candidates';
 import type { CountryOption, SoaPayload } from '@/lib/soa/read';
 
@@ -93,13 +94,13 @@ export interface Toast {
 
 export type ModalState = { type: 'upload'; vendorId: string } | { type: 'handoff' } | null;
 
-/** An outreach attempt n8n or the mailer refused, from `getSoaOutreachFailures`. */
-export interface OutreachFailure {
-  vendorNo: string;
-  vendorName: string;
-  error: string;
-  sentAt: string;
-}
+/**
+ * An outreach attempt n8n or the mailer refused, from `getSoaOutreachFailures`.
+ *
+ * The same row the query produces, including whether the vendor is still owed the send that
+ * failed. Restating the shape here would put the retry test in two places.
+ */
+export type OutreachFailure = DeliveryFailure;
 
 /**
  * Client state is now only what the screens themselves own. Which screen, which filter, which
@@ -128,6 +129,8 @@ export interface AppState {
   /** True while a server action is in flight; every mutating button is disabled on it. */
   busy: boolean;
   failures: OutreachFailure[] | null;
+  /** The delivery log's own in-flight flag; it loads without disabling the rest of the screen. */
+  failuresLoading: boolean;
 
   /* Vendor Scoping, all fetched on demand when the screen first opens. */
   /** Null until the list has been read; an empty `candidates` array is a real, different answer. */
@@ -193,14 +196,17 @@ export interface VendorEnrichedVM extends VendorRowVM {
   isExpanded: boolean;
   isReceived: boolean;
   canAccept: boolean;
-  canRemind: boolean;
+  /** This vendor can be chased on its own, now, from its row. */
+  canChase: boolean;
+  /** What that press would send: the first letter for a vendor never written to, else a reminder. */
+  chaseLabel: string;
   canNR: boolean;
   /** No address on file, so this vendor cannot be chased until someone supplies one. */
   isUnreachable: boolean;
   contactLabel: string;
   onToggle: () => void;
   onAccept: () => void;
-  onRemind: () => void;
+  onChase: () => void;
   onNR: () => void;
   onSaveContacts: (emails: string[]) => void;
 }
@@ -453,11 +459,17 @@ export interface ViewModel {
   onSaveScope: () => void;
   onDiscardScope: () => void;
 
-  /* Outreach delivery failures */
+  /* Delivery failures, shown on Response Tracking beside the vendors they belong to. */
   failures: OutreachFailure[] | null;
   hasFailures: boolean;
   failuresLoaded: boolean;
+  /** The screen reads the delivery log itself the first time it opens, as scoping does. */
+  deliveryNeedsLoad: boolean;
+  /** Vendors still waiting on the send that was refused. What "retry the failed ones" would do. */
+  retryFailedCount: number;
+  hasRetryable: boolean;
   onLoadFailures: () => void;
+  onRetryFailed: () => void;
 
   filterTabs: FilterTabVM[];
   vendorsEnriched: VendorEnrichedVM[];
@@ -534,7 +546,10 @@ export interface Handlers {
   goToConsolidation: () => void;
   toggleExpand: (id: string) => void;
   openUploadModal: (vendorId: string) => void;
-  sendOneReminder: (id: string) => void;
+  /** Chase one vendor from its row. The kind is decided by what that vendor is still owed. */
+  sendOne: (id: string, kind: 'request' | 'reminder') => void;
+  /** Send again to every vendor whose last attempt was refused, and to nobody else. */
+  retryFailed: () => void;
   markNR: (id: string) => void;
   saveContacts: (id: string, emails: string[]) => void;
   generateExport: () => void;

@@ -22,6 +22,7 @@ import { logger } from '@/lib/logger';
 import { validateUploadSignature, uploadMimeTypeFor } from '@/lib/documents';
 import { ensureSoaSchema, soaPool, sql } from '@/lib/soa/db';
 import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
+import { loadDeliveryFailures, type DeliveryFailure } from '@/lib/soa/delivery';
 import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import { attachmentFileName, buildSupplierWorkbook } from '@/lib/soa/attachment';
 import { htmlToText, renderTemplate, type TemplateVars } from '@/lib/soa/email-template';
@@ -371,14 +372,19 @@ export async function sendSoaOutreachBatch(input: {
   try {
     const actor = await requireSoaCountry(input.countryId, 'champion');
     const letter = await prepareLetter(input.countryId, actor, input.cc ?? [], input.ccRemoved ?? []);
+    /* A reminder goes to everyone still owing a statement, not only to those on their first
+       request. The SOP's two-request test is a floor: a quarter routinely runs to a third and
+       fourth ask, and a country whose vendors had all been reminded once was offered no way to
+       chase them again short of opening each row. Every attempt is its own dispatch and evidence
+       row, so the trail keeps all of them rather than collapsing to the last. */
     const due = await sql<QueryResultRow[]>(
       `SELECT vce.id
          FROM vendor_cycle_entries vce
          JOIN country_cycles cc ON cc.id = vce.country_cycle_id
          JOIN cycles cy ON cy.id = cc.cycle_id AND cy.is_active
-        WHERE cc.country_id = ? AND vce.status = ?::vendor_cycle_status
+        WHERE cc.country_id = ? AND vce.status = ANY(?::vendor_cycle_status[])
         ORDER BY vce.open_po_amount DESC`,
-      [input.countryId, input.kind === 'request' ? 'scoped' : 'requested'],
+      [input.countryId, input.kind === 'request' ? ['scoped'] : ['requested', 'reminded']],
     );
 
     let sent = 0;
@@ -695,33 +701,72 @@ export async function setSoaVendorContacts(input: {
   }
 }
 
-/** Anyone who can see the country can see who is unreachable. It explains a stalled coverage figure. */
-export async function getSoaOutreachFailures(
-  countryId: string,
-): Promise<{ vendorNo: string; vendorName: string; error: string; sentAt: string }[]> {
+/**
+ * The sends this country's mailer refused, newest first.
+ *
+ * Anyone who can see the country can see them: an unreachable vendor is the usual reason a
+ * coverage figure stops moving, and a viewer watching that figure needs the reason too.
+ */
+export async function getSoaOutreachFailures(countryId: string): Promise<DeliveryFailure[]> {
   try {
     await requireSoaActor('viewer');
     await requireSoaCountry(countryId, 'viewer');
-    const rows = await sql<QueryResultRow[]>(
-      `SELECT v.vendor_no, v.name, d.error, d.sent_at
-         FROM outreach_dispatches d
-         JOIN vendor_cycle_entries vce ON vce.id = d.vendor_cycle_entry_id
-         JOIN vendors v ON v.id = vce.vendor_id
-         JOIN country_cycles cc ON cc.id = vce.country_cycle_id
-         JOIN cycles cy ON cy.id = cc.cycle_id AND cy.is_active
-        WHERE cc.country_id = ? AND d.succeeded = FALSE
-        ORDER BY d.sent_at DESC
-        LIMIT 100`,
-      [countryId],
-    );
-    return rows.map((r) => ({
-      vendorNo: String(r.vendor_no),
-      vendorName: String(r.name),
-      error: String(r.error ?? 'Unknown error'),
-      sentAt: r.sent_at instanceof Date ? r.sent_at.toISOString() : String(r.sent_at),
-    }));
+    return await loadDeliveryFailures(countryId);
   } catch (err) {
     log.error('getSoaOutreachFailures.failed', err);
     return [];
+  }
+}
+
+/**
+ * Try the refused sends again, and only those.
+ *
+ * Which vendors those are is decided in `loadDeliveryFailures`, not here: a failure the next
+ * attempt already made good must not be re-sent, and that test belongs next to the query that
+ * knows what a dispatch row means. Each vendor gets the kind it is still owed, so a country
+ * holding both a first letter that never went and a reminder that never went is cleared in one
+ * press rather than two.
+ */
+export async function sendSoaOutreachRetries(input: {
+  countryId: string;
+  /** Extra NESR addresses to copy on this send only; never stored. */
+  cc?: string[];
+  /** Default copies the sender chose to drop for this send only; never stored. */
+  ccRemoved?: string[];
+}): Promise<SoaResult<{ sent: number; failed: number; firstError: string | null }>> {
+  try {
+    const actor = await requireSoaCountry(input.countryId, 'champion');
+    const stuck = (await loadDeliveryFailures(input.countryId)).filter((f) => f.retryable);
+    if (!stuck.length) return { success: true, data: { sent: 0, failed: 0, firstError: null } };
+
+    // Composed once for the whole retry, as the batch does: the letter is the country's, not the
+    // vendor's, and rendering it per vendor would re-read the template for each one.
+    const letter = await prepareLetter(
+      input.countryId,
+      actor,
+      input.cc ?? [],
+      input.ccRemoved ?? [],
+    );
+
+    let sent = 0;
+    let failed = 0;
+    let firstError: string | null = null;
+    for (const f of stuck) {
+      const result = await sendSoaOutreach({ entryId: f.entryId, kind: f.kind, letter });
+      if (result.success) sent += 1;
+      else {
+        failed += 1;
+        firstError ??= result.error ?? null;
+      }
+    }
+
+    revalidatePath('/soa-consolidation');
+    return { success: true, data: { sent, failed, firstError } };
+  } catch (err) {
+    log.error('sendSoaOutreachRetries.failed', err);
+    return {
+      success: false,
+      error: err instanceof AccessError ? err.message : 'Could not retry the failed sends.',
+    };
   }
 }

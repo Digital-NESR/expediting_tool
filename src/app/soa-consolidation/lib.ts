@@ -346,6 +346,7 @@ export function deriveViewModel(
     scopePage,
     busy,
     failures,
+    failuresLoading,
     scopeCandidates,
     scopeLoading,
     scopeError,
@@ -596,21 +597,44 @@ export function deriveViewModel(
   const trackingMatched = vendors
     .filter((v) => filterStatus === 'all' || v.status === filterStatus)
     .filter((v) => matchesSearch(v, search));
-  const vendorsEnriched: VendorEnrichedVM[] = pageSlice(trackingMatched, page).map((v) => ({
-    ...enrichVendorRow(v),
-    isExpanded: v.id === expandedVendor,
-    isReceived: v.status === 'received',
-    canAccept: canAct && v.status !== 'received',
-    canRemind: canAct && v.status === 'requested',
-    canNR: canAct && (v.status === 'reminded' || v.status === 'requested'),
-    isUnreachable: v.contactEmails.length === 0,
-    contactLabel: v.contactEmails.join(', '),
-    onToggle: () => handlers.toggleExpand(v.id),
-    onAccept: () => handlers.openUploadModal(v.id),
-    onRemind: () => handlers.sendOneReminder(v.id),
-    onNR: () => handlers.markNR(v.id),
-    onSaveContacts: (emails: string[]) => handlers.saveContacts(v.id, emails),
-  }));
+  const vendorsEnriched: VendorEnrichedVM[] = pageSlice(trackingMatched, page).map((v) => {
+    /* Chasing one vendor from its row. A supplier who has already been reminded can be reminded
+       again: the SOP's two-request test is a floor, not a ceiling, and a quarter often runs to a
+       third and fourth ask. What the press sends is decided here rather than in the screen,
+       because a vendor nobody has written to yet is owed the first letter and not a reminder.
+
+       Offered only where it would do something. `received` is answered, `non_responder` is a
+       deliberate flag that a reminder would silently undo, and a vendor with no address on file
+       can only be mailed once somebody supplies one. */
+    const isUnreachable = v.contactEmails.length === 0;
+    const chaseKind: 'request' | 'reminder' = v.status === 'scoped' ? 'request' : 'reminder';
+    const canChase =
+      canAct &&
+      !isUnreachable &&
+      (v.status === 'scoped' || v.status === 'requested' || v.status === 'reminded');
+    return {
+      ...enrichVendorRow(v),
+      isExpanded: v.id === expandedVendor,
+      isReceived: v.status === 'received',
+      canAccept: canAct && v.status !== 'received',
+      canChase,
+      chaseLabel: chaseKind === 'request' ? 'Send request' : 'Send reminder',
+      canNR: canAct && (v.status === 'reminded' || v.status === 'requested'),
+      isUnreachable,
+      contactLabel: v.contactEmails.join(', '),
+      onToggle: () => handlers.toggleExpand(v.id),
+      onAccept: () => handlers.openUploadModal(v.id),
+      onChase: () => handlers.sendOne(v.id, chaseKind),
+      onNR: () => handlers.markNR(v.id),
+      onSaveContacts: (emails: string[]) => handlers.saveContacts(v.id, emails),
+    };
+  });
+  /* One vendor may hold a refused first letter and a refused reminder; it is still one vendor to
+     chase, and the button says how many suppliers would be written to. */
+  const retryFailedCount = new Set(
+    (failures ?? []).filter((f) => f.retryable).map((f) => f.vendorNo),
+  ).size;
+
   const trackingTable = tableControls(
     vendors.length,
     trackingMatched.length,
@@ -945,8 +969,10 @@ export function deriveViewModel(
     coveragePct,
     coverageMet,
 
-    hasRemindable: canAct && requestedCount > 0,
-    remindCount: String(requestedCount),
+    /* Everyone still owing a statement, whether or not they have been reminded already, which is
+       the same set the per-row button offers and the same set the batch action writes to. */
+    hasRemindable: canAct && pendingResponseCount > 0,
+    remindCount: String(pendingResponseCount),
     totalCount,
     receivedCount,
     remindedCount,
@@ -990,13 +1016,17 @@ export function deriveViewModel(
     failures,
     hasFailures: !!failures?.length,
     failuresLoaded: failures !== null,
+    deliveryNeedsLoad: !!countryId && failures === null && !failuresLoading,
+    retryFailedCount,
+    hasRetryable: canAct && retryFailedCount > 0,
     onLoadFailures: handlers.loadFailures,
+    onRetryFailed: handlers.retryFailed,
 
     filterTabs,
     vendorsEnriched,
     trackingTable,
 
-    canSendReminders: canAct && requestedCount > 0,
+    canSendReminders: canAct && pendingResponseCount > 0,
 
     complianceItems: items,
     consolidatedRows,

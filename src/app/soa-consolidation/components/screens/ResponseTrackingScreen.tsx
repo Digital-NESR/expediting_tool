@@ -1,12 +1,12 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import SubmissionLines from '../SubmissionLines';
 import type { ScreenProps, VendorEnrichedVM } from '../../types';
 import TableToolbar from '../TableToolbar';
 import { FILTER_TAB_SELECTED, VENDOR_STATUS_BADGE } from '../tones';
 
-const COLUMNS = 'grid-cols-[1fr_100px_90px_80px_80px_80px_60px]';
+const COLUMNS = 'grid-cols-[1fr_100px_90px_80px_80px_80px_150px]';
 
 /**
  * The expanded row for one vendor.
@@ -63,16 +63,6 @@ function VendorDetail({
             className="bg-sns-green text-white border-none px-3 py-[7px] rounded-md text-[11px] font-bold disabled:opacity-50"
           >
             Accept SOA Upload
-          </button>
-        )}
-        {v.canRemind && (
-          <button
-            type="button"
-            onClick={v.onRemind}
-            disabled={busy}
-            className="bg-[#1565C0] text-white border-none px-3 py-[7px] rounded-md text-[11px] font-bold disabled:opacity-50"
-          >
-            Send Reminder
           </button>
         )}
         {v.canNR && (
@@ -148,7 +138,85 @@ function VendorDetail({
   );
 }
 
+/**
+ * What the mailer refused, and the offer to try again.
+ *
+ * Only the latest attempt per vendor per kind reaches here, so a country tried five times against
+ * a misconfigured webhook reads as the number of suppliers affected rather than the number of
+ * presses somebody made. A failure the next attempt already made good is shown but not counted:
+ * it is history, and re-sending on it would write to a supplier who is owed nothing.
+ */
+function DeliveryPanel({ vm }: ScreenProps) {
+  if (!vm.hasFailures) return null;
+  return (
+    <div className="bg-white rounded-[10px] p-3.5 mb-3 shadow-[0_1px_3px_rgba(0,0,0,0.07)] border-l-[3px] border-l-[#B71C1C]">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey">
+            Refused sends
+          </div>
+          <div className="text-[12px] text-sns-ink mt-0.5">
+            {vm.retryFailedCount > 0 ? (
+              <span className="text-[#B71C1C] font-bold">
+                {vm.retryFailedCount} {vm.retryFailedCount === 1 ? 'vendor is' : 'vendors are'}{' '}
+                still waiting on a letter that was refused.
+              </span>
+            ) : (
+              <span>Every refused send has since been made good.</span>
+            )}
+            {vm.unreachableCount > 0 && (
+              <span className="text-[#B71C1C]">
+                {' '}
+                {vm.unreachableCount} in scope {vm.unreachableCount === 1 ? 'has' : 'have'} no
+                address on file and cannot be sent anything.
+              </span>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={vm.onLoadFailures}
+          className="bg-white text-sns-ink border border-sns-line px-3 py-[7px] rounded-md text-[11px] font-bold"
+        >
+          Refresh
+        </button>
+      </div>
+      <div className="mt-2.5 border-t border-t-[#F0F0F0] pt-2.5">
+        {vm.failures?.map((f) => (
+          <div
+            key={`${f.entryId}-${f.kind}`}
+            className="flex gap-3 py-1.5 text-[11px] border-b border-b-[#F5F5F5] items-start last:border-b-0"
+          >
+            <div className="w-[190px] shrink-0">
+              <div className="font-bold text-sns-ink">{f.vendorName}</div>
+              <div className="text-sns-grey font-[family-name:monospace] text-[10px]">
+                {f.vendorNo}
+              </div>
+            </div>
+            <div className="w-[74px] shrink-0 text-sns-grey">
+              {f.kind === 'request' ? 'Request' : 'Reminder'}
+            </div>
+            <div className={`flex-1 leading-[1.4] ${f.retryable ? 'text-[#B71C1C]' : 'text-sns-grey'}`}>
+              {f.error}
+              {!f.retryable && <span className="font-bold"> · sent since</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ResponseTrackingScreen({ vm }: ScreenProps) {
+  /* The screen reads the delivery log itself the first time it opens, the way Vendor Scoping reads
+     its candidates. It used to sit behind a "Show failed dispatches" button on a screen that has
+     since gone, which meant the one fact explaining a stalled coverage figure was only ever seen
+     by somebody who already suspected it. */
+  const { deliveryNeedsLoad, onLoadFailures } = vm;
+  useEffect(() => {
+    if (deliveryNeedsLoad) onLoadFailures();
+  }, [deliveryNeedsLoad, onLoadFailures]);
+
   return (
     <div className="animate-[fadeIn_0.2s_ease]">
       <div className="flex items-start justify-between mb-3.5">
@@ -158,7 +226,20 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
             Live vendor response status, {vm.contextLine}
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+          {/* Retry first, because it is the exception: these suppliers were never written to at
+              all, and they are invisible in the counts beside them. */}
+          {vm.hasRetryable && (
+            <button
+              type="button"
+              onClick={vm.onRetryFailed}
+              disabled={vm.busy}
+              className="bg-[#B71C1C] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
+            >
+              Retry {vm.retryFailedCount} Failed{' '}
+              {vm.retryFailedCount === 1 ? 'Send' : 'Sends'}
+            </button>
+          )}
           {vm.hasUnrequested && (
             <button
               type="button"
@@ -181,6 +262,8 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
           )}
         </div>
       </div>
+
+      <DeliveryPanel vm={vm} />
 
       <div className="flex gap-1.5 mb-3 flex-wrap">
         {vm.filterTabs.map((tab) => (
@@ -242,7 +325,25 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
               <div className="text-[11px] text-sns-grey">{v.reqDate}</div>
               <div className="text-[11px] text-sns-grey">{v.remDate ?? ', '}</div>
               <div className="text-[11px] text-sns-grey">{v.respDate ?? ', '}</div>
-              <div className="text-[11px] text-sns-grey text-right">{v.isExpanded ? '▲' : '▼'}</div>
+              {/* Chasing one supplier is the commonest thing done on this screen, and it used to
+                  need the row opened first. The press must not also toggle the row it sits in. */}
+              <div className="flex items-center justify-end gap-2">
+                {v.canChase && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      v.onChase();
+                    }}
+                    disabled={vm.busy}
+                    title={`${v.chaseLabel} to ${v.name}`}
+                    className="rounded-md border border-sns-line bg-white px-2 py-[5px] text-[10px] font-bold text-sns-green whitespace-nowrap hover:border-sns-green disabled:opacity-50"
+                  >
+                    {v.chaseLabel}
+                  </button>
+                )}
+                <span className="text-[11px] text-sns-grey">{v.isExpanded ? '▲' : '▼'}</span>
+              </div>
             </div>
             {v.isExpanded && <VendorDetail v={v} busy={vm.busy} canEdit={vm.canAct} />}
           </Fragment>

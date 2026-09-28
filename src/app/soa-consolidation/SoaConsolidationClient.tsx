@@ -18,6 +18,7 @@ import {
   recordSoaExport,
   sendSoaOutreach,
   sendSoaOutreachBatch,
+  sendSoaOutreachRetries,
   setSoaVendorContacts,
 } from '@/app/actions/soa/workflow';
 import { deriveViewModel, fmtM } from './lib';
@@ -55,6 +56,7 @@ const INITIAL: AppState = {
   scopePage: 0,
   busy: false,
   failures: null,
+  failuresLoading: false,
   scopeCandidates: null,
   scopeLoading: false,
   scopeError: null,
@@ -179,6 +181,27 @@ export default function SoaConsolidationClient({
       });
   }
 
+  /**
+   * Read the delivery log.
+   *
+   * Hoisted out of `handlers` because the retry calls it too, and a method reached through the
+   * view model as a bare function has no `this` to find its neighbour on.
+   *
+   * It carries its own in-flight flag rather than the shared `busy`: Response Tracking reads this
+   * by itself when it opens, and routing that through `busy` would grey out every button on the
+   * screen to do it.
+   */
+  function readDeliveryLog() {
+    if (!countryId) return;
+    patch({ failuresLoading: true });
+    void getSoaOutreachFailures(countryId)
+      .then((rows) => patch({ failures: rows, failuresLoading: false }))
+      .catch(() => {
+        patch({ failures: [], failuresLoading: false });
+        addToast('warning', 'Could not load failures', 'The delivery log could not be read.');
+      });
+  }
+
   const handlers: Handlers = {
     setScreen(screen) {
       patch({ screen, expandedVendor: null });
@@ -281,14 +304,47 @@ export default function SoaConsolidationClient({
         'Reminders not sent',
       );
     },
-    sendOneReminder(id) {
+    sendOne(id, kind) {
       void run(
-        () => sendSoaOutreach({ entryId: Number(id), kind: 'reminder' }),
+        () => sendSoaOutreach({ entryId: Number(id), kind }),
         () => {
           patch({ expandedVendor: null });
-          addToast('success', 'Reminder sent', 'Second request dispatched and logged.');
+          addToast(
+            'success',
+            kind === 'request' ? 'Request sent' : 'Reminder sent',
+            kind === 'request'
+              ? 'Statement request dispatched and logged.'
+              : 'Another request dispatched and logged.',
+          );
         },
-        'Reminder not sent',
+        kind === 'request' ? 'Request not sent' : 'Reminder not sent',
+      );
+    },
+    retryFailed: () => {
+      if (!countryId) return;
+      void run(
+        () => sendSoaOutreachRetries({ countryId }),
+        (data) => {
+          const sent = data?.sent ?? 0;
+          const failed = data?.failed ?? 0;
+          addToast(
+            failed > 0 ? 'warning' : sent > 0 ? 'success' : 'info',
+            failed > 0
+              ? `${sent} sent, ${failed} failed again`
+              : sent > 0
+                ? `${sent} resent`
+                : 'Nothing to retry',
+            failed > 0
+              ? (data?.firstError ?? 'Some vendors still could not be reached.')
+              : sent > 0
+                ? 'The refused sends went out. Evidence logged.'
+                : 'Every refused send has since been made good.',
+          );
+          // The log the button counted from is now stale, so read it again rather than leave a
+          // count on screen that the press has already spent.
+          readDeliveryLog();
+        },
+        'Could not retry',
       );
     },
     markNR(id) {
@@ -374,16 +430,7 @@ export default function SoaConsolidationClient({
         'Selection not saved',
       );
     },
-    loadFailures() {
-      if (!countryId) return;
-      patch({ busy: true });
-      void getSoaOutreachFailures(countryId)
-        .then((rows) => patch({ failures: rows, busy: false }))
-        .catch(() => {
-          patch({ failures: [], busy: false });
-          addToast('warning', 'Could not load failures', 'The delivery log could not be read.');
-        });
-    },
+    loadFailures: readDeliveryLog,
     generateExport() {
       if (!countryId) return;
       patch({ busy: true });
