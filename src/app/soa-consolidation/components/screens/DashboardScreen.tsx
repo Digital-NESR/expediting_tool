@@ -8,7 +8,8 @@ export default function DashboardScreen({ vm }: ScreenProps) {
         <div>
           <h1 className="text-[20px] font-bold mb-[3px]">Dashboard</h1>
           <p className="text-[12px] text-sns-grey">
-            {vm.contextLine} · Deadline: {vm.deadlineLabel} ({vm.daysRemaining} days remaining)
+            {vm.contextLine} · Statements due {vm.deadlineLabel} ({vm.daysRemaining} days) · Close by{' '}
+            {vm.cycleDeadlineLabel} ({vm.daysToClose} days)
           </p>
         </div>
         <div className="flex gap-2 shrink-0">

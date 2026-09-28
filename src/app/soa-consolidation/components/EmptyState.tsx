@@ -80,6 +80,9 @@ export default function EmptyState({ vm }: ScreenProps) {
                   Statements due
                 </div>
                 <div className="text-[15px] font-bold text-sns-ink">{vm.deadlineLabel}</div>
+                <div className="mt-0.5 text-[10.5px] text-sns-grey">
+                  Close by {vm.cycleDeadlineLabel}
+                </div>
               </div>
             </div>
             <button

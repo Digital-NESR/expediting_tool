@@ -24,10 +24,14 @@ export interface ActiveCycle {
   periodStart: string;
   periodEnd: string;
   submissionDeadline: string;
+  /** When the country must be reconciled, closed and handed to Finance. */
+  cycleDeadline: string;
   coverageTargetPct: number;
   yearEndTargetPct: number;
   vendorThresholdUsd: number;
   daysRemaining: number;
+  /** Days until the cycle deadline — the champion's date, not the supplier's. */
+  daysToClose: number;
   extractedAt: string | null;
 }
 
@@ -166,11 +170,13 @@ async function activeCycle(): Promise<ActiveCycle | null> {
     periodStart: asIso(r.period_start).slice(0, 10),
     periodEnd: asIso(r.period_end).slice(0, 10),
     submissionDeadline: asIso(r.submission_deadline).slice(0, 10),
+    cycleDeadline: asIso(r.cycle_deadline).slice(0, 10),
     coverageTargetPct: Number(r.coverage_target_pct),
     yearEndTargetPct: Number(r.year_end_target_pct),
     vendorThresholdUsd: Number(r.vendor_threshold_usd),
     // Real arithmetic against the real clock. The prototype hard-coded "11".
     daysRemaining: Math.max(0, daysBetween(new Date(), deadline)),
+    daysToClose: Math.max(0, daysBetween(new Date(), new Date(asIso(r.cycle_deadline)))),
     extractedAt: r.extracted_at ? asIso(r.extracted_at) : null,
   };
 }

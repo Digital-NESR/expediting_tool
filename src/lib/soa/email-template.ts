@@ -29,7 +29,6 @@ export interface TemplateVars {
   uploadLink: string;
   senderName: string;
   senderTitle: string;
-  senderMobile: string;
   senderEmail: string;
 }
 
@@ -48,7 +47,6 @@ export const PLACEHOLDERS: { token: string; label: string; from: string }[] = [
   { token: 'champion_name', label: 'SOA champion', from: 'the champion for the country' },
   { token: 'sender_name', label: 'Sender name', from: 'the signed-in user' },
   { token: 'sender_title', label: 'Sender job title', from: 'the employee directory' },
-  { token: 'sender_mobile', label: 'Sender mobile', from: 'the employee directory' },
   { token: 'sender_email', label: 'Sender email', from: 'the signed-in user' },
 ];
 
@@ -77,12 +75,9 @@ export const DEFAULT_BODY_HTML = `<p>Date: {{date}}</p>
 </ul>
 <p>The link above is the only way to return the statement. For any questions or clarification, please contact {{champion_name}} at <a href="mailto:{{champion_email}}">{{champion_email}}</a>, or our Accounts Payable team at <a href="mailto:{{ap_email}}">{{ap_email}}</a>.</p>
 <p>Thank you for your prompt attention to this matter. We value our partnership with your company and look forward to your swift response.</p>
-<p>Best regards,<br />
-{{sender_name}}<br />
-{{sender_title}}</p>
-<p>NESR<br />
-Mobile: {{sender_mobile}}<br />
-Email: <a href="mailto:{{sender_email}}">{{sender_email}}</a></p>
+<p>Thank you!</p>
+<p><strong>Supply Chain and Accounts Payable team</strong><br />
+NESR</p>
 <hr />
 <div dir="rtl" lang="ar">
 <h3>تنبيه !</h3>
@@ -106,12 +101,9 @@ Email: <a href="mailto:{{sender_email}}">{{sender_email}}</a></p>
 </ul>
 <p>الرابط أعلاه هو الطريقة الوحيدة لإرسال كشف الحساب. لأي استفسار أو توضيح، يرجى التواصل مع {{champion_name}} على <a href="mailto:{{champion_email}}">{{champion_email}}</a>، أو مع قسم الحسابات الدائنة على <a href="mailto:{{ap_email}}">{{ap_email}}</a>.</p>
 <p>شكرأ لاهتمامكم السريع بهذه المسألة. نحن نقدر شراكتنا مع شركتكم ونتطلع إلى استجابتكم السريعة.</p>
-<p>مع خالص التحية.<br />
-{{sender_name}}<br />
-{{sender_title}}</p>
-<p>شركة نسر<br />
-تلفون رقم: {{sender_mobile}}<br />
-البريد الالكتروني: <a href="mailto:{{sender_email}}">{{sender_email}}</a></p>
+<p>شكراً لكم!</p>
+<p><strong>فريق سلسلة التوريد والحسابات الدائنة</strong><br />
+شركة نسر</p>
 </div>`;
 
 /**
@@ -175,7 +167,6 @@ function valueFor(name: string, vars: TemplateVars): string | undefined {
     champion_name: vars.championName,
     sender_name: vars.senderName,
     sender_title: vars.senderTitle,
-    sender_mobile: vars.senderMobile,
     sender_email: vars.senderEmail,
   };
   return map[name];

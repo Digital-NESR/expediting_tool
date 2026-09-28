@@ -411,7 +411,10 @@ export function deriveViewModel(
 
   const cycleLabel = cycle?.label ?? 'No active cycle';
   const countryLabel = countryName ? `${countryName} (${countryId})` : 'No country in scope';
+  /* Two dates for two audiences: `deadlineLabel` is what suppliers were told, and is what the
+     chase is measured against; `cycleDeadlineLabel` is when this country has to be closed. */
   const deadlineLabel = cycle ? dateOnlyLabel(cycle.submissionDeadline) : '—';
+  const cycleDeadlineLabel = cycle ? dateOnlyLabel(cycle.cycleDeadline) : '—';
   const periodLabel = cycle
     ? `${cycleLabel} (${dateOnlyLabel(cycle.periodStart)} – ${dateOnlyLabel(cycle.periodEnd)})`
     : '—';
@@ -906,6 +909,8 @@ export function deriveViewModel(
     contextLine,
     periodLabel,
     deadlineLabel,
+    cycleDeadlineLabel,
+    daysToClose: cycle?.daysToClose ?? 0,
     daysRemaining: cycle?.daysRemaining ?? 0,
     coverageTargetPct,
     yearEndTargetPct,

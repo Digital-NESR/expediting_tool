@@ -119,7 +119,9 @@ export default function SoaCyclesClient() {
   const [label, setLabel] = useState('');
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
+  // Two dates, for two different people: the supplier's and the champion's.
   const [deadline, setDeadline] = useState('');
+  const [cycleDeadline, setCycleDeadline] = useState('');
   const [coverage, setCoverage] = useState(DEFAULTS.coverageTargetPct);
   const [yearEnd, setYearEnd] = useState(DEFAULTS.yearEndTargetPct);
   const [threshold, setThreshold] = useState(DEFAULTS.vendorThresholdUsd);
@@ -208,8 +210,8 @@ export default function SoaCyclesClient() {
       setError('A label is required, e.g. "Q4 2026".');
       return;
     }
-    if (!periodStart || !periodEnd || !deadline) {
-      setError('The period start, period end and submission deadline are all required.');
+    if (!periodStart || !periodEnd || !deadline || !cycleDeadline) {
+      setError('The period, the collection deadline and the cycle deadline are all required.');
       return;
     }
     if (!(new Date(periodStart) < new Date(periodEnd))) {
@@ -223,6 +225,7 @@ export default function SoaCyclesClient() {
       periodStart,
       periodEnd,
       submissionDeadline: deadline,
+      cycleDeadline,
       coverageTargetPct: num(coverage),
       yearEndTargetPct: num(yearEnd),
       vendorThresholdUsd: num(threshold),
@@ -361,13 +364,27 @@ export default function SoaCyclesClient() {
                 className={INPUT}
               />
             </Field>
-            <Field label="Submission deadline">
+            <Field label="Collection deadline">
               <input
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
                 className={INPUT}
               />
+              <p className="mt-1 text-[11px] text-slate-500">
+                The date suppliers are given in the request letter.
+              </p>
+            </Field>
+            <Field label="Cycle deadline">
+              <input
+                type="date"
+                value={cycleDeadline}
+                onChange={(e) => setCycleDeadline(e.target.value)}
+                className={INPUT}
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                The date every country must be reconciled, closed and handed to Finance.
+              </p>
             </Field>
           </div>
 
@@ -480,7 +497,7 @@ export default function SoaCyclesClient() {
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold">Cycle</th>
                   <th className="px-4 py-3 text-left font-semibold">Period</th>
-                  <th className="px-4 py-3 text-left font-semibold">Deadline</th>
+                  <th className="px-4 py-3 text-left font-semibold">Deadlines</th>
                   <th className="px-4 py-3 text-left font-semibold">Policy used</th>
                   <th className="px-4 py-3 text-left font-semibold">Extract</th>
                   <th className="px-4 py-3 text-right font-semibold">Actions</th>
@@ -513,7 +530,18 @@ export default function SoaCyclesClient() {
                         {dateOnly(c.period_end)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-700">
-                        {dateOnly(c.submission_deadline)}
+                        <div>
+                          {dateOnly(c.submission_deadline)}
+                          <span className="ml-1.5 text-[10px] uppercase tracking-wide text-slate-400">
+                            collection
+                          </span>
+                        </div>
+                        <div className="mt-0.5">
+                          {dateOnly(c.cycle_deadline)}
+                          <span className="ml-1.5 text-[10px] uppercase tracking-wide text-slate-400">
+                            close
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-xs leading-relaxed text-slate-600">
                         <p>

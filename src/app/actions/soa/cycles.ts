@@ -23,7 +23,10 @@ export interface SoaCycle {
   label: string;
   period_start: string;
   period_end: string;
+  /** Given to suppliers in the letter: when their statement is due back. */
   submission_deadline: string;
+  /** Given to champions: when the country must be reconciled, closed and handed off. */
+  cycle_deadline: string;
   coverage_target_pct: number;
   year_end_target_pct: number;
   vendor_threshold_usd: number;
@@ -46,6 +49,7 @@ function serialiseCycle(r: QueryResultRow): SoaCycle {
     period_start: asDate(r.period_start),
     period_end: asDate(r.period_end),
     submission_deadline: asDate(r.submission_deadline),
+    cycle_deadline: asDate(r.cycle_deadline),
     coverage_target_pct: Number(r.coverage_target_pct),
     year_end_target_pct: Number(r.year_end_target_pct),
     vendor_threshold_usd: Number(r.vendor_threshold_usd),
@@ -140,6 +144,7 @@ export async function createSoaCycle(input: {
   periodStart: string;
   periodEnd: string;
   submissionDeadline: string;
+  cycleDeadline: string;
   coverageTargetPct?: number;
   yearEndTargetPct?: number;
   vendorThresholdUsd?: number;
@@ -155,16 +160,26 @@ export async function createSoaCycle(input: {
     if (!(new Date(input.periodStart) < new Date(input.periodEnd))) {
       return { success: false, error: 'The period must start before it ends.' };
     }
+    /* Closing the country means reconciling what came back, so the collection deadline has to come
+       first. The other way round asks a champion to finish before the statements are due. */
+    if (new Date(input.cycleDeadline) < new Date(input.submissionDeadline)) {
+      return {
+        success: false,
+        error:
+          'The cycle deadline cannot fall before the collection deadline — statements have to be in before a country can be closed.',
+      };
+    }
 
     const rows = await sql<QueryResultRow[]>(
-      `INSERT INTO cycles (label, period_start, period_end, submission_deadline,
+      `INSERT INTO cycles (label, period_start, period_end, submission_deadline, cycle_deadline,
                            coverage_target_pct, year_end_target_pct, vendor_threshold_usd,
                            lookback_months)
-       VALUES (?, ?, ?, ?, COALESCE(?, 70), COALESCE(?, 95), COALESCE(?, 250000), COALESCE(?, 18))
+       VALUES (?, ?, ?, ?, ?, COALESCE(?, 70), COALESCE(?, 95), COALESCE(?, 250000), COALESCE(?, 18))
        ON CONFLICT (label) DO UPDATE SET
          period_start = EXCLUDED.period_start,
          period_end = EXCLUDED.period_end,
          submission_deadline = EXCLUDED.submission_deadline,
+         cycle_deadline = EXCLUDED.cycle_deadline,
          coverage_target_pct = EXCLUDED.coverage_target_pct,
          year_end_target_pct = EXCLUDED.year_end_target_pct,
          vendor_threshold_usd = EXCLUDED.vendor_threshold_usd,
@@ -175,6 +190,7 @@ export async function createSoaCycle(input: {
         input.periodStart,
         input.periodEnd,
         input.submissionDeadline,
+        input.cycleDeadline,
         input.coverageTargetPct ?? null,
         input.yearEndTargetPct ?? null,
         input.vendorThresholdUsd ?? null,

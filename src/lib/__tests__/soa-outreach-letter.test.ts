@@ -25,7 +25,6 @@ const VARS: TemplateVars = {
   uploadLink: 'https://portal.example/soa-upload/abc-123',
   senderName: 'M Farhan',
   senderTitle: 'Supply Chain Manager',
-  senderMobile: '',
   senderEmail: 'mfarhan1@nesr.com',
 };
 

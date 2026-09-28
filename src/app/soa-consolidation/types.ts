@@ -366,7 +366,11 @@ export interface ViewModel {
   countryLabel: string;
   contextLine: string;
   periodLabel: string;
+  /** The collection deadline — what suppliers were given in the letter. */
   deadlineLabel: string;
+  /** The cycle deadline — when this country must be reconciled, closed and handed off. */
+  cycleDeadlineLabel: string;
+  daysToClose: number;
   daysRemaining: number;
   coverageTargetPct: number;
   yearEndTargetPct: number;

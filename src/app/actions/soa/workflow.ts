@@ -228,7 +228,6 @@ async function prepareLetter(
       uploadLink: '',
       senderName: actor.name,
       senderTitle: directory?.position ?? '',
-      senderMobile: '',
       senderEmail: actor.email,
     },
   };

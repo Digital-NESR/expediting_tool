@@ -35,6 +35,51 @@ function money(n: number): string {
   return `$${Math.round(n).toLocaleString('en-US')}`;
 }
 
+/**
+ * Solid green for an address the system supplied, outlined for one somebody typed.
+ *
+ * The same convention as PO Expediting, and it carries the distinction that used to need a word
+ * of uppercase text beside every chip. Where an address came from matters when a send bounces:
+ * a directory address is wrong upstream and worth correcting there, a hand-added one is wrong here.
+ */
+function Chip({
+  label,
+  system,
+  locked,
+  title,
+  onRemove,
+}: {
+  label: string;
+  system: boolean;
+  locked?: boolean;
+  title?: string;
+  onRemove?: () => void;
+}) {
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-[5px] text-[11.5px] font-medium ${
+        system
+          ? 'bg-sns-green text-white'
+          : 'border border-sns-green bg-white text-sns-green'
+      }`}
+    >
+      {locked && <span aria-hidden>🔒</span>}
+      {label}
+      {onRemove && !locked && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className={`font-bold leading-none ${system ? 'text-white/70 hover:text-white' : 'text-sns-green/60 hover:text-sns-green'}`}
+          aria-label={`Remove ${label}`}
+        >
+          ×
+        </button>
+      )}
+    </span>
+  );
+}
+
 export default function RecipientList({
   countryId,
   canEdit,
@@ -93,13 +138,23 @@ export default function RecipientList({
             )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onBack}
-          className="bg-white text-sns-ink border border-sns-line px-3 py-[7px] rounded-md text-[11px] font-bold"
-        >
-          ← Back to the letter
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Says what the two chip styles mean, once, rather than a word of uppercase beside
+              every address. */}
+          <span className="inline-flex items-center gap-1.5 text-[10.5px] text-sns-grey">
+            <span className="h-2.5 w-2.5 rounded-sm bg-sns-green" />
+            from the system
+            <span className="ml-1.5 h-2.5 w-2.5 rounded-sm border border-sns-green bg-white" />
+            added here
+          </span>
+          <button
+            type="button"
+            onClick={onBack}
+            className="bg-white text-sns-ink border border-sns-line px-3 py-[7px] rounded-md text-[11px] font-bold"
+          >
+            ← Back to the letter
+          </button>
+        </div>
       </div>
 
       {/* CC applies to the whole send, so it sits above the list rather than on each vendor. */}
@@ -108,53 +163,30 @@ export default function RecipientList({
           CC on every message
         </div>
         <div className="flex flex-wrap gap-1.5 items-center mb-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-[#ECEFEC] px-2.5 py-1 text-[11px]">
-            {senderEmail}
-            <span className="text-[9.5px] uppercase tracking-[0.4px] text-sns-grey">you</span>
-          </span>
+          {/* The sender is always copied and cannot be dropped: they are accountable for the send. */}
+          <Chip label={senderEmail} system locked title="You — always copied" />
           {data?.apEmails.length ? (
             data.apEmails.map((ap) => (
-              <span
-                key={ap}
-                className="inline-flex items-center gap-1 rounded-full bg-[#ECEFEC] px-2.5 py-1 text-[11px]"
-              >
-                {ap}
-                <span className="text-[9.5px] uppercase tracking-[0.4px] text-sns-grey">AP</span>
-              </span>
+              <Chip key={ap} label={ap} system title="Accounts Payable for this country" />
             ))
           ) : (
-            <span className="rounded-full bg-[#FDECEA] px-2.5 py-1 text-[11px] text-[#B71C1C] font-bold">
+            <span className="rounded-md bg-[#FDECEA] px-2.5 py-[5px] text-[11.5px] font-bold text-[#B71C1C]">
               No AP contact set for this country — add one in /admin
             </span>
           )}
           {(data?.championEmails ?? [])
             .filter((c) => c.toLowerCase() !== senderEmail.toLowerCase())
             .map((champ) => (
-              <span
-                key={champ}
-                className="inline-flex items-center gap-1 rounded-full bg-[#ECEFEC] px-2.5 py-1 text-[11px]"
-              >
-                {champ}
-                <span className="text-[9.5px] uppercase tracking-[0.4px] text-sns-grey">
-                  champion
-                </span>
-              </span>
+              <Chip key={champ} label={champ} system title="Champion for this country" />
             ))}
           {extraCc.map((e) => (
-            <span
+            <Chip
               key={e.mail}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#E3F0E8] px-2.5 py-1 text-[11px]"
-            >
-              {e.display_name}
-              <button
-                type="button"
-                onClick={() => setExtraCc((list) => list.filter((x) => x.mail !== e.mail))}
-                className="text-sns-grey hover:text-[#B71C1C] font-bold"
-                aria-label={`Remove ${e.display_name} from CC`}
-              >
-                ×
-              </button>
-            </span>
+              label={e.display_name}
+              system={false}
+              title={`${e.mail} — added for this send only`}
+              onRemove={() => setExtraCc((list) => list.filter((x) => x.mail !== e.mail))}
+            />
           ))}
         </div>
         {canEdit && (
@@ -253,29 +285,19 @@ function VendorRow({
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap gap-1.5">
             {vendor.to.map((a) => (
-              <span
+              <Chip
                 key={a.email}
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] ${
-                  a.origin === 'added' ? 'bg-[#E3F0E8]' : 'bg-[#ECEFEC]'
-                }`}
-                title={a.origin === 'added' ? 'Added here and saved for next time' : 'From the supplier directory'}
-              >
-                {a.email}
-                <span className="text-[9.5px] uppercase tracking-[0.4px] text-sns-grey">
-                  {a.origin === 'added' ? 'added' : 'directory'}
-                </span>
-                {canEdit && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onChange(vendor.vendorId, a.email, 'remove')}
-                    className="text-sns-grey hover:text-[#B71C1C] font-bold disabled:opacity-40"
-                    aria-label={`Remove ${a.email}`}
-                  >
-                    ×
-                  </button>
-                )}
-              </span>
+                label={a.email}
+                system={a.origin === 'directory'}
+                title={
+                  a.origin === 'added'
+                    ? 'Added here and kept for next time'
+                    : 'From the supplier directory'
+                }
+                onRemove={
+                  canEdit && !busy ? () => onChange(vendor.vendorId, a.email, 'remove') : undefined
+                }
+              />
             ))}
             {none && (
               <span className="text-[11px] font-bold text-[#B71C1C]">
