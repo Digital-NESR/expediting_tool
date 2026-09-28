@@ -38,6 +38,8 @@ export interface SubmissionView {
   uploadedAt: string;
   uploadedBy: string | null;
   parseError: string | null;
+  /** A later statement replaced this one. Kept as evidence, counted in nothing. */
+  superseded: boolean;
   lines: SubmissionLineView[];
   /** Summed per currency: adding dollars to dinars would produce a number meaning nothing. */
   totalsByCurrency: { currency: string; outstanding: number; lines: number }[];
@@ -48,6 +50,9 @@ const num = (v: unknown): number | null => (v === null || v === undefined ? null
 
 /**
  * Every statement on file for one vendor entry, newest first, with its parsed rows.
+ *
+ * All of them, including ones a resend replaced. This is the review screen, and what a supplier
+ * first claimed is exactly what a champion may need to look at. Each says whether it still counts.
  *
  * Returns the country alongside so the caller can check the reader is entitled to it. The entry
  * id arrives from the browser and is not a capability.
@@ -67,7 +72,7 @@ export async function loadSubmissionsFor(
   if (!owner.length) return null;
 
   const heads = await sql<QueryResultRow[]>(
-    `SELECT id, file_name, uploaded_at, uploaded_by, parse_error
+    `SELECT id, file_name, uploaded_at, uploaded_by, parse_error, superseded_at
        FROM soa_submissions
       WHERE vendor_cycle_entry_id = ?
       ORDER BY uploaded_at DESC`,
@@ -122,6 +127,7 @@ export async function loadSubmissionsFor(
         h.uploaded_at instanceof Date ? h.uploaded_at.toISOString() : String(h.uploaded_at ?? ''),
       uploadedBy: (h.uploaded_by as string | null) ?? null,
       parseError: (h.parse_error as string | null) ?? null,
+      superseded: h.superseded_at !== null,
       lines: own,
       totalsByCurrency: totalsByCurrencyOf(own),
       linesNeedingReview: own.filter((l) => l.issues.length > 0).length,

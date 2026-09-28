@@ -84,14 +84,23 @@ function VendorDetail({
           <span className="text-[11px] text-sns-grey">
             {v.submissions.length === 1 ? 'Statement on file:' : 'Statements on file:'}
           </span>
+          {/* A vendor who re-sent a corrected file has both on record. Only the newest is counted,
+              and the older one says so rather than sitting there looking equally current. */}
           {v.submissions.map((file) => (
             <a
               key={file.id}
               href={`/api/soa/submissions/${file.id}`}
               download={file.fileName}
-              className="inline-flex items-center gap-1.5 rounded-md border border-sns-line bg-white px-2.5 py-[5px] text-[11px] font-bold text-sns-green hover:border-sns-green"
+              className={`inline-flex items-center gap-1.5 rounded-md border bg-white px-2.5 py-[5px] text-[11px] font-bold ${
+                file.superseded
+                  ? 'border-sns-line text-sns-grey line-through decoration-1'
+                  : 'border-sns-line text-sns-green hover:border-sns-green'
+              }`}
             >
               {file.fileName}
+              {file.superseded && (
+                <span className="no-underline font-bold text-[10px] text-sns-grey">replaced</span>
+              )}
             </a>
           ))}
         </div>

@@ -35,20 +35,37 @@ const RESEND_QUIET_SECONDS = 30;
 
 const hash = (code: string): string => createHash('sha256').update(code.trim()).digest('hex');
 
+/** How much of each half of an address the masked form shows. */
+const VISIBLE_CHARS = 3;
+
+/**
+ * Show the first few characters, and never the last one.
+ *
+ * `ap` and `ar` are both two characters, so a fixed three would print short local parts whole.
+ * One character is always withheld, and a one-character part shows nothing at all.
+ */
+function reveal(part: string): string {
+  return part.slice(0, Math.min(VISIBLE_CHARS, Math.max(part.length - 1, 0)));
+}
+
 /**
  * Mask an address enough to be recognisable to its owner and useless to anybody else.
  *
  * The list is shown to whoever holds the link, so it must not hand a stranger the vendor's AP
- * addresses. Keeping the first character and the domain's shape is enough for the real recipient
- * to pick their own out of two or three.
+ * addresses. It showed one character of each half, which is too little to choose by: a supplier
+ * with `ahmed@` and `accounts@` saw the same `a••••` twice and had to guess. Three characters
+ * separate the addresses people actually have, while the length stays hidden and the last
+ * character is never shown.
  */
 export function maskEmail(email: string): string {
   const [user = '', domain = ''] = email.split('@');
-  const head = user.slice(0, 1);
   const dot = domain.lastIndexOf('.');
   const name = dot > 0 ? domain.slice(0, dot) : domain;
   const tld = dot > 0 ? domain.slice(dot) : '';
-  return `${head}${'•'.repeat(Math.max(user.length - 1, 2))}@${name.slice(0, 1)}${'•'.repeat(Math.max(name.length - 1, 2))}${tld}`;
+  /* A fixed run rather than one dot per hidden character, so the masked form does not print the
+     address's length beside it. Counting dots used to give it away. */
+  const dots = '•'.repeat(5);
+  return `${reveal(user)}${dots}@${reveal(name)}${dots}${tld}`;
 }
 
 export interface UploadTarget {

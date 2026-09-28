@@ -75,9 +75,23 @@ function OneSubmission({ submission }: { submission: SubmissionView }) {
   const { lines, totalsByCurrency, linesNeedingReview, parseError } = submission;
 
   return (
-    <div className="rounded-lg border border-sns-line bg-white">
+    <div className={`rounded-lg border bg-white ${submission.superseded ? 'border-sns-line opacity-70' : 'border-sns-line'}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-b-[#F0F0F0] px-3 py-2">
-        <div className="text-[11.5px] font-bold text-sns-ink">{submission.fileName}</div>
+        <div className="flex items-center gap-2">
+          <div
+            className={`text-[11.5px] font-bold ${submission.superseded ? 'text-sns-grey' : 'text-sns-ink'}`}
+          >
+            {submission.fileName}
+          </div>
+          {/* Its totals are still shown, so it has to say that none of them count. Two statements
+              from one supplier with two different balances and no marking is how the wrong figure
+              gets read off a screen. */}
+          {submission.superseded && (
+            <span className="rounded-full bg-[#F0F0F0] px-2 py-0.5 text-[10px] font-bold text-sns-grey">
+              Replaced by a later statement
+            </span>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
           {/* Never one figure across currencies: a statement can list dinars and dollars on
               consecutive rows, and a single total would look exactly like a number that means

@@ -65,6 +65,10 @@ let templateCache: Buffer | null = null;
  *
  * Ordered by what the vendor owes rather than by when their statement arrived: AP reads down from
  * the largest balance, and a file ordered by upload time makes that a search instead.
+ *
+ * Current statements only. A supplier who re-sends a corrected file has both on record, and
+ * counting the retired one too would list every invoice twice and double their balance in the one
+ * file AP works from.
  */
 async function linesFor(countryId: string) {
   await ensureSoaSchema();
@@ -80,7 +84,7 @@ async function linesFor(countryId: string) {
        JOIN country_cycles cc      ON cc.id = e.country_cycle_id
        JOIN countries co           ON co.id = cc.country_id
        JOIN cycles cy              ON cy.id = cc.cycle_id AND cy.is_active
-      WHERE cc.country_id = ?
+      WHERE cc.country_id = ? AND s.superseded_at IS NULL
       ORDER BY vendor_total DESC, l.vendor_no, l.line_no`,
     [countryId],
   );

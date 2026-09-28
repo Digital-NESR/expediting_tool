@@ -91,7 +91,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
       ),
       soaPool.query<QueryResultRow>(
         `SELECT v.vendor_no, v.name AS vendor_name, s.file_name, s.uploaded_at, s.uploaded_by,
-                s.accepted_at, s.accepted_by, s.detected_invoice_count, LENGTH(s.content) AS bytes
+                s.accepted_at, s.accepted_by, s.detected_invoice_count, s.superseded_at,
+                LENGTH(s.content) AS bytes
            FROM soa_submissions s
            JOIN vendor_cycle_entries vce ON vce.id = s.vendor_cycle_entry_id
            JOIN vendors v ON v.id = vce.vendor_id
@@ -275,6 +276,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
       'Accepted',
       'Accepted by',
       'Invoices detected',
+      // A vendor may appear twice. An auditor reading a total has to be able to see which of the
+      // two files it was computed from, and that the other was not simply counted as well.
+      'Counted',
     ]);
     for (const s of submissionRes.rows) {
       st.addRow([
@@ -287,6 +291,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
         s.accepted_at ? asIso(s.accepted_at) : 'Not accepted',
         s.accepted_by ? String(s.accepted_by) : '',
         s.detected_invoice_count == null ? '' : Number(s.detected_invoice_count),
+        s.superseded_at ? `Superseded ${asIso(s.superseded_at)}` : 'Yes',
       ]);
     }
     st.columns.forEach((c, i) => {

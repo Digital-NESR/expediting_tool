@@ -83,6 +83,17 @@ export async function storeStatement(input: StoreInput): Promise<StoreResult> {
   const needingReview = lines.filter((l) => l.issues.length > 0).length;
 
   const submissionId = await withTransaction(soaPool, async (client: PoolClient) => {
+    /* Retire whatever this vendor sent before, in the same transaction that files the new one.
+       A supplier correcting a mistake and sending the file again is ordinary, and until this
+       every one of their invoices went into the consolidated workbook a second time. The old
+       rows stay: they are evidence of what was first claimed, and only leave the arithmetic. */
+    await client.query(
+      `UPDATE soa_submissions
+          SET superseded_at = NOW()
+        WHERE vendor_cycle_entry_id = $1 AND superseded_at IS NULL`,
+      [input.entryId],
+    );
+
     const inserted = await client.query<{ id: number }>(
       `INSERT INTO soa_submissions
          (vendor_cycle_entry_id, file_name, content, content_type, uploaded_by,
