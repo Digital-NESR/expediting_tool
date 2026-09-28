@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CURRENCY_LIST_FITS_EXCEL, CURRENCY_LIST_FORMULA } from '@/lib/soa/currencies';
 import ExcelJS from 'exceljs';
 import {
   SUPPLIER_COLUMNS,
@@ -124,17 +125,43 @@ describe('buildSupplierWorkbook', () => {
     }
   });
 
-  it('leaves a dropdown on Legal Entity and nowhere else', async () => {
+  it('leaves a dropdown on the two columns that have one, and nowhere else', async () => {
     const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
     const sheet = wb.getWorksheet('SOA')!;
-    const entity = SUPPLIER_COLUMNS.indexOf('Legal Entity') + 1;
+    const withList = ['Legal Entity', 'Currency'].map((n) =>
+      SUPPLIER_COLUMNS.indexOf(n as (typeof SUPPLIER_COLUMNS)[number]) + 1,
+    );
     for (let c = 1; c <= SUPPLIER_COLUMNS.length; c++) {
       const v = sheet.getRow(2).getCell(c).dataValidation;
-      // A dropdown belongs on the entity column only. The template's one sat on column D of the
-      // sixteen-column layout, and stripping four columns made D the Invoice Date.
-      if (c === entity) expect(v?.type, SUPPLIER_COLUMNS[c - 1]).toBe('list');
+      // The template's own dropdown sat on column D of the sixteen-column layout, and stripping
+      // four columns made D the Invoice Date. It must not have come back.
+      if (withList.includes(c)) expect(v?.type, SUPPLIER_COLUMNS[c - 1]).toBe('list');
       else expect(v?.type, SUPPLIER_COLUMNS[c - 1]).not.toBe('list');
     }
+  });
+
+  it('offers the currencies NESR is actually invoiced in', async () => {
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
+    const col = SUPPLIER_COLUMNS.indexOf('Currency') + 1;
+    const v = wb.getWorksheet('SOA')!.getRow(2).getCell(col).dataValidation;
+    const list = String(v?.formulae?.[0] ?? '');
+    for (const code of ['USD', 'SAR', 'AED', 'KWD', 'QAR', 'BHD', 'OMR', 'EGP', 'EUR', 'INR']) {
+      expect(list, code).toContain(code);
+    }
+    // Excel drops an inline list over 255 characters silently: the file opens, and the dropdown
+    // is simply not there. Worth failing a build over rather than a supplier discovering it.
+    expect(CURRENCY_LIST_FORMULA.length).toBeLessThanOrEqual(255);
+    expect(CURRENCY_LIST_FITS_EXCEL).toBe(true);
+  });
+
+  it('still lets a supplier type a currency that is not listed', async () => {
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
+    const col = SUPPLIER_COLUMNS.indexOf('Currency') + 1;
+    const v = wb.getWorksheet('SOA')!.getRow(2).getCell(col).dataValidation;
+    // A list that refuses everything else would stop a supplier returning a statement over a
+    // currency we forgot, which is a far worse outcome than a code we have to look at.
+    expect(v?.errorStyle).toBe('warning');
+    expect(v?.allowBlank).toBe(true);
   });
 
   it('gives Saudi Arabia the workbook’s spelling, not the tool’s', async () => {

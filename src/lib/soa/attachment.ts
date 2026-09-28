@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import ExcelJS from 'exceljs';
+import { CURRENCY_LIST_FORMULA } from './currencies';
 
 /**
  * The workbook a supplier is asked to fill in.
@@ -184,6 +185,9 @@ function writeInstructions(
     'For a credit note, write "Credit Note" in the Type of service / Product Delivered column.',
   );
   bullet('Amounts should be entered as numbers, in the currency named on the same row.');
+  bullet(
+    'Currency, Legal Entity and Invoice Date are chosen or checked by the sheet itself. Click a cell to see what it expects.',
+  );
   blank();
 
   /* Addresses are for questions only. The statement itself comes back through the link, so that
@@ -373,19 +377,23 @@ export async function buildSupplierWorkbook(
     },
     {
       column: col('Currency'),
+      /* A list rather than a three-character length test, which accepted `XYZ` as readily as
+         `SAR` and did nothing about `Dhs` or `Riyal`. Still a warning, and still blank-allowed:
+         a supplier billing in something not on the list can type it, and a statement somebody is
+         trying to return should never be refused over the spelling of a currency. */
       rule: {
-        type: 'textLength',
-        operator: 'equal',
+        type: 'list',
         allowBlank: true,
-        formulae: [3],
+        formulae: [CURRENCY_LIST_FORMULA],
         showInputMessage: true,
         promptTitle: 'Currency',
         prompt:
-          'The three-letter code for the currency this invoice is in, for example USD, SAR, KWD or AED. One currency per row.',
+          'Choose the currency this invoice is in, from the list. One currency per row. If yours is not listed, type its three-letter code, for example USD rather than "US Dollars" or "$".',
         showErrorMessage: true,
         errorStyle: 'warning',
-        errorTitle: 'Use a three-letter code',
-        error: 'Enter the ISO currency code, for example USD rather than "US Dollars" or "$".',
+        errorTitle: 'Not a listed currency',
+        error:
+          'That is not one of the listed currencies. If it is right, use the three-letter ISO code and carry on.',
       },
     },
   ];

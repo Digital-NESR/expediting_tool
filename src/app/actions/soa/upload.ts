@@ -1,6 +1,5 @@
 'use server';
 
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
 import { validateUploadSignature, uploadMimeTypeFor } from '@/lib/documents';
@@ -35,8 +34,19 @@ const log = logger('soa-upload');
 
 export type UploadResult<T = undefined> = { success: boolean; error?: string; data?: T };
 
-/** Scoped per vendor, so a champion with several links open does not overwrite their own session. */
-const cookieName = (entryId: number) => `soa_up_${entryId}`;
+/**
+ * The session lives in the TAB, not in the browser.
+ *
+ * It used to be a cookie, which meant a supplier who verified once was still verified half an hour
+ * later in any tab, including one opened by somebody the link had since been forwarded to. The
+ * token now goes back to the page, which keeps it in `sessionStorage` and hands it to the two
+ * calls that need it, so closing the tab ends the session and opening the link again asks for a
+ * new code.
+ *
+ * The trade is that the token is readable by script on the page where a cookie could be httpOnly.
+ * It is worth it here: there is no user-supplied HTML on this page, and the token is good for one
+ * vendor, for thirty minutes, for uploading a statement and nothing else.
+ */
 
 export interface UploadPageState {
   vendorName: string;
@@ -47,7 +57,7 @@ export interface UploadPageState {
   acceptingUploads: boolean;
   /** Masked, in the order `requestSoaUploadCode` indexes them. */
   maskedContacts: string[];
-  /** The address already verified in this browser, masked. Null until they verify. */
+  /** The address already verified in THIS TAB, masked. Null until the tab verifies one. */
   verifiedAs: string | null;
   /** A signed-in champion for this country skips verification entirely. */
   signedInAs: string | null;
@@ -72,17 +82,21 @@ async function championFor(target: UploadTarget): Promise<string | null> {
   }
 }
 
-/** Everything the upload page renders, resolved from the link alone. */
-export async function getSoaUploadState(token: string): Promise<UploadResult<UploadPageState>> {
+/**
+ * Everything the upload page renders, resolved from the link alone.
+ *
+ * `sessionToken` is whatever the tab has kept from an earlier verification in this same tab. It is
+ * checked rather than believed: it may be expired, spent, or for another vendor entirely.
+ */
+export async function getSoaUploadState(
+  token: string,
+  sessionToken?: string,
+): Promise<UploadResult<UploadPageState>> {
   try {
     const target = await targetForToken(token);
     if (!target) return { success: false, error: 'not-found' };
 
-    const jar = await cookies();
-    const verifiedEmail = await sessionEmailFor(
-      target.entryId,
-      jar.get(cookieName(target.entryId))?.value,
-    );
+    const verifiedEmail = await sessionEmailFor(target.entryId, sessionToken);
 
     return {
       success: true,
@@ -159,11 +173,11 @@ export async function requestSoaUploadCode(
   }
 }
 
-/** Check a code and, on success, open a short session in this browser. */
+/** Check a code and, on success, open a short session in the tab that asked for it. */
 export async function verifySoaUploadCode(
   token: string,
   code: string,
-): Promise<UploadResult<{ verifiedAs: string }>> {
+): Promise<UploadResult<{ verifiedAs: string; sessionToken: string }>> {
   try {
     const target = await targetForToken(token);
     if (!target) return { success: false, error: 'This link is no longer valid.' };
@@ -171,17 +185,11 @@ export async function verifySoaUploadCode(
     const result = await verifyUploadCode(target.entryId, code);
     if (!result.ok) return { success: false, error: result.reason };
 
-    const jar = await cookies();
-    jar.set(cookieName(target.entryId), result.sessionToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/soa-upload',
-      maxAge: 30 * 60,
-    });
-
     log.info('upload.verified', { vendorNo: target.vendorNo, countryId: target.countryId });
-    return { success: true, data: { verifiedAs: maskEmail(result.email) } };
+    return {
+      success: true,
+      data: { verifiedAs: maskEmail(result.email), sessionToken: result.sessionToken },
+    };
   } catch (err) {
     log.error('verifySoaUploadCode.failed', err);
     return { success: false, error: 'Could not check that code.' };
@@ -197,6 +205,7 @@ export async function verifySoaUploadCode(
 export async function submitSoaUploadFile(
   token: string,
   formData: FormData,
+  sessionToken?: string,
 ): Promise<UploadResult<{ lines: number; needingReview: number }>> {
   try {
     const target = await targetForToken(token);
@@ -205,11 +214,7 @@ export async function submitSoaUploadFile(
       return { success: false, error: 'This cycle has closed and is no longer accepting statements.' };
     }
 
-    const jar = await cookies();
-    const verifiedEmail = await sessionEmailFor(
-      target.entryId,
-      jar.get(cookieName(target.entryId))?.value,
-    );
+    const verifiedEmail = await sessionEmailFor(target.entryId, sessionToken);
     const champion = verifiedEmail ? null : await championFor(target);
     if (!verifiedEmail && !champion) {
       return { success: false, error: 'Verify your email address before uploading.' };
