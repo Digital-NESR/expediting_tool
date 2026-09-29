@@ -102,3 +102,47 @@ export function ProcureGuardMark({
     />
   );
 }
+
+/**
+ * ShipWaves, a ship's wheel inside a map pin.
+ *
+ * Drawn rather than served as a file, like the other marks: the same glyph serves the home page
+ * card and anywhere else the tool is named, and an SVG takes the colour it is given instead of
+ * needing one copy per background.
+ *
+ * The disc behind the wheel is a HOLE, punched through the pin with an even-odd fill, not a white
+ * circle painted on top. A hardcoded white worked on the tinted tile and disappeared on a solid
+ * one, where the mark is drawn in white and every layer became the same colour. As a hole it takes
+ * whatever is behind it, so the wheel reads on any tile.
+ *
+ * Six spokes, not the eight a real wheel has. This renders at 24px on the card, and at that size
+ * eight closed into a dark blur; six keeps daylight between them.
+ */
+export function ShipWavesMark({ className = 'h-6 w-6', style }: MarkProps) {
+  return (
+    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M12 1.6c-4.2 0-7.6 3.37-7.6 7.53 0 5.24 6.62 12.27 6.9 12.56a.96.96 0 0 0 1.4 0c.28-.29 6.9-7.32 6.9-12.56C19.6 4.97 16.2 1.6 12 1.6Zm0 3.06a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z"
+        fill="currentColor"
+      />
+      {/* The wheel, inside the hole. The rim sits clear of the edge so it never merges with it. */}
+      <circle cx="12" cy="9.16" r="2.05" fill="none" stroke="currentColor" strokeWidth="1" />
+      <circle cx="12" cy="9.16" r="0.62" fill="currentColor" />
+      {[0, 60, 120].map((deg) => (
+        <line
+          key={deg}
+          x1="12"
+          y1="5.95"
+          x2="12"
+          y2="12.37"
+          stroke="currentColor"
+          strokeWidth="0.95"
+          strokeLinecap="round"
+          transform={`rotate(${deg} 12 9.16)`}
+        />
+      ))}
+    </svg>
+  );
+}

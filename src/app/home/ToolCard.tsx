@@ -101,9 +101,22 @@ export function AccessBadge({ status, isAdmin }: { status: ToolStatus; isAdmin: 
   return null;
 }
 
-function ProcureGuardBadge({ accessType }: { accessType: ProcureGuardAccessType }) {
-  const label =
-    accessType === 'admin'
+/**
+ * `isAdmin` is the ADMIN_EMAILS environment variable, and it is the only thing that reads as full
+ * access. `accessType` can also say 'admin' for somebody holding an admin role in ProcureGuard's
+ * own permissions table, which is authority over that tool rather than over the platform, so it
+ * keeps its own narrower label.
+ */
+function ProcureGuardBadge({
+  accessType,
+  isAdmin,
+}: {
+  accessType: ProcureGuardAccessType;
+  isAdmin: boolean;
+}) {
+  const label = isAdmin
+    ? 'Full Access'
+    : accessType === 'admin'
       ? 'Admin Access'
       : accessType === 'approver'
         ? 'Approver Access'
@@ -289,9 +302,18 @@ export function ToolCard({
         {tool.badge.kind === 'status' ? (
           <AccessBadge status={status} isAdmin={isAdmin} />
         ) : tool.badge.kind === 'procureGuard' ? (
-          <ProcureGuardBadge accessType={procureGuardAccessType} />
+          <ProcureGuardBadge accessType={procureGuardAccessType} isAdmin={isAdmin} />
         ) : tool.badge.kind === 'success' ? (
           <TickBadge label={tool.badge.label} />
+        ) : tool.badge.kind === 'adminOrLock' ? (
+          /* An administrator opens the tool without asking anybody, so telling them access is
+             required is simply false. Everyone else still sees the padlock, because for them it
+             is true. */
+          isAdmin ? (
+            <TickBadge label="Full Access" />
+          ) : (
+            <LockBadge label={tool.badge.label} />
+          )
         ) : tool.badge.kind === 'lock' ? (
           <LockBadge label={tool.badge.label} />
         ) : (

@@ -11,6 +11,7 @@ import {
   PoExpeditingMark,
   ProcureGuardMark,
   RfxOfficerMark,
+  ShipWavesMark,
   TiteMark,
 } from '@/components/ToolMarks';
 import {
@@ -49,6 +50,8 @@ export type ToolBadge =
   | { kind: 'success'; label: string }
   /** Grey padlock badge (separate portal). */
   | { kind: 'lock'; label: string }
+  /** Padlock for most people, "Full Access" for an administrator, who needs nobody's permission. */
+  | { kind: 'adminOrLock'; label: string }
   /** Grey pill reading "Admin Preview" / "Coming Soon". */
   | { kind: 'preview' };
 
@@ -86,8 +89,11 @@ export interface ToolDef {
 const HOVER_GREEN = 'hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10';
 const HOVER_TITE = 'hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10';
 const HOVER_SOURCE = 'hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10';
+const HOVER_SHIPWAVES = 'hover:border-[#3AAEAA] hover:shadow-md hover:shadow-[#3AAEAA]/10';
 
 const NESR_GREEN = '#307c4c';
+/** ShipWaves is its own product with its own teal, the way TI-TE keeps its own green. */
+const SHIPWAVES_TEAL = '#3AAEAA';
 const TITE_GREEN = '#006B0C';
 const SOURCE_GREEN = '#2A7E4F';
 /** text-gray-500 — the action label colour on greyed preview cards. */
@@ -146,7 +152,8 @@ export const TOOLS: ToolDef[] = [
     hoverClass: HOVER_GREEN,
     accent: NESR_GREEN,
     tone: 'live',
-    // Open-access: no gate, just open. The layout enforces sign-in.
+    // Open-access: no gate, just open. The layout enforces sign-in. The badge reads Full Access
+    // only for an ADMIN_EMAILS administrator; everyone else sees the role they actually hold.
     route: '/procure-guard',
     helpHref: '/help/procureguard',
     access: { kind: 'always' },
@@ -169,6 +176,27 @@ export const TOOLS: ToolDef[] = [
     route: 'https://rfxofficer.nesr.com',
     external: true,
     helpHref: '/help/rfx-officer',
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Portal Access' },
+  },
+
+  {
+    id: 'shipwaves',
+    group: 'online',
+    keywords:
+      'shipwaves logistics shipments tracking freight movement country customs import export transport consignment',
+    name: 'ShipWaves',
+    subtitle: 'Logistics Movement Tracking',
+    description:
+      'Track every logistics movement across NESR: follow shipments by country and movement type, and see where a consignment has reached.',
+    icon: <ShipWavesMark className="h-6 w-6" style={{ color: SHIPWAVES_TEAL }} />,
+    logoClass: 'bg-[#3AAEAA]/10',
+    hoverClass: HOVER_SHIPWAVES,
+    accent: SHIPWAVES_TEAL,
+    tone: 'live',
+    // ShipWaves is its own application on its own domain, so the card action is a real link.
+    route: 'https://app.shipwaves.com',
+    external: true,
     access: { kind: 'always' },
     badge: { kind: 'lock', label: 'Portal Access' },
   },
@@ -305,7 +333,7 @@ export const TOOLS: ToolDef[] = [
        page. An adminPreview card would be inert for everyone else, so an approved champion
        would pass the tool's gate and still have no way in short of typing the URL. */
     access: { kind: 'always' },
-    badge: { kind: 'lock', label: 'Access Required' },
+    badge: { kind: 'adminOrLock', label: 'Access Required' },
     openLabel: 'Open →',
   },
 
