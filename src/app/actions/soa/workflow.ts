@@ -608,6 +608,7 @@ export async function handOffSoaCountry(
     const ctx = await letterContext(countryId);
     const notified = await notifySoaHandoff({
       countryName: ctx.countryName,
+      countryId,
       cycleLabel: String(rows[0].label),
       apEmails: ctx.apEmails,
       championEmails: [...new Set([...ctx.championEmails, actor.email])],

@@ -1,5 +1,8 @@
 import { logger } from '@/lib/logger';
 import { platformAdminEmails } from '@/lib/require-access';
+import { buildConsolidatedWorkbook, consolidatedFileName } from './consolidated';
+import { handoffNoticeEmail } from './email-template';
+import type { MailAttachment } from './mail';
 
 /**
  * Tell the administrators when somebody asks for SOA access.
@@ -127,6 +130,7 @@ export async function notifySoaAccessRequest(input: {
  */
 export async function notifySoaHandoff(input: {
   countryName: string;
+  countryId: string;
   cycleLabel: string;
   apEmails: string[];
   championEmails: string[];
@@ -141,6 +145,32 @@ export async function notifySoaHandoff(input: {
     return false;
   }
 
+  /* The consolidated file rides along, because this message is the handover and that file is what
+     is being handed over. AP would otherwise be told a country is ready and left to go and fetch
+     the thing they were told about.
+
+     Built here rather than stored, so it is the file as it stands at the moment of closing, and
+     allowed to fail on its own: the close is already committed, and a notice that arrives without
+     its attachment is better than no notice at all. The body says which of the two happened. */
+  let attachments: MailAttachment[] = [];
+  let attachmentName: string | null = null;
+  try {
+    const { file } = await buildConsolidatedWorkbook(input.countryId);
+    attachmentName = consolidatedFileName(input.countryId, input.cycleLabel);
+    attachments = [
+      {
+        fileName: attachmentName,
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        contentBase64: file.toString('base64'),
+      },
+    ];
+  } catch (err) {
+    log.warn('handoff.consolidatedUnavailable', {
+      countryId: input.countryId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   const rows: [string, string][] = [
     ['Country', input.countryName],
     ['Cycle', input.cycleLabel],
@@ -150,19 +180,16 @@ export async function notifySoaHandoff(input: {
     ['Closed by', input.closedBy],
   ];
 
-  const bodyHtml = [
-    `<p>The Statement of Account cycle for <strong>${esc(input.countryName)}</strong> has been closed and is ready for your review.</p>`,
-    '<table cellpadding="4" style="border-collapse:collapse">',
-    ...rows.map(
-      ([k, v]) =>
-        `<tr><td style="color:#58595B">${esc(k)}</td><td><strong>${esc(v)}</strong></td></tr>`,
-    ),
-    '</table>',
-    input.portalUrl
-      ? `<p>Open it in the portal: <a href="${esc(input.portalUrl)}">${esc(input.portalUrl)}</a></p>`
-      : '<p>Open SOA Consolidation in the SC Agents portal to review it.</p>',
-    '<p>You can see every statement returned, the invoice lines read from each one, and the full evidence trail.</p>',
-  ].join('');
+  const bodyHtml = handoffNoticeEmail({
+    countryName: input.countryName,
+    cycleLabel: input.cycleLabel,
+    vendors: input.vendors,
+    statementsReceived: input.statementsReceived,
+    coveragePct: input.coveragePct,
+    closedBy: input.closedBy,
+    portalUrl: input.portalUrl,
+    attachmentName,
+  });
 
   try {
     const { sendMail } = await import('./mail');
@@ -172,8 +199,8 @@ export async function notifySoaHandoff(input: {
       cc: input.championEmails,
       subject: `SOA ${input.cycleLabel} closed, ${input.countryName}`,
       bodyHtml,
-      bodyText: rows.map(([k, v]) => k + ": " + v).join('\n'),
-      attachments: [],
+      bodyText: rows.map(([k, v]) => `${k}: ${v}`).join('\n'),
+      attachments,
       meta: { countryName: input.countryName, cycleLabel: input.cycleLabel },
     });
     return true;

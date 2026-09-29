@@ -171,6 +171,61 @@ export function emailShell(subtitle: string, inner: string): string {
 </td></tr></table>`;
 }
 
+/**
+ * The notice Accounts Payable gets when a champion closes a country.
+ *
+ * The one message in the system that goes to a colleague rather than a supplier, and the last one
+ * still hand-rolled. It is also the one that hands work over, so the figures it quotes are the
+ * figures the receiving team will be asked about: they read as a panel rather than as a sentence.
+ */
+export function handoffNoticeEmail(input: {
+  countryName: string;
+  cycleLabel: string;
+  vendors: number;
+  statementsReceived: number;
+  coveragePct: number;
+  closedBy: string;
+  portalUrl: string | null;
+  attachmentName: string | null;
+}): string {
+  const figure = (label: string, value: string) =>
+    `<td width="33%" align="center" style="padding:14px 8px;background-color:#F1F6F2;border:1px solid #CFE3D6;border-radius:8px">
+<div style="font-size:24px;font-weight:bold;color:#1D4F31">${escapeHtml(value)}</div>
+<div style="font-size:11px;color:#58595B;padding-top:4px">${escapeHtml(label)}</div></td>`;
+
+  return emailShell(
+    'Statement of Account',
+    `<h2 style="font-size:20px;color:#1D4F31;margin:0">${escapeHtml(input.countryName)} is closed and ready for you</h2>
+<p style="font-size:14px;line-height:1.6">The ${escapeHtml(input.cycleLabel)} statement of account cycle for <strong>${escapeHtml(input.countryName)}</strong> has been reconciled against the statements collected and handed over by ${escapeHtml(input.closedBy)}.</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:8px 0">
+<tr>${figure('Vendors in scope', String(input.vendors))}<td width="8"></td>${figure('Statements received', String(input.statementsReceived))}<td width="8"></td>${figure('Coverage', `${input.coveragePct}%`)}</tr>
+</table>
+
+${
+  input.attachmentName
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:8px 0">
+<tr><td style="background-color:#FAFBFA;border:1px solid #E2E6E2;border-radius:8px;padding:16px 18px">
+<div style="font-size:13px;font-weight:bold;color:#1D4F31">Consolidated statement attached</div>
+<div style="font-size:13px;line-height:1.6;padding-top:4px">${escapeHtml(input.attachmentName)} carries every invoice line every supplier returned, in the sixteen-column format you already work in. Where a supplier answered by email or had nothing outstanding, their line says so and points you at the correspondence.</div>
+</td></tr></table>`
+    : `<p style="font-size:13px;line-height:1.6;color:#8A4B00">The consolidated file could not be attached to this message. It is on the Consolidation screen in the portal.</p>`
+}
+
+${
+  input.portalUrl
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="padding:8px 0">
+<tr><td align="center" style="background-color:#307c4c;border-radius:6px">
+<a href="${escapeHtml(input.portalUrl)}" style="display:inline-block;padding:12px 26px;font-size:14px;font-weight:bold;color:#FFFFFF;text-decoration:none">Open the cycle in the portal</a>
+</td></tr></table>`
+    : ''
+}
+
+<p style="font-size:13px;line-height:1.6">In the portal you can read every statement as it was returned, the invoice lines taken from each one, and the evidence trail behind the coverage figure above.</p>
+<p style="font-size:13px;line-height:1.6;color:#8A8A8A">Reconciling these balances against the ledger is yours. This tool collects and consolidates what the suppliers sent; it does not compare it to what NESR believes.</p>`,
+  );
+}
+
 /** The one-time code sent to a supplier proving they can read one of the vendor's addresses. */
 export function verificationCodeEmail(input: {
   code: string;
