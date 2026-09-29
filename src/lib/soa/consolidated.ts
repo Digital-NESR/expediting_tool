@@ -188,6 +188,32 @@ function markerRow(r: QueryResultRow): ConsolidatedRow {
   };
 }
 
+/**
+ * The same workbook for one supplier.
+ *
+ * AP queries a statement with the vendor who sent it, not with the country, and a 900-row file is
+ * not what you attach to that email. The format is identical to the country's, so a row pasted
+ * from one into the other still lines up.
+ */
+export async function buildVendorConsolidatedWorkbook(
+  countryId: string,
+  vendorNo: string,
+): Promise<{ file: Buffer; summary: ConsolidatedSummary; vendorName: string }> {
+  const [lines, markers] = await Promise.all([linesFor(countryId), markersFor(countryId)]);
+  const all = [
+    ...(lines as unknown as ConsolidatedRow[]).map((r) => ({ ...r, marker: null })),
+    ...markers.map(markerRow),
+  ];
+  const rows = all.filter((r) => String(r.vendor_no) === vendorNo);
+  if (!rows.length) {
+    throw new NothingToConsolidate(
+      'Nothing has been read for this supplier yet, so there is nothing to consolidate.',
+    );
+  }
+  const built = await writeConsolidated(rows);
+  return { ...built, vendorName: rows[0].vendor_name };
+}
+
 /** Build the workbook for a country's active cycle. */
 export async function buildConsolidatedWorkbook(
   countryId: string,
@@ -303,4 +329,20 @@ export async function writeConsolidated(
 export function consolidatedFileName(countryId: string, cycleLabel: string): string {
   const safe = cycleLabel.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
   return `NESR-SOA-Consolidated-${countryId}-${safe}.xlsx`;
+}
+
+/**
+ * The one-supplier file's name.
+ *
+ * The supplier's own name leads, because this file is downloaded one vendor at a time and a
+ * folder of NESR-SOA-Consolidated-EG-Q3-2026 (1)…(9) cannot be told apart without opening each.
+ */
+export function vendorConsolidatedFileName(
+  vendorName: string,
+  vendorNo: string,
+  cycleLabel: string,
+): string {
+  const safe = (v: string, max = 40) =>
+    v.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, max).replace(/-$/, '');
+  return `NESR-SOA-${safe(vendorName)}-${safe(vendorNo, 20)}-${safe(cycleLabel)}.xlsx`;
 }

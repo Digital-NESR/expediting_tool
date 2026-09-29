@@ -101,6 +101,7 @@ function writeInstructions(
   countryName: string,
   apEmails: string[],
   championEmails: string[],
+  vendor?: SupplierIdentity,
 ): void {
   /* Cleared cell by cell rather than with spliceRows, which leaves the original content in place
      here -- the template's sheet carries merges, and the new rows then land underneath the old
@@ -158,6 +159,15 @@ function writeInstructions(
   title('NESR, Statement of Account');
   const sub = put(null, `How to complete this workbook, ${countryName}`);
   sub.getCell(2).font = { size: 11, color: { argb: 'FF58595B' } };
+  /* Who this copy is for, when it was built for one supplier.
+     The identity goes here and not into the SOA sheet's rows: the parser reads that sheet from
+     row 2, so a line above the invoices would shift every row it expects, and the vendor's name
+     and number are stamped onto the parsed rows from our own record when the file comes back. A
+     supplier opening a file that names them can still see it is theirs. */
+  if (vendor) {
+    const who = put(null, `Prepared for ${vendor.vendorName} (vendor ${vendor.vendorNo})`);
+    who.getCell(2).font = { bold: true, size: 11, color: { argb: 'FF2A7E4F' } };
+  }
   blank();
 
   heading('Filling it in');
@@ -245,10 +255,11 @@ export async function buildSupplierWorkbook(
   countryName: string,
   apEmails: string[],
   championEmails: string[] = [],
+  vendor?: SupplierIdentity,
 ): Promise<Buffer> {
-  // The contact addresses are printed into the sheet, so they are part of what makes a build
-  // distinct. The upload link is not: it is per vendor, and this file is per country.
-  const key = `${countryId}|${countryName}|${apEmails.join(',')}|${championEmails.join(',')}`;
+  // The contact addresses and the vendor are printed into the sheet, so they are part of what
+  // makes a build distinct. The upload link is not: it is per vendor but never printed here.
+  const key = `${countryId}|${countryName}|${apEmails.join(',')}|${championEmails.join(',')}|${vendor?.vendorNo ?? ''}`;
   const cached = built.get(key);
   if (cached) return cached;
 
@@ -427,7 +438,7 @@ export async function buildSupplierWorkbook(
   if (entities) entities.state = 'veryHidden';
 
   const instructions = wb.getWorksheet('Instruction');
-  if (instructions) writeInstructions(instructions, countryName, apEmails, championEmails);
+  if (instructions) writeInstructions(instructions, countryName, apEmails, championEmails, vendor);
 
   // The AP mailbox list belongs to NESR, not to the supplier, and the one address that concerns
   // them is now printed on the instructions.
@@ -440,7 +451,30 @@ export async function buildSupplierWorkbook(
 }
 
 /** File name the supplier sees. Free of characters that travel badly through mail clients. */
-export function attachmentFileName(cycleLabel: string): string {
-  const safe = cycleLabel.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return `NESR-Statement-of-Account-${safe}.xlsx`;
+/** Identity of the one supplier a copy of the workbook is built for. */
+export interface SupplierIdentity {
+  vendorNo: string;
+  vendorName: string;
+}
+
+/** Trim a name to something a file system and a mail client will both accept. */
+function fileSafe(value: string, max = 40): string {
+  return value
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, max)
+    .replace(/-$/, '');
+}
+
+/**
+ * What the file is called.
+ *
+ * With a vendor, their name and number are in it. Sixty suppliers downloaded one at a time all
+ * called NESR-Statement-of-Account-Q3-2026.xlsx land in one folder as (1), (2), (3), and the
+ * person who has to send them cannot tell which is which without opening every one.
+ */
+export function attachmentFileName(cycleLabel: string, vendor?: SupplierIdentity): string {
+  const safe = fileSafe(cycleLabel);
+  if (!vendor) return `NESR-Statement-of-Account-${safe}.xlsx`;
+  return `NESR-SOA-${fileSafe(vendor.vendorName)}-${fileSafe(vendor.vendorNo, 20)}-${safe}.xlsx`;
 }

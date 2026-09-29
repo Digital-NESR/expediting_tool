@@ -386,8 +386,7 @@ export type EmptyKind =
   | 'no-extract'
   | 'no-country'
   | 'not-enrolled'
-  | 'not-scoped'
-  | 'ap-waiting';
+  | 'not-scoped';
 
 export interface ViewModel {
   role: Role;

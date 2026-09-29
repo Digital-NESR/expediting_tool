@@ -60,20 +60,23 @@ describe('emptyKindFor', () => {
     expect(emptyKindFor({ ...READY, hasCountry: false, extracted: false })).toBe('no-country');
   });
 
-  it('holds Accounts Payable back until the champion has closed the cycle', () => {
-    expect(emptyKindFor({ ...READY, apOnly: true })).toBe('ap-waiting');
+  it('lets Accounts Payable read the country during the chase', () => {
+    // AP is copied on every request and every reminder, so they watched the chase arrive in their
+    // inbox all quarter while the portal told them there was nothing to review. They read it now.
+    expect(emptyKindFor({ ...READY, apOnly: true })).toBe('none');
   });
 
   it('lets Accounts Payable in once it is closed', () => {
     expect(emptyKindFor({ ...READY, apOnly: true, handedOff: true })).toBe('none');
   });
 
-  it('does not send an AP reader off to scope a country', () => {
-    // Scoping is the champion's work. Telling AP the country is unscoped points them at a job
-    // that is not theirs and a screen where every button is disabled.
+  it('gives an AP reader the same reason a champion gets when there is nothing there', () => {
+    // Being AP no longer changes WHY a country is empty, only what they can do about it: the nav
+    // drops Scoping and Outreach, and every mutating button is champion-only.
     expect(emptyKindFor({ ...READY, apOnly: true, enrolled: false, scoped: false })).toBe(
-      'ap-waiting',
+      'not-enrolled',
     );
+    expect(emptyKindFor({ ...READY, apOnly: true, extracted: false })).toBe('no-extract');
   });
 
   it('still asks a champion to join even when the cycle is closed elsewhere', () => {

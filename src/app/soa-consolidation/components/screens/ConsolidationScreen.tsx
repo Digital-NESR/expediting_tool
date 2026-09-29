@@ -1,7 +1,7 @@
 import type { ScreenProps } from '../../types';
 import { CRITERION_BORDER, CRITERION_FILL } from '../tones';
 
-const COLUMNS = 'grid-cols-[30px_1fr_110px_65px_85px_55px_80px]';
+const COLUMNS = 'grid-cols-[30px_1fr_110px_65px_85px_55px_80px_60px]';
 
 export default function ConsolidationScreen({ vm }: ScreenProps) {
   return (
@@ -115,6 +115,7 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
           <div>Amount</div>
           <div>Inv.</div>
           <div>Response</div>
+          <div />
         </div>
         {vm.consolidatedRows.map((r, i) => (
           <div
@@ -130,6 +131,17 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
             <div className="font-bold text-sns-green">{r.fmtOpenPO}</div>
             <div className="text-sns-grey">{r.invCount}</div>
             <div className="text-sns-grey text-[10px]">{r.respDate}</div>
+            {/* This supplier's rows alone, in the same sixteen columns as the country file. What
+                AP attaches when they go back to one vendor about one line. */}
+            <div className="text-right">
+              <a
+                href={`/api/soa/vendor-consolidated/${r.id}`}
+                title={`Download ${r.name}'s lines in the consolidated format`}
+                className="text-[10.5px] font-bold text-sns-green hover:underline"
+              >
+                Excel
+              </a>
+            </div>
           </div>
         ))}
       </div>

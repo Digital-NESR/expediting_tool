@@ -231,6 +231,49 @@ describe('buildSupplierWorkbook', () => {
   });
 });
 
+describe('naming the supplier', () => {
+  const VENDOR = { vendorNo: '0001102567', vendorName: 'Khashman O. Al-Dossary & Sons' };
+
+  it('prints who the copy is for on the instructions', async () => {
+    const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS, VENDOR));
+    const sheet = wb.getWorksheet('Instruction')!;
+    let found = '';
+    sheet.eachRow((row) => {
+      const v = String(row.getCell(2).value ?? '');
+      if (v.includes('Prepared for')) found = v;
+    });
+    expect(found).toContain('Khashman O. Al-Dossary & Sons');
+    expect(found).toContain('0001102567');
+  });
+
+  it('still ships blank: naming them is not pre-filling their invoices', async () => {
+    const sheet = (
+      await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS, VENDOR))
+    ).getWorksheet('SOA')!;
+    // The parser reads the SOA sheet from row 2, so nothing may be written above the invoices.
+    for (let c = 1; c <= SUPPLIER_COLUMNS.length; c++) {
+      expect(sheet.getRow(2).getCell(c).value ?? '', SUPPLIER_COLUMNS[c - 1]).toBe('');
+    }
+  });
+
+  it('does not serve one vendor another vendor’s file from the cache', async () => {
+    const a = await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS, VENDOR);
+    const b = await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS, {
+      vendorNo: '0001102391',
+      vendorName: 'Arabian Machinery',
+    });
+    const plain = await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS);
+    expect(a.equals(b)).toBe(false);
+    expect(a.equals(plain)).toBe(false);
+  });
+
+  it('puts the supplier in the file name, so sixty downloads can be told apart', () => {
+    expect(attachmentFileName('Q3 2026', VENDOR)).toBe(
+      'NESR-SOA-Khashman-O-Al-Dossary-Sons-0001102567-Q3-2026.xlsx',
+    );
+  });
+});
+
 describe('attachmentFileName', () => {
   it('is named for the cycle, not the vendor. The file is the same for everyone', () => {
     expect(attachmentFileName('Q3 2026')).toBe('NESR-Statement-of-Account-Q3-2026.xlsx');

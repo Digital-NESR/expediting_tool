@@ -141,14 +141,18 @@ async function mailFor(
     vendorNo: context.vendorNo,
     uploadLink: uploadLinkFor(context.uploadToken),
   };
-  // Lean and identical for everyone in the country; the vendor's identity is stamped onto the
-  // rows when the file comes back, not printed into the blank they are sent. The AP addresses go
-  // on its instructions, which is why they are passed in rather than read there.
+  /* Still a blank: no invoice rows are pre-filled, and the vendor's identity is stamped onto the
+     rows when the file comes back rather than typed into the blank they are sent. What the vendor
+     does get is their own name on the instructions and in the file name, so a supplier opening
+     the attachment can see it is theirs and the champion downloading sixty of them can tell them
+     apart. The AP addresses go on the instructions too, which is why they are passed in. */
+  const identity = { vendorNo: context.vendorNo, vendorName: context.vendorName };
   const workbook = await buildSupplierWorkbook(
     context.countryId,
     context.countryName,
     letter.apEmails,
     letter.championEmails,
+    identity,
   );
 
   const html = renderTemplate(letter.bodyHtml, vars);
@@ -161,7 +165,7 @@ async function mailFor(
     bodyText: htmlToText(html),
     attachments: [
       {
-        fileName: attachmentFileName(context.cycleLabel),
+        fileName: attachmentFileName(context.cycleLabel, identity),
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         contentBase64: workbook.toString('base64'),
       },

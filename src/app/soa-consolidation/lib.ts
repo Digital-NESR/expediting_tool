@@ -319,10 +319,10 @@ export function emptyKindFor(state: {
 }): EmptyKind {
   if (!state.hasCycle) return 'no-cycle';
   if (!state.hasCountry) return 'no-country';
-  /* Accounts Payable picks a cycle up once it is closed. Before that, whether the extract has run
-     or the country has scoped is somebody else's business, and telling an AP user to go and scope
-     would point them at work that is not theirs. */
-  if (state.apOnly && !state.handedOff) return 'ap-waiting';
+  /* Accounts Payable used to be shown nothing at all until the champion closed the cycle. That
+     was wrong in a way the tool could not see: AP is copied on every request and every reminder,
+     so they watched the chase arrive in their inbox all quarter while the portal told them there
+     was nothing to review. They read it now, and act on none of it. */
   if (!state.extracted) return 'no-extract';
   // Joining is its own act. A country that has not joined has not decided against taking part, it
   // simply has not started, and "nothing scoped" would send the champion looking for a list that
@@ -388,7 +388,6 @@ export function deriveViewModel(
   const emptyBlocks = (id: ScreenId) =>
     emptyKind === 'no-cycle' ||
     emptyKind === 'no-country' ||
-    emptyKind === 'ap-waiting' ||
     emptyKind === 'not-enrolled' ||
     (emptyKind === 'not-scoped' && id !== 'scoping' && id !== 'rollup');
 
@@ -558,8 +557,10 @@ export function deriveViewModel(
     ] as StatusBarSegVM[]
   ).filter((s) => s.count > 0);
 
-  /* Scoping and Outreach are the champion's work. An AP reader cannot act on either -- every
-     button on them is already disabled -- so listing them would only offer two dead ends. */
+  /* Scoping and Outreach are the champion's work, and this is the whole of what AP-only now
+     changes: they read every other screen throughout the chase. An AP reader cannot act on
+     either of these two, since `canAct` is champion-only, so listing them would offer two dead
+     ends rather than two more things to watch. */
   const NAV: { id: ScreenId; label: string; badge: string | null }[] = [
     { id: 'dashboard', label: 'Dashboard', badge: null },
     ...(viewer.apOnly

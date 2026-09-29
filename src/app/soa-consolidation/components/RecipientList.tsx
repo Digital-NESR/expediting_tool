@@ -381,6 +381,18 @@ function VendorRow({
           )}
         </div>
 
+        {/* The blank template as this supplier was sent it, for when they say it never arrived or
+            want it at another address. Rebuilt on request rather than stored, so it always carries
+            the current AP contacts. */}
+        <a
+          href={`/api/soa/vendor-template/${vendor.entryId}`}
+          title={`Download the blank template for ${vendor.vendorName}`}
+          aria-label={`Download the blank template for ${vendor.vendorName}`}
+          className="shrink-0 text-[11px] font-semibold text-sns-grey hover:text-sns-green hover:underline"
+        >
+          Template
+        </a>
+
         <button
           type="button"
           onClick={onToggle}
