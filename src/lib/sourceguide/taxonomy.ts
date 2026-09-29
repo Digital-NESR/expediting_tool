@@ -1,101 +1,60 @@
 import type { QueryResultRow } from 'pg';
 import sourceGuidePool from '@/lib/db-sourceguide';
 import { logger } from '@/lib/logger';
-import type { SgTaxonomyCategory } from './types';
+import type { SgTaxonomyRow } from './types';
 
 /**
  * The spend taxonomy, without SourceGuide's access gate.
  *
  * A plain module, deliberately not `'use server'`: every export of one of those is a public POST
- * endpoint, and this is read by a server component that the proxy has already put behind sign-in.
- * Adding an endpoint would widen the surface for nothing.
+ * endpoint, and this is read by a server component on a route the proxy has already put behind
+ * sign-in. Adding an endpoint would widen the surface for nothing.
  *
- * SourceGuide's own `getTaxonomy` needs a reader grant, because there it sits beside the country
- * guides and the supplier mappings those grants exist to protect. This returns the same tree to
- * any signed-in employee: category, sub-category, family and commodity name are how NESR describes
- * what it buys, and somebody raising a purchase request needs to find their commodity without
- * asking for access to a sourcing tool they will never otherwise open.
+ * SourceGuide's own `getTaxonomyFacts` needs a reader grant, because there it sits beside the
+ * country guides and the supplier mappings those grants exist to protect. The same rows go to any
+ * signed-in employee here: spend type, category, sub-category, family and commodity name are how
+ * NESR describes what it buys, and somebody raising a purchase request has to name their commodity
+ * without asking for access to a sourcing tool they will never otherwise open.
  *
- * The per-commodity country count comes with it. It says how many country guides list a commodity,
- * not who supplies it or at what price, and it is the one number that tells a reader whether a
- * line is widely sourced or a local exception.
+ * Flat rows, not a tree. The screen groups and counts them itself as the reader drills in, which
+ * is what lets every column show how much sits under each value.
  */
 
 const log = logger('spend-taxonomy');
 
-export async function readSpendTaxonomy(): Promise<SgTaxonomyCategory[]> {
+export async function readSpendTaxonomyFacts(): Promise<SgTaxonomyRow[]> {
   try {
     const { rows } = await sourceGuidePool.query<QueryResultRow>(`
-      SELECT c.id, c.code, c.name, c.category, c.category_id,
-             COALESCE(c.sub_category, 'General') AS sub_category,
-             COALESCE(c.family, 'General') AS family,
-             COALESCE(cc.cnt, 0)::int AS countries
-        FROM sg_commodities c
-        LEFT JOIN (
-          SELECT commodity_id, COUNT(DISTINCT country_code) AS cnt
-            FROM sg_mappings WHERE status = 'Active' GROUP BY commodity_id
-        ) cc ON cc.commodity_id = c.id
-       ORDER BY c.category, sub_category, family, c.name
+      SELECT spend_type, category,
+             COALESCE(NULLIF(TRIM(sub_category), ''), 'General') AS sub,
+             COALESCE(NULLIF(TRIM(family), ''), 'General')       AS fam,
+             name
+        FROM sg_commodities
     `);
-    return buildTaxonomyTree(rows);
+    return rows.map((r) => [r.spend_type, r.category, r.sub, r.fam, r.name] as SgTaxonomyRow);
   } catch (err) {
-    /* An empty tree rather than a thrown page. The taxonomy is reference material: a reader who
-       gets nothing tries again, while a reader who gets an error screen assumes the tool is
-       broken. The log is where the real answer goes. */
-    log.error('readSpendTaxonomy.failed', err);
+    /* An empty list rather than a thrown page. The taxonomy is reference material: a reader who
+       gets nothing tries again, while one who gets an error screen assumes the tool is broken. */
+    log.error('readSpendTaxonomyFacts.failed', err);
     return [];
   }
 }
 
 /**
- * Flat rows into the four levels the screen draws.
+ * What the launcher panel says about it, counted from the same rows the page draws.
  *
- * Exported and pure so the shaping can be tested without a database, which is the part with the
- * decisions in it: categories come back ordered by how much they hold, because a list led by the
- * largest is a list somebody can scan.
+ * Pure, so the arithmetic can be checked without a database. Categories are counted distinctly
+ * because a category appears once per commodity in these rows, and reporting 1,221 categories
+ * would be a confident, wrong number on the home page of every employee.
  */
-export function buildTaxonomyTree(rows: QueryResultRow[]): SgTaxonomyCategory[] {
-  const catMap = new Map<string, SgTaxonomyCategory>();
+export function summariseTaxonomy(rows: SgTaxonomyRow[]): {
+  categories: number;
+  commodities: number;
+} {
+  const categories = new Set<string>();
   for (const r of rows) {
-    const categoryName = String(r.category ?? 'Uncategorised');
-    let cat = catMap.get(categoryName);
-    if (!cat) {
-      cat = { id: String(r.category_id ?? categoryName), name: categoryName, count: 0, subs: [] };
-      catMap.set(categoryName, cat);
-    }
-    const subName = String(r.sub_category ?? 'General');
-    let sub = cat.subs.find((s) => s.name === subName);
-    if (!sub) {
-      sub = { name: subName, count: 0, families: [] };
-      cat.subs.push(sub);
-    }
-    const famName = String(r.family ?? 'General');
-    let fam = sub.families.find((f) => f.name === famName);
-    if (!fam) {
-      fam = { name: famName, items: [] };
-      sub.families.push(fam);
-    }
-    fam.items.push({
-      id: Number(r.id),
-      name: String(r.name),
-      code: String(r.code ?? ''),
-      countries: Number(r.countries ?? 0),
-    });
-    sub.count++;
-    cat.count++;
+    const category = String(r[1] ?? '').trim();
+    if (category) categories.add(category);
   }
-  return [...catMap.values()].sort((a, b) => b.count - a.count);
-}
-
-/** How many countries have a guide at all, for the line under the heading. */
-export async function countGuideCountries(): Promise<number> {
-  try {
-    const { rows } = await sourceGuidePool.query<{ n: string }>(
-      `SELECT COUNT(DISTINCT country_code)::int AS n FROM sg_mappings WHERE status = 'Active'`,
-    );
-    return Number(rows[0]?.n ?? 0);
-  } catch (err) {
-    log.error('countGuideCountries.failed', err);
-    return 0;
-  }
+  return { categories: categories.size, commodities: rows.length };
 }
