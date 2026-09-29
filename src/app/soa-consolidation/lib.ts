@@ -768,7 +768,26 @@ export function deriveViewModel(
     return next;
   };
 
+  /* Every supplier that may be ticked at all. Excluded ones are an admin decision about
+     intercompany entities and are never selectable, so they are not in the count either: a
+     shortcut that says "select all" and leaves three rows unticked reads as a bug. */
+  const selectable = scope.candidates.filter((c) => !c.excluded);
+  const selectableUnticked = selectable.filter((c) => !scopeSelected.has(c.vendorNo)).length;
+
   const scopeBulkActions: ScopeBulkVM[] = [
+    {
+      id: 'all',
+      label: 'Select every supplier',
+      hint: selectableUnticked
+        ? `${selectable.length} suppliers · ${selectableUnticked} not yet ticked${
+            scope.candidates.length - selectable.length
+              ? ` · ${scope.candidates.length - selectable.length} excluded stay out`
+              : ''
+          }`
+        : 'Every supplier is already ticked',
+      disabled: !canTick || busy || selectableUnticked === 0,
+      onClick: () => handlers.setScopeSelection(withAdded(selectable)),
+    },
     {
       id: 'threshold',
       label: `Select all above ${scopeThresholdLabel}`,

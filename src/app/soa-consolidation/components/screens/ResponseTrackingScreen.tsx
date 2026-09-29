@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState } from 'react';
 import SubmissionLines from '../SubmissionLines';
 import type { ScreenProps, VendorEnrichedVM } from '../../types';
 import TableToolbar from '../TableToolbar';
+import { useConfirm } from '../useConfirm';
 import {
   FILTER_TAB_SELECTED,
   VENDOR_AWAITING_VERIFICATION_BADGE,
@@ -174,13 +175,22 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
      its candidates. It used to sit behind a "Show failed dispatches" button on a screen that has
      since gone, which meant the one fact explaining a stalled coverage figure was only ever seen
      by somebody who already suspected it. */
+  const { ask, dialog } = useConfirm();
   const { deliveryNeedsLoad, onLoadFailures } = vm;
   useEffect(() => {
     if (deliveryNeedsLoad) onLoadFailures();
   }, [deliveryNeedsLoad, onLoadFailures]);
 
+  /* The three bulk sends. Each one puts mail in suppliers' inboxes and none of them can be
+     recalled, so each says how many before it happens. Chasing a single vendor from its own row
+     does not ask: it is one letter, and the row it sits on names the supplier it goes to. */
+  async function confirmBulk(title: string, confirmLabel: string, body: React.ReactNode, run: () => void) {
+    if (await ask({ title, confirmLabel, tone: 'normal', body })) run();
+  }
+
   return (
     <div className="animate-[fadeIn_0.2s_ease]">
+      {dialog}
       <div className="flex items-start justify-between mb-3.5">
         <div>
           <h1 className="text-[20px] font-bold mb-[3px]">Response Tracking</h1>
@@ -194,7 +204,21 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
           {vm.hasRetryable && (
             <button
               type="button"
-              onClick={vm.onRetryFailed}
+              onClick={() =>
+                confirmBulk(
+                  'Try the refused sends again?',
+                  `Retry ${vm.retryFailedCount}`,
+                  <>
+                    <strong>
+                      {vm.retryFailedCount}{' '}
+                      {vm.retryFailedCount === 1 ? 'vendor' : 'vendors'}
+                    </strong>{' '}
+                    still owed the letter that was refused will be written to. Vendors whose send
+                    already went through are left alone.
+                  </>,
+                  vm.onRetryFailed,
+                )
+              }
               disabled={vm.busy}
               className="bg-[#B71C1C] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
             >
@@ -205,7 +229,21 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
           {vm.hasUnrequested && (
             <button
               type="button"
-              onClick={() => vm.onSendRequests()}
+              onClick={() =>
+                confirmBulk(
+                  'Send the statement request?',
+                  `Send to ${vm.unrequestedCount}`,
+                  <>
+                    <strong>
+                      {vm.unrequestedCount}{' '}
+                      {vm.unrequestedCount === 1 ? 'vendor' : 'vendors'}
+                    </strong>{' '}
+                    who have not been written to will be emailed the request, each with the blank
+                    template and their own upload link. This cannot be undone.
+                  </>,
+                  vm.onSendRequests,
+                )
+              }
               disabled={vm.busy}
               className="bg-sns-green text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
             >
@@ -215,7 +253,20 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
           {vm.hasRemindable && (
             <button
               type="button"
-              onClick={() => vm.onSendReminders()}
+              onClick={() =>
+                confirmBulk(
+                  'Send a reminder to everyone still owing?',
+                  `Remind ${vm.remindCount}`,
+                  <>
+                    <strong>
+                      {vm.remindCount} {vm.remindCount === '1' ? 'vendor' : 'vendors'}
+                    </strong>{' '}
+                    who have not sent a statement will be chased again, including any already
+                    reminded once. This cannot be undone.
+                  </>,
+                  vm.onSendReminders,
+                )
+              }
               disabled={vm.busy}
               className="bg-[#E65100] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
             >

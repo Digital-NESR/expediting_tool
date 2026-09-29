@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import EmailTemplateCard from '../EmailTemplateCard';
 import RecipientList from '../RecipientList';
 import type { ScreenProps } from '../../types';
+import { useConfirm } from '../useConfirm';
 
 /**
  * Outreach: approve the letter, check who it reaches, send it.
@@ -23,6 +24,30 @@ export default function OutreachScreen({ vm }: ScreenProps) {
   const [ccRemoved, setCcRemoved] = useState<string[]>([]);
   const onCcChange = useCallback((emails: string[]) => setExtraCc(emails), []);
   const onCcRemovedChange = useCallback((emails: string[]) => setCcRemoved(emails), []);
+  const { ask, dialog } = useConfirm();
+
+  /* Sending is the one act here that cannot be taken back. Once 61 letters are in 61 suppliers'
+     inboxes there is no version of this tool that retrieves them, so the count and the letter
+     being sent are stated once more before it happens. */
+  async function confirmSend(kind: 'request' | 'reminder', count: string) {
+    const ok = await ask({
+      title: kind === 'request' ? 'Send the statement request?' : 'Send a reminder?',
+      confirmLabel: kind === 'request' ? `Send to ${count}` : `Remind ${count}`,
+      tone: 'normal',
+      body: (
+        <>
+          <strong>
+            {count} {count === '1' ? 'vendor' : 'vendors'}
+          </strong>{' '}
+          will be emailed the letter you approved, each with the blank template attached and their
+          own upload link. This cannot be undone.
+        </>
+      ),
+    });
+    if (!ok) return;
+    if (kind === 'request') vm.onSendRequests(extraCc, ccRemoved);
+    else vm.onSendReminders(extraCc, ccRemoved);
+  }
 
   const steps = [
     { id: 'letter', n: 1, label: 'Letter' },
@@ -33,6 +58,7 @@ export default function OutreachScreen({ vm }: ScreenProps) {
 
   return (
     <div className="animate-[fadeIn_0.2s_ease]">
+      {dialog}
       <div className="mb-4">
         <h1 className="text-[20px] font-bold mb-[3px]">Outreach</h1>
         <p className="text-[12px] text-sns-grey">
@@ -97,7 +123,7 @@ export default function OutreachScreen({ vm }: ScreenProps) {
             {vm.hasUnrequested && (
               <button
                 type="button"
-                onClick={() => vm.onSendRequests(extraCc, ccRemoved)}
+                onClick={() => confirmSend('request', String(vm.unrequestedCount))}
                 disabled={vm.busy}
                 className="bg-sns-green text-white border-none px-4 py-[9px] rounded-[7px] text-[13px] font-bold disabled:opacity-50"
               >
@@ -108,7 +134,7 @@ export default function OutreachScreen({ vm }: ScreenProps) {
             {vm.canSendReminders && (
               <button
                 type="button"
-                onClick={() => vm.onSendReminders(extraCc, ccRemoved)}
+                onClick={() => confirmSend('reminder', vm.remindCount)}
                 disabled={vm.busy}
                 className="bg-[#E65100] text-white border-none px-4 py-[9px] rounded-[7px] text-[13px] font-bold disabled:opacity-50"
               >

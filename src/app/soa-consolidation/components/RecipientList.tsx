@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import EmployeeSearchInput, { type Employee } from '@/components/EmployeeSearchInput';
 import {
   getSoaRecipients,
+  removeSoaVendorFromCycle,
   updateSoaVendorContact,
 } from '@/app/actions/soa/recipients';
 import type { CountryRecipients, VendorRecipient } from '@/lib/soa/recipients';
+import { useConfirm } from './useConfirm';
 
 /**
  * Step two of outreach: who each letter actually goes to.
@@ -99,6 +101,7 @@ export default function RecipientList({
   // back is a click and not a page reload.
   const [ccRemoved, setCcRemoved] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const { ask, dialog } = useConfirm();
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -123,6 +126,35 @@ export default function RecipientList({
   const dropCc = (email: string) => setCcRemoved((list) => [...new Set([...list, email])]);
   const isDropped = (email: string) => ccRemoved.includes(email);
 
+  /**
+   * Take a vendor out of the cycle.
+   *
+   * Confirmed first, because it is the one control here that throws work away rather than
+   * changing it: every address a champion tracked down for that supplier goes with the row, and
+   * putting it back means finding them again in Vendor Scoping.
+   */
+  async function removeVendor(vendor: VendorRecipient) {
+    const ok = await ask({
+      title: 'Remove this vendor from the cycle?',
+      confirmLabel: 'Remove the vendor',
+      body: (
+        <>
+          <strong>{vendor.vendorName}</strong> will not be written to this quarter, and the{' '}
+          {vendor.to.length === 1 ? 'address' : 'addresses'} on this line{' '}
+          {vendor.to.length === 1 ? 'goes' : 'go'} with it. Putting them back means finding them
+          again in Vendor Scoping.
+        </>
+      ),
+    });
+    if (!ok) return;
+    setBusy(true);
+    const res = await removeSoaVendorFromCycle({ countryId, entryId: vendor.entryId });
+    setBusy(false);
+    if (!res.success) return setNote(res.error ?? 'Could not remove that vendor.');
+    setNote(null);
+    if (res.data) setData(res.data);
+  }
+
   async function change(vendorId: number, email: string, action: 'add' | 'remove' | 'restore') {
     setBusy(true);
     const res = await updateSoaVendorContact({ countryId, vendorId, email, action });
@@ -139,6 +171,7 @@ export default function RecipientList({
 
   return (
     <div className="bg-white rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
+      {dialog}
       <div className="flex items-center justify-between gap-3 flex-wrap border-b border-b-[#F0F0F0] px-4 py-3">
         <div>
           <div className="text-[13px] font-bold text-sns-ink">Recipients</div>
@@ -279,6 +312,7 @@ export default function RecipientList({
             }
             onDraft={(value) => setDrafts((d) => ({ ...d, [v.vendorId]: value }))}
             onChange={change}
+            onRemove={() => removeVendor(v)}
           />
         ))}
         {!vendors.length && !busy && (
@@ -300,6 +334,7 @@ function VendorRow({
   onToggle,
   onDraft,
   onChange,
+  onRemove,
 }: {
   vendor: VendorRecipient;
   canEdit: boolean;
@@ -309,9 +344,14 @@ function VendorRow({
   onToggle: () => void;
   onDraft: (value: string) => void;
   onChange: (vendorId: number, email: string, action: 'add' | 'remove' | 'restore') => void;
+  onRemove: () => void;
 }) {
   const none = vendor.to.length === 0;
   const hidden = vendor.suppressed.length + vendor.droppedInternal.length;
+  /* Only a vendor nobody has written to. Once a letter has gone out the entry is what the
+     dispatches and the evidence hang off, so the server refuses it and the control is not
+     offered; the title says why rather than leaving a dead button to be clicked. */
+  const removable = vendor.status === 'scoped';
 
   return (
     <div className="px-4 py-3">
@@ -349,6 +389,29 @@ function VendorRow({
           {open ? 'Done' : canEdit ? 'Edit' : 'Details'}
           {!open && hidden > 0 && <span className="text-sns-grey"> · {hidden}</span>}
         </button>
+
+        {/* Last, and quiet until hovered. It is the one control on the line that throws the row
+            away, so it should not sit where the eye lands first. */}
+        {canEdit && (
+          <button
+            type="button"
+            onClick={removable ? onRemove : undefined}
+            disabled={!removable || busy}
+            aria-label={`Remove ${vendor.vendorName} from this cycle`}
+            title={
+              removable
+                ? `Remove ${vendor.vendorName} from this cycle`
+                : 'Already written to. Close it without a statement from Response Tracking instead.'
+            }
+            className={`grid h-6 w-6 shrink-0 place-items-center rounded-md text-[13px] leading-none transition-colors ${
+              removable
+                ? 'text-sns-grey hover:bg-[#FDECEA] hover:text-[#B71C1C] disabled:opacity-40'
+                : 'text-[#D8D8D8] cursor-not-allowed'
+            }`}
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* The addresses themselves get the full width rather than sharing a line with the name. */}
