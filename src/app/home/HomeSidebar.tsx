@@ -8,13 +8,14 @@ import SpendTaxonomyPanel from './SpendTaxonomyPanel';
  * pair ends level with the bottom of the second card row. The column's height is stated once here
  * rather than split between two components that would drift apart.
  *
- * 700px is two card rows plus the gap between them, at the content those rows carry today. Card
+ * 684px is two card rows plus the gap between them, at the content those rows carry today. Card
  * heights follow their own text, so this is close rather than exact, and it is the same kind of
- * fixed number the SCAI panel has always used.
+ * fixed number the SCAI panel has always used. It errs a little short on purpose: a column that
+ * stops just inside the second row reads as aligned, one that overhangs reads as a mistake.
  */
 export default function HomeSidebar() {
   return (
-    <aside className="flex h-[700px] w-80 shrink-0 flex-col gap-6">
+    <aside className="flex h-[684px] w-80 shrink-0 flex-col gap-6">
       <ScaiPanel />
       <SpendTaxonomyPanel />
     </aside>

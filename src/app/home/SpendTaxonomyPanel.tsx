@@ -9,7 +9,8 @@ import { readSpendTaxonomyFacts, summariseTaxonomy } from '@/lib/sourceguide/tax
  * people already read for "things that are not one of the ten applications".
  *
  * Static markup and a single read, so it stays a server component like the SCAI panel beside it
- * and never reaches the browser as JavaScript.
+ * and never reaches the browser as JavaScript. It takes SCAI's green tint too: the two belong to
+ * the same column, and a white panel under a tinted one reads as a card that fell out of the grid.
  *
  * The counts are read rather than written down. A hardcoded "1,221 commodities" is right until the
  * catalogue changes and wrong quietly ever after, on the home page of every employee.
@@ -20,10 +21,10 @@ export default async function SpendTaxonomyPanel() {
   return (
     <a
       href="/spend-taxonomy"
-      className="group flex flex-1 flex-col justify-between rounded-2xl border border-gray-200 bg-white p-6 transition-all duration-200 hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
+      className="group flex flex-1 flex-col justify-between rounded-2xl border border-[#b6ddc8] bg-[#f0f9f4] p-6 transition-all duration-200 hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
     >
       <div>
-        <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#307c4c]/10">
+        <span className="grid h-11 w-11 place-items-center rounded-xl bg-white">
           <ListTree className="h-5 w-5 text-[#307c4c]" />
         </span>
         <h2 className="mt-3 text-[17px] font-bold leading-tight text-slate-900 group-hover:underline">

@@ -3,6 +3,7 @@
 import { useState, useMemo, Fragment } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from '../constants';
+import TaxonomyFinder from './TaxonomyFinder';
 import type { SgTaxonomyRow } from '@/app/actions/sourceguide';
 
 // Fixed hierarchy — the taxonomy always drills in this order.
@@ -75,6 +76,10 @@ export default function DecompositionClient({
         </div>
         <h1 className="text-[30px] font-bold tracking-tight">Spend Taxonomy</h1>
       </div>
+
+      {/* Search first, drill second. Most readers know a word of what they are buying and nothing
+          about which of the five levels it lives at. */}
+      <TaxonomyFinder rows={rows} onPick={setPath} />
 
       {/* Fixed hierarchy stepper */}
       <div className="mb-5 flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-4 py-3">

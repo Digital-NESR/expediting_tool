@@ -18,6 +18,7 @@ import {
   Laptop,
   Building2,
   GraduationCap,
+  ListTree,
   Receipt,
   ShieldCheck,
   BarChart3,
@@ -79,6 +80,14 @@ export interface ToolDef {
   route: string;
   /** Route is on another domain: the card action is a real external link. */
   external?: boolean;
+  /**
+   * Not in the grid, but findable by searching for it.
+   *
+   * Spend Taxonomy lives in the sidebar rather than as a card, and somebody who types "commodity"
+   * into the launcher search should still be told it exists rather than reading "no applications
+   * match". It appears as an ordinary card for as long as the search matches it.
+   */
+  searchOnly?: boolean;
   helpHref?: string;
   access: ToolAccess;
   badge: ToolBadge;
@@ -199,6 +208,27 @@ export const TOOLS: ToolDef[] = [
     external: true,
     access: { kind: 'always' },
     badge: { kind: 'lock', label: 'Portal Access' },
+  },
+
+  {
+    id: 'spend-taxonomy',
+    group: 'online',
+    keywords:
+      'spend taxonomy commodity category sub-category family classification catalogue what we buy purchase request code',
+    name: 'Spend Taxonomy',
+    subtitle: 'What NESR Buys',
+    description:
+      'Drill from Spend Type down to Commodity, or search any level, to find the line NESR buys against.',
+    icon: <ListTree className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
+    route: '/spend-taxonomy',
+    access: { kind: 'always' },
+    badge: { kind: 'success', label: 'Full Access' },
+    // Its home is the panel under SCAI; this entry exists so the search can find it.
+    searchOnly: true,
   },
 
   {

@@ -95,7 +95,12 @@ export default function ToolLauncher({ scaiPanel }: { scaiPanel: ReactNode }) {
   }
 
   const q = appSearch.toLowerCase();
-  const visible = TOOLS.filter((t) => !q || t.keywords.toLowerCase().includes(q));
+  /* A `searchOnly` tool is not in the grid until somebody looks for it: Spend Taxonomy lives in
+     the sidebar, and a search for "commodity" that answered "no applications match" would be
+     telling them something untrue. */
+  const visible = TOOLS.filter((t) =>
+    q ? t.keywords.toLowerCase().includes(q) : !t.searchOnly,
+  );
 
   const renderCard = (tool: ToolDef) => (
     <ToolCard
