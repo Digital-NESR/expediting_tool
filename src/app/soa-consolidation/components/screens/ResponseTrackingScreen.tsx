@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState } from 'react';
 import SubmissionLines from '../SubmissionLines';
 import type { ScreenProps, VendorEnrichedVM } from '../../types';
 import TableToolbar from '../TableToolbar';
+import SendProgressBar from '../SendProgress';
 import { useConfirm } from '../useConfirm';
 import {
   FILTER_TAB_SELECTED,
@@ -48,8 +49,8 @@ function VendorDetail({
             /* "0 invoices on file" beside a vendor who plainly answered reads as a parsing
                failure. Nothing was parsed because nothing was meant to be. */
             <span className="text-sns-green font-bold">
-              ✓ Reply filed as correspondence. No invoice lines were read; the consolidated
-              workbook refers AP to the attachment.
+              ✓ Reply filed as correspondence. No invoice lines were read; the consolidated workbook
+              refers AP to the attachment.
             </span>
           ) : v.isReceived ? (
             <span className="text-sns-green font-bold">
@@ -184,7 +185,12 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
   /* The three bulk sends. Each one puts mail in suppliers' inboxes and none of them can be
      recalled, so each says how many before it happens. Chasing a single vendor from its own row
      does not ask: it is one letter, and the row it sits on names the supplier it goes to. */
-  async function confirmBulk(title: string, confirmLabel: string, body: React.ReactNode, run: () => void) {
+  async function confirmBulk(
+    title: string,
+    confirmLabel: string,
+    body: React.ReactNode,
+    run: () => void,
+  ) {
     if (await ask({ title, confirmLabel, tone: 'normal', body })) run();
   }
 
@@ -194,84 +200,85 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
       <div className="flex items-start justify-between mb-3.5">
         <div>
           <h1 className="text-[20px] font-bold mb-[3px]">Response Tracking</h1>
-          <p className="text-[12px] text-sns-grey">
-            Live vendor response status, {vm.contextLine}
-          </p>
+          <p className="text-[12px] text-sns-grey">Live vendor response status, {vm.contextLine}</p>
         </div>
         <div className="flex gap-2 shrink-0 flex-wrap justify-end">
-          {/* Retry first, because it is the exception: these suppliers were never written to at
+          {vm.sendProgress ? (
+            <SendProgressBar progress={vm.sendProgress} pct={vm.sendProgressPct} />
+          ) : (
+            <>
+              {/* Retry first, because it is the exception: these suppliers were never written to at
               all, and they are invisible in the counts beside them. */}
-          {vm.hasRetryable && (
-            <button
-              type="button"
-              onClick={() =>
-                confirmBulk(
-                  'Try the refused sends again?',
-                  `Retry ${vm.retryFailedCount}`,
-                  <>
-                    <strong>
-                      {vm.retryFailedCount}{' '}
-                      {vm.retryFailedCount === 1 ? 'vendor' : 'vendors'}
-                    </strong>{' '}
-                    still owed the letter that was refused will be written to. Vendors whose send
-                    already went through are left alone.
-                  </>,
-                  vm.onRetryFailed,
-                )
-              }
-              disabled={vm.busy}
-              className="bg-[#B71C1C] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
-            >
-              Retry {vm.retryFailedCount} Failed{' '}
-              {vm.retryFailedCount === 1 ? 'Send' : 'Sends'}
-            </button>
-          )}
-          {vm.hasUnrequested && (
-            <button
-              type="button"
-              onClick={() =>
-                confirmBulk(
-                  'Send the statement request?',
-                  `Send to ${vm.unrequestedCount}`,
-                  <>
-                    <strong>
-                      {vm.unrequestedCount}{' '}
-                      {vm.unrequestedCount === 1 ? 'vendor' : 'vendors'}
-                    </strong>{' '}
-                    who have not been written to will be emailed the request, each with the blank
-                    template and their own upload link. This cannot be undone.
-                  </>,
-                  vm.onSendRequests,
-                )
-              }
-              disabled={vm.busy}
-              className="bg-sns-green text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
-            >
-              Send {vm.unrequestedCount} Initial Requests
-            </button>
-          )}
-          {vm.hasRemindable && (
-            <button
-              type="button"
-              onClick={() =>
-                confirmBulk(
-                  'Send a reminder to everyone still owing?',
-                  `Remind ${vm.remindCount}`,
-                  <>
-                    <strong>
-                      {vm.remindCount} {vm.remindCount === '1' ? 'vendor' : 'vendors'}
-                    </strong>{' '}
-                    who have not sent a statement will be chased again, including any already
-                    reminded once. This cannot be undone.
-                  </>,
-                  vm.onSendReminders,
-                )
-              }
-              disabled={vm.busy}
-              className="bg-[#E65100] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
-            >
-              Send All Reminders ({vm.remindCount})
-            </button>
+              {vm.hasRetryable && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    confirmBulk(
+                      'Try the refused sends again?',
+                      `Retry ${vm.retryFailedCount}`,
+                      <>
+                        <strong>
+                          {vm.retryFailedCount} {vm.retryFailedCount === 1 ? 'vendor' : 'vendors'}
+                        </strong>{' '}
+                        still owed the letter that was refused will be written to. Vendors whose
+                        send already went through are left alone.
+                      </>,
+                      vm.onRetryFailed,
+                    )
+                  }
+                  disabled={vm.busy}
+                  className="bg-[#B71C1C] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
+                >
+                  Retry {vm.retryFailedCount} Failed {vm.retryFailedCount === 1 ? 'Send' : 'Sends'}
+                </button>
+              )}
+              {vm.hasUnrequested && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    confirmBulk(
+                      'Send the statement request?',
+                      `Send to ${vm.unrequestedCount}`,
+                      <>
+                        <strong>
+                          {vm.unrequestedCount} {vm.unrequestedCount === 1 ? 'vendor' : 'vendors'}
+                        </strong>{' '}
+                        who have not been written to will be emailed the request, each with the
+                        blank template and their own upload link. This cannot be undone.
+                      </>,
+                      vm.onSendRequests,
+                    )
+                  }
+                  disabled={vm.busy}
+                  className="bg-sns-green text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
+                >
+                  Send {vm.unrequestedCount} Initial Requests
+                </button>
+              )}
+              {vm.hasRemindable && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    confirmBulk(
+                      'Send a reminder to everyone still owing?',
+                      `Remind ${vm.remindCount}`,
+                      <>
+                        <strong>
+                          {vm.remindCount} {vm.remindCount === '1' ? 'vendor' : 'vendors'}
+                        </strong>{' '}
+                        who have not sent a statement will be chased again, including any already
+                        reminded once. This cannot be undone.
+                      </>,
+                      vm.onSendReminders,
+                    )
+                  }
+                  disabled={vm.busy}
+                  className="bg-[#E65100] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
+                >
+                  Send All Reminders ({vm.remindCount})
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -16,9 +16,8 @@ import {
   handOffSoaCountry,
   resolveSoaVendor,
   recordSoaExport,
+  getSoaOutreachDue,
   sendSoaOutreach,
-  sendSoaOutreachBatch,
-  sendSoaOutreachRetries,
   setSoaVendorContacts,
 } from '@/app/actions/soa/workflow';
 import { deriveViewModel, fmtM } from './lib';
@@ -56,6 +55,7 @@ const INITIAL: AppState = {
   scopeSearch: '',
   scopePage: 0,
   busy: false,
+  sendProgress: null,
   failures: null,
   failuresLoading: false,
   scopeCandidates: null,
@@ -203,6 +203,92 @@ export default function SoaConsolidationClient({
       });
   }
 
+  /**
+   * Send to a whole country, one vendor at a time, counting them off.
+   *
+   * The server has a batch action that does the same loop in one call, and it cannot say anything
+   * until it is finished: for 120 suppliers at roughly a second each that is a button sitting
+   * still for two minutes, which reads as a hang. The list of who is due is fetched first and then
+   * each one is sent on its own, so the screen can show 23 of 120 and name the vendor in flight.
+   *
+   * The cost is a rendered letter per vendor rather than per country. Against a webhook call that
+   * takes about a second, three extra queries are noise, and a champion who can see it working is
+   * worth more than the milliseconds.
+   *
+   * Failures do not stop it. One vendor with no address must not cost the other 119 their letter,
+   * which is the same reasoning the batch action was written with.
+   */
+  async function runBulkSend(
+    kind: 'request' | 'reminder' | 'retry',
+    cc?: string[],
+    ccRemoved?: string[],
+  ) {
+    if (!countryId) return;
+    patch({ busy: true, sendProgress: { kind, done: 0, total: 0, failed: 0, current: '' } });
+
+    const due = await getSoaOutreachDue({ countryId, kind });
+    if (!due.success || !due.data) {
+      patch({ busy: false, sendProgress: null });
+      return addToast('warning', 'Could not start', due.error ?? 'Nobody could be read as due.');
+    }
+    const list = due.data;
+    if (!list.length) {
+      patch({ busy: false, sendProgress: null });
+      return addToast(
+        'info',
+        kind === 'retry' ? 'Nothing to retry' : 'Nothing to send',
+        kind === 'request'
+          ? 'Every in-scope vendor has already been asked.'
+          : kind === 'reminder'
+            ? 'No vendor is currently owing a statement.'
+            : 'Every refused send has since been made good.',
+      );
+    }
+
+    let sent = 0;
+    let failed = 0;
+    let firstError: string | null = null;
+    for (const [i, item] of list.entries()) {
+      patch({
+        sendProgress: {
+          kind,
+          done: i,
+          total: list.length,
+          failed,
+          current: item.vendorName,
+        },
+      });
+      const result = await sendSoaOutreach({
+        entryId: item.entryId,
+        kind: item.kind,
+        cc,
+        ccRemoved,
+      });
+      if (result.success) sent += 1;
+      else {
+        failed += 1;
+        firstError ??= result.error ?? null;
+      }
+    }
+
+    patch({
+      busy: false,
+      sendProgress: null,
+      // The delivery log the retry button counts from has just changed under it.
+      failures: null,
+    });
+    router.refresh();
+
+    const noun = kind === 'request' ? 'requests' : 'reminders';
+    addToast(
+      failed > 0 ? 'warning' : 'success',
+      failed > 0 ? `${sent} sent, ${failed} failed` : `${sent} ${noun} sent`,
+      failed > 0
+        ? (firstError ?? 'Some vendors could not be reached.')
+        : 'Evidence logged against every one.',
+    );
+  }
+
   const handlers: Handlers = {
     setScreen(screen) {
       patch({ screen, expandedVendor: null });
@@ -256,54 +342,10 @@ export default function SoaConsolidationClient({
       );
     },
     sendRequests(cc, ccRemoved) {
-      if (!countryId) return;
-      void run(
-        () => sendSoaOutreachBatch({ countryId, kind: 'request', cc, ccRemoved }),
-        (data) => {
-          const sent = data?.sent ?? 0;
-          const failed = data?.failed ?? 0;
-          // Report what happened, including the failures. The prototype claimed every send
-          // succeeded because it never sent anything.
-          addToast(
-            failed > 0 ? 'warning' : sent > 0 ? 'success' : 'info',
-            failed > 0
-              ? `${sent} requests sent, ${failed} failed`
-              : sent > 0
-                ? `${sent} requests sent`
-                : 'No requests were due',
-            failed > 0
-              ? (data?.firstError ?? 'Some vendors could not be reached.')
-              : sent > 0
-                ? 'Initial statement requests dispatched. Evidence logged.'
-                : 'Every in-scope vendor has already been asked.',
-          );
-        },
-        'Requests not sent',
-      );
+      void runBulkSend('request', cc, ccRemoved);
     },
     sendReminders(cc, ccRemoved) {
-      if (!countryId) return;
-      void run(
-        () => sendSoaOutreachBatch({ countryId, kind: 'reminder', cc, ccRemoved }),
-        (data) => {
-          const sent = data?.sent ?? 0;
-          const failed = data?.failed ?? 0;
-          addToast(
-            failed > 0 ? 'warning' : sent > 0 ? 'success' : 'info',
-            failed > 0
-              ? `${sent} reminders sent, ${failed} failed`
-              : sent > 0
-                ? `${sent} reminders sent`
-                : 'No reminders were due',
-            failed > 0
-              ? (data?.firstError ?? 'Some vendors could not be reached.')
-              : sent > 0
-                ? 'Reminder emails dispatched. Evidence logged.'
-                : 'No vendor is currently awaiting a second request.',
-          );
-        },
-        'Reminders not sent',
-      );
+      void runBulkSend('reminder', cc, ccRemoved);
     },
     sendOne(id, kind) {
       void run(
@@ -322,31 +364,7 @@ export default function SoaConsolidationClient({
       );
     },
     retryFailed: () => {
-      if (!countryId) return;
-      void run(
-        () => sendSoaOutreachRetries({ countryId }),
-        (data) => {
-          const sent = data?.sent ?? 0;
-          const failed = data?.failed ?? 0;
-          addToast(
-            failed > 0 ? 'warning' : sent > 0 ? 'success' : 'info',
-            failed > 0
-              ? `${sent} sent, ${failed} failed again`
-              : sent > 0
-                ? `${sent} resent`
-                : 'Nothing to retry',
-            failed > 0
-              ? (data?.firstError ?? 'Some vendors still could not be reached.')
-              : sent > 0
-                ? 'The refused sends went out. Evidence logged.'
-                : 'Every refused send has since been made good.',
-          );
-          // The log the button counted from is now stale, so read it again rather than leave a
-          // count on screen that the press has already spent.
-          readDeliveryLog();
-        },
-        'Could not retry',
-      );
+      void runBulkSend('retry');
     },
     openResolveModal(vendorId) {
       patch({ modal: { type: 'resolve', vendorId } });

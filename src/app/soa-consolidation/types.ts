@@ -69,6 +69,22 @@ export type EvidenceType = 'info' | 'upload' | 'reminder' | 'scope' | 'email' | 
 
 export type ToastType = 'success' | 'warning' | 'info';
 
+/**
+ * A bulk send in flight.
+ *
+ * Counted on the client because the sending is done there, one vendor at a time: a single action
+ * that loops the whole country cannot report anything until it has finished, and for 120 suppliers
+ * that is minutes of a button that looks stuck.
+ */
+export interface SendProgress {
+  kind: 'request' | 'reminder' | 'retry';
+  done: number;
+  total: number;
+  failed: number;
+  /** The vendor being written to right now, so the count is not the only sign of life. */
+  current: string;
+}
+
 /* How a figure reads against the collection targets in SOP NESR-SC-01-GR2PAY. `on-track` clears
    the threshold it is measured against, `behind` falls short of it but is still recoverable
    inside the cycle, `breach` has failed the control, `in-flight` is work under way that nothing
@@ -136,6 +152,8 @@ export interface AppState {
   scopePage: number;
   /** True while a server action is in flight; every mutating button is disabled on it. */
   busy: boolean;
+  /** A bulk send under way, counted off vendor by vendor. Null when nothing is sending. */
+  sendProgress: SendProgress | null;
   failures: OutreachFailure[] | null;
   /** The delivery log's own in-flight flag; it loads without disabling the rest of the screen. */
   failuresLoading: boolean;
@@ -494,6 +512,9 @@ export interface ViewModel {
   vendorsEnriched: VendorEnrichedVM[];
   trackingTable: TableControlsVM;
   /** The collection deadline has passed, so silence is now a finding rather than a wait. */
+  /** Non-null while a bulk send runs; the send buttons become this. */
+  sendProgress: SendProgress | null;
+  sendProgressPct: number;
   pastCollectionDeadline: boolean;
   /** Vendors past that deadline still awaiting a champion's verdict on why they are silent. */
   awaitingVerificationCount: number;

@@ -97,21 +97,52 @@ export async function applySoaScopeSelection(input: {
     const countryCycleId = await ensureCountryCycle(input.cycleId, input.countryId);
 
     await withTransaction(soaPool, async (client) => {
-      for (const c of toAdd) {
-        const vendor = await client.query<QueryResultRow>(
-          `INSERT INTO vendors (country_id, vendor_no, name, contact_emails, contact_source)
-           VALUES ($1, $2, $3, $4, CASE WHEN COALESCE(array_length($4::text[], 1), 0) > 0
-                                        THEN 'avl' ELSE 'none' END)
-           ON CONFLICT (country_id, vendor_no) DO UPDATE SET name = EXCLUDED.name
-           RETURNING id`,
-          [input.countryId, c.vendorNo, c.name.slice(0, 200), c.emails],
+      if (toAdd.length) {
+        /* Two statements for the whole selection, not two per supplier.
+           This was a loop of two awaited round trips each, so saving 265 suppliers was 530
+           sequential queries against a database on the other side of a network: several seconds
+           of a screen that gives no sign of doing anything, which is long enough for somebody to
+           press the button again.
+           The payload goes over as one JSON array rather than parallel arrays, because
+           `contact_emails` is itself an array per row and UNNEST flattens a two-dimensional one
+           into a single list. */
+        const payload = JSON.stringify(
+          toAdd.map((c) => ({
+            vendor_no: c.vendorNo,
+            name: c.name.slice(0, 200),
+            emails: c.emails,
+            value_usd: c.valueUsd,
+          })),
         );
+
+        await client.query(
+          `INSERT INTO vendors (country_id, vendor_no, name, contact_emails, contact_source)
+           SELECT $1, t.vendor_no, t.name, t.emails,
+                  CASE WHEN COALESCE(array_length(t.emails, 1), 0) > 0 THEN 'avl' ELSE 'none' END
+             FROM (
+               SELECT x->>'vendor_no' AS vendor_no,
+                      x->>'name'      AS name,
+                      COALESCE(
+                        ARRAY(SELECT jsonb_array_elements_text(x->'emails')), '{}'
+                      )::text[]       AS emails
+                 FROM jsonb_array_elements($2::jsonb) AS x
+             ) t
+           ON CONFLICT (country_id, vendor_no) DO UPDATE SET name = EXCLUDED.name`,
+          [input.countryId, payload],
+        );
+
         await client.query(
           `INSERT INTO vendor_cycle_entries (country_cycle_id, vendor_id, open_po_amount)
-           VALUES ($1, $2, $3)
+           SELECT $1, v.id, t.value_usd
+             FROM (
+               SELECT x->>'vendor_no'            AS vendor_no,
+                      (x->>'value_usd')::numeric AS value_usd
+                 FROM jsonb_array_elements($2::jsonb) AS x
+             ) t
+             JOIN vendors v ON v.country_id = $3 AND v.vendor_no = t.vendor_no
            ON CONFLICT (country_cycle_id, vendor_id) DO UPDATE SET
              open_po_amount = EXCLUDED.open_po_amount, updated_at = NOW()`,
-          [countryCycleId, Number(vendor.rows[0].id), c.valueUsd],
+          [countryCycleId, payload, input.countryId],
         );
       }
 

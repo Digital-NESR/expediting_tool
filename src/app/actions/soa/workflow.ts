@@ -362,60 +362,57 @@ export async function sendSoaOutreach(input: {
 }
 
 /**
- * Send to everyone in the country who is due one.
+ * Who a bulk send would write to, before it writes to any of them.
  *
- * Runs one at a time and reports how many of each outcome, rather than failing the whole batch on
- * the first vendor with no email address. A champion sending 270 requests needs to know which ones
- * did not go, not to have the other 269 rolled back.
+ * The batch below does the whole country in one call and answers when it is finished, which for
+ * 120 suppliers is minutes of a page that looks stuck. The screen asks for the list first and then
+ * sends one at a time, so it can count them off; this is the query that used to sit inside the
+ * loop's own function.
+ *
+ * Read-only and viewer-level: seeing who is due is not sending to them.
  */
-export async function sendSoaOutreachBatch(input: {
+export async function getSoaOutreachDue(input: {
   countryId: string;
-  kind: 'request' | 'reminder';
-  /** Extra NESR addresses to copy on this send only; never stored. */
-  cc?: string[];
-  /** Default copies the sender chose to drop for this send only; never stored. */
-  ccRemoved?: string[];
-}): Promise<SoaResult<{ sent: number; failed: number; firstError: string | null }>> {
+  kind: 'request' | 'reminder' | 'retry';
+}): Promise<SoaResult<{ entryId: number; vendorName: string; kind: 'request' | 'reminder' }[]>> {
   try {
-    const actor = await requireSoaCountry(input.countryId, 'champion');
-    const letter = await prepareLetter(input.countryId, actor, input.cc ?? [], input.ccRemoved ?? []);
-    /* A reminder goes to everyone still owing a statement, not only to those on their first
-       request. The SOP's two-request test is a floor: a quarter routinely runs to a third and
-       fourth ask, and a country whose vendors had all been reminded once was offered no way to
-       chase them again short of opening each row. Every attempt is its own dispatch and evidence
-       row, so the trail keeps all of them rather than collapsing to the last. */
-    const due = await sql<QueryResultRow[]>(
-      `SELECT vce.id
+    await requireSoaCountry(input.countryId, 'viewer');
+
+    if (input.kind === 'retry') {
+      const stuck = (await loadDeliveryFailures(input.countryId)).filter((f) => f.retryable);
+      return {
+        success: true,
+        data: stuck.map((f) => ({ entryId: f.entryId, vendorName: f.vendorName, kind: f.kind })),
+      };
+    }
+
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT vce.id, v.name
          FROM vendor_cycle_entries vce
-         JOIN country_cycles cc ON cc.id = vce.country_cycle_id
-         JOIN cycles cy ON cy.id = cc.cycle_id AND cy.is_active
+         JOIN vendors v          ON v.id = vce.vendor_id
+         JOIN country_cycles cc  ON cc.id = vce.country_cycle_id
+         JOIN cycles cy          ON cy.id = cc.cycle_id AND cy.is_active
         WHERE cc.country_id = ? AND vce.status = ANY(?::vendor_cycle_status[])
         ORDER BY vce.open_po_amount DESC`,
       [input.countryId, input.kind === 'request' ? ['scoped'] : ['requested', 'reminded']],
     );
-
-    let sent = 0;
-    let failed = 0;
-    let firstError: string | null = null;
-    for (const row of due) {
-      const result = await sendSoaOutreach({ entryId: Number(row.id), kind: input.kind, letter });
-      if (result.success) sent += 1;
-      else {
-        failed += 1;
-        firstError ??= result.error ?? null;
-      }
-    }
-
-    revalidatePath('/soa-consolidation');
-    return { success: true, data: { sent, failed, firstError } };
+    return {
+      success: true,
+      data: rows.map((r) => ({
+        entryId: Number(r.id),
+        vendorName: String(r.name),
+        kind: input.kind as 'request' | 'reminder',
+      })),
+    };
   } catch (err) {
-    log.error('sendSoaOutreachBatch.failed', err);
+    log.error('getSoaOutreachDue.failed', err);
     return {
       success: false,
-      error: err instanceof AccessError ? err.message : 'Could not send the batch.',
+      error: err instanceof AccessError ? err.message : 'Could not read who is due.',
     };
   }
 }
+
 
 /**
  * Close a vendor that never sent a statement, saying which kind of silence it was.
@@ -772,55 +769,3 @@ export async function getSoaOutreachFailures(countryId: string): Promise<Deliver
   }
 }
 
-/**
- * Try the refused sends again, and only those.
- *
- * Which vendors those are is decided in `loadDeliveryFailures`, not here: a failure the next
- * attempt already made good must not be re-sent, and that test belongs next to the query that
- * knows what a dispatch row means. Each vendor gets the kind it is still owed, so a country
- * holding both a first letter that never went and a reminder that never went is cleared in one
- * press rather than two.
- */
-export async function sendSoaOutreachRetries(input: {
-  countryId: string;
-  /** Extra NESR addresses to copy on this send only; never stored. */
-  cc?: string[];
-  /** Default copies the sender chose to drop for this send only; never stored. */
-  ccRemoved?: string[];
-}): Promise<SoaResult<{ sent: number; failed: number; firstError: string | null }>> {
-  try {
-    const actor = await requireSoaCountry(input.countryId, 'champion');
-    const stuck = (await loadDeliveryFailures(input.countryId)).filter((f) => f.retryable);
-    if (!stuck.length) return { success: true, data: { sent: 0, failed: 0, firstError: null } };
-
-    // Composed once for the whole retry, as the batch does: the letter is the country's, not the
-    // vendor's, and rendering it per vendor would re-read the template for each one.
-    const letter = await prepareLetter(
-      input.countryId,
-      actor,
-      input.cc ?? [],
-      input.ccRemoved ?? [],
-    );
-
-    let sent = 0;
-    let failed = 0;
-    let firstError: string | null = null;
-    for (const f of stuck) {
-      const result = await sendSoaOutreach({ entryId: f.entryId, kind: f.kind, letter });
-      if (result.success) sent += 1;
-      else {
-        failed += 1;
-        firstError ??= result.error ?? null;
-      }
-    }
-
-    revalidatePath('/soa-consolidation');
-    return { success: true, data: { sent, failed, firstError } };
-  } catch (err) {
-    log.error('sendSoaOutreachRetries.failed', err);
-    return {
-      success: false,
-      error: err instanceof AccessError ? err.message : 'Could not retry the failed sends.',
-    };
-  }
-}

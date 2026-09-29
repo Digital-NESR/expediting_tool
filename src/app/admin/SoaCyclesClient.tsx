@@ -26,6 +26,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import {
   activateSoaCycle,
   createSoaCycle,
+  extendSoaCycleDeadlines,
+  getSoaDeadlineChanges,
+  type DeadlineChange,
   getSoaCycleSummary,
   getSoaCycles,
   runSoaExtract,
@@ -64,6 +67,11 @@ function fmtUsd(n: number): string {
 /** A DATE column, rendered without letting the viewer's time zone shift it a day. */
 function dateOnly(iso: string | null): string {
   return iso ? shortDateUTC(new Date(`${iso.slice(0, 10)}T00:00:00Z`)) : ', ';
+}
+
+/** The same column as `<input type="date">` wants it, which is not what `dateOnly` renders. */
+function isoDay(iso: string | null): string {
+  return iso ? iso.slice(0, 10) : '';
 }
 
 function Spinner({ className = 'h-5 w-5' }: { className?: string }) {
@@ -243,6 +251,42 @@ export default function SoaCyclesClient() {
     setFormOpen(false);
     await loadCycles();
     if (opened) setSelectedId(opened.id);
+  }
+
+  /* Moving a live cycle's dates. Kept as its own small form rather than folded into the create
+     form: creating a cycle and changing one people have already been told about are different
+     acts, and only the second needs a reason on the record. */
+  const [editing, setEditing] = useState<number | null>(null);
+  const [editSubmission, setEditSubmission] = useState('');
+  const [editCycle, setEditCycle] = useState('');
+  const [editReason, setEditReason] = useState('');
+  const [savingDates, setSavingDates] = useState(false);
+  const [history, setHistory] = useState<Record<number, DeadlineChange[]>>({});
+
+  function openEditor(c: SoaCycle) {
+    setEditing(c.id);
+    setEditSubmission(isoDay(c.submission_deadline));
+    setEditCycle(isoDay(c.cycle_deadline));
+    setEditReason('');
+    setError('');
+    void getSoaDeadlineChanges(c.id).then((rows) =>
+      setHistory((h) => ({ ...h, [c.id]: rows })),
+    );
+  }
+
+  async function saveDates(cycleId: number) {
+    setSavingDates(true);
+    setError('');
+    const result = await extendSoaCycleDeadlines({
+      cycleId,
+      submissionDeadline: editSubmission,
+      cycleDeadline: editCycle,
+      reason: editReason,
+    });
+    setSavingDates(false);
+    if (!result.success) return setError(result.error ?? 'Could not move the deadlines.');
+    setEditing(null);
+    await loadCycles();
   }
 
   async function activate(cycleId: number) {
@@ -542,6 +586,88 @@ export default function SoaCyclesClient() {
                             close
                           </span>
                         </div>
+
+                        {/* Only the live cycle. A closed quarter's dates are what it was judged
+                            against, and editing them afterwards would rewrite the verdict. */}
+                        {c.is_active && editing !== c.id && (
+                          <button
+                            type="button"
+                            onClick={() => openEditor(c)}
+                            className="mt-1.5 text-[11px] font-semibold text-[#2A7E4F] underline"
+                          >
+                            Change these dates
+                          </button>
+                        )}
+
+                        {editing === c.id && (
+                          <div className="mt-2 w-[250px] space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                            <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                              Collection deadline
+                              <input
+                                type="date"
+                                value={editSubmission}
+                                onChange={(e) => setEditSubmission(e.target.value)}
+                                className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-xs font-normal normal-case tracking-normal text-slate-800"
+                              />
+                            </label>
+                            <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                              Closing deadline
+                              <input
+                                type="date"
+                                value={editCycle}
+                                onChange={(e) => setEditCycle(e.target.value)}
+                                className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-xs font-normal normal-case tracking-normal text-slate-800"
+                              />
+                            </label>
+                            <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                              Why
+                              <textarea
+                                rows={2}
+                                value={editReason}
+                                onChange={(e) => setEditReason(e.target.value)}
+                                placeholder="Extended a week, three countries still collecting."
+                                className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-xs font-normal normal-case tracking-normal text-slate-800 placeholder:text-slate-400"
+                              />
+                            </label>
+                            <p className="text-[10px] leading-[1.4] text-slate-500">
+                              Recorded against the cycle and written into every enrolled
+                              country&apos;s evidence pack.
+                            </p>
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setEditing(null)}
+                                className="flex-1 rounded-md bg-white px-2 py-1.5 text-[11px] font-bold text-slate-500 ring-1 ring-slate-200"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => saveDates(c.id)}
+                                disabled={savingDates || editReason.trim().length < 3}
+                                className="flex-[2] rounded-md bg-[#2A7E4F] px-2 py-1.5 text-[11px] font-bold text-white disabled:opacity-50"
+                              >
+                                {savingDates ? 'Saving' : 'Save the change'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* What has already been done to these dates. A quarter extended twice and
+                            then reported as delivered on schedule is what an auditor looks for. */}
+                        {(history[c.id]?.length ?? 0) > 0 && (
+                          <ul className="mt-2 w-[250px] space-y-1 border-t border-slate-200 pt-1.5">
+                            {history[c.id].map((h) => (
+                              <li key={h.changedAt} className="text-[10px] leading-[1.4] text-slate-500">
+                                <span className="font-semibold text-slate-700">
+                                  {dateOnly(h.oldSubmissionDeadline)} to{' '}
+                                  {dateOnly(h.newSubmissionDeadline)}
+                                </span>{' '}
+                                by {h.changedBy}. {h.reason}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs leading-relaxed text-slate-600">
                         <p>

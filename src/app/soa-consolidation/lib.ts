@@ -349,6 +349,7 @@ export function deriveViewModel(
     scopeSearch,
     scopePage,
     busy,
+    sendProgress,
     failures,
     failuresLoading,
     scopeCandidates,
@@ -867,8 +868,12 @@ export function deriveViewModel(
     ...(totals.addCount ? [`${totals.addCount} to add`] : []),
     ...(totals.removeCount ? [`${totals.removeCount} to remove`] : []),
   ];
+  /* Named rather than a bare "Saving", so a save of 265 suppliers looks like work being done on
+     265 suppliers. It is two statements now rather than 530, so this is a flash and not a wait,
+     which is why there is no progress bar here: a bar that fills and vanishes is worse than a
+     label that simply says what is happening. */
   const scopeSaveLabel = busy
-    ? 'Saving…'
+    ? `Saving ${totals.addCount + totals.removeCount} changes`
     : scopeDirty
       ? `Save selection, ${changeParts.join(', ')}`
       : 'Save selection, no changes';
@@ -1087,6 +1092,10 @@ export function deriveViewModel(
     filterTabs,
     vendorsEnriched,
     trackingTable,
+    sendProgress,
+    sendProgressPct: sendProgress
+      ? Math.round((sendProgress.done / Math.max(sendProgress.total, 1)) * 100)
+      : 0,
     pastCollectionDeadline,
     awaitingVerificationCount: vendors.filter((v) =>
       isAwaitingVerification(v.status, submissionDeadline, now),

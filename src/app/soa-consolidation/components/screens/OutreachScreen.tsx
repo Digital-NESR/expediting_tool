@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import EmailTemplateCard from '../EmailTemplateCard';
 import RecipientList from '../RecipientList';
 import type { ScreenProps } from '../../types';
+import SendProgressBar from '../SendProgress';
 import { useConfirm } from '../useConfirm';
 
 /**
@@ -113,34 +114,42 @@ export default function OutreachScreen({ vm }: ScreenProps) {
           {/* The send sits under the list it will use, and says how many letters it is about to
               put out. A button reading only "Send" is the one that gets pressed twice. */}
           <div className="mt-4 flex flex-wrap items-center justify-end gap-2.5">
-            {!canSendAnything && (
-              <span className="text-[11.5px] text-sns-grey">
-                {vm.canAct
-                  ? 'Every vendor in scope has already been written to. Chase individual suppliers from Response Tracking.'
-                  : 'You can read this country but not send on it.'}
-              </span>
-            )}
-            {vm.hasUnrequested && (
-              <button
-                type="button"
-                onClick={() => confirmSend('request', String(vm.unrequestedCount))}
-                disabled={vm.busy}
-                className="bg-sns-green text-white border-none px-4 py-[9px] rounded-[7px] text-[13px] font-bold disabled:opacity-50"
-              >
-                Send the request to {vm.unrequestedCount}{' '}
-                {vm.unrequestedCount === 1 ? 'vendor' : 'vendors'}
-              </button>
-            )}
-            {vm.canSendReminders && (
-              <button
-                type="button"
-                onClick={() => confirmSend('reminder', vm.remindCount)}
-                disabled={vm.busy}
-                className="bg-[#E65100] text-white border-none px-4 py-[9px] rounded-[7px] text-[13px] font-bold disabled:opacity-50"
-              >
-                Send a reminder to {vm.remindCount}{' '}
-                {vm.remindCount === '1' ? 'vendor' : 'vendors'}
-              </button>
+            {/* While a send runs the buttons are gone, not merely disabled: there is nothing
+                sensible to press, and a greyed button for two minutes reads as a hang. */}
+            {vm.sendProgress ? (
+              <SendProgressBar progress={vm.sendProgress} pct={vm.sendProgressPct} />
+            ) : (
+              <>
+                {!canSendAnything && (
+                  <span className="text-[11.5px] text-sns-grey">
+                    {vm.canAct
+                      ? 'Every vendor in scope has already been written to. Chase individual suppliers from Response Tracking.'
+                      : 'You can read this country but not send on it.'}
+                  </span>
+                )}
+                {vm.hasUnrequested && (
+                  <button
+                    type="button"
+                    onClick={() => confirmSend('request', String(vm.unrequestedCount))}
+                    disabled={vm.busy}
+                    className="bg-sns-green text-white border-none px-4 py-[9px] rounded-[7px] text-[13px] font-bold disabled:opacity-50"
+                  >
+                    Send the request to {vm.unrequestedCount}{' '}
+                    {vm.unrequestedCount === 1 ? 'vendor' : 'vendors'}
+                  </button>
+                )}
+                {vm.canSendReminders && (
+                  <button
+                    type="button"
+                    onClick={() => confirmSend('reminder', vm.remindCount)}
+                    disabled={vm.busy}
+                    className="bg-[#E65100] text-white border-none px-4 py-[9px] rounded-[7px] text-[13px] font-bold disabled:opacity-50"
+                  >
+                    Send a reminder to {vm.remindCount}{' '}
+                    {vm.remindCount === '1' ? 'vendor' : 'vendors'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </>
