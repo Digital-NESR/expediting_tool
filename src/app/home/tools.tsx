@@ -18,6 +18,7 @@ import {
   Laptop,
   Building2,
   GraduationCap,
+  ListTree,
   Receipt,
   ShieldCheck,
   BarChart3,
@@ -199,6 +200,28 @@ export const TOOLS: ToolDef[] = [
     external: true,
     access: { kind: 'always' },
     badge: { kind: 'lock', label: 'Portal Access' },
+  },
+
+  {
+    id: 'spend-taxonomy',
+    group: 'online',
+    keywords:
+      'spend taxonomy commodity category sub-category family classification catalogue what we buy purchase request code',
+    name: 'Spend Taxonomy',
+    subtitle: 'What NESR Buys',
+    description:
+      'Look up any commodity in the four-level hierarchy, Category to Sub-Category to Family to Commodity, and see how many country guides source it.',
+    icon: <ListTree className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
+    /* The same tree SourceGuide draws, without its grant. Somebody raising a purchase request has
+       to name the commodity they are buying, and that list used to exist only inside a sourcing
+       tool most of them will never otherwise open. */
+    route: '/spend-taxonomy',
+    access: { kind: 'always' },
+    badge: { kind: 'success', label: 'Full Access' },
   },
 
   {
