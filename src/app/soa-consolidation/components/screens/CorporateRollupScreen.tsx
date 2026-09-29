@@ -79,10 +79,13 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
             <div className="font-bold text-[12px]">{c.fmtBalance}</div>
             {/* One bar per stage, all against the same denominator, so the bars line up and the
                 gaps between them can be read straight down the column. */}
-            <div className="space-y-[3px] pr-2">
+            <div className="space-y-[3px] pr-3">
               {c.funnel.map((stage) => (
-                <div key={stage.label} className="flex items-center gap-[5px]">
-                  <span className="w-[54px] shrink-0 text-[9.5px] uppercase tracking-[0.3px] text-sns-grey">
+                <div key={stage.label} className="flex items-center gap-2">
+                  {/* Wide enough for REQUESTED, the longest of the four, at this size and
+                      tracking. Anything tighter clips it rather than wrapping, because the row
+                      must not change height between countries or the bars stop lining up. */}
+                  <span className="w-[64px] shrink-0 whitespace-nowrap text-[9.5px] uppercase tracking-[0.3px] text-sns-grey">
                     {stage.label}
                   </span>
                   <div className="flex-1 bg-[#E8EDE9] rounded-xs h-1.5 overflow-hidden">
@@ -93,10 +96,9 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
                     />
                   </div>
                   <span
-                    className={`w-8 shrink-0 text-right text-[10.5px] tabular-nums ${
-                      stage.label === 'Answered'
-                        ? 'font-bold text-sns-ink'
-                        : 'text-sns-grey'
+                    /* 100% is four characters and w-8 fitted three. */
+                    className={`w-[38px] shrink-0 whitespace-nowrap text-right text-[10.5px] tabular-nums ${
+                      stage.label === 'Answered' ? 'font-bold text-sns-ink' : 'text-sns-grey'
                     }`}
                   >
                     {stage.pct}%
