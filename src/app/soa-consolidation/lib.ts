@@ -220,7 +220,12 @@ export function pipelineStage(
 }
 
 /** The empty answer, so the scoping screen can render its own frame before the list arrives. */
-const NO_CANDIDATES: ScopeCandidates = { thresholdUsd: 0, totalBalance: 0, candidates: [] };
+const NO_CANDIDATES: ScopeCandidates = {
+  thresholdUsd: 0,
+  totalBalance: 0,
+  excludedBalance: 0,
+  candidates: [],
+};
 
 export interface ScopeTotals {
   /** Ticked right now, including the locked rows that are ticked whether or not anyone said so. */
@@ -270,16 +275,18 @@ export function scopeTotals(
     const ticked = selected.has(c.vendorNo);
     if (ticked) {
       t.selectedCount += 1;
-      t.selectedUsd += c.valueUsd;
+      /* Out of the numerator as well as the denominator. An excluded supplier that is somehow
+         already in the cycle would otherwise add balance the divisor does not carry, and the
+         screen would report more than 100% of a country's balance selected. */
+      if (!c.excluded) t.selectedUsd += c.valueUsd;
       if (!c.emails.length) t.unreachableSelected += 1;
       if (!c.locked) t.clearableCount += 1;
       if (!c.selected && !c.excluded) t.addCount += 1;
     } else if (c.selected && !c.locked) {
       t.removeCount += 1;
     }
-    /* An excluded supplier cannot be added, so it is not part of the ceiling. Unless it is
-       already in the cycle, in which case its balance is genuinely being chased. */
-    if (!c.excluded || c.selected) t.reachableUsd += c.valueUsd;
+    // The ceiling is every supplier that may be ticked, which is every one not excluded.
+    if (!c.excluded) t.reachableUsd += c.valueUsd;
     if (c.excluded) t.excludedCount += 1;
     if (c.locked) t.lockedCount += 1;
     if (c.overThreshold && !c.excluded) {
@@ -699,8 +706,12 @@ export function deriveViewModel(
   /* The screen asks for its list itself the first time it renders; this is the flag it asks on. */
   const scopeNeedsLoad = !!countryId && !!cycle && !scopeLoaded && !scopeLoading && !scopeError;
 
-  /* The country's whole balance, which is the coverage denominator, excluded suppliers included,
-     because excluding one does not reduce what the country owes. */
+  /* The coverage denominator: the country's balance with the excluded suppliers taken out.
+     They are NESR's own intercompany entities, so there is no third party to confirm a balance
+     with and nothing to reconcile. Counting them put a ceiling on coverage that no amount of
+     chasing could reach, and a champion who had ticked every supplier they were allowed to tick
+     still read 96%. `scopeCandidates` computes it; the payload total is only the fallback for
+     before the list has loaded, and it still includes them. */
   const scopeDenominator = scope.totalBalance || totalBalance;
   const scopeThresholdLabel = fmtUsd(scope.thresholdUsd || (cycle?.vendorThresholdUsd ?? 0));
   const totals = scopeTotals(scope.candidates, scopeSelected);
@@ -836,7 +847,9 @@ export function deriveViewModel(
       rank: c.rank,
       valueLabel: fmtM(c.valueUsd),
       cumPct: c.cumulativePct,
-      cumStanding: coverageStanding(c.cumulativePct, coverageTargetPct),
+      // An excluded row has no share to judge, so it is tinted as neither ahead nor behind.
+      cumStanding:
+        c.cumulativePct === null ? 'neutral' : coverageStanding(c.cumulativePct, coverageTargetPct),
       kind,
       checked: ticked,
       disabled: !canTick || c.excluded || c.locked,
@@ -924,6 +937,16 @@ export function deriveViewModel(
       status,
       statusLabel: COUNTRY_STATUS_LABEL[status],
       fmtBalance: fmtM(c.balance),
+      /* Read top to bottom, the gaps say why a country is where it is: a short first bar is a
+         scoping decision, a gap between scoped and requested is a send that has not gone out, and
+         a gap between reminded and answered is suppliers who are simply not replying. Only the
+         last of those is the suppliers' fault, and the rollup used to show only that one. */
+      funnel: [
+        { label: 'In scope', pct: c.scopedPct, standing: 'neutral' as Standing },
+        { label: 'Requested', pct: c.requestedPct, standing: 'in-flight' as Standing },
+        { label: 'Reminded', pct: c.remindedPct, standing: 'in-flight' as Standing },
+        { label: 'Answered', pct: c.pct, standing: coverageStanding(c.pct, coverageTargetPct) },
+      ],
       isAtRisk:
         c.pct < coverageTargetPct &&
         status !== 'handed_off' &&

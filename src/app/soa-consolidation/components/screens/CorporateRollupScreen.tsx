@@ -1,7 +1,7 @@
 import type { ScreenProps } from '../../types';
 import { COUNTRY_STATUS_BADGE, STANDING_BG, STANDING_BORDER_TOP, STANDING_TEXT } from '../tones';
 
-const COLUMNS = 'grid-cols-[140px_130px_85px_110px_115px_70px_65px]';
+const COLUMNS = 'grid-cols-[140px_120px_85px_1fr_115px_70px_65px]';
 
 export default function CorporateRollupScreen({ vm }: ScreenProps) {
   return (
@@ -54,7 +54,7 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
           <div>Country</div>
           <div>SC Champion</div>
           <div>18M PO Bal.</div>
-          <div>Coverage</div>
+          <div>Chase progress, share of balance</div>
           <div>Status</div>
           <div>Resp.</div>
           <div>Days</div>
@@ -77,17 +77,32 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
             <div className="font-bold text-[12px]">{c.name}</div>
             <div className="text-[11px] text-sns-grey">{c.champion}</div>
             <div className="font-bold text-[12px]">{c.fmtBalance}</div>
-            <div>
-              <div className="flex items-center gap-[5px]">
-                <div className="flex-1 bg-[#E8EDE9] rounded-xs h-1.5 overflow-hidden">
-                  {/* Width tracks a live percentage, so it is the one declaration that has to stay inline. */}
-                  <div
-                    className={`${STANDING_BG[c.coverageStanding]} h-full rounded-xs`}
-                    style={{ width: `${Math.min(c.pct, 100)}%` }}
-                  />
+            {/* One bar per stage, all against the same denominator, so the bars line up and the
+                gaps between them can be read straight down the column. */}
+            <div className="space-y-[3px] pr-2">
+              {c.funnel.map((stage) => (
+                <div key={stage.label} className="flex items-center gap-[5px]">
+                  <span className="w-[54px] shrink-0 text-[9.5px] uppercase tracking-[0.3px] text-sns-grey">
+                    {stage.label}
+                  </span>
+                  <div className="flex-1 bg-[#E8EDE9] rounded-xs h-1.5 overflow-hidden">
+                    {/* Width tracks a live percentage, so it is the one declaration that has to stay inline. */}
+                    <div
+                      className={`${STANDING_BG[stage.standing]} h-full rounded-xs`}
+                      style={{ width: `${Math.min(stage.pct, 100)}%` }}
+                    />
+                  </div>
+                  <span
+                    className={`w-8 shrink-0 text-right text-[10.5px] tabular-nums ${
+                      stage.label === 'Answered'
+                        ? 'font-bold text-sns-ink'
+                        : 'text-sns-grey'
+                    }`}
+                  >
+                    {stage.pct}%
+                  </span>
                 </div>
-                <span className="text-[11px] font-bold text-sns-ink w-8 text-right">{c.pct}%</span>
-              </div>
+              ))}
             </div>
             <div
               className={`${COUNTRY_STATUS_BADGE[c.status]} rounded-xl px-[9px] py-0.5 text-[10px] font-bold`}

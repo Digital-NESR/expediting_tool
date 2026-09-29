@@ -35,13 +35,21 @@ export interface ScopeCandidate {
   overThreshold: boolean;
   /** 1 = largest by value. */
   rank: number;
-  /** Running share of the country's whole balance, at this row and above. */
-  cumulativePct: number;
+  /**
+   * Running share of the country's reconcilable balance, at this row and above.
+   *
+   * Null for an excluded supplier: it is out of the denominator, so it adds nothing to the running
+   * total and has no share of its own to report.
+   */
+  cumulativePct: number | null;
 }
 
 export interface ScopeCandidates {
   thresholdUsd: number;
+  /** The country's balance MINUS the excluded suppliers. Every percentage divides by this. */
   totalBalance: number;
+  /** What the exclusions take out, so the screen can say how much was set aside and why. */
+  excludedBalance: number;
   candidates: ScopeCandidate[];
   /**
    * Set only when the read itself failed.
@@ -88,12 +96,25 @@ export async function scopeCandidates(
   ]);
 
   const thresholdUsd = Number(cycleRows[0]?.vendor_threshold_usd ?? 0);
-  const totalBalance = rows.reduce((sum, r) => sum + Number(r.pos_value), 0);
+  /* Excluded suppliers are out of the denominator entirely.
+     They are NESR's own intercompany entities: there is no third party to send a statement to and
+     no balance anyone outside the group could confirm, so counting them as money to be reconciled
+     put a ceiling on coverage that no amount of chasing could reach. A champion ticking every
+     supplier they are allowed to tick now reads 100%, which is what "all of it" should say. They
+     stay in the list, and their own row shows no cumulative figure, because they contribute
+     nothing to the running total that the rows around them are measured against. */
+  const totalBalance = rows
+    .filter((r) => r.excluded !== true)
+    .reduce((sum, r) => sum + Number(r.pos_value), 0);
+  const excludedBalance = rows
+    .filter((r) => r.excluded === true)
+    .reduce((sum, r) => sum + Number(r.pos_value), 0);
 
   let running = 0;
   const candidates = rows.map((r, i) => {
     const valueUsd = Number(r.pos_value);
-    running += valueUsd;
+    const excluded = r.excluded === true;
+    if (!excluded) running += valueUsd;
     /* The vendor's saved contacts win over the snapshot's, because a champion may have corrected
        them since the extract ran and that correction is the better address. */
     const saved = ((r.contact_emails ?? []) as string[]).filter(Boolean);
@@ -108,12 +129,14 @@ export async function scopeCandidates(
       emails: saved.length ? saved : fromSnapshot,
       selected: r.selected === true,
       locked: r.locked === true,
-      excluded: r.excluded === true,
+      excluded,
       overThreshold: valueUsd > thresholdUsd,
       rank: i + 1,
-      cumulativePct: totalBalance > 0 ? Math.round((running / totalBalance) * 100) : 0,
+      // Null, not zero and not the row above's figure: this supplier adds nothing to the running
+      // total, and a repeated percentage would read as a supplier worth nothing.
+      cumulativePct: excluded || totalBalance <= 0 ? null : Math.round((running / totalBalance) * 100),
     };
   });
 
-  return { thresholdUsd, totalBalance, candidates };
+  return { thresholdUsd, totalBalance, excludedBalance, candidates };
 }

@@ -80,7 +80,14 @@ export interface CountryRow {
   name: string;
   champion: string;
   balance: number;
+  /** Share of the country's balance whose statement is in. The figure the quarter is judged on. */
   pct: number;
+  /** Share drawn into the cycle at all. The ceiling every figure below is measured against. */
+  scopedPct: number;
+  /** Share that has had its first request. From `requested_at`, so replies do not shrink it. */
+  requestedPct: number;
+  /** Share chased a second time. */
+  remindedPct: number;
   status: string;
   responded: number;
   total: number;
@@ -215,6 +222,15 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
               COUNT(vce.id)                                          AS total,
               COUNT(vce.id)
                 FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL}))  AS responded,
+              COALESCE(SUM(vce.open_po_amount), 0)                          AS scoped_balance,
+              /* Read off the timestamps, not the current status. A vendor that has answered was
+                 still requested and probably reminded, and counting by status would make the
+                 requested bar shrink as replies arrive, which is the one direction progress
+                 cannot go. */
+              COALESCE(SUM(vce.open_po_amount)
+                       FILTER (WHERE vce.requested_at IS NOT NULL), 0)       AS requested_balance,
+              COALESCE(SUM(vce.open_po_amount)
+                       FILTER (WHERE vce.reminded_at IS NOT NULL), 0)        AS reminded_balance,
               COALESCE(SUM(vce.open_po_amount)
                        FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL})), 0)
                                                                             AS received_balance
@@ -224,6 +240,7 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
         GROUP BY cc.id, cc.country_id, cc.status
      )
      SELECT p.country_id, c.name, p.status, p.total, p.responded,
+            p.scoped_balance, p.requested_balance, p.reminded_balance,
             p.received_balance, d.total_balance,
             COALESCE(string_agg(DISTINCT cu.name, ', '), '') AS champions
        FROM progress p
@@ -232,6 +249,7 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
        LEFT JOIN country_users cu
               ON cu.role = 'champion' AND cu.country_id = p.country_id
       GROUP BY p.country_id, c.name, c.sort_order, p.status, p.total, p.responded,
+               p.scoped_balance, p.requested_balance, p.reminded_balance,
                p.received_balance, d.total_balance
       ORDER BY c.sort_order`,
     [cycleId, cycleId],
@@ -241,12 +259,22 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
   return rows.map((r) => {
     const total = Number(r.total_balance);
     const received = Number(r.received_balance);
+    /* All four share the country's whole PO balance as their denominator, so they read as one
+       funnel: what was drawn into scope, what was written to, what was chased again, what came
+       back. Each is a subset of the one before it, which is what makes the gaps diagnostic. A
+       country at 40% coverage is behind for a different reason depending on whether it scoped
+       45% or 95% of its balance. */
+    const share = (value: unknown) =>
+      total > 0 ? Math.round((Number(value) / total) * 100) : 0;
     return {
       id: String(r.country_id),
       name: String(r.name),
       champion: String(r.champions) || 'Unassigned',
       balance: total,
       pct: total > 0 ? Math.round((received / total) * 100) : 0,
+      scopedPct: share(r.scoped_balance),
+      requestedPct: share(r.requested_balance),
+      remindedPct: share(r.reminded_balance),
       status: String(r.status),
       responded: Number(r.responded),
       total: Number(r.total),

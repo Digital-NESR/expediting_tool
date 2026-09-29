@@ -311,7 +311,12 @@ export default function VendorScopingScreen({ vm }: ScreenProps) {
                     <span className="text-[10px] font-normal text-sns-grey"> ▲</span>
                   )}
                 </div>
-                <div className={`font-bold ${STANDING_TEXT[row.cumStanding]}`}>{row.cumPct}%</div>
+                {/* An excluded supplier contributes nothing to the running total, so it shows a
+                    dash rather than repeating the row above's figure, which would read as a
+                    supplier worth nothing. */}
+                <div className={`font-bold ${STANDING_TEXT[row.cumStanding]}`}>
+                  {row.cumPct === null ? '–' : `${row.cumPct}%`}
+                </div>
                 <div>
                   <span
                     className={`${stateBadgeClass(row.kind, row.checked)} rounded-xl px-[9px] py-0.5 text-[10px] font-bold inline-block`}

@@ -43,6 +43,7 @@ export async function getSoaScopeCandidates(input: {
     return {
       thresholdUsd: 0,
       totalBalance: 0,
+      excludedBalance: 0,
       candidates: [],
       error:
         err instanceof AccessError

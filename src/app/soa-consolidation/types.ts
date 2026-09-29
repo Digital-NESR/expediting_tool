@@ -263,8 +263,8 @@ export interface ScopeRowVM {
   /** Position by value in the WHOLE country, from the server. Never the position on this page. */
   rank: number;
   valueLabel: string;
-  /** Running share of the country's balance at this row, also computed across the whole country. */
-  cumPct: number;
+  /** Running share at this row. Null for an excluded supplier, which is out of the denominator. */
+  cumPct: number | null;
   cumStanding: Standing;
   kind: ScopeRowKind;
   checked: boolean;
@@ -344,6 +344,9 @@ export interface EvidenceRowVM extends Evidence {
 }
 
 export interface CountryRowVM extends Country {
+  /** The chase as a funnel, each a share of the country's whole balance: scoped, then requested,
+   *  then reminded, then answered. Each is a subset of the one before it. */
+  funnel: { label: string; pct: number; standing: Standing }[];
   status: CountryStatus;
   statusLabel: string;
   fmtBalance: string;
