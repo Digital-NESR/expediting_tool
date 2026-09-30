@@ -25,6 +25,10 @@ import type {
 } from '@/types/tite';
 import { getCountryStakeholders } from '@/app/actions/tite/stakeholders';
 import { effectiveCountryScope } from '@/lib/tite/access';
+import {
+  DuplicateCustomsReferenceError,
+  normaliseCustomsReference,
+} from '@/lib/tite/duplicates';
 import { ANALYTICS_COLS, LIST_COLS, SELECT_COLS, log } from '@/lib/tite/internals';
 import type { CreateShipmentInput } from '@/lib/tite/types';
 
@@ -206,7 +210,18 @@ export async function getShipmentById(id: number): Promise<Shipment | null> {
 
 /* ─── createShipment ──────────────────────────────────────────── */
 
-export async function createShipment(input: CreateShipmentInput): Promise<{ id: number } | null> {
+/**
+ * The answer a create gives back.
+ *
+ * `error` is a refusal the person can act on and is shown to them verbatim; `null` is an
+ * unexpected failure, which stays a generic apology because whatever it was is in the log and not
+ * something a user can do anything about.
+ */
+export type CreateShipmentResult = { id: number } | { error: string };
+
+export async function createShipment(
+  input: CreateShipmentInput,
+): Promise<CreateShipmentResult | null> {
   const user = await requireTiteUser();
   // The country decides who may create the row, so it is validated before any work.
   if (!canEditTiteCountry(user, input.country)) {
@@ -234,8 +249,32 @@ export async function createShipment(input: CreateShipmentInput): Promise<{ id: 
     /* The shipment row, its notification contacts and its creation log entry all
        commit together — a shipment with no recipients would be silently missed by
        the expiry alerts. */
+    const customsReference = normaliseCustomsReference(input.customs_reference_number);
+
     const shipmentId = await withTransaction(titePool, async (client) => {
       await lockForTransaction(client, `tite_ref_${countryCode}`);
+
+      /* One customs reference, one shipment, within a country.
+         Two records sharing a declaration count its deposit twice on the register summary and
+         make the shipment count wrong, and the pair then has to be found and unpicked by hand
+         long after whoever keyed the second one has forgotten it.
+         Checked here rather than before the transaction so it sits under the same per-country
+         advisory lock that serialises the reference sequence: two people submitting the same
+         declaration at once cannot both pass a check and then both insert. */
+      if (customsReference) {
+        const { rows: clash } = await client.query<{ reference_number: string }>(
+          `SELECT reference_number
+             FROM shipments
+            WHERE country IS NOT DISTINCT FROM $1
+              AND UPPER(TRIM(customs_reference_number)) = $2
+            ORDER BY id
+            LIMIT 1`,
+          [input.country ?? null, customsReference],
+        );
+        if (clash.length) {
+          throw new DuplicateCustomsReferenceError(customsReference, clash[0].reference_number);
+        }
+      }
 
       const { rows: seqRows } = await client.query<{ next_no: number }>(
         `SELECT COALESCE(MAX((regexp_replace(reference_number, '^[A-Z]+-', ''))::int), 0) + 1 AS next_no
@@ -342,6 +381,16 @@ export async function createShipment(input: CreateShipmentInput): Promise<{ id: 
 
     return { id: shipmentId };
   } catch (err) {
+    /* A refused duplicate is an ordinary outcome, not a failure: it is returned so the form can
+       say which shipment already holds the number, and logged at info so the rate of it is
+       visible without filling the error log. */
+    if (err instanceof DuplicateCustomsReferenceError) {
+      log.info('createShipment.duplicateCustomsReference', {
+        country: input.country,
+        existing: err.existingReference,
+      });
+      return { error: err.message };
+    }
     log.error('createShipment.failed', err);
     return null;
   }

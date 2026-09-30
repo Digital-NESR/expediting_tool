@@ -141,6 +141,9 @@ export default function NewShipmentClient({
   const [invoiceNum, setInvoiceNum] = useState('');
   const [invoiceVal, setInvoiceVal] = useState('');
   const [bayanNum, setBayanNum] = useState('');
+  /* Set only by the server, which is the only thing that can know the number is already taken. */
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const bayanRef = useRef<HTMLInputElement>(null);
   const [awbNum, setAwbNum] = useState('');
   const [poNum, setPoNum] = useState('');
   const [importDate, setImportDate] = useState('');
@@ -290,6 +293,18 @@ export default function NewShipmentClient({
         country: operatingCountry || undefined,
         additionalContacts: additionalContacts.filter((c) => c.name || c.email),
       });
+
+      /* A refusal the person can act on is shown against the field it belongs to as well as at
+         the top, because on a form this long the banner is off screen by the time they reach the
+         Customs Reference box. */
+      if (result && 'error' in result) {
+        setDuplicateError(result.error);
+        setErrorBanner(result.error);
+        setSubmitting(false);
+        bayanRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        bayanRef.current?.focus();
+        return;
+      }
 
       if (!result) {
         setErrorBanner('Failed to save shipment. Please try again.');
@@ -632,11 +647,29 @@ export default function NewShipmentClient({
               <div>
                 <label className={LBL}>Customs Reference Number</label>
                 <input
-                  className={INP}
+                  ref={bayanRef}
+                  className={
+                    duplicateError
+                      ? `${INP} border-[#B71C1C] bg-[#FDECEA] focus:border-[#B71C1C]`
+                      : INP
+                  }
                   placeholder="Customs reference or declaration number"
                   value={bayanNum}
-                  onChange={(e) => setBayanNum(e.target.value)}
+                  aria-invalid={duplicateError ? true : undefined}
+                  onChange={(e) => {
+                    setBayanNum(e.target.value);
+                    // Typing is the person answering the objection; the warning goes with it.
+                    if (duplicateError) {
+                      setDuplicateError(null);
+                      setErrorBanner('');
+                    }
+                  }}
                 />
+                {duplicateError && (
+                  <p className="mt-1.5 text-[12px] font-semibold leading-snug text-[#B71C1C]">
+                    {duplicateError}
+                  </p>
+                )}
               </div>
               <div>
                 <label className={LBL}>AWB / B/L number</label>

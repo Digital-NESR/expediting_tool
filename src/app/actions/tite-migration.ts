@@ -5,6 +5,7 @@ import { withTransaction } from '@/lib/db/tx';
 import { titeCountryCode, formatTiteReference, canonicalTiteCountry } from '@/lib/tite-constants';
 import { alertLevelFor } from '@/lib/tite-utils';
 import { requireAdmin, isAdminActor } from '@/lib/require-access';
+import { normaliseCustomsReference } from '@/lib/tite/duplicates';
 
 /** Hard ceiling on rows accepted per call — a bulk INSERT is not a free-for-all. */
 const MAX_IMPORT_ROWS = 5000;
@@ -233,6 +234,23 @@ function valuePlaceholders(count: number): string {
  * as inserted / skipped / errored, and a single bad row is retried on its own so
  * it cannot take its chunk down with it.
  */
+/**
+ * The customs references a country already holds, normalised for comparison.
+ *
+ * Read once per import rather than queried per row: a file runs to a few hundred rows and a
+ * round trip each would turn a seconds-long import into a minutes-long one.
+ */
+async function existingCustomsReferences(country: string): Promise<Set<string>> {
+  const { rows } = await titePool.query<{ ref: string }>(
+    `SELECT DISTINCT UPPER(TRIM(customs_reference_number)) AS ref
+       FROM shipments
+      WHERE country IS NOT DISTINCT FROM $1
+        AND COALESCE(TRIM(customs_reference_number), '') <> ''`,
+    [country],
+  );
+  return new Set(rows.map((r) => r.ref));
+}
+
 export async function importShipments(params: {
   country: string;
   filename: string;
@@ -261,6 +279,12 @@ export async function importShipments(params: {
   const lines = new Map<number, string>(); // rowIndex → log line, emitted in order
   const prepared: PreparedRow[] = [];
   const seenRefs = new Set<string>();
+  /* Customs references already in this country, plus the ones this file has used so far.
+     Both duplicate pairs in the register today came in through a migration, not through the
+     form, so a guard that only covered the form would leave the route that actually caused the
+     problem open. */
+  const seenCustomsRefs = new Set<string>();
+  for (const existing of await existingCustomsReferences(country)) seenCustomsRefs.add(existing);
   let skipped = 0;
   let errors = 0;
 
@@ -287,6 +311,20 @@ export async function importShipments(params: {
       continue;
     }
     seenRefs.add(reference_number);
+
+    /* A repeated declaration number is skipped rather than imported: two shipments sharing one
+       count its deposit twice on the register summary. Skipped, not failed, because one bad row
+       must not cost the other three hundred their import. */
+    const customsRef = normaliseCustomsReference(row.customs_reference_number);
+    if (customsRef && seenCustomsRefs.has(customsRef)) {
+      lines.set(
+        row.rowIndex,
+        `⚠️  ${reference_number}: customs reference ${customsRef} is already on another shipment in ${country}, skipped`,
+      );
+      skipped++;
+      continue;
+    }
+    if (customsRef) seenCustomsRefs.add(customsRef);
 
     // Dates are parsed HERE and only here. The client sends raw cell values.
     const importDate = parseDateFlexible(row.import_date);
